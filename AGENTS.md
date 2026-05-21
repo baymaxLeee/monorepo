@@ -46,7 +46,7 @@ caution / forbidden for unprompted edits.
 
 | Command | What it does |
 |---|---|
-| `just up` | Docker (Postgres, Redis) + ensure DBs + dev schema (`migrate-dev.sh`) |
+| `just up` | Docker (MySQL 8, Redis) + DB bootstrap (`scripts/db-bootstrap.sh`) |
 | `just down` | Stop local infra |
 | `just install` | Install ALL deps (mise + pnpm + uv + go; copies `.env` from examples) |
 | `just dev` | Start full demo stack (api-gateway + admin svc + platform + admin MFE) |

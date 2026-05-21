@@ -16,16 +16,16 @@ check() {
 
 echo "── Tooling check ──"
 fail=0
-for cmd in node pnpm python uv go just docker jq mise; do
+for cmd in node pnpm python uv go just docker jq curl mise; do
   check "$cmd" || fail=1
 done
 
 echo ""
 echo "── Docker services ──"
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -q monorepo-postgres; then
-  ok "postgres running"
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -q monorepo-mysql; then
+  ok "mysql running"
 else
-  miss "postgres NOT running (try: just up)"
+  miss "mysql NOT running (try: just up)"
 fi
 if docker ps --format '{{.Names}}' 2>/dev/null | grep -q monorepo-redis; then
   ok "redis running"

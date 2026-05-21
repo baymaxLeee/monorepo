@@ -13,7 +13,8 @@ For adding a new MFE under `apps/frontend/apps/<name>/`.
        - name: <name_snake>
        - filename: remoteEntry.js
        - exposes: { "./App": "./src/App.tsx", "./routes": "./src/routes.ts" }
-       - shared: react, react-dom, @app/runtime, @app/ui-kit (singletons)
+       - shared: react, react-dom, @packages/runtime, @packages/auth-client (singletons)
+       - UI: `@packages/components` in MFE deps only (on-demand bundle, not MF shared)
 
 [ ] 3. Register in platform:
        apps/frontend/apps/platform/src/registry.ts → add entry
@@ -40,6 +41,6 @@ For adding a new MFE under `apps/frontend/apps/<name>/`.
 
 ## Hard rules
 - Never import from another MFE
-- Always use @app/ui-kit components, not raw HTML when possible
-- Always use @app/api-client/<svc> for API calls, never raw fetch
-- Use @app/runtime event bus for cross-MFE signaling
+- Always use @packages/components, not raw HTML when possible
+- Always use @packages/api-client/<svc> for API calls, never raw fetch
+- Use @packages/runtime event bus for cross-MFE signaling

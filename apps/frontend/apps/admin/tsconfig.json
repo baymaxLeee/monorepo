@@ -2,8 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    "paths": { "@/*": ["apps/admin/src/*"] }
   },
-  "include": ["src/**/*", "rspack.config.ts"]
+  "include": ["src/**/*"]
 }

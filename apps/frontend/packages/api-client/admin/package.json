@@ -1,5 +1,5 @@
 {
-  "name": "@app/api-client-admin",
+  "name": "api-client-admin",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@app/shared": "workspace:*"
+    "auth-client": "workspace:*",
+    "shared": "workspace:*"
   }
 }

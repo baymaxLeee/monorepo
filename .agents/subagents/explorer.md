@@ -6,7 +6,7 @@
 - "How is permission checked in identity service?"
 - "Find all callers of libs.transport.retry"
 - "Summarize how the audit pipeline routes events"
-- "What MFEs consume @app/api-client/admin?"
+- "What MFEs consume @api-client/admin?"
 
 ## Procedure
 1. Use grep/glob/read tools heavily

@@ -34,7 +34,7 @@ Required input:
 
 ### Frontend
 - Any imports across MFEs?
-- Any raw `fetch()` calls? (must use `@app/api-client`)
+- Any raw `fetch()` calls? (must use `@packages/api-client`)
 - Any `any` types?
 - Any hardcoded color/spacing? (must use design tokens)
 

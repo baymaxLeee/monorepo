@@ -6,13 +6,12 @@ default:
     @just --list
 
 # ─── Lifecycle ──────────────────────────────────────────────
-# Start local infra: Docker, ensure DBs, apply dev schema.
+# Start local infra: Docker, create DBs, apply service-owned dev schemas.
 up:
     docker compose up -d
-    @./scripts/wait-for-postgres.sh
-    @./scripts/ensure-dev-databases.sh
-    @./scripts/migrate-dev.sh
-    @echo "OK Infra up - Postgres :5432, Redis :6379"
+    @./scripts/wait-for-mysql.sh
+    @./scripts/db-bootstrap.sh
+    @echo "OK Infra up - MySQL :3306, Redis :6379"
 
 down:
     docker compose down
@@ -38,6 +37,7 @@ dev-urls:
     @echo "  platform:  http://localhost:3000"
     @echo "  mfe-admin: http://localhost:3001"
     @echo "  gateway:   http://localhost:8000"
+    @echo "  identity:  http://localhost:8002/healthz"
     @echo "  svc-admin: http://localhost:8001/docs"
 
 # ─── Build ──────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-"""Use admin_test database; TestClient lifespan wires up Postgres + Redis."""
+"""Use admin_test database; TestClient lifespan wires up MySQL + Redis."""
 
 import os
 from collections.abc import Iterator
@@ -11,8 +11,14 @@ from fastapi.testclient import TestClient
 _ENV_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(_ENV_DIR / ".env")
 
-os.environ["DATABASE_URL"] = "postgresql+asyncpg://dev:dev@localhost:5432/admin_test"
-os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
+os.environ["MYSQL_DATABASE"] = "admin_test"
+os.environ.setdefault("REDIS_HOST", "localhost")
+os.environ.setdefault("REDIS_PORT", "6379")
+os.environ.setdefault("REDIS_DB", "0")
+
+from admin.config import get_settings
+
+get_settings.cache_clear()
 
 
 @pytest.fixture(scope="session")

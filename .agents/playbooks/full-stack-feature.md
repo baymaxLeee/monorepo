@@ -32,7 +32,7 @@ window**. Do NOT split into separate frontend/backend sub-agents.
 [ ] 5. FRONTEND
        cd apps/frontend/apps/<mfe>
        Read mfe-level AGENTS.md ONCE
-       Import freshly generated @app/api-client/<svc>
+       Import freshly generated @api-client/<svc>
        Implement UI + tests
        From apps/frontend: `just test <mfe>`
 

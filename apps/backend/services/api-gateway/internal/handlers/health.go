@@ -14,10 +14,10 @@ func Healthz(st *store.Store) http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()
 
-		postgres := "up"
+		mysql := "up"
 		redis := "up"
-		if err := st.Postgres.Ping(ctx); err != nil {
-			postgres = "down"
+		if err := st.MySQL.PingContext(ctx); err != nil {
+			mysql = "down"
 		}
 		if err := st.Redis.Ping(ctx).Err(); err != nil {
 			redis = "down"
@@ -25,14 +25,14 @@ func Healthz(st *store.Store) http.HandlerFunc {
 
 		status := "ok"
 		code := http.StatusOK
-		if postgres != "up" || redis != "up" {
+		if mysql != "up" || redis != "up" {
 			status = "degraded"
 			code = http.StatusServiceUnavailable
 		}
 		writeJSON(w, code, map[string]string{
-			"status":   status,
-			"postgres": postgres,
-			"redis":    redis,
+			"status": status,
+			"mysql":  mysql,
+			"redis":  redis,
 		})
 	}
 }

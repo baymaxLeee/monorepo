@@ -9,18 +9,18 @@ router = APIRouter(tags=["meta"])
 
 @router.get("/healthz")
 async def healthz() -> dict[str, object]:
-    postgres_ok = False
+    mysql_ok = False
     redis_ok = await ping_redis()
     try:
         async with get_engine().connect() as conn:
             await conn.execute(text("SELECT 1"))
-        postgres_ok = True
+        mysql_ok = True
     except Exception:
-        postgres_ok = False
+        mysql_ok = False
 
-    status = "ok" if postgres_ok and redis_ok else "degraded"
+    status = "ok" if mysql_ok and redis_ok else "degraded"
     return {
         "status": status,
-        "postgres": "up" if postgres_ok else "down",
+        "mysql": "up" if mysql_ok else "down",
         "redis": "up" if redis_ok else "down",
     }

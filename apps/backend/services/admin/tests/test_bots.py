@@ -31,5 +31,5 @@ def test_healthz_reports_dependencies(client: TestClient) -> None:
     r = client.get("/healthz")
     assert r.status_code == 200
     body = r.json()
-    assert body["postgres"] == "up"
+    assert body["mysql"] == "up"
     assert body["redis"] == "up"

@@ -38,6 +38,7 @@ func main() {
 
 	r.Get("/healthz", handlers.Healthz(st))
 	r.Get("/", handlers.Index)
+	r.Mount("/v1/auth", handlers.NewIdentityProxy(cfg.IdentityServiceURL))
 	r.Mount("/v1/bots", handlers.NewAdminProxy(cfg.AdminServiceURL))
 
 	srv := &http.Server{
@@ -50,7 +51,8 @@ func main() {
 		slog.Info("api-gateway starting",
 			"port", cfg.Port,
 			"admin_upstream", cfg.AdminServiceURL,
-			"postgres", "connected",
+			"identity_upstream", cfg.IdentityServiceURL,
+			"mysql", "connected",
 			"redis", "connected",
 		)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

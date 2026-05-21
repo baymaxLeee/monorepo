@@ -18,14 +18,14 @@ dev-all:
     pnpm dev
 
 # ─── build/test ─────────────────────────────────────────
-# build [target]: no arg = all apps; or platform | admin | mfe-* | ui-kit | ...
+# build [target]: no arg = all apps; or platform | admin | mfe-* | components | ...
 build target="":
     @if [ -z "{{ target }}" ]; then \
         echo "→ Building all (turbo)..." && pnpm build; \
     elif echo "{{ target }}" | grep -qE "^mfe-|^(platform|admin)$"; then \
         echo "→ Building app: {{ target }}" && pnpm -F {{ target }} build; \
     elif [ -d "packages/{{ target }}" ] || [ -d "packages/api-client/{{ target }}" ]; then \
-        echo "→ Building package: @app/{{ target }}" && pnpm -F "@app/{{ target }}" build; \
+        echo "→ Building package: {{ target }}" && pnpm -F {{ target }} build; \
     else \
         echo "✗ Unknown target: {{ target }} (not in apps/ or packages/)"; exit 1; \
     fi
@@ -33,7 +33,7 @@ build target="":
 test pkg="":
     @if [ -z "{{ pkg }}" ]; then pnpm test; \
     elif echo "{{ pkg }}" | grep -qE "^mfe-|^(platform|admin)$"; then pnpm -F {{ pkg }} test; \
-    else pnpm -F "@app/{{ pkg }}" test; fi
+    else pnpm -F {{ pkg }} test; fi
 
 # ─── quality ────────────────────────────────────────────
 lint:

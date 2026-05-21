@@ -12,6 +12,10 @@ trap 'kill 0' EXIT INT TERM
   uv run uvicorn admin.main:app --reload --port 8001 2>&1 | sed 's/^/[svc-admin] /'
 ) &
 (
+  cd apps/backend/services/identity
+  go run ./cmd/server 2>&1 | sed 's/^/[identity]  /'
+) &
+(
   cd apps/backend/services/api-gateway
   go run ./cmd/server 2>&1 | sed 's/^/[gateway]   /'
 ) &

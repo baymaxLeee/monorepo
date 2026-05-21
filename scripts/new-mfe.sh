@@ -3,7 +3,7 @@
 #
 # Generates a full Module Federation remote skeleton wired into the central
 # shared-deps registry (apps/frontend/mf-shared.ts), so the new MFE
-# automatically reuses the host's pre-loaded React + @app/* platform packages.
+# automatically reuses the host's pre-loaded React + @packages/shared, @packages/runtime, @packages/auth-client, @packages/components, @packages/api-client platform packages.
 set -euo pipefail
 
 NAME="${1:?Usage: new-mfe.sh <name> (e.g. mfe-scene)}"
@@ -49,12 +49,17 @@ cat > "$MFE_DIR/package.json" <<EOF
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@app/runtime": "workspace:*",
-    "@app/shared": "workspace:*",
-    "@app/ui-kit": "workspace:*",
+    "runtime": "workspace:*",
+    "shared": "workspace:*",
+    "components": "workspace:*",
+    "radix-ui": "^1.4.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "react-router-dom": "^6.26.0"
+    "react-router-dom": "^6.26.0",
+    "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
     "@module-federation/enhanced": "^0.8.0",
@@ -74,31 +79,34 @@ cat > "$MFE_DIR/tsconfig.json" <<EOF
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "outDir": "dist", "baseUrl": "." },
-  "include": ["src/**/*", "rspack.config.ts"]
+  "include": ["src/**/*"]
 }
 EOF
 
-cat > "$MFE_DIR/rspack.config.ts" <<'EOF'
+cat > "$MFE_DIR/rspack.config.mjs" <<'EOF'
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { ModuleFederationPlugin } from "@module-federation/enhanced/rspack";
 import HtmlWebpackPlugin from "html-webpack-plugin";
 import { defineConfig } from "@rspack/cli";
 import { buildShared } from "../../mf-shared.mjs";
+import { createAppResolveAlias } from "../../rspack.shared.mjs";
 
 const PORT = Number(process.env.PORT ?? 3099);
+const appDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   entry: "./src/main.tsx",
   mode: process.env.NODE_ENV === "production" ? "production" : "development",
   output: {
-    path: path.resolve("dist"),
+    path: path.resolve(appDir, "dist"),
     publicPath: "auto",
     uniqueName: "__MF_NAME__",
     clean: true,
   },
   resolve: {
     extensions: [".ts", ".tsx", ".js", ".jsx"],
-    alias: { "@": path.resolve("src") },
+    alias: createAppResolveAlias(appDir),
   },
   module: {
     rules: [
@@ -113,11 +121,6 @@ export default defineConfig({
           },
         },
       },
-      {
-        test: /\.css$/,
-        use: ["style-loader", "css-loader"],
-        type: "javascript/auto",
-      },
     ],
   },
   plugins: [
@@ -129,8 +132,6 @@ export default defineConfig({
       exposes: {
         "./App": "./src/App.tsx",
       },
-      // remote = NOT eager. Federated: consume host's eager copies.
-      // Standalone: async boundary in src/main.tsx inits scope before consume.
       shared: buildShared("remote"),
     }),
   ],
@@ -143,8 +144,7 @@ export default defineConfig({
 });
 EOF
 
-# Substitute MF name placeholder
-sed -i.bak "s/__MF_NAME__/$MF_NAME/g" "$MFE_DIR/rspack.config.ts" && rm "$MFE_DIR/rspack.config.ts.bak"
+sed -i.bak "s/__MF_NAME__/$MF_NAME/g" "$MFE_DIR/rspack.config.mjs" && rm -f "$MFE_DIR/rspack.config.mjs.bak"
 
 cat > "$MFE_DIR/src/index.html" <<EOF
 <!doctype html>
@@ -188,10 +188,14 @@ export default function App() {
 }
 EOF
 
+cat > "$MFE_DIR/src/types.d.ts" <<'EOF'
+/* Tailwind globals are injected by platform host — no CSS in MFE. */
+EOF
+
 echo "✓ Created $MFE_DIR"
 echo ""
 echo "Next:"
-echo "  1. Add to apps/frontend/apps/platform/rspack.config.ts remotes:"
+echo "  1. Add to apps/frontend/apps/platform/rspack.config.mjs remotes:"
 echo "       $MF_NAME: \`$MF_NAME@http://localhost:<port>/mf-manifest.json\`"
 echo "  2. Add to apps/frontend/apps/platform/src/registry.ts"
 echo "  3. Pick a free port in apps/frontend/justfile PORTS map"

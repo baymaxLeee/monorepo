@@ -2,40 +2,38 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/redis/go-redis/v9"
 )
 
 // Store holds shared infrastructure connections.
 type Store struct {
-	Postgres *pgxpool.Pool
-	Redis    *redis.Client
+	MySQL *sql.DB
+	Redis *redis.Client
 }
 
-// Connect opens Postgres and Redis using the given URLs.
+// Connect opens MySQL and Redis using the given URLs.
 func Connect(ctx context.Context, databaseURL, redisURL string) (*Store, error) {
-	pgCfg, err := pgxpool.ParseConfig(databaseURL)
+	db, err := sql.Open("mysql", databaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("parse database url: %w", err)
+		return nil, fmt.Errorf("open mysql: %w", err)
 	}
-	pgCfg.MaxConns = 4
-
-	pool, err := pgxpool.NewWithConfig(ctx, pgCfg)
-	if err != nil {
-		return nil, fmt.Errorf("connect postgres: %w", err)
-	}
+	db.SetMaxOpenConns(4)
+	db.SetMaxIdleConns(2)
+	db.SetConnMaxLifetime(5 * time.Minute)
 
 	rOpts, err := redis.ParseURL(redisURL)
 	if err != nil {
-		pool.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("parse redis url: %w", err)
 	}
 	rdb := redis.NewClient(rOpts)
 
-	s := &Store{Postgres: pool, Redis: rdb}
+	s := &Store{MySQL: db, Redis: rdb}
 	if err := s.Ping(ctx); err != nil {
 		s.Close()
 		return nil, err
@@ -49,13 +47,13 @@ func Connect(ctx context.Context, databaseURL, redisURL string) (*Store, error) 
 	return s, nil
 }
 
-// Ping checks Postgres and Redis connectivity.
+// Ping checks MySQL and Redis connectivity.
 func (s *Store) Ping(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	if err := s.Postgres.Ping(ctx); err != nil {
-		return fmt.Errorf("postgres ping: %w", err)
+	if err := s.MySQL.PingContext(ctx); err != nil {
+		return fmt.Errorf("mysql ping: %w", err)
 	}
 	if err := s.Redis.Ping(ctx).Err(); err != nil {
 		return fmt.Errorf("redis ping: %w", err)
@@ -65,8 +63,8 @@ func (s *Store) Ping(ctx context.Context) error {
 
 // Close releases all connections.
 func (s *Store) Close() {
-	if s.Postgres != nil {
-		s.Postgres.Close()
+	if s.MySQL != nil {
+		_ = s.MySQL.Close()
 	}
 	if s.Redis != nil {
 		_ = s.Redis.Close()

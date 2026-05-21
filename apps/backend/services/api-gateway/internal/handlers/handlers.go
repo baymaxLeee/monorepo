@@ -12,16 +12,24 @@ import (
 func Index(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{
 		"service": "api-gateway",
-		"docs":    "/healthz | /v1/bots (proxied to admin service)",
+		"docs":    "/healthz | /v1/auth | /v1/bots",
 	})
 }
 
 // NewAdminProxy returns a reverse proxy to the admin service.
 // chi.Mount preserves the URL path, so we just forward as-is.
 func NewAdminProxy(upstream string) http.Handler {
+	return newReverseProxy(upstream, "admin")
+}
+
+func NewIdentityProxy(upstream string) http.Handler {
+	return newReverseProxy(upstream, "identity")
+}
+
+func newReverseProxy(upstream, service string) http.Handler {
 	target, err := url.Parse(strings.TrimRight(upstream, "/"))
 	if err != nil {
-		panic("invalid admin upstream url: " + err.Error())
+		panic("invalid " + service + " upstream url: " + err.Error())
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	originalDirector := proxy.Director
@@ -30,6 +38,7 @@ func NewAdminProxy(upstream string) http.Handler {
 		originalDirector(req)
 		req.Host = target.Host
 		slog.Info("proxy",
+			"service", service,
 			"to", target.String()+req.URL.Path,
 			"from_path", incomingPath,
 		)

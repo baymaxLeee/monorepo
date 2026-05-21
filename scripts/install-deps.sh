@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install all workspace dependencies (tools + frontend + backend). Idempotent.
-# Does NOT start Docker — run `just up` for Postgres/Redis and schema.
+# Does NOT start Docker — run `just up` for MySQL/Redis and schema.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -38,9 +38,12 @@ else
 fi
 
 echo ""
-echo "── 5. Backend Go (api-gateway) ──"
+echo "── 5. Backend Go services ──"
 if command -v go >/dev/null 2>&1; then
-  (cd apps/backend/services/api-gateway && go mod download && go mod tidy)
+  for svc in api-gateway identity; do
+    echo "  → $svc"
+    (cd "apps/backend/services/$svc" && go mod download && go mod tidy)
+  done
 else
   echo "  ✗ go not found; install via mise or https://go.dev/dl/" >&2
   exit 1
@@ -50,7 +53,8 @@ echo ""
 echo "── 6. Local .env files (from .env.example if missing) ──"
 for pair in \
   "apps/backend/services/admin/.env.example:apps/backend/services/admin/.env" \
-  "apps/backend/services/api-gateway/.env.example:apps/backend/services/api-gateway/.env"; do
+  "apps/backend/services/api-gateway/.env.example:apps/backend/services/api-gateway/.env" \
+  "apps/backend/services/identity/.env.example:apps/backend/services/identity/.env"; do
   src="${pair%%:*}"
   dst="${pair##*:}"
   if [ -f "$src" ] && [ ! -f "$dst" ]; then

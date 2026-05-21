@@ -15,7 +15,8 @@ createRoot(container).render(
         fontFamily: "system-ui",
       }}
     >
-      Running <strong>admin</strong> in standalone mode.
+      Running <strong>admin</strong> standalone — open via platform (:3000) for
+      Tailwind styles, or styles will be unstyled here.
     </div>
     <App />
   </BrowserRouter>,

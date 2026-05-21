@@ -33,11 +33,11 @@ just dev
 
 `just install` 帮你做了:
 - 脚本可执行权限、`mise install`
-- `pnpm install`(前端)、`uv sync`(后端 Python)、`go mod tidy`(api-gateway)
+- `pnpm install`(前端)、`uv sync`(后端 Python)、Go services `go mod tidy`
 - 从 `.env.example` 复制缺失的 `.env`
 
 `just up` 帮你做了:
-- `docker compose up -d`(Postgres + Redis)、建库、admin schema/种子数据
+- `docker compose up -d`(MySQL 8 + Redis)、建库、admin schema/种子数据
 
 跑完之后浏览器打开 **http://localhost:3000**,就能看到完整跨栈链路:
 
@@ -94,7 +94,7 @@ just down    # 收工,关 docker
 | `just dev` | **起全套服务**,Ctrl+C 全停 ⭐ |
 | `just dev-shell` | 同上,但用纯 shell 模式(无 overmind 时的 fallback) |
 | `just dev-urls` | 列出所有服务的 URL |
-| `just up` / `just down` | 起 / 关 docker(Postgres + Redis) |
+| `just up` / `just down` | 起 / 关 docker(MySQL + Redis) |
 | `just install` | 装所有依赖(前端 + 后端 Py + Go) |
 | `just build` | **全栈构建**(前端 dist + Go 二进制) |
 | `just build <target>` | 单目标构建:`shell` / `mfe-bot` / `api-gateway` / `frontend` / `backend` |
@@ -155,7 +155,7 @@ overmind kill                  # 全部干掉
 - ✅ **工具版本锁定**:`mise.toml` 一文件锁住 node/pnpm/python/uv/go/just,任何人/CI clone 下来 `mise install` 就是同一套环境
 - ✅ **统一命令入口**:`justfile` 顶层 + 每个子 monorepo,`just <动词> [对象]` 一致语法,agent 不用猜命令
 - ✅ **一条命令起全栈**:`just dev` 自动检测 overmind/mprocs/hivemind,没有则回退到纯 shell,Ctrl+C 干净退出
-- ✅ **本地依赖一把起**:`docker compose up -d` 起 Postgres + Redis,带初始化脚本自动建多个 DB
+- ✅ **本地依赖一把起**:`docker compose up -d` 起 MySQL 8 + Redis,带初始化脚本自动建多个 DB
 
 ### 跨栈协作
 
@@ -218,10 +218,10 @@ overmind kill                  # 全部干掉
 | 层 | 包 | 用途 | 在 host(shell) | 在 remote(mfe-*) |
 |---|---|---|---|---|
 | Tier 1:框架级 | `react`、`react-dom`、`react-router-dom` | React 18 生态,**必须 singleton** | `eager: true` | `eager: false` |
-| Tier 2:平台基础设施 | `@app/shared`、`@app/runtime`、`@app/design-tokens`、`@app/auth-client`、`@app/ui-kit` | 项目内通用 workspace 包 | `eager: true` | `eager: false` |
+| Tier 2:平台基础设施 | `@packages/shared`、`@packages/runtime`、`@packages/auth-client` | 项目内通用 workspace 包 | `eager: true` | `eager: false` |
 
 **不进 shared 的**(各 MFE 自带):
-- 服务粒度的 client(`@app/api-client/bot`、`@app/api-client/scene` ...,只有少数 MFE 用)
+- 服务粒度的 client(`@packages/api-client/bot`、`@packages/api-client/scene` ...,只有少数 MFE 用)
 - MFE 业务专属 UX 库(`react-markdown`、`monaco-editor`、图表库...)
 
 ### 为什么 host 要 eager,remote 不要
@@ -273,7 +273,7 @@ just sync
 
 # 4. 前端:在 mfe-bot 加按钮
 cd apps/frontend/apps/mfe-bot
-# (编辑 src/App.tsx,从 @app/api-client/bot import 新方法)
+# (编辑 src/App.tsx,从 @packages/api-client/bot import 新方法)
 
 # 5. 测试
 cd ../..
@@ -306,7 +306,7 @@ monorepo/
 │   ├── frontend/              ── 微前端 monorepo(pnpm)
 │   │   ├── apps/shell/        ←   Module Federation Host(主壳)
 │   │   ├── apps/mfe-bot/      ←   Module Federation Remote(智能体模块)
-│   │   └── packages/          ←   ui-kit / runtime / shared / api-client / ...
+│   │   └── packages/          ←   components / runtime / shared / api-client / ...
 │   │
 │   └── backend/               ── 微服务 monorepo(uv + go.work)
 │       ├── services/bot/      ←   Python FastAPI(智能体服务)
@@ -320,7 +320,7 @@ monorepo/
 │
 ├── infra/k8s/                 ← Kustomize 部署清单
 ├── docs/                      ← ADR + 架构 + 规范 + 多 agent 协作
-├── scripts/                   ← bootstrap / doctor / new-service / new-mfe / worktree
+├── scripts/                   ← just recipes 的实现脚本 + README.md 索引
 └── .github/workflows/         ← CI(path-filtered)
 ```
 
@@ -415,11 +415,11 @@ uv sync --all-packages
 lsof -ti :3000 | xargs kill -9
 ```
 
-### Docker 起不来 / Postgres 端口冲突
+### Docker 起不来 / MySQL 端口冲突
 
 ```bash
 just down            # 关掉本仓库的 docker
-docker ps            # 看是不是有别的项目占了 5432 / 6379
+docker ps            # 看是不是有别的项目占了 3306 / 6379
 # 必要时改 docker-compose.yml 的 ports
 ```
 
@@ -456,7 +456,7 @@ docker ps            # 看是不是有别的项目占了 5432 / 6379
 
 - 加新微服务:`./scripts/new-service.sh identity`
 - 加新微前端:`./scripts/new-mfe.sh mfe-scene`
-- 接入真实 DB:在 `bot` 服务的 `pyproject.toml` 加 `asyncpg`,补 alembic migration
+- 生产迁移:在 `admin` 服务用 alembic 管理 schema(本地 dev 仍用 `create_all` + seed)
 - 接入 OTel:扩 `libs/observability/`,在 `main.py` 调 `setup("bot")`
 - gRPC 服务间调用:补 `schemas/proto/<svc>/v1/*.proto`,`buf generate`
 - 部署到 K8s:`infra/k8s/base/<svc>/` 已就位,改镜像 tag 即可

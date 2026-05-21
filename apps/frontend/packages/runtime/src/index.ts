@@ -2,6 +2,7 @@
  * MFE runtime: lightweight pub/sub event bus and helpers.
  * MFEs SHOULD NOT import from each other; cross-MFE signaling goes here.
  */
+import { create } from "zustand";
 
 type Handler<T = unknown> = (payload: T) => void;
 
@@ -22,3 +23,13 @@ export const Events = {
   BotPublished: "bot:published",
   ScenePicked: "scene:picked",
 } as const;
+
+export type ShellState = {
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+};
+
+export const useShellStore = create<ShellState>((set) => ({
+  sidebarCollapsed: false,
+  setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
+}));

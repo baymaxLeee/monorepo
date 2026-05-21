@@ -1,0 +1,15 @@
+{
+  "name": "packages",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./shared": "./shared/src/index.ts",
+    "./runtime": "./runtime/src/index.ts",
+    "./auth-client": "./auth-client/src/index.ts",
+    "./components": "./components/src/index.ts",
+    "./components/styles.css": "./components/src/styles.css",
+    "./api-client/admin": "./api-client/admin/src/index.ts"
+  }
+}

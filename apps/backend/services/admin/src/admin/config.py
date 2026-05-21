@@ -1,7 +1,9 @@
 """Service configuration from environment / .env."""
 
 from functools import lru_cache
+from urllib.parse import quote_plus
 
+from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,8 +15,31 @@ class Settings(BaseSettings):
     )
 
     port: int = 8001
-    database_url: str = "postgresql+asyncpg://dev:dev@localhost:5432/admin"
-    redis_url: str = "redis://localhost:6379/0"
+
+    mysql_host: str = "localhost"
+    mysql_port: int = 3306
+    mysql_user: str = "dev"
+    mysql_password: str = "dev"
+    mysql_database: str = "admin"
+
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def database_url(self) -> str:
+        user = quote_plus(self.mysql_user)
+        password = quote_plus(self.mysql_password)
+        return (
+            f"mysql+asyncmy://{user}:{password}@"
+            f"{self.mysql_host}:{self.mysql_port}/{self.mysql_database}"
+        )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def redis_url(self) -> str:
+        return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
 
 @lru_cache

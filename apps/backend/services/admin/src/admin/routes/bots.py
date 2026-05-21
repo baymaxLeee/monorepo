@@ -1,4 +1,4 @@
-"""Bot CRUD routes (Postgres + Redis)."""
+"""Bot CRUD routes (MySQL + Redis)."""
 
 from datetime import UTC, datetime
 from typing import Literal

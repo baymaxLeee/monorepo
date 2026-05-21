@@ -11,10 +11,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@app/api-client": "workspace:*",
-    "@app/runtime": "workspace:*",
-    "@app/shared": "workspace:*",
-    "@app/ui-kit": "workspace:*",
+    "packages": "workspace:*",
+    "api-client": "workspace:*",
+    "components": "workspace:*",
+    "runtime": "workspace:*",
+    "shared": "workspace:*",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-router-dom": "^6.26.0"

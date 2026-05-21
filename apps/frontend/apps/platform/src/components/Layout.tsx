@@ -1,47 +1,59 @@
 import type { ReactNode } from "react";
+import { logout, type AuthUser } from "@packages/auth-client";
+import { cn } from "@packages/shared";
 import { Link, useLocation } from "react-router-dom";
 import { registry } from "../registry";
 
-export function Layout({ children }: { children: ReactNode }) {
+export function Layout({
+  children,
+  user,
+  onUserChanged,
+}: {
+  children: ReactNode;
+  user: AuthUser;
+  onUserChanged: (user: AuthUser | null) => void;
+}) {
   const location = useLocation();
+  async function handleLogout() {
+    await logout();
+    onUserChanged(null);
+  }
+
   return (
-    <div
-      style={{
-        fontFamily: "system-ui, -apple-system, sans-serif",
-        minHeight: "100vh",
-        display: "grid",
-        gridTemplateRows: "auto 1fr",
-      }}
-    >
-      <header
-        style={{
-          padding: "12px 24px",
-          background: "#0f172a",
-          color: "white",
-          display: "flex",
-          alignItems: "center",
-          gap: 24,
-        }}
-      >
-        <strong style={{ fontSize: 18 }}>Monorepo Demo (Shell)</strong>
-        <nav style={{ display: "flex", gap: 16 }}>
+    <div className="grid min-h-screen grid-rows-[auto_1fr] font-sans">
+      <header className="flex items-center gap-6 border-b bg-foreground px-6 py-3 text-background">
+        <strong className="text-lg">Monorepo Demo (Shell)</strong>
+        <nav className="flex gap-4">
           {registry.map((m) => {
             const active = location.pathname.startsWith(m.basePath);
             return (
               <Link
                 key={m.id}
                 to={m.basePath}
-                style={{
-                  color: active ? "#fde047" : "#cbd5e1",
-                  textDecoration: "none",
-                  fontWeight: active ? 600 : 400,
-                }}
+                className={cn(
+                  "text-sm no-underline transition-colors",
+                  active
+                    ? "font-semibold text-background"
+                    : "font-normal text-background/60",
+                )}
               >
                 {m.title}
               </Link>
             );
           })}
         </nav>
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-sm text-background/80">
+            {user.displayName}
+          </span>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="cursor-pointer rounded-md border border-background/30 bg-transparent px-2.5 py-1.5 text-sm text-background hover:bg-background/10"
+          >
+            退出
+          </button>
+        </div>
       </header>
       <main>{children}</main>
     </div>

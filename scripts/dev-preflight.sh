@@ -2,12 +2,12 @@
 # Checks infra + frontend deps before `just dev`. Does not start Docker.
 set -euo pipefail
 
-if ! docker compose ps 2>/dev/null | grep -q monorepo-postgres; then
-  echo "✗ Postgres not running. Run: just up" >&2
+if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^monorepo-mysql$'; then
+  echo "✗ MySQL not running. Run: just up" >&2
   exit 1
 fi
 
-if ! docker compose ps 2>/dev/null | grep -q monorepo-redis; then
+if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^monorepo-redis$'; then
   echo "✗ Redis not running. Run: just up" >&2
   exit 1
 fi

@@ -3,7 +3,7 @@ set shell := ["bash", "-cu"]
 
 # Service registry (Python services and their fixed dev ports)
 PY_SERVICES := "admin"
-GO_SERVICES := "api-gateway"
+GO_SERVICES := "api-gateway identity"
 
 # Fixed port allocation so multiple agents/dev servers don't collide
 PORTS := '{"admin":8001,"identity":8002,"scene":8003,"intention":8004,"permission":8005,"audit":8006,"notification":8007,"api-gateway":8000}'
@@ -15,7 +15,7 @@ default:
 dev service:
     @PORT=$(echo '{{ PORTS }}' | jq -r '.["{{ service }}"]') && \
     if [ -d "services/{{ service }}" ]; then \
-        if [ "{{ service }}" = "api-gateway" ]; then \
+        if [ -f "services/{{ service }}/go.mod" ]; then \
             echo "→ Go service {{ service }} on :$PORT" && \
             cd services/{{ service }} && PORT=$PORT go run ./cmd/server; \
         else \
@@ -37,7 +37,7 @@ test scope="":
     fi
 
 test-go:
-    cd services/api-gateway && go test ./...
+    @for s in {{ GO_SERVICES }}; do echo "=== $s ===" && (cd services/$s && go test ./...); done
 
 # ─── build ──────────────────────────────────────────────
 # Python services don't need a separate build step — they ship as source +
@@ -55,7 +55,7 @@ build target="":
     @if [ -z "{{ target }}" ]; then \
         just build-go && just build-images; \
     elif [ -d "services/{{ target }}" ]; then \
-        if [ "{{ target }}" = "api-gateway" ]; then just build-go-svc {{ target }}; \
+        if [ -f "services/{{ target }}/go.mod" ]; then just build-go-svc {{ target }}; \
         else just build-py-svc {{ target }}; fi; \
     else echo "✗ Unknown service: {{ target }}"; exit 1; fi
 
@@ -99,7 +99,7 @@ build-images registry="local" tag="latest":
 fmt:
     uv run ruff check --fix .
     uv run ruff format .
-    cd services/api-gateway && gofmt -w .
+    @for s in {{ GO_SERVICES }}; do cd services/$s && gofmt -w .; cd ../..; done
 
 lint scope="":
     @if [ -z "{{ scope }}" ]; then \
@@ -109,7 +109,7 @@ lint scope="":
     fi
 
 lint-go:
-    cd services/api-gateway && go vet ./...
+    @for s in {{ GO_SERVICES }}; do echo "=== $s ===" && (cd services/$s && go vet ./...); done
 
 # ─── schema ─────────────────────────────────────────────
 gen-openapi service:

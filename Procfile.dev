@@ -8,6 +8,7 @@
 #   - We DO wait for mfe-admin's manifest before starting platform.
 
 svc-admin: cd apps/backend/services/admin && uv run uvicorn admin.main:app --reload --port 8001
+identity:  cd apps/backend/services/identity && go run ./cmd/server
 gateway:   cd apps/backend/services/api-gateway && go run ./cmd/server
 mfe-admin: cd apps/frontend && PORT=3001 pnpm -F admin dev
 platform:  ./scripts/wait-for-url.sh http://localhost:3001/mf-manifest.json mfe-admin && cd apps/frontend && PORT=3000 pnpm -F platform dev

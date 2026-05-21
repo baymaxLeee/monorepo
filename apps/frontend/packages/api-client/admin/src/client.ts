@@ -6,7 +6,8 @@
  *
  * For now, we keep a manual interface so the demo runs without the codegen step.
  */
-import { API_BASE_URL } from "@app/shared";
+import { API_BASE_URL } from "@packages/shared";
+import { authFetch } from "@packages/auth-client";
 
 export interface Bot {
   id: string;
@@ -22,7 +23,7 @@ export interface CreateBotInput {
 const BASE = `${API_BASE_URL}/v1`;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await authFetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...init,
   });
