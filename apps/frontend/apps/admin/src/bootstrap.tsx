@@ -21,3 +21,5 @@ createRoot(container).render(
     <App />
   </BrowserRouter>,
 );
+
+export const registry = 123;

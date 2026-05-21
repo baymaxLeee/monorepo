@@ -7,6 +7,7 @@ const nav = [
 ] as const;
 
 export function AdminLayout() {
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b bg-card">
