@@ -1,0 +1,10 @@
+---
+description: Pointer to repository AGENTS.md (single source of truth)
+alwaysApply: true
+---
+
+All repo rules live in AGENTS.md files (hierarchical). Read root AGENTS.md
+first, then the closest sub-AGENTS.md as you cd into a sub-monorepo.
+
+Do NOT add rules here. Add them to AGENTS.md so all agents (Claude / Codex /
+Cursor) share the same source.

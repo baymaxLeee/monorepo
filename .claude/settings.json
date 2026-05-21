@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "Bash(just:*)",
+      "Bash(docker:*)",
+      "Bash(docker compose:*)",
+      "Bash(mise:*)",
+      "Bash(pnpm:*)",
+      "Bash(pnpx:*)",
+      "Bash(npx:*)",
+      "Bash(uv:*)",
+      "Bash(ruff:*)",
+      "Bash(pytest:*)",
+      "Bash(alembic:*)",
+      "Bash(go:*)",
+      "Bash(gofmt:*)",
+      "Bash(rg:*)",
+      "Bash(fd:*)",
+      "Bash(jq:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /:*)",
+      "Read(./**/.env*)",
+      "Bash(git push --force:*)"
+    ]
+  }
+}

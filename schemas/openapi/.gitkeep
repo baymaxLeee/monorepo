@@ -1,0 +1,1 @@
+OpenAPI specs are auto-generated here by `cd apps/backend && just gen-openapi <svc>`.

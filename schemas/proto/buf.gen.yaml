@@ -1,0 +1,10 @@
+version: v2
+plugins:
+  - remote: buf.build/protocolbuffers/go
+    out: ../../apps/backend/services/api-gateway/internal/clients
+    opt: paths=source_relative
+  - remote: buf.build/grpc/go
+    out: ../../apps/backend/services/api-gateway/internal/clients
+    opt: paths=source_relative
+  - remote: buf.build/protocolbuffers/python
+    out: ../../apps/backend/libs/transport/src/transport/clients

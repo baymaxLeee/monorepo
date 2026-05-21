@@ -1,0 +1,12 @@
+{
+  "name": "@app/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./bot": "./bot/src/index.ts"
+  },
+  "scripts": {
+    "codegen": "bash scripts/codegen.sh"
+  }
+}

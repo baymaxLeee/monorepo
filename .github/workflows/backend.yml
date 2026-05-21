@@ -1,0 +1,40 @@
+name: backend
+
+on:
+  pull_request:
+    paths:
+      - 'apps/backend/**'
+      - 'schemas/**'
+      - '.github/workflows/backend.yml'
+  push:
+    branches: [main]
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: uv sync --all-packages
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy services libs
+      - run: |
+          for s in bot; do
+            (cd services/$s && uv run pytest -q)
+          done
+
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/backend/services/api-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: go mod download
+      - run: go vet ./...
+      - run: go test ./...

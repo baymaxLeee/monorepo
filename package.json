@@ -1,0 +1,12 @@
+{
+  "name": "monorepo-root",
+  "private": true,
+  "description": "Meta-monorepo: micro-frontends + microservices",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "sync": "just sync"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0"
+  }
+}

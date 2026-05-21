@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package bot.v1;
+
+// gRPC service for bot management.
+// External clients should use the REST API (schemas/openapi/bot.json).
+// This is for service-to-service communication only.
+service BotService {
+  rpc GetBot(GetBotRequest) returns (Bot);
+  rpc ListBots(ListBotsRequest) returns (ListBotsResponse);
+}
+
+message Bot {
+  string id = 1;
+  string name = 2;
+  Status status = 3;
+  string created_at = 4;
+
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_DRAFT = 1;
+    STATUS_PUBLISHED = 2;
+    STATUS_ARCHIVED = 3;
+  }
+}
+
+message GetBotRequest {
+  string id = 1;
+}
+
+message ListBotsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListBotsResponse {
+  repeated Bot bots = 1;
+  string next_page_token = 2;
+}

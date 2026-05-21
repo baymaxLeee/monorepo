@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BotPublishedV1",
+  "description": "Emitted when a bot transitions to 'published' status.",
+  "specversion": "1.0",
+  "type": "object",
+  "required": ["specversion", "type", "source", "id", "time", "data"],
+  "properties": {
+    "specversion": { "const": "1.0" },
+    "type": { "const": "bot.published.v1" },
+    "source": { "type": "string", "examples": ["urn:service:bot"] },
+    "id": { "type": "string" },
+    "time": { "type": "string", "format": "date-time" },
+    "data": {
+      "type": "object",
+      "required": ["bot_id", "tenant_id", "actor"],
+      "properties": {
+        "bot_id": { "type": "string" },
+        "tenant_id": { "type": "string" },
+        "actor": { "type": "string" }
+      }
+    }
+  }
+}

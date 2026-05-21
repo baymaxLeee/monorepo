@@ -1,0 +1,37 @@
+# Self-imposed guard rails for the MAIN fullstack agent.
+#
+# This is NOT for dispatching sub-agents. It's a memory aid for the main agent
+# to remember "what should I avoid editing unprompted".
+
+guard_rails:
+  # FORBIDDEN: never write here without explicit user request
+  forbidden:
+    - "**/generated/**"
+    - "apps/backend/services/*/migrations/versions/**"
+    - ".worktrees/**"
+    - "**/.env*"
+    - "**/node_modules/**"
+    - "**/.venv/**"
+    - "**/target/**"
+    - "pnpm-lock.yaml"   # let pnpm regenerate
+    - "uv.lock"          # let uv regenerate
+    - "go.sum"           # let go regenerate
+
+  # CAUTION: ask user before touching (high blast radius)
+  caution:
+    - "apps/backend/libs/**"          # shared kernel; affects many services
+    - "schemas/proto/**"              # gRPC contracts; breaking-change risk
+    - "schemas/openapi/**"            # but only writeable via gen-openapi
+    - "infra/**"                      # deploy; affects production
+    - ".github/workflows/**"
+    - "docker-compose.yml"
+    - "apps/frontend/apps/shell/**"   # MF host; affects all MFEs
+    - "AGENTS.md"                     # rules; only on explicit request
+
+  # FREE: edit freely as feature work demands
+  free:
+    - "apps/backend/services/*/src/**"
+    - "apps/backend/services/*/tests/**"
+    - "apps/frontend/apps/mfe-*/**"
+    - "apps/frontend/packages/!(api-client)/**"
+    - "docs/**"

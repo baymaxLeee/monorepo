@@ -1,0 +1,49 @@
+[project]
+name = "backend-workspace"
+version = "0"
+requires-python = ">=3.12"
+
+[tool.uv.workspace]
+members = [
+    "services/bot",
+    "libs/kernel",
+    "libs/transport",
+    "libs/observability",
+    "libs/auth_sdk",
+    "libs/audit_sdk",
+    "libs/testing",
+]
+
+[tool.uv.sources]
+kernel = { workspace = true }
+transport = { workspace = true }
+observability = { workspace = true }
+auth_sdk = { workspace = true }
+audit_sdk = { workspace = true }
+testing = { workspace = true }
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["**/migrations/versions/**", "**/__pycache__/**"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "PT", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+exclude = ["migrations/", "build/", "dist/"]
+
+[[tool.mypy.overrides]]
+module = ["alembic.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+addopts = "-q --tb=short"
+testpaths = ["services/*/tests", "libs/*/tests"]

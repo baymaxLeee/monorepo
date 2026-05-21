@@ -1,0 +1,56 @@
+set positional-arguments
+set shell := ["bash", "-cu"]
+
+# Fixed port allocation so multiple agents/dev servers don't collide
+PORTS := '{"shell":3000,"mfe-bot":3001,"mfe-scene":3002,"mfe-intention":3003,"mfe-admin":3004,"mfe-portal":3005}'
+
+default:
+    @just --list
+
+# ─── dev ────────────────────────────────────────────────
+dev app="shell":
+    @PORT=$(echo '{{PORTS}}' | jq -r '.["{{app}}"]') && \
+        echo "→ Starting {{app}} on :$PORT" && \
+        cd apps/{{app}} && PORT=$PORT pnpm dev
+
+# Start everything (heavy; usually you only need shell + 1 mfe)
+dev-all:
+    pnpm dev
+
+# ─── build/test ─────────────────────────────────────────
+# Build target. Without args: builds everything via turbo (packages first, then apps).
+# With arg: builds a single app (shell, mfe-bot, ...) or workspace package.
+#   just build              # build all (turbo orchestrates dep order)
+#   just build shell        # build only shell (host)
+#   just build mfe-bot      # build only mfe-bot (remote) — produces dist/ + mf-manifest.json
+#   just build ui-kit       # build a workspace package (if it has a build script)
+build target="":
+    @if [ -z "{{target}}" ]; then \
+        echo "→ Building all (turbo)..." && pnpm build; \
+    elif echo "{{target}}" | grep -qE "^mfe-|^shell$"; then \
+        echo "→ Building app: {{target}}" && pnpm -F {{target}} build; \
+    elif [ -d "packages/{{target}}" ] || [ -d "packages/api-client/{{target}}" ]; then \
+        echo "→ Building package: @app/{{target}}" && pnpm -F "@app/{{target}}" build; \
+    else \
+        echo "✗ Unknown target: {{target}} (not in apps/ or packages/)"; exit 1; \
+    fi
+
+test pkg="":
+    @if [ -z "{{pkg}}" ]; then pnpm test; \
+    elif echo "{{pkg}}" | grep -qE "^mfe-|^shell$"; then pnpm -F {{pkg}} test; \
+    else pnpm -F "@app/{{pkg}}" test; fi
+
+# ─── quality ────────────────────────────────────────────
+lint:
+    pnpm lint
+    pnpm typecheck
+
+fmt:
+    pnpm exec prettier --write "apps/**/*.{ts,tsx,json,md,css}" "packages/**/*.{ts,tsx,json,md,css}"
+    pnpm exec eslint --fix "apps/**/*.{ts,tsx}" "packages/**/*.{ts,tsx}" || true
+
+# ─── schema ─────────────────────────────────────────────
+# Regenerate api-client from schemas/openapi/*.json
+gen-client:
+    cd packages/api-client && bash scripts/codegen.sh
+    @echo "✓ api-client regenerated"

@@ -1,0 +1,134 @@
+set positional-arguments
+set shell := ["bash", "-cu"]
+
+# Service registry (Python services and their fixed dev ports)
+PY_SERVICES := "bot"
+GO_SERVICES := "api-gateway"
+
+# Fixed port allocation so multiple agents/dev servers don't collide
+PORTS := '{"bot":8001,"identity":8002,"scene":8003,"intention":8004,"permission":8005,"audit":8006,"notification":8007,"api-gateway":8000}'
+
+default:
+    @just --list
+
+# ─── dev ────────────────────────────────────────────────
+dev service:
+    @PORT=$(echo '{{PORTS}}' | jq -r '.["{{service}}"]') && \
+    if [ -d "services/{{service}}" ]; then \
+        if [ "{{service}}" = "api-gateway" ]; then \
+            echo "→ Go service {{service}} on :$PORT" && \
+            cd services/{{service}} && PORT=$PORT go run ./cmd/server; \
+        else \
+            echo "→ Python service {{service}} on :$PORT" && \
+            cd services/{{service}} && uv run uvicorn {{service}}.main:app --reload --port $PORT; \
+        fi; \
+    else echo "✗ Unknown service: {{service}}"; exit 1; fi
+
+# ─── test ───────────────────────────────────────────────
+test scope="":
+    @if [ -z "{{scope}}" ]; then \
+        for s in {{PY_SERVICES}}; do echo "=== $s ===" && (cd services/$s && uv run pytest -q || true); done; \
+    elif [ -d "services/{{scope}}" ]; then \
+        cd services/{{scope}} && uv run pytest -q; \
+    elif [ -d "libs/{{scope}}" ]; then \
+        cd libs/{{scope}} && uv run pytest -q; \
+    else \
+        echo "Unknown scope: {{scope}}"; exit 1; \
+    fi
+
+test-go:
+    cd services/api-gateway && go test ./...
+
+# ─── build ──────────────────────────────────────────────
+# Python services don't need a separate build step — they ship as source +
+# uv lock. For Go services we produce a static binary; for either, we can
+# also build a container image via `build-image`.
+#
+#   just build                       # everything: Go binaries + every image
+#   just build api-gateway           # single Go service binary
+#   just build bot                   # Python "build": pre-flight (lint + test + OpenAPI export)
+#   just build-image bot             # docker build for a single service
+#   just build-images                # docker build for ALL services
+#
+# Image tags default to local/<svc>:latest. Override with positional args.
+build target="":
+    @if [ -z "{{target}}" ]; then \
+        just build-go && just build-images; \
+    elif [ -d "services/{{target}}" ]; then \
+        if [ "{{target}}" = "api-gateway" ]; then just build-go-svc {{target}}; \
+        else just build-py-svc {{target}}; fi; \
+    else echo "✗ Unknown service: {{target}}"; exit 1; fi
+
+# Build all Go services to native binaries (services/<svc>/bin/server)
+build-go:
+    @for s in {{GO_SERVICES}}; do just build-go-svc $s; done
+    @echo "✓ Go binaries → services/<svc>/bin/server"
+
+build-go-svc service:
+    @echo "→ Building Go service: {{service}}"
+    cd services/{{service}} && mkdir -p bin && \
+        CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/server ./cmd/server
+    @ls -lh services/{{service}}/bin/server | awk '{print "  size:", $5}'
+
+# "Build" a Python service = lint + test + OpenAPI export (release pre-flight).
+# No bytecode artifact — uvicorn runs from source.
+build-py-svc service:
+    @echo "→ Pre-flighting Python service: {{service}}"
+    cd services/{{service}} && uv run ruff check . && uv run pytest -q
+    just gen-openapi {{service}}
+    @echo "✓ {{service}} ready (run as image via: just build-image {{service}})"
+
+# Build a single service's docker image. Usage:
+#   just build-image bot
+#   just build-image api-gateway my-registry.io v1.2.3
+build-image service registry="local" tag="latest":
+    @if [ ! -f "services/{{service}}/Dockerfile" ]; then \
+        echo "✗ services/{{service}}/Dockerfile not found"; exit 1; fi
+    @echo "→ docker build {{registry}}/{{service}}:{{tag}}"
+    docker build -t {{registry}}/{{service}}:{{tag}} -f services/{{service}}/Dockerfile services/{{service}}
+    @echo "✓ {{registry}}/{{service}}:{{tag}}"
+
+# Build images for ALL services (Python + Go).
+build-images registry="local" tag="latest":
+    @for s in {{PY_SERVICES}} {{GO_SERVICES}}; do \
+        just build-image $s {{registry}} {{tag}}; \
+    done
+    @echo "✓ All backend images built with tag {{registry}}/<svc>:{{tag}}"
+
+# ─── quality ────────────────────────────────────────────
+fmt:
+    uv run ruff check --fix .
+    uv run ruff format .
+    cd services/api-gateway && gofmt -w .
+
+lint scope="":
+    @if [ -z "{{scope}}" ]; then \
+        uv run ruff check . && uv run mypy services libs; \
+    else \
+        cd services/{{scope}} && uv run ruff check . && uv run mypy .; \
+    fi
+
+lint-go:
+    cd services/api-gateway && go vet ./...
+
+# ─── schema ─────────────────────────────────────────────
+gen-openapi service:
+    @echo "→ Exporting OpenAPI for {{service}}..."
+    cd services/{{service}} && \
+        uv run python -m {{service}}.gen_openapi \
+        > ../../../schemas/openapi/{{service}}.json
+    @echo "✓ schemas/openapi/{{service}}.json"
+
+gen-openapi-all:
+    @for s in {{PY_SERVICES}}; do just gen-openapi $s; done
+
+gen-proto:
+    cd ../../schemas && buf generate
+    @echo "✓ proto codegen done"
+
+# ─── db ─────────────────────────────────────────────────
+migrate-new service msg:
+    cd services/{{service}} && uv run alembic revision --autogenerate -m "{{msg}}"
+
+migrate-up service:
+    cd services/{{service}} && uv run alembic upgrade head

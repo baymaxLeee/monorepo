@@ -1,0 +1,39 @@
+name: contracts
+
+on:
+  pull_request:
+    paths:
+      - 'schemas/**'
+
+jobs:
+  verify-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+
+      - name: Backend regen + diff
+        working-directory: apps/backend
+        run: |
+          uv sync --all-packages
+          just gen-openapi-all
+          if ! git diff --exit-code ../../schemas/openapi/; then
+            echo "::error::OpenAPI specs out of sync. Run 'just sync' from root."
+            exit 1
+          fi
+
+      - name: Frontend codegen
+        working-directory: apps/frontend
+        run: |
+          pnpm install --frozen-lockfile
+          just gen-client
+          # api-client/*/generated is gitignored, but tsc must pass
+          pnpm typecheck
+
+  buf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bufbuild/buf-action@v1
+        with:
+          input: schemas/proto
