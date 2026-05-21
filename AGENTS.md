@@ -6,7 +6,7 @@ We use ONLY `AGENTS.md` files — no `CLAUDE.md`, no `.cursorrules`.
 ## Layout
 
 ```
-apps/frontend/   pnpm + Rspack, micro-frontends (shell host + mfe-* remotes)
+apps/frontend/   pnpm + Rspack, micro-frontends (platform host + mfe-* remotes)
 apps/backend/    uv + go.work, microservices (services/* + libs/* kernel)
 schemas/        cross-stack & cross-service contracts (OpenAPI + Proto + Events)
 infra/          K8s manifests, Dockerfiles, deployment
@@ -46,10 +46,10 @@ caution / forbidden for unprompted edits.
 
 | Command | What it does |
 |---|---|
-| `just up` | Start local infra (Postgres, Redis) via docker compose |
+| `just up` | Docker (Postgres, Redis) + ensure DBs + dev schema (`migrate-dev.sh`) |
 | `just down` | Stop local infra |
-| `just install` | Install ALL deps (frontend + backend) |
-| `just dev` | Start full demo stack (api-gateway + bot + shell + mfe-bot) |
+| `just install` | Install ALL deps (mise + pnpm + uv + go; copies `.env` from examples) |
+| `just dev` | Start full demo stack (api-gateway + admin svc + platform + admin MFE) |
 | `just sync` | Backend → OpenAPI → frontend TS client regen |
 | `just fmt` | Format both stacks (auto-run after edits, no need to ask) |
 | `just lint` | Lint both stacks |

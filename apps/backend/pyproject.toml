@@ -5,7 +5,7 @@ requires-python = ">=3.12"
 
 [tool.uv.workspace]
 members = [
-    "services/bot",
+    "services/admin",
     "libs/kernel",
     "libs/transport",
     "libs/observability",

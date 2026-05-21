@@ -28,7 +28,7 @@
  *     Singleton-recommended: avoid bundle bloat across MFEs.
  *
  * Excluded from sharing (each MFE bundles its own):
- *   - Service-scoped clients like `@app/api-client/bot` (only one MFE uses it)
+ *   - Service-scoped clients like `@app/api-client/admin` (only one MFE uses it)
  *   - MFE-specific UX deps (`react-markdown`, `monaco-editor`, charts, ...)
  *
  * How to use

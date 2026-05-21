@@ -5,15 +5,15 @@ React 18 + TypeScript + Tailwind + Rspack + Module Federation 2.0.
 ## Architecture
 
 ```
-shell (host @ :3000)
-  ├── loads → mfe-bot       (remote @ :3001)  routes: /bots/*
+platform (host @ :3000)
+  ├── loads → admin         (remote @ :3001)  routes: /bots/*
   ├── loads → mfe-scene     (remote @ :3002)  routes: /scenes/*
   ├── loads → mfe-intention (remote @ :3003)  routes: /intentions/*
   ├── loads → mfe-admin     (remote @ :3004)  routes: /admin/*
   └── loads → mfe-portal    (remote @ :3005)  routes: /portal/*
 ```
 
-**shell owns**: auth, top-level routing, layout, global error boundary, MFE registry.
+**platform owns**: auth, top-level routing, layout, global error boundary, MFE registry.
 **Each `mfe-*` owns**: its sub-routes, state, API calls, deploy artifact.
 
 ## Layout
@@ -29,7 +29,7 @@ shell (host @ :3000)
 ## Hard rules
 
 ### MFE isolation
-- MFEs NEVER import from each other (no `from "@app/mfe-bot"`)
+- MFEs NEVER import from each other (no `from "@app/admin"` cross-imports)
 - MFEs NEVER read each other's state directly
 - Cross-MFE communication ONLY via:
   - URL params (preferred)
@@ -37,7 +37,7 @@ shell (host @ :3000)
   - shared backend state (via API)
 
 ### Shared package singletons
-All MFEs and shell declare these as Module Federation `shared: { singleton: true }`:
+All MFEs and platform declare these as Module Federation `shared: { singleton: true }`:
 - `react`, `react-dom`, `react-router-dom`
 - `@app/runtime`, `@app/auth-client`, `@app/ui-kit`, `@app/design-tokens`
 
@@ -58,7 +58,7 @@ This prevents duplicate React copies and hook-rules violations.
 
 | Command | Purpose |
 |---|---|
-| `just dev shell` | Start shell only (port 3000) |
+| `just dev platform` | Start platform only (port 3000) |
 | `just dev <mfe>` | Start a single MFE (port from PORTS map) |
 | `just dev-all` | Start shell + all MFEs (heavy) |
 | `just test <pkg>` | Vitest, scoped |

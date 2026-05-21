@@ -12,7 +12,7 @@ if [ ! -d "$SCHEMA_DIR" ]; then
   exit 1
 fi
 
-SERVICES=("bot")  # Add new services here
+SERVICES=("admin")  # Add new services here
 
 for svc in "${SERVICES[@]}"; do
   SCHEMA="$SCHEMA_DIR/$svc.json"

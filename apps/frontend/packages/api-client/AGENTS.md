@@ -13,7 +13,7 @@ Source of truth: `schemas/openapi/<service>.json` (exported from each backend se
 
 ```
 packages/api-client/
-├── bot/
+├── admin/
 │   ├── src/
 │   │   ├── index.ts          # public re-exports (hand-written, thin)
 │   │   └── client.ts         # hand-written wrapper using generated types

@@ -25,7 +25,7 @@ guard_rails:
     - "infra/**"                      # deploy; affects production
     - ".github/workflows/**"
     - "docker-compose.yml"
-    - "apps/frontend/apps/shell/**"   # MF host; affects all MFEs
+    - "apps/frontend/apps/platform/**"   # MF host; affects all MFEs
     - "AGENTS.md"                     # rules; only on explicit request
 
   # FREE: edit freely as feature work demands

@@ -2,7 +2,7 @@
 
 | 代码名 | 中文 | 拥有者服务 |
 |---|---|---|
-| bot | 智能体 | bot |
+| bot | 智能体 | admin |
 | scene | 场景 | scene (TODO) |
 | intention | 意图 | intention (TODO) |
 | skill | 技能 | skill (TODO) |

@@ -11,7 +11,7 @@ command and returns SUCCESS/FAILURE.
 
 Required input:
 - `command`: which codegen to run (e.g. "openapi", "proto", "all")
-- `services`: optional list of services to scope (e.g. ["bot"])
+- `services`: optional list of services to scope (e.g. ["admin"])
 
 ## Procedure
 

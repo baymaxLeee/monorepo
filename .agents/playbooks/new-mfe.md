@@ -15,9 +15,9 @@ For adding a new MFE under `apps/frontend/apps/<name>/`.
        - exposes: { "./App": "./src/App.tsx", "./routes": "./src/routes.ts" }
        - shared: react, react-dom, @app/runtime, @app/ui-kit (singletons)
 
-[ ] 3. Register in shell:
-       apps/frontend/apps/shell/src/registry.ts → add entry
-       apps/frontend/apps/shell/rspack.config.ts → add to remotes
+[ ] 3. Register in platform:
+       apps/frontend/apps/platform/src/registry.ts → add entry
+       apps/frontend/apps/platform/rspack.config.ts → add to remotes
 
 [ ] 4. Port allocation:
        apps/frontend/justfile PORTS map → add <name>

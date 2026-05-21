@@ -22,5 +22,5 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
-      - run: pnpm -F shell build
-      - run: pnpm -F mfe-bot build
+      - run: pnpm -F platform build
+      - run: pnpm -F admin build

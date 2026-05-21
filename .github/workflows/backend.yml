@@ -23,7 +23,7 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy services libs
       - run: |
-          for s in bot; do
+          for s in admin; do
             (cd services/$s && uv run pytest -q)
           done
 

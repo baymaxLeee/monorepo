@@ -7,7 +7,7 @@
 #   [timeout-seconds] give up after this many seconds (default: 120)
 #
 # Why: services started in parallel by overmind/Procfile have implicit runtime
-# deps (e.g. shell needs mfe-bot's mf-manifest.json). This polls until the
+# deps (e.g. platform needs admin's mf-manifest.json). This polls until the
 # upstream is ready before continuing the dependent process command.
 
 set -euo pipefail

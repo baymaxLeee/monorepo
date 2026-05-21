@@ -12,20 +12,17 @@
 ```bash
 cd /Users/bytedance/projects/project/monorepo
 
-# 1. 给脚本加执行权限(只需一次)
-chmod +x scripts/*.sh apps/frontend/packages/api-client/scripts/codegen.sh
-
-# 2. 装工具版本管理器(强烈推荐)
+# 1. 装工具版本管理器(强烈推荐,仅需一次)
 brew install mise                                          # 或 curl https://mise.run | sh
 echo 'eval "$(mise activate zsh)"' >> ~/.zshrc && source ~/.zshrc
-cd /Users/bytedance/projects/project/monorepo
-mise trust && mise install                                 # 按 mise.toml 装齐 node/pnpm/python/uv/go/just
+# 2. 一键安装所有依赖(mise 工具链 + 前后端包 + .env 模板)
+just install
 
-# 3. (推荐)装一个进程管理器,让 `just dev` 体验更好
+# 3. (推荐)装进程管理器,让 `just dev` 体验更好
 brew install overmind tmux                                 # 每个服务独立日志面板,可单独 attach
 
-# 4. 一键 bootstrap(装前后端依赖,起 docker)
-./scripts/bootstrap.sh
+# 4. 起本地基础设施(Docker + 建库 + schema)
+just up
 
 # 5. 验证环境
 just doctor
@@ -34,11 +31,13 @@ just doctor
 just dev
 ```
 
-`bootstrap.sh` 帮你做了:
-- `pnpm install`(前端)
-- `uv sync --all-packages`(后端 Python)
-- `go mod tidy`(api-gateway)
-- `docker compose up -d`(Postgres + Redis)
+`just install` 帮你做了:
+- 脚本可执行权限、`mise install`
+- `pnpm install`(前端)、`uv sync`(后端 Python)、`go mod tidy`(api-gateway)
+- 从 `.env.example` 复制缺失的 `.env`
+
+`just up` 帮你做了:
+- `docker compose up -d`(Postgres + Redis)、建库、admin schema/种子数据
 
 跑完之后浏览器打开 **http://localhost:3000**,就能看到完整跨栈链路:
 
@@ -67,8 +66,9 @@ just dev
 > 装好之后,你每天写代码只需要这三条:
 
 ```bash
-just up      # 起本地依赖(Postgres + Redis)
-just dev     # 起全套服务(shell + mfe-bot + gateway + bot),Ctrl+C 全停
+just install # 首次 clone:装齐 mise/pnpm/uv/go 与所有 workspace 依赖
+just up      # 起 Docker + 建库 + schema
+just dev     # 起全套服务(platform + mfe-admin + gateway + svc-admin),Ctrl+C 全停
 just down    # 收工,关 docker
 ```
 

@@ -2,13 +2,12 @@
 # Each line = one process. Prefix becomes the label in the multiplexer.
 #
 # Startup ordering note:
-#   - shell depends on mfe-bot's mf-manifest.json at boot.
-#   - We don't wait for backend (gateway/bot) — frontend can render before they
+#   - platform depends on mfe-admin's mf-manifest.json at boot.
+#   - We don't wait for backend (gateway/svc-admin) — frontend can render before they
 #     come online; the API call only fires when the user clicks/loads the list.
-#   - We DO wait for mfe-bot's manifest before starting shell, otherwise shell
-#     fetches it during compile and either 404s or cache-pollutes the bundle.
+#   - We DO wait for mfe-admin's manifest before starting platform.
 
-bot:     cd apps/backend/services/bot && uv run uvicorn bot.main:app --reload --port 8001
-gateway: cd apps/backend/services/api-gateway && PORT=8000 BOT_SERVICE_URL=http://localhost:8001 go run ./cmd/server
-mfe-bot: cd apps/frontend/apps/mfe-bot && PORT=3001 pnpm dev
-shell:   ./scripts/wait-for-url.sh http://localhost:3001/mf-manifest.json mfe-bot && cd apps/frontend/apps/shell && PORT=3000 pnpm dev
+svc-admin: cd apps/backend/services/admin && uv run uvicorn admin.main:app --reload --port 8001
+gateway:   cd apps/backend/services/api-gateway && go run ./cmd/server
+mfe-admin: cd apps/frontend && PORT=3001 pnpm -F admin dev
+platform:  ./scripts/wait-for-url.sh http://localhost:3001/mf-manifest.json mfe-admin && cd apps/frontend && PORT=3000 pnpm -F platform dev

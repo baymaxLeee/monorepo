@@ -10,8 +10,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/example/monorepo/api-gateway/internal/config"
 	"github.com/example/monorepo/api-gateway/internal/handlers"
 	"github.com/example/monorepo/api-gateway/internal/middleware"
+	"github.com/example/monorepo/api-gateway/internal/store"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -19,48 +21,50 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8000"
-	}
+	cfg := config.Load()
 
-	botUpstream := os.Getenv("BOT_SERVICE_URL")
-	if botUpstream == "" {
-		botUpstream = "http://localhost:8001"
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	st, err := store.Connect(ctx, cfg.DatabaseURL, cfg.RedisURL)
+	cancel()
+	if err != nil {
+		slog.Error("failed to connect dependencies", "err", err)
+		os.Exit(1)
 	}
+	defer st.Close()
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestLogger)
 	r.Use(middleware.Recoverer)
 
-	// Meta
-	r.Get("/healthz", handlers.Healthz)
+	r.Get("/healthz", handlers.Healthz(st))
 	r.Get("/", handlers.Index)
-
-	// Proxy /v1/bots/* → bot service
-	r.Mount("/v1/bots", handlers.NewBotProxy(botUpstream))
+	r.Mount("/v1/bots", handlers.NewAdminProxy(cfg.AdminServiceURL))
 
 	srv := &http.Server{
-		Addr:              ":" + port,
+		Addr:              ":" + cfg.Port,
 		Handler:           r,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	go func() {
-		slog.Info("api-gateway starting", "port", port, "bot_upstream", botUpstream)
+		slog.Info("api-gateway starting",
+			"port", cfg.Port,
+			"admin_upstream", cfg.AdminServiceURL,
+			"postgres", "connected",
+			"redis", "connected",
+		)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("server failed", "err", err)
 			os.Exit(1)
 		}
 	}()
 
-	// Graceful shutdown
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 	slog.Info("shutting down")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_ = srv.Shutdown(ctx)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+	_ = srv.Shutdown(shutdownCtx)
 }

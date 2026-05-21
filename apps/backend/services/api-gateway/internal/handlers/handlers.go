@@ -9,23 +9,19 @@ import (
 	"strings"
 )
 
-func Healthz(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
 func Index(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{
 		"service": "api-gateway",
-		"docs":    "/healthz | /v1/bots (proxied to bot service)",
+		"docs":    "/healthz | /v1/bots (proxied to admin service)",
 	})
 }
 
-// NewBotProxy returns a reverse proxy to the bot service.
+// NewAdminProxy returns a reverse proxy to the admin service.
 // chi.Mount preserves the URL path, so we just forward as-is.
-func NewBotProxy(upstream string) http.Handler {
+func NewAdminProxy(upstream string) http.Handler {
 	target, err := url.Parse(strings.TrimRight(upstream, "/"))
 	if err != nil {
-		panic("invalid bot upstream url: " + err.Error())
+		panic("invalid admin upstream url: " + err.Error())
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	originalDirector := proxy.Director

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./bot": "./bot/src/index.ts"
+    "./admin": "./admin/src/index.ts"
   },
   "scripts": {
     "codegen": "bash scripts/codegen.sh"

@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-func TestHealthz(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+func TestIndex(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
-	Healthz(rec, req)
+	Index(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}

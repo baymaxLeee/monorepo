@@ -32,7 +32,7 @@ cat > "$MFE_DIR/AGENTS.md" <<EOF
 - Shared deps: from \`apps/frontend/mf-shared.ts\` via \`buildShared("remote")\`
 - Standalone dev: \`pnpm dev\` (port assigned via PORT env)
 
-To consume from shell: add \`$MF_NAME\` to shell's rspack remotes and registry.
+To consume from platform: add \`$MF_NAME\` to platform's rspack remotes and registry.
 EOF
 
 cat > "$MFE_DIR/package.json" <<EOF
@@ -162,7 +162,7 @@ EOF
 
 cat > "$MFE_DIR/src/main.tsx" <<'EOF'
 // Async boundary required for standalone mode.
-// When loaded by shell (federated), this file is NOT used — shell calls
+// When loaded by platform (federated), this file is NOT used — platform calls
 // directly into ./App via Module Federation. The boundary only matters when
 // running this MFE on its own dev port.
 import("./bootstrap");
@@ -191,9 +191,9 @@ EOF
 echo "✓ Created $MFE_DIR"
 echo ""
 echo "Next:"
-echo "  1. Add to apps/frontend/apps/shell/rspack.config.ts remotes:"
+echo "  1. Add to apps/frontend/apps/platform/rspack.config.ts remotes:"
 echo "       $MF_NAME: \`$MF_NAME@http://localhost:<port>/mf-manifest.json\`"
-echo "  2. Add to apps/frontend/apps/shell/src/registry.ts"
+echo "  2. Add to apps/frontend/apps/platform/src/registry.ts"
 echo "  3. Pick a free port in apps/frontend/justfile PORTS map"
 echo "  4. Add to root Procfile.dev so 'just dev' starts it"
 echo "  5. Add k8s manifests: infra/k8s/base/$NAME/"
