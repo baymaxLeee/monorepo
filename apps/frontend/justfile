@@ -24,7 +24,7 @@ build target="":
         echo "→ Building all (turbo)..." && pnpm build; \
     elif echo "{{ target }}" | grep -qE "^mfe-|^(platform|admin)$"; then \
         echo "→ Building app: {{ target }}" && pnpm -F {{ target }} build; \
-    elif [ -d "packages/{{ target }}" ] || [ -d "packages/api-client/{{ target }}" ]; then \
+    elif [ -d "packages/{{ target }}" ]; then \
         echo "→ Building package: {{ target }}" && pnpm -F {{ target }} build; \
     else \
         echo "✗ Unknown target: {{ target }} (not in apps/ or packages/)"; exit 1; \
@@ -45,7 +45,7 @@ fmt:
     pnpm exec eslint --fix "apps/**/*.{ts,tsx}" "packages/**/*.{ts,tsx}" || true
 
 # ─── schema ─────────────────────────────────────────────
-# Regenerate api-client from schemas/openapi/*.json
+# Regenerate unified api package from schemas/openapi/*.json
 gen-client:
-    cd packages/api-client && bash scripts/codegen.sh
-    @echo "✓ api-client regenerated"
+    cd packages/api && bash scripts/codegen.sh
+    @echo "✓ api package regenerated"

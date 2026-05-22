@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
-import { login, register, type AuthSession } from "@packages/auth-client";
+import { login, register, type AuthSession } from "@packages/api";
 import {
   Button,
   Card,

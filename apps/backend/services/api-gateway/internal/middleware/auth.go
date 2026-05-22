@@ -77,8 +77,9 @@ func bearerToken(header string) string {
 
 // isPublicPath returns true when the request path matches any configured
 // public entry. Each entry is matched as either an exact path or a path
-// prefix delimited by "/" — e.g. "/v1/auth/login" matches "/v1/auth/login"
-// and "/v1/auth/login/anything", but "/v1/auth/login_other" is NOT matched.
+// prefix delimited by "/" — e.g. "/api/iam-server/login" matches
+// "/api/iam-server/login" and "/api/iam-server/login/anything", but
+// "/api/iam-server/login_other" is NOT matched.
 func isPublicPath(path string, prefixes []string) bool {
 	for _, p := range prefixes {
 		if p == "" {

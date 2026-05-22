@@ -8,7 +8,7 @@ import * as _shared from "@packages/shared";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import * as _runtime from "@packages/runtime";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import * as _authClient from "@packages/auth-client";
+import * as _api from "@packages/api";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import * as _components from "@packages/components";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -18,7 +18,7 @@ import * as _zustandShallow from "zustand/shallow";
 
 void _shared;
 void _runtime;
-void _authClient;
+void _api;
 void _components;
 void _zustandReactShallow;
 void _zustandShallow;

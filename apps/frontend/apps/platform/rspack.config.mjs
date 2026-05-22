@@ -61,11 +61,11 @@ export default defineConfig({
     },
     headers: { "Access-Control-Allow-Origin": "*" },
     hot: true,
-    // Same-origin proxy so the browser never preflights /v1/* in dev.
+    // Same-origin proxy so the browser never preflights /api/* in dev.
     // Production should mirror this via nginx / ingress.
     proxy: [
       {
-        context: ["/v1"],
+        context: ["/api"],
         target: API_TARGET,
         changeOrigin: true,
         secure: false,

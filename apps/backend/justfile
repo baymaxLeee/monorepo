@@ -99,10 +99,12 @@ lint-go:
 # ─── schema ─────────────────────────────────────────────
 gen-openapi service:
     @echo "→ Exporting OpenAPI for {{ service }}..."
+    @out="{{ service }}"; if [ "$out" = "admin" ]; then out="admin-server"; fi; \
     cd services/{{ service }} && \
         uv run python -m {{ service }}.gen_openapi \
-        > ../../../schemas/openapi/{{ service }}.json
-    @echo "✓ schemas/openapi/{{ service }}.json"
+        > ../../../schemas/openapi/$out.json
+    @out="{{ service }}"; if [ "$out" = "admin" ]; then out="admin-server"; fi; \
+    echo "✓ schemas/openapi/$out.json"
 
 gen-openapi-all:
     @for s in {{ PY_SERVICES }}; do just gen-openapi $s; done

@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
-    "auth-client": "workspace:*",
     "components": "workspace:*",
     "packages": "workspace:*",
     "react": "^18.3.0",

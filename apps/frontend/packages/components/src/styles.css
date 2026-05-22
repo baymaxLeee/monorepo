@@ -1,7 +1,7 @@
 /**
  * Single theme + Tailwind v4 entry (shadcn/ui neutral).
  * Built only by platform host via @tailwindcss/webpack.
- * @source: MFE app sources + this package (not shared/runtime/api-client).
+ * @source: MFE app sources + this package (not shared/runtime/api).
  */
 @import "tailwindcss";
 @import "tw-animate-css";

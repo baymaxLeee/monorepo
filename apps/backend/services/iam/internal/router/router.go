@@ -31,20 +31,16 @@ func New(store *crud.Store, cfg config.Config) http.Handler {
 	}
 	r := chi.NewRouter()
 	r.Get("/healthz", rt.healthz)
-	r.Route("/v1/auth", func(r chi.Router) {
-		r.Post("/register", rt.register)
-		r.Post("/login", rt.login)
-		r.Post("/refresh", rt.refresh)
-		r.Post("/logout", rt.logout)
-		r.Get("/me", rt.me)
-	})
-	r.Route("/v1/iam", func(r chi.Router) {
-		r.Get("/roles", rt.listRoles)
-		r.Post("/roles", rt.createRole)
-		r.Get("/users/{userID}/roles", rt.listUserRoles)
-		r.Post("/users/{userID}/roles", rt.assignUserRole)
-		r.Delete("/users/{userID}/roles/{roleID}", rt.removeUserRole)
-	})
+	r.Post("/register", rt.register)
+	r.Post("/login", rt.login)
+	r.Post("/refresh", rt.refresh)
+	r.Post("/logout", rt.logout)
+	r.Get("/me", rt.me)
+	r.Get("/roles", rt.listRoles)
+	r.Post("/roles", rt.createRole)
+	r.Get("/users/{userID}/roles", rt.listUserRoles)
+	r.Post("/users/{userID}/roles", rt.assignUserRole)
+	r.Delete("/users/{userID}/roles/{roleID}", rt.removeUserRole)
 	return r
 }
 
@@ -224,7 +220,7 @@ func (rt *Router) setRefreshCookie(w http.ResponseWriter, token string, expiresA
 	http.SetCookie(w, &http.Cookie{
 		Name:     rt.cfg.RefreshCookieName,
 		Value:    token,
-		Path:     "/v1/auth",
+		Path:     "/api/iam-server",
 		Domain:   rt.cfg.RefreshCookieDomain,
 		Expires:  expiresAt,
 		MaxAge:   int(time.Until(expiresAt).Seconds()),
@@ -238,7 +234,7 @@ func (rt *Router) clearRefreshCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     rt.cfg.RefreshCookieName,
 		Value:    "",
-		Path:     "/v1/auth",
+		Path:     "/api/iam-server",
 		Domain:   rt.cfg.RefreshCookieDomain,
 		MaxAge:   -1,
 		HttpOnly: true,

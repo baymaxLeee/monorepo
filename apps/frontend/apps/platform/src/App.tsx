@@ -14,7 +14,7 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
-import { bootstrapSession, type AuthSession } from "@packages/auth-client";
+import { bootstrapSession, type AuthSession } from "@packages/api";
 import { Muted, Skeleton } from "@packages/components";
 import { usePlatformStore, type PlatformUser } from "@packages/runtime";
 import { defaultAppPath, HOME_PATH, LOGIN_PATH, registry } from "./registry";

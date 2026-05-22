@@ -35,7 +35,7 @@ def create_app() -> FastAPI:
 
     register_exception_handlers(app)
     app.include_router(health.router)
-    app.include_router(bots.router, prefix="/v1")
+    app.include_router(bots.router)
     return app
 
 

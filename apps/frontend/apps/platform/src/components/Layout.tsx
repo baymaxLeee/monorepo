@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { logout } from "@packages/auth-client";
+import { logout } from "@packages/api";
 import {
   Button,
   Sidebar,

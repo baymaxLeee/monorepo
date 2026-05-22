@@ -1,6 +1,7 @@
 """Export OpenAPI spec to stdout.
 
 Run via: `cd apps/backend && just gen-openapi admin`
+Outputs `schemas/openapi/admin-server.json`.
 """
 
 import json

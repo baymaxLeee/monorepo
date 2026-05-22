@@ -46,7 +46,7 @@ import {
   TableRow,
   toast,
 } from "@packages/components";
-import { createBot, fetchBots, type Bot } from "@packages/api-client/admin";
+import { createBot, fetchBots, type Bot } from "@packages/api";
 import { useShallow } from "zustand/react/shallow";
 import { usePlatformStore } from "@packages/index";
 import { useAdminStore } from "../store/useAdminStore";
@@ -130,7 +130,7 @@ export function BotListPage() {
         <PageHeaderContent>
           <PageTitle>智能体列表</PageTitle>
           <PageDescription>
-            数据来自 <InlineCode>GET /v1/bots</InlineCode>
+            数据来自 <InlineCode>GET /api/admin-server/bot</InlineCode>
           </PageDescription>
         </PageHeaderContent>
         <PageActions>

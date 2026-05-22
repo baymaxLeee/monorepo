@@ -2,7 +2,7 @@
  * Module Federation shared-deps registry.
  *
  * Tier 1 — React (singleton, host + remote)
- * Tier 2 — Platform infra (@packages/runtime, auth-client, shared, zustand)
+ * Tier 2 — Platform infra (@packages/runtime, api, shared, zustand)
  * Tier 3 — Shared UI kit (@packages/components)
  *
  * Remote apps do not bundle fallbacks for these shared dependencies. The
@@ -56,7 +56,7 @@ const TIER1 = {
 const TIER2 = {
   "@packages/shared": { singleton: true, requiredVersion: false },
   "@packages/runtime": { singleton: true, requiredVersion: false },
-  "@packages/auth-client": { singleton: true, requiredVersion: false },
+  "@packages/api": { singleton: true, requiredVersion: false },
   zustand: { singleton: true, requiredVersion: "^5.0.0", strictVersion: false },
   "zustand/middleware": {
     singleton: true,

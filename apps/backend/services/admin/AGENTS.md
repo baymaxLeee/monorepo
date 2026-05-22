@@ -4,7 +4,8 @@ The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing
 
 ## Owns
 - DB tables: `bots`, `bot_versions`, `bot_publish_history`
-- HTTP API: `/v1/bots/*`
+- HTTP API: `/bot/*` internally; externally exposed by api-gateway as
+  `/api/admin-server/bot/*`
 - gRPC API: `bot.v1.BotService` (defined in `schemas/proto/bot/v1/`)
 
 ## Does NOT own

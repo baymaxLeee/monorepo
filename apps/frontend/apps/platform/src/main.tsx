@@ -16,10 +16,10 @@
 //  it needs scope init when running standalone with non-eager shared deps.)
 
 // MUST be imported BEFORE anything that consumes shared deps.
-// Pulls @packages/runtime, @packages/shared, @packages/auth-client (eager Tier2)
+// Pulls @packages/runtime, @packages/shared, @packages/api (eager Tier2)
 // flags in mf-shared.ts actually keep them in the initial chunk.
 import "./mf-eager-anchors";
-import "@packages/components/src/styles.css";
+import "@packages/components/styles.css";
 
 import { createRoot } from "react-dom/client";
 import { App } from "./App";

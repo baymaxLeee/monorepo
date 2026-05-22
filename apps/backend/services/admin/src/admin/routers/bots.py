@@ -6,7 +6,7 @@ from admin.deps import AuthUserID, DbSession, RedisClient
 from admin.schemas.bot import Bot, CreateBotInput
 from admin.services.bots import BotService
 
-router = APIRouter(prefix="/bots", tags=["bots"])
+router = APIRouter(prefix="/bot", tags=["bot"])
 
 
 @router.get("", response_model=list[Bot])

@@ -40,9 +40,16 @@ func main() {
 
 	r.Get("/healthz", handlers.Healthz(st))
 	r.Get("/", handlers.Index)
-	r.Mount("/v1/auth", handlers.NewIAMProxy(cfg.IAMServiceURL))
-	r.Mount("/v1/iam", handlers.NewIAMProxy(cfg.IAMServiceURL))
-	r.Mount("/v1/bots", handlers.NewAdminProxy(cfg.AdminServiceURL))
+	r.Mount("/api/iam-server", handlers.NewServiceProxy(
+		cfg.IAMServiceURL,
+		"iam-server",
+		"/api/iam-server",
+	))
+	r.Mount("/api/admin-server", handlers.NewServiceProxy(
+		cfg.AdminServiceURL,
+		"admin-server",
+		"/api/admin-server",
+	))
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

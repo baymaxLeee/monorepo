@@ -19,9 +19,15 @@ platform (host @ :3000)
 
 One alias (see `workspace-aliases.mjs`, `tsconfig.base.json`):
 
-- `@packages` → `packages/`；子路径由 `packages/package.json` 的 `exports` 解析（见 `packages/index.ts`）
+- `@packages` → `packages/`；`@packages/<包名>` 必须落到该包的公开入口。
 
-各子包 `package.json` 的 `name` 仍为 `shared`、`components` 等（pnpm workspace）；业务与 MF shared 统一写 `@packages/<子路径>`。
+各子包 `package.json` 的 `name` 仍为 `shared`、`components` 等（pnpm
+workspace）。业务与 MF shared 统一写 `@packages/<包名>`，例如
+`@packages/api`、`@packages/runtime`、`@packages/components`。
+
+包内模块必须从该包公开入口 re-export 出去；禁止业务代码导入
+`@packages/<包名>/<内部模块>` 或 `@packages/<包名>/src/...`。如果一个包需要
+新增对外 API，先在该包入口导出，再从 `@packages/<包名>` 使用。
 
 ## Layout
 
@@ -29,8 +35,8 @@ One alias (see `workspace-aliases.mjs`, `tsconfig.base.json`):
 - `packages/components` — sole UI kit (shadcn/ui) + Tailwind v4 theme (`styles.css`)
 - `packages/shared` — utils, types, constants
 - `packages/runtime` — MFE registry, event bus, auth context
-- `packages/auth-client` — JWT, refresh, propagation
-- `packages/api-client/<svc>` — typed API per backend service (AUTO-GEN)
+- `packages/api` — unified axios runtime, auth/session, typed API clients
+  generated from OpenAPI
 
 ## Hard rules
 
@@ -49,7 +55,7 @@ Host provides all runtime-critical shared packages:
 
 - `react`, `react-dom`, `react-router-dom`
 - `zustand`
-- `@packages/runtime`, `@packages/auth-client`, `@packages/shared`
+- `@packages/runtime`, `@packages/api`, `@packages/shared`
 - `@packages/components`
 
 Remotes consume these from the host with `import: false`; they must not bundle
@@ -59,15 +65,16 @@ user-facing entry.
 
 ### API calls
 
-- ALWAYS via `@packages/api-client/<service>` (typed, auto-generated)
+- ALWAYS via `@packages/api` (typed wrappers / generated clients re-exported
+  from package entry)
 - NEVER raw `fetch()` in MFE code
 - Error handling via shared `useApiError()` hook from `@packages/shared`
 
 ### shadcn / Tailwind v4
 
 - **Tailwind v4 + theme**: `packages/components/src/styles.css` (`@import "tailwindcss"`, `shadcn/tailwind.css`, `@theme` + sidebar tokens)
-- **Build**: **platform host only** — `@tailwindcss/webpack` in `rspack.shared.mjs`; `main.tsx` imports `@packages/components/src/styles.css`（别名走目录，CSS 需带 `src/`）
-- **@source** in `styles.css`: `apps/*/src/**/*.{ts,tsx}` + `packages/components` only (not shared/runtime/api-client)
+- **Build**: **platform host only** — `@tailwindcss/webpack` in `rspack.shared.mjs`; `main.tsx` imports `@packages/components/styles.css`（公开 CSS 入口）
+- **@source** in `styles.css`: `apps/*/src/**/*.{ts,tsx}` + `packages/components` only (not shared/runtime/api)
 - **MFE remotes**: no PostCSS; no CSS import — use platform-injected styles
 - **@packages/components**: MF-shared singleton provided by platform; remotes import it but do not bundle a fallback
 - **State**: shared cross-MFE state primitives live in `@packages/runtime`; `zustand`, `zustand/middleware`, and shallow selector helpers are host-provided MF singletons. Private MFE stores may import `create` / `useShallow` directly from `zustand` packages; do not wrap static Zustand APIs in `@packages/runtime`.
@@ -99,7 +106,7 @@ user-facing entry.
 | `just dev-all`      | Start shell + all MFEs (heavy)                     |
 | `just lint`         | ESLint + tsc                                       |
 | `just fmt`          | Prettier + eslint --fix (auto-run, no need to ask) |
-| `just gen-client`   | Regen api-client from `schemas/openapi/`           |
+| `just gen-client`   | Regen `packages/api` from `schemas/openapi/`       |
 
 ## Size limits
 
@@ -108,7 +115,7 @@ user-facing entry.
 
 ## Forbidden zones for agents
 
-- `packages/api-client/*/generated/**` — codegen output
+- `packages/api/generated/**` — codegen output
 - `dist/`, `.rspack/`, `node_modules/`
 
 ## Done checklist

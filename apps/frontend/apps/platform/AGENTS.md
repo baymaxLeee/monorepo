@@ -2,7 +2,7 @@
 
 Platform is the host application. It owns:
 - Top-level routing (which URL routes to which MFE)
-- Authentication (via @packages/auth-client)
+- Authentication (via @packages/api)
 - Global layout (header, sidebar, footer)
 - Global error boundary
 - MFE registry (which remote lives at which URL)

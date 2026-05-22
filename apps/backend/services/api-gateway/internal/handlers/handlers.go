@@ -12,21 +12,17 @@ import (
 func Index(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{
 		"service": "api-gateway",
-		"docs":    "/healthz | /v1/auth | /v1/iam | /v1/bots",
+		"docs":    "/healthz | /api/iam-server/* | /api/admin-server/*",
 	})
 }
 
-// NewAdminProxy returns a reverse proxy to the admin service.
-// chi.Mount preserves the URL path, so we just forward as-is.
-func NewAdminProxy(upstream string) http.Handler {
-	return newReverseProxy(upstream, "admin")
+// NewServiceProxy returns a reverse proxy that strips the external service
+// prefix before forwarding to the upstream service.
+func NewServiceProxy(upstream, service, externalPrefix string) http.Handler {
+	return newReverseProxy(upstream, service, externalPrefix)
 }
 
-func NewIAMProxy(upstream string) http.Handler {
-	return newReverseProxy(upstream, "iam")
-}
-
-func newReverseProxy(upstream, service string) http.Handler {
+func newReverseProxy(upstream, service, externalPrefix string) http.Handler {
 	target, err := url.Parse(strings.TrimRight(upstream, "/"))
 	if err != nil {
 		panic("invalid " + service + " upstream url: " + err.Error())
@@ -36,6 +32,8 @@ func newReverseProxy(upstream, service string) http.Handler {
 	proxy.Director = func(req *http.Request) {
 		incomingPath := req.URL.Path
 		originalDirector(req)
+		req.URL.Path = stripServicePrefix(incomingPath, externalPrefix)
+		req.URL.RawPath = ""
 		req.Host = target.Host
 		slog.Info("proxy",
 			"service", service,
@@ -48,6 +46,17 @@ func newReverseProxy(upstream, service string) http.Handler {
 		http.Error(w, "upstream unavailable: "+err.Error(), http.StatusBadGateway)
 	}
 	return proxy
+}
+
+func stripServicePrefix(path, prefix string) string {
+	next := strings.TrimPrefix(path, prefix)
+	if next == "" {
+		return "/"
+	}
+	if !strings.HasPrefix(next, "/") {
+		return "/" + next
+	}
+	return next
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
