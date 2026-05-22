@@ -11,14 +11,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "packages": "workspace:*",
+    "@hookform/resolvers": "^5.4.0",
     "api-client": "workspace:*",
     "components": "workspace:*",
-    "runtime": "workspace:*",
-    "shared": "workspace:*",
+    "packages": "workspace:*",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "react-router-dom": "^6.26.0"
+    "react-hook-form": "^7.76.0",
+    "react-router-dom": "^6.26.0",
+    "runtime": "workspace:*",
+    "shared": "workspace:*",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@module-federation/enhanced": "^0.8.0",

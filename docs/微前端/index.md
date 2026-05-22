@@ -13,8 +13,8 @@ shell (host @ :3000)
 
 | 模块 | 端口 | 路由 | 后端 |
 |---|---|---|---|
-| shell | 3000 | / (host) | n/a |
-| mfe-bot | 3001 | /bots/* | bot service |
+| shell | 3000 | `/`、`/login` (host) | n/a |
+| mfe_admin | 3001 | `/platform/admin/*` | admin service |
 
 ## 通用规则
 

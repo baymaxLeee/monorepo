@@ -12,7 +12,9 @@
   "aliases": {
     "components": "@packages/components",
     "utils": "@packages/shared",
-    "ui": "@packages/components"
+    "ui": "@packages/components",
+    "lib": "@packages/shared",
+    "hooks": "@packages/components"
   },
   "iconLibrary": "lucide"
 }

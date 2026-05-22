@@ -1,7 +1,39 @@
-import { FormEvent, useState, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, type UseFormReturn } from "react-hook-form";
+import { z } from "zod";
 import { login, register, type AuthSession } from "@packages/auth-client";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Field,
+  FieldError,
+  FieldLabel,
+  FieldGroup,
+  Form,
+  FormControl,
+  FormField,
+  Input,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  toast,
+} from "@packages/components";
 
 type Mode = "login" | "register";
+
+const authSchema = z.object({
+  email: z.string().email("请输入有效邮箱"),
+  password: z.string().min(8, "密码至少 8 位"),
+  displayName: z.string().optional(),
+});
+
+type AuthValues = z.infer<typeof authSchema>;
 
 type AuthPageProps = {
   onAuthenticated: (session: AuthSession) => void;
@@ -9,194 +41,154 @@ type AuthPageProps = {
 
 export function AuthPage({ onAuthenticated }: AuthPageProps) {
   const [mode, setMode] = useState<Mode>("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSubmitting(true);
-    setError(null);
+  const form = useForm<AuthValues>({
+    resolver: zodResolver(authSchema),
+    defaultValues: { email: "", password: "", displayName: "" },
+  });
+
+  useEffect(() => {
+    form.clearErrors();
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps -- form ref is unstable
+
+  async function onSubmit(values: AuthValues) {
+    if (mode === "register" && !values.displayName?.trim()) {
+      form.setError("displayName", { message: "请输入显示名称" });
+      return;
+    }
     try {
       const session =
         mode === "login"
-          ? await login({ email, password })
-          : await register({ email, password, displayName });
+          ? await login({ email: values.email, password: values.password })
+          : await register({
+              email: values.email,
+              password: values.password,
+              displayName: values.displayName!.trim(),
+            });
+      toast.success(mode === "login" ? "登录成功" : "注册成功");
       onAuthenticated(session);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Authentication failed");
-    } finally {
-      setSubmitting(false);
+      const message = err instanceof Error ? err.message : "Authentication failed";
+      toast.error(message);
     }
   }
 
   return (
-    <main style={styles.page}>
-      <section style={styles.panel}>
-        <div>
-          <p style={styles.eyebrow}>Platform</p>
-          <h1 style={styles.title}>{mode === "login" ? "登录" : "注册账号"}</h1>
-        </div>
-        <div style={styles.switcher} aria-label="auth mode">
-          <button
-            type="button"
-            onClick={() => setMode("login")}
-            style={
-              mode === "login" ? styles.switcherActive : styles.switcherButton
-            }
+    <div className="flex min-h-svh items-center justify-center bg-muted/40 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>{mode === "login" ? "登录" : "注册账号"}</CardTitle>
+          <CardDescription>Platform 账号</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs
+            value={mode}
+            onValueChange={(v) => setMode(v as Mode)}
           >
-            登录
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("register")}
-            style={
-              mode === "register"
-                ? styles.switcherActive
-                : styles.switcherButton
-            }
-          >
-            注册
-          </button>
-        </div>
-        <form onSubmit={submit} style={styles.form}>
-          {mode === "register" ? (
-            <label style={styles.field}>
-              <span style={styles.label}>显示名称</span>
-              <input
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-                style={styles.input}
-                autoComplete="name"
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="login">登录</TabsTrigger>
+              <TabsTrigger value="register">注册</TabsTrigger>
+            </TabsList>
+            <TabsContent value="login" className="mt-4">
+              <AuthForm
+                form={form}
+                mode="login"
+                onSubmit={onSubmit}
               />
-            </label>
-          ) : null}
-          <label style={styles.field}>
-            <span style={styles.label}>邮箱</span>
-            <input
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              style={styles.input}
-              type="email"
-              autoComplete="email"
-              required
-            />
-          </label>
-          <label style={styles.field}>
-            <span style={styles.label}>密码</span>
-            <input
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              style={styles.input}
-              type="password"
-              autoComplete={
-                mode === "login" ? "current-password" : "new-password"
-              }
-              minLength={8}
-              required
-            />
-          </label>
-          {error ? <div style={styles.error}>{error}</div> : null}
-          <button type="submit" disabled={submitting} style={styles.submit}>
-            {submitting ? "处理中..." : mode === "login" ? "登录" : "创建账号"}
-          </button>
-        </form>
-      </section>
-    </main>
+            </TabsContent>
+            <TabsContent value="register" className="mt-4">
+              <AuthForm
+                form={form}
+                mode="register"
+                onSubmit={onSubmit}
+              />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
-const styles = {
-  page: {
-    minHeight: "100vh",
-    display: "grid",
-    placeItems: "center",
-    background: "#f8fafc",
-    padding: 24,
-    fontFamily: "system-ui, -apple-system, sans-serif",
-  },
-  panel: {
-    width: "min(420px, 100%)",
-    display: "grid",
-    gap: 22,
-    background: "#ffffff",
-    border: "1px solid #e2e8f0",
-    borderRadius: 8,
-    padding: 28,
-    boxShadow: "0 16px 40px rgba(15, 23, 42, 0.08)",
-  },
-  eyebrow: {
-    margin: 0,
-    color: "#64748b",
-    fontSize: 13,
-    fontWeight: 700,
-    textTransform: "uppercase" as const,
-  },
-  title: {
-    margin: "4px 0 0",
-    color: "#111827",
-    fontSize: 28,
-    lineHeight: 1.2,
-  },
-  switcher: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    border: "1px solid #cbd5e1",
-    borderRadius: 8,
-    overflow: "hidden",
-  },
-  switcherButton: {
-    border: 0,
-    background: "#ffffff",
-    color: "#334155",
-    padding: "10px 12px",
-    cursor: "pointer",
-  },
-  switcherActive: {
-    border: 0,
-    background: "#0f172a",
-    color: "#ffffff",
-    padding: "10px 12px",
-    cursor: "pointer",
-  },
-  form: {
-    display: "grid",
-    gap: 14,
-  },
-  field: {
-    display: "grid",
-    gap: 6,
-  },
-  label: {
-    color: "#334155",
-    fontSize: 14,
-    fontWeight: 600,
-  },
-  input: {
-    border: "1px solid #cbd5e1",
-    borderRadius: 6,
-    padding: "11px 12px",
-    fontSize: 15,
-    outlineColor: "#2563eb",
-  },
-  error: {
-    border: "1px solid #fecaca",
-    borderRadius: 6,
-    background: "#fef2f2",
-    color: "#991b1b",
-    padding: "10px 12px",
-    fontSize: 14,
-  },
-  submit: {
-    border: 0,
-    borderRadius: 6,
-    background: "#2563eb",
-    color: "#ffffff",
-    padding: "12px 14px",
-    fontSize: 15,
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-} satisfies Record<string, CSSProperties>;
+function AuthForm({
+  form,
+  mode,
+  onSubmit,
+}: {
+  form: UseFormReturn<AuthValues>;
+  mode: Mode;
+  onSubmit: (values: AuthValues) => Promise<void>;
+}) {
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)}>
+        <FieldGroup>
+          {mode === "register" ? (
+            <FormField
+              control={form.control}
+              name="displayName"
+              render={({ field }) => (
+                <Field>
+                  <FieldLabel htmlFor="displayName">显示名称</FieldLabel>
+                  <FormControl>
+                    <Input id="displayName" autoComplete="name" {...field} />
+                  </FormControl>
+                  <FieldError errors={[form.formState.errors.displayName]} />
+                </Field>
+              )}
+            />
+          ) : null}
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <Field>
+                <FieldLabel htmlFor="email">邮箱</FieldLabel>
+                <FormControl>
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    {...field}
+                  />
+                </FormControl>
+                <FieldError errors={[form.formState.errors.email]} />
+              </Field>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <Field>
+                <FieldLabel htmlFor="password">密码</FieldLabel>
+                <FormControl>
+                  <Input
+                    id="password"
+                    type="password"
+                    autoComplete={
+                      mode === "login" ? "current-password" : "new-password"
+                    }
+                    {...field}
+                  />
+                </FormControl>
+                <FieldError errors={[form.formState.errors.password]} />
+              </Field>
+            )}
+          />
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={form.formState.isSubmitting}
+          >
+            {form.formState.isSubmitting
+              ? "处理中…"
+              : mode === "login"
+                ? "登录"
+                : "创建账号"}
+          </Button>
+        </FieldGroup>
+      </form>
+    </Form>
+  );
+}

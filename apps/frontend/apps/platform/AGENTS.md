@@ -13,10 +13,20 @@ Platform is the host application. It owns:
 - New MFE remotes must be added to `rspack.config.ts` `remotes` map
 - Shared deps in MF config must match across ALL MFEs (use `singleton: true`)
 
+## URL layout
+- `/` (`HOME_PATH`) — when logged in → `defaultAppPath` (admin)
+- `/login` — session check via `LoginRoute`; valid token → admin, else login form
+- `/platform/<slug>` — each remote (`basePath` in registry, e.g. `/platform/admin`)
+- **Guest**: any unknown path → `/login`
+- **Authed**: any unknown host path → `defaultAppPath` (admin; sub-routes owned by MFE)
+- Sidebar: top-level apps from `registry`; `subNav` for in-MFE pages (e.g. admin 列表 / 组件演示)
+
 ## Adding a new MFE remote
 1. Add to `rspack.config.ts` remotes
-2. Add to `src/registry.ts` with route prefix and metadata
-3. The MFE must expose `./App` (default) and `./routes` (lazy-routed config)
+2. Add to `src/registry.ts` with `basePath: "/platform/<slug>"`
+3. Register lazy import in `src/App.tsx` `remoteApps`
+4. Standalone remote: `BrowserRouter basename` must match `basePath`
+5. Remote must expose `./App` (default)
 
 ## When to extend the platform vs. extend an MFE
 - Platform: authentication, layout chrome, route shell — anything that must be

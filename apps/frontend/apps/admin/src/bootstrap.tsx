@@ -5,8 +5,11 @@ import App from "./App";
 const container = document.getElementById("root");
 if (!container) throw new Error("#root not found");
 
+/** Match platform host mount: `/platform/admin/*` */
+const ADMIN_BASENAME = "/platform/admin";
+
 createRoot(container).render(
-  <BrowserRouter>
+  <BrowserRouter basename={ADMIN_BASENAME}>
     <div
       style={{
         padding: 16,
@@ -21,5 +24,3 @@ createRoot(container).render(
     <App />
   </BrowserRouter>,
 );
-
-export const registry = 123;

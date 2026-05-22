@@ -11,7 +11,9 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Page,
   Separator,
+  Skeleton,
 } from "@packages/components";
 import { fetchBot, type Bot } from "@packages/api-client/admin";
 
@@ -35,14 +37,25 @@ export function BotDetailPage() {
   }, [id]);
 
   return (
-    <div className="space-y-6 p-6">
+    <Page>
       <Button variant="ghost" size="sm" asChild>
         <Link to=".." relative="path">
           ← 返回列表
         </Link>
       </Button>
 
-      {loading && <p className="text-sm text-muted-foreground">加载中…</p>}
+      {loading && (
+        <Card className="max-w-lg">
+          <CardHeader>
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-4 w-56" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-2/3" />
+          </CardContent>
+        </Card>
+      )}
 
       {error && (
         <Alert variant="destructive">
@@ -74,6 +87,6 @@ export function BotDetailPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </Page>
   );
 }

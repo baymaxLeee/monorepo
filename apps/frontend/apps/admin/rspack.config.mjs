@@ -38,7 +38,7 @@ export default defineConfig({
     ],
   },
   plugins: [
-    new HtmlWebpackPlugin({ template: "./src/index.html" }),
+    new HtmlWebpackPlugin({ template: "./src/index.html", publicPath: "/" }),
     new ModuleFederationPlugin({
       name: "mfe_admin",
       filename: "remoteEntry.js",
@@ -51,7 +51,10 @@ export default defineConfig({
   ],
   devServer: {
     port: PORT,
-    historyApiFallback: true,
+    historyApiFallback: {
+      index: "/index.html",
+      disableDotRule: true,
+    },
     headers: { "Access-Control-Allow-Origin": "*" },
     hot: true,
   },

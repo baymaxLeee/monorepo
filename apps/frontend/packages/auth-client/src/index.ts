@@ -36,12 +36,24 @@ let expiresAt = readStorage(EXPIRES_AT_KEY);
 let currentUser = readJSON<AuthUser>(USER_KEY);
 let refreshPromise: Promise<AuthSession | null> | null = null;
 
+function syncFromStorage(): void {
+  accessToken = readStorage(ACCESS_TOKEN_KEY);
+  expiresAt = readStorage(EXPIRES_AT_KEY);
+  currentUser = readJSON<AuthUser>(USER_KEY);
+}
+
 export function getToken(): string | null {
   return accessToken;
 }
 
 export function getCurrentUser(): AuthUser | null {
   return currentUser;
+}
+
+/** True when access token exists and is not within 30s of expiry. */
+export function isAccessTokenValid(): boolean {
+  if (!accessToken || !expiresAt) return false;
+  return new Date(expiresAt).getTime() > Date.now() + 30_000;
 }
 
 export function setToken(token: string | null): void {
@@ -87,13 +99,27 @@ export async function refreshSession(): Promise<AuthSession | null> {
 }
 
 export async function bootstrapSession(): Promise<AuthUser | null> {
-  if (
-    accessToken &&
-    expiresAt &&
-    new Date(expiresAt).getTime() > Date.now() + 30_000
-  ) {
+  syncFromStorage();
+
+  if (isAccessTokenValid() && currentUser) {
     return currentUser;
   }
+
+  // Token metadata without user — stale cache; treat as logged out.
+  if (isAccessTokenValid() && !currentUser) {
+    clearSession();
+    return null;
+  }
+
+  // No prior session in storage — guest; skip /v1/auth/refresh (avoids 401 noise).
+  if (!accessToken && !expiresAt) {
+    if (currentUser || readStorage(USER_KEY)) {
+      clearSession();
+    }
+    return null;
+  }
+
+  // Expired access token — try refresh cookie once; 401 clears session silently.
   const refreshed = await refreshSession();
   return refreshed?.user ?? null;
 }

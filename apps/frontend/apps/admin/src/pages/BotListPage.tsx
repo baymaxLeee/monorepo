@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
+import { z } from "zod";
 import {
   Alert,
   AlertDescription,
@@ -18,16 +21,38 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  Form,
+  FormControl,
+  FormField,
+  InlineCode,
   Input,
-  Label,
+  Muted,
+  Page,
+  PageActions,
+  PageDescription,
+  PageHeader,
+  PageHeaderContent,
+  PageTitle,
+  Skeleton,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  toast,
 } from "@packages/components";
 import { createBot, fetchBots, type Bot } from "@packages/api-client/admin";
+
+const createBotSchema = z.object({
+  name: z.string().trim().min(1, "请输入名称"),
+});
+
+type CreateBotValues = z.infer<typeof createBotSchema>;
 
 function statusBadge(status: Bot["status"]) {
   const variants: Record<Bot["status"], "default" | "secondary" | "outline"> = {
@@ -48,8 +73,11 @@ export function BotListPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [creating, setCreating] = useState(false);
+
+  const form = useForm<CreateBotValues>({
+    resolver: zodResolver(createBotSchema),
+    defaultValues: { name: "" },
+  });
 
   const load = useCallback(() => {
     setLoading(true);
@@ -64,66 +92,89 @@ export function BotListPage() {
     load();
   }, [load]);
 
-  async function handleCreate() {
-    const name = newName.trim();
-    if (!name) return;
-    setCreating(true);
+  async function onCreate(values: CreateBotValues) {
     try {
-      await createBot({ name });
-      setNewName("");
+      await createBot({ name: values.name.trim() });
+      toast.success("智能体已创建");
+      form.reset();
       setCreateOpen(false);
       load();
     } catch (e) {
-      setError(String(e));
-    } finally {
-      setCreating(false);
+      const message = String(e);
+      toast.error(message);
+      setError(message);
     }
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">智能体列表</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            数据来自 <code className="rounded bg-muted px-1.5 py-0.5 text-xs">GET /v1/bots</code>
-          </p>
-        </div>
-        <div className="flex gap-2">
+    <Page>
+      <PageHeader>
+        <PageHeaderContent>
+          <PageTitle>智能体列表</PageTitle>
+          <PageDescription>
+            数据来自 <InlineCode>GET /v1/bots</InlineCode>
+          </PageDescription>
+        </PageHeaderContent>
+        <PageActions>
           <Button variant="outline" onClick={load} disabled={loading}>
             刷新
           </Button>
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <Dialog
+            open={createOpen}
+            onOpenChange={(open) => {
+              setCreateOpen(open);
+              if (!open) form.reset();
+            }}
+          >
             <DialogTrigger asChild>
               <Button>新建智能体</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>新建智能体</DialogTitle>
-                <DialogDescription>名称将提交到 admin 服务并写入 MySQL。</DialogDescription>
+                <DialogDescription>
+                  名称将提交到 admin 服务并写入 MySQL。
+                </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-2 py-2">
-                <Label htmlFor="bot-name">名称</Label>
-                <Input
-                  id="bot-name"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="例如：客服助手"
-                  onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setCreateOpen(false)}>
-                  取消
-                </Button>
-                <Button onClick={handleCreate} disabled={creating || !newName.trim()}>
-                  {creating ? "创建中…" : "创建"}
-                </Button>
-              </DialogFooter>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onCreate)} className="space-y-4">
+                  <FieldGroup>
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <Field>
+                        <FieldLabel htmlFor="bot-name">名称</FieldLabel>
+                        <FormControl>
+                          <Input
+                            id="bot-name"
+                            placeholder="例如：客服助手"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FieldError errors={[form.formState.errors.name]} />
+                      </Field>
+                    )}
+                  />
+                  </FieldGroup>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setCreateOpen(false)}
+                    >
+                      取消
+                    </Button>
+                    <Button type="submit" disabled={form.formState.isSubmitting}>
+                      {form.formState.isSubmitting ? "创建中…" : "创建"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
+        </PageActions>
+      </PageHeader>
 
       {error && (
         <Alert variant="destructive">
@@ -132,8 +183,8 @@ export function BotListPage() {
             {error}
             <br />
             <span className="text-xs">
-              请确认 <code className="rounded bg-muted px-1 py-0.5">just up</code> 与{" "}
-              <code className="rounded bg-muted px-1 py-0.5">just dev</code> 已启动 gateway / admin。
+              请确认 <InlineCode>just up</InlineCode> 与{" "}
+              <InlineCode>just dev</InlineCode> 已启动 gateway / admin。
             </span>
           </AlertDescription>
         </Alert>
@@ -147,7 +198,13 @@ export function BotListPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {bots && bots.length > 0 ? (
+          {loading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-3/4" />
+            </div>
+          ) : bots && bots.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -177,12 +234,10 @@ export function BotListPage() {
               </TableBody>
             </Table>
           ) : (
-            !loading && (
-              <p className="text-sm text-muted-foreground">列表为空，可点击「新建智能体」添加。</p>
-            )
+            <Muted>列表为空，可点击「新建智能体」添加。</Muted>
           )}
         </CardContent>
       </Card>
-    </div>
+    </Page>
   );
 }

@@ -1,8 +1,29 @@
 import type { ReactNode } from "react";
-import { logout, type AuthUser } from "@packages/auth-client";
-import { cn } from "@packages/shared";
 import { Link, useLocation } from "react-router-dom";
-import { registry } from "../registry";
+import { logout, type AuthUser } from "@packages/auth-client";
+import {
+  Button,
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarSeparator,
+  SidebarTrigger,
+} from "@packages/components";
+import { defaultAppPath, registry, type MfeEntry } from "../registry";
+
+function activeMfe(pathname: string): MfeEntry | undefined {
+  return registry.find((m) => pathname.startsWith(m.basePath));
+}
 
 export function Layout({
   children,
@@ -14,48 +35,94 @@ export function Layout({
   onUserChanged: (user: AuthUser | null) => void;
 }) {
   const location = useLocation();
+  const current = activeMfe(location.pathname);
+
   async function handleLogout() {
     await logout();
     onUserChanged(null);
   }
 
   return (
-    <div className="grid min-h-screen grid-rows-[auto_1fr] font-sans">
-      <header className="flex items-center gap-6 border-b bg-foreground px-6 py-3 text-background">
-        <strong className="text-lg">Monorepo Demo (Shell)</strong>
-        <nav className="flex gap-4">
-          {registry.map((m) => {
-            const active = location.pathname.startsWith(m.basePath);
-            return (
-              <Link
-                key={m.id}
-                to={m.basePath}
-                className={cn(
-                  "text-sm no-underline transition-colors",
-                  active
-                    ? "font-semibold text-background"
-                    : "font-normal text-background/60",
-                )}
-              >
-                {m.title}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="ml-auto flex items-center gap-3">
-          <span className="text-sm text-background/80">
-            {user.displayName}
-          </span>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="cursor-pointer rounded-md border border-background/30 bg-transparent px-2.5 py-1.5 text-sm text-background hover:bg-background/10"
-          >
-            退出
-          </button>
-        </div>
-      </header>
-      <main>{children}</main>
-    </div>
+    <SidebarProvider>
+      <Sidebar>
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" asChild>
+                <Link to={defaultAppPath}>
+                  <span className="truncate font-semibold">Monorepo Demo</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>应用</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {registry.map((m) => (
+                  <SidebarMenuItem key={m.id}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location.pathname.startsWith(m.basePath)}
+                    >
+                      <Link to={m.basePath}>
+                        <span>{m.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+          {current?.subNav && current.subNav.length > 0 ? (
+            <>
+              <SidebarSeparator />
+              <SidebarGroup>
+                <SidebarGroupLabel>{current.title}</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {current.subNav.map((item) => (
+                      <SidebarMenuItem key={item.href}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={location.pathname === item.href}
+                        >
+                          <Link to={item.href}>
+                            <span>{item.title}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </>
+          ) : null}
+        </SidebarContent>
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <div className="flex w-full items-center justify-between gap-2 px-2 py-1.5">
+                <span className="truncate text-sm text-muted-foreground">
+                  {user.displayName}
+                </span>
+                <Button variant="outline" size="sm" onClick={handleLogout}>
+                  退出
+                </Button>
+              </div>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
+      <SidebarInset>
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger />
+        </header>
+        <div className="flex flex-1 flex-col">{children}</div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

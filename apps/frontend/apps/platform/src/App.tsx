@@ -1,94 +1,171 @@
-import { Suspense, lazy, useEffect, useState } from "react";
-import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router-dom";
+import {
+  Suspense,
+  lazy,
+  useEffect,
+  useState,
+  type ComponentType,
+  type LazyExoticComponent,
+} from "react";
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import {
   bootstrapSession,
-  getCurrentUser,
   type AuthSession,
   type AuthUser,
 } from "@packages/auth-client";
-import { registry } from "./registry";
+import { Muted, Skeleton } from "@packages/components";
+import { defaultAppPath, HOME_PATH, LOGIN_PATH, registry } from "./registry";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { AppProviders } from "./components/AppProviders";
 import { Layout } from "./components/Layout";
+import { RemoteErrorBoundary } from "./components/RemoteErrorBoundary";
+import { AuthLoadingCard } from "./pages/AuthLoadingCard";
 import { AuthPage } from "./pages/AuthPage";
 
-// Lazy-load each MFE entry via Module Federation.
-// The "mfe_admin/App" specifier is resolved by the MF host at runtime.
 const AdminApp = lazy(() => import("mfe_admin/App"));
 
-export function App() {
-  const [user, setUser] = useState<AuthUser | null>(() => getCurrentUser());
-  const [bootstrapping, setBootstrapping] = useState(true);
+const remoteApps: Record<string, LazyExoticComponent<ComponentType>> = {
+  mfe_admin: AdminApp,
+};
+
+function isLoginPath(pathname: string) {
+  return pathname === LOGIN_PATH || pathname === "/login/";
+}
+
+function MfeFallback({ title }: { title: string }) {
+  return (
+    <div className="flex flex-1 flex-col gap-3 p-6">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-4 w-full max-w-md" />
+      <Muted>Loading {title}…</Muted>
+    </div>
+  );
+}
+
+function AuthenticatedRoutes({
+  user,
+  onUserChanged,
+}: {
+  user: AuthUser;
+  onUserChanged: (user: AuthUser | null) => void;
+}) {
+  return (
+    <Layout user={user} onUserChanged={onUserChanged}>
+      <Routes>
+        <Route path={HOME_PATH} element={<Navigate to={defaultAppPath} replace />} />
+        {registry.map((m) => {
+          const Remote = remoteApps[m.remoteName];
+          if (!Remote) return null;
+          return (
+            <Route
+              key={m.id}
+              path={`${m.basePath}/*`}
+              element={
+                <RemoteErrorBoundary remoteName={m.remoteName}>
+                  <Suspense fallback={<MfeFallback title={m.title} />}>
+                    <Remote />
+                  </Suspense>
+                </RemoteErrorBoundary>
+              }
+            />
+          );
+        })}
+        <Route path={LOGIN_PATH} element={<Navigate to={defaultAppPath} replace />} />
+        <Route path="*" element={<Navigate to={defaultAppPath} replace />} />
+      </Routes>
+    </Layout>
+  );
+}
+
+function AppRouter() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [ready, setReady] = useState(false);
+  const onLogin = isLoginPath(location.pathname);
 
   useEffect(() => {
-    let cancelled = false;
+    let alive = true;
     bootstrapSession()
       .then((sessionUser) => {
-        if (!cancelled) setUser(sessionUser);
+        if (alive) setUser(sessionUser);
+      })
+      .catch(() => {
+        if (alive) setUser(null);
       })
       .finally(() => {
-        if (!cancelled) setBootstrapping(false);
+        setReady(true);
       });
     return () => {
-      cancelled = true;
+      alive = false;
     };
   }, []);
 
   function handleAuthenticated(session: AuthSession) {
     setUser(session.user);
+    navigate(defaultAppPath, { replace: true });
   }
 
-  if (bootstrapping) {
-    return <div style={{ padding: 24 }}>Loading...</div>;
+  if (!ready) {
+    if (onLogin) {
+      return (
+        <Routes>
+          <Route path={LOGIN_PATH} element={<AuthLoadingCard />} />
+          <Route path="*" element={<Navigate to={LOGIN_PATH} replace />} />
+        </Routes>
+      );
+    }
+    return (
+      <div className="flex min-h-svh items-center justify-center p-6">
+        <div className="w-full max-w-xs space-y-3">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-4 w-full" />
+          <Muted>正在恢复会话…</Muted>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <BrowserRouter>
+    <Routes>
+      <Route
+        path={LOGIN_PATH}
+        element={
+          user ? (
+            <Navigate to={defaultAppPath} replace />
+          ) : (
+            <AuthPage onAuthenticated={handleAuthenticated} />
+          )
+        }
+      />
       {user ? (
-        <Layout user={user} onUserChanged={setUser}>
-          <Routes>
-            <Route path="/" element={<Navigate to="/bots" replace />} />
-            <Route
-              path="/bots/*"
-              element={
-                <Suspense
-                  fallback={
-                    <div style={{ padding: 16 }}>Loading admin module…</div>
-                  }
-                >
-                  <AdminApp />
-                </Suspense>
-              }
-            />
-            <Route
-              path="*"
-              element={
-                <div style={{ padding: 24 }}>
-                  <h2>404</h2>
-                  <p>
-                    No route matched. Try one of:{" "}
-                    {registry.map((m) => (
-                      <Link
-                        key={m.id}
-                        to={m.basePath}
-                        style={{ marginRight: 12 }}
-                      >
-                        {m.title}
-                      </Link>
-                    ))}
-                  </p>
-                </div>
-              }
-            />
-          </Routes>
-        </Layout>
+        <Route
+          path="*"
+          element={
+            <AuthenticatedRoutes user={user} onUserChanged={setUser} />
+          }
+        />
       ) : (
-        <Routes>
-          <Route
-            path="/auth"
-            element={<AuthPage onAuthenticated={handleAuthenticated} />}
-          />
-          <Route path="*" element={<Navigate to="/auth" replace />} />
-        </Routes>
+        <Route path="*" element={<Navigate to={LOGIN_PATH} replace />} />
       )}
-    </BrowserRouter>
+    </Routes>
+  );
+}
+
+export function App() {
+  return (
+    <AppErrorBoundary>
+      <BrowserRouter>
+        <AppProviders>
+          <AppRouter />
+        </AppProviders>
+      </BrowserRouter>
+    </AppErrorBoundary>
   );
 }

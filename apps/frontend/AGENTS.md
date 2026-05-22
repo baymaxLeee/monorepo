@@ -6,11 +6,10 @@ React 18 + TypeScript + Tailwind + Rspack + Module Federation 2.0.
 
 ```
 platform (host @ :3000)
-  ├── loads → admin         (remote @ :3001)  routes: /bots/*
-  ├── loads → mfe-scene     (remote @ :3002)  routes: /scenes/*
-  ├── loads → mfe-intention (remote @ :3003)  routes: /intentions/*
-  ├── loads → mfe-admin     (remote @ :3004)  routes: /admin/*
-  └── loads → mfe-portal    (remote @ :3005)  routes: /portal/*
+  ├── /login                — auth (host-only)
+  ├── loads → admin         (remote @ :3001)  routes: /platform/admin/*
+  ├── loads → mfe-scene     (remote @ :3002)  routes: /platform/scene/*  (planned)
+  └── …                     — new remotes: /platform/<slug>/*
 ```
 
 **platform owns**: auth, top-level routing, layout, global error boundary, MFE registry.
@@ -56,12 +55,22 @@ Host + remotes share only **platform infra**:
 - Error handling via shared `useApiError()` hook from `@packages/shared`
 
 ### shadcn / Tailwind v4
-- **Tailwind v4 + theme**: `packages/components/src/styles.css` (`@import "tailwindcss"`, `shadcn/tailwind.css`, `@theme`)
+- **Tailwind v4 + theme**: `packages/components/src/styles.css` (`@import "tailwindcss"`, `shadcn/tailwind.css`, `@theme` + sidebar tokens)
 - **Build**: **platform host only** — `@tailwindcss/webpack` in `rspack.shared.mjs`; `main.tsx` imports `@packages/components/src/styles.css`（别名走目录，CSS 需带 `src/`）
 - **@source** in `styles.css`: `apps/*/src/**/*.{ts,tsx}` + `packages/components` only (not shared/runtime/api-client)
 - **MFE remotes**: no PostCSS; no CSS import — use platform-injected styles
-- **@packages/components**: per-MFE JS bundle (Radix/shadcn), not MF-shared
-- CLI: `cd apps/frontend && pnpm dlx shadcn@latest add <name>`
+- **@packages/components**: per-MFE JS bundle (Radix/shadcn), **not** MF-shared（避免 share-scope 冲突；升级组件时需所有 MFE 一起验证构建）
+- **Shell 布局**: platform `Layout` 使用 `Sidebar` + `registry.subNav`；MFE 只渲染内容区（无二次顶栏）
+- **全局浮层**: platform `AppProviders` 挂载 `TooltipProvider` + `Toaster`（`toast` 从 `@packages/components` 导出）
+- **MFE 内 Provider**: 因 `@packages/components` 不 MF-shared，remote 内使用 `Tooltip` 等须在 **该 MFE 的 `App.tsx`** 再包一层 `TooltipProvider`（host 的 Provider 无法跨 bundle）
+- **表单**: `Form` + `Field` + `react-hook-form` + `zod`；业务页勿手写裸 `Label`+`useState` 校验
+- **页面布局**: `Page` / `PageHeader`；加载态用 `Skeleton`
+- **组件升级流程**（在 `apps/frontend/packages/components`）:
+  1. 确认 `packages/components/components.json` 与根 `components.json` aliases 一致
+  2. `pnpm dlx shadcn@latest add <component> --cwd packages/components --overwrite`（若 CLI 报 workspace 错，按 [registry](https://ui.shadcn.com/r/styles/new-york-v4/) 手改并统一 `@packages/shared` 的 `cn` 导入）
+  3. `pnpm -F components typecheck` + 受影响 MFE `typecheck` + `pnpm -F platform build`
+  4. 新 MFE 在 `registry.ts` 增加 `basePath` + `subNav`，并在 `App.tsx` `remoteApps` 注册 lazy import
+- **MF 例外**: remote 的 `./App` 允许 `export default`（Module Federation 约定），与 lib「禁止 default export」无关
 
 ### Code style
 - Components: PascalCase, ≤ 250 LoC, no default exports in libs

@@ -51,8 +51,13 @@ import {
   Textarea,
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
+  InlineCode,
+  Page,
+  PageDescription,
+  PageHeader,
+  PageHeaderContent,
+  PageTitle,
 } from "@packages/components";
 
 export function ComponentsDemoPage() {
@@ -61,15 +66,16 @@ export function ComponentsDemoPage() {
   const [role, setRole] = useState("editor");
 
   return (
-    <TooltipProvider>
-      <div className="space-y-8 p-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">shadcn 组件演示</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            来自 <code className="rounded bg-muted px-1.5 py-0.5 text-xs">@packages/components</code>
-            ，样式由全局 <code className="rounded bg-muted px-1.5 py-0.5 text-xs">styles.css</code> 提供
-          </p>
-        </div>
+      <Page className="space-y-8">
+        <PageHeader>
+          <PageHeaderContent>
+            <PageTitle>shadcn 组件演示</PageTitle>
+            <PageDescription>
+              来自 <InlineCode>@packages/components</InlineCode>
+              ，主题由 <InlineCode>styles.css</InlineCode> 注入
+            </PageDescription>
+          </PageHeaderContent>
+        </PageHeader>
 
         <Alert>
           <AlertTitle>提示</AlertTitle>
@@ -169,7 +175,11 @@ export function ComponentsDemoPage() {
                     <Label htmlFor="marketing">营销邮件</Label>
                     <p className="text-xs text-muted-foreground">每月最多一封</p>
                   </div>
-                  <Switch id="marketing" checked={marketing} onCheckedChange={setMarketing} />
+                  <Switch
+                    id="marketing"
+                    checked={marketing}
+                    onCheckedChange={(v) => setMarketing(v === true)}
+                  />
                 </div>
               </CardContent>
               <CardFooter>
@@ -222,7 +232,7 @@ export function ComponentsDemoPage() {
                     <DropdownMenuSeparator />
                     <DropdownMenuCheckboxItem
                       checked={notify}
-                      onCheckedChange={(v) => setNotify(v)}
+                      onCheckedChange={(v) => setNotify(v === true)}
                     >
                       通知
                     </DropdownMenuCheckboxItem>
@@ -270,8 +280,7 @@ export function ComponentsDemoPage() {
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
-    </TooltipProvider>
+      </Page>
   );
 }
 

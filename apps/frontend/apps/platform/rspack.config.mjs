@@ -4,7 +4,10 @@ import { ModuleFederationPlugin } from "@module-federation/enhanced/rspack";
 import HtmlWebpackPlugin from "html-webpack-plugin";
 import { defineConfig } from "@rspack/cli";
 import { buildShared } from "../../mf-shared.mjs";
-import { createAppResolveAlias, createHostCssRule } from "../../rspack.shared.mjs";
+import {
+  createAppResolveAlias,
+  createHostCssRule,
+} from "../../rspack.shared.mjs";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const appDir = path.dirname(fileURLToPath(import.meta.url));
@@ -39,7 +42,7 @@ export default defineConfig({
     ],
   },
   plugins: [
-    new HtmlWebpackPlugin({ template: "./src/index.html" }),
+    new HtmlWebpackPlugin({ template: "./src/index.html", publicPath: "/" }),
     new ModuleFederationPlugin({
       name: "platform",
       dts: false,
@@ -51,7 +54,10 @@ export default defineConfig({
   ],
   devServer: {
     port: PORT,
-    historyApiFallback: true,
+    historyApiFallback: {
+      index: "/index.html",
+      disableDotRule: true,
+    },
     headers: { "Access-Control-Allow-Origin": "*" },
     hot: true,
   },
