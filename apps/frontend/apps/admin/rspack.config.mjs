@@ -1,7 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ModuleFederationPlugin } from "@module-federation/enhanced/rspack";
-import HtmlWebpackPlugin from "html-webpack-plugin";
 import { defineConfig } from "@rspack/cli";
 import { buildShared } from "../../mf-shared.mjs";
 import { createAppResolveAlias } from "../../rspack.shared.mjs";
@@ -10,7 +9,7 @@ const PORT = Number(process.env.PORT ?? 3001);
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  entry: "./src/main.tsx",
+  entry: {},
   mode: process.env.NODE_ENV === "production" ? "production" : "development",
   output: {
     path: path.resolve(appDir, "dist"),
@@ -38,7 +37,6 @@ export default defineConfig({
     ],
   },
   plugins: [
-    new HtmlWebpackPlugin({ template: "./src/index.html", publicPath: "/" }),
     new ModuleFederationPlugin({
       name: "mfe_admin",
       filename: "remoteEntry.js",
