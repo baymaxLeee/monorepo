@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { logout, type AuthUser } from "@packages/auth-client";
+import { logout } from "@packages/auth-client";
 import {
   Button,
   Sidebar,
@@ -19,6 +19,7 @@ import {
   SidebarSeparator,
   SidebarTrigger,
 } from "@packages/components";
+import { usePlatformStore, type PlatformUser } from "@packages/runtime";
 import { defaultAppPath, registry, type MfeEntry } from "../registry";
 
 function activeMfe(pathname: string): MfeEntry | undefined {
@@ -31,11 +32,26 @@ export function Layout({
   onUserChanged,
 }: {
   children: ReactNode;
-  user: AuthUser;
-  onUserChanged: (user: AuthUser | null) => void;
+  user: PlatformUser;
+  onUserChanged: (user: PlatformUser | null) => void;
 }) {
   const location = useLocation();
+  const menus = usePlatformStore((state) => state.menus);
+  const setActiveMenuId = usePlatformStore((state) => state.setActiveMenuId);
   const current = activeMfe(location.pathname);
+  const platformMenus =
+    menus.length > 0
+      ? menus
+      : registry.map((m) => ({
+          id: m.id,
+          title: m.title,
+          basePath: m.basePath,
+          subNav: m.subNav,
+        }));
+
+  useEffect(() => {
+    setActiveMenuId(current?.id ?? null);
+  }, [current?.id, setActiveMenuId]);
 
   async function handleLogout() {
     await logout();
@@ -61,7 +77,7 @@ export function Layout({
             <SidebarGroupLabel>应用</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {registry.map((m) => (
+                {platformMenus.map((m) => (
                   <SidebarMenuItem key={m.id}>
                     <SidebarMenuButton
                       asChild

@@ -30,6 +30,7 @@ root URL 不是业务入口，也不提供状态页；本地与生产都通过 p
   @packages/components
 - remote 使用 `import: false` 消费共享依赖，不打包 React、Router、平台基础包或共享 UI kit 的 fallback
 - 跨 MFE 状态原语放在 `@packages/runtime`；Zustand 版本由 runtime 包依赖锁定，不在子应用重复声明
+- 子应用私有 store 可以存在于各自 `src/store/`，`create` / `useShallow` 直接从 `zustand` 包导入；MF shared 保证运行时仍消费 host 提供的同一份库
 - remote 产物保留业务代码、服务 API client、业务直接依赖以及 federation entry/chunks
 - Tailwind 仅 platform 构建全局 CSS；remote 不导入 CSS、不注册 PostCSS
 

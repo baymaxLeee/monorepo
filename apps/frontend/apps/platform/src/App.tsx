@@ -14,12 +14,9 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
-import {
-  bootstrapSession,
-  type AuthSession,
-  type AuthUser,
-} from "@packages/auth-client";
+import { bootstrapSession, type AuthSession } from "@packages/auth-client";
 import { Muted, Skeleton } from "@packages/components";
+import { usePlatformStore, type PlatformUser } from "@packages/runtime";
 import { defaultAppPath, HOME_PATH, LOGIN_PATH, registry } from "./registry";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { AppProviders } from "./components/AppProviders";
@@ -52,13 +49,16 @@ function AuthenticatedRoutes({
   user,
   onUserChanged,
 }: {
-  user: AuthUser;
-  onUserChanged: (user: AuthUser | null) => void;
+  user: PlatformUser;
+  onUserChanged: (user: PlatformUser | null) => void;
 }) {
   return (
     <Layout user={user} onUserChanged={onUserChanged}>
       <Routes>
-        <Route path={HOME_PATH} element={<Navigate to={defaultAppPath} replace />} />
+        <Route
+          path={HOME_PATH}
+          element={<Navigate to={defaultAppPath} replace />}
+        />
         {registry.map((m) => {
           const Remote = remoteApps[m.remoteName];
           if (!Remote) return null;
@@ -76,7 +76,10 @@ function AuthenticatedRoutes({
             />
           );
         })}
-        <Route path={LOGIN_PATH} element={<Navigate to={defaultAppPath} replace />} />
+        <Route
+          path={LOGIN_PATH}
+          element={<Navigate to={defaultAppPath} replace />}
+        />
         <Route path="*" element={<Navigate to={defaultAppPath} replace />} />
       </Routes>
     </Layout>
@@ -86,9 +89,22 @@ function AuthenticatedRoutes({
 function AppRouter() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const user = usePlatformStore((state) => state.user);
+  const setUser = usePlatformStore((state) => state.setUser);
+  const setMenus = usePlatformStore((state) => state.setMenus);
   const [ready, setReady] = useState(false);
   const onLogin = isLoginPath(location.pathname);
+
+  useEffect(() => {
+    setMenus(
+      registry.map((m) => ({
+        id: m.id,
+        title: m.title,
+        basePath: m.basePath,
+        subNav: m.subNav,
+      })),
+    );
+  }, [setMenus]);
 
   useEffect(() => {
     let alive = true;
@@ -147,9 +163,7 @@ function AppRouter() {
       {user ? (
         <Route
           path="*"
-          element={
-            <AuthenticatedRoutes user={user} onUserChanged={setUser} />
-          }
+          element={<AuthenticatedRoutes user={user} onUserChanged={setUser} />}
         />
       ) : (
         <Route path="*" element={<Navigate to={LOGIN_PATH} replace />} />

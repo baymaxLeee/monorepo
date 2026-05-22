@@ -47,6 +47,9 @@ import {
   toast,
 } from "@packages/components";
 import { createBot, fetchBots, type Bot } from "@packages/api-client/admin";
+import { useShallow } from "zustand/react/shallow";
+import { usePlatformStore } from "@packages/index";
+import { useAdminStore } from "../store/useAdminStore";
 
 const createBotSchema = z.object({
   name: z.string().trim().min(1, "请输入名称"),
@@ -72,7 +75,22 @@ export function BotListPage() {
   const [bots, setBots] = useState<Bot[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
+  const { createOpen, setCreateOpen } = useAdminStore(
+    useShallow((state) => ({
+      createOpen: state.createDialogOpen,
+      setCreateOpen: state.setCreateDialogOpen,
+    })),
+  );
+
+  const { user } = usePlatformStore(
+    useShallow((s) => {
+      return {
+        user: s.user
+      }
+    })
+  )
+
+  console.log('store', user, createOpen)
 
   const form = useForm<CreateBotValues>({
     resolver: zodResolver(createBotSchema),
@@ -137,25 +155,28 @@ export function BotListPage() {
                 </DialogDescription>
               </DialogHeader>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onCreate)} className="space-y-4">
+                <form
+                  onSubmit={form.handleSubmit(onCreate)}
+                  className="space-y-4"
+                >
                   <FieldGroup>
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <Field>
-                        <FieldLabel htmlFor="bot-name">名称</FieldLabel>
-                        <FormControl>
-                          <Input
-                            id="bot-name"
-                            placeholder="例如：客服助手"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FieldError errors={[form.formState.errors.name]} />
-                      </Field>
-                    )}
-                  />
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <Field>
+                          <FieldLabel htmlFor="bot-name">名称</FieldLabel>
+                          <FormControl>
+                            <Input
+                              id="bot-name"
+                              placeholder="例如：客服助手"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FieldError errors={[form.formState.errors.name]} />
+                        </Field>
+                      )}
+                    />
                   </FieldGroup>
                   <DialogFooter>
                     <Button
@@ -165,7 +186,10 @@ export function BotListPage() {
                     >
                       取消
                     </Button>
-                    <Button type="submit" disabled={form.formState.isSubmitting}>
+                    <Button
+                      type="submit"
+                      disabled={form.formState.isSubmitting}
+                    >
                       {form.formState.isSubmitting ? "创建中…" : "创建"}
                     </Button>
                   </DialogFooter>

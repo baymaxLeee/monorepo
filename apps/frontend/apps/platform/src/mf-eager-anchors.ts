@@ -11,10 +11,16 @@ import * as _runtime from "@packages/runtime";
 import * as _authClient from "@packages/auth-client";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import * as _components from "@packages/components";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import * as _zustandReactShallow from "zustand/react/shallow";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import * as _zustandShallow from "zustand/shallow";
 
 void _shared;
 void _runtime;
 void _authClient;
 void _components;
+void _zustandReactShallow;
+void _zustandShallow;
 
 export const __mf_anchors_loaded = true;

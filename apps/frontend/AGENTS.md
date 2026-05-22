@@ -70,7 +70,7 @@ user-facing entry.
 - **@source** in `styles.css`: `apps/*/src/**/*.{ts,tsx}` + `packages/components` only (not shared/runtime/api-client)
 - **MFE remotes**: no PostCSS; no CSS import — use platform-injected styles
 - **@packages/components**: MF-shared singleton provided by platform; remotes import it but do not bundle a fallback
-- **State**: shared cross-MFE state primitives live in `@packages/runtime`; `zustand` is a host-provided MF singleton, not a per-MFE dependency/version
+- **State**: shared cross-MFE state primitives live in `@packages/runtime`; `zustand`, `zustand/middleware`, and shallow selector helpers are host-provided MF singletons. Private MFE stores may import `create` / `useShallow` directly from `zustand` packages; do not wrap static Zustand APIs in `@packages/runtime`.
 - **Shell 布局**: platform `Layout` 使用 `Sidebar` + `registry.subNav`；MFE 只渲染内容区（无二次顶栏）
 - **全局浮层**: platform `AppProviders` 挂载 `TooltipProvider` + `Toaster`（`toast` 从 `@packages/components` 导出）
 - **MFE 内 Provider**: remote 一般不再重复挂全局 `TooltipProvider` / `Toaster`；需要局部 provider 时必须确认它来自 host-shared `@packages/components`

@@ -58,6 +58,21 @@ const TIER2 = {
   "@packages/runtime": { singleton: true, requiredVersion: false },
   "@packages/auth-client": { singleton: true, requiredVersion: false },
   zustand: { singleton: true, requiredVersion: "^5.0.0", strictVersion: false },
+  "zustand/middleware": {
+    singleton: true,
+    requiredVersion: "^5.0.0",
+    strictVersion: false,
+  },
+  "zustand/react/shallow": {
+    singleton: true,
+    requiredVersion: "^5.0.0",
+    strictVersion: false,
+  },
+  "zustand/shallow": {
+    singleton: true,
+    requiredVersion: "^5.0.0",
+    strictVersion: false,
+  },
 };
 
 const TIER3 = {

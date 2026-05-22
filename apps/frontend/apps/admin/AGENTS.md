@@ -25,6 +25,7 @@ Manages the "智能体" domain on the frontend. Backed by `apps/backend/services
 - No `src/main.tsx` / `src/index.html`; do not add a standalone or status page
 - `src/pages/<Name>Page.tsx` — page-level components
 - `src/components/` — local UI components (not shared)
+- `src/store/` — admin-private Zustand stores; import `create` / `useShallow` directly from `zustand` packages
 - `src/hooks/` — local hooks
 
 ## When to extract a component
