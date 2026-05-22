@@ -31,10 +31,7 @@ class Settings(BaseSettings):
     def database_url(self) -> str:
         user = quote_plus(self.mysql_user)
         password = quote_plus(self.mysql_password)
-        return (
-            f"mysql+asyncmy://{user}:{password}@"
-            f"{self.mysql_host}:{self.mysql_port}/{self.mysql_database}"
-        )
+        return f"mysql+asyncmy://{user}:{password}@{self.mysql_host}:{self.mysql_port}/{self.mysql_database}"
 
     @computed_field  # type: ignore[prop-decorator]
     @property

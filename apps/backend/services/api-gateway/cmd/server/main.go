@@ -36,6 +36,7 @@ func main() {
 	r.Use(middleware.RequestLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.CORS(cfg.AllowedOrigins))
+	r.Use(middleware.IdentityPropagation(cfg.AccessTokenSecret, cfg.PublicPathPrefixes))
 
 	r.Get("/healthz", handlers.Healthz(st))
 	r.Get("/", handlers.Index)

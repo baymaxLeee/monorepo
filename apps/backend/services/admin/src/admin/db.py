@@ -1,7 +1,7 @@
 """Async SQLAlchemy engine and session factory."""
 
 from collections.abc import AsyncGenerator
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
@@ -10,10 +10,10 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+
 from .config import get_settings
 from .models.base import Base
 from .models.bot import BotRow
-
 
 _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None

@@ -44,19 +44,76 @@ caution / forbidden for unprompted edits.
 
 ## Top-level commands (run from root)
 
+These are the **canonical entry points** every contributor (human or agent)
+uses. Treat them as the project's public CLI: any refactor / rename / move
+MUST keep them working — see "Migration safety" rule below.
+
 | Command | What it does |
 |---|---|
+| `just install` | Install ALL deps (mise + pnpm + uv + go; copies `.env` from examples) |
 | `just up` | Docker (MySQL 8, Redis) + DB bootstrap (`scripts/db-bootstrap.sh`) |
 | `just down` | Stop local infra |
-| `just install` | Install ALL deps (mise + pnpm + uv + go; copies `.env` from examples) |
-| `just dev` | Start full demo stack (api-gateway + admin svc + platform + admin MFE) |
+| `just dev` | Start full demo stack (api-gateway + iam + admin svc + platform + admin MFE) |
+| `just build [target]` | Build frontend / backend / specific service (target optional) |
 | `just sync` | Backend → OpenAPI → frontend TS client regen |
 | `just fmt` | Format both stacks (auto-run after edits, no need to ask) |
 | `just lint` | Lint both stacks |
-| `just test` | Test both stacks |
 | `just status` | Git + service health overview |
+| `just doctor` | Environment diagnostics |
+| `just new-service <name>` / `just new-mfe <name>` | Scaffold a new service / MFE |
 
 ## Universal hard rules
+
+### Project phase: DEMO (overrides everything below)
+
+The project is in the **demo phase**. Until this section is removed, agents
+MUST NOT add testing scaffolding of any kind, including:
+
+- Unit / integration / e2e test files (`*_test.go`, `*.test.ts`, `*.spec.ts`,
+  `tests/`, `__tests__/`, etc.)
+- Test fixtures, mocks, factories, seed data scripts written **for testing**
+- pytest / vitest / jest / playwright config; new `just test` recipes;
+  CI test jobs
+- README sections, ADRs, or playbooks describing how to run tests
+
+`just test` in the "Definition of done" below is **skipped** during this phase.
+
+**Rationale:** demo-phase priority is API/UX surface area and architectural
+shape; test infrastructure is a multiplicative cost (test data + mocks + CI
+matrices) we will introduce deliberately once the surface stabilizes.
+
+**Override:** if (and only if) the user explicitly asks for tests in a given
+task, honor it for that task only — do not generalize it into scaffolding.
+
+### Migration safety: don't break the CLI
+
+The `just` commands above are how everyone (humans, agents, CI, docs, README)
+enters the project. **Any rename / move / restructure MUST keep these
+commands working** — verify before declaring done:
+
+- `just install` (deps still resolve)
+- `just up` (Docker + DB bootstrap still works)
+- `just dev` (full stack still boots; ports unchanged)
+- `just build` (with no target, and with each affected service/mfe target)
+- `just sync` (after backend route or schema changes)
+- `just fmt` / `just lint` (after any code change)
+
+Common silent-breakers to watch:
+
+- Renaming a service/mfe directory → update `apps/backend/justfile` SERVICES
+  list, `apps/frontend/turbo.json`, `Procfile.dev`, `scripts/dev-*.sh`,
+  `scripts/db-bootstrap.sh`, `scripts/new-*.sh`, `infra/k8s/`, all `AGENTS.md`
+- Changing a default port → update `justfile` PORTS map, `dev-urls`,
+  `.env.example` files, frontend MF `remotes`, gateway upstream config
+- Renaming an env var → update **every** `.env.example` AND any script that
+  reads it (grep `scripts/` and root `justfile`)
+- Moving `scripts/*.sh` → update root `justfile` recipes that call them
+- Changing `apps/backend/services/` or `apps/frontend/apps/` layout → update
+  `go.work`, `pnpm-workspace.yaml`, `tsconfig.base.json` paths
+
+Quick self-check after any structural change: run at minimum
+`just install && just up && just dev` once; if any of them break, the
+migration is incomplete.
 
 ### Boundaries (NEVER cross these)
 - `apps/backend/services/<a>` MUST NOT import from `services/<b>` — use
@@ -84,7 +141,7 @@ caution / forbidden for unprompted edits.
 ### Definition of done (every change)
 1. `just fmt` (auto-run, do not ask)
 2. `just lint` scoped to affected area
-3. `just test` scoped to affected area
+3. ~~`just test`~~ — **skipped during demo phase** (see above)
 4. If cross-stack: `just sync` and verify both sides build
 5. If new behavior: add/update ADR in `docs/ADR/NNNN-<slug>.md`
 6. Update relevant `docs/<domain>/index.md` if conventions changed

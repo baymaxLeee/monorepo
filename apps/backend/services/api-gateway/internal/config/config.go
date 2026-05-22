@@ -10,12 +10,16 @@ import (
 
 // Config holds runtime settings loaded from environment / .env.
 type Config struct {
-	Port            string
-	AdminServiceURL string
-	IAMServiceURL   string
-	AllowedOrigins  []string
-	DatabaseURL     string
-	RedisURL        string
+	Port              string
+	AdminServiceURL   string
+	IAMServiceURL     string
+	AllowedOrigins    []string
+	DatabaseURL       string
+	RedisURL          string
+	AccessTokenSecret string
+	// PublicPathPrefixes are paths that bypass the identity-propagation
+	// middleware (login/register/refresh, health checks).
+	PublicPathPrefixes []string
 }
 
 // Load reads .env (if present) and environment variables.
@@ -41,7 +45,16 @@ func Load() Config {
 			"%s:%s@tcp(%s:%s)/%s?parseTime=true",
 			mysqlUser, mysqlPassword, mysqlHost, mysqlPort, mysqlDatabase,
 		),
-		RedisURL: fmt.Sprintf("redis://%s:%s/%s", redisHost, redisPort, redisDB),
+		RedisURL:          fmt.Sprintf("redis://%s:%s/%s", redisHost, redisPort, redisDB),
+		AccessTokenSecret: envOr("ACCESS_TOKEN_SECRET", "dev-only-change-me"),
+		PublicPathPrefixes: csvOr("PUBLIC_PATH_PREFIXES", []string{
+			"/",
+			"/healthz",
+			"/v1/auth/login",
+			"/v1/auth/register",
+			"/v1/auth/refresh",
+			"/v1/auth/logout",
+		}),
 	}
 }
 

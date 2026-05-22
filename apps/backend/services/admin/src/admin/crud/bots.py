@@ -10,16 +10,12 @@ from admin.models.bot import BotRow
 
 
 async def list_bots(session: AsyncSession, user_id: str) -> list[BotRow]:
-    result = await session.scalars(
-        select(BotRow).where(BotRow.user_id == user_id).order_by(BotRow.created_at)
-    )
+    result = await session.scalars(select(BotRow).where(BotRow.user_id == user_id).order_by(BotRow.created_at))
     return list(result.all())
 
 
 async def get_bot(session: AsyncSession, bot_id: str, user_id: str) -> BotRow | None:
-    result = await session.scalars(
-        select(BotRow).where(BotRow.id == bot_id, BotRow.user_id == user_id)
-    )
+    result = await session.scalars(select(BotRow).where(BotRow.id == bot_id, BotRow.user_id == user_id))
     return result.one_or_none()
 
 

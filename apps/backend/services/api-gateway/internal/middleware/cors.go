@@ -3,7 +3,15 @@ package middleware
 import (
 	"net/http"
 	"net/url"
+	"strconv"
 )
+
+// preflightMaxAgeSeconds tells the browser to cache the preflight result for
+// up to this many seconds. Chrome caps at 7200 (2h), Firefox at 86400 (24h);
+// we send 86400 and let each browser apply its own ceiling. Within the cache
+// window, repeated requests with the same method+headers SKIP the OPTIONS
+// preflight entirely.
+const preflightMaxAgeSeconds = 86400
 
 func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 	allowed := make(map[string]struct{}, len(allowedOrigins))
@@ -19,7 +27,8 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 				w.Header().Set("Vary", "Origin")
 			}
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Max-Age", strconv.Itoa(preflightMaxAgeSeconds))
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
 				return

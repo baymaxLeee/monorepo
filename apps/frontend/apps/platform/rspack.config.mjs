@@ -10,6 +10,7 @@ import {
 } from "../../rspack.shared.mjs";
 
 const PORT = Number(process.env.PORT ?? 3000);
+const API_TARGET = process.env.API_TARGET ?? "http://localhost:8000";
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
@@ -60,5 +61,15 @@ export default defineConfig({
     },
     headers: { "Access-Control-Allow-Origin": "*" },
     hot: true,
+    // Same-origin proxy so the browser never preflights /v1/* in dev.
+    // Production should mirror this via nginx / ingress.
+    proxy: [
+      {
+        context: ["/v1"],
+        target: API_TARGET,
+        changeOrigin: true,
+        secure: false,
+      },
+    ],
   },
 });

@@ -200,12 +200,12 @@ async function problemDetail(response: Response): Promise<string> {
 }
 
 function apiURL(path: string): string {
+  // Default to "" (same-origin) — see @packages/shared for the rationale.
   const globals = globalThis as {
     __API_BASE_URL__?: string;
     __API_BASE__?: string;
   };
-  const base =
-    globals.__API_BASE_URL__ ?? globals.__API_BASE__ ?? "http://localhost:8000";
+  const base = globals.__API_BASE_URL__ ?? globals.__API_BASE__ ?? "";
   return `${base}${path}`;
 }
 

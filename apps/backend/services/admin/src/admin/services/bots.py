@@ -2,13 +2,13 @@
 
 from datetime import UTC
 
+from kernel.errors import NotFoundError
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from admin.crud import bots as bot_crud
 from admin.models.bot import BotRow
 from admin.schemas.bot import Bot
-from kernel.errors import NotFoundError
 
 
 def to_schema(row: BotRow) -> Bot:
