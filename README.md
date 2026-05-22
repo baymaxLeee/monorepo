@@ -196,13 +196,6 @@ overmind kill                  # 全部干掉
 - ✅ **OTel 接入点**:`libs/observability/setup()`,后续接 Jaeger/Tempo/OTLP 改一处即可
 - ✅ **ADR 模板**:`docs/ADR/` 架构决策记录已就位,新决策走 PR 沉淀
 
-### 测试
-
-- ✅ **后端 pytest 骨架**:bot 服务带 demo 测试 + TestClient,`uv run pytest -q` 即跑
-- ✅ **前端 Vitest 骨架**:每个 package/MFE 都有 `test` 脚本
-- ✅ **Go test 骨架**:api-gateway 带 handler 单测
-- ✅ **scoped 测试**:`just test bot`、`just test mfe-bot` 各自跑,agent 改一个不必跑全量
-
 ---
 
 ## 🧩 平台共享层(Module Federation shared)
@@ -405,7 +398,7 @@ uv sync --all-packages
 |---|---|
 | api-gateway | 8000 |
 | bot | 8001 |
-| (预留) identity / scene / intention / ... | 8002-8007 |
+| (预留) iam / scene / intention / ... | 8002-8007 |
 | shell | 3000 |
 | mfe-bot | 3001 |
 | (预留) mfe-scene / mfe-intention / ... | 3002-3005 |
@@ -454,7 +447,7 @@ docker ps            # 看是不是有别的项目占了 3306 / 6379
 
 ## ➕ 下一步可以扩展的点
 
-- 加新微服务:`./scripts/new-service.sh identity`
+- 加新微服务:`./scripts/new-service.sh iam`
 - 加新微前端:`./scripts/new-mfe.sh mfe-scene`
 - 生产迁移:在 `admin` 服务用 alembic 管理 schema(本地 dev 仍用 `create_all` + seed)
 - 接入 OTel:扩 `libs/observability/`,在 `main.py` 调 `setup("bot")`

@@ -12,7 +12,7 @@ import (
 func Index(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{
 		"service": "api-gateway",
-		"docs":    "/healthz | /v1/auth | /v1/bots",
+		"docs":    "/healthz | /v1/auth | /v1/iam | /v1/bots",
 	})
 }
 
@@ -22,8 +22,8 @@ func NewAdminProxy(upstream string) http.Handler {
 	return newReverseProxy(upstream, "admin")
 }
 
-func NewIdentityProxy(upstream string) http.Handler {
-	return newReverseProxy(upstream, "identity")
+func NewIAMProxy(upstream string) http.Handler {
+	return newReverseProxy(upstream, "iam")
 }
 
 func newReverseProxy(upstream, service string) http.Handler {

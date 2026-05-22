@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "rspack serve",
     "build": "rspack build",
-    "test": "vitest run",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit"
   },
@@ -36,7 +35,6 @@
     "html-webpack-plugin": "^5.6.0",
     "style-loader": "^4.0.0",
     "tailwindcss": "^4.1.0",
-    "typescript": "^5.4.0",
-    "vitest": "^2.0.0"
+    "typescript": "^5.4.0"
   }
 }

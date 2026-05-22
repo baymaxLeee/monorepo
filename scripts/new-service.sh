@@ -12,7 +12,7 @@ if [ -d "$SVC_DIR" ]; then
 fi
 
 echo "→ Scaffolding service: $NAME at $SVC_DIR"
-mkdir -p "$SVC_DIR"/{src/$NAME/{routes,models,repository},tests,migrations/versions}
+mkdir -p "$SVC_DIR"/{src/$NAME/{routes,models,repository},migrations/versions}
 
 cat > "$SVC_DIR/pyproject.toml" <<EOF
 [project]
@@ -27,9 +27,6 @@ dependencies = [
     "auth_sdk",
     "audit_sdk",
 ]
-
-[project.optional-dependencies]
-dev = ["pytest>=8.0", "httpx>=0.27", "testing"]
 
 [build-system]
 requires = ["hatchling"]
@@ -84,19 +81,6 @@ router = APIRouter(tags=["meta"])
 @router.get("/healthz")
 async def healthz() -> dict[str, str]:
     return {"status": "ok"}
-EOF
-
-cat > "$SVC_DIR/tests/__init__.py" <<EOF
-EOF
-
-cat > "$SVC_DIR/tests/test_health.py" <<EOF
-from fastapi.testclient import TestClient
-from $NAME.main import app
-
-
-def test_healthz() -> None:
-    client = TestClient(app)
-    assert client.get("/healthz").json() == {"status": "ok"}
 EOF
 
 echo "✓ Created $SVC_DIR"

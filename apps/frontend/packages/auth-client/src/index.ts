@@ -1,5 +1,6 @@
 export type AuthUser = {
   id: string;
+  account: string;
   email: string;
   displayName: string;
   avatarUrl: string;
@@ -17,11 +18,12 @@ export type AuthSession = {
 };
 
 export type AuthCredentials = {
-  email: string;
+  account: string;
   password: string;
 };
 
 export type RegisterInput = AuthCredentials & {
+  email?: string;
   displayName?: string;
   locale?: string;
   timezone?: string;

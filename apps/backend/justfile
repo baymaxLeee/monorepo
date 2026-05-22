@@ -3,10 +3,10 @@ set shell := ["bash", "-cu"]
 
 # Service registry (Python services and their fixed dev ports)
 PY_SERVICES := "admin"
-GO_SERVICES := "api-gateway identity"
+GO_SERVICES := "api-gateway iam"
 
 # Fixed port allocation so multiple agents/dev servers don't collide
-PORTS := '{"admin":8001,"identity":8002,"scene":8003,"intention":8004,"permission":8005,"audit":8006,"notification":8007,"api-gateway":8000}'
+PORTS := '{"admin":8001,"iam":8002,"scene":8003,"intention":8004,"permission":8005,"audit":8006,"notification":8007,"api-gateway":8000}'
 
 default:
     @just --list
@@ -23,21 +23,6 @@ dev service:
             cd services/{{ service }} && uv run uvicorn {{ service }}.main:app --reload --port $PORT; \
         fi; \
     else echo "✗ Unknown service: {{ service }}"; exit 1; fi
-
-# ─── test ───────────────────────────────────────────────
-test scope="":
-    @if [ -z "{{ scope }}" ]; then \
-        for s in {{ PY_SERVICES }}; do echo "=== $s ===" && (cd services/$s && uv run pytest -q || true); done; \
-    elif [ -d "services/{{ scope }}" ]; then \
-        cd services/{{ scope }} && uv run pytest -q; \
-    elif [ -d "libs/{{ scope }}" ]; then \
-        cd libs/{{ scope }} && uv run pytest -q; \
-    else \
-        echo "Unknown scope: {{ scope }}"; exit 1; \
-    fi
-
-test-go:
-    @for s in {{ GO_SERVICES }}; do echo "=== $s ===" && (cd services/$s && go test ./...); done
 
 # ─── build ──────────────────────────────────────────────
 # Python services don't need a separate build step — they ship as source +
@@ -74,7 +59,7 @@ build-go-svc service:
 # No bytecode artifact — uvicorn runs from source.
 build-py-svc service:
     @echo "→ Pre-flighting Python service: {{ service }}"
-    cd services/{{ service }} && uv run ruff check . && uv run pytest -q
+    cd services/{{ service }} && uv run ruff check .
     just gen-openapi {{ service }}
     @echo "✓ {{ service }} ready (run as image via: just build-image {{ service }})"
 

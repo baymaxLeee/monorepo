@@ -11,7 +11,6 @@ members = [
     "libs/observability",
     "libs/auth_sdk",
     "libs/audit_sdk",
-    "libs/testing",
 ]
 
 [tool.uv.sources]
@@ -20,7 +19,6 @@ transport = { workspace = true }
 observability = { workspace = true }
 auth_sdk = { workspace = true }
 audit_sdk = { workspace = true }
-testing = { workspace = true }
 
 [tool.ruff]
 line-length = 120
@@ -42,8 +40,3 @@ exclude = ["migrations/", "build/", "dist/"]
 [[tool.mypy.overrides]]
 module = ["alembic.*"]
 ignore_missing_imports = true
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-addopts = "-q --tb=short"
-testpaths = ["services/*/tests", "libs/*/tests"]

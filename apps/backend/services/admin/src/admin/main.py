@@ -10,7 +10,7 @@ from kernel.errors import register_exception_handlers
 
 from .db import close_db, init_db, seed_demo_bots
 from .redis_client import close_redis, init_redis
-from .routes import bots, health
+from .routers import bots, health
 
 load_dotenv()
 

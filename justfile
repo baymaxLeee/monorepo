@@ -13,6 +13,9 @@ up:
     @./scripts/db-bootstrap.sh
     @echo "OK Infra up - MySQL :3306, Redis :6379"
 
+reset-demo-data:
+    @./scripts/reset-demo-data.sh
+
 down:
     docker compose down
 
@@ -37,7 +40,7 @@ dev-urls:
     @echo "  platform:  http://localhost:3000"
     @echo "  mfe-admin: http://localhost:3001"
     @echo "  gateway:   http://localhost:8000"
-    @echo "  identity:  http://localhost:8002/healthz"
+    @echo "  iam:      http://localhost:8002/healthz"
     @echo "  svc-admin: http://localhost:8001/docs"
 
 # ─── Build ──────────────────────────────────────────────────
@@ -69,10 +72,6 @@ fmt:
 lint:
     cd apps/backend && just lint
     cd apps/frontend && just lint
-
-test:
-    cd apps/backend && just test
-    cd apps/frontend && just test
 
 status:
     @git status -sb

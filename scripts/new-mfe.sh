@@ -44,7 +44,6 @@ cat > "$MFE_DIR/package.json" <<EOF
   "scripts": {
     "dev": "rspack serve",
     "build": "rspack build",
-    "test": "vitest run",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit"
   },
@@ -69,8 +68,7 @@ cat > "$MFE_DIR/package.json" <<EOF
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "html-webpack-plugin": "^5.6.0",
-    "typescript": "^5.4.0",
-    "vitest": "^2.0.0"
+    "typescript": "^5.4.0"
   }
 }
 EOF

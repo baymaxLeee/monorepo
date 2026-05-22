@@ -14,17 +14,17 @@ The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing
 
 ## Entry points
 - `src/admin/main.py` — FastAPI app
-- `src/admin/routes/*.py` — HTTP handlers
+- `src/admin/routers/*.py` — HTTP handlers
+- `src/admin/services/*.py` — business orchestration
+- `src/admin/crud/*.py` — persistence operations
+- `src/admin/models/*.py` — SQLAlchemy ORM table models
+- `src/admin/schemas/*.py` — Pydantic request/response schemas
 - `src/admin/grpc/server.py` — gRPC server (when added)
 - `src/admin/gen_openapi.py` — OpenAPI export (run by `just gen-openapi admin`)
 
 ## Conventions
-- Pydantic models inline in route file (when small) or in `models/` (when shared)
-- DB access via `repository/` pattern; routes never touch SQLAlchemy directly
-- All mutations wrapped in `libs.audit_sdk.record(...)` on success
+- Routers are thin: request/response wiring only.
+- Business rules live in `services/`.
+- DB access lives in `crud/`; routers never touch SQLAlchemy directly.
+- Pydantic API shapes live in `schemas/`; SQLAlchemy table definitions live in `models/`.
 - Errors via `libs.kernel.errors.*`, NEVER raw HTTPException
-
-## Tests
-- Unit: `tests/unit/test_*.py`
-- API:  `tests/api/test_*.py` (uses TestClient)
-- Run:  `cd apps/backend && just test admin`

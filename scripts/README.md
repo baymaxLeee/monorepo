@@ -8,7 +8,7 @@ running `just <recipe>` from the repository root.
 - `install-deps.sh`: installs tool-managed dependencies, frontend packages,
   backend Python workspace packages, Go service modules, and local `.env` files.
 - `db-bootstrap.sh`: creates local MySQL databases and applies service-owned dev
-  schemas for `admin` and `identity`.
+  schemas for `admin` and `iam`.
 - `dev-preflight.sh`: checks that local infra and frontend dependencies exist
   before starting the dev stack.
 - `dev-orchestrator.sh`: starts `Procfile.dev` with an installed process

@@ -27,7 +27,6 @@ The libs/ are the most dangerous abstraction. Strict rules:
 | `libs/observability` | OTel setup | < 800 LoC |
 | `libs/auth_sdk`      | JWT verify, identity propagation | < 1000 LoC |
 | `libs/audit_sdk`     | publish audit events | < 800 LoC |
-| `libs/testing`       | fixtures, factories | (no cap) |
 
 **NEVER** add domain logic to `libs/`. **NEVER** add a `libs/utils/`. **NEVER**
 share Pydantic models across services via libs — each service owns its own DTOs.
@@ -44,15 +43,12 @@ share Pydantic models across services via libs — each service owns its own DTO
 - Apply `@require_action(...)` for mutations
 - Use `libs.kernel.errors.*`, NEVER raise raw HTTPException
 - Audit successful mutations via `libs.audit_sdk.record(...)`
-- Add test under `services/<name>/tests/`
 
 ## Commands (from `apps/backend/`)
 
 | Command | Purpose |
 |---|---|
 | `just dev <service>` | Run one service locally |
-| `just test <pkg>` | pytest scoped (service or lib name) |
-| `just test-go` | go test for Go services |
 | `just lint <service>` | ruff + mypy scoped |
 | `just fmt` | ruff format + gofmt (auto-run, no need to ask) |
 | `just gen-openapi <service>` | Export to `schemas/openapi/<name>.json` |

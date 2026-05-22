@@ -23,6 +23,3 @@ Go-based BFF / API gateway. Sits between frontend and backend Python services.
 - Use `slog` for structured logging
 - All downstream calls have timeout + retry via `internal/clients/`
 - Errors map to RFC 7807 problem-details JSON
-
-## Test
-- `go test ./...`

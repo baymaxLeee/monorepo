@@ -19,7 +19,7 @@ packages/api-client/
 │   │   └── client.ts         # hand-written wrapper using generated types
 │   └── generated/            # AUTO-GEN (gitignored)
 │       └── schema.d.ts
-├── identity/
+├── iam/
 │   └── ...
 └── scripts/codegen.sh
 ```

@@ -28,8 +28,9 @@ import {
 type Mode = "login" | "register";
 
 const authSchema = z.object({
-  email: z.string().email("请输入有效邮箱"),
-  password: z.string().min(8, "密码至少 8 位"),
+  account: z.string().min(1, "请输入账号").max(64, "账号最多 64 位"),
+  email: z.string().email("请输入有效邮箱").optional().or(z.literal("")),
+  password: z.string().min(6, "密码至少 6 位"),
   displayName: z.string().optional(),
 });
 
@@ -44,7 +45,7 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
 
   const form = useForm<AuthValues>({
     resolver: zodResolver(authSchema),
-    defaultValues: { email: "", password: "", displayName: "" },
+    defaultValues: { account: "", email: "", password: "", displayName: "" },
   });
 
   useEffect(() => {
@@ -59,9 +60,10 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
     try {
       const session =
         mode === "login"
-          ? await login({ email: values.email, password: values.password })
+          ? await login({ account: values.account, password: values.password })
           : await register({
-              email: values.email,
+              account: values.account,
+              email: values.email || undefined,
               password: values.password,
               displayName: values.displayName!.trim(),
             });
@@ -140,22 +142,36 @@ function AuthForm({
           ) : null}
           <FormField
             control={form.control}
-            name="email"
+            name="account"
             render={({ field }) => (
               <Field>
-                <FieldLabel htmlFor="email">邮箱</FieldLabel>
+                <FieldLabel htmlFor="account">账号</FieldLabel>
                 <FormControl>
                   <Input
-                    id="email"
-                    type="email"
-                    autoComplete="email"
+                    id="account"
+                    autoComplete="username"
                     {...field}
                   />
                 </FormControl>
-                <FieldError errors={[form.formState.errors.email]} />
+                <FieldError errors={[form.formState.errors.account]} />
               </Field>
             )}
           />
+          {mode === "register" ? (
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <Field>
+                  <FieldLabel htmlFor="email">邮箱</FieldLabel>
+                  <FormControl>
+                    <Input id="email" type="email" autoComplete="email" {...field} />
+                  </FormControl>
+                  <FieldError errors={[form.formState.errors.email]} />
+                </Field>
+              )}
+            />
+          ) : null}
           <FormField
             control={form.control}
             name="password"

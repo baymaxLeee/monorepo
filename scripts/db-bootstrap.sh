@@ -7,7 +7,17 @@ CONTAINER="${MYSQL_CONTAINER:-monorepo-mysql}"
 APP_USER="${MYSQL_USER:-dev}"
 ROOT_USER="${MYSQL_ROOT_USER:-root}"
 ROOT_PASS="${MYSQL_ROOT_PASSWORD:-dev}"
-DATABASES=(admin gateway identity)
+DATABASES=(admin gateway iam)
+
+if [ "${RESET_DEMO_DATA:-false}" = "true" ]; then
+  echo "→ resetting demo databases: admin, iam"
+  docker exec "$CONTAINER" mysql -u"$ROOT_USER" -p"$ROOT_PASS" -e \
+    "DROP DATABASE IF EXISTS \`admin\`; DROP DATABASE IF EXISTS \`iam\`;"
+fi
+
+echo "→ dropping legacy database: identity"
+docker exec "$CONTAINER" mysql -u"$ROOT_USER" -p"$ROOT_PASS" -e \
+  "DROP DATABASE IF EXISTS \`identity\`;"
 
 for db in "${DATABASES[@]}"; do
   exists=$(docker exec "$CONTAINER" mysql -u"$ROOT_USER" -p"$ROOT_PASS" -N -e \
@@ -26,7 +36,7 @@ done
 docker exec "$CONTAINER" mysql -u"$ROOT_USER" -p"$ROOT_PASS" -e "FLUSH PRIVILEGES;"
 
 ADMIN_DIR="$ROOT/apps/backend/services/admin"
-IDENTITY_DIR="$ROOT/apps/backend/services/identity"
+IAM_DIR="$ROOT/apps/backend/services/iam"
 
 if [ ! -f "$ADMIN_DIR/.env" ]; then
   echo "⚠ $ADMIN_DIR/.env missing; copy from .env.example" >&2
@@ -51,7 +61,7 @@ asyncio.run(main())
 PY
 echo "✓ admin database schema ready"
 
-echo "→ Applying identity schema (Go create schema)..."
-cd "$IDENTITY_DIR"
-go run ./cmd/migrate
-echo "✓ identity database schema ready"
+echo "→ Applying iam schema (GORM AutoMigrate)..."
+cd "$IAM_DIR"
+IAM_MYSQL_DATABASE=iam go run ./cmd/migrate
+echo "✓ iam database schema ready"

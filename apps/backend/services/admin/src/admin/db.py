@@ -76,6 +76,7 @@ async def seed_demo_bots() -> None:
             session.add(
                 BotRow(
                     id=bot_id,
+                    user_id="demo-super-admin",
                     name=name,
                     status=status,
                     created_at=datetime.fromisoformat(created_at),

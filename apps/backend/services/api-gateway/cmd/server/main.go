@@ -35,10 +35,12 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestLogger)
 	r.Use(middleware.Recoverer)
+	r.Use(middleware.CORS(cfg.AllowedOrigins))
 
 	r.Get("/healthz", handlers.Healthz(st))
 	r.Get("/", handlers.Index)
-	r.Mount("/v1/auth", handlers.NewIdentityProxy(cfg.IdentityServiceURL))
+	r.Mount("/v1/auth", handlers.NewIAMProxy(cfg.IAMServiceURL))
+	r.Mount("/v1/iam", handlers.NewIAMProxy(cfg.IAMServiceURL))
 	r.Mount("/v1/bots", handlers.NewAdminProxy(cfg.AdminServiceURL))
 
 	srv := &http.Server{
@@ -51,7 +53,7 @@ func main() {
 		slog.Info("api-gateway starting",
 			"port", cfg.Port,
 			"admin_upstream", cfg.AdminServiceURL,
-			"identity_upstream", cfg.IdentityServiceURL,
+			"iam_upstream", cfg.IAMServiceURL,
 			"mysql", "connected",
 			"redis", "connected",
 		)

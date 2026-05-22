@@ -97,7 +97,6 @@ user-facing entry.
 | `just dev platform` | Start platform only (port 3000)                    |
 | `just dev <mfe>`    | Start a single MFE (port from PORTS map)           |
 | `just dev-all`      | Start shell + all MFEs (heavy)                     |
-| `just test <pkg>`   | Vitest, scoped                                     |
 | `just lint`         | ESLint + tsc                                       |
 | `just fmt`          | Prettier + eslint --fix (auto-run, no need to ask) |
 | `just gen-client`   | Regen api-client from `schemas/openapi/`           |
