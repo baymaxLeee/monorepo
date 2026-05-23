@@ -129,6 +129,15 @@ func (s *Store) UserByAccount(ctx context.Context, account string) (model.User, 
 	return credential.User, credential.PasswordHash, err
 }
 
+func (s *Store) UserExistsByAccount(ctx context.Context, account string) (bool, error) {
+	var count int64
+	err := s.db.WithContext(ctx).
+		Model(&model.User{}).
+		Where("account = ? AND disabled_at IS NULL", account).
+		Count(&count).Error
+	return count > 0, err
+}
+
 func (s *Store) UserByID(ctx context.Context, id string) (model.User, error) {
 	var user model.User
 	err := s.db.WithContext(ctx).

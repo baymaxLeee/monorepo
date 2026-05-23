@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 export type PlatformUser = {
   id: string;
+  account: string;
   email: string;
   displayName: string;
   avatarUrl: string;

@@ -45,6 +45,8 @@ func (s *AuthService) Register(ctx context.Context, req schema.AuthRequest, meta
 		Email:           req.Email,
 		EmailNormalized: req.Email,
 		DisplayName:     displayName,
+		AvatarURL:       strings.TrimSpace(req.AvatarURL),
+		Phone:           strings.TrimSpace(req.PhoneNumber),
 		Locale:          Fallback(req.Locale, "zh-CN"),
 		Timezone:        Fallback(req.Timezone, "Asia/Shanghai"),
 		Theme:           "system",

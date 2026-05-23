@@ -18,9 +18,11 @@ export type AuthCredentials = {
 };
 
 export type RegisterInput = AuthCredentials & {
+  avatarUrl?: string;
   email?: string;
   displayName?: string;
   locale?: string;
+  phoneNumber?: string;
   timezone?: string;
 };
 
@@ -39,6 +41,17 @@ export async function register(input: RegisterInput): Promise<AuthSession> {
       data: input,
     }),
   );
+}
+
+export async function checkAccountAvailability(account: string): Promise<{
+  account: string;
+  available: boolean;
+}> {
+  return request({
+    url: "/api/iam-server/account-availability",
+    method: "GET",
+    params: { account },
+  });
 }
 
 export async function login(input: AuthCredentials): Promise<AuthSession> {

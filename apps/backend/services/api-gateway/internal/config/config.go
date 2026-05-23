@@ -50,6 +50,7 @@ func Load() Config {
 		PublicPathPrefixes: csvOr("PUBLIC_PATH_PREFIXES", []string{
 			"/",
 			"/healthz",
+			"/api/iam-server/account-availability",
 			"/api/iam-server/login",
 			"/api/iam-server/register",
 			"/api/iam-server/refresh",

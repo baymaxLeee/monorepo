@@ -93,6 +93,7 @@ user-facing entry.
 ### Code style
 
 - Components: PascalCase, ≤ 250 LoC, no default exports in libs
+- ESM exports: default to named exports for app and package code; use `export default` only for route entry modules (`pages/<route>/index.tsx`) or external contracts such as Module Federation exposes.
 - Hooks: `use*`, named exports only
 - Types: no `any`, prefer `unknown` + narrow
 - Styles: Tailwind utilities from `@packages/components` theme; avoid arbitrary values

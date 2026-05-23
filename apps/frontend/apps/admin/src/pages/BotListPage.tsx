@@ -48,7 +48,6 @@ import {
 } from "@packages/components";
 import { createBot, fetchBots, type Bot } from "@packages/api";
 import { useShallow } from "zustand/react/shallow";
-import { usePlatformStore } from "@packages/index";
 import { useAdminStore } from "../store/useAdminStore";
 
 const createBotSchema = z.object({
@@ -81,16 +80,6 @@ export function BotListPage() {
       setCreateOpen: state.setCreateDialogOpen,
     })),
   );
-
-  const { user } = usePlatformStore(
-    useShallow((s) => {
-      return {
-        user: s.user
-      }
-    })
-  )
-
-  console.log('store', user, createOpen)
 
   const form = useForm<CreateBotValues>({
     resolver: zodResolver(createBotSchema),

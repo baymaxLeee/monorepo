@@ -31,6 +31,7 @@ func New(store *crud.Store, cfg config.Config) http.Handler {
 	}
 	r := chi.NewRouter()
 	r.Get("/healthz", rt.healthz)
+	r.Get("/account-availability", rt.accountAvailability)
 	r.Post("/register", rt.register)
 	r.Post("/login", rt.login)
 	r.Post("/refresh", rt.refresh)
@@ -52,6 +53,23 @@ func (rt *Router) healthz(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+func (rt *Router) accountAvailability(w http.ResponseWriter, r *http.Request) {
+	account := service.NormalizeAccount(r.URL.Query().Get("account"))
+	if !service.ValidAccount(account) {
+		writeProblem(w, http.StatusBadRequest, "invalid_account", "account is required and must not contain whitespace or @")
+		return
+	}
+	exists, err := rt.store.UserExistsByAccount(r.Context(), account)
+	if err != nil {
+		writeProblem(w, http.StatusInternalServerError, "account_check_failed", "could not check account availability")
+		return
+	}
+	writeJSON(w, http.StatusOK, schema.AccountAvailabilityResponse{
+		Account:   account,
+		Available: !exists,
+	})
+}
+
 func (rt *Router) register(w http.ResponseWriter, r *http.Request) {
 	var req schema.AuthRequest
 	if !decodeJSON(w, r, &req) {
@@ -63,7 +81,7 @@ func (rt *Router) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, service.ErrConflict) {
-		writeProblem(w, http.StatusConflict, "email_already_registered", "email is already registered")
+		writeProblem(w, http.StatusConflict, "account_or_email_already_registered", "account or email is already registered")
 		return
 	}
 	if err != nil {

@@ -35,6 +35,15 @@ export const HOME_PATH = "/";
 /** Unauthenticated users are sent here. */
 export const LOGIN_PATH = "/login";
 
+/** Public account registration route. */
+export const REGISTER_PATH = "/register";
+
+/** Public not-found page route. */
+export const NOT_FOUND_PATH = "/404";
+
+/** Platform-owned user profile page. */
+export const PROFILE_PATH = "/profile";
+
 export const registry: MfeEntry[] = [
   {
     id: "admin",

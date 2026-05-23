@@ -79,6 +79,7 @@ export {
 } from "./DropdownMenu";
 export { Input } from "./Input";
 export { Label } from "./Label";
+export { LazyRoute } from "./LazyRoute";
 export {
   Select,
   SelectContent,

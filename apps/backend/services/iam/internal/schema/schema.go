@@ -7,8 +7,15 @@ type AuthRequest struct {
 	Email       string `json:"email"`
 	Password    string `json:"password"`
 	DisplayName string `json:"displayName"`
+	AvatarURL   string `json:"avatarUrl"`
+	PhoneNumber string `json:"phoneNumber"`
 	Locale      string `json:"locale"`
 	Timezone    string `json:"timezone"`
+}
+
+type AccountAvailabilityResponse struct {
+	Account   string `json:"account"`
+	Available bool   `json:"available"`
 }
 
 type AuthResponse struct {
