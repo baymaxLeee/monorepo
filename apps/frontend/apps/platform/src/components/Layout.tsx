@@ -41,7 +41,7 @@ import {
   TooltipTrigger,
 } from "@packages/components";
 import { usePlatformStore, type PlatformUser } from "@packages/runtime";
-import { HOME_PATH, PROFILE_PATH, registry, type MfeEntry } from "../registry";
+import { registry, type MfeEntry } from "../registry";
 
 function activeMfe(pathname: string): MfeEntry | undefined {
   return registry.find((m) => pathname.startsWith(m.basePath));
@@ -115,7 +115,7 @@ export function Layout({
                 tooltip="Monorepo Platform"
                 className="justify-center px-0"
               >
-                <Link aria-label="Monorepo Platform" to={HOME_PATH}>
+                <Link aria-label="Monorepo Platform" to="/">
                   <BoxesIcon aria-hidden="true" className="size-5" />
                   <span className="sr-only">Monorepo Platform</span>
                 </Link>
@@ -220,7 +220,7 @@ export function Layout({
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link to={PROFILE_PATH}>
+                    <Link to="/platform/profile">
                       <UserIcon aria-hidden="true" className="mr-2 size-4" />
                       修改个人资料
                     </Link>

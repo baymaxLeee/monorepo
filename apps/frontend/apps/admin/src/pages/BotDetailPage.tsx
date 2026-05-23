@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
   Badge,
   Button,
   Card,
@@ -36,6 +33,8 @@ export function BotDetailPage() {
     };
   }, [id]);
 
+  if (error) return <Navigate to="/404" replace />;
+
   return (
     <Page>
       <Button variant="ghost" size="sm" asChild>
@@ -57,13 +56,6 @@ export function BotDetailPage() {
         </Card>
       )}
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>加载失败</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
       {bot && (
         <Card className="max-w-lg">
           <CardHeader>
@@ -73,7 +65,9 @@ export function BotDetailPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center gap-2 text-sm">
               <span className="text-muted-foreground">状态</span>
-              <Badge variant={bot.status === "published" ? "default" : "secondary"}>
+              <Badge
+                variant={bot.status === "published" ? "default" : "secondary"}
+              >
                 {bot.status}
               </Badge>
             </div>

@@ -5,6 +5,7 @@
  * URL layout (platform host):
  *   /              — shell root (redirects when authed)
  *   /login         — auth page
+ *   /platform/home — platform shell home / app switcher
  *   /platform/<id> — each remote (e.g. /platform/admin)
  *
  * When adding a new MFE:
@@ -29,21 +30,6 @@ export interface MfeEntry {
   subNav?: MfeSubNavItem[];
 }
 
-/** Shell root — redirects to default app when authenticated. */
-export const HOME_PATH = "/";
-
-/** Unauthenticated users are sent here. */
-export const LOGIN_PATH = "/login";
-
-/** Public account registration route. */
-export const REGISTER_PATH = "/register";
-
-/** Public not-found page route. */
-export const NOT_FOUND_PATH = "/404";
-
-/** Platform-owned user profile page. */
-export const PROFILE_PATH = "/profile";
-
 export const registry: MfeEntry[] = [
   {
     id: "admin",
@@ -58,6 +44,3 @@ export const registry: MfeEntry[] = [
   },
   // { id: "scene", title: "场景", basePath: "/platform/scene", remoteName: "mfe_scene", exposeKey: "./App" },
 ];
-
-/** Default landing route after login (first registry entry). */
-export const defaultAppPath = registry[0]?.basePath ?? "/platform/admin";

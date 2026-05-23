@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { BotDetailPage } from "./pages/BotDetailPage";
 import { BotListPage } from "./pages/BotListPage";
 import { ComponentsDemoPage } from "./pages/ComponentsDemoPage";
@@ -13,6 +13,7 @@ export default function App() {
       <Route index element={<BotListPage />} />
       <Route path="demo" element={<ComponentsDemoPage />} />
       <Route path=":id" element={<BotDetailPage />} />
+      <Route path="*" element={<Navigate to="/404" replace />} />
     </Routes>
   );
 }

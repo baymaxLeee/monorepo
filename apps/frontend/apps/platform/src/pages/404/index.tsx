@@ -8,12 +8,11 @@ import {
   PageHeaderContent,
   PageTitle,
 } from "@packages/components";
-import { HOME_PATH, LOGIN_PATH } from "../../registry";
 import { usePlatformStore } from "@packages/runtime";
 
 export function NotFoundPage() {
   const user = usePlatformStore((state) => state.user);
-  const target = user ? HOME_PATH : LOGIN_PATH;
+  const target = user ? "/" : "/login";
 
   return (
     <Page className="items-center justify-center text-center">

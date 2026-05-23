@@ -13,7 +13,6 @@ import {
   PageHeaderContent,
   PageTitle,
 } from "@packages/components";
-import { defaultAppPath, PROFILE_PATH } from "../../registry";
 import { usePlatformStore } from "@packages/runtime";
 
 export function HomePage() {
@@ -30,7 +29,7 @@ export function HomePage() {
         </PageHeaderContent>
         <PageActions>
           <Button asChild>
-            <Link to={defaultAppPath}>进入应用</Link>
+            <Link to="/platform/admin">进入应用</Link>
           </Button>
         </PageActions>
       </PageHeader>
@@ -42,7 +41,7 @@ export function HomePage() {
           </CardHeader>
           <CardContent>
             <Button variant="outline" asChild>
-              <Link to={defaultAppPath}>智能体</Link>
+              <Link to="/platform/admin">智能体</Link>
             </Button>
           </CardContent>
         </Card>
@@ -53,7 +52,7 @@ export function HomePage() {
           </CardHeader>
           <CardContent>
             <Button variant="outline" asChild>
-              <Link to={PROFILE_PATH}>打开资料页</Link>
+              <Link to="/platform/profile">打开资料页</Link>
             </Button>
           </CardContent>
         </Card>

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { login } from "@packages/api";
@@ -23,7 +23,6 @@ import {
   toast,
 } from "@packages/components";
 import { usePlatformStore } from "@packages/runtime";
-import { defaultAppPath, REGISTER_PATH } from "../../registry";
 
 const loginSchema = z.object({
   account: z.string().min(1, "请输入账号").max(64, "账号最多 64 位"),
@@ -34,18 +33,23 @@ type LoginValues = z.infer<typeof loginSchema>;
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const user = usePlatformStore((state) => state.user);
   const setUser = usePlatformStore((state) => state.setUser);
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { account: "", password: "" },
   });
 
+  if (user) {
+    return <Navigate to="/platform/home" replace />;
+  }
+
   async function onSubmit(values: LoginValues) {
     try {
       const session = await login(values);
       setUser(session.user);
       toast.success("登录成功");
-      navigate(defaultAppPath, { replace: true });
+      navigate("/platform/home", { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : "登录失败";
       toast.error(message);
@@ -108,7 +112,7 @@ export function LoginPage() {
                 <div className="text-center text-sm text-muted-foreground">
                   没有账号？
                   <Link
-                    to={REGISTER_PATH}
+                    to="/register"
                     className="ml-1 font-medium text-foreground underline-offset-4 hover:underline"
                   >
                     创建账号

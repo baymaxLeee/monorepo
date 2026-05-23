@@ -79,7 +79,8 @@ export {
 } from "./DropdownMenu";
 export { Input } from "./Input";
 export { Label } from "./Label";
-export { LazyRoute } from "./LazyRoute";
+export { Lazy } from "./Lazy";
+export type { LazyLoader, LazyProps } from "./Lazy";
 export {
   Select,
   SelectContent,

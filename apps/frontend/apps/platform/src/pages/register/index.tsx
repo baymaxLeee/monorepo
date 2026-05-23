@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { checkAccountAvailability, register } from "@packages/api";
@@ -22,7 +22,6 @@ import {
   toast,
 } from "@packages/components";
 import { usePlatformStore } from "@packages/runtime";
-import { defaultAppPath, LOGIN_PATH } from "../../registry";
 
 const registerSchema = z.object({
   name: z
@@ -44,6 +43,7 @@ type RegisterValues = z.infer<typeof registerSchema>;
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const user = usePlatformStore((state) => state.user);
   const setUser = usePlatformStore((state) => state.setUser);
   const lastCheckedName = useRef<string | null>(null);
   const form = useForm<RegisterValues>({
@@ -57,6 +57,10 @@ export function RegisterPage() {
     },
     mode: "onBlur",
   });
+
+  if (user) {
+    return <Navigate to="/platform/home" replace />;
+  }
 
   async function validateNameAvailable(name: string) {
     const normalized = name.trim().toLowerCase();
@@ -102,7 +106,7 @@ export function RegisterPage() {
       });
       setUser(session.user);
       toast.success("注册成功");
-      navigate(defaultAppPath, { replace: true });
+      navigate("/platform/home", { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : "注册失败";
       toast.error(message);
@@ -231,7 +235,7 @@ export function RegisterPage() {
                 <div className="text-center text-sm text-muted-foreground">
                   已有账号？
                   <Link
-                    to={LOGIN_PATH}
+                    to="/login"
                     className="ml-1 font-medium text-foreground underline-offset-4 hover:underline"
                   >
                     去登录
