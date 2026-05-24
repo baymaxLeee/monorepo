@@ -32,7 +32,9 @@ export function DropdownMenuItem({
   className,
   inset,
   ...props
-}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & { inset?: boolean }) {
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
+  inset?: boolean;
+}) {
   return (
     <DropdownMenuPrimitive.Item
       className={cn(
@@ -53,7 +55,10 @@ export function DropdownMenuCheckboxItem({
 }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>) {
   return (
     <DropdownMenuPrimitive.CheckboxItem
-      className={cn("relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-secondary", className)}
+      className={cn(
+        "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-secondary",
+        className,
+      )}
       checked={checked}
       {...props}
     >
@@ -74,7 +79,10 @@ export function DropdownMenuRadioItem({
 }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem>) {
   return (
     <DropdownMenuPrimitive.RadioItem
-      className={cn("relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-secondary", className)}
+      className={cn(
+        "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-secondary",
+        className,
+      )}
       {...props}
     >
       <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
@@ -91,10 +99,16 @@ export function DropdownMenuLabel({
   className,
   inset,
   ...props
-}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Label> & { inset?: boolean }) {
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Label> & {
+  inset?: boolean;
+}) {
   return (
     <DropdownMenuPrimitive.Label
-      className={cn("px-2 py-1.5 text-sm font-semibold", inset && "pl-8", className)}
+      className={cn(
+        "px-2 py-1.5 text-sm font-semibold",
+        inset && "pl-8",
+        className,
+      )}
       {...props}
     />
   );
@@ -104,14 +118,24 @@ export function DropdownMenuSeparator({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>) {
-  return <DropdownMenuPrimitive.Separator className={cn("-mx-1 my-1 h-px bg-muted", className)} {...props} />;
+  return (
+    <DropdownMenuPrimitive.Separator
+      className={cn("-mx-1 my-1 h-px bg-muted", className)}
+      {...props}
+    />
+  );
 }
 
 export function DropdownMenuShortcut({
   className,
   ...props
 }: React.HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn("ml-auto text-xs tracking-widest opacity-60", className)} {...props} />;
+  return (
+    <span
+      className={cn("ml-auto text-xs tracking-widest opacity-60", className)}
+      {...props}
+    />
+  );
 }
 
 export function DropdownMenuSubTrigger({
@@ -119,10 +143,16 @@ export function DropdownMenuSubTrigger({
   inset,
   children,
   ...props
-}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubTrigger> & { inset?: boolean }) {
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubTrigger> & {
+  inset?: boolean;
+}) {
   return (
     <DropdownMenuPrimitive.SubTrigger
-      className={cn("flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-secondary", inset && "pl-8", className)}
+      className={cn(
+        "flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-secondary",
+        inset && "pl-8",
+        className,
+      )}
       {...props}
     >
       {children}
@@ -137,7 +167,10 @@ export function DropdownMenuSubContent({
 }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>) {
   return (
     <DropdownMenuPrimitive.SubContent
-      className={cn("z-50 min-w-32 overflow-hidden rounded-md border bg-background p-1 text-foreground shadow-lg", className)}
+      className={cn(
+        "z-50 min-w-32 overflow-hidden rounded-md border bg-background p-1 text-foreground shadow-lg",
+        className,
+      )}
       {...props}
     />
   );

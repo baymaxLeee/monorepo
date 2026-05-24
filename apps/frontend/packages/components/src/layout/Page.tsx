@@ -5,7 +5,10 @@ import { cn } from "@packages/shared";
 export function Page({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex flex-1 flex-col gap-4 p-4 md:gap-6 md:p-6", className)}
+      className={cn(
+        "flex flex-1 flex-col gap-4 p-4 md:gap-6 md:p-6",
+        className,
+      )}
       {...props}
     />
   );
@@ -67,7 +70,10 @@ export function PageActions({
 }
 
 /** Inline `code` in descriptions — muted chip, no custom classes in apps. */
-export function InlineCode({ className, ...props }: HTMLAttributes<HTMLElement>) {
+export function InlineCode({
+  className,
+  ...props
+}: HTMLAttributes<HTMLElement>) {
   return (
     <code
       className={cn(
@@ -79,7 +85,10 @@ export function InlineCode({ className, ...props }: HTMLAttributes<HTMLElement>)
   );
 }
 
-export function Muted({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+export function Muted({
+  className,
+  ...props
+}: HTMLAttributes<HTMLParagraphElement>) {
   return (
     <p className={cn("text-sm text-muted-foreground", className)} {...props} />
   );

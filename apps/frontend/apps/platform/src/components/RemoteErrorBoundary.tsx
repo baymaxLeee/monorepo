@@ -1,5 +1,12 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@packages/components";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@packages/components";
 
 type Props = {
   children: ReactNode;
@@ -28,13 +35,19 @@ export class RemoteErrorBoundary extends Component<Props, State> {
           <CardHeader>
             <CardTitle>微前端加载失败</CardTitle>
             <CardDescription>
-              无法加载 <code className="text-xs">{this.props.remoteName}</code>。本地开发请确认对应
-              dev server 已启动（admin 一般为端口 3001）。
+              无法加载 <code className="text-xs">{this.props.remoteName}</code>
+              。本地开发请确认对应 dev server 已启动（admin 一般为端口 3001）。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">{this.state.error.message}</p>
-            <Button type="button" variant="outline" onClick={() => this.setState({ error: null })}>
+            <p className="text-sm text-muted-foreground">
+              {this.state.error.message}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => this.setState({ error: null })}
+            >
               重试
             </Button>
           </CardContent>

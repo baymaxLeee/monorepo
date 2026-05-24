@@ -1,5 +1,10 @@
 import { useEffect, useState, type ComponentType } from "react";
-import { Navigate, Outlet, useRoutes, type RouteObject } from "react-router-dom";
+import {
+  Navigate,
+  Outlet,
+  useRoutes,
+  type RouteObject,
+} from "react-router-dom";
 import { bootstrapSession } from "@packages/api";
 import { Lazy, Muted, Skeleton } from "@packages/components";
 import { usePlatformStore } from "@packages/runtime";

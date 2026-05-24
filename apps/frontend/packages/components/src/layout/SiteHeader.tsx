@@ -24,7 +24,10 @@ export function SiteHeaderBrand({
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("flex items-center gap-2 font-semibold", className)} {...props} />
+    <div
+      className={cn("flex items-center gap-2 font-semibold", className)}
+      {...props}
+    />
   );
 }
 

@@ -1,4 +1,10 @@
-import { Suspense, lazy, useMemo, type ComponentType, type ReactNode } from "react";
+import {
+  Suspense,
+  lazy,
+  useMemo,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 
 type LazyLoader = () => Promise<{
   default: ComponentType;
@@ -17,7 +23,10 @@ function LazyFallback() {
   );
 }
 
-export const Lazy: React.FC<LazyProps> = ({ loader, fallback = <LazyFallback /> }) => {
+export const Lazy: React.FC<LazyProps> = ({
+  loader,
+  fallback = <LazyFallback />,
+}) => {
   const Component = useMemo(() => lazy(loader), [loader]);
 
   return (
@@ -25,4 +34,4 @@ export const Lazy: React.FC<LazyProps> = ({ loader, fallback = <LazyFallback /> 
       <Component />
     </Suspense>
   );
-}
+};

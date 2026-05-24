@@ -80,7 +80,6 @@ export {
 export { Input } from "./Input";
 export { Label } from "./Label";
 export { Lazy } from "./Lazy";
-export type { LazyLoader, LazyProps } from "./Lazy";
 export {
   Select,
   SelectContent,
@@ -136,4 +135,9 @@ export {
 } from "./Table";
 export { Tabs, TabsContent, TabsList, TabsTrigger } from "./Tabs";
 export { Textarea } from "./Textarea";
-export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./Tooltip";
+export {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./Tooltip";

@@ -33,10 +33,7 @@ export function CardTitle({
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div
-      className={cn("leading-none font-semibold", className)}
-      {...props}
-    />
+    <div className={cn("leading-none font-semibold", className)} {...props} />
   );
 }
 
@@ -75,7 +72,5 @@ export function CardFooter({
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div className={cn("flex items-center px-6", className)} {...props} />
-  );
+  return <div className={cn("flex items-center px-6", className)} {...props} />;
 }
