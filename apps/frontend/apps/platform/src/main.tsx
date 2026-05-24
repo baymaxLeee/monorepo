@@ -1,3 +1,4 @@
+import "./mf-eager-anchors";
 import "@packages/components/styles.css";
 
 import { createRoot } from "react-dom/client";
