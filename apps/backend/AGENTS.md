@@ -17,6 +17,18 @@ Go for performance-critical services (api-gateway).
 - Cross-service calls go through `libs/transport/` clients (gRPC or HTTP)
 - Cross-service data flow is async via events (CloudEvents) when possible
 
+### Resource module boundaries
+- Keep business resources separated end-to-end inside every service.
+- Each table/resource gets its own resource-specific modules, for example
+  `models/<resource>.py`, `schemas/<resource>.py`, `crud/<resource>.py`,
+  `services/<resource>.py`, and `routers/<resource>.py` for Python services.
+- Do NOT merge distinct business resources into a generic shared
+  CRUD/model/schema/service layer just to reduce boilerplate. Prefer explicit,
+  single-responsibility modules that can evolve independently.
+- Small shared helpers are acceptable only when they are behavior-free
+  infrastructure glue; resource ownership, query rules, DTOs, and business
+  orchestration stay in the resource-specific modules.
+
 ### Shared kernel discipline (CRITICAL)
 The libs/ are the most dangerous abstraction. Strict rules:
 

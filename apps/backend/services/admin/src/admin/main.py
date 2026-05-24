@@ -8,7 +8,7 @@ from kernel.errors import register_exception_handlers
 
 from .db import close_db, init_db, seed_demo_bots
 from .redis_client import close_redis, init_redis
-from .routers import bots, health
+from .routers import bots, health, intentions, scenes
 
 load_dotenv()
 
@@ -36,6 +36,8 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.include_router(health.router)
     app.include_router(bots.router)
+    app.include_router(scenes.router)
+    app.include_router(intentions.router)
     return app
 
 

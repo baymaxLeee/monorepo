@@ -28,4 +28,9 @@ The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing
 - Business rules live in `services/`.
 - DB access lives in `crud/`; routers never touch SQLAlchemy directly.
 - Pydantic API shapes live in `schemas/`; SQLAlchemy table definitions live in `models/`.
+- Keep business resources separated end-to-end. Each table/resource gets its
+  own `models/<resource>.py`, `schemas/<resource>.py`, `crud/<resource>.py`,
+  `services/<resource>.py`, and `routers/<resource>.py`. Do NOT merge distinct
+  business resources into a generic shared CRUD/model/schema/service just to
+  reduce boilerplate; prefer explicit, single-responsibility modules.
 - Errors via `libs.kernel.errors.*`, NEVER raw HTTPException

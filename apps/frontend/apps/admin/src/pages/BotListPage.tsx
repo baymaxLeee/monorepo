@@ -222,6 +222,7 @@ export function BotListPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>名称</TableHead>
+                  <TableHead>用户名</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead>创建时间</TableHead>
                   <TableHead className="text-right">操作</TableHead>
@@ -231,6 +232,7 @@ export function BotListPage() {
                 {bots.map((b) => (
                   <TableRow key={b.id}>
                     <TableCell className="font-medium">{b.name}</TableCell>
+                    <TableCell>{b.username}</TableCell>
                     <TableCell>{statusBadge(b.status)}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(b.created_at).toLocaleString()}

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class Bot(BaseModel):
     id: str
     user_id: str
+    username: str
     name: str
     status: Literal["draft", "published", "archived"]
     created_at: str

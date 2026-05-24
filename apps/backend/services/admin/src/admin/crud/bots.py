@@ -9,13 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from admin.models.bot import BotRow
 
 
-async def list_bots(session: AsyncSession, user_id: str) -> list[BotRow]:
-    result = await session.scalars(select(BotRow).where(BotRow.user_id == user_id).order_by(BotRow.created_at))
+async def list_bots(session: AsyncSession, user_id: str, is_admin: bool) -> list[BotRow]:
+    stmt = select(BotRow).order_by(BotRow.created_at)
+    if not is_admin:
+        stmt = stmt.where(BotRow.user_id == user_id)
+    result = await session.scalars(stmt)
     return list(result.all())
 
 
-async def get_bot(session: AsyncSession, bot_id: str, user_id: str) -> BotRow | None:
-    result = await session.scalars(select(BotRow).where(BotRow.id == bot_id, BotRow.user_id == user_id))
+async def get_bot(session: AsyncSession, bot_id: str, user_id: str, is_admin: bool) -> BotRow | None:
+    stmt = select(BotRow).where(BotRow.id == bot_id)
+    if not is_admin:
+        stmt = stmt.where(BotRow.user_id == user_id)
+    result = await session.scalars(stmt)
     return result.one_or_none()
 
 
