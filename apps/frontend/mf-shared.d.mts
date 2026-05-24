@@ -16,15 +16,13 @@ export interface SharedSpec {
 
 /**
  * Build the `shared` config dict for a Module Federation plugin instance.
- * `"host"` => eager: true on every dep (bundled into shell's initial chunk).
- * `"remote"` => eager: false and import: false (consume host's copy; no
- * standalone fallback bundle).
+ * Shared entries are limited to cross-app runtime contracts. UI, API-client,
+ * and other leaf libraries are intentionally excluded so each app can rely on
+ * normal bundler tree-shaking instead of host fallback chunks.
  */
 export function buildShared(role: Role): Record<string, SharedSpec>;
 
 /**
- * Names of all shared workspace packages the shell MUST statically import (anywhere in
- * its source) so rspack keeps them in the initial chunk and `eager: true`
- * works. Used by `apps/frontend/apps/platform/src/mf-eager-anchors.ts`.
+ * Names of host shared packages configured as eager.
  */
 export const HOST_EAGER_ANCHORS: readonly string[];

@@ -58,6 +58,9 @@ importers:
       react-hook-form:
         specifier: ^7.76.0
         version: 7.76.0(react@18.3.1)
+      react-router:
+        specifier: ^6.26.0
+        version: 6.30.3(react@18.3.1)
       react-router-dom:
         specifier: ^6.26.0
         version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -109,12 +112,30 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.4.0
         version: 5.4.0(react-hook-form@7.76.0(react@18.3.1))
+      '@radix-ui/react-slot':
+        specifier: ^1.2.4
+        version: 1.2.4(@types/react@18.3.29)(react@18.3.1)
+      '@radix-ui/react-tooltip':
+        specifier: ^1.2.8
+        version: 1.2.8(@types/react-dom@18.3.7(@types/react@18.3.29))(@types/react@18.3.29)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      axios:
+        specifier: ^1.13.0
+        version: 1.16.1
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
       components:
         specifier: workspace:*
         version: link:../../packages/components
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@18.3.1)
+      radix-ui:
+        specifier: ^1.4.3
+        version: 1.4.3(@types/react-dom@18.3.7(@types/react@18.3.29))(@types/react@18.3.29)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react:
         specifier: ^18.3.0
         version: 18.3.1
@@ -124,6 +145,9 @@ importers:
       react-hook-form:
         specifier: ^7.76.0
         version: 7.76.0(react@18.3.1)
+      react-router:
+        specifier: ^6.26.0
+        version: 6.30.3(react@18.3.1)
       react-router-dom:
         specifier: ^6.26.0
         version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -133,6 +157,12 @@ importers:
       shared:
         specifier: workspace:*
         version: link:../../packages/shared
+      sonner:
+        specifier: ^2.0.7
+        version: 2.0.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      tailwind-merge:
+        specifier: ^2.6.0
+        version: 2.6.1
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -197,6 +227,9 @@ importers:
       '@radix-ui/react-slot':
         specifier: ^1.2.4
         version: 1.2.4(@types/react@18.3.29)(react@18.3.1)
+      '@radix-ui/react-tooltip':
+        specifier: ^1.2.8
+        version: 1.2.8(@types/react-dom@18.3.7(@types/react@18.3.29))(@types/react@18.3.29)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1

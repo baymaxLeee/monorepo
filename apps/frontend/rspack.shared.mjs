@@ -7,11 +7,11 @@ export { frontendRoot };
  * Host-only: Tailwind v4 via @tailwindcss/webpack (no postcss.config).
  * Remotes must NOT register this rule — they consume CSS from platform.
  */
-export function createHostCssRule() {
+export function createHostCssRule({ loader = "style-loader" } = {}) {
   return {
     test: /\.css$/,
     use: [
-      "style-loader",
+      loader,
       {
         loader: "css-loader",
         options: { importLoaders: 1 },

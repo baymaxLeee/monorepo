@@ -1,4 +1,4 @@
-import { Slot as SlotPrimitive } from "radix-ui";
+import { Slot as SlotPrimitive } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { cn } from "@packages/shared";
@@ -42,7 +42,7 @@ export interface ButtonProps
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Component = asChild ? SlotPrimitive.Root : "button";
+    const Component = asChild ? SlotPrimitive : "button";
     return (
       <Component
         ref={ref}
