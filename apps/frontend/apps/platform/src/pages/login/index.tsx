@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
+import { useShallow } from "zustand/react/shallow";
 import { z } from "zod";
 import { bootstrapSession, login } from "@packages/api";
 import {
@@ -34,8 +35,12 @@ type LoginValues = z.infer<typeof loginSchema>;
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const user = usePlatformStore((state) => state.user);
-  const setUser = usePlatformStore((state) => state.setUser);
+  const { user, setUser } = usePlatformStore(
+    useShallow((state) => ({
+      user: state.user,
+      setUser: state.setUser,
+    })),
+  );
   const [ready, setReady] = useState(false);
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),

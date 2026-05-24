@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { BoxesIcon, LogOutIcon, UserIcon } from "lucide-react";
 import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
+import { useShallow } from "zustand/react/shallow";
 import { logout } from "@packages/api";
 import {
   Avatar,
@@ -31,10 +32,14 @@ function getUserInitials(name: string) {
 
 export function Layout() {
   const location = useLocation();
-  const user = usePlatformStore((state) => state.user);
-  const menus = usePlatformStore((state) => state.menus);
-  const setUser = usePlatformStore((state) => state.setUser);
-  const setActiveMenuId = usePlatformStore((state) => state.setActiveMenuId);
+  const { user, menus, setUser, setActiveMenuId } = usePlatformStore(
+    useShallow((state) => ({
+      user: state.user,
+      menus: state.menus,
+      setUser: state.setUser,
+      setActiveMenuId: state.setActiveMenuId,
+    })),
+  );
   const current = activeMfe(location.pathname);
   const platformMenus =
     menus.length > 0

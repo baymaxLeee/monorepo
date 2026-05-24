@@ -10,8 +10,9 @@
  * consumed by host and remotes.
  *
  * Tier 3 — State management:
- * Zustand and its subpath exports. Stores and selector helpers must resolve to
- * one runtime copy across host/remotes.
+ * Zustand core runtime and middleware used by the shared platform store.
+ * React selector helpers are shared too because host and remotes both use them
+ * in store selectors.
  *
  * UI, API-client, and other leaf libraries stay out of Module Federation
  * shared config by default. That lets each app rely on normal bundler
@@ -85,17 +86,13 @@ const TIER3 = {
     requiredVersion: "^5.0.0",
     strictVersion: false,
   },
-  "zustand/shallow": {
-    singleton: true,
-    requiredVersion: "^5.0.0",
-    strictVersion: false,
-  },
 };
 
 const SHARED = { ...TIER1, ...TIER2, ...TIER3 };
 
 const HOST_EAGER_SHARED = new Set([
   ...Object.keys(TIER1),
+  ...Object.keys(TIER3),
   "@packages/shared",
   "@packages/runtime",
 ]);

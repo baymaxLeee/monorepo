@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
+import { useShallow } from "zustand/react/shallow";
 import { z } from "zod";
 import { checkAccountAvailability, register } from "@packages/api";
 import {
@@ -43,8 +44,12 @@ type RegisterValues = z.infer<typeof registerSchema>;
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const user = usePlatformStore((state) => state.user);
-  const setUser = usePlatformStore((state) => state.setUser);
+  const { user, setUser } = usePlatformStore(
+    useShallow((state) => ({
+      user: state.user,
+      setUser: state.setUser,
+    })),
+  );
   const lastCheckedName = useRef<string | null>(null);
   const form = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
