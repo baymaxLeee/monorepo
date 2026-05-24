@@ -1,18 +1,80 @@
-import { useEffect, useState, type ComponentType } from "react";
+import type { ComponentType } from "react";
 import {
+  createBrowserRouter,
   Navigate,
-  Outlet,
-  useRoutes,
   type RouteObject,
 } from "react-router-dom";
-import { bootstrapSession } from "@packages/api";
-import { Lazy, Muted, Skeleton } from "@packages/components";
-import { usePlatformStore } from "@packages/runtime";
-import { Layout } from "../components/Layout";
-import { RemoteErrorBoundary } from "../components/RemoteErrorBoundary";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  ErrorBoundary,
+  type ErrorFallbackProps,
+} from "@packages/components";
 import { registry } from "../registry";
 
 type RouteLoader = () => Promise<{ default: ComponentType }>;
+
+function lazyPage(loader: RouteLoader): RouteObject["lazy"] {
+  return async () => {
+    const module = await loader();
+    return { Component: module.default };
+  };
+}
+
+function lazyRemote(
+  remoteName: string,
+  loader: RouteLoader,
+): RouteObject["lazy"] {
+  return async () => {
+    const module = await loader();
+    const RemoteApp = module.default;
+
+    function RemoteRoute() {
+      return (
+        <ErrorBoundary
+          fallback={(props) => (
+            <RemoteErrorFallback {...props} remoteName={remoteName} />
+          )}
+          onError={(error, info) => {
+            console.error(`[${remoteName}] remote failed`, error, info);
+          }}
+        >
+          <RemoteApp />
+        </ErrorBoundary>
+      );
+    }
+
+    return { Component: RemoteRoute };
+  };
+}
+
+function RemoteErrorFallback({
+  error,
+  remoteName,
+  resetErrorBoundary,
+}: ErrorFallbackProps & { remoteName: string }) {
+  return (
+    <Card className="m-6 max-w-lg">
+      <CardHeader>
+        <CardTitle>微前端加载失败</CardTitle>
+        <CardDescription>
+          无法加载 <code className="text-xs">{remoteName}</code>
+          。本地开发请确认对应 dev server 已启动（admin 一般为端口 3001）。
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-muted-foreground">{error.message}</p>
+        <Button type="button" variant="outline" onClick={resetErrorBoundary}>
+          重试
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
 
 const remoteAppLoaders = {
   mfe_admin: () => import("mfe_admin/App"),
@@ -26,120 +88,59 @@ const remoteRoutes: RouteObject[] = registry.flatMap((m) => {
   return [
     {
       path: `${m.id}/*`,
-      element: (
-        <RemoteErrorBoundary remoteName={m.remoteName}>
-          <Lazy loader={loader} />
-        </RemoteErrorBoundary>
-      ),
+      lazy: lazyRemote(m.remoteName, loader),
     },
   ];
 });
 
-export const routers: RouteObject[] = [
+export const routes: RouteObject[] = [
   {
-    path: "/404",
-    element: <Lazy loader={() => import("../pages/404")} />,
-  },
-  {
-    path: "/login",
-    element: <Lazy loader={() => import("../pages/login")} />,
-  },
-  {
-    path: "/register",
-    element: <Lazy loader={() => import("../pages/register")} />,
-  },
-  {
-    path: "/platform",
-    element: <PlatformLayoutRoute />,
+    path: "/",
     children: [
       {
         index: true,
-        element: <Navigate to="/platform/home" replace />,
+        element: <Navigate to="/login" replace />,
       },
       {
-        path: "home",
-        element: <Lazy loader={() => import("../pages/home")} />,
+        path: "404",
+        lazy: lazyPage(() => import("../pages/404")),
       },
       {
-        path: "profile",
-        element: <Lazy loader={() => import("../pages/profile")} />,
+        path: "login",
+        lazy: lazyPage(() => import("../pages/login")),
       },
-      ...remoteRoutes,
+      {
+        path: "register",
+        lazy: lazyPage(() => import("../pages/register")),
+      },
+      {
+        path: "platform",
+        lazy: lazyPage(() => import("../pages/layout")),
+        children: [
+          {
+            index: true,
+            element: <Navigate to="/platform/home" replace />,
+          },
+          {
+            path: "home",
+            lazy: lazyPage(() => import("../pages/home")),
+          },
+          {
+            path: "profile",
+            lazy: lazyPage(() => import("../pages/profile")),
+          },
+          ...remoteRoutes,
+        ],
+      },
+      {
+        id: "fallback",
+        path: "*",
+        element: <Navigate to="/404" replace />,
+      },
     ],
-  },
-  {
-    id: "fallback",
-    path: "*",
-    element: <AuthAwareFallback />,
   },
 ];
 
-function SessionLoadingFallback() {
-  return (
-    <div className="flex min-h-svh items-center justify-center p-6">
-      <div className="w-full max-w-xs space-y-3">
-        <Skeleton className="h-8 w-32 animate-pulse" />
-        <Skeleton className="h-4 w-full animate-pulse" />
-        <Muted>正在恢复会话…</Muted>
-      </div>
-    </div>
-  );
-}
-
-function PlatformLayoutRoute() {
-  const user = usePlatformStore((state) => state.user);
-  const setUser = usePlatformStore((state) => state.setUser);
-
-  if (!user) return <Navigate to="/login" replace />;
-
-  return (
-    <Layout user={user} onUserChanged={setUser}>
-      <Outlet />
-    </Layout>
-  );
-}
-
-function AuthAwareFallback() {
-  return <Navigate to="/404" replace />;
-}
-
-export function AppRouter() {
-  const element = useRoutes(routers);
-  const setUser = usePlatformStore((state) => state.setUser);
-  const setMenus = usePlatformStore((state) => state.setMenus);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    setMenus(
-      registry.map((m) => ({
-        id: m.id,
-        title: m.title,
-        basePath: m.basePath,
-        subNav: m.subNav,
-      })),
-    );
-  }, [setMenus]);
-
-  useEffect(() => {
-    let alive = true;
-    bootstrapSession()
-      .then((sessionUser) => {
-        if (alive) setUser(sessionUser);
-      })
-      .catch(() => {
-        if (alive) setUser(null);
-      })
-      .finally(() => {
-        setReady(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [setUser]);
-
-  if (!ready) {
-    return <SessionLoadingFallback />;
-  }
-
-  return element;
-}
+export const router = createBrowserRouter(routes, {
+  future: { v7_relativeSplatPath: true },
+});

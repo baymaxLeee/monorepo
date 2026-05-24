@@ -12,7 +12,12 @@ export {
   CardTitle,
 } from "./Card";
 export {
+  Aside,
+  Header,
+  HeaderSection,
   InlineCode,
+  Layout,
+  Main,
   Muted,
   Page,
   PageActions,
@@ -20,12 +25,21 @@ export {
   PageHeader,
   PageHeaderContent,
   PageTitle,
+  Section,
   SiteHeader,
   SiteHeaderActions,
   SiteHeaderBrand,
   SiteHeaderNav,
 } from "./layout";
 export { Checkbox } from "./Checkbox";
+export {
+  ErrorBoundary,
+  withErrorBoundary,
+  type ErrorBoundaryFallback,
+  type ErrorBoundaryProps,
+  type ErrorFallbackProps,
+  type WithErrorBoundaryOptions,
+} from "./ErrorBoundary";
 export {
   Field,
   FieldContent,

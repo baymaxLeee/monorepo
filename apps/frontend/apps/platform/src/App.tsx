@@ -1,18 +1,18 @@
-import { BrowserRouter } from "react-router-dom";
-import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import { AppProviders } from "./components/AppProviders";
-import { AppRouter } from "./router";
+import { RouterProvider } from "react-router-dom";
+import { ErrorBoundary, Toaster, TooltipProvider } from "@packages/components";
+import { router } from "./router";
 
 export function App() {
   return (
-    <AppErrorBoundary>
-      <BrowserRouter
-        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-      >
-        <AppProviders>
-          <AppRouter />
-        </AppProviders>
-      </BrowserRouter>
-    </AppErrorBoundary>
+    <ErrorBoundary
+      onError={(error, info) => {
+        console.error("[platform] render error", error, info);
+      }}
+    >
+      <TooltipProvider>
+        <RouterProvider router={router} future={{ v7_startTransition: true }} />
+        <Toaster richColors closeButton position="top-right" />
+      </TooltipProvider>
+    </ErrorBoundary>
   );
 }

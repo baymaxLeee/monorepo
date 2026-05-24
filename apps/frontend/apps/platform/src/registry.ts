@@ -6,19 +6,13 @@
  *   /              — shell root (redirects when authed)
  *   /login         — auth page
  *   /platform/home — platform shell home / app switcher
- *   /platform/<id> — each remote (e.g. /platform/admin)
+ *   /platform/<id> — each remote entry (e.g. /platform/admin)
  *
  * When adding a new MFE:
  * 1. Add an entry here (`basePath`: `/platform/<slug>`)
  * 2. Add it to rspack.config.ts remotes
  * 3. Register lazy import in App.tsx `remoteApps`
  */
-export interface MfeSubNavItem {
-  title: string;
-  /** Absolute path under host, e.g. `/platform/admin/demo` */
-  href: string;
-}
-
 export interface MfeEntry {
   id: string;
   title: string;
@@ -26,21 +20,15 @@ export interface MfeEntry {
   basePath: string;
   remoteName: string;
   exposeKey: string;
-  /** Shown in sidebar when route is under this MFE */
-  subNav?: MfeSubNavItem[];
 }
 
 export const registry: MfeEntry[] = [
   {
     id: "admin",
-    title: "智能体",
+    title: "后台管理",
     basePath: "/platform/admin",
     remoteName: "mfe_admin",
     exposeKey: "./App",
-    subNav: [
-      { title: "列表", href: "/platform/admin" },
-      { title: "组件演示", href: "/platform/admin/demo" },
-    ],
   },
   // { id: "scene", title: "场景", basePath: "/platform/scene", remoteName: "mfe_scene", exposeKey: "./App" },
 ];

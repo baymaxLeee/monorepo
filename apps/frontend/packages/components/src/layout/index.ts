@@ -1,3 +1,4 @@
+export { Aside, Header, HeaderSection, Layout, Main, Section } from "./Layout";
 export {
   InlineCode,
   Muted,

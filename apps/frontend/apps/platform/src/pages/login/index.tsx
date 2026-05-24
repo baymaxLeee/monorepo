@@ -1,8 +1,9 @@
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { login } from "@packages/api";
+import { bootstrapSession, login } from "@packages/api";
 import {
   Button,
   Card,
@@ -35,10 +36,32 @@ export function LoginPage() {
   const navigate = useNavigate();
   const user = usePlatformStore((state) => state.user);
   const setUser = usePlatformStore((state) => state.setUser);
+  const [ready, setReady] = useState(false);
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { account: "", password: "" },
   });
+
+  useEffect(() => {
+    let alive = true;
+    bootstrapSession()
+      .then((sessionUser) => {
+        if (alive) setUser(sessionUser);
+      })
+      .catch(() => {
+        if (alive) setUser(null);
+      })
+      .finally(() => {
+        if (alive) setReady(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [setUser]);
+
+  if (!ready) {
+    return <LoginLoadingCard />;
+  }
 
   if (user) {
     return <Navigate to="/platform/home" replace />;

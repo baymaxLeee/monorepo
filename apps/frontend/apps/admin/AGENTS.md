@@ -21,7 +21,9 @@ Manages the "智能体" domain on the frontend. Backed by `apps/backend/services
 
 ## Layout
 
-- `src/App.tsx` — routes only; **no** local shell (sidebar/nav in platform `Layout`)
+- `src/App.tsx` — owns admin routes under `/platform/admin/*`
+- Admin owns its local shell and menu. Platform only mounts the MFE entry and
+  does not know admin sub-routes or capabilities.
 - No `src/main.tsx` / `src/index.html`; do not add a standalone or status page
 - `src/pages/<Name>Page.tsx` — page-level components
 - `src/components/` — local UI components (not shared)

@@ -1,14 +1,27 @@
 /**
  * Module Federation shared-deps registry.
  *
- * Tier 1 — React (singleton, host + remote)
- * Tier 2 — Platform infra (@packages/runtime, api, shared, zustand)
- * Tier 3 — Shared UI kit (@packages/components)
+ * Tier 1 — React core ecosystem:
+ * React, React DOM, JSX runtimes, and React Router. These must be singleton
+ * because hooks, context, and router state break when duplicated.
+ *
+ * Tier 2 — Internal workspace packages:
+ * @packages/* runtime, API, shared utilities, and component library. These are
+ * product-owned shared contracts consumed by host and remotes.
+ *
+ * Tier 3 — State management:
+ * Zustand and its subpath exports. Stores and selector helpers must resolve to
+ * one runtime copy across host/remotes.
+ *
+ * Tier 4 — UI/form/runtime infrastructure:
+ * shadcn/Radix primitives, Tailwind helper utilities, icons, form validation,
+ * toast, HTTP client, and class composition helpers used by shared UI or MFE
+ * business code.
  *
  * Remote apps do not bundle fallbacks for these shared dependencies. The
  * platform host is the only user-facing entry and must provide them.
  *
- * Tier-2 resolves via packages/package.json exports + @packages alias.
+ * Internal packages resolve via package.json exports + @packages alias.
  */
 
 /**
@@ -57,6 +70,10 @@ const TIER2 = {
   "@packages/shared": { singleton: true, requiredVersion: false },
   "@packages/runtime": { singleton: true, requiredVersion: false },
   "@packages/api": { singleton: true, requiredVersion: false },
+  "@packages/components": { singleton: true, requiredVersion: false },
+};
+
+const TIER3 = {
   zustand: { singleton: true, requiredVersion: "^5.0.0", strictVersion: false },
   "zustand/middleware": {
     singleton: true,
@@ -75,11 +92,65 @@ const TIER2 = {
   },
 };
 
-const TIER3 = {
-  "@packages/components": { singleton: true, requiredVersion: false },
+const TIER4 = {
+  "@hookform/resolvers": {
+    singleton: true,
+    requiredVersion: "^5.0.0",
+    strictVersion: false,
+  },
+  "@hookform/resolvers/zod": {
+    singleton: true,
+    requiredVersion: "^5.0.0",
+    strictVersion: false,
+  },
+  "class-variance-authority": {
+    singleton: true,
+    requiredVersion: "^0.7.0",
+    strictVersion: false,
+  },
+  "lucide-react": {
+    singleton: true,
+    requiredVersion: "^0.468.0",
+    strictVersion: false,
+  },
+  "radix-ui": {
+    singleton: true,
+    requiredVersion: "^1.0.0",
+    strictVersion: false,
+  },
+  "react-hook-form": {
+    singleton: true,
+    requiredVersion: "^7.0.0",
+    strictVersion: false,
+  },
+  sonner: {
+    singleton: true,
+    requiredVersion: "^2.0.0",
+    strictVersion: false,
+  },
+  zod: {
+    singleton: true,
+    requiredVersion: "^4.0.0",
+    strictVersion: false,
+  },
+  axios: {
+    singleton: true,
+    requiredVersion: "^1.0.0",
+    strictVersion: false,
+  },
+  clsx: {
+    singleton: true,
+    requiredVersion: "^2.0.0",
+    strictVersion: false,
+  },
+  "tailwind-merge": {
+    singleton: true,
+    requiredVersion: "^2.0.0",
+    strictVersion: false,
+  },
 };
 
-const SHARED = { ...TIER1, ...TIER2, ...TIER3 };
+const SHARED = { ...TIER1, ...TIER2, ...TIER3, ...TIER4 };
 
 /**
  * @param {Role} role
@@ -98,4 +169,8 @@ export function buildShared(role) {
   return out;
 }
 
-export const HOST_EAGER_ANCHORS = Object.keys({ ...TIER2, ...TIER3 });
+export const HOST_EAGER_ANCHORS = Object.keys({
+  ...TIER2,
+  ...TIER3,
+  ...TIER4,
+});
