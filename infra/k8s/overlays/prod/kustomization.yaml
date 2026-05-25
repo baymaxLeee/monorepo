@@ -13,22 +13,28 @@ resources:
   - ../../base/observability
   - ../../base/ingress.yaml
 
-# CI patches `newTag` to the deploying git-sha. Registry hostname here is a
-# placeholder — replace with the actual 火山引擎 CR endpoint:
-#   cr-cn-<region>.volces.com/<namespace>/<repo>:<sha>
+# CI patches `newName` + `newTag` to the real registry + git-sha via
+# `kustomize edit set image` (see .github/workflows/deploy-prod.yml).
+# The defaults below intentionally point at registry.invalid — that's an
+# RFC 2606 reserved TLD that NEVER resolves, so a forgotten override produces
+# a loud ImagePullBackOff (instead of a silent InvalidImageName from an
+# uppercase placeholder, or worse, accidentally pulling a real image).
+#
+# For 火山引擎 CR the production newName looks like:
+#   cr-cn-<region>.volces.com/<namespace>/<repo>
 images:
   - name: ghcr.io/example/gateway
-    newName: REPLACE_ME_REGISTRY/monorepo/gateway
-    newTag: latest
+    newName: registry.invalid/monorepo/gateway
+    newTag: placeholder
   - name: ghcr.io/example/iam
-    newName: REPLACE_ME_REGISTRY/monorepo/iam
-    newTag: latest
+    newName: registry.invalid/monorepo/iam
+    newTag: placeholder
   - name: ghcr.io/example/admin
-    newName: REPLACE_ME_REGISTRY/monorepo/admin
-    newTag: latest
+    newName: registry.invalid/monorepo/admin
+    newTag: placeholder
   - name: ghcr.io/example/telemetry
-    newName: REPLACE_ME_REGISTRY/monorepo/telemetry
-    newTag: latest
+    newName: registry.invalid/monorepo/telemetry
+    newTag: placeholder
 
 # Replicas and prod-specific config / secret overrides.
 patches:

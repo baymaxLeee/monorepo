@@ -6,6 +6,16 @@ uv = "latest"
 go = "1.23"
 just = "latest"
 
+# Deploy / K8s tooling.
+# Intentionally NOT managing `kubectl` / `kustomize` here:
+#   • kubectl ships with Docker Desktop / Rancher Desktop on most dev machines
+#   • `kubectl kustomize` is built-in, so a separate kustomize binary is optional
+#   • managing them via mise pulls in GitHub API calls on every shell entry,
+#     which trips anonymous rate-limit (60/h) really fast.
+# `kind` is only needed for local cluster smoke tests; install with `brew install kind`
+# (macOS) or grab the binary from https://github.com/kubernetes-sigs/kind/releases.
+# We deliberately do NOT auto-install via mise to avoid the GitHub rate-limit issue.
+
 [env]
 # Optional: set NODE_OPTIONS for large builds
 NODE_OPTIONS = "--max-old-space-size=4096"

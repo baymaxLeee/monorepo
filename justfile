@@ -91,6 +91,19 @@ k8s-render env="dev":
 k8s-diff env="prod":
     @./scripts/k8s-render.sh {{ env }} | kubectl diff -f - || true
 
+# Spin up a local kind cluster and validate the prod overlay against a real
+# kube-apiserver. Dry-run only (no pods scheduled). For end-to-end:
+#   just k8s-kind-up --apply --build
+k8s-kind-up *flags:
+    @./scripts/k8s-kind-up.sh {{ flags }}
+
+# Tear down the local kind cluster.
+k8s-kind-down:
+    @./scripts/k8s-kind-down.sh
+
+# Backwards-compat alias for the older `just k8s-kind` recipe name.
+alias k8s-kind := k8s-kind-up
+
 # ─── Scaffolding ────────────────────────────────────────────
 new-service name:
     ./scripts/new-service.sh {{ name }}
