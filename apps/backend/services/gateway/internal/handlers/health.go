@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/example/monorepo/api-gateway/internal/store"
+	"github.com/example/monorepo/gateway/internal/store"
 )
 
 // Healthz reports gateway and dependency health.

@@ -3,10 +3,10 @@ set shell := ["bash", "-cu"]
 
 # Service registry (Python services and their fixed dev ports)
 PY_SERVICES := "admin"
-GO_SERVICES := "api-gateway iam"
+GO_SERVICES := "gateway iam"
 
 # Fixed port allocation so multiple agents/dev servers don't collide
-PORTS := '{"admin":8001,"iam":8002,"scene":8003,"intention":8004,"permission":8005,"audit":8006,"notification":8007,"api-gateway":8000}'
+PORTS := '{"admin":8001,"iam":8002,"scene":8003,"intention":8004,"permission":8005,"audit":8006,"notification":8007,"gateway":8000}'
 
 default:
     @just --list
@@ -30,7 +30,7 @@ dev service:
 # also build a container image via `build-image`.
 #
 #   just build                       # everything: Go binaries + every image
-#   just build api-gateway           # single Go service binary
+#   just build gateway           # single Go service binary
 #   just build bot                   # Python "build": pre-flight (lint + test + OpenAPI export)
 #   just build-image bot             # docker build for a single service
 #   just build-images                # docker build for ALL services
@@ -65,7 +65,7 @@ build-py-svc service:
 
 # Build a single service's docker image. Usage:
 #   just build-image bot
-# just build-image api-gateway my-registry.io v1.2.3
+# just build-image gateway my-registry.io v1.2.3
 build-image service registry="local" tag="latest":
     @if [ ! -f "services/{{ service }}/Dockerfile" ]; then \
         echo "✗ services/{{ service }}/Dockerfile not found"; exit 1; fi
@@ -114,8 +114,15 @@ gen-proto:
     @echo "✓ proto codegen done"
 
 # ─── db ─────────────────────────────────────────────────
-migrate-new service msg:
-    cd services/{{ service }} && uv run alembic revision --autogenerate -m "{{ msg }}"
+migrate-new service version msg:
+    @mkdir -p services/{{ service }}/migrations/versions
+    @if ! [[ "{{ version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then \
+        echo "✗ version must match v<major>.<minor>.<patch>: {{ version }}"; exit 1; \
+    fi
+    @slug=$(echo "{{ msg }}" | tr '[:upper:] ' '[:lower:]_' | tr -cd '[:alnum:]_-') && \
+        file="services/{{ service }}/migrations/versions/{{ version }}__$slug.sql" && \
+        printf '%s\n' '-- Write service-owned SQL migration here.' > "$file" && \
+        echo "✓ $file"
 
-migrate-up service:
-    cd services/{{ service }} && uv run alembic upgrade head
+migrate-up service target_version="":
+    @../../scripts/db-migrate.sh services/{{ service }} "{{ target_version }}"

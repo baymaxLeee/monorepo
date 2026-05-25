@@ -7,11 +7,13 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+
+	"github.com/example/monorepo/gateway/internal/middleware"
 )
 
 func Index(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{
-		"service": "api-gateway",
+		"service": "gateway",
 		"docs":    "/healthz | /api/iam-server/* | /api/admin-server/*",
 	})
 }
@@ -36,13 +38,18 @@ func newReverseProxy(upstream, service, externalPrefix string) http.Handler {
 		req.URL.RawPath = ""
 		req.Host = target.Host
 		slog.Info("proxy",
+			"trace_id", middleware.TraceIDFromContext(req.Context()),
 			"service", service,
 			"to", target.String()+req.URL.Path,
 			"from_path", incomingPath,
 		)
 	}
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		slog.Error("proxy_error", "err", err, "url", r.URL.String())
+		slog.Error("proxy_error",
+			"trace_id", middleware.TraceIDFromContext(r.Context()),
+			"err", err,
+			"url", r.URL.String(),
+		)
 		http.Error(w, "upstream unavailable: "+err.Error(), http.StatusBadGateway)
 	}
 	return proxy

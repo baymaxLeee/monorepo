@@ -45,7 +45,7 @@ just dev
 浏览器 :3000
   └─ shell 通过 Module Federation 加载 mfe_bot/App
        └─ mfe-bot 调 fetch http://localhost:8000/v1/bots
-            └─ api-gateway 反向代理到 http://localhost:8001/v1/bots
+            └─ gateway 反向代理到 http://localhost:8001/v1/bots
                  └─ bot 服务返回 3 个 demo Bot
 ```
 
@@ -97,7 +97,7 @@ just down    # 收工,关 docker
 | `just up` / `just down` | 起 / 关 docker(MySQL + Redis) |
 | `just install` | 装所有依赖(前端 + 后端 Py + Go) |
 | `just build` | **全栈构建**(前端 dist + Go 二进制) |
-| `just build <target>` | 单目标构建:`shell` / `mfe-bot` / `api-gateway` / `frontend` / `backend` |
+| `just build <target>` | 单目标构建:`shell` / `mfe-bot` / `gateway` / `frontend` / `backend` |
 | `just build-images [registry] [tag]` | 后端所有服务打 docker 镜像 |
 | `just sync` | 后端导出 OpenAPI → 前端重新生成 TS 客户端 ⭐ |
 | `just fmt` | 一把梭格式化(ruff + prettier + gofmt) |
@@ -122,17 +122,23 @@ just gen-client             # 重新生成 api-client
 # 后端
 cd apps/backend
 just dev bot                # 单起 bot 服务
-just dev api-gateway        # 单起 api-gateway
+just dev gateway            # 单起 gateway
 just build                  # Go 二进制 + 全部 docker 镜像
-just build api-gateway      # 只 build Go 二进制 → services/api-gateway/bin/server
+just build gateway          # 只 build Go 二进制 → services/gateway/bin/server
 just build bot              # Python "build":lint + test + 导 OpenAPI 预检
 just build-image bot        # docker build 单个服务 → local/bot:latest
 just build-images           # 全部服务的 docker 镜像
 just test bot               # 测 bot 服务
 just gen-openapi bot        # 导出 OpenAPI 到 schemas/openapi/bot.json
-just migrate-new bot "msg"  # 新建 alembic migration
-just migrate-up bot         # 应用 migration
+just migrate-new admin v1.1.0 "msg"  # 新建服务内 SQL migration
+just migrate-up admin v1.1.0         # 应用 (current, target] 范围内的 migration
 ```
+
+后端 SQL migration 统一放在
+`apps/backend/services/<svc>/migrations/versions/`,文件名必须以
+`vX.Y.Z` 开头。每个服务库都有 `migration` 表记录当前 schema 版本。
+未传目标版本时,`just migrate-up <svc>` 会迁到本地最新 SQL 版本;传目标版本
+时只执行 `(当前库版本, 目标版本]` 范围内的 SQL。
 
 ### overmind 进阶用法(装了之后)
 
@@ -303,7 +309,7 @@ monorepo/
 │   │
 │   └── backend/               ── 微服务 monorepo(uv + go.work)
 │       ├── services/bot/      ←   Python FastAPI(智能体服务)
-│       ├── services/api-gateway/ ← Go chi(BFF/网关)
+│       ├── services/gateway/ ← Go chi(BFF/网关)
 │       └── libs/              ←   薄共享内核(kernel/transport/auth_sdk/...)
 │
 ├── schemas/                   ← 跨栈契约(唯一允许的耦合点)
@@ -358,7 +364,7 @@ tree-shaker 看到入口没有静态引用 react,把 react 推进异步 vendor c
 
 ### 前端列表显示"请求失败"
 
-**原因**:后端 bot 服务或 api-gateway 没起来。
+**原因**:后端 bot 服务或 gateway 没起来。
 
 ```bash
 # 应该都返回 200
@@ -396,7 +402,7 @@ uv sync --all-packages
 
 | 服务 | 端口 |
 |---|---|
-| api-gateway | 8000 |
+| gateway | 8000 |
 | bot | 8001 |
 | (预留) iam / scene / intention / ... | 8002-8007 |
 | shell | 3000 |
@@ -449,7 +455,7 @@ docker ps            # 看是不是有别的项目占了 3306 / 6379
 
 - 加新微服务:`./scripts/new-service.sh iam`
 - 加新微前端:`./scripts/new-mfe.sh mfe-scene`
-- 生产迁移:在 `admin` 服务用 alembic 管理 schema(本地 dev 仍用 `create_all` + seed)
+- 生产迁移:沿用服务内 SQL migration 与 `migration.version` 版本指针
 - 接入 OTel:扩 `libs/observability/`,在 `main.py` 调 `setup("bot")`
 - gRPC 服务间调用:补 `schemas/proto/<svc>/v1/*.proto`,`buf generate`
 - 部署到 K8s:`infra/k8s/base/<svc>/` 已就位,改镜像 tag 即可

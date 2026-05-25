@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from kernel.errors import register_exception_handlers
 
-from .db import close_db, init_db, seed_demo_bots
+from .db import close_db, seed_demo_bots
 from .redis_client import close_redis, init_redis
 from .routers import bots, health, intentions, scenes
 
@@ -15,7 +15,6 @@ load_dotenv()
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    await init_db()
     await init_redis()
     await seed_demo_bots()
     yield
@@ -24,7 +23,7 @@ async def lifespan(_app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    # CORS、鉴权等横切关注点由 api-gateway 统一处理。
+    # CORS、鉴权等横切关注点由 gateway 统一处理。
     # 内网微服务只面向 gateway,不直接面向浏览器。
     app = FastAPI(
         title="Admin Service",

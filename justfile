@@ -44,7 +44,7 @@ dev-urls:
     @echo "  svc-admin: http://localhost:8001/docs"
 
 # ─── Build ──────────────────────────────────────────────────
-# Usage: build [target]  target = frontend | backend | platform | admin | api-gateway | ...
+# Usage: build [target]  target = frontend | backend | platform | admin | gateway | ...
 build target="":
     @./scripts/build-target.sh "{{ target }}"
 

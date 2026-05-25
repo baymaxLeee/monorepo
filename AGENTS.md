@@ -53,7 +53,7 @@ MUST keep them working — see "Migration safety" rule below.
 | `just install` | Install ALL deps (mise + pnpm + uv + go; copies `.env` from examples) |
 | `just up` | Docker (MySQL 8, Redis) + DB bootstrap (`scripts/db-bootstrap.sh`) |
 | `just down` | Stop local infra |
-| `just dev` | Start full demo stack (api-gateway + iam + admin svc + platform + admin MFE) |
+| `just dev` | Start full demo stack (gateway + iam + admin svc + platform + admin MFE) |
 | `just build [target]` | Build frontend / backend / specific service (target optional) |
 | `just sync` | Backend → OpenAPI → frontend TS client regen |
 | `just fmt` | Format both stacks (auto-run after edits, no need to ask) |

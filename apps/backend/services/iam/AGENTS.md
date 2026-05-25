@@ -9,10 +9,10 @@ refresh tokens, and user profile preferences.
 - Role records and user-role assignments
 - Refresh token persistence and rotation
 - Auth REST endpoints mounted at service root (`/login`, `/register`,
-  `/refresh`, `/logout`, `/me`); externally exposed by api-gateway as
+  `/refresh`, `/logout`, `/me`); externally exposed by gateway as
   `/api/iam-server/*`
 - IAM REST endpoints mounted at service root (`/roles`, `/users/...`);
-  externally exposed by api-gateway as `/api/iam-server/*`
+  externally exposed by gateway as `/api/iam-server/*`
 
 ## Layout
 - `internal/router/` — HTTP routing and response mapping

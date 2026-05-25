@@ -1,4 +1,4 @@
-# api-gateway
+# gateway
 
 Go-based BFF / API gateway. Sits between frontend and backend Python services.
 

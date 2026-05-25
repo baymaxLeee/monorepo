@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/example/monorepo/api-gateway/internal/config"
-	"github.com/example/monorepo/api-gateway/internal/handlers"
-	"github.com/example/monorepo/api-gateway/internal/middleware"
-	"github.com/example/monorepo/api-gateway/internal/store"
+	"github.com/example/monorepo/gateway/internal/config"
+	"github.com/example/monorepo/gateway/internal/handlers"
+	"github.com/example/monorepo/gateway/internal/middleware"
+	"github.com/example/monorepo/gateway/internal/store"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -33,6 +33,7 @@ func main() {
 	defer st.Close()
 
 	r := chi.NewRouter()
+	r.Use(middleware.TraceId)
 	r.Use(middleware.RequestLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.CORS(cfg.AllowedOrigins))
@@ -58,7 +59,7 @@ func main() {
 	}
 
 	go func() {
-		slog.Info("api-gateway starting",
+		slog.Info("gateway starting",
 			"port", cfg.Port,
 			"admin_upstream", cfg.AdminServiceURL,
 			"iam_upstream", cfg.IAMServiceURL,

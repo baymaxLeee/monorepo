@@ -16,7 +16,7 @@ trap 'kill 0' EXIT INT TERM
   IAM_MYSQL_DATABASE=iam go run ./cmd/server 2>&1 | sed 's/^/[iam]  /'
 ) &
 (
-  cd apps/backend/services/api-gateway
+  cd apps/backend/services/gateway
   go run ./cmd/server 2>&1 | sed 's/^/[gateway]   /'
 ) &
 (

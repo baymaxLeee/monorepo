@@ -1,67 +1,74 @@
 #!/usr/bin/env bash
-# Create local MySQL databases and apply each service-owned dev schema.
+# Create local MySQL databases and apply service-owned SQL migrations.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CONTAINER="${MYSQL_CONTAINER:-monorepo-mysql}"
-APP_USER="${MYSQL_USER:-dev}"
-ROOT_USER="${MYSQL_ROOT_USER:-root}"
-ROOT_PASS="${MYSQL_ROOT_PASSWORD:-dev}"
-DATABASES=(admin gateway iam)
+SERVICES_DIR="$ROOT/apps/backend/services"
+
+service_has_sql_migrations() {
+  compgen -G "$1/migrations/versions/*.sql" >/dev/null
+}
+
+echo "→ discovering service-owned database migrations"
+SERVICE_DIRS=()
+while IFS= read -r service_dir; do
+  if service_has_sql_migrations "$service_dir"; then
+    SERVICE_DIRS+=("$service_dir")
+  fi
+done < <(find "$SERVICES_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
+
+if [ "${#SERVICE_DIRS[@]}" -eq 0 ]; then
+  echo "⚠ no service SQL migrations found under $SERVICES_DIR/*/migrations/versions" >&2
+  exit 1
+fi
 
 if [ "${RESET_DEMO_DATA:-false}" = "true" ]; then
-  echo "→ resetting demo databases: admin, iam"
-  docker exec "$CONTAINER" mysql -u"$ROOT_USER" -p"$ROOT_PASS" -e \
-    "DROP DATABASE IF EXISTS \`admin\`; DROP DATABASE IF EXISTS \`iam\`;"
+  echo "→ resetting service databases"
+  for service_dir in "${SERVICE_DIRS[@]}"; do
+    db="$(basename "$service_dir" | tr '-' '_')"
+    docker exec -i "${MYSQL_CONTAINER:-monorepo-mysql}" mysql \
+      -u"${MYSQL_ROOT_USER:-root}" -p"${MYSQL_ROOT_PASSWORD:-dev}" \
+      -e "DROP DATABASE IF EXISTS \`$db\`;"
+  done
 fi
 
 echo "→ dropping legacy database: identity"
-docker exec "$CONTAINER" mysql -u"$ROOT_USER" -p"$ROOT_PASS" -e \
-  "DROP DATABASE IF EXISTS \`identity\`;"
+docker exec -i "${MYSQL_CONTAINER:-monorepo-mysql}" mysql \
+  -u"${MYSQL_ROOT_USER:-root}" -p"${MYSQL_ROOT_PASSWORD:-dev}" \
+  -e "DROP DATABASE IF EXISTS \`identity\`;"
 
-for db in "${DATABASES[@]}"; do
-  exists=$(docker exec "$CONTAINER" mysql -u"$ROOT_USER" -p"$ROOT_PASS" -N -e \
-    "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='$db'" 2>/dev/null | grep -c "^$db$" || echo "0")
-  if [ "$exists" = "1" ]; then
-    echo "✓ database exists: $db"
-  else
-    echo "→ creating database: $db"
-    docker exec "$CONTAINER" mysql -u"$ROOT_USER" -p"$ROOT_PASS" -e \
-      "CREATE DATABASE IF NOT EXISTS \`$db\`;"
-  fi
-  docker exec "$CONTAINER" mysql -u"$ROOT_USER" -p"$ROOT_PASS" -e \
-    "GRANT ALL PRIVILEGES ON \`$db\`.* TO '$APP_USER'@'%';"
+for service_dir in "${SERVICE_DIRS[@]}"; do
+  service="$(basename "$service_dir")"
+  echo "→ preparing database for service: $service"
+  "$ROOT/scripts/db-migrate.sh" "$service_dir"
 done
 
-docker exec "$CONTAINER" mysql -u"$ROOT_USER" -p"$ROOT_PASS" -e "FLUSH PRIVILEGES;"
-
-ADMIN_DIR="$ROOT/apps/backend/services/admin"
-IAM_DIR="$ROOT/apps/backend/services/iam"
+ADMIN_DIR="$SERVICES_DIR/admin"
+IAM_DIR="$SERVICES_DIR/iam"
 
 if [ ! -f "$ADMIN_DIR/.env" ]; then
   echo "⚠ $ADMIN_DIR/.env missing; copy from .env.example" >&2
   exit 1
 fi
 
-echo "→ Applying admin schema (create_all + seed)..."
+echo "→ Seeding admin demo data..."
 cd "$ADMIN_DIR"
 uv run python - <<'PY'
 import asyncio
 
-from admin.db import close_db, init_db, seed_demo_bots
+from admin.db import close_db, seed_demo_bots
 
 
 async def main() -> None:
-    await init_db()
     await seed_demo_bots()
     await close_db()
 
 
 asyncio.run(main())
 PY
-echo "✓ admin database schema ready"
+echo "✓ admin demo data ready"
 
-echo "→ Applying iam schema (GORM AutoMigrate)..."
+echo "→ Seeding iam demo data..."
 cd "$IAM_DIR"
 IAM_MYSQL_DATABASE=iam go run ./cmd/migrate
-echo "✓ iam database schema ready"
+echo "✓ iam demo data ready"

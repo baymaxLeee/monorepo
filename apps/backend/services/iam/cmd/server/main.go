@@ -31,11 +31,6 @@ func main() {
 	defer st.Close()
 
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-	if err := st.AutoMigrate(ctx); err != nil {
-		cancel()
-		slog.Error("failed to initialize schema", "err", err)
-		os.Exit(1)
-	}
 	if err := service.SeedDemoSuperAdmin(ctx, st, cfg); err != nil {
 		cancel()
 		slog.Error("failed to seed super admin", "err", err)

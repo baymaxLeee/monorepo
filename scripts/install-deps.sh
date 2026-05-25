@@ -40,7 +40,7 @@ fi
 echo ""
 echo "── 5. Backend Go services ──"
 if command -v go >/dev/null 2>&1; then
-  for svc in api-gateway iam; do
+  for svc in gateway iam; do
     echo "  → $svc"
     (cd "apps/backend/services/$svc" && go mod download && go mod tidy)
   done
@@ -53,7 +53,7 @@ echo ""
 echo "── 6. Local .env files (from .env.example if missing) ──"
 for pair in \
   "apps/backend/services/admin/.env.example:apps/backend/services/admin/.env" \
-  "apps/backend/services/api-gateway/.env.example:apps/backend/services/api-gateway/.env" \
+  "apps/backend/services/gateway/.env.example:apps/backend/services/gateway/.env" \
   "apps/backend/services/iam/.env.example:apps/backend/services/iam/.env"; do
   src="${pair%%:*}"
   dst="${pair##*:}"

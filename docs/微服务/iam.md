@@ -23,6 +23,6 @@
 - `POST /v1/iam/users/{userID}/roles`
 - `DELETE /v1/iam/users/{userID}/roles/{roleID}`
 
-外部访问经由 `api-gateway` 的 `/v1/auth/*` 与 `/v1/iam/*` 代理进入。
+外部访问经由 `gateway` 的 `/v1/auth/*` 与 `/v1/iam/*` 代理进入。
 业务服务不直接解析 token；gateway 校验 JWT 后只向下游注入
 `X-Auth-User-ID`。

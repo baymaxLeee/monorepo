@@ -40,7 +40,7 @@ def redis_client() -> Redis:
 def auth_user_id(
     x_auth_user_id: Annotated[str | None, Header(alias="X-Auth-User-ID")] = None,
 ) -> str:
-    """Caller identity propagated by api-gateway after token verification.
+    """Caller identity propagated by gateway after token verification.
 
     Internal services trust this header unconditionally; the gateway is the
     only ingress and strips inbound X-Auth-* before forwarding.
@@ -53,7 +53,7 @@ def auth_user_id(
 def auth_user_name(
     x_auth_name: Annotated[str | None, Header(alias="X-Auth-Name")] = None,
 ) -> str:
-    """Display name propagated by api-gateway, used for demo owner labels."""
+    """Display name propagated by gateway, used for demo owner labels."""
     return x_auth_name or ""
 
 

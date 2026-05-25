@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/monorepo/api-gateway/internal/security"
+	"github.com/example/monorepo/gateway/internal/security"
 )
 
 // Header names propagated to upstream services. Upstream code MUST treat these

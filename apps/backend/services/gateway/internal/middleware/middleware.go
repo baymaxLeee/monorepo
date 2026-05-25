@@ -13,6 +13,7 @@ func RequestLogger(next http.Handler) http.Handler {
 		ww := &statusWriter{ResponseWriter: w, status: 200}
 		next.ServeHTTP(ww, r)
 		slog.Info("http",
+			"trace_id", TraceIDFromContext(r.Context()),
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", ww.status,
@@ -26,7 +27,11 @@ func Recoverer(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
-				slog.Error("panic recovered", "err", rec, "path", r.URL.Path)
+				slog.Error("panic recovered",
+					"trace_id", TraceIDFromContext(r.Context()),
+					"err", rec,
+					"path", r.URL.Path,
+				)
 				http.Error(w, "internal server error", http.StatusInternalServerError)
 			}
 		}()

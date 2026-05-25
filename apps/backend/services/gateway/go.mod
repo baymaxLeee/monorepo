@@ -1,4 +1,4 @@
-module github.com/example/monorepo/api-gateway
+module github.com/example/monorepo/gateway
 
 go 1.24.0
 

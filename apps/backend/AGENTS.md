@@ -1,7 +1,7 @@
 # Backend Monorepo — Microservices
 
 Python 3.12 + FastAPI + SQLAlchemy 2.0 (Alembic) + gRPC.
-Go for performance-critical services (api-gateway).
+Go for performance-critical services (gateway).
 
 ## Layout
 
@@ -13,9 +13,36 @@ Go for performance-critical services (api-gateway).
 ### Service autonomy
 - Each `services/<name>/` is independently deployable, dockerized, versioned
 - A service MUST own its own DB (or at least its own schema)
+- Service-owned SQL migrations live in
+  `services/<name>/migrations/versions/vX.Y.Z[__description].sql`
 - Services NEVER import from each other's `services/<other>/src/`
 - Cross-service calls go through `libs/transport/` clients (gRPC or HTTP)
 - Cross-service data flow is async via events (CloudEvents) when possible
+
+### Database migrations
+- Each service database MUST contain a single-row `migration` table:
+  `id = 1`, `version = vX.Y.Z`, `update_time`.
+- Migration filenames MUST start with semantic versions including the `v`
+  prefix, for example `v1.0.0.sql` or `v1.1.0__add_index.sql`.
+- `just up` discovers services with SQL migrations and applies pending
+  migrations through `scripts/db-migrate.sh`.
+- Migration execution range is `(current_version, target_version]`.
+- If no target version is passed, target version defaults to the latest local
+  migration version in that service directory.
+- After each SQL file succeeds, the migrator updates `migration.version` to
+  that file's version.
+- Service processes MUST NOT create or mutate schema at startup. Startup may
+  seed demo data only after migrations have prepared the schema.
+
+### Gateway responsibilities
+- The service is named `gateway`, not `api-gateway`.
+- Gateway owns edge concerns: routing, auth boundary, CORS, request logging,
+  reverse proxying, and trace propagation.
+- The canonical trace header is `X-Trace-Id`. Do NOT introduce
+  `X-Request-Id`.
+- Gateway normalizes or generates `X-Trace-Id`, writes it to the response,
+  propagates it to upstream services, and includes `trace_id` in structured
+  logs.
 
 ### Resource module boundaries
 - Keep business resources separated end-to-end inside every service.
@@ -65,8 +92,8 @@ share Pydantic models across services via libs — each service owns its own DTO
 | `just fmt` | ruff format + gofmt (auto-run, no need to ask) |
 | `just gen-openapi <service>` | Export to `schemas/openapi/<name>.json` |
 | `just gen-openapi-all` | Export all services |
-| `just migrate-new <svc> <msg>` | New alembic revision |
-| `just migrate-up <svc>` | Apply migrations |
+| `just migrate-new <svc> <version> <msg>` | New service-owned SQL migration, versioned as `vX.Y.Z` |
+| `just migrate-up <svc> [target-version]` | Apply SQL migrations in `(current, target]`; defaults to latest local version |
 
 ## Size limits
 - ≤ 500 LoC per Python module (excl. tests)

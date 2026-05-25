@@ -13,8 +13,9 @@
                    │ HTTP
                    ▼
 ┌──────────────────────────────────────────────────┐
-│  api-gateway (Go @ :8000)                        │
+│  gateway (Go @ :8000)                        │
 │    - Authentication                              │
+│    - X-Trace-Id propagation                      │
 │    - Routing to internal services                │
 │    - Aggregation (BFF)                           │
 └──────┬─────────────┬─────────────┬───────────────┘
@@ -54,5 +55,6 @@
 ## 可观测性
 
 - Logs: 结构化 JSON(Python: stdlib logging, Go: slog)
-- Traces: OpenTelemetry,服务间通过 W3C TraceContext 传播
+- Traces: gateway 统一处理 `X-Trace-Id`,写回响应、透传下游,并在日志中使用
+  `trace_id`; OpenTelemetry/W3C TraceContext 后续接入时从该边界扩展
 - Metrics: Prometheus
