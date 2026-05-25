@@ -8,6 +8,7 @@
 #   - We DO wait for mfe-admin's manifest before starting platform.
 
 svc-admin: cd apps/backend/services/admin && uv run uvicorn admin.main:app --reload --port 8001
+telemetry: cd apps/backend/services/telemetry && uv run uvicorn telemetry.main:app --reload --port 8008
 iam:  cd apps/backend/services/iam && go run ./cmd/server
 gateway:   cd apps/backend/services/gateway && go run ./cmd/server
 mfe-admin: cd apps/frontend && PORT=3001 pnpm -F admin dev

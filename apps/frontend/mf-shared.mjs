@@ -72,6 +72,7 @@ const TIER1 = {
 const TIER2 = {
   "@packages/shared": { singleton: true, requiredVersion: false },
   "@packages/runtime": { singleton: true, requiredVersion: false },
+  "@packages/observability": { singleton: true, requiredVersion: false },
 };
 
 const TIER3 = {
@@ -95,6 +96,7 @@ const HOST_EAGER_SHARED = new Set([
   ...Object.keys(TIER3),
   "@packages/shared",
   "@packages/runtime",
+  "@packages/observability",
 ]);
 
 /**

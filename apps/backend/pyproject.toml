@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 [tool.uv.workspace]
 members = [
     "services/admin",
+    "services/telemetry",
     "libs/kernel",
     "libs/transport",
     "libs/observability",
@@ -38,5 +39,5 @@ strict = true
 exclude = ["migrations/", "build/", "dist/"]
 
 [[tool.mypy.overrides]]
-module = ["alembic.*"]
+module = ["alembic.*", "clickhouse_connect.*"]
 ignore_missing_imports = true

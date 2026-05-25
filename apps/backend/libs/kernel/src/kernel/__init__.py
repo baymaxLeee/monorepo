@@ -9,6 +9,7 @@ from .errors import (
     UnauthorizedError,
     register_exception_handlers,
 )
+from .tracing import TraceIDMiddleware, get_trace_id
 
 __all__ = [
     "BaseError",
@@ -16,6 +17,8 @@ __all__ = [
     "ForbiddenError",
     "NotFoundError",
     "RequestError",
+    "TraceIDMiddleware",
     "UnauthorizedError",
+    "get_trace_id",
     "register_exception_handlers",
 ]

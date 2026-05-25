@@ -2,11 +2,11 @@ set positional-arguments
 set shell := ["bash", "-cu"]
 
 # Service registry (Python services and their fixed dev ports)
-PY_SERVICES := "admin"
+PY_SERVICES := "admin telemetry"
 GO_SERVICES := "gateway iam"
 
 # Fixed port allocation so multiple agents/dev servers don't collide
-PORTS := '{"admin":8001,"iam":8002,"scene":8003,"intention":8004,"permission":8005,"audit":8006,"notification":8007,"gateway":8000}'
+PORTS := '{"admin":8001,"iam":8002,"scene":8003,"intention":8004,"permission":8005,"audit":8006,"notification":8007,"telemetry":8008,"gateway":8000}'
 
 default:
     @just --list
@@ -99,11 +99,11 @@ lint-go:
 # ─── schema ─────────────────────────────────────────────
 gen-openapi service:
     @echo "→ Exporting OpenAPI for {{ service }}..."
-    @out="{{ service }}"; if [ "$out" = "admin" ]; then out="admin-server"; fi; \
+    @out="{{ service }}-server"; \
     cd services/{{ service }} && \
         uv run python -m {{ service }}.gen_openapi \
-        > ../../../schemas/openapi/$out.json
-    @out="{{ service }}"; if [ "$out" = "admin" ]; then out="admin-server"; fi; \
+        > ../../../../schemas/openapi/$out.json
+    @out="{{ service }}-server"; \
     echo "✓ schemas/openapi/$out.json"
 
 gen-openapi-all:

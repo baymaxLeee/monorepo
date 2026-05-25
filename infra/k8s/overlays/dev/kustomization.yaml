@@ -3,6 +3,10 @@ kind: Kustomization
 namespace: monorepo-dev
 resources:
   - ../../base/admin
+  - ../../base/telemetry
+  - ../../base/observability
 images:
   - name: ghcr.io/example/admin
+    newTag: dev
+  - name: ghcr.io/example/telemetry
     newTag: dev

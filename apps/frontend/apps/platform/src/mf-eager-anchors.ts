@@ -11,6 +11,8 @@ import * as _shared from "@packages/shared";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import * as _runtime from "@packages/runtime";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
+import * as _observability from "@packages/observability";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import * as _zustand from "zustand";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import * as _zustandMiddleware from "zustand/middleware";
@@ -19,6 +21,7 @@ import * as _zustandReactShallow from "zustand/react/shallow";
 
 void _shared;
 void _runtime;
+void _observability;
 void _zustand;
 void _zustandMiddleware;
 void _zustandReactShallow;

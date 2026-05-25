@@ -37,7 +37,7 @@ func main() {
 	r.Use(middleware.RequestLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.CORS(cfg.AllowedOrigins))
-	r.Use(middleware.IdentityPropagation(cfg.AccessTokenSecret, cfg.PublicPathPrefixes))
+	r.Use(middleware.IdentityPropagation(cfg.AccessTokenSecret, cfg.PublicPathPrefixes, cfg.OptionalAuthPathPrefixes))
 
 	r.Get("/healthz", handlers.Healthz(st))
 	r.Get("/", handlers.Index)
@@ -51,6 +51,11 @@ func main() {
 		"admin-server",
 		"/api/admin-server",
 	))
+	r.Mount("/api/telemetry-server", handlers.NewServiceProxy(
+		cfg.TelemetryServiceURL,
+		"telemetry-server",
+		"/api/telemetry-server",
+	))
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -63,6 +68,7 @@ func main() {
 			"port", cfg.Port,
 			"admin_upstream", cfg.AdminServiceURL,
 			"iam_upstream", cfg.IAMServiceURL,
+			"telemetry_upstream", cfg.TelemetryServiceURL,
 			"mysql", "connected",
 			"redis", "connected",
 		)

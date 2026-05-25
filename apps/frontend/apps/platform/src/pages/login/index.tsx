@@ -24,6 +24,10 @@ import {
   Skeleton,
   toast,
 } from "@packages/components";
+import {
+  clearUser as clearObservabilityUser,
+  setUser as setObservabilityUser,
+} from "@packages/observability";
 import { usePlatformStore } from "@packages/runtime";
 
 const loginSchema = z.object({
@@ -51,10 +55,22 @@ export function LoginPage() {
     let alive = true;
     bootstrapSession()
       .then((sessionUser) => {
-        if (alive) setUser(sessionUser);
+        if (!alive) return;
+        setUser(sessionUser);
+        if (sessionUser) {
+          setObservabilityUser({
+            userId: sessionUser.id,
+            username: sessionUser.displayName,
+          });
+        } else {
+          clearObservabilityUser();
+        }
       })
       .catch(() => {
-        if (alive) setUser(null);
+        if (alive) {
+          setUser(null);
+          clearObservabilityUser();
+        }
       })
       .finally(() => {
         if (alive) setReady(true);
@@ -76,6 +92,10 @@ export function LoginPage() {
     try {
       const session = await login(values);
       setUser(session.user);
+      setObservabilityUser({
+        userId: session.user.id,
+        username: session.user.displayName,
+      });
       toast.success("登录成功");
       navigate("/platform/home", { replace: true });
     } catch (err) {

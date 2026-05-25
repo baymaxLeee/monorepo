@@ -27,5 +27,9 @@ Go-based BFF / API gateway. Sits between frontend and backend Python services.
   forwards the remaining path to the upstream service. Do NOT enumerate every
   business endpoint in gateway.
 - Use `slog` for structured logging
+- Preserve `X-Trace-Id` and W3C `traceparent` propagation at the edge.
+- RUM ingestion uses optional auth: `/api/telemetry-server/rum/*` allows
+  anonymous writes, but propagates `X-Auth-*` when a valid access token is
+  present. Do not add this path to public prefixes.
 - All downstream calls have timeout + retry via `internal/clients/`
 - Errors map to RFC 7807 problem-details JSON

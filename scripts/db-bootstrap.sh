@@ -4,6 +4,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SERVICES_DIR="$ROOT/apps/backend/services"
+CLICKHOUSE_CONTAINER="${CLICKHOUSE_CONTAINER:-monorepo-clickhouse}"
+CLICKHOUSE_INIT_SQL="$ROOT/infra/observability/clickhouse/init.sql"
 
 service_has_sql_migrations() {
   compgen -G "$1/migrations/versions/*.sql" >/dev/null
@@ -72,3 +74,7 @@ echo "→ Seeding iam demo data..."
 cd "$IAM_DIR"
 IAM_MYSQL_DATABASE=iam go run ./cmd/migrate
 echo "✓ iam demo data ready"
+
+echo "→ Preparing ClickHouse telemetry schema..."
+docker exec -i "$CLICKHOUSE_CONTAINER" clickhouse-client --multiquery < "$CLICKHOUSE_INIT_SQL"
+echo "✓ ClickHouse telemetry schema ready"

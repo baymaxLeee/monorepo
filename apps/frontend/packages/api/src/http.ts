@@ -3,6 +3,7 @@ import axios, {
   type AxiosInstance,
   type AxiosRequestConfig,
 } from "axios";
+import { attachAxios, type MinimalAxiosInstance } from "@packages/observability";
 import { getToken } from "./storage";
 
 export const API_BASE_URL =
@@ -14,6 +15,8 @@ export const apiHttp: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
 });
+
+attachAxios(apiHttp as unknown as MinimalAxiosInstance);
 
 let refreshAccessToken: (() => Promise<boolean>) | null = null;
 

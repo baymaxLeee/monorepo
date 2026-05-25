@@ -17,4 +17,18 @@ export default defineConfig({
       },
     },
   },
+  "telemetry-server": {
+    input: `${schemasRoot}/telemetry-server.json`,
+    output: {
+      mode: "single",
+      target: "generated/telemetry-server/index.ts",
+      client: "axios",
+      override: {
+        mutator: {
+          path: "./src/orval-mutator.ts",
+          name: "apiMutator",
+        },
+      },
+    },
+  },
 });

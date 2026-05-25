@@ -129,6 +129,10 @@ export const routes: RouteObject[] = [
             path: "profile",
             lazy: lazyPage(() => import("../pages/profile")),
           },
+          {
+            path: "observability",
+            lazy: lazyPage(() => import("../pages/observability")),
+          },
           ...remoteRoutes,
         ],
       },

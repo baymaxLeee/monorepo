@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: telemetry
+spec:
+  selector: { app: telemetry }
+  ports:
+    - port: 8008
+      targetPort: 8008

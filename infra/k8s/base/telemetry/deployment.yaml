@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry
+  labels: { app: telemetry }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: telemetry }
+  template:
+    metadata:
+      labels: { app: telemetry }
+    spec:
+      containers:
+        - name: telemetry
+          image: ghcr.io/example/telemetry:latest
+          ports: [{ containerPort: 8008 }]
+          env:
+            - name: PORT
+              value: "8008"
+            - name: CLICKHOUSE_HOST
+              value: clickhouse
+            - name: CLICKHOUSE_PORT
+              value: "8123"
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8008 }
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8008 }
+            periodSeconds: 5

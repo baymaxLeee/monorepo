@@ -22,6 +22,7 @@ import {
   Input,
   toast,
 } from "@packages/components";
+import { setUser as setObservabilityUser } from "@packages/observability";
 import { usePlatformStore } from "@packages/runtime";
 
 const registerSchema = z.object({
@@ -110,6 +111,10 @@ export function RegisterPage() {
         phoneNumber: values.phoneNumber || undefined,
       });
       setUser(session.user);
+      setObservabilityUser({
+        userId: session.user.id,
+        username: session.user.displayName,
+      });
       toast.success("注册成功");
       navigate("/platform/home", { replace: true });
     } catch (err) {

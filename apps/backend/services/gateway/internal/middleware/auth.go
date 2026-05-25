@@ -26,10 +26,12 @@ const (
 //   - Inbound X-Auth-* headers are ALWAYS stripped (defense against forgery).
 //   - Public paths (login/register/refresh/health) are passed through without
 //     requiring or parsing a token.
+//   - Optional-auth paths propagate identity when a valid token is present, but
+//     allow anonymous requests and invalid tokens through without X-Auth-*.
 //   - Protected paths require a valid bearer token; missing/invalid token →
 //     401 application/problem+json. Upstream services therefore can trust
 //     X-Auth-User-ID without re-validating.
-func IdentityPropagation(secret string, publicPathPrefixes []string) func(http.Handler) http.Handler {
+func IdentityPropagation(secret string, publicPathPrefixes []string, optionalAuthPathPrefixes []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r.Header.Del(HeaderAuthUserID)
@@ -42,6 +44,16 @@ func IdentityPropagation(secret string, publicPathPrefixes []string) func(http.H
 			}
 
 			raw := bearerToken(r.Header.Get("Authorization"))
+			if isPublicPath(r.URL.Path, optionalAuthPathPrefixes) {
+				if raw != "" {
+					if claims, err := security.VerifyAccessToken(secret, raw, time.Now().UTC()); err == nil {
+						propagateClaims(r, claims)
+					}
+				}
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			if raw == "" {
 				writeProblem(w, http.StatusUnauthorized,
 					"missing_access_token", "access token is required")
@@ -55,15 +67,19 @@ func IdentityPropagation(secret string, publicPathPrefixes []string) func(http.H
 				return
 			}
 
-			r.Header.Set(HeaderAuthUserID, claims.Subject)
-			if claims.Email != "" {
-				r.Header.Set(HeaderAuthEmail, claims.Email)
-			}
-			if claims.Name != "" {
-				r.Header.Set(HeaderAuthName, claims.Name)
-			}
+			propagateClaims(r, claims)
 			next.ServeHTTP(w, r)
 		})
+	}
+}
+
+func propagateClaims(r *http.Request, claims security.Claims) {
+	r.Header.Set(HeaderAuthUserID, claims.Subject)
+	if claims.Email != "" {
+		r.Header.Set(HeaderAuthEmail, claims.Email)
+	}
+	if claims.Name != "" {
+		r.Header.Set(HeaderAuthName, claims.Name)
 	}
 }
 

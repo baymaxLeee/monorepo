@@ -3,6 +3,7 @@ import {
   ComponentIcon,
   ListTreeIcon,
   NetworkIcon,
+  RadarIcon,
   type LucideIcon,
 } from "lucide-react";
 import { Link, Outlet, useLocation } from "react-router-dom";
@@ -21,6 +22,7 @@ const adminMenus: AdminMenuItem[] = [
 ];
 
 const utilityMenus: AdminMenuItem[] = [
+  { title: "可观测运维", href: "/platform/admin/observability", icon: RadarIcon },
   { title: "组件演示", href: "/platform/admin/demo", icon: ComponentIcon },
 ];
 

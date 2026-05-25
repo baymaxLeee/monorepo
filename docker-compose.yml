@@ -26,5 +26,24 @@ services:
       timeout: 3s
       retries: 5
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: monorepo-clickhouse
+    environment:
+      CLICKHOUSE_DB: telemetry
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+    ports: ["8123:8123"]
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./infra/observability/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./infra/observability/clickhouse/dev-user.xml:/etc/clickhouse-server/users.d/dev-user.xml:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   mysql_data:
+  clickhouse_data:

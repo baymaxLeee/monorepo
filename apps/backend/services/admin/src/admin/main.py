@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from kernel.errors import register_exception_handlers
+from kernel.tracing import TraceIDMiddleware
 
 from .db import close_db, seed_demo_bots
 from .redis_client import close_redis, init_redis
@@ -33,6 +34,7 @@ def create_app() -> FastAPI:
     )
 
     register_exception_handlers(app)
+    app.add_middleware(TraceIDMiddleware)
     app.include_router(health.router)
     app.include_router(bots.router)
     app.include_router(scenes.router)

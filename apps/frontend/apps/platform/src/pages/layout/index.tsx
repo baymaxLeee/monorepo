@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { BoxesIcon, LogOutIcon, UserIcon } from "lucide-react";
+import { ActivityIcon, BoxesIcon, LogOutIcon, UserIcon } from "lucide-react";
 import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 import { logout } from "@packages/api";
@@ -19,6 +19,11 @@ import {
   Layout as LayoutFrame,
   Main,
 } from "@packages/components";
+import {
+  clearUser as clearObservabilityUser,
+  recordPageView,
+  setUser as setObservabilityUser,
+} from "@packages/observability";
 import { usePlatformStore } from "@packages/runtime";
 import { registry, type MfeEntry } from "../../registry";
 
@@ -54,11 +59,27 @@ export function Layout() {
     setActiveMenuId(current?.id ?? null);
   }, [current?.id, setActiveMenuId]);
 
+  useEffect(() => {
+    recordPageView();
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (user) {
+      setObservabilityUser({
+        userId: user.id,
+        username: user.displayName,
+      });
+    } else {
+      clearObservabilityUser();
+    }
+  }, [user]);
+
   if (!user) return <Navigate to="/login" replace />;
 
   async function handleLogout() {
     await logout();
     setUser(null);
+    clearObservabilityUser();
   }
 
   return (
@@ -122,6 +143,12 @@ export function Layout() {
                 <Link to="/platform/profile">
                   <UserIcon aria-hidden="true" className="mr-2 size-4" />
                   修改个人资料
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/platform/observability">
+                  <ActivityIcon aria-hidden="true" className="mr-2 size-4" />
+                  我的可观测数据
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={handleLogout}>

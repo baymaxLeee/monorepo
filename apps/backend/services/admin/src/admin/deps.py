@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .db import get_db_session
 from .redis_client import get_redis
 
-
 ADMIN_USER_ID = "demo-super-admin"
 ADMIN_EMAIL = "admin@example.com"
 

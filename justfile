@@ -10,6 +10,7 @@ default:
 up:
     docker compose up -d
     @./scripts/wait-for-mysql.sh
+    @./scripts/wait-for-clickhouse.sh
     @./scripts/db-bootstrap.sh
     @echo "OK Infra up - MySQL :3306, Redis :6379"
 
@@ -24,7 +25,7 @@ install:
     @./scripts/install-deps.sh
 
 # ─── Dev ────────────────────────────────────────────────────
-# Prereq: `just up` first. URLs: platform :3000, mfe-admin :3001, gateway :8000, svc-admin :8001
+# Prereq: `just up` first. URLs: platform :3000, mfe-admin :3001, gateway :8000, svc-admin :8001, telemetry :8008
 dev:
     @just dev-preflight
     @./scripts/dev-orchestrator.sh
@@ -40,6 +41,7 @@ dev-urls:
     @echo "  platform:  http://localhost:3000"
     @echo "  mfe-admin: http://localhost:3001"
     @echo "  gateway:   http://localhost:8000"
+    @echo "  telemetry: http://localhost:8008/healthz"
     @echo "  iam:      http://localhost:8002/healthz"
     @echo "  svc-admin: http://localhost:8001/docs"
 
@@ -61,7 +63,7 @@ build-images registry="local" tag="latest":
 
 # ─── Cross-stack ────────────────────────────────────────────
 sync:
-    cd apps/backend && just gen-openapi admin
+    cd apps/backend && just gen-openapi-all
     cd apps/frontend && just gen-client
     @echo "OK Schema synced"
 
