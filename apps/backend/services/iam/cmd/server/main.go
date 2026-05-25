@@ -20,7 +20,11 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		slog.Error("failed to load configuration", "err", err)
+		os.Exit(1)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	st, err := crud.Connect(ctx, cfg.DatabaseURL)
 	cancel()
@@ -30,13 +34,17 @@ func main() {
 	}
 	defer st.Close()
 
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-	if err := service.SeedDemoSuperAdmin(ctx, st, cfg); err != nil {
+	// Demo super-admin is a dev convenience. In production, the bootstrap
+	// admin is created via explicit migrations / admin tooling.
+	if !cfg.IsProduction() {
+		ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+		if err := service.SeedDemoSuperAdmin(ctx, st, cfg); err != nil {
+			cancel()
+			slog.Error("failed to seed super admin", "err", err)
+			os.Exit(1)
+		}
 		cancel()
-		slog.Error("failed to seed super admin", "err", err)
-		os.Exit(1)
 	}
-	cancel()
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

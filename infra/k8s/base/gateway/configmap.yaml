@@ -1,0 +1,24 @@
+# Non-sensitive runtime configuration for the gateway service.
+# Overlays patch ENVIRONMENT, ALLOWED_FRONTEND_ORIGINS, and upstream URLs
+# per environment.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+data:
+  PORT: "8000"
+  ENVIRONMENT: "development"
+  # In-cluster DNS — services talk to each other via Service name.
+  ADMIN_SERVICE_URL: "http://admin:8001"
+  IAM_SERVICE_URL: "http://iam:8002"
+  TELEMETRY_SERVICE_URL: "http://telemetry:8008"
+  # Comma-separated list. Overlay overrides this for prod.
+  ALLOWED_FRONTEND_ORIGINS: "http://localhost:3000,http://localhost:3001"
+  MAX_REQUEST_BODY_BYTES: "1048576"
+  HTTP_READ_TIMEOUT: "15s"
+  HTTP_WRITE_TIMEOUT: "30s"
+  HTTP_IDLE_TIMEOUT: "120s"
+  MYSQL_PORT: "3306"
+  MYSQL_DATABASE: "gateway"
+  REDIS_PORT: "6379"
+  REDIS_DB: "1"

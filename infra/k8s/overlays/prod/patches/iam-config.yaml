@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: iam-config
+data:
+  ENVIRONMENT: "production"
+  # Cross-origin SPA: cookie must be Secure + SameSite=None + Domain shared
+  # across api.* and app.* subdomains. The leading dot is intentional.
+  REFRESH_COOKIE_SECURE: "true"
+  REFRESH_COOKIE_SAMESITE: "none"
+  REFRESH_COOKIE_DOMAIN: ".your-domain.com"

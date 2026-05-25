@@ -1,0 +1,21 @@
+# Non-sensitive runtime configuration for the iam service.
+# Cookie attributes are critical for cross-origin SPA (frontend on Cloudflare,
+# API on cluster):
+#   REFRESH_COOKIE_SECURE=true
+#   REFRESH_COOKIE_SAMESITE=none
+#   REFRESH_COOKIE_DOMAIN=.your-domain.com  (set in overlay)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: iam-config
+data:
+  PORT: "8002"
+  ENVIRONMENT: "development"
+  MYSQL_PORT: "3306"
+  IAM_MYSQL_DATABASE: "iam"
+  ACCESS_TOKEN_TTL: "15m"
+  REFRESH_TOKEN_TTL: "720h"
+  REFRESH_COOKIE_NAME: "refresh_token"
+  REFRESH_COOKIE_SECURE: "false"
+  REFRESH_COOKIE_SAMESITE: "lax"
+  # Overlay sets REFRESH_COOKIE_DOMAIN to e.g. .your-domain.com for prod.

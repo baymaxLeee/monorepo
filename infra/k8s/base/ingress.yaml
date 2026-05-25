@@ -1,0 +1,37 @@
+# Ingress is the cluster's public HTTP entry point.
+# - Cloudflare proxies api.your-domain.com → cluster LoadBalancer → this Ingress
+# - Ingress terminates HTTPS using a TLS secret (cert-manager auto-issues via
+#   Let's Encrypt; or upload Cloudflare Origin CA cert as a Secret)
+# - Routes / and /api/* to the gateway service
+#
+# Host is templated as a placeholder; overlays/prod patches it to the real
+# domain. Cloudflare's "Full (strict)" SSL mode REQUIRES a real cert on the
+# origin — using Cloudflare Origin CA is the simplest path here.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api
+  annotations:
+    # nginx ingress controller defaults work for most cases; adjust per env.
+    nginx.ingress.kubernetes.io/proxy-body-size: "2m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    # If cert-manager is installed, uncomment to auto-issue via Let's Encrypt:
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.your-domain.com
+      secretName: api-tls
+  rules:
+    - host: api.your-domain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 8000

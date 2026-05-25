@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from kernel.errors import register_exception_handlers
 from kernel.tracing import TraceIDMiddleware
 
+from .config import get_settings
 from .db import close_db, seed_demo_bots
 from .redis_client import close_redis, init_redis
 from .routers import bots, health, intentions, scenes
@@ -17,7 +18,10 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     await init_redis()
-    await seed_demo_bots()
+    # Demo data is only useful for development/staging. In production,
+    # seed data must be loaded through explicit migrations / admin tooling.
+    if not get_settings().is_production:
+        await seed_demo_bots()
     yield
     await close_redis()
     await close_db()

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: admin-config
+data:
+  PORT: "8001"
+  ENVIRONMENT: "development"
+  MYSQL_PORT: "3306"
+  MYSQL_DATABASE: "admin"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"

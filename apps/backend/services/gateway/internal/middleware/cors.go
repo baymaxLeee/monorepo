@@ -13,7 +13,11 @@ import (
 // preflight entirely.
 const preflightMaxAgeSeconds = 86400
 
-func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
+// CORS returns a middleware that allows requests from any of allowedOrigins.
+// When allowLocalDev is true, requests from http://localhost:* /
+// http://127.0.0.1:* are also accepted — convenient for dev where ports
+// shift, but MUST be false in production (prod gets a strict allowlist).
+func CORS(allowedOrigins []string, allowLocalDev bool) func(http.Handler) http.Handler {
 	allowed := make(map[string]struct{}, len(allowedOrigins))
 	for _, origin := range allowedOrigins {
 		allowed[origin] = struct{}{}
@@ -21,7 +25,8 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
-			if _, ok := allowed[origin]; ok || isLocalDevOrigin(origin) {
+			_, listed := allowed[origin]
+			if listed || (allowLocalDev && isLocalDevOrigin(origin)) {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 				w.Header().Set("Vary", "Origin")

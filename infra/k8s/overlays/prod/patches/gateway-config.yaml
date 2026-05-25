@@ -1,0 +1,12 @@
+# prod-specific gateway config. The data block fully REPLACES the base in
+# Kustomize merge semantics for ConfigMap (each key is overlaid individually).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+data:
+  ENVIRONMENT: "production"
+  # CORS allowlist: ONLY the production frontend origin(s). Wildcards / http://
+  # / localhost are rejected by gateway's prod validator (see config.go).
+  ALLOWED_FRONTEND_ORIGINS: "https://app.your-domain.com"
+  MAX_REQUEST_BODY_BYTES: "1048576"

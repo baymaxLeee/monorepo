@@ -6,9 +6,16 @@ import axios, {
 import { attachAxios, type MinimalAxiosInstance } from "@packages/observability";
 import { getToken } from "./storage";
 
+// Resolution order:
+// 1. window.__API_BASE__   — runtime override for standalone MFE preview
+// 2. process.env.API_BASE_URL — baked in at build time by host rspack DefinePlugin
+// 3. ""                    — same-origin (dev proxy or same-origin prod)
+declare const process: { env: { API_BASE_URL?: string } } | undefined;
+
 export const API_BASE_URL =
   (typeof window !== "undefined" &&
     (window as { __API_BASE__?: string }).__API_BASE__) ||
+  (typeof process !== "undefined" ? process.env.API_BASE_URL : undefined) ||
   "";
 
 export const apiHttp: AxiosInstance = axios.create({

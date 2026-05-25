@@ -21,7 +21,11 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		slog.Error("failed to load configuration", "err", err)
+		os.Exit(1)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	st, err := store.Connect(ctx, cfg.DatabaseURL, cfg.RedisURL)
@@ -36,9 +40,14 @@ func main() {
 	r.Use(middleware.TraceId)
 	r.Use(middleware.RequestLogger)
 	r.Use(middleware.Recoverer)
-	r.Use(middleware.CORS(cfg.AllowedOrigins))
+	r.Use(middleware.BodyLimit(cfg.MaxRequestBodyBytes))
+	// dev: also accept any http://localhost:* / 127.0.0.1:* Origin so port
+	// changes don't break the SPA. prod: strict allowlist only.
+	r.Use(middleware.CORS(cfg.AllowedOrigins, !cfg.IsProduction()))
 	r.Use(middleware.IdentityPropagation(cfg.AccessTokenSecret, cfg.PublicPathPrefixes, cfg.OptionalAuthPathPrefixes))
 
+	r.Get("/livez", handlers.Livez)
+	r.Get("/readyz", handlers.Healthz(st))
 	r.Get("/healthz", handlers.Healthz(st))
 	r.Get("/", handlers.Index)
 	r.Mount("/api/iam-server", handlers.NewServiceProxy(
@@ -61,11 +70,15 @@ func main() {
 		Addr:              ":" + cfg.Port,
 		Handler:           r,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       cfg.ReadTimeout,
+		WriteTimeout:      cfg.WriteTimeout,
+		IdleTimeout:       cfg.IdleTimeout,
 	}
 
 	go func() {
 		slog.Info("gateway starting",
 			"port", cfg.Port,
+			"environment", cfg.Environment,
 			"admin_upstream", cfg.AdminServiceURL,
 			"iam_upstream", cfg.IAMServiceURL,
 			"telemetry_upstream", cfg.TelemetryServiceURL,

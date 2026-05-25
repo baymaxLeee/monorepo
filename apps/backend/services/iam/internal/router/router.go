@@ -30,7 +30,9 @@ func New(store *crud.Store, cfg config.Config) http.Handler {
 		roles: service.NewRoleService(store),
 	}
 	r := chi.NewRouter()
-	r.Get("/healthz", rt.healthz)
+	r.Get("/livez", rt.livez)
+	r.Get("/readyz", rt.readyz)
+	r.Get("/healthz", rt.readyz)
 	r.Get("/account-availability", rt.accountAvailability)
 	r.Post("/register", rt.register)
 	r.Post("/login", rt.login)
@@ -45,7 +47,16 @@ func New(store *crud.Store, cfg config.Config) http.Handler {
 	return r
 }
 
-func (rt *Router) healthz(w http.ResponseWriter, r *http.Request) {
+// livez only confirms the process can serve HTTP. K8s liveness probes hit this
+// — failing it would RESTART the container, which we never want on a DB blip.
+func (rt *Router) livez(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// readyz confirms downstream deps are reachable. K8s readiness probes hit this
+// — failing it removes the pod from the Service endpoint set (no traffic),
+// but the pod keeps running so it can recover.
+func (rt *Router) readyz(w http.ResponseWriter, r *http.Request) {
 	if err := rt.store.Ping(r.Context()); err != nil {
 		writeProblem(w, http.StatusServiceUnavailable, "dependency_unavailable", err.Error())
 		return

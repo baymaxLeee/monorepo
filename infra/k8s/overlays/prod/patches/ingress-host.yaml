@@ -1,0 +1,22 @@
+# Patch the public hostname. Replace `your-domain.com` with the registered
+# domain before applying.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api
+spec:
+  tls:
+    - hosts:
+        - api.your-domain.com
+      secretName: api-tls
+  rules:
+    - host: api.your-domain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 8000

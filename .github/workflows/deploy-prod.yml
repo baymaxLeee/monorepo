@@ -1,0 +1,146 @@
+name: deploy-prod
+
+# Deploys backend services to the production K8s cluster.
+#
+# Trigger:
+#   - workflow_dispatch (manual, with image tag input)
+#   - tag push v*.*.*   (auto, image tag = git tag)
+#
+# Prerequisite: build-images.yml has already pushed images with the same tag
+# to the configured registry. Recommended: use the same git-sha or git-tag.
+#
+# Required secrets / vars:
+#   vars.IMAGE_REGISTRY               (same as build-images)
+#   secrets.KUBECONFIG_PROD           (base64-encoded kubeconfig for prod cluster)
+#   The cluster MUST already have:
+#     - namespace `monorepo-prod`
+#     - Secrets: gateway-secrets, iam-secrets, admin-secrets, telemetry-secrets
+#     - TLS Secret: api-tls
+#     - Nginx Ingress Controller installed
+#   See infra/k8s/overlays/prod/README.md for one-time setup.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to deploy (e.g. sha-abc12345 or v1.2.3)"
+        required: true
+        type: string
+  push:
+    tags: ['v*.*.*']
+
+concurrency:
+  # Serialize prod deploys; a second deploy waits for the first to finish.
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      # Manual approval gate; configure required reviewers in repo Settings →
+      # Environments → production.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve image tag
+        id: vars
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          if [ -z "$TAG" ]; then
+            echo "::error::No image tag resolved"
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "registry=${{ vars.IMAGE_REGISTRY }}" >> "$GITHUB_OUTPUT"
+
+      - name: Install kustomize
+        run: |
+          curl -sLo /tmp/kustomize.tgz \
+            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/v5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz"
+          tar -xzf /tmp/kustomize.tgz -C /usr/local/bin
+          kustomize version
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.KUBECONFIG_PROD }}" | base64 -d > "$HOME/.kube/config"
+          kubectl version --client
+          kubectl get nodes
+
+      - name: Pin image tags in prod overlay
+        working-directory: infra/k8s/overlays/prod
+        run: |
+          REG="${{ steps.vars.outputs.registry }}"
+          TAG="${{ steps.vars.outputs.tag }}"
+          for svc in gateway iam admin telemetry; do
+            kustomize edit set image \
+              "ghcr.io/example/${svc}=${REG}/${svc}:${TAG}"
+          done
+          # Show the result so the deploy log records exactly what is applied.
+          grep -A 3 '^images:' kustomization.yaml
+
+      - name: Render manifest (dry-run sanity check)
+        working-directory: infra/k8s/overlays/prod
+        run: kustomize build --load-restrictor=LoadRestrictionsNone . | head -200
+
+      # Per-service DB migration Job: run BEFORE rolling the Deployments.
+      # If any migration fails, the deploy aborts and existing pods keep
+      # serving traffic on the old schema.
+      - name: Run DB migrations (iam only for now)
+        working-directory: infra/k8s
+        run: |
+          # iam owns Go migrations (cmd/migrate). Admin / telemetry add their
+          # own here once they grow alembic / ddl tooling.
+          REG="${{ steps.vars.outputs.registry }}"
+          TAG="${{ steps.vars.outputs.tag }}"
+          JOB_NAME="iam-migrate-$(date +%s)"
+          cat <<EOF | kubectl apply -n monorepo-prod -f -
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: ${JOB_NAME}
+            labels: { app: iam-migrate }
+          spec:
+            backoffLimit: 0
+            ttlSecondsAfterFinished: 86400
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: migrator
+                    image: ${REG}/iam:${TAG}
+                    envFrom:
+                      - configMapRef: { name: iam-config }
+                      - secretRef:    { name: iam-secrets }
+                    env:
+                      - { name: ENVIRONMENT, value: production }
+                    command: ["/server"]
+                    args: ["migrate"]
+          EOF
+          kubectl -n monorepo-prod wait --for=condition=complete \
+            --timeout=5m job/${JOB_NAME}
+
+      - name: Apply prod manifest
+        working-directory: infra/k8s/overlays/prod
+        run: |
+          kustomize build --load-restrictor=LoadRestrictionsNone . \
+            | kubectl apply -f -
+
+      - name: Wait for rollouts
+        run: |
+          for svc in gateway iam admin telemetry; do
+            kubectl -n monorepo-prod rollout status deployment/${svc} --timeout=5m
+          done
+
+      - name: Post-deploy smoke
+        run: |
+          # Hit /livez via the cluster service IP (port-forward); replace with
+          # external smoke against https://api.your-domain.com/livez once DNS
+          # / Cloudflare are wired up.
+          kubectl -n monorepo-prod get pods,deployments,svc,ingress

@@ -80,6 +80,17 @@ status:
     @echo "---"
     @gh pr status 2>/dev/null || echo "(gh not authed)"
 
+# ─── Deploy ─────────────────────────────────────────────────
+# Render K8s manifest for an environment. Pipe to `kubectl apply` after review.
+# Usage: just k8s-render prod
+k8s-render env="dev":
+    @./scripts/k8s-render.sh {{ env }}
+
+# Diff the rendered manifest against what's deployed on the prod cluster.
+# Requires KUBECONFIG configured for the target cluster.
+k8s-diff env="prod":
+    @./scripts/k8s-render.sh {{ env }} | kubectl diff -f - || true
+
 # ─── Scaffolding ────────────────────────────────────────────
 new-service name:
     ./scripts/new-service.sh {{ name }}

@@ -1,0 +1,51 @@
+# DB schema migration Job — runs BEFORE the application Deployment is rolled.
+#
+# Strategy:
+#   1. CI deploys this Job first (kubectl apply --wait)
+#   2. Once Job succeeds, CI applies the Deployment update
+#   3. If Job fails, deploy is aborted (rollback)
+#
+# Each service owns its own migrations under
+# apps/backend/services/<svc>/migrations/versions/*.sql, baked into the
+# service image. The Job uses the same image and runs the migrator binary.
+#
+# This file is a TEMPLATE — one Job per service per deploy. CI patches:
+#   - metadata.name      (db-migrate-<svc>-<git-sha>)
+#   - image              (svc image @ the new tag)
+#   - SERVICE_NAME / TARGET_VERSION
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrate
+  labels: { app: db-migrate }
+spec:
+  # Re-run on failure up to 2 times before failing the deploy.
+  backoffLimit: 2
+  # Auto-clean Job records 1 day after completion to avoid clutter.
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels: { app: db-migrate }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrator
+          # Patched to the deploying service image. Each service image
+          # contains its own migration scripts and runner.
+          image: ghcr.io/example/iam:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: ENVIRONMENT, value: production }
+          envFrom:
+            # Reuse the same Secret the service uses, so credentials match.
+            - secretRef: { name: iam-secrets }
+            - configMapRef: { name: iam-config }
+          command: ["/server"]
+          # Each service image's migrator entrypoint differs:
+          #   iam:     /server migrate
+          #   admin:   alembic upgrade head
+          #   ... CI patches `args` accordingly.
+          args: ["migrate"]
+          resources:
+            requests: { cpu: 50m,  memory: 64Mi }
+            limits:   { cpu: 500m, memory: 256Mi }

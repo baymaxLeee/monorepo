@@ -1,10 +1,16 @@
 """Service configuration from environment / .env."""
 
 from functools import lru_cache
+from typing import Literal
 from urllib.parse import quote_plus
 
-from pydantic import computed_field
+from pydantic import computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+Environment = Literal["development", "staging", "production"]
+
+# Defaults that MUST NOT leak into staging/production.
+_INSECURE_PASSWORDS: frozenset[str] = frozenset({"", "dev", "password", "admin"})
 
 
 class Settings(BaseSettings):
@@ -14,6 +20,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    environment: Environment = "development"
     port: int = 8001
 
     mysql_host: str = "localhost"
@@ -37,6 +44,28 @@ class Settings(BaseSettings):
     @property
     def redis_url(self) -> str:
         return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment == "production"
+
+    @model_validator(mode="after")
+    def _enforce_production_safety(self) -> "Settings":
+        if self.environment != "production":
+            return self
+        missing: list[str] = []
+        if self.mysql_password.strip().lower() in _INSECURE_PASSWORDS:
+            missing.append("MYSQL_PASSWORD")
+        if self.mysql_host in {"localhost", "127.0.0.1"}:
+            missing.append("MYSQL_HOST")
+        if self.redis_host in {"localhost", "127.0.0.1"}:
+            missing.append("REDIS_HOST")
+        if missing:
+            raise ValueError(
+                "production environment requires explicit values for: "
+                + ", ".join(missing)
+            )
+        return self
 
 
 @lru_cache

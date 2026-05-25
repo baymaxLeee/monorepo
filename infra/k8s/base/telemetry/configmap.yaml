@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: telemetry-config
+data:
+  PORT: "8008"
+  ENVIRONMENT: "development"
+  CLICKHOUSE_PORT: "8123"
+  CLICKHOUSE_DATABASE: "telemetry"
+  SAMPLE_RATE_PERFORM: "1.0"
+  SAMPLE_RATE_EVENT: "1.0"
