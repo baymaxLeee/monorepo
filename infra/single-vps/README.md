@@ -2,6 +2,8 @@
 
 Run the entire monorepo (frontend SPA + 4 backend services + MySQL/Redis) on **one VPS**, behind **one port** (no domain, no HTTPS, no Kubernetes). Browsers hit `http://<vps-ip>:8080` and get a fully-functional app.
 
+> Telemetry storage was migrated from ClickHouse to MySQL in 2026-05 to keep the single-VPS footprint under 1 GB RAM. See `apps/backend/services/telemetry/AGENTS.md` for the trade-offs.
+
 This path is intentionally **separate** from `infra/k8s/` — the K8s setup is for "future, when there are real users". Both coexist; pick one to deploy from.
 
 ---
