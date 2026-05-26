@@ -73,17 +73,21 @@ jobs:
           echo "deploy_dir=${DEPLOY_DIR:-/opt/monorepo}" >> "$GITHUB_OUTPUT"
 
       - name: Set up SSH key
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_deploy
+          printf '%s\n' "${VPS_SSH_KEY}" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-          # Make the deploy script find this key without --identity flag noise.
+          ssh-keyscan -H "${VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+          # Bind the dedicated key to this host. deploy.sh later runs
+          # `ssh user@host …` and `curl http://host:port/healthz`, so we key
+          # off the real hostname (not an alias) to keep the curl probe working.
           cat <<EOF > ~/.ssh/config
-          Host deploy-target
-              HostName ${{ secrets.VPS_HOST }}
-              User ${{ secrets.VPS_USER }}
+          Host ${VPS_HOST}
               IdentityFile ~/.ssh/id_deploy
+              IdentitiesOnly yes
               StrictHostKeyChecking accept-new
           EOF
           chmod 600 ~/.ssh/config
@@ -111,7 +115,7 @@ jobs:
         env:
           DEPLOY_DIR: ${{ steps.vars.outputs.deploy_dir }}
         run: |
-          ./infra/single-vps/deploy.sh deploy-target
+          ./infra/single-vps/deploy.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}"
 
       - name: Cleanup secrets
         if: always()
