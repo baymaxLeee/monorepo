@@ -33,12 +33,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@packages/components";
+} from "components";
 import {
   fetchTelemetryErrors,
   type TelemetryErrorEvent,
-} from "@packages/api";
-import { usePlatformStore } from "@packages/runtime";
+} from "api";
+import { usePlatformStore } from "runtime";
 
 use([
   BarChart,

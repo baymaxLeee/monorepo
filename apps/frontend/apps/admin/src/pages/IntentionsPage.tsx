@@ -43,7 +43,7 @@ import {
   TableRow,
   Textarea,
   toast,
-} from "@packages/components";
+} from "components";
 import {
   bulkDeleteIntentions,
   createIntention,
@@ -51,7 +51,7 @@ import {
   fetchIntentions,
   type Intention,
   updateIntention,
-} from "@packages/api";
+} from "api";
 
 const intentionSchema = z.object({
   name: z.string().trim().min(1, "请输入名称").max(100),

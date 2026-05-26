@@ -1,5 +1,5 @@
 import type { HTMLAttributes } from "react";
-import { cn } from "@packages/shared";
+import { cn } from "shared";
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (

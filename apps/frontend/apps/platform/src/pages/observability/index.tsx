@@ -24,11 +24,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@packages/components";
+} from "components";
 import {
   fetchTelemetryErrors,
   type TelemetryErrorEvent,
-} from "@packages/api";
+} from "api";
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {

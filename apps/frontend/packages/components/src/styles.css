@@ -134,3 +134,200 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .code-editor,
+  .file-workspace,
+  .markdown-editor,
+  .pdf-previewer,
+  .x-mind-previewer {
+    @apply min-h-0 text-sm text-foreground;
+  }
+
+  .code-editor {
+    @apply h-full;
+  }
+
+  .code-editor .cm-editor {
+    @apply h-full outline-none;
+  }
+
+  .code-editor .cm-editor.cm-focused {
+    @apply outline-none;
+  }
+
+  .file-workspace {
+    @apply flex h-full overflow-hidden rounded-md border bg-background;
+  }
+
+  .file-workspace-sidebar {
+    @apply flex w-64 shrink-0 flex-col border-r bg-muted/20;
+  }
+
+  .file-workspace-main-panel,
+  .file-workspace-editor-panel {
+    @apply flex min-w-0 flex-1 flex-col;
+  }
+
+  .file-workspace-tree-header,
+  .file-workspace-tab-bar,
+  .pdf-previewer-toolbar,
+  .x-mind-previewer-toolbar {
+    @apply flex items-center gap-2 border-b bg-background/95 px-3 py-2;
+  }
+
+  .file-workspace-tree-content,
+  .file-workspace-file-tree {
+    @apply min-h-0 flex-1 overflow-auto p-2;
+  }
+
+  .file-workspace-tree-node,
+  .file-workspace-search-item,
+  .markdown-editor-toolbar-menu-item,
+  .markdown-editor-table-menu-menu-item {
+    @apply flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent;
+  }
+
+  .file-workspace-tab {
+    @apply flex h-9 items-center gap-2 border-r px-3 text-sm;
+  }
+
+  .file-workspace-tab-active {
+    @apply bg-background font-medium;
+  }
+
+  .file-workspace-editor-wrapper,
+  .pdf-previewer-body,
+  .x-mind-previewer-body {
+    @apply relative min-h-0 flex-1 overflow-auto;
+  }
+
+  .file-workspace-lazy-mask,
+  .markdown-editor-lazy-mask,
+  .code-editor-lazy-mask,
+  .pdf-previewer-state,
+  .x-mind-previewer-state {
+    @apply flex min-h-30 items-center justify-center p-6 text-center text-sm text-muted-foreground;
+  }
+
+  .markdown-editor {
+    @apply relative rounded-md border bg-background;
+  }
+
+  .markdown-editor-content {
+    @apply min-h-40 p-4 outline-none;
+  }
+
+  .markdown-editor-content .ProseMirror {
+    @apply min-h-40 outline-none;
+  }
+
+  .markdown-editor-content .ProseMirror p {
+    @apply my-2 leading-7;
+  }
+
+  .markdown-editor-content .ProseMirror h1 {
+    @apply mt-6 mb-3 text-3xl font-semibold;
+  }
+
+  .markdown-editor-content .ProseMirror h2 {
+    @apply mt-5 mb-3 text-2xl font-semibold;
+  }
+
+  .markdown-editor-content .ProseMirror h3 {
+    @apply mt-4 mb-2 text-xl font-semibold;
+  }
+
+  .markdown-editor-content .ProseMirror blockquote {
+    @apply my-3 border-l-4 border-border pl-4 text-muted-foreground;
+  }
+
+  .markdown-editor-content .ProseMirror table {
+    @apply my-3 w-full border-collapse overflow-hidden rounded-md border;
+  }
+
+  .markdown-editor-content .ProseMirror th,
+  .markdown-editor-content .ProseMirror td {
+    @apply border px-3 py-2 align-top;
+  }
+
+  .markdown-editor-content .ProseMirror pre {
+    @apply my-3 overflow-auto rounded-md bg-muted p-3 text-sm;
+  }
+
+  .markdown-editor-toolbar-content,
+  .markdown-editor-bubble-toolbar,
+  .markdown-editor-block-menu,
+  .markdown-editor-link-bubble-menu,
+  .markdown-editor-table-menu-bubble-menu {
+    @apply z-50 flex items-center gap-1 rounded-md border bg-popover p-1 text-popover-foreground shadow-md;
+  }
+
+  .markdown-editor-toolbar-btn,
+  .markdown-editor-bubble-toolbar-btn,
+  .markdown-editor-block-menu-menu-item,
+  .markdown-editor-link-btn {
+    @apply inline-flex size-8 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground;
+  }
+
+  .markdown-editor-toolbar-active,
+  .markdown-editor-bubble-toolbar-active {
+    @apply bg-accent text-accent-foreground;
+  }
+
+  .markdown-editor-toolbar-disabled,
+  .markdown-editor-bubble-toolbar-disabled {
+    @apply pointer-events-none opacity-40;
+  }
+
+  .markdown-editor-toolbar-divider {
+    @apply mx-1 h-5 w-px bg-border;
+  }
+
+  .markdown-editor-table-selector {
+    @apply grid gap-1 rounded-md border bg-popover p-2 shadow-md;
+  }
+
+  .markdown-editor-table-selector-cell {
+    @apply size-4 rounded-[2px] border bg-background;
+  }
+
+  .markdown-editor-table-selector-cell-active {
+    @apply border-primary bg-primary/20;
+  }
+
+  .pdf-previewer {
+    --pdf-previewer-highlight-color: rgb(250 204 21 / 35%);
+    @apply relative flex h-full flex-col overflow-hidden rounded-md border bg-muted/20;
+  }
+
+  .pdf-previewer-page-wrapper {
+    @apply relative mx-auto my-4 overflow-hidden shadow-sm;
+  }
+
+  .pdf-previewer-highlight-layer {
+    @apply pointer-events-none absolute inset-0;
+  }
+
+  .pdf-previewer-highlight-item {
+    background: var(--pdf-previewer-highlight-color);
+    @apply pointer-events-auto absolute rounded-sm;
+  }
+
+  .pdf-previewer-sidebar {
+    @apply w-64 shrink-0 overflow-auto border-r bg-background p-2;
+  }
+
+  .pdf-previewer .react-pdf__Page__canvas {
+    @apply mx-auto block;
+  }
+
+  .x-mind-previewer {
+    @apply relative flex h-full flex-col overflow-hidden rounded-md border bg-background;
+  }
+
+  .x-mind-previewer-canvas,
+  .x-mind-previewer-container {
+    @apply min-h-0 flex-1 overflow-hidden;
+  }
+}

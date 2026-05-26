@@ -4,7 +4,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useShallow } from "zustand/react/shallow";
 import { z } from "zod";
-import { bootstrapSession, login } from "@packages/api";
+import { bootstrapSession, login } from "api";
 import {
   Button,
   Card,
@@ -23,12 +23,12 @@ import {
   Muted,
   Skeleton,
   toast,
-} from "@packages/components";
+} from "components";
 import {
   clearUser as clearObservabilityUser,
   setUser as setObservabilityUser,
-} from "@packages/observability";
-import { usePlatformStore } from "@packages/runtime";
+} from "observability";
+import { usePlatformStore } from "runtime";
 
 const loginSchema = z.object({
   account: z.string().min(1, "请输入账号").max(64, "账号最多 64 位"),

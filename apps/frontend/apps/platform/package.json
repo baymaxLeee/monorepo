@@ -11,10 +11,11 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
+    "api": "workspace:*",
     "components": "workspace:*",
     "echarts": "^6.0.0",
     "lucide-react": "^0.468.0",
-    "packages": "workspace:*",
+    "observability": "workspace:*",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-hook-form": "^7.76.0",

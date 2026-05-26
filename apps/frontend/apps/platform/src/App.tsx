@@ -1,5 +1,5 @@
 import { RouterProvider } from "react-router-dom";
-import { ErrorBoundary, Toaster, TooltipProvider } from "@packages/components";
+import { ErrorBoundary, Toaster, TooltipProvider } from "components";
 import { router } from "./router";
 
 export function App() {

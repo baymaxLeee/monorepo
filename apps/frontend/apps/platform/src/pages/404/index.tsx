@@ -7,8 +7,8 @@ import {
   PageHeader,
   PageHeaderContent,
   PageTitle,
-} from "@packages/components";
-import { usePlatformStore } from "@packages/runtime";
+} from "components";
+import { usePlatformStore } from "runtime";
 
 export function NotFoundPage() {
   const user = usePlatformStore((state) => state.user);

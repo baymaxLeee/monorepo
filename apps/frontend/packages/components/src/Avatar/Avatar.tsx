@@ -1,5 +1,5 @@
 import { Avatar as AvatarPrimitive } from "radix-ui";
-import { cn } from "@packages/shared";
+import { cn } from "shared";
 
 export function Avatar({
   className,

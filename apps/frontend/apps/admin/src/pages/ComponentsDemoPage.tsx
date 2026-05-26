@@ -58,7 +58,7 @@ import {
   PageHeader,
   PageHeaderContent,
   PageTitle,
-} from "@packages/components";
+} from "components";
 
 export function ComponentsDemoPage() {
   const [notify, setNotify] = useState(true);
@@ -71,7 +71,7 @@ export function ComponentsDemoPage() {
         <PageHeaderContent>
           <PageTitle>shadcn 组件演示</PageTitle>
           <PageDescription>
-            来自 <InlineCode>@packages/components</InlineCode>
+            来自 <InlineCode>components</InlineCode>
             ，主题由 <InlineCode>styles.css</InlineCode> 注入
           </PageDescription>
         </PageHeaderContent>

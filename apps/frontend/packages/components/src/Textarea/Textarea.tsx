@@ -1,5 +1,5 @@
 import { forwardRef, type TextareaHTMLAttributes } from "react";
-import { cn } from "@packages/shared";
+import { cn } from "shared";
 
 export const Textarea = forwardRef<
   HTMLTextAreaElement,

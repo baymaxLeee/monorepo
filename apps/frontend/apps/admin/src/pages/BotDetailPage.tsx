@@ -11,8 +11,8 @@ import {
   Page,
   Separator,
   Skeleton,
-} from "@packages/components";
-import { fetchBot, type Bot } from "@packages/api";
+} from "components";
+import { fetchBot, type Bot } from "api";
 
 export function BotDetailPage() {
   const { id } = useParams<{ id: string }>();

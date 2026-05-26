@@ -5,21 +5,17 @@
  * React, React DOM, JSX runtimes, and React Router. These must be singleton
  * because hooks, context, and router state break when duplicated.
  *
- * Tier 2 — Internal runtime contracts:
- * @packages/runtime and @packages/shared are product-owned runtime contracts
- * consumed by host and remotes.
+ * Tier 2 — Internal workspace packages:
+ * product-owned packages consumed by host and remotes. The shared keys match
+ * the real pnpm workspace package names so package.json dependencies, TypeScript
+ * resolution, bundler resolution, and Module Federation all use one identity.
  *
  * Tier 3 — State management:
  * Zustand core runtime and middleware used by the shared platform store.
  * React selector helpers are shared too because host and remotes both use them
  * in store selectors.
  *
- * UI, API-client, and other leaf libraries stay out of Module Federation
- * shared config by default. That lets each app rely on normal bundler
- * tree-shaking instead of forcing the host to provide a package-level fallback
- * chunk.
- *
- * Internal packages resolve via package.json exports + @packages alias.
+ * Internal packages resolve through package.json exports and workspace links.
  */
 
 /**
@@ -70,9 +66,11 @@ const TIER1 = {
 };
 
 const TIER2 = {
-  "@packages/shared": { singleton: true, requiredVersion: false },
-  "@packages/runtime": { singleton: true, requiredVersion: false },
-  "@packages/observability": { singleton: true, requiredVersion: false },
+  shared: { singleton: true, requiredVersion: false },
+  runtime: { singleton: true, requiredVersion: false },
+  observability: { singleton: true, requiredVersion: false },
+  api: { singleton: true, requiredVersion: false },
+  components: { singleton: true, requiredVersion: false },
 };
 
 const TIER3 = {
@@ -94,9 +92,11 @@ const SHARED = { ...TIER1, ...TIER2, ...TIER3 };
 const HOST_EAGER_SHARED = new Set([
   ...Object.keys(TIER1),
   ...Object.keys(TIER3),
-  "@packages/shared",
-  "@packages/runtime",
-  "@packages/observability",
+  "shared",
+  "runtime",
+  "observability",
+  "api",
+  "components",
 ]);
 
 /**

@@ -13,7 +13,7 @@ import {
   CardTitle,
   ErrorBoundary,
   type ErrorFallbackProps,
-} from "@packages/components";
+} from "components";
 import { registry } from "../registry";
 
 type RouteLoader = () => Promise<{ default: ComponentType }>;

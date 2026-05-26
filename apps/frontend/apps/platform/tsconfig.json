@@ -3,8 +3,7 @@
   "compilerOptions": {
     "outDir": "dist",
     "paths": {
-      "@/*": ["apps/platform/src/*"],
-      "@packages/*": ["packages/*"]
+      "@/*": ["apps/platform/src/*"]
     }
   },
   "include": ["src/**/*"]

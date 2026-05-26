@@ -25,9 +25,9 @@ humans; local OpenAPI files are for reproducible code generation.
 
 ## Rules
 
-- All app/MFE API calls go through `@packages/api`.
-- `@packages/api` is the finest-grained public import path. Re-export every
-  public API from `index.ts`; do not add `@packages/api/<module>` imports.
+- All app/MFE API calls go through `api`.
+- `api` is the finest-grained public import path. Re-export every
+  public API from `index.ts`; do not add `api/<module>` imports.
 - Use gateway-facing paths (`/api/<service-name>/*`), not internal service
   paths.
 - Reuse `apiHttp` / `apiMutator`; do not create another axios instance in apps.

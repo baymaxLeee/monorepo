@@ -1,5 +1,5 @@
 import { forwardRef, type InputHTMLAttributes } from "react";
-import { cn } from "@packages/shared";
+import { cn } from "shared";
 
 export const Input = forwardRef<
   HTMLInputElement,

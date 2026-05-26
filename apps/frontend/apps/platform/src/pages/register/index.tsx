@@ -4,7 +4,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useShallow } from "zustand/react/shallow";
 import { z } from "zod";
-import { checkAccountAvailability, register } from "@packages/api";
+import { checkAccountAvailability, register } from "api";
 import {
   Button,
   Card,
@@ -21,9 +21,9 @@ import {
   FormField,
   Input,
   toast,
-} from "@packages/components";
-import { setUser as setObservabilityUser } from "@packages/observability";
-import { usePlatformStore } from "@packages/runtime";
+} from "components";
+import { setUser as setObservabilityUser } from "observability";
+import { usePlatformStore } from "runtime";
 
 const registerSchema = z.object({
   name: z

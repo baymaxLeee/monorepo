@@ -45,8 +45,8 @@ import {
   TableHeader,
   TableRow,
   toast,
-} from "@packages/components";
-import { createBot, fetchBots, type Bot } from "@packages/api";
+} from "components";
+import { createBot, fetchBots, type Bot } from "api";
 import { useShallow } from "zustand/react/shallow";
 import { useAdminStore } from "../store/useAdminStore";
 

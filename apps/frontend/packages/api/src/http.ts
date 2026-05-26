@@ -3,7 +3,7 @@ import axios, {
   type AxiosInstance,
   type AxiosRequestConfig,
 } from "axios";
-import { attachAxios, type MinimalAxiosInstance } from "@packages/observability";
+import { attachAxios, type MinimalAxiosInstance } from "observability";
 import { getToken } from "./storage";
 
 // Resolution order:

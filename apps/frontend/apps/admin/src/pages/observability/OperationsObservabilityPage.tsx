@@ -24,12 +24,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@packages/components";
+} from "components";
 import {
   fetchTelemetryErrors,
   type TelemetryErrorEvent,
-} from "@packages/api";
-import { telemetry } from "@packages/observability";
+} from "api";
+import { telemetry } from "observability";
 
 const adminTelemetry = telemetry.scope({
   app: "mfe-admin",

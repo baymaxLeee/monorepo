@@ -1,5 +1,5 @@
 import type { HTMLAttributes, TdHTMLAttributes, ThHTMLAttributes } from "react";
-import { cn } from "@packages/shared";
+import { cn } from "shared";
 
 export function Table({
   className,

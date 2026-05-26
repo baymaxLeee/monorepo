@@ -43,7 +43,7 @@ import {
   TableRow,
   Textarea,
   toast,
-} from "@packages/components";
+} from "components";
 import {
   bulkDeleteScenes,
   createScene,
@@ -51,7 +51,7 @@ import {
   fetchScenes,
   type AdminResource,
   updateScene,
-} from "@packages/api";
+} from "api";
 
 const sceneSchema = z.object({
   name: z.string().trim().min(1, "请输入名称").max(100),

@@ -1,6 +1,6 @@
 import { forwardRef } from "react";
 import type { ComponentPropsWithoutRef, ElementRef } from "react";
-import { cn } from "@packages/shared";
+import { cn } from "shared";
 
 const SiteHeader = forwardRef<
   ElementRef<"header">,

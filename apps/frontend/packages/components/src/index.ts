@@ -32,6 +32,7 @@ export {
   SiteHeaderNav,
 } from "./layout";
 export { Checkbox } from "./Checkbox";
+export { CodeEditor, type CodeEditorProps } from "./CodeEditor";
 export {
   ErrorBoundary,
   withErrorBoundary,
@@ -95,6 +96,25 @@ export { Input } from "./Input";
 export { Label } from "./Label";
 export { Lazy } from "./Lazy";
 export {
+  FileWorkspace,
+  ChangeAction,
+  type FileWorkspaceProps,
+  type FileWorkspaceRef,
+  type FileChange,
+  type FileNode,
+  type FileTab,
+} from "./FileWorkspace";
+export {
+  MarkdownEditor,
+  type MarkdownEditorProps,
+  type MarkdownEditorRef,
+} from "./MarkdownEditor";
+export {
+  PdfPreviewer,
+  type PdfPreviewerProps,
+  type PdfPreviewerRef,
+} from "./PdfPreviewer";
+export {
   Select,
   SelectContent,
   SelectGroup,
@@ -155,3 +175,8 @@ export {
   TooltipProvider,
   TooltipTrigger,
 } from "./Tooltip";
+export {
+  XMindPreviewer,
+  type XMindPreviewerProps,
+  type XMindPreviewerRef,
+} from "./XmindPreviewer";

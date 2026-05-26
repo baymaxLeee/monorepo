@@ -1,5 +1,5 @@
 import type { HTMLAttributes } from "react";
-import { cn } from "@packages/shared";
+import { cn } from "shared";
 
 /** Standard content area padding (dashboard pages). */
 export function Page({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
