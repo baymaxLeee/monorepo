@@ -6,10 +6,10 @@ RUN pip install --no-cache-dir uv
 
 WORKDIR /app
 
-# Copy workspace root + this service + libs
-COPY apps/backend/pyproject.toml /app/
-COPY apps/backend/services/admin /app/services/admin
-COPY apps/backend/libs /app/libs
+# Build context = apps/backend, so copies are workspace-root-relative.
+COPY pyproject.toml uv.lock /app/
+COPY services/admin /app/services/admin
+COPY libs /app/libs
 
 WORKDIR /app/services/admin
 RUN uv sync --frozen --no-dev

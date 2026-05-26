@@ -6,9 +6,10 @@ RUN pip install --no-cache-dir uv
 
 WORKDIR /app
 
-COPY apps/backend/pyproject.toml /app/
-COPY apps/backend/services/telemetry /app/services/telemetry
-COPY apps/backend/libs /app/libs
+# Build context = apps/backend, so copies are workspace-root-relative.
+COPY pyproject.toml uv.lock /app/
+COPY services/telemetry /app/services/telemetry
+COPY libs /app/libs
 
 WORKDIR /app/services/telemetry
 RUN uv sync --frozen --no-dev
