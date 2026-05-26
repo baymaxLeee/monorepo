@@ -128,6 +128,64 @@ Output ends with the URL to open in a browser.
 
 ---
 
+## (Optional but strongly recommended for China-hosted VPS) Mirror images to Tencent TCR
+
+GHCR is in the US. From a 3Mbps Tencent-Cloud Lighthouse box, the first pull of all 6 images is **~30 minutes** (limited by trans-Pacific link, not your bandwidth). Subsequent pulls are tiny because only the changed layer comes down, but every "first" pull on a fresh VPS hurts.
+
+Solution: have the CI also push every image to a **Tencent Container Registry (TCR) Personal Edition** in your TCR namespace. The VPS then pulls from intra-Tencent-Cloud (MB/s scale, **first pull drops to ~1–3 minutes**). The CI already supports this — it's just opt-in.
+
+### 1. Create TCR namespace (Tencent Cloud console, one-time, free)
+
+1. 登录腾讯云 → 搜 "容器镜像服务" → 进 TCR
+2. 左侧 "Personal Edition" → 启用(免费, 5 GB / 5 命名空间额度)
+3. 在 "镜像仓库" → 创建命名空间,记下名字(例:`baymaxleee`)
+4. 左侧 "访问凭证" → 创建一个长期凭证,记下:
+   - **用户名** = 腾讯云账号 ID(纯数字,在用户头像下拉里有)
+   - **密码** = 你刚生成的临时/长期密码
+
+### 2. Set GitHub repo Variables + Secrets
+
+GitHub repo → Settings → Secrets and variables → Actions:
+
+| Type | Name | Value |
+|---|---|---|
+| Variable | `TCR_NAMESPACE` | `<your-tcr-namespace>` |
+| Variable | `TCR_HOST` *(optional)* | `ccr.ccs.tencentyun.com` *(default is fine; only change if you're in a non-Shanghai TCR region)* |
+| Secret | `TCR_USERNAME` | Tencent Cloud account ID (digits) |
+| Secret | `TCR_PASSWORD` | TCR access credential from step 1.4 |
+
+Next `build-images` run will mirror all 6 images to both GHCR and TCR.
+
+### 3. One-time `docker login` on the VPS
+
+TCR Personal Edition images are private (you can't make them public). Each VPS that pulls from TCR needs to authenticate **once** — the credential is then cached in `~/.docker/config.json` and all future pulls work without re-login:
+
+```bash
+ssh ubuntu@<vps-ip>
+docker login ccr.ccs.tencentyun.com -u <tencent-account-id> -p '<tcr-password>'
+```
+
+### 4. Point .env to TCR
+
+Edit `infra/single-vps/.env`:
+
+```diff
+- IMAGE_REGISTRY=ghcr.io/baymaxleee/monorepo
++ IMAGE_REGISTRY=ccr.ccs.tencentyun.com/baymaxleee
+```
+
+And re-deploy:
+
+```bash
+./infra/single-vps/deploy.sh ubuntu@<vps-ip>
+```
+
+The next `docker compose pull` hits TCR instead of GHCR — first pull will finish in 1-3 minutes instead of 30.
+
+> **Rollback**: if TCR ever has an outage, switch `.env` back to `IMAGE_REGISTRY=ghcr.io/<owner>/<repo>` and re-deploy. GHCR is always still being pushed to as a fallback.
+
+---
+
 ## Updating after code changes
 
 Two ways:

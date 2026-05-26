@@ -5,7 +5,22 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "→ Starting full demo stack (shell mode). Ctrl+C to stop all."
-trap 'kill 0' EXIT INT TERM
+
+DEV_PORTS=(8000 8001 8002 8008 3000 3001)
+cleanup() {
+    pkill -TERM -P $$ 2>/dev/null || true
+    for port in "${DEV_PORTS[@]}"; do
+        pid=$(lsof -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
+        [ -n "$pid" ] && kill -TERM $pid 2>/dev/null || true
+    done
+    sleep 2
+    pkill -KILL -P $$ 2>/dev/null || true
+    for port in "${DEV_PORTS[@]}"; do
+        pid=$(lsof -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
+        [ -n "$pid" ] && kill -KILL $pid 2>/dev/null || true
+    done
+}
+trap cleanup EXIT INT TERM
 
 (
   cd apps/backend/services/admin

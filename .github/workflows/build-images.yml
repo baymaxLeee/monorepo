@@ -1,18 +1,21 @@
 name: build-images
 
-# Builds container images for all 4 backend services and pushes them to a
-# container registry.
+# Builds container images for all 6 service/infra targets and pushes them.
 #
-# Default: pushes to GHCR (ghcr.io/<owner>/<repo>/<service>) — zero config
-#          required, uses the workflow's GITHUB_TOKEN automatically.
+# Push targets:
+#   1. GHCR — always. Free, public-friendly, no extra config required;
+#      authenticates with the workflow's GITHUB_TOKEN.
+#   2. Tencent TCR — OPTIONAL mirror. Enable by setting in repo Settings
+#      → Secrets and variables → Actions:
+#         vars.TCR_NAMESPACE      e.g. baymaxleee
+#         vars.TCR_HOST           (optional, default ccr.ccs.tencentyun.com)
+#         secrets.TCR_USERNAME    Tencent Cloud account ID (digits)
+#         secrets.TCR_PASSWORD    TCR access credential
+#      The VPS then pulls from intra-Tencent-Cloud (~MB/s) instead of the
+#      30-minute trans-Pacific haul through GHCR. Set IMAGE_REGISTRY in the
+#      VPS's .env to the TCR path to actually consume the mirror.
 #
-# Switch to a private registry (e.g. 火山引擎 CR / Aliyun ACR / Harbor) by
-# setting in repo Settings → Secrets and variables → Actions:
-#   vars.IMAGE_REGISTRY        cr-cn-beijing.volces.com/<your-namespace>
-#   secrets.REGISTRY_USERNAME  <robot account>
-#   secrets.REGISTRY_PASSWORD  <robot password>
-#
-# Tag strategy:
+# Tag strategy (applied to every registry the build pushes to):
 #   - every commit on main → :sha-<short>   (immutable, deployable)
 #   - every commit on main → :main          (mutable, "current main")
 #   - every tag v*.*.*     → :<tag>         (immutable, release)
@@ -37,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write   # required when pushing to ghcr.io
+      packages: write   # required to push to ghcr.io
     strategy:
       fail-fast: false
       matrix:
@@ -45,56 +48,63 @@ jobs:
         # web                               → nginx + bundled frontend SPA dist
         # db-init                           → one-shot MySQL schema bootstrap
         service: [gateway, iam, admin, telemetry, web, db-init]
+    env:
+      # Surfaced into the shell of every step so the "Compute tags" script
+      # can branch on whether the TCR mirror is configured.
+      TCR_HOST: ${{ vars.TCR_HOST || 'ccr.ccs.tencentyun.com' }}
+      TCR_NAMESPACE: ${{ vars.TCR_NAMESPACE }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Resolve registry
-        id: registry
-        run: |
-          # Custom registry wins; otherwise default to GHCR under this repo.
-          if [ -n "${{ vars.IMAGE_REGISTRY }}" ]; then
-            REG="${{ vars.IMAGE_REGISTRY }}"
-            echo "is_ghcr=false" >> "$GITHUB_OUTPUT"
-          else
-            REG="ghcr.io/${{ github.repository }}"
-            echo "is_ghcr=true" >> "$GITHUB_OUTPUT"
-          fi
-          echo "registry=${REG,,}" >> "$GITHUB_OUTPUT"
-          echo "→ using registry: ${REG,,}"
-
       - uses: docker/setup-buildx-action@v3
 
-      - name: Login (GHCR — uses GITHUB_TOKEN)
-        if: steps.registry.outputs.is_ghcr == 'true'
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login (custom registry)
-        if: steps.registry.outputs.is_ghcr == 'false'
+      - name: Login to Tencent TCR (only when TCR_NAMESPACE is configured)
+        if: vars.TCR_NAMESPACE != ''
         uses: docker/login-action@v3
         with:
-          registry: ${{ steps.registry.outputs.registry }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
+          registry: ${{ vars.TCR_HOST || 'ccr.ccs.tencentyun.com' }}
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
 
       - name: Compute tags
         id: tags
-        env:
-          REGISTRY: ${{ steps.registry.outputs.registry }}
         run: |
-          IMAGE="${REGISTRY}/${{ matrix.service }}"
+          REPO_LC="$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          GHCR_IMAGE="ghcr.io/${REPO_LC}/${{ matrix.service }}"
           SHA_SHORT=$(echo "${GITHUB_SHA}" | cut -c1-8)
+
+          # Pick the immutable VER tag (always set) and an optional MOVABLE
+          # tag (skipped for manual dispatch where the user gave their own).
           if [ -n "${{ inputs.tag }}" ]; then
-            TAGS="${IMAGE}:${{ inputs.tag }}"
+            VER="${{ inputs.tag }}"
+            MOVABLE=""
           elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            REL_TAG="${GITHUB_REF#refs/tags/}"
-            TAGS="${IMAGE}:${REL_TAG},${IMAGE}:sha-${SHA_SHORT}"
+            VER="${GITHUB_REF#refs/tags/}"
+            MOVABLE="sha-${SHA_SHORT}"
           else
-            TAGS="${IMAGE}:sha-${SHA_SHORT},${IMAGE}:main"
+            VER="sha-${SHA_SHORT}"
+            MOVABLE="main"
           fi
+
+          # Comma-separated tag list; buildx pushes to all in a single upload.
+          TAGS="${GHCR_IMAGE}:${VER}"
+          [ -n "${MOVABLE}" ] && TAGS="${TAGS},${GHCR_IMAGE}:${MOVABLE}"
+
+          if [ -n "${TCR_NAMESPACE}" ]; then
+            TCR_IMAGE="${TCR_HOST}/${TCR_NAMESPACE}/${{ matrix.service }}"
+            TAGS="${TAGS},${TCR_IMAGE}:${VER}"
+            [ -n "${MOVABLE}" ] && TAGS="${TAGS},${TCR_IMAGE}:${MOVABLE}"
+            echo "→ mirroring to TCR: ${TCR_IMAGE}"
+          else
+            echo "→ TCR mirror disabled (set vars.TCR_NAMESPACE to enable)"
+          fi
+
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
           echo "sha_short=${SHA_SHORT}" >> "$GITHUB_OUTPUT"
 
