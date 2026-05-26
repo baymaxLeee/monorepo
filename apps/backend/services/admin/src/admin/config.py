@@ -7,7 +7,7 @@ from urllib.parse import quote_plus
 from pydantic import computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-Environment = Literal["development", "staging", "production"]
+Environment = Literal["development", "staging", "single-vps", "production"]
 
 # Defaults that MUST NOT leak into staging/production.
 _INSECURE_PASSWORDS: frozenset[str] = frozenset({"", "dev", "password", "admin"})

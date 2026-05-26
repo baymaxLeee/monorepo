@@ -39,5 +39,5 @@ strict = true
 exclude = ["migrations/", "build/", "dist/"]
 
 [[tool.mypy.overrides]]
-module = ["alembic.*", "clickhouse_connect.*"]
+module = ["alembic.*"]
 ignore_missing_imports = true

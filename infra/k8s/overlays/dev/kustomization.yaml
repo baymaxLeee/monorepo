@@ -6,7 +6,6 @@ resources:
   - ../../base/iam
   - ../../base/admin
   - ../../base/telemetry
-  - ../../base/observability
   - ../../base/ingress.yaml
 images:
   - name: ghcr.io/example/gateway

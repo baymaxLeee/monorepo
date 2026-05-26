@@ -1,0 +1,201 @@
+# Single-VPS production stack.
+#
+# Runs on ONE box behind a single public port (PUBLIC_PORT, default 8080).
+# Everything is fronted by nginx (the `web` service) which serves the SPA
+# static assets AND reverse-proxies /api/* to the gateway.
+#
+# Architecture:
+#
+#   browser  →  nginx (web, port 80 in-container, mapped to host PUBLIC_PORT)
+#                 ├─ /             → SPA platform dist
+#                 ├─ /mfe-admin/   → MFE admin dist
+#                 └─ /api/*        → reverse-proxy → gateway:8000
+#                                     ├─ iam:8002
+#                                     ├─ admin:8001
+#                                     └─ telemetry:8008
+#                                         ↓
+#                                    mysql + redis (internal)
+#
+# Image source: ghcr.io/<owner>/<repo>/<service>:<tag>
+# Images are built and pushed by .github/workflows/build-images.yml.
+#
+# Usage (on the VPS, after bootstrap.sh):
+#   cd /opt/monorepo && docker compose -f docker-compose.prod.yml pull
+#   cd /opt/monorepo && docker compose -f docker-compose.prod.yml up -d
+#
+# All knobs live in `.env` (see .env.example).
+
+x-restart: &restart_policy
+  restart: unless-stopped
+
+services:
+  # ─── data layer ──────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.4
+    container_name: monorepo-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_USER: ${MYSQL_USER:-app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+    command:
+      # Tune for ~1GB available RAM after OS + Docker + apps.
+      - --innodb-buffer-pool-size=256M
+      - --max-connections=200
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    <<: *restart_policy
+
+  redis:
+    image: redis:7-alpine
+    container_name: monorepo-redis
+    command:
+      - redis-server
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - "60 1"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    <<: *restart_policy
+
+  # ─── one-shot schema init for MySQL ──────────────────────────────
+  # Custom image (built by build-images.yml) bundles mysql-init.sh + all
+  # services' migration SQL. Runs once per `docker compose up`; downstream
+  # backend services gate on its `service_completed_successfully` state.
+  db-init:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/db-init:${IMAGE_TAG:-main}
+    container_name: monorepo-db-init
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      APP_USER: ${MYSQL_USER:-app}
+    restart: "no"
+
+  # ─── backend services ────────────────────────────────────────────
+  iam:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/iam:${IMAGE_TAG:-main}
+    container_name: monorepo-iam
+    depends_on:
+      mysql: { condition: service_healthy }
+      db-init: { condition: service_completed_successfully }
+    environment:
+      ENVIRONMENT: single-vps
+      PORT: "8002"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: ${MYSQL_USER:-app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      IAM_MYSQL_DATABASE: iam
+      ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:?ACCESS_TOKEN_SECRET is required}
+      ACCESS_TOKEN_TTL: "15m"
+      REFRESH_TOKEN_TTL: "720h"
+      REFRESH_COOKIE_NAME: refresh_token
+      # HTTP same-origin → Secure must be false, SameSite=Lax works fine.
+      REFRESH_COOKIE_SECURE: "false"
+      REFRESH_COOKIE_SAMESITE: lax
+      # Host-only (no Domain attr); good for single-host IP-based deploy.
+      REFRESH_COOKIE_DOMAIN: ""
+      SUPER_ADMIN_ACCOUNT: ${SUPER_ADMIN_ACCOUNT:-admin}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-admin@example.com}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-admin123}
+      SUPER_ADMIN_DISPLAY_NAME: ${SUPER_ADMIN_DISPLAY_NAME:-Super Admin}
+    <<: *restart_policy
+
+  gateway:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/gateway:${IMAGE_TAG:-main}
+    container_name: monorepo-gateway
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      db-init: { condition: service_completed_successfully }
+    environment:
+      ENVIRONMENT: single-vps
+      PORT: "8000"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: ${MYSQL_USER:-app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_DATABASE: gateway
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "1"
+      ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:?ACCESS_TOKEN_SECRET is required}
+      ADMIN_SERVICE_URL: http://admin:8001
+      IAM_SERVICE_URL: http://iam:8002
+      TELEMETRY_SERVICE_URL: http://telemetry:8008
+      # Same-origin behind nginx → browser never sends Origin for navigations.
+      # Wildcard kept for occasional curl/tools with credentials.
+      ALLOWED_FRONTEND_ORIGINS: "*"
+    <<: *restart_policy
+
+  admin:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/admin:${IMAGE_TAG:-main}
+    container_name: monorepo-admin
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      db-init: { condition: service_completed_successfully }
+    environment:
+      ENVIRONMENT: single-vps
+      PORT: "8001"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: ${MYSQL_USER:-app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_DATABASE: admin
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "0"
+    <<: *restart_policy
+
+  telemetry:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/telemetry:${IMAGE_TAG:-main}
+    container_name: monorepo-telemetry
+    depends_on:
+      mysql: { condition: service_healthy }
+      db-init: { condition: service_completed_successfully }
+    environment:
+      ENVIRONMENT: single-vps
+      PORT: "8008"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: ${MYSQL_USER:-app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_DATABASE: telemetry
+    <<: *restart_policy
+
+  # ─── nginx + bundled SPA dist ────────────────────────────────────
+  # The `web` image is built by .github/workflows/build-images.yml
+  # and contains:
+  #   /usr/share/nginx/html             ← platform dist
+  #   /usr/share/nginx/html/mfe-admin/  ← admin (MFE remote) dist
+  #   /etc/nginx/conf.d/default.conf    ← nginx.conf from this directory
+  web:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/web:${IMAGE_TAG:-main}
+    container_name: monorepo-web
+    depends_on:
+      - gateway
+    ports:
+      - "${PUBLIC_PORT:-8080}:80"
+    <<: *restart_policy
+
+volumes:
+  mysql_data:
+  redis_data:

@@ -2,11 +2,15 @@
 
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import quote_plus
 
-from pydantic import model_validator
+from pydantic import computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-Environment = Literal["development", "staging", "production"]
+Environment = Literal["development", "staging", "single-vps", "production"]
+
+# Defaults that MUST NOT leak into staging/production.
+_INSECURE_PASSWORDS: frozenset[str] = frozenset({"", "dev", "password", "admin"})
 
 
 class Settings(BaseSettings):
@@ -16,17 +20,24 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    port: int = 8008
     environment: Environment = "development"
+    port: int = 8008
 
-    clickhouse_host: str = "localhost"
-    clickhouse_port: int = 8123
-    clickhouse_user: str = "default"
-    clickhouse_password: str = ""
-    clickhouse_database: str = "telemetry"
+    mysql_host: str = "localhost"
+    mysql_port: int = 3306
+    mysql_user: str = "dev"
+    mysql_password: str = "dev"
+    mysql_database: str = "telemetry"
 
     sample_rate_perform: float = 1.0
     sample_rate_event: float = 1.0
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def database_url(self) -> str:
+        user = quote_plus(self.mysql_user)
+        password = quote_plus(self.mysql_password)
+        return f"mysql+asyncmy://{user}:{password}@{self.mysql_host}:{self.mysql_port}/{self.mysql_database}"
 
     @property
     def is_production(self) -> bool:
@@ -37,17 +48,12 @@ class Settings(BaseSettings):
         if self.environment != "production":
             return self
         missing: list[str] = []
-        if self.clickhouse_host in {"localhost", "127.0.0.1"}:
-            missing.append("CLICKHOUSE_HOST")
-        # default user with empty password is ClickHouse's "no auth" mode;
-        # acceptable in dev, never in production.
-        if self.clickhouse_user == "default" and self.clickhouse_password == "":
-            missing.append("CLICKHOUSE_USER/CLICKHOUSE_PASSWORD")
+        if self.mysql_password.strip().lower() in _INSECURE_PASSWORDS:
+            missing.append("MYSQL_PASSWORD")
+        if self.mysql_host in {"localhost", "127.0.0.1"}:
+            missing.append("MYSQL_HOST")
         if missing:
-            raise ValueError(
-                "production environment requires explicit values for: "
-                + ", ".join(missing)
-            )
+            raise ValueError("production environment requires explicit values for: " + ", ".join(missing))
         return self
 
 

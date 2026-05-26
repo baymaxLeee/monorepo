@@ -23,6 +23,8 @@ on:
     tags: ['v*.*.*']
     paths:
       - 'apps/backend/**'
+      - 'apps/frontend/**'
+      - 'infra/single-vps/**'
       - '.github/workflows/build-images.yml'
   workflow_dispatch:
     inputs:
@@ -39,7 +41,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [gateway, iam, admin, telemetry]
+        # gateway / iam / admin / telemetry → backend service images
+        # web                               → nginx + bundled frontend SPA dist
+        # db-init                           → one-shot MySQL schema bootstrap
+        service: [gateway, iam, admin, telemetry, web, db-init]
     steps:
       - uses: actions/checkout@v4
 
@@ -93,21 +98,26 @@ jobs:
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
           echo "sha_short=${SHA_SHORT}" >> "$GITHUB_OUTPUT"
 
-      # Each service's Dockerfile expects build context = apps/backend/
-      # (so it can COPY libs/ + the service dir together for the Python ones,
-      # or the gateway one which uses its own subdir context). We pick the
-      # right context per service.
+      # Each Dockerfile expects a specific build context. We pick it per service.
       - name: Build context per service
         id: ctx
         run: |
           case "${{ matrix.service }}" in
             gateway|iam)
+              # Go services' Dockerfile COPYs from the service directory only.
               echo "context=apps/backend/services/${{ matrix.service }}" >> "$GITHUB_OUTPUT"
               echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
               ;;
             admin|telemetry)
+              # Python services need apps/backend/{pyproject,services/<svc>,libs}.
               echo "context=apps/backend" >> "$GITHUB_OUTPUT"
               echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
+              ;;
+            web|db-init)
+              # Single-VPS image; build context is the monorepo root so we can
+              # COPY across frontend dist, backend migrations, and infra/.
+              echo "context=." >> "$GITHUB_OUTPUT"
+              echo "dockerfile=infra/single-vps/Dockerfile.${{ matrix.service }}" >> "$GITHUB_OUTPUT"
               ;;
           esac
 

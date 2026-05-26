@@ -4,7 +4,6 @@ Deployment artifacts for all services and MFEs.
 
 ## Layout
 - `docker/`              — shared Dockerfiles (Dockerfiles also live in `apps/<…>/Dockerfile`)
-- `observability/`       — middleware runtime config mounted by docker-compose (ClickHouse init SQL, dev users)
 - `k8s/base/<svc>/`      — Kustomize base: `deployment.yaml`, `service.yaml`,
                            `configmap.yaml`, `secret.yaml` (placeholder),
                            `kustomization.yaml`

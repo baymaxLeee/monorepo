@@ -22,7 +22,6 @@ if [ ! -d "$OVERLAY" ]; then
   exit 1
 fi
 
-# --load-restrictor=LoadRestrictionsNone allows the observability base to
-# reference ClickHouse init.sql from infra/observability/ (shared with
-# docker-compose).
+# --load-restrictor=LoadRestrictionsNone lets overlays reference raw files
+# (e.g. ../../base/ingress.yaml) one level up; kustomize is strict by default.
 exec kubectl kustomize --load-restrictor=LoadRestrictionsNone "$OVERLAY"

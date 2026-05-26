@@ -10,7 +10,6 @@ resources:
   - ../../base/iam
   - ../../base/admin
   - ../../base/telemetry
-  - ../../base/observability
   - ../../base/ingress.yaml
 
 # CI patches `newName` + `newTag` to the real registry + git-sha via

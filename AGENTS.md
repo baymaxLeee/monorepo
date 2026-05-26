@@ -51,7 +51,7 @@ MUST keep them working — see "Migration safety" rule below.
 | Command | What it does |
 |---|---|
 | `just install` | Install ALL deps (mise + pnpm + uv + go; copies `.env` from examples) |
-| `just up` | Docker (MySQL 8, Redis, ClickHouse) + DB bootstrap (`scripts/db-bootstrap.sh`) |
+| `just up` | Docker (MySQL 8, Redis) + DB bootstrap (`scripts/db-bootstrap.sh`) |
 | `just down` | Stop local infra |
 | `just dev` | Start full demo stack (gateway + iam + admin svc + platform + admin MFE) |
 | `just build [target]` | Build frontend / backend / specific service (target optional) |

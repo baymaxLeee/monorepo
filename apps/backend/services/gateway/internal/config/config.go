@@ -11,9 +11,15 @@ import (
 )
 
 // Environment names.
+//
+// `single-vps` is a special public-internet demo profile: same-origin behind
+// nginx, plain HTTP, IP-only URL. It skips production CORS/secret strictness
+// because the SPA and the API share an origin so the browser never even sends
+// preflights — but it still runs against real MySQL/Redis.
 const (
 	EnvDevelopment = "development"
 	EnvStaging     = "staging"
+	EnvSingleVPS   = "single-vps"
 	EnvProduction  = "production"
 )
 
@@ -50,6 +56,9 @@ type Config struct {
 
 // IsProduction reports whether the service applies production policy.
 func (c Config) IsProduction() bool { return c.Environment == EnvProduction }
+
+// IsSingleVPS reports the special single-box public-demo profile.
+func (c Config) IsSingleVPS() bool { return c.Environment == EnvSingleVPS }
 
 // Load reads .env (if present) and environment variables, validating
 // production-required fields.

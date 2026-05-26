@@ -5,8 +5,9 @@ failures, not on transient downstream blips.
 """
 
 from fastapi import APIRouter, Response, status
+from sqlalchemy import text
 
-from telemetry.deps import ClickHouse
+from telemetry.deps import DbSession
 
 router = APIRouter(tags=["health"])
 
@@ -17,22 +18,20 @@ async def livez() -> dict[str, str]:
 
 
 @router.get("/readyz")
-async def readyz(client: ClickHouse, response: Response) -> dict[str, object]:
+async def readyz(session: DbSession, response: Response) -> dict[str, object]:
     try:
-        client.query("SELECT 1")
-        clickhouse_ok = True
+        await session.execute(text("SELECT 1"))
+        mysql_ok = True
     except Exception:
-        clickhouse_ok = False
+        mysql_ok = False
 
-    response.status_code = (
-        status.HTTP_200_OK if clickhouse_ok else status.HTTP_503_SERVICE_UNAVAILABLE
-    )
+    response.status_code = status.HTTP_200_OK if mysql_ok else status.HTTP_503_SERVICE_UNAVAILABLE
     return {
-        "status": "ok" if clickhouse_ok else "degraded",
-        "clickhouse": "up" if clickhouse_ok else "down",
+        "status": "ok" if mysql_ok else "degraded",
+        "mysql": "up" if mysql_ok else "down",
     }
 
 
 @router.get("/healthz")
-async def healthz(client: ClickHouse, response: Response) -> dict[str, object]:
-    return await readyz(client, response)
+async def healthz(session: DbSession, response: Response) -> dict[str, object]:
+    return await readyz(session, response)

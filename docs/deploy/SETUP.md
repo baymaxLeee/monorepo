@@ -132,9 +132,9 @@ Custom domain: `mfe-admin.your-domain.com`
 | 3 | **CR 容器镜像** | 个人版(免费) | 创建 namespace `monorepo` |
 | 4 | **云数据库 MySQL** | 1C2G,40GB | 建在和 VKE 同 VPC,白名单只放集群 |
 | 5 | **缓存数据库 Redis** | 256MB 主从 | 同上 |
-| 6 | **云数据库 ClickHouse**(可选) | 最小规格 / 或留到后面 | 暂时可在集群里跑 StatefulSet |
 
-把 4 个 endpoint(MySQL host、Redis host、ClickHouse host)+ 各自账号密码记录下来。
+把 2 个 endpoint(MySQL host、Redis host)+ 各自账号密码记录下来。
+telemetry 服务复用同一个 MySQL,只用自己的 `telemetry` database。
 
 ### 3.2 集群一次性初始化
 
@@ -174,9 +174,9 @@ kubectl -n monorepo-prod create secret generic admin-secrets \
   --from-literal=REDIS_HOST=<redis-endpoint>
 
 kubectl -n monorepo-prod create secret generic telemetry-secrets \
-  --from-literal=CLICKHOUSE_HOST=<clickhouse-endpoint> \
-  --from-literal=CLICKHOUSE_USER=telemetry \
-  --from-literal=CLICKHOUSE_PASSWORD=<from-1Password>
+  --from-literal=MYSQL_HOST=<rds-endpoint> \
+  --from-literal=MYSQL_USER=telemetry \
+  --from-literal=MYSQL_PASSWORD=<from-1Password>
 
 # 上传 Cloudflare Origin CA cert(阶段 1.3 下载的)
 kubectl -n monorepo-prod create secret tls api-tls \

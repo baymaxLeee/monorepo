@@ -16,6 +16,4 @@ from typing import Any
 
 
 def record(*, actor: Any, action: str, resource: dict[str, Any]) -> None:
-    logging.getLogger("audit").info(
-        "audit", extra={"actor": actor, "action": action, "resource": resource}
-    )
+    logging.getLogger("audit").info("audit", extra={"actor": actor, "action": action, "resource": resource})

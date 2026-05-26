@@ -1,13 +1,14 @@
 """FastAPI dependencies."""
 
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Annotated
 
-from clickhouse_connect.driver import Client
 from fastapi import Depends, Header, Request
 from kernel.errors import UnauthorizedError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from .db import clickhouse_client
+from .db import get_db_session
 
 ADMIN_USER_ID = "demo-super-admin"
 ADMIN_EMAIL = "admin@example.com"
@@ -44,6 +45,11 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else ""
 
 
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
+    async for session in get_db_session():
+        yield session
+
+
 def optional_auth_context(
     request: Request,
     x_auth_user_id: Annotated[str | None, Header(alias="X-Auth-User-ID")] = None,
@@ -72,6 +78,6 @@ def auth_context(
     )
 
 
-ClickHouse = Annotated[Client, Depends(clickhouse_client)]
+DbSession = Annotated[AsyncSession, Depends(db_session)]
 CurrentUser = Annotated[AuthContext, Depends(auth_context)]
 OptionalUser = Annotated[OptionalAuthContext, Depends(optional_auth_context)]

@@ -1,0 +1,24 @@
+# A one-shot container that creates per-service MySQL databases and applies
+# their schema migrations. It runs once per `docker compose up`; all SQL
+# files in this repo use IF NOT EXISTS so re-runs are cheap no-ops.
+#
+# Build context: monorepo root (to COPY across service directories).
+# Build command in CI:
+#   docker buildx build \
+#     -f infra/single-vps/Dockerfile.db-init \
+#     -t ghcr.io/<owner>/<repo>/db-init:<tag> \
+#     .
+
+FROM mysql:8.4
+
+COPY infra/single-vps/mysql-init.sh /init.sh
+
+# Mirror the layout mysql-init.sh expects: /schema/<db>/*.sql in alphabetical
+# (== semver) order. Names of these directories MUST match the service →
+# database mapping in mysql-init.sh's DATABASES list.
+COPY apps/backend/services/iam/migrations/versions       /schema/iam
+COPY apps/backend/services/admin/migrations/versions     /schema/admin
+COPY apps/backend/services/gateway/migrations/versions   /schema/gateway
+COPY apps/backend/services/telemetry/migrations/versions /schema/telemetry
+
+ENTRYPOINT ["sh", "/init.sh"]

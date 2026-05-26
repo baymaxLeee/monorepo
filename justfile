@@ -10,7 +10,6 @@ default:
 up:
     docker compose up -d
     @./scripts/wait-for-mysql.sh
-    @./scripts/wait-for-clickhouse.sh
     @./scripts/db-bootstrap.sh
     @echo "OK Infra up - MySQL :3306, Redis :6379"
 

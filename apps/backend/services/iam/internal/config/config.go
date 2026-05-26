@@ -12,9 +12,16 @@ import (
 
 // Environment is the deployment environment name. Production triggers
 // stricter validation (no dev defaults allowed for secrets).
+//
+// `single-vps` is a special public-internet demo profile: same-origin behind
+// nginx on a single box, plain HTTP, IP-only URL. It skips the production
+// strict-cookie/strict-CORS/strict-secret-rotation requirements that only
+// make sense for a cross-origin HTTPS deployment, but still runs against a
+// real MySQL and seeds demo data.
 const (
 	EnvDevelopment = "development"
 	EnvStaging     = "staging"
+	EnvSingleVPS   = "single-vps"
 	EnvProduction  = "production"
 )
 
@@ -46,6 +53,9 @@ type Config struct {
 // IsProduction reports whether the service should apply production policy
 // (skip demo seeding, strict cookie attrs, etc.).
 func (c Config) IsProduction() bool { return c.Environment == EnvProduction }
+
+// IsSingleVPS reports the special single-box public-demo profile.
+func (c Config) IsSingleVPS() bool { return c.Environment == EnvSingleVPS }
 
 func Load() (Config, error) {
 	_ = godotenv.Load()

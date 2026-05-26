@@ -1,0 +1,119 @@
+name: deploy-single-vps
+
+# Deploys the single-VPS stack after build-images succeeds on main.
+#
+# Trigger:
+#   • Auto: when build-images workflow completes on main (so images are ready)
+#   • Manual: workflow_dispatch with a specific image tag
+#
+# Prerequisites (set ONCE in repo Settings → Secrets and variables → Actions):
+#   secrets.VPS_HOST         — public IP or hostname of the VPS
+#   secrets.VPS_USER         — SSH user (e.g. root)
+#   secrets.VPS_SSH_KEY      — full private key matching ~/.ssh/authorized_keys
+#                              on the VPS (OpenSSH format, including the
+#                              BEGIN/END lines)
+#   secrets.VPS_ENV_FILE     — the entire contents of infra/single-vps/.env
+#                              (multi-line secret; GitHub UI handles it)
+#   vars.PUBLIC_PORT         — port the host exposes (default 8080)
+#   vars.DEPLOY_DIR          — remote dir (default /opt/monorepo)
+#   vars.IMAGE_REGISTRY      — (optional) override default ghcr.io path
+
+on:
+  workflow_run:
+    workflows: ["build-images"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to deploy (default: sha-<current short sha>)"
+        required: false
+
+concurrency:
+  group: deploy-single-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Skip auto-run if build-images failed; manual runs always proceed.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: single-vps
+      # Add yourself as a required reviewer in repo Settings → Environments
+      # if you want a manual approval gate before every deploy.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve image tag
+        id: vars
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # build-images tagged the images with sha-<8> of the head commit.
+            TAG="sha-$(echo '${{ github.event.workflow_run.head_sha }}' | cut -c1-8)"
+          else
+            TAG="sha-$(echo '${{ github.sha }}' | cut -c1-8)"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+          REGISTRY="${{ vars.IMAGE_REGISTRY }}"
+          if [ -z "${REGISTRY}" ]; then
+            # Lowercase the repo path; GHCR requires lowercase.
+            REPO_LC="$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+            REGISTRY="ghcr.io/${REPO_LC}"
+          fi
+          echo "registry=${REGISTRY}" >> "$GITHUB_OUTPUT"
+
+          PORT="${{ vars.PUBLIC_PORT }}"
+          echo "port=${PORT:-8080}" >> "$GITHUB_OUTPUT"
+
+          DEPLOY_DIR="${{ vars.DEPLOY_DIR }}"
+          echo "deploy_dir=${DEPLOY_DIR:-/opt/monorepo}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          # Make the deploy script find this key without --identity flag noise.
+          cat <<EOF > ~/.ssh/config
+          Host deploy-target
+              HostName ${{ secrets.VPS_HOST }}
+              User ${{ secrets.VPS_USER }}
+              IdentityFile ~/.ssh/id_deploy
+              StrictHostKeyChecking accept-new
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Stage .env file
+        env:
+          ENV_BODY: ${{ secrets.VPS_ENV_FILE }}
+          REGISTRY: ${{ steps.vars.outputs.registry }}
+          TAG: ${{ steps.vars.outputs.tag }}
+          PORT: ${{ steps.vars.outputs.port }}
+        run: |
+          # The repo secret holds the user-managed knobs (passwords, JWT
+          # secret, etc.) — we override IMAGE_REGISTRY / IMAGE_TAG /
+          # PUBLIC_PORT here so they always match what CI just built.
+          printf '%s\n' "${ENV_BODY}" > infra/single-vps/.env
+          # Strip any prior values for the three keys we're forcing.
+          sed -i -E '/^(IMAGE_REGISTRY|IMAGE_TAG|PUBLIC_PORT)=/d' infra/single-vps/.env
+          {
+              echo "IMAGE_REGISTRY=${REGISTRY}"
+              echo "IMAGE_TAG=${TAG}"
+              echo "PUBLIC_PORT=${PORT}"
+          } >> infra/single-vps/.env
+
+      - name: Deploy
+        env:
+          DEPLOY_DIR: ${{ steps.vars.outputs.deploy_dir }}
+        run: |
+          ./infra/single-vps/deploy.sh deploy-target
+
+      - name: Cleanup secrets
+        if: always()
+        run: |
+          rm -f ~/.ssh/id_deploy infra/single-vps/.env

@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from kernel.errors import register_exception_handlers
 from kernel.tracing import TraceIDMiddleware
 
-from .db import close_client
+from .db import close_db
 from .routers import errors, health, rum
 
 load_dotenv()
@@ -17,14 +17,14 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     yield
-    close_client()
+    await close_db()
 
 
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Telemetry Service",
         version="0.1.0",
-        description="自托管前端 RUM 采集与查询服务",
+        description="自托管前端 RUM 采集与查询服务(MySQL 后端)",
         lifespan=lifespan,
     )
     app.add_middleware(TraceIDMiddleware)

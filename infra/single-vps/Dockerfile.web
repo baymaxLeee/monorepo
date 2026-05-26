@@ -1,0 +1,68 @@
+# Multi-stage build that produces a single nginx image carrying:
+#   • the platform host SPA bundle (apps/frontend/apps/platform/dist)
+#   • the admin MFE remote bundle  (apps/frontend/apps/admin/dist)
+#   • our nginx.conf
+#
+# Build context: monorepo root (so we can COPY anywhere under the repo).
+# Build command in CI:
+#   docker buildx build \
+#     -f infra/single-vps/Dockerfile.web \
+#     --build-arg API_BASE_URL="" \
+#     --build-arg MFE_ADMIN_ENTRY="mfe_admin@/mfe-admin/mf-manifest.json" \
+#     -t ghcr.io/<owner>/<repo>/web:<tag> \
+#     .
+
+# ─── stage 1: build both frontends with pnpm ─────────────────────
+FROM node:22-alpine AS builder
+
+# Pin pnpm via corepack to the version this repo uses.
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+WORKDIR /app
+
+# Copy the minimum needed for `pnpm install` to hit cache.
+COPY apps/frontend/package.json apps/frontend/pnpm-lock.yaml apps/frontend/pnpm-workspace.yaml apps/frontend/tsconfig.base.json apps/frontend/turbo.json apps/frontend/.npmrc* ./apps/frontend/
+COPY apps/frontend/apps ./apps/frontend/apps
+COPY apps/frontend/packages ./apps/frontend/packages
+COPY apps/frontend/mf-shared.mjs apps/frontend/rspack.shared.mjs ./apps/frontend/
+COPY mise.toml ./
+
+WORKDIR /app/apps/frontend
+
+RUN pnpm install --frozen-lockfile
+
+# Build-time configuration. Empty API_BASE_URL → same-origin (nginx proxy).
+# MFE remote entry uses a path-only URL so it resolves to whatever origin
+# the page loaded from (this IP / domain agnostic).
+ARG API_BASE_URL=""
+ARG MFE_ADMIN_ENTRY="mfe_admin@/mfe-admin/mf-manifest.json"
+ARG APP_RELEASE="single-vps"
+
+ENV NODE_ENV=production \
+    API_BASE_URL=${API_BASE_URL} \
+    MFE_ADMIN_ENTRY=${MFE_ADMIN_ENTRY} \
+    APP_RELEASE=${APP_RELEASE}
+
+# Build both apps. Turbo will figure out the right order (admin first since
+# it's a federated remote, then platform consumes the manifest URL).
+RUN pnpm -F platform build && pnpm -F admin build
+
+# ─── stage 2: nginx serving both dist trees ──────────────────────
+FROM nginx:1.27-alpine
+
+# Drop the default config; ours fully replaces it.
+RUN rm -f /etc/nginx/conf.d/default.conf
+COPY infra/single-vps/nginx.conf /etc/nginx/conf.d/default.conf
+
+# Platform = host (lives at /); admin = MFE remote (lives at /mfe-admin/).
+COPY --from=builder /app/apps/frontend/apps/platform/dist /usr/share/nginx/html
+COPY --from=builder /app/apps/frontend/apps/admin/dist    /usr/share/nginx/html/mfe-admin
+
+# nginx default user is "nginx"; we keep it. EXPOSE for documentation only,
+# port mapping is done by docker-compose.
+EXPOSE 80
+
+# Health probe runs against /livez which proxies to gateway, but during
+# initial boot the gateway may not be up yet — make the probe optional.
+HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://127.0.0.1/index.html || exit 1

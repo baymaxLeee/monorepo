@@ -12,11 +12,6 @@ if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^monorepo-redis$'; t
   exit 1
 fi
 
-if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^monorepo-clickhouse$'; then
-  echo "✗ ClickHouse not running. Run: just up" >&2
-  exit 1
-fi
-
 if [ ! -d apps/frontend/node_modules/.pnpm ]; then
   echo "✗ Frontend deps missing. Run: just install" >&2
   exit 1

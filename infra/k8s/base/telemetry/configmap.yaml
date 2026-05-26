@@ -5,7 +5,7 @@ metadata:
 data:
   PORT: "8008"
   ENVIRONMENT: "development"
-  CLICKHOUSE_PORT: "8123"
-  CLICKHOUSE_DATABASE: "telemetry"
+  MYSQL_PORT: "3306"
+  MYSQL_DATABASE: "telemetry"
   SAMPLE_RATE_PERFORM: "1.0"
   SAMPLE_RATE_EVENT: "1.0"

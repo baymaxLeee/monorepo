@@ -16,35 +16,20 @@ const appDir = path.dirname(fileURLToPath(import.meta.url));
 const frontendRoot = path.resolve(appDir, "../..");
 const isProduction = process.env.NODE_ENV === "production";
 
-// API_BASE_URL is baked into the bundle at build time. In dev, an empty string
-// means same-origin and the rspack devServer proxies /api/* to API_TARGET.
-// In production builds, this MUST be set to the absolute API origin
-// (e.g. https://api.your-domain.com) so the SPA on Cloudflare can reach the
-// backend on the cluster.
 const API_BASE_URL = process.env.API_BASE_URL ?? "";
 if (isProduction && !API_BASE_URL) {
-  // Fail loudly rather than ship a broken bundle pointed at "same origin".
-  throw new Error(
-    "API_BASE_URL must be set for production builds (cross-origin SPA → API).",
+  console.warn(
+    "[rspack] API_BASE_URL is empty for a production build — assuming " +
+      "same-origin (single-vps style). Set API_BASE_URL=https://api.x.com " +
+      "if you intend a cross-origin deployment.",
   );
 }
 
-// MFE remote entry URLs are baked into the host bundle by Module Federation.
-// In dev they point at the local rspack devServer of each remote.
-// In production they MUST point at the deployed remote's manifest URL
-// (typically same Cloudflare Pages project under a subpath, or a separate
-// Pages project per remote).
 const MFE_ADMIN_ENTRY =
   process.env.MFE_ADMIN_ENTRY ??
   (isProduction
-    ? undefined
+    ? "mfe_admin@/mfe-admin/mf-manifest.json"
     : "mfe_admin@http://localhost:3001/mf-manifest.json");
-if (isProduction && !MFE_ADMIN_ENTRY) {
-  throw new Error(
-    "MFE_ADMIN_ENTRY must be set for production builds " +
-      "(e.g. 'mfe_admin@https://app.your-domain.com/mfe-admin/mf-manifest.json').",
-  );
-}
 
 function isPackageModule(module, packageName) {
   return module.resource?.includes(

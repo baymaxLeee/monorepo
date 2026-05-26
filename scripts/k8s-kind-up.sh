@@ -127,9 +127,9 @@ create_secret_if_missing admin-secrets \
   --from-literal=REDIS_HOST=redis.kind.local
 
 create_secret_if_missing telemetry-secrets \
-  --from-literal=CLICKHOUSE_HOST=clickhouse.kind.local \
-  --from-literal=CLICKHOUSE_USER=telemetry \
-  --from-literal=CLICKHOUSE_PASSWORD=kind-only-not-a-real-password
+  --from-literal=MYSQL_HOST=mysql.kind.local \
+  --from-literal=MYSQL_USER=telemetry \
+  --from-literal=MYSQL_PASSWORD=kind-only-not-a-real-password
 
 # Self-signed TLS so Ingress accepts HTTPS termination (not actually trusted).
 if ! kubectl -n "${NAMESPACE}" get secret api-tls >/dev/null 2>&1; then
@@ -161,8 +161,6 @@ fi
 RENDER_DIR=$(mktemp -d)
 trap 'rm -rf "$RENDER_DIR"' EXIT
 
-# Copy the whole infra/ tree (not just infra/k8s) — the observability
-# kustomization references files outside infra/k8s/ via relative paths.
 cp -r "${ROOT}/infra" "${RENDER_DIR}/infra"
 K8S_DIR="${RENDER_DIR}/infra/k8s"
 
@@ -208,6 +206,8 @@ spec:
 EOF
 
 OUT_FILE="${RENDER_DIR}/rendered.yaml"
+# --load-restrictor=LoadRestrictionsNone lets overlays reference raw files
+# one level up (e.g. ../../base/ingress.yaml).
 kubectl kustomize --load-restrictor=LoadRestrictionsNone \
   "${K8S_DIR}/overlays/prod" > "${OUT_FILE}"
 
