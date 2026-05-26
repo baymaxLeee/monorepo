@@ -1,5 +1,13 @@
 """Intention business service."""
 
+# This module defines an `async def list(self)` method on IntentionService,
+# which shadows the builtin `list` inside the class body. Without delayed
+# annotation evaluation, an annotation like `ids: list[str]` later in the
+# same class body resolves `list` to that method (a function), not the
+# builtin, and Python raises `TypeError: 'function' object is not subscriptable`
+# at import time → uvicorn fails to load the app. PEP 563 fixes it cleanly.
+from __future__ import annotations
+
 from datetime import UTC
 
 from kernel.errors import NotFoundError
