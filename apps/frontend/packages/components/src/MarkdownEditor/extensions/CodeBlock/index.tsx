@@ -1,10 +1,3 @@
-import { Input, Message, Select, Tooltip } from "../../../compat/legacy-ui";
-import {
-  IconCopy,
-  IconDown,
-  IconRight,
-  IconText1,
-} from "../../../compat/legacy-icons";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import {
   NodeViewContent,
@@ -12,14 +5,21 @@ import {
   NodeViewWrapper,
   ReactNodeViewRenderer,
 } from "@tiptap/react";
-import { cn } from "shared";
+import { ChevronDown, ChevronRight, Copy, WrapText } from "lucide-react";
 import { common, createLowlight } from "lowlight";
 import React, { useState } from "react";
-import { slotClassNameFactory } from "../../../compat/className";
+import { cn } from "shared";
+import { toast } from "sonner";
+import { Input } from "../../../Input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../../Select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../../Tooltip";
 import { useEditorContext } from "../../context";
-
-const Option = Select.Option;
-const cssPrefix = slotClassNameFactory("markdown-editor-code-block");
 
 const lowlight = createLowlight(common);
 lowlight.registerAlias("xml", ["html"]);
@@ -27,6 +27,11 @@ lowlight.registerAlias("xml", ["html"]);
 const supportedLanguages: string[] = [...lowlight.listLanguages(), "html"].sort(
   (a, b) => a.localeCompare(b),
 );
+
+const ACTION_BTN_CLS =
+  "flex h-6 cursor-pointer select-none items-center gap-1 rounded px-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
+
+const ACTION_BTN_ACTIVE_CLS = "bg-blue-50 text-blue-600 hover:text-blue-600";
 
 export const CodeBlockComponent: React.FC<NodeViewProps> = ({
   node,
@@ -45,87 +50,100 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({
     const content = node.textContent;
 
     navigator.clipboard.writeText(content).then(() => {
-      Message.success("复制成功");
+      toast.success("复制成功");
     });
   };
 
   const lineCount = node.textContent.split("\n").length;
 
   return (
-    <NodeViewWrapper className={cssPrefix`wrapper`}>
+    <NodeViewWrapper className="my-2 w-full">
       <div
         className={cn(
-          cssPrefix`container`,
-          isCollapsed ? cssPrefix`collapsed` : "",
+          "flex flex-col overflow-hidden rounded-lg border bg-muted transition-[border-color,box-shadow] duration-200 hover:border-blue-400/60 hover:shadow-[0_0_0_1px_rgba(59,130,246,0.1)]",
+          isCollapsed ? "h-10" : "min-h-10",
         )}
       >
         {/* Header */}
-        <div className={cssPrefix`header`} contentEditable={false}>
-          <div className={cssPrefix`header-left`}>
-            <div
-              className={cssPrefix`collapse-btn`}
+        <div
+          className="flex h-10 flex-shrink-0 select-none items-center justify-between border-b bg-muted px-3"
+          contentEditable={false}
+        >
+          <div className="mr-4 flex h-6 min-w-0 flex-1 items-center">
+            <button
+              type="button"
+              className="mr-1 flex size-6 flex-shrink-0 cursor-pointer items-center justify-center rounded transition-colors hover:bg-accent"
               onClick={() => setIsCollapsed(!isCollapsed)}
             >
-              {isCollapsed ? <IconRight /> : <IconDown />}
-            </div>
+              {isCollapsed ? (
+                <ChevronRight className="size-3 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="size-3 text-muted-foreground" />
+              )}
+            </button>
             {!isMarkdown && (
               <Input
-                size="mini"
                 placeholder="请输入代码块名称"
-                value={title}
-                onChange={(val) => updateAttributes({ title: val })}
-                className={cssPrefix`title-input`}
+                value={title ?? ""}
+                onChange={(e) => updateAttributes({ title: e.target.value })}
                 disabled={!editable}
+                className="h-6 flex-1 border-none bg-transparent px-1 py-0 text-sm shadow-none focus-visible:bg-accent focus-visible:ring-0"
               />
             )}
           </div>
 
           {!isCollapsed && (
-            <div className={cssPrefix`header-right`}>
-              <Tooltip content="切换代码语言" trigger="hover">
-                <div>
-                  <Select
-                    showSearch
-                    size="mini"
-                    placeholder="搜索"
-                    value={language || ""}
-                    onChange={(value) => updateAttributes({ language: value })}
-                    className={cssPrefix`lang-select`}
-                    bordered={false}
-                    disabled={!editable}
-                    triggerProps={{
-                      autoAlignPopupWidth: false,
-                      position: "bl",
-                    }}
-                  >
-                    {supportedLanguages.map((lang) => (
-                      <Option key={lang} value={lang}>
-                        {lang}
-                      </Option>
-                    ))}
-                  </Select>
-                </div>
+            <div className="flex h-6 items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <Select
+                      value={language || ""}
+                      onValueChange={(value) =>
+                        updateAttributes({ language: value })
+                      }
+                      disabled={!editable}
+                    >
+                      <SelectTrigger className="h-6 w-[120px] border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground focus:ring-0 focus-visible:ring-0">
+                        <SelectValue placeholder="语言" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {supportedLanguages.map((lang) => (
+                          <SelectItem key={lang} value={lang}>
+                            {lang}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>切换代码语言</TooltipContent>
               </Tooltip>
 
-              <div className={cssPrefix`divider`} />
+              <span className="mx-2 h-3 w-px bg-border" />
 
-              <div
+              <button
+                type="button"
                 className={cn(
-                  cssPrefix`action-btn`,
-                  isAutoWrap ? cssPrefix`active` : "",
+                  ACTION_BTN_CLS,
+                  isAutoWrap && ACTION_BTN_ACTIVE_CLS,
                 )}
                 onClick={() => setIsAutoWrap(!isAutoWrap)}
               >
-                <IconText1 fontSize="0.8em" />
-                <span>自动换行</span>
-              </div>
+                <WrapText className="size-3.5" />
+                <span className="text-xs">自动换行</span>
+              </button>
 
-              <div className={cn(cssPrefix`divider`, cssPrefix`vertical`)} />
+              <span className="mx-2 h-3 w-px bg-border" />
 
-              <div className={cssPrefix`action-btn`} onClick={handleCopy}>
-                <IconCopy />
-                <span>复制</span>
-              </div>
+              <button
+                type="button"
+                className={ACTION_BTN_CLS}
+                onClick={handleCopy}
+              >
+                <Copy className="size-3.5" />
+                <span className="text-xs">复制</span>
+              </button>
             </div>
           )}
         </div>
@@ -133,22 +151,32 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({
         {/* Code Content */}
         <div
           className={cn(
-            cssPrefix`content`,
-            isCollapsed ? cssPrefix`hidden` : "",
+            "relative flex w-full bg-background transition-all duration-200",
+            isCollapsed && "hidden",
           )}
         >
           {/* Line Numbers */}
-          <div className={cssPrefix`lines`} contentEditable={false}>
+          <div
+            className="flex-none select-none border-r bg-muted py-4 pr-2 text-right"
+            style={{ width: 40 }}
+            contentEditable={false}
+          >
             {Array.from({ length: lineCount }).map((_, i) => (
-              <div key={i} className={cssPrefix`line-number`}>
+              <div
+                key={i}
+                className="font-mono text-xs leading-[22px] text-muted-foreground"
+              >
                 {i + 1}
               </div>
             ))}
           </div>
 
           {/* Code Area */}
-          <pre className={cssPrefix`pre`}>
-            <code style={{ whiteSpace: isAutoWrap ? "pre-wrap" : "pre" }}>
+          <pre className="m-0 flex-1 overflow-x-auto break-all bg-background p-4 font-mono text-sm leading-[22px]">
+            <code
+              className="block min-w-full !border-0 !bg-transparent !p-0"
+              style={{ whiteSpace: isAutoWrap ? "pre-wrap" : "pre" }}
+            >
               <NodeViewContent />
             </code>
           </pre>

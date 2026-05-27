@@ -1,4 +1,3 @@
-import { Spin } from "../../../compat/legacy-ui";
 import { Image as TiptapImage } from "@tiptap/extension-image";
 import { TextSelection } from "@tiptap/pm/state";
 import {
@@ -6,13 +5,11 @@ import {
   NodeViewWrapper,
   ReactNodeViewRenderer,
 } from "@tiptap/react";
+import { Loader2 } from "lucide-react";
 import { cn } from "shared";
 import React, { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { slotClassNameFactory } from "../../../compat/className";
 import { isSelectionInsideTableCell } from "../../utils";
-
-const cssPrefix = slotClassNameFactory("markdown-editor-image");
 
 export interface CreateImageExtensionOptions {
   onUpload?: (file: File) => Promise<string>;
@@ -147,17 +144,22 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
 
   return (
     <NodeViewWrapper
-      className={cn(cssPrefix`wrapper`, {
-        [cssPrefix`selected`]: selected,
-      })}
+      className={cn(
+        "relative inline-block leading-none outline-none",
+        selected && "outline outline-2 outline-blue-500",
+      )}
     >
-      <img className={cssPrefix`img`} src={imgSrc} alt={alt} title={title} />
+      <img className="block max-w-full" src={imgSrc} alt={alt} title={title} />
       {loading && !error && (
-        <div className={cssPrefix`overlay`}>
-          <Spin />
+        <div className="absolute inset-0 flex items-center justify-center bg-white/60">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
         </div>
       )}
-      {error && <div className={cssPrefix`error-overlay`}>上传失败</div>}
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center border border-red-500/60 bg-red-500/10 text-xs leading-none text-red-700">
+          上传失败
+        </div>
+      )}
     </NodeViewWrapper>
   );
 };

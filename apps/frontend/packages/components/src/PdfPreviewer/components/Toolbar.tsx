@@ -123,7 +123,7 @@ const PdfToolbar = ({
 
   return (
     <div
-      className="flex shrink-0 items-center gap-1.5 border-b bg-background/95 px-3 py-1.5"
+      className="pointer-events-auto absolute left-1/2 top-3 z-20 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-md border bg-background/90 px-2 py-1 shadow-lg backdrop-blur-md"
       data-testid="pdf-toolbar"
       role="toolbar"
     >
@@ -291,7 +291,9 @@ const PdfToolbar = ({
         />
       ) : null}
 
-      {extra ? <div className="ml-auto flex items-center gap-1.5">{extra}</div> : null}
+      {extra ? (
+        <div className="ml-auto flex items-center gap-1.5">{extra}</div>
+      ) : null}
     </div>
   );
 };

@@ -41,6 +41,7 @@ export {
   type ErrorFallbackProps,
   type WithErrorBoundaryOptions,
 } from "./ErrorBoundary";
+export { FileIcon, getFileIcon, type FileIconProps } from "./FileIcon";
 export {
   Field,
   FieldContent,
@@ -92,9 +93,20 @@ export {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./DropdownMenu";
+export { HoverCard, HoverCardContent, HoverCardTrigger } from "./HoverCard";
 export { Input } from "./Input";
 export { Label } from "./Label";
 export { Lazy } from "./Lazy";
+export {
+  Menu,
+  MenuItem,
+  MenuItemGroup,
+  MenuLabel,
+  MenuSeparator,
+  type MenuProps,
+  type MenuItemProps,
+  type MenuItemGroupProps,
+} from "./Menu";
 export {
   FileWorkspace,
   ChangeAction,

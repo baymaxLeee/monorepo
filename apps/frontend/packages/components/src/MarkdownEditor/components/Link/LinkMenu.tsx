@@ -1,10 +1,9 @@
-import { Message, Tooltip, Trigger } from "../../../compat/legacy-ui";
-import { IconCopy, IconDelete, IconEdit } from "../../../compat/legacy-icons";
 import { Editor, getMarkRange } from "@tiptap/core";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Copy, Pencil, Unlink } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "../../../Button";
 import {
@@ -16,7 +15,8 @@ import {
   FormMessage,
 } from "../../../Form";
 import { Input } from "../../../Input";
-import { slotClassNameFactory } from "../../../compat/className";
+import { Popover, PopoverAnchor, PopoverContent } from "../../../Popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../../Tooltip";
 import { URL_REGEX } from "../../constants";
 import { getFullUrl, getMountedEditorDom } from "../../utils";
 
@@ -31,7 +31,8 @@ const linkSchema = z.object({
 
 type LinkFormValues = z.infer<typeof linkSchema>;
 
-const cssPrefix = slotClassNameFactory("markdown-editor-link");
+const ICON_BTN_CLS =
+  "inline-flex size-7 cursor-pointer select-none items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground";
 
 export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
   const [mode, setMode] = useState<"preview" | "edit">("preview");
@@ -84,13 +85,11 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
     [editor],
   );
 
-  // 监听 Mouse Hover 事件
   useEffect(() => {
     const dom = getMountedEditorDom(editor);
     if (!dom) return;
 
     const handleMouseOver = (event: MouseEvent) => {
-      // 如果处于锁定状态（例如正在编辑，或者通过点击打开了菜单），则忽略 hover
       if (mode === "edit") return;
 
       const target = event.target as HTMLElement;
@@ -99,7 +98,6 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
       if (linkEl && dom.contains(linkEl)) {
         if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
 
-        // 稍微延迟显示，避免快速划过时闪烁
         hoverTimerRef.current = setTimeout(() => {
           updateLinkData(linkEl);
         }, 300);
@@ -123,7 +121,6 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
     };
   }, [editor, mode, updateLinkData]);
 
-  // 监听 Menu 的 Hover，防止鼠标移入 Menu 时 Menu 消失
   const handleMenuMouseEnter = () => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
   };
@@ -142,13 +139,11 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
     }
   }, [mode, currentLink.href, currentLink.text, form]);
 
-  // 监听点击外部关闭 (仅在 Edit 模式下生效)
   useEffect(() => {
     if (mode !== "edit" || !visible) return;
 
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
-      // 如果点击的是菜单内部，不关闭
       if (menuRef.current?.contains(target)) {
         return;
       }
@@ -164,7 +159,7 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
 
   const handleCopy = () => {
     navigator.clipboard.writeText(currentLink.href).then(() => {
-      Message.success("链接已复制");
+      toast.success("链接已复制");
     });
   };
 
@@ -218,111 +213,127 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
     setVisible(false);
   };
 
-  const renderPreview = () => (
-    <div className={cssPrefix`prev-content`}>
-      <span className={cssPrefix`href`}>{currentLink.href}</span>
-      <Tooltip content="编辑链接">
-        <div className={cssPrefix`btn`}>
-          <IconEdit onClick={() => setMode("edit")} />
-        </div>
-      </Tooltip>
-      <Tooltip content="移除链接">
-        <div className={cssPrefix`btn`}>
-          <IconDelete onClick={handleUnlink} />
-        </div>
-      </Tooltip>
-      <Tooltip content="复制链接">
-        <div className={cssPrefix`btn`}>
-          <IconCopy onClick={handleCopy} />
-        </div>
-      </Tooltip>
-    </div>
-  );
-
-  const renderEdit = () => (
-    <div className={cssPrefix`edit-content`}>
-      <Form {...form}>
-        <form
-          autoComplete="off"
-          className="grid gap-3"
-          onSubmit={form.handleSubmit(handleSubmit)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.stopPropagation();
-            }
-          }}
-        >
-          <FormField
-            control={form.control}
-            name="text"
-            render={({ field }) => (
-              <FormItem className="grid grid-cols-[3rem_1fr] items-center gap-x-2">
-                <FormLabel className="text-right text-xs">文本</FormLabel>
-                <FormControl>
-                  <Input className="h-8" {...field} />
-                </FormControl>
-                <FormMessage className="col-start-2" />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="href"
-            render={({ field }) => (
-              <FormItem className="grid grid-cols-[3rem_1fr] items-center gap-x-2">
-                <FormLabel className="text-right text-xs">链接</FormLabel>
-                <FormControl>
-                  <Input
-                    className="h-8"
-                    placeholder="粘贴或输入链接"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage className="col-start-2" />
-              </FormItem>
-            )}
-          />
-          <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={!form.formState.isValid}>
-              确认
-            </Button>
-          </div>
-        </form>
-      </Form>
-    </div>
-  );
-
   if (!anchorEl) return null;
 
-  return createPortal(
-    <Trigger
-      popupVisible={visible}
-      popup={() => (
-        <div
-          ref={menuRef}
-          className={cssPrefix`bubble-menu`}
-          onMouseEnter={handleMenuMouseEnter}
-          onMouseLeave={handleMenuMouseLeave}
-        >
-          {mode === "preview" ? renderPreview() : renderEdit()}
-        </div>
-      )}
-      trigger={undefined}
-      position={mode === "preview" ? "top" : "bottom"}
-      popupAlign={{ [mode === "preview" ? "top" : "bottom"]: 6 }}
+  return (
+    <Popover
+      open={visible}
+      onOpenChange={(open) => {
+        if (!open) setVisible(false);
+      }}
     >
-      <div
-        style={{
-          position: "fixed",
-          top: anchorEl.getBoundingClientRect().top,
-          left: anchorEl.getBoundingClientRect().left,
-          width: anchorEl.getBoundingClientRect().width,
-          height: anchorEl.getBoundingClientRect().height,
-          pointerEvents: "none", // 让点击穿透到下方的 link
-          visibility: "hidden",
+      <PopoverAnchor virtualRef={{ current: anchorEl }} />
+      <PopoverContent
+        ref={menuRef}
+        side={mode === "preview" ? "top" : "bottom"}
+        align="start"
+        sideOffset={6}
+        className="w-auto rounded-lg border bg-popover p-0 text-popover-foreground shadow-md"
+        onMouseEnter={handleMenuMouseEnter}
+        onMouseLeave={handleMenuMouseLeave}
+        onOpenAutoFocus={(e) => {
+          if (mode === "preview") e.preventDefault();
         }}
-      />
-    </Trigger>,
-    document.body,
+      >
+        {mode === "preview" ? (
+          <div className="flex items-center justify-center gap-1 px-2 py-1">
+            <span className="inline-block w-[150px] truncate text-sm">
+              {currentLink.href}
+            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={ICON_BTN_CLS}
+                  onClick={() => setMode("edit")}
+                >
+                  <Pencil className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>编辑链接</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={ICON_BTN_CLS}
+                  onClick={handleUnlink}
+                >
+                  <Unlink className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>移除链接</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={ICON_BTN_CLS}
+                  onClick={handleCopy}
+                >
+                  <Copy className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>复制链接</TooltipContent>
+            </Tooltip>
+          </div>
+        ) : (
+          <div className="w-[250px] p-2">
+            <Form {...form}>
+              <form
+                autoComplete="off"
+                className="grid gap-3"
+                onSubmit={form.handleSubmit(handleSubmit)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                  }
+                }}
+              >
+                <FormField
+                  control={form.control}
+                  name="text"
+                  render={({ field }) => (
+                    <FormItem className="grid grid-cols-[3rem_1fr] items-center gap-x-2">
+                      <FormLabel className="text-right text-xs">文本</FormLabel>
+                      <FormControl>
+                        <Input className="h-8" {...field} />
+                      </FormControl>
+                      <FormMessage className="col-start-2" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="href"
+                  render={({ field }) => (
+                    <FormItem className="grid grid-cols-[3rem_1fr] items-center gap-x-2">
+                      <FormLabel className="text-right text-xs">链接</FormLabel>
+                      <FormControl>
+                        <Input
+                          className="h-8"
+                          placeholder="粘贴或输入链接"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage className="col-start-2" />
+                    </FormItem>
+                  )}
+                />
+                <div className="flex justify-end">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={!form.formState.isValid}
+                  >
+                    确认
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 };

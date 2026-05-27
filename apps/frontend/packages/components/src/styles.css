@@ -145,23 +145,43 @@
   }
 
   .code-editor {
-    @apply h-full;
+    @apply h-full w-full min-w-0;
   }
 
   .code-editor .cm-editor {
-    @apply h-full outline-none;
+    @apply h-full w-full min-w-0 outline-none;
   }
 
   .code-editor .cm-editor.cm-focused {
     @apply outline-none;
   }
 
+  .code-editor .cm-scroller {
+    @apply min-w-0;
+  }
+
   .file-workspace {
-    @apply flex h-full overflow-hidden rounded-md border bg-background;
+    @apply flex h-full w-full overflow-hidden border bg-background text-foreground;
+    border-color: oklch(0.9 0 0);
+    border-radius: 0;
   }
 
   .file-workspace-sidebar {
-    @apply flex w-64 shrink-0 flex-col border-r bg-muted/20;
+    @apply flex shrink-0 flex-col overflow-hidden bg-background;
+  }
+
+  .file-workspace-resizer {
+    @apply relative z-10 w-px shrink-0 cursor-col-resize bg-border;
+  }
+
+  .file-workspace-resizer::before {
+    content: "";
+    @apply absolute inset-y-0 -left-px w-0.5 bg-transparent transition-colors;
+  }
+
+  .file-workspace-resizer:hover::before,
+  .file-workspace-resizer:active::before {
+    background: #1677ff;
   }
 
   .file-workspace-main-panel,
@@ -169,37 +189,220 @@
     @apply flex min-w-0 flex-1 flex-col;
   }
 
-  .file-workspace-tree-header,
-  .file-workspace-tab-bar,
+  .file-workspace-tree-header {
+    @apply flex h-8 shrink-0 items-center justify-between border-b bg-muted/40 px-3;
+  }
+
   .pdf-previewer-toolbar,
   .x-mind-previewer-toolbar {
     @apply flex items-center gap-2 border-b bg-background/95 px-3 py-2;
   }
 
-  .file-workspace-tree-content,
+  .file-workspace-tree-title {
+    @apply text-sm font-medium leading-5 text-foreground;
+  }
+
+  .file-workspace-tree-actions {
+    @apply flex items-center gap-1;
+  }
+
+  .file-workspace-tree-action-btn {
+    @apply inline-flex size-6 items-center justify-center rounded-sm border-0 bg-transparent text-muted-foreground transition-colors hover:bg-accent hover:text-foreground;
+  }
+
+  .file-workspace-tree-action-btn svg {
+    @apply size-4 stroke-2;
+  }
+
+  .file-workspace-file-search {
+    @apply shrink-0 border-b bg-background px-3 py-3;
+  }
+
+  .file-workspace-file-search > div {
+    @apply w-full;
+  }
+
+  .file-workspace-file-search input {
+    @apply h-9 rounded-md border-input bg-background pl-8 text-sm shadow-none placeholder:text-muted-foreground focus-visible:ring-1;
+  }
+
+  .file-workspace-file-search svg {
+    @apply size-4;
+  }
+
   .file-workspace-file-tree {
-    @apply min-h-0 flex-1 overflow-auto p-2;
+    @apply min-h-0 flex-1 select-none overflow-hidden bg-background;
+  }
+
+  .file-workspace-tree-content {
+    @apply h-full overflow-y-auto overflow-x-hidden py-1;
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.82 0 0) transparent;
+  }
+
+  .file-workspace-tree-content::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .file-workspace-tree-content::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .file-workspace-tree-content::-webkit-scrollbar-thumb {
+    background-color: oklch(0.82 0 0);
+    border-radius: 999px;
   }
 
   .file-workspace-tree-node,
-  .file-workspace-search-item,
-  .markdown-editor-toolbar-menu-item,
-  .markdown-editor-table-menu-menu-item {
-    @apply flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent;
+  .file-workspace-search-item {
+    @apply flex cursor-default items-center text-sm transition-colors;
+  }
+
+  .file-workspace-tree-node {
+    @apply h-8 gap-2 whitespace-nowrap pr-2 text-foreground hover:bg-muted;
+  }
+
+  .file-workspace-tree-node.active {
+    background: #e8f3ff;
+    color: #1677ff;
+  }
+
+  .file-workspace-tree-node.dragOver {
+    background: #d4e8ff;
+  }
+
+  .file-workspace-node-icon {
+    @apply mr-1 flex shrink-0 items-center justify-center;
+  }
+
+  .file-workspace-node-icon svg {
+    @apply size-5 stroke-2;
+  }
+
+  .file-workspace-node-icon:has(svg.lucide-folder),
+  .file-workspace-node-icon:has(svg.lucide-folder-open) {
+    color: #f3c623;
+  }
+
+  .file-workspace-node-icon:has(svg.lucide-file-text) {
+    color: #1677ff;
+  }
+
+  .file-workspace-node-name {
+    @apply min-w-0 overflow-hidden text-ellipsis;
+  }
+
+  .file-workspace-inline-input-wrapper {
+    @apply relative min-w-0 flex-1;
+  }
+
+  .file-workspace-inline-input {
+    @apply h-6 w-full rounded-sm border bg-background px-1 text-sm text-foreground outline-none;
+    border-color: #1677ff;
+  }
+
+  .file-workspace-inline-input.error {
+    @apply border-destructive;
+  }
+
+  .file-workspace-name-error-tip {
+    @apply absolute left-0 right-0 top-full z-10 mt-px break-all border px-2 py-1 text-xs leading-5 text-white;
+    background: #752020;
+    border-color: #be1100;
+  }
+
+  .file-workspace-search-item {
+    @apply h-7 gap-1 whitespace-nowrap px-3 text-foreground hover:bg-muted;
+  }
+
+  .file-workspace-search-item.active {
+    background: #e8f3ff;
+  }
+
+  .file-workspace-search-item-name {
+    @apply shrink-0 text-sm;
+  }
+
+  .file-workspace-search-item-path {
+    @apply ml-1 overflow-hidden text-ellipsis text-xs text-muted-foreground;
+  }
+
+  .file-workspace-search-highlight {
+    color: #1677ff;
+    font-weight: 600;
+  }
+
+  .file-workspace-search-empty {
+    @apply px-3 py-8 text-center text-xs text-muted-foreground;
+  }
+
+  .file-workspace-context-menu {
+    @apply fixed z-[9999] min-w-36 rounded-md border bg-popover py-1 text-popover-foreground shadow-md;
+  }
+
+  .file-workspace-menu-item {
+    @apply cursor-default px-4 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground;
+  }
+
+  .file-workspace-menu-item.danger {
+    color: #e5484d;
+  }
+
+  .file-workspace-menu-item.danger:hover {
+    background: #fff0ed;
+    color: #e5484d;
+  }
+
+  .file-workspace-tab-bar {
+    @apply flex h-8 shrink-0 overflow-x-auto overflow-y-hidden border-b bg-muted/40;
+    scrollbar-width: none;
+  }
+
+  .file-workspace-tab-bar::-webkit-scrollbar {
+    display: none;
   }
 
   .file-workspace-tab {
-    @apply flex h-9 items-center gap-2 border-r px-3 text-sm;
+    @apply flex h-8 max-w-48 shrink-0 cursor-default items-center gap-2 border-r px-3 text-sm text-muted-foreground transition-colors hover:bg-muted;
   }
 
-  .file-workspace-tab-active {
-    @apply bg-background font-medium;
+  .file-workspace-tab.active-tab {
+    @apply relative bg-background text-foreground;
+  }
+
+  .file-workspace-tab.active-tab::after {
+    content: "";
+    @apply absolute -bottom-px left-0 right-0 h-px bg-background;
+  }
+
+  .file-workspace-tab-name {
+    @apply min-w-0 max-w-36 overflow-hidden text-ellipsis whitespace-nowrap;
+  }
+
+  .file-workspace-tab-close {
+    @apply flex size-4 shrink-0 items-center justify-center rounded-sm text-base leading-none opacity-50 transition hover:bg-border hover:opacity-100;
   }
 
   .file-workspace-editor-wrapper,
   .pdf-previewer-body,
   .x-mind-previewer-body {
     @apply relative min-h-0 flex-1 overflow-auto;
+  }
+
+  .file-workspace-loading-overlay {
+    @apply absolute inset-0 z-10 flex items-center justify-center bg-background/75 text-sm text-muted-foreground;
+  }
+
+  .file-workspace-empty-editor {
+    @apply flex h-full flex-col items-center justify-center text-muted-foreground;
+  }
+
+  .file-workspace-empty-editor p {
+    @apply mt-3 text-sm;
+  }
+
+  .file-workspace-empty-icon {
+    @apply text-5xl opacity-40;
   }
 
   .file-workspace-lazy-mask,
@@ -210,90 +413,409 @@
     @apply flex min-h-30 items-center justify-center p-6 text-center text-sm text-muted-foreground;
   }
 
+  /* ============================================================
+     MarkdownEditor 容器（基底，不含 toolbar/popup —— 后者由组件内联 utility 提供）
+     高保真还原自原 EAMarkdownEditor/components/Editor/index.less
+     ============================================================ */
   .markdown-editor {
-    @apply relative rounded-md border bg-background;
+    height: 100%;
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
   }
 
+  .markdown-editor-mask {
+    height: 100%;
+    width: 100%;
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    background-color: rgb(255 255 255 / 0%);
+  }
+
+  .markdown-editor-editable .markdown-editor-content {
+    background-color: var(--background);
+    padding-left: 2em;
+    padding-right: 0.5em;
+  }
+
+  /* ---------- 内容区滚动容器 ---------- */
   .markdown-editor-content {
-    @apply min-h-40 p-4 outline-none;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    line-height: 1.6;
+    outline: none;
+    transition: background-color 0.2s ease;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
-
+  .markdown-editor-content::-webkit-scrollbar {
+    display: none;
+  }
+  .markdown-editor-content:focus,
+  .markdown-editor-content:focus-visible {
+    outline: none;
+  }
+  .markdown-editor-content > :first-child {
+    margin-top: 0.5em;
+  }
+  .markdown-editor-content > :last-child {
+    margin-bottom: 0;
+  }
   .markdown-editor-content .ProseMirror {
-    @apply min-h-40 outline-none;
+    outline: none !important;
+  }
+  .markdown-editor-content .ProseMirror:focus,
+  .markdown-editor-content .ProseMirror:focus-visible {
+    outline: none !important;
   }
 
-  .markdown-editor-content .ProseMirror p {
-    @apply my-2 leading-7;
+  /* ---------- 段落 ---------- */
+  .markdown-editor-content p {
+    margin: 0.5em 0;
+    word-wrap: break-word;
+    word-break: break-word;
+  }
+  .markdown-editor-content p:first-child {
+    margin-top: 0;
+  }
+  .markdown-editor-content p:last-child {
+    margin-bottom: 0;
   }
 
-  .markdown-editor-content .ProseMirror h1 {
-    @apply mt-6 mb-3 text-3xl font-semibold;
+  /* ---------- 标题 ---------- */
+  .markdown-editor-content h1,
+  .markdown-editor-content h2,
+  .markdown-editor-content h3,
+  .markdown-editor-content h4,
+  .markdown-editor-content h5,
+  .markdown-editor-content h6 {
+    font-weight: 700;
+    line-height: 1.25;
+    margin: 0.5em 0;
+    color: var(--foreground);
+    text-wrap: pretty;
+  }
+  .markdown-editor-content :is(h1, h2, h3, h4, h5, h6):first-child {
+    margin-top: 0;
+  }
+  .markdown-editor-content :is(h1, h2, h3, h4, h5, h6):last-child {
+    margin-bottom: 0;
+  }
+  .markdown-editor-content h1 {
+    font-size: 1.375em;
+  }
+  .markdown-editor-content h2 {
+    font-size: 1.25em;
+  }
+  .markdown-editor-content h3 {
+    font-size: 1.125em;
+  }
+  .markdown-editor-content h4,
+  .markdown-editor-content h5,
+  .markdown-editor-content h6 {
+    font-size: 1em;
   }
 
-  .markdown-editor-content .ProseMirror h2 {
-    @apply mt-5 mb-3 text-2xl font-semibold;
+  /* ---------- 列表 ---------- */
+  .markdown-editor-content ul,
+  .markdown-editor-content ol {
+    padding-left: 1em;
+    margin: 0.5em 0;
+    line-height: 1.8;
+  }
+  .markdown-editor-content li {
+    margin: 0.25em 0;
+    padding-left: 0.25em;
+  }
+  .markdown-editor-content li p {
+    margin: 0.25em 0;
+  }
+  .markdown-editor-content li::marker {
+    color: var(--primary);
+  }
+  .markdown-editor-content li[data-text-align="center"],
+  .markdown-editor-content li[data-text-align="right"] {
+    list-style-position: inside;
+    padding-left: 0;
+  }
+  .markdown-editor-content li[data-text-align="center"] > p,
+  .markdown-editor-content li[data-text-align="right"] > p {
+    display: inline;
+  }
+  .markdown-editor-content :is(ul, ol) :is(ul, ol) {
+    margin: 0.5em 0;
+  }
+  .markdown-editor-content ul {
+    list-style-type: disc;
+  }
+  .markdown-editor-content ul ul {
+    list-style-type: circle;
+  }
+  .markdown-editor-content ul ul ul {
+    list-style-type: square;
+  }
+  .markdown-editor-content ol {
+    list-style-type: decimal;
   }
 
-  .markdown-editor-content .ProseMirror h3 {
-    @apply mt-4 mb-2 text-xl font-semibold;
+  /* ---------- 任务列表 ---------- */
+  .markdown-editor-content ul[data-type="taskList"] {
+    list-style: none;
+    padding-left: 0;
+    margin: 0.5em 0;
+  }
+  .markdown-editor-content ul[data-type="taskList"] > li {
+    display: flex;
+    align-items: flex-start;
+    margin: 0.25em 0;
+    padding-left: 0;
+    line-height: 1.6;
+  }
+  .markdown-editor-content ul[data-type="taskList"] > li > label {
+    flex: 0 0 auto;
+    margin-right: 0.25em;
+    margin-top: 0.15em;
+    user-select: none;
+    cursor: pointer;
+  }
+  .markdown-editor-content ul[data-type="taskList"] > li > div {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .markdown-editor-content
+    ul[data-type="taskList"]
+    > li[data-text-align="center"] {
+    justify-content: center;
+  }
+  .markdown-editor-content
+    ul[data-type="taskList"]
+    > li[data-text-align="center"]
+    > div {
+    flex: 0 1 auto;
+  }
+  .markdown-editor-content
+    ul[data-type="taskList"]
+    > li[data-text-align="right"] {
+    justify-content: flex-end;
+  }
+  .markdown-editor-content
+    ul[data-type="taskList"]
+    > li[data-text-align="right"]
+    > div {
+    flex: 0 1 auto;
+  }
+  .markdown-editor-content
+    ul[data-type="taskList"]
+    > li
+    input[type="checkbox"] {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--primary);
+  }
+  .markdown-editor-content
+    ul[data-type="taskList"]
+    > li[data-checked="true"]
+    > div {
+    text-decoration: line-through;
+    color: var(--muted-foreground);
+    opacity: 0.7;
   }
 
-  .markdown-editor-content .ProseMirror blockquote {
-    @apply my-3 border-l-4 border-border pl-4 text-muted-foreground;
+  /* ---------- 链接 ---------- */
+  .markdown-editor-content a {
+    color: var(--primary);
+    text-decoration: none;
+    transition:
+      border-color 0.2s ease,
+      color 0.2s ease;
+    cursor: pointer;
+  }
+  .markdown-editor-content a:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.25em;
   }
 
-  .markdown-editor-content .ProseMirror table {
-    @apply my-3 w-full border-collapse overflow-hidden rounded-md border;
+  /* ---------- mark ---------- */
+  .markdown-editor-content mark {
+    background-color: var(--yellow-2, #fefebe);
+    color: var(--foreground);
+    border-radius: 3px;
+    padding: 0.1em 0.2em;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
 
-  .markdown-editor-content .ProseMirror th,
-  .markdown-editor-content .ProseMirror td {
-    @apply border px-3 py-2 align-top;
+  /* ---------- blockquote ---------- */
+  .markdown-editor-content blockquote {
+    border-left: 2px solid #3491fa;
+    background-color: var(--muted);
+    margin: 1.25em 0;
+    padding: 0.75em 1.25em 0.75em 1.5em;
+    border-radius: 0 4px 4px 0;
+    color: color-mix(in oklch, var(--foreground) 80%, transparent);
+    position: relative;
+    transition: background-color 0.2s ease;
+  }
+  .markdown-editor-content blockquote:hover {
+    background-color: color-mix(in oklch, var(--muted) 60%, var(--accent));
+  }
+  .markdown-editor-content blockquote p {
+    margin: 0.25em 0;
+  }
+  .markdown-editor-content blockquote p:first-child {
+    margin-top: 0;
+  }
+  .markdown-editor-content blockquote p:last-child {
+    margin-bottom: 0;
+  }
+  .markdown-editor-content blockquote blockquote {
+    margin-left: 0;
+    margin-right: 0;
   }
 
-  .markdown-editor-content .ProseMirror pre {
-    @apply my-3 overflow-auto rounded-md bg-muted p-3 text-sm;
+  /* ---------- hr ---------- */
+  .markdown-editor-content hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 1em 0;
+    position: relative;
   }
 
-  .markdown-editor-toolbar-content,
-  .markdown-editor-bubble-toolbar,
-  .markdown-editor-block-menu,
-  .markdown-editor-link-bubble-menu,
-  .markdown-editor-table-menu-bubble-menu {
-    @apply z-50 flex items-center gap-1 rounded-md border bg-popover p-1 text-popover-foreground shadow-md;
+  /* ---------- 图片 ---------- */
+  .markdown-editor-content img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 1.5em auto;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+  .markdown-editor-content img.ProseMirror-selectednode {
+    outline: 3px solid #3491fa;
+    outline-offset: 2px;
+    border-radius: 6px;
   }
 
-  .markdown-editor-toolbar-btn,
-  .markdown-editor-bubble-toolbar-btn,
-  .markdown-editor-block-menu-menu-item,
-  .markdown-editor-link-btn {
-    @apply inline-flex size-8 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground;
+  /* ---------- 排版增强 ---------- */
+  .markdown-editor-content strong {
+    font-weight: 600;
+  }
+  .markdown-editor-content u {
+    text-underline-offset: 0.25em;
   }
 
-  .markdown-editor-toolbar-active,
-  .markdown-editor-bubble-toolbar-active {
-    @apply bg-accent text-accent-foreground;
+  /* ---------- 行内 code ---------- */
+  .markdown-editor-content code {
+    font-family:
+      "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 0.9em;
+    line-height: inherit;
+    color: inherit;
+    background-color: rgb(135 131 120 / 15%);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    word-break: break-word;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
 
-  .markdown-editor-toolbar-disabled,
-  .markdown-editor-bubble-toolbar-disabled {
-    @apply pointer-events-none opacity-40;
+  /* ============================================================
+     表格（D-1 兜底版本：保证 markdown 表格能可视化渲染）
+     完整版本（grip handles / column-resize / selectedCell）见 D-5：
+       原 EAMarkdownEditor/extensions/Table/index.less
+     ============================================================ */
+  .markdown-editor-content table {
+    border-collapse: collapse;
+    margin: 1em 0 1.5em;
+    width: auto;
+    border-radius: 0.25rem;
+    box-sizing: border-box;
+    position: relative;
+  }
+  .markdown-editor-content :is(td, th) {
+    border: 1px solid rgb(0 0 0 / 10%);
+    min-width: 100px;
+    padding: 0.5rem;
+    font-weight: normal;
+    text-align: left;
+    vertical-align: top;
+    position: relative;
+  }
+  .markdown-editor-content th {
+    font-weight: 600;
+    background-color: var(--muted);
+  }
+  .markdown-editor-content :is(td, th) p {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .markdown-editor-content :is(td, th) p + p {
+    margin-top: 0.75rem !important;
+  }
+  .markdown-editor-content .selectedCell {
+    background-color: rgb(0 0 0 / 5%);
+    border: 1px double rgb(0 0 0 / 20%);
   }
 
-  .markdown-editor-toolbar-divider {
-    @apply mx-1 h-5 w-px bg-border;
+  /* ============================================================
+     代码块 pre（D-1 兜底版本，完整版见 D-4：
+       原 EAMarkdownEditor/extensions/CodeBlock/index.less）
+     ============================================================ */
+  .markdown-editor-content pre {
+    margin: 0.5em 0;
+    padding: 1em;
+    font-family: monospace;
+    font-size: 14px;
+    line-height: 22px;
+    color: var(--foreground);
+    background-color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow-x: auto;
+    word-break: break-all;
+  }
+  .markdown-editor-content pre code {
+    font-family: monospace;
+    font-size: 14px;
+    line-height: 22px;
+    color: inherit;
+    display: block;
+    min-width: 100%;
+    background-color: transparent !important;
+    padding: 0 !important;
+    border: none;
   }
 
-  .markdown-editor-table-selector {
-    @apply grid gap-1 rounded-md border bg-popover p-2 shadow-md;
+  /* ---------- 打印 ---------- */
+  @media print {
+    .markdown-editor-content {
+      padding: 0;
+      background: white;
+      color: black;
+    }
+    .markdown-editor-content pre {
+      background: #f5f5f5;
+      border: 1px solid #ddd;
+      page-break-inside: avoid;
+    }
+    .markdown-editor-content img {
+      page-break-inside: avoid;
+      max-width: 100% !important;
+    }
   }
 
-  .markdown-editor-table-selector-cell {
-    @apply size-4 rounded-[2px] border bg-background;
-  }
-
-  .markdown-editor-table-selector-cell-active {
-    @apply border-primary bg-primary/20;
+  [data-block-dragging="true"] .ProseMirror-dropcursor {
+    display: none !important;
   }
 
   .pdf-previewer {
@@ -329,5 +851,20 @@
   .x-mind-previewer-canvas,
   .x-mind-previewer-container {
     @apply min-h-0 flex-1 overflow-hidden;
+  }
+}
+
+@layer utilities {
+  /**
+   * 隐藏视觉滚动条但保留滚动能力。
+   * Firefox 用 scrollbar-width，IE/旧 Edge 用 -ms-overflow-style，
+   * WebKit 系（Chrome/Safari/新 Edge）通过伪元素隐藏。
+   */
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 }

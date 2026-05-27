@@ -3,15 +3,12 @@ import { EditorState, Plugin, PluginKey } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { cn } from "shared";
-import { slotClassNameFactory } from "../../../compat/className";
 import {
   findTable,
   getCellsInRow,
   isColumnSelected,
   selectColumn,
 } from "./utils";
-
-const cssPrefix = slotClassNameFactory("markdown-editor-table");
 
 export const createTableHeaderExtension = () => {
   const columnGripKey = new PluginKey<DecorationSet>("tableColumnGrip");
@@ -65,10 +62,11 @@ export const createTableHeaderExtension = () => {
 
               const grip = document.createElement("span");
               grip.className = cn(
-                cssPrefix`grip-column`,
-                colSelected && cssPrefix`grip-column-selected`,
-                index === 0 && cssPrefix`grip-column-first`,
-                index === cells.length - 1 && cssPrefix`grip-column-last`,
+                "markdown-editor-table-grip-column",
+                colSelected && "markdown-editor-table-grip-column-selected",
+                index === 0 && "markdown-editor-table-grip-column-first",
+                index === cells.length - 1 &&
+                  "markdown-editor-table-grip-column-last",
               );
               grip.addEventListener("mousedown", (event) => {
                 event.preventDefault();

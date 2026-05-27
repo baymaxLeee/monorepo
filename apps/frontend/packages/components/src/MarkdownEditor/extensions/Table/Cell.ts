@@ -3,10 +3,7 @@ import { EditorState, Plugin, PluginKey } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { cn } from "shared";
-import { slotClassNameFactory } from "../../../compat/className";
 import { findTable, getCellsInColumn, isRowSelected, selectRow } from "./utils";
-
-const cssPrefix = slotClassNameFactory("markdown-editor-table");
 
 export interface TableCellOptions {
   HTMLAttributes: Record<string, any>;
@@ -96,10 +93,11 @@ export const createTableCellExtension = () => {
 
               const grip = document.createElement("span");
               grip.className = cn(
-                cssPrefix`grip-row`,
-                rowSelected && cssPrefix`grip-row-selected`,
-                index === 0 && cssPrefix`grip-row-first`,
-                index === cells.length - 1 && cssPrefix`grip-row-last`,
+                "markdown-editor-table-grip-row",
+                rowSelected && "markdown-editor-table-grip-row-selected",
+                index === 0 && "markdown-editor-table-grip-row-first",
+                index === cells.length - 1 &&
+                  "markdown-editor-table-grip-row-last",
               );
               grip.addEventListener("mousedown", (event) => {
                 event.preventDefault();

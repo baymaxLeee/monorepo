@@ -1,60 +1,67 @@
-import {
-  Button,
-  Input,
-  Menu,
-  Message,
-  Tooltip,
-  Trigger,
-} from "../../../compat/legacy-ui";
-import {
-  IconRecordStop,
-  IconSend,
-  IconSync,
-  IconToLeft,
-} from "../../../compat/legacy-icons";
-import {
-  IconAbbreviation1,
-  IconBlod1,
-  IconChecklist1,
-  IconCodeBrackets1,
-  IconCopy,
-  IconDown,
-  IconExpand1,
-  IconH11,
-  IconH21,
-  IconH31,
-  IconH41,
-  IconH51,
-  IconH61,
-  IconHn1,
-  IconHorizontalAlignment1,
-  IconImage1,
-  IconIndentLeft1,
-  IconIndentRight1,
-  IconInderline1,
-  IconInlineCode1,
-  IconItalic1,
-  IconLeftAlignment1,
-  IconLink1,
-  IconMessage,
-  IconOrderedList1,
-  IconQuoted1,
-  IconRedo1,
-  IconRefresh,
-  IconRevise1,
-  IconRightAlignment1,
-  IconStrikethrough1,
-  IconTable1,
-  IconText1,
-  IconText2,
-  IconUndo1,
-  IconUnorderedList1,
-} from "../../../compat/legacy-icons";
 import { Editor, useEditorState } from "@tiptap/react";
 import { cn } from "shared";
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  Bold,
+  ChevronDown,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Code,
+  Code2,
+  Copy,
+  CornerDownLeft,
+  Heading,
+  Heading1,
+  Heading2,
+  Heading3,
+  Heading4,
+  Heading5,
+  Heading6,
+  Image as ImageIcon,
+  Indent,
+  Italic,
+  Link2,
+  List,
+  ListChecks,
+  ListOrdered,
+  MessageSquare,
+  Outdent,
+  Pilcrow,
+  Quote,
+  RefreshCw,
+  Redo2,
+  RotateCcw,
+  Send,
+  Sparkles,
+  Square,
+  Strikethrough,
+  Table as TableIcon,
+  Underline,
+  Undo2,
+  Wand2,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { slotClassNameFactory } from "../../../compat/className";
+import { toast } from "sonner";
+
+import { Button } from "../../../Button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "../../../DropdownMenu";
+import { Input } from "../../../Input";
+import { Menu, MenuItem, MenuItemGroup } from "../../../Menu";
+import { Popover, PopoverContent, PopoverTrigger } from "../../../Popover";
+import { Textarea } from "../../../Textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../../Tooltip";
 import {
   AiPolishStatus,
   ALLOWED_IMAGE_ACCEPT,
@@ -82,26 +89,43 @@ interface IProps {
   onOpenPolish?: () => void;
 }
 
-const cssPrefix = slotClassNameFactory("markdown-editor-toolbar");
 const colorNormalizer =
   typeof document !== "undefined" ? document.createElement("div") : null;
 
-const SubMenu = Menu.SubMenu;
-const MenuItemGroup = Menu.ItemGroup;
-const MenuItem = (props: React.ComponentProps<typeof Menu.Item>) => {
-  return (
-    <Menu.Item {...props} className={cssPrefix`menu-item`}>
-      {props.children}
-    </Menu.Item>
+// ============================================================
+// 工具栏内联 utility class（高保真还原自原 Toolbar/index.less）
+// ============================================================
+/**
+ * 普通图标按钮（B/I/U/S/Code/Link 等）。
+ * active 仅改文字色（高保真还原原 less `color: rgb(var(--primary-6))`），
+ * 蓝色文字 + hover 浅灰底，跟原 Arco 工具栏视觉一致。
+ */
+function btnCls(opts?: { isActive?: boolean; isDisabled?: boolean }) {
+  const { isActive = false, isDisabled = false } = opts ?? {};
+  return cn(
+    "inline-flex size-7 select-none items-center justify-center rounded-md transition-colors [&>svg]:size-4",
+    isDisabled
+      ? "pointer-events-none cursor-not-allowed text-muted-foreground/50 opacity-50"
+      : "cursor-pointer hover:bg-accent",
+    isActive && !isDisabled && "text-blue-600",
   );
-};
+}
 
-const getButtonClass = (isActive = false, isDisabled = false) => {
-  return cn(cssPrefix`btn`, {
-    [cssPrefix`active`]: isActive,
-    [cssPrefix`disabled`]: isDisabled,
-  });
-};
+/** trigger 按钮（带 ChevronDown 的下拉触发器） */
+function triggerCls(opts?: { isActive?: boolean; isDisabled?: boolean }) {
+  const { isActive = false, isDisabled = false } = opts ?? {};
+  return cn(
+    "group/trigger inline-flex h-7 select-none items-center justify-center gap-1 rounded-md px-1.5 transition-colors",
+    "[&>svg]:size-4 [&>svg.icon-down]:size-3 [&>svg.icon-down]:text-muted-foreground [&>svg.icon-down]:transition-transform",
+    isDisabled
+      ? "pointer-events-none cursor-not-allowed text-muted-foreground/50 opacity-50"
+      : "cursor-pointer hover:bg-accent data-[state=open]:bg-accent data-[state=open]:[&>svg.icon-down]:rotate-180",
+    isActive && !isDisabled && "text-blue-600",
+  );
+}
+
+/** 工具栏内的竖向分隔线 */
+const dividerCls = "mx-1 h-4 w-px shrink-0 bg-border";
 
 export function getActiveNodeType(
   editor: Editor,
@@ -172,40 +196,40 @@ export function computeIsTableContext(editor: Editor): boolean {
 export function getNodeTypeIcon(nodeType: string) {
   switch (nodeType) {
     case "codeBlock":
-      return <IconCodeBrackets1 />;
+      return <Code2 />;
     case "orderedList":
-      return <IconOrderedList1 />;
+      return <ListOrdered />;
     case "taskList":
-      return <IconChecklist1 />;
+      return <ListChecks />;
     case "bulletList":
-      return <IconUnorderedList1 />;
+      return <List />;
     case "h1":
-      return <IconH11 />;
+      return <Heading1 />;
     case "h2":
-      return <IconH21 />;
+      return <Heading2 />;
     case "h3":
-      return <IconH31 />;
+      return <Heading3 />;
     case "h4":
-      return <IconH41 />;
+      return <Heading4 />;
     case "h5":
-      return <IconH51 />;
+      return <Heading5 />;
     case "h6":
-      return <IconH61 />;
+      return <Heading6 />;
     case "blockquote":
-      return <IconQuoted1 />;
+      return <Quote />;
     default:
-      return <IconText2 />;
+      return <Pilcrow />;
   }
 }
 
 export function getAlignIcon(align: string) {
   switch (align) {
     case "center":
-      return <IconHorizontalAlignment1 />;
+      return <AlignCenter />;
     case "right":
-      return <IconRightAlignment1 />;
+      return <AlignRight />;
     default:
-      return <IconLeftAlignment1 />;
+      return <AlignLeft />;
   }
 }
 
@@ -217,30 +241,22 @@ export const normalizeColor = (color: string) => {
 
 export const ColorPickerContent = ({
   editor,
-  setColorPickerVisible,
+  onClose,
 }: {
   editor: Editor;
-  setColorPickerVisible: (visible: boolean) => void;
+  onClose: () => void;
 }) => {
   const isColorActive = (color: string) => {
     const currentColor = editor.getAttributes("textStyle").color;
-    if (color === "inherit") {
-      return !currentColor;
-    }
-
+    if (color === "inherit") return !currentColor;
     if (!currentColor) return false;
-
     return normalizeColor(currentColor) === normalizeColor(color);
   };
 
   const isBgActive = (color: string) => {
     const currentBg = editor.getAttributes("highlight").color;
-    if (color === "transparent") {
-      return !currentBg;
-    }
-
+    if (color === "transparent") return !currentBg;
     if (!currentBg) return false;
-
     return normalizeColor(currentBg) === normalizeColor(color);
   };
 
@@ -250,7 +266,7 @@ export const ColorPickerContent = ({
     } else {
       editor.chain().focus().setColor(color).run();
     }
-    setColorPickerVisible(false);
+    onClose();
   };
 
   const handleSetBg = (color: string) => {
@@ -259,67 +275,80 @@ export const ColorPickerContent = ({
     } else {
       editor.chain().focus().setHighlight({ color }).run();
     }
-    setColorPickerVisible(false);
+    onClose();
   };
 
   return (
-    <div className={cssPrefix`popup-color`}>
+    <div className="flex w-60 flex-col gap-3">
       <div>
-        <div className={cssPrefix`color-title`}>字体颜色</div>
-        <div className={cssPrefix`color-grid`}>
+        <div className="mb-2 px-1 text-xs text-muted-foreground">字体颜色</div>
+        <div className="grid grid-cols-8 gap-1.5 px-1">
           {FONT_COLORS.map((item) => (
-            <Tooltip key={item.color} content={item.label} mini>
-              <div
-                className={cn(
-                  cssPrefix`color-btn`,
-                  isColorActive(item.color) ? cssPrefix`active` : "",
-                )}
-                onClick={() => handleSetColor(item.color)}
-              >
-                <span
-                  className={cssPrefix`color-span`}
-                  style={{ color: item.color }}
+            <Tooltip key={item.color}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex size-6 cursor-pointer items-center justify-center rounded border border-border transition-all",
+                    isColorActive(item.color)
+                      ? "border-blue-600"
+                      : "hover:border-blue-600/60",
+                  )}
+                  onClick={() => handleSetColor(item.color)}
                 >
-                  A
-                </span>
-              </div>
+                  <span
+                    className="text-sm font-medium leading-none"
+                    style={{ color: item.color }}
+                  >
+                    A
+                  </span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{item.label}</TooltipContent>
             </Tooltip>
           ))}
         </div>
       </div>
 
       <div>
-        <div className={cssPrefix`color-title`}>背景颜色</div>
-        <div className={cssPrefix`color-grid`}>
+        <div className="mb-2 px-1 text-xs text-muted-foreground">背景颜色</div>
+        <div className="grid grid-cols-8 gap-1.5 px-1">
           {BG_COLORS.map((item) => (
-            <Tooltip key={item.color} content={item.label} mini>
-              <div
-                className={cn(
-                  cssPrefix`bg-btn`,
-                  isBgActive(item.color) ? cssPrefix`active` : "",
-                )}
-                onClick={() => handleSetBg(item.color)}
-              >
-                <div
-                  className={cssPrefix`bg-preview`}
-                  style={{ backgroundColor: item.color }}
-                >
-                  {item.color === "transparent" && (
-                    <div className={cssPrefix`bg-transparent-inner`}>
-                      <div className={cssPrefix`bg-transparent-line`} />
-                    </div>
+            <Tooltip key={item.color}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "group/bg relative flex size-6 cursor-pointer items-center justify-center overflow-hidden rounded border border-transparent transition-all",
+                    isBgActive(item.color)
+                      ? "scale-[0.85] border-blue-600"
+                      : "hover:scale-[0.85] hover:border-blue-600/60",
                   )}
-                </div>
-              </div>
+                  onClick={() => handleSetBg(item.color)}
+                >
+                  <div
+                    className="absolute inset-0 rounded-sm transition-transform group-hover/bg:scale-95 group-hover/bg:outline group-hover/bg:outline-2 group-hover/bg:outline-white group-active/bg:scale-90"
+                    style={{ backgroundColor: item.color }}
+                  >
+                    {item.color === "transparent" && (
+                      <div className="relative size-full overflow-hidden rounded-sm border border-border">
+                        <div className="absolute left-0 top-0 h-px w-[141%] origin-top-left rotate-45 bg-muted-foreground" />
+                      </div>
+                    )}
+                  </div>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{item.label}</TooltipContent>
             </Tooltip>
           ))}
         </div>
       </div>
 
-      <div className={cssPrefix`restore-wrapper`}>
+      <div className="px-1">
         <Button
-          size="mini"
-          className={cssPrefix`restore-btn`}
+          variant="outline"
+          size="sm"
+          className="w-full"
           onClick={() =>
             editor.chain().focus().unsetColor().unsetHighlight().run()
           }
@@ -331,27 +360,19 @@ export const ColorPickerContent = ({
   );
 };
 
-const AlignContent = ({
+const AlignDropdownItems = ({
   editor,
   textAlign,
-  setTextAlignVisible,
 }: {
   editor: Editor;
   textAlign: string;
-  setTextAlignVisible: (visible: boolean) => void;
 }) => {
-  const selectedKeys = [textAlign];
-
-  const handleMenuClick = (key: string) => {
+  const handle = (key: "left" | "center" | "right" | "outdent" | "indent") => {
     switch (key) {
       case "left":
-        editor.chain().focus().setTextAlign("left").run();
-        break;
       case "center":
-        editor.chain().focus().setTextAlign("center").run();
-        break;
       case "right":
-        editor.chain().focus().setTextAlign("right").run();
+        editor.chain().focus().setTextAlign(key).run();
         break;
       case "outdent":
         editor.chain().focus().outdent().run();
@@ -360,83 +381,76 @@ const AlignContent = ({
         editor.chain().focus().indent().run();
         break;
     }
-    setTextAlignVisible(false);
   };
 
+  // active 仅用蓝色文字（对齐原 less `color: rgb(var(--primary-6))`），不动背景；
+  // focus 也强制保持蓝色文字，避免被 DropdownMenuItem 默认的 focus:text-secondary-foreground 覆盖。
+  const itemCls = (active: boolean) =>
+    cn(
+      "gap-2 [&>svg]:size-4",
+      active && "font-medium text-blue-600 focus:text-blue-600",
+    );
+
   return (
-    <div className={cssPrefix`align-popup`}>
-      <Menu selectedKeys={selectedKeys} onClickMenuItem={handleMenuClick}>
-        <MenuItem key="left">
-          <IconLeftAlignment1 style={{ marginRight: 8 }} />
-          左对齐
-        </MenuItem>
-        <MenuItem key="center">
-          <IconHorizontalAlignment1 style={{ marginRight: 8 }} />
-          居中对齐
-        </MenuItem>
-        <MenuItem key="right">
-          <IconRightAlignment1 style={{ marginRight: 8 }} />
-          右对齐
-        </MenuItem>
-
-        <div className={cssPrefix`menu-divider`} />
-
-        <MenuItem key="outdent">
-          <IconIndentLeft1 />
-          减少缩进
-        </MenuItem>
-        <MenuItem key="indent">
-          <IconIndentRight1 />
-          增加缩进
-        </MenuItem>
-      </Menu>
-    </div>
+    <>
+      <DropdownMenuItem
+        onClick={() => handle("left")}
+        className={itemCls(textAlign === "left")}
+      >
+        <AlignLeft />
+        左对齐
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        onClick={() => handle("center")}
+        className={itemCls(textAlign === "center")}
+      >
+        <AlignCenter />
+        居中对齐
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        onClick={() => handle("right")}
+        className={itemCls(textAlign === "right")}
+      >
+        <AlignRight />
+        右对齐
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        onClick={() => handle("outdent")}
+        className="gap-2 [&>svg]:size-4"
+      >
+        <Outdent />
+        减少缩进
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        onClick={() => handle("indent")}
+        className="gap-2 [&>svg]:size-4"
+      >
+        <Indent />
+        增加缩进
+      </DropdownMenuItem>
+    </>
   );
 };
 
-const NodeTypeContent = ({
+const NodeTypeDropdownItems = ({
   editor,
   activeNodeType,
   toolbarMode,
-  setNodeTypeVisible,
 }: {
   editor: Editor;
   activeNodeType: string;
   toolbarMode: ToolbarMode;
-  setNodeTypeVisible: (visible: boolean) => void;
 }) => {
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const [maxHeight, setMaxHeight] = useState("400px");
-
-  useEffect(() => {
-    const calculateHeight = () => {
-      if (dropdownRef.current) {
-        const rect = dropdownRef.current.getBoundingClientRect();
-        const windowHeight = window.innerHeight;
-        const bottomSpace = windowHeight - rect.top;
-        const calculated = Math.min(400, Math.max(100, bottomSpace - 20));
-        setMaxHeight(`${calculated}px`);
-      }
-    };
-
-    calculateHeight();
-    window.addEventListener("resize", calculateHeight);
-    return () => window.removeEventListener("resize", calculateHeight);
-  }, []);
-
-  const selectedKeys = activeNodeType ? [activeNodeType] : [];
-
-  const handleMenuClick = (key: string) => {
+  const handle = (key: string) => {
     let chain = editor.chain().focus();
 
-    // 1. 先彻底清理现有的块类型，确保互斥
+    // 先彻底清理现有的块类型，确保互斥
     if (editor.isActive("bulletList")) chain = chain.toggleBulletList();
     if (editor.isActive("orderedList")) chain = chain.toggleOrderedList();
     if (editor.isActive("taskList")) chain = chain.toggleTaskList();
     if (editor.isActive("blockquote")) chain = chain.toggleBlockquote();
     if (editor.isActive("codeBlock")) chain = chain.toggleCodeBlock();
-
-    // 如果是标题，先转成正文再处理
     for (let i = 1; i <= 6; i++) {
       if (editor.isActive("heading", { level: i })) {
         chain = chain.setParagraph();
@@ -444,7 +458,6 @@ const NodeTypeContent = ({
       }
     }
 
-    // 2. 应用新的类型
     switch (key) {
       case "paragraph":
         chain.setParagraph().run();
@@ -474,113 +487,134 @@ const NodeTypeContent = ({
           }
         }
     }
-    setNodeTypeVisible(false);
   };
 
+  const itemCls = (key: string) =>
+    cn(
+      "gap-2 [&>svg]:size-4",
+      activeNodeType === key && "font-medium text-blue-600 focus:text-blue-600",
+    );
+
   return (
-    <div
-      ref={dropdownRef}
-      className={cssPrefix`node-type-popup`}
-      style={{ maxHeight }}
-    >
-      <Menu
-        mode="pop"
-        selectedKeys={selectedKeys}
-        onClickMenuItem={handleMenuClick}
+    <>
+      <DropdownMenuItem
+        onClick={() => handle("paragraph")}
+        className={itemCls("paragraph")}
       >
-        <MenuItem key="paragraph">
-          <IconText2 />
-          正文
-        </MenuItem>
-
-        <div className={cssPrefix`menu-divider`} />
-
-        <MenuItem key="h1">
-          <IconH11 />
-          一级标题
-        </MenuItem>
-        <MenuItem key="h2">
-          <IconH21 />
-          二级标题
-        </MenuItem>
-        <MenuItem key="h3">
-          <IconH31 />
-          三级标题
-        </MenuItem>
-        {toolbarMode === "bubble" ? (
-          <SubMenu
-            key="hn"
-            className={cssPrefix`menu-item`}
-            title={
-              <>
-                <IconHn1 />
-                其他标题
-              </>
-            }
-            triggerProps={{
-              position: "rt",
-              showArrow: true,
-            }}
+        <Pilcrow />
+        正文
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onClick={() => handle("h1")} className={itemCls("h1")}>
+        <Heading1 />
+        一级标题
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={() => handle("h2")} className={itemCls("h2")}>
+        <Heading2 />
+        二级标题
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={() => handle("h3")} className={itemCls("h3")}>
+        <Heading3 />
+        三级标题
+      </DropdownMenuItem>
+      {toolbarMode === "bubble" ? (
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="gap-2 [&>svg]:size-4">
+            <Heading />
+            其他标题
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuItem
+              onClick={() => handle("h4")}
+              className={itemCls("h4")}
+            >
+              <Heading4 />
+              四级标题
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => handle("h5")}
+              className={itemCls("h5")}
+            >
+              <Heading5 />
+              五级标题
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => handle("h6")}
+              className={itemCls("h6")}
+            >
+              <Heading6 />
+              六级标题
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      ) : (
+        <>
+          <DropdownMenuItem
+            onClick={() => handle("h4")}
+            className={itemCls("h4")}
           >
-            <MenuItem key="h4">
-              <IconH41 />
-              四级标题
-            </MenuItem>
-            <MenuItem key="h5">
-              <IconH51 />
-              五级标题
-            </MenuItem>
-            <MenuItem key="h6">
-              <IconH61 />
-              六级标题
-            </MenuItem>
-          </SubMenu>
-        ) : (
-          <>
-            <MenuItem key="h4">
-              <IconH41 />
-              四级标题
-            </MenuItem>
-            <MenuItem key="h5">
-              <IconH51 />
-              五级标题
-            </MenuItem>
-            <MenuItem key="h6">
-              <IconH61 />
-              六级标题
-            </MenuItem>
-          </>
-        )}
-
-        {toolbarMode === "bubble" && (
-          <>
-            <div className={cssPrefix`menu-divider`} />
-            <MenuItem key="bulletList">
-              <IconUnorderedList1 />
-              无序列表
-            </MenuItem>
-            <MenuItem key="orderedList">
-              <IconOrderedList1 />
-              有序列表
-            </MenuItem>
-            <MenuItem key="taskList">
-              <IconChecklist1 />
-              任务列表
-            </MenuItem>
-            <div className={cssPrefix`menu-divider`} />
-            <MenuItem key="blockquote">
-              <IconQuoted1 />
-              引用
-            </MenuItem>
-            <div className={cssPrefix`menu-divider`} />
-            <MenuItem key="codeBlock">
-              <IconCodeBrackets1 />
-              代码块
-            </MenuItem>
-          </>
-        )}
-      </Menu>
-    </div>
+            <Heading4 />
+            四级标题
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => handle("h5")}
+            className={itemCls("h5")}
+          >
+            <Heading5 />
+            五级标题
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => handle("h6")}
+            className={itemCls("h6")}
+          >
+            <Heading6 />
+            六级标题
+          </DropdownMenuItem>
+        </>
+      )}
+      {toolbarMode === "bubble" && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => handle("bulletList")}
+            className={itemCls("bulletList")}
+          >
+            <List />
+            无序列表
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => handle("orderedList")}
+            className={itemCls("orderedList")}
+          >
+            <ListOrdered />
+            有序列表
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => handle("taskList")}
+            className={itemCls("taskList")}
+          >
+            <ListChecks />
+            任务列表
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => handle("blockquote")}
+            className={itemCls("blockquote")}
+          >
+            <Quote />
+            引用
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => handle("codeBlock")}
+            className={itemCls("codeBlock")}
+          >
+            <Code2 />
+            代码块
+          </DropdownMenuItem>
+        </>
+      )}
+    </>
   );
 };
 
@@ -619,11 +653,7 @@ export const AIPolishContent = ({
   const setInputValue = (val: string) => {
     if (inputRef.current) {
       inputRef.current.innerText = val;
-      if (val) {
-        inputRef.current.classList.remove(cssPrefix`empty`);
-      } else {
-        inputRef.current.classList.add(cssPrefix`empty`);
-      }
+      inputRef.current.dataset.empty = val ? "false" : "true";
     }
   };
 
@@ -642,14 +672,14 @@ export const AIPolishContent = ({
       actionTypeRef.current === RewriteActionType.ChatInDoc &&
       !promptRef.current
     ) {
-      Message.warning("请输入指令");
+      toast.warning("请输入指令");
       return;
     }
     try {
       const snapshot = extractSelectionToBlocks(editor);
       snapshotRef.current = snapshot;
       if (snapshot.blocks.length === 0) {
-        Message.warning("未选中文本");
+        toast.warning("未选中文本");
         return;
       }
 
@@ -700,7 +730,7 @@ export const AIPolishContent = ({
     } catch (e) {
       const error = e as { name?: string; message?: string };
       if (error.name === "AbortError") return;
-      Message.warning(error.message || "AI 润色失败，请稍后重试");
+      toast.warning(error.message || "AI 润色失败，请稍后重试");
       handleReset();
     }
   };
@@ -708,7 +738,7 @@ export const AIPolishContent = ({
   const handleReplace = () => {
     if (!snapshotRef.current) return;
     applyBlocksToSelection(editor, snapshotRef.current, newTexts);
-    Message.success("AI 润色成功");
+    toast.success("AI 润色成功");
     handleReset();
   };
 
@@ -718,7 +748,7 @@ export const AIPolishContent = ({
     if (!text) return;
 
     editor.chain().insertContentAt(snapshotRef.current.range.to, text).run();
-    Message.success("AI 插入成功");
+    toast.success("AI 插入成功");
     handleReset();
   };
 
@@ -743,13 +773,13 @@ export const AIPolishContent = ({
         (target.children.length === 1 && target.children[0].nodeName === "BR"));
 
     if (isEmpty) {
-      target.classList.add(cssPrefix`empty`);
+      target.dataset.empty = "true";
       if (target.innerHTML === "<br>") {
         target.innerHTML = "";
       }
       setTriggerVisible(true);
     } else {
-      target.classList.remove(cssPrefix`empty`);
+      target.dataset.empty = "false";
       setTriggerVisible(false);
     }
   };
@@ -757,13 +787,13 @@ export const AIPolishContent = ({
   const handleStop = () => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
-    Message.warning("已终止");
+    toast.warning("已终止");
     handleReset(false);
   };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(getInputValue()).then(() => {
-      Message.success("复制成功");
+      toast.success("复制成功");
     });
   };
 
@@ -791,56 +821,98 @@ export const AIPolishContent = ({
   const render = () => {
     if (status === AiPolishStatus.Pending) {
       return (
-        <Tooltip content="发送">
-          <Button
-            shape="circle"
-            size="mini"
-            onClick={handleSend}
-            icon={<IconSend />}
-          />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="default"
+              className="size-7 rounded-full"
+              onClick={handleSend}
+            >
+              <Send className="size-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>发送</TooltipContent>
         </Tooltip>
       );
     } else if (status === AiPolishStatus.Loading) {
       return (
-        <Tooltip content="终止">
-          <Button
-            shape="circle"
-            size="mini"
-            onClick={handleStop}
-            icon={<IconRecordStop />}
-          />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="default"
+              className="size-7 rounded-full"
+              onClick={handleStop}
+            >
+              <Square className="size-3 fill-current" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>终止</TooltipContent>
         </Tooltip>
       );
     }
 
     return (
       <>
-        <div className={cssPrefix`apply-btn-group`}>
+        <div className="flex items-center gap-2">
           <Button
-            size="mini"
-            className={cssPrefix`primary-btn`}
+            size="sm"
             onClick={handleReplace}
-            icon={<IconRefresh />}
+            className="h-7 gap-1 border border-[#3384ff] bg-gradient-to-r from-[#3b91ff] via-[#0d5eff] to-[#c069ff] text-white shadow-[0_1px_1px_0_rgba(0,0,0,0.15)] hover:from-[#3b91ff] hover:via-[#0d5eff] hover:to-[#c069ff] hover:opacity-90"
           >
+            <RefreshCw className="size-3.5" />
             替换
           </Button>
-          <Button size="mini" onClick={handleInsert} icon={<IconToLeft />}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleInsert}
+            className="h-7 gap-1"
+          >
+            <CornerDownLeft className="size-3.5" />
             插入
           </Button>
         </div>
-        <div className={cssPrefix`apply-btn-group`}>
-          <Tooltip content="复制">
-            <Button size="mini" onClick={handleCopy} icon={<IconCopy />} />
+        <div className="flex items-center gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="outline"
+                className="size-7"
+                onClick={handleCopy}
+              >
+                <Copy className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>复制</TooltipContent>
           </Tooltip>
-          <Tooltip content="重试">
-            <Button size="mini" onClick={handleRetry} icon={<IconRefresh />} />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="outline"
+                className="size-7"
+                onClick={handleRetry}
+              >
+                <RefreshCw className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>重试</TooltipContent>
           </Tooltip>
-          <Tooltip content="重置">
-            <Button
-              size="mini"
-              onClick={() => handleReset(false)}
-              icon={<IconSync />}
-            />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="outline"
+                className="size-7"
+                onClick={() => handleReset(false)}
+              >
+                <RotateCcw className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>重置</TooltipContent>
           </Tooltip>
         </div>
       </>
@@ -848,57 +920,73 @@ export const AIPolishContent = ({
   };
 
   return (
-    <Trigger
-      popupVisible={triggerVisible}
-      position="bl"
-      popup={() => (
-        <Menu
-          className={cssPrefix`ai-polish-popup`}
-          mode="pop"
-          selectable={false}
-          onClickMenuItem={handleMenuClick}
-        >
-          <MenuItemGroup title="快捷指令">
-            <MenuItem key={RewriteActionType.Polish}>
-              <IconRevise1 />
+    <Popover open={triggerVisible} onOpenChange={setTriggerVisible}>
+      <PopoverTrigger asChild>
+        <div className="flex w-[600px] flex-wrap items-center gap-2 px-3 py-2">
+          <div
+            ref={inputRef}
+            // 高保真还原原 Toolbar/index.less 的 ai-input：
+            // 占据剩余空间、可换行、空态显示 placeholder（用 [data-empty="true"] hook）。
+            className={cn(
+              "max-h-60 min-h-[1em] flex-grow-[9999] overflow-y-auto break-words leading-normal outline-none",
+              "[&>p]:m-0",
+              "before:hidden data-[empty=true]:before:block data-[empty=true]:before:cursor-text data-[empty=true]:before:text-muted-foreground data-[empty=true]:before:content-[attr(data-placeholder)]",
+            )}
+            data-empty="true"
+            spellCheck
+            suppressContentEditableWarning
+            contentEditable={status === AiPolishStatus.Pending}
+            data-placeholder="输入优化文本指令"
+            tabIndex={0}
+            role="textbox"
+            aria-label="开始输入以编辑文本"
+            inputMode="text"
+            onFocus={onInputFocus}
+            onInput={handleInput}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+          />
+          <div className="flex max-w-full flex-grow justify-between gap-2">
+            {render()}
+          </div>
+        </div>
+      </PopoverTrigger>
+      <PopoverContent
+        side="bottom"
+        align="start"
+        sideOffset={4}
+        className="w-auto rounded-lg border bg-popover p-1 shadow-md"
+        // 阻止 Popover 抢焦点，让 contentEditable 能正常输入
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <Menu inline>
+          <MenuItemGroup label="快捷指令">
+            <MenuItem
+              icon={<Wand2 />}
+              onClick={() => handleMenuClick(RewriteActionType.Polish)}
+            >
               润色
             </MenuItem>
-            <MenuItem key={RewriteActionType.Expansion}>
-              <IconExpand1 />
+            <MenuItem
+              icon={<ChevronsUpDown />}
+              onClick={() => handleMenuClick(RewriteActionType.Expansion)}
+            >
               扩写
             </MenuItem>
-            <MenuItem key={RewriteActionType.Abbreviation}>
-              <IconAbbreviation1 />
+            <MenuItem
+              icon={<ChevronsDownUp />}
+              onClick={() => handleMenuClick(RewriteActionType.Abbreviation)}
+            >
               缩写
             </MenuItem>
           </MenuItemGroup>
         </Menu>
-      )}
-    >
-      <div className={cssPrefix`ai-polish-content`}>
-        <div
-          ref={inputRef}
-          className={cn(cssPrefix`ai-input`, cssPrefix`empty`)}
-          spellCheck
-          suppressContentEditableWarning
-          contentEditable={status === AiPolishStatus.Pending}
-          data-placeholder="输入优化文本指令"
-          tabIndex={0}
-          role="textbox"
-          aria-label="开始输入以编辑文本"
-          inputMode="text"
-          onFocus={onInputFocus}
-          onInput={handleInput}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
-            }
-          }}
-        />
-        <div className={cssPrefix`ai-right-box`}>{render()}</div>
-      </div>
-    </Trigger>
+      </PopoverContent>
+    </Popover>
   );
 };
 interface ToolbarContentProps {
@@ -1042,449 +1130,450 @@ const ToolbarContent = ({
     setLinkUrl("");
   };
 
-  const disabled = useMemo(() => {
-    return !URL_REGEX.test(linkUrl);
-  }, [linkUrl]);
+  const linkInvalid = useMemo(() => !URL_REGEX.test(linkUrl), [linkUrl]);
 
   const handleAddComment = () => {
-    if (!editorState.canAddComment) {
-      return;
-    }
-
+    if (!editorState.canAddComment) return;
     if (!comment.trim()) {
-      Message.warning("请输入评论内容");
+      toast.warning("请输入评论内容");
       return;
     }
-
     editor.chain().focus().addComment(uuidv4()).run();
     setCommentVisible(false);
     setComment("");
   };
 
+  /** 包装 IconButton + Tooltip 的统一封装 */
+  const IconBtn = ({
+    label,
+    icon,
+    isActive,
+    isDisabled,
+    onClick,
+  }: {
+    label: string;
+    icon: React.ReactNode;
+    isActive?: boolean;
+    isDisabled?: boolean;
+    onClick: () => void;
+  }) => (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          aria-pressed={!!isActive}
+          aria-disabled={!!isDisabled}
+          className={btnCls({ isActive, isDisabled })}
+          onClick={() => {
+            if (isDisabled) return;
+            onClick();
+          }}
+        >
+          {icon}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  );
+
   return (
-    <div className={cssPrefix`content`}>
+    <div className="flex h-9 select-none items-center px-1 text-sm leading-tight text-foreground">
       {aiEnable &&
         editorState.canColor &&
         editorState.selectionTextLength > 0 &&
         editorState.selectionTextLength <= 500 && (
           <>
-            <Tooltip content="AI 润色" mini>
-              <div
-                className={cssPrefix`trigger-btn`}
-                style={{ color: "rgb(var(--primary-6))" }}
-                onClick={() => onOpenPolish?.()}
-              >
-                <IconRevise1 />
-                <span>AI 润色</span>
-              </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="AI 润色"
+                  className={cn(triggerCls(), "text-blue-600 [&>svg]:size-4")}
+                  onClick={() => onOpenPolish?.()}
+                >
+                  <Sparkles />
+                  <span className="text-xs">AI 润色</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">AI 润色</TooltipContent>
             </Tooltip>
-            <div className={cssPrefix`divider`} />
+            <span className={dividerCls} />
           </>
         )}
 
       {toolbarMode === "fixed" && (
         <>
-          <Tooltip content="撤销" mini>
-            <div
-              className={getButtonClass(false, !editorState.canUndo)}
-              onClick={() => editor.chain().focus().undo().run()}
-            >
-              <IconUndo1 />
-            </div>
-          </Tooltip>
-          <Tooltip content="重做" mini>
-            <div
-              className={getButtonClass(false, !editorState.canRedo)}
-              onClick={() => editor.chain().focus().redo().run()}
-            >
-              <IconRedo1 />
-            </div>
-          </Tooltip>
-          <div className={cssPrefix`divider`} />
+          <IconBtn
+            label="撤销"
+            icon={<Undo2 />}
+            isDisabled={!editorState.canUndo}
+            onClick={() => editor.chain().focus().undo().run()}
+          />
+          <IconBtn
+            label="重做"
+            icon={<Redo2 />}
+            isDisabled={!editorState.canRedo}
+            onClick={() => editor.chain().focus().redo().run()}
+          />
+          <span className={dividerCls} />
         </>
       )}
 
-      <Trigger
-        popup={() => (
-          <NodeTypeContent
+      {/* 节点类型 */}
+      <DropdownMenu open={nodeTypeVisible} onOpenChange={setNodeTypeVisible}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger
+              type="button"
+              disabled={!editorState.canChangeType}
+              className={triggerCls({
+                isDisabled: !editorState.canChangeType,
+              })}
+            >
+              {getNodeTypeIcon(editorState.activeNodeType)}
+              <ChevronDown className="icon-down" />
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">节点类型</TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent align="start" className="min-w-40">
+          <NodeTypeDropdownItems
             editor={editor}
             activeNodeType={editorState.activeNodeType}
             toolbarMode={toolbarMode}
-            setNodeTypeVisible={setNodeTypeVisible}
           />
-        )}
-        position="bottom"
-        disabled={!editorState.canChangeType}
-        popupVisible={nodeTypeVisible}
-        onVisibleChange={setNodeTypeVisible}
-      >
-        <div
-          className={cn(cssPrefix`trigger-btn`, {
-            [cssPrefix`disabled`]: !editorState.canChangeType,
-          })}
-        >
-          {getNodeTypeIcon(editorState.activeNodeType)}
-          <IconDown className={cssPrefix`icon-down`} />
-        </div>
-      </Trigger>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {contentType !== "markdown" && (
         <>
-          <div className={cssPrefix`divider`} />
-          <Trigger
-            popup={() => (
-              <AlignContent
+          <span className={dividerCls} />
+          <DropdownMenu
+            open={textAlignVisible}
+            onOpenChange={setTextAlignVisible}
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger
+                  type="button"
+                  disabled={!editorState.canAlign}
+                  className={triggerCls({
+                    isDisabled: !editorState.canAlign,
+                  })}
+                >
+                  {getAlignIcon(editorState.textAlign)}
+                  <ChevronDown className="icon-down" />
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">对齐方式</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="start" className="min-w-36">
+              <AlignDropdownItems
                 editor={editor}
                 textAlign={editorState.textAlign}
-                setTextAlignVisible={setTextAlignVisible}
               />
-            )}
-            disabled={!editorState.canAlign}
-            position="bottom"
-            popupVisible={textAlignVisible}
-            onVisibleChange={setTextAlignVisible}
-          >
-            <div
-              className={cn(cssPrefix`trigger-btn`, {
-                [cssPrefix`disabled`]: !editorState.canAlign,
-              })}
-            >
-              {getAlignIcon(editorState.textAlign)}
-              <IconDown className={cssPrefix`icon-down`} />
-            </div>
-          </Trigger>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </>
       )}
 
-      <div className={cssPrefix`divider`} />
+      <span className={dividerCls} />
 
-      <Tooltip content="加粗" mini>
-        <div
-          className={getButtonClass(editorState.isBold, !editorState.canBold)}
-          onClick={() => editor.chain().focus().toggleBold().run()}
-        >
-          <IconBlod1 />
-        </div>
-      </Tooltip>
-      <Tooltip content="斜体" mini>
-        <div
-          className={getButtonClass(
-            editorState.isItalic,
-            !editorState.canItalic,
-          )}
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-        >
-          <IconItalic1 />
-        </div>
-      </Tooltip>
-      <Tooltip content="下划线" mini>
-        <div
-          className={getButtonClass(
-            editorState.isUnderline,
-            !editorState.canUnderline,
-          )}
-          onClick={() => editor.chain().focus().toggleUnderline().run()}
-        >
-          <IconInderline1 />
-        </div>
-      </Tooltip>
-      <Tooltip content="删除线" mini>
-        <div
-          className={getButtonClass(
-            editorState.isStrike,
-            !editorState.canStrike,
-          )}
-          onClick={() => editor.chain().focus().toggleStrike().run()}
-        >
-          <IconStrikethrough1 />
-        </div>
-      </Tooltip>
-      <Tooltip content="代码" mini>
-        <div
-          className={getButtonClass(editorState.isCode, !editorState.canCode)}
-          onClick={() => editor.chain().focus().toggleCode().run()}
-        >
-          <IconInlineCode1 />
-        </div>
-      </Tooltip>
-      <Tooltip content="链接" mini>
-        <Trigger
-          popupVisible={linkVisible}
-          onVisibleChange={(v) => {
-            setLinkVisible(v);
-            if (!v) setLinkUrl("");
+      <IconBtn
+        label="加粗"
+        icon={<Bold />}
+        isActive={editorState.isBold}
+        isDisabled={!editorState.canBold}
+        onClick={() => editor.chain().focus().toggleBold().run()}
+      />
+      <IconBtn
+        label="斜体"
+        icon={<Italic />}
+        isActive={editorState.isItalic}
+        isDisabled={!editorState.canItalic}
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+      />
+      <IconBtn
+        label="下划线"
+        icon={<Underline />}
+        isActive={editorState.isUnderline}
+        isDisabled={!editorState.canUnderline}
+        onClick={() => editor.chain().focus().toggleUnderline().run()}
+      />
+      <IconBtn
+        label="删除线"
+        icon={<Strikethrough />}
+        isActive={editorState.isStrike}
+        isDisabled={!editorState.canStrike}
+        onClick={() => editor.chain().focus().toggleStrike().run()}
+      />
+      <IconBtn
+        label="代码"
+        icon={<Code />}
+        isActive={editorState.isCode}
+        isDisabled={!editorState.canCode}
+        onClick={() => editor.chain().focus().toggleCode().run()}
+      />
+
+      {/* 链接 */}
+      <Popover
+        open={linkVisible}
+        onOpenChange={(v) => {
+          setLinkVisible(v);
+          if (!v) setLinkUrl("");
+        }}
+      >
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger
+              type="button"
+              disabled={!editorState.canLink}
+              aria-label="链接"
+              className={btnCls({
+                isActive: editorState.isLink,
+                isDisabled: !editorState.canLink,
+              })}
+            >
+              <Link2 />
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">链接</TooltipContent>
+        </Tooltip>
+        <PopoverContent
+          align="start"
+          className="w-64 p-3"
+          onOpenAutoFocus={(e) => {
+            // 让 Input 接管首焦
+            e.preventDefault();
           }}
-          trigger="click"
-          position="bottom"
-          popup={() => (
-            <div className={cssPrefix`input-popup`}>
-              <Input
-                autoFocus
-                placeholder="输入链接地址..."
-                value={linkUrl}
-                onChange={setLinkUrl}
-                onPressEnter={setLink}
-                className={cssPrefix`input-mb`}
-              />
-              <div className={cssPrefix`input-actions`}>
-                <Button
-                  size="mini"
-                  onClick={() => {
-                    setLinkVisible(false);
-                    setLinkUrl("");
+        >
+          <Input
+            autoFocus
+            placeholder="输入链接地址..."
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !linkInvalid) {
+                e.preventDefault();
+                setLink();
+              }
+            }}
+            className="mb-2"
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setLinkVisible(false);
+                setLinkUrl("");
+              }}
+            >
+              取消
+            </Button>
+            <Button size="sm" onClick={setLink} disabled={linkInvalid}>
+              确认
+            </Button>
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      {/* 颜色（仅非 markdown 模式） */}
+      {contentType !== "markdown" && (
+        <Popover open={colorPickerVisible} onOpenChange={setColorPickerVisible}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <PopoverTrigger
+                type="button"
+                disabled={!editorState.canColor}
+                aria-label="字体与背景色"
+                className={triggerCls({
+                  isDisabled: !editorState.canColor,
+                })}
+              >
+                <span
+                  className="inline-flex size-4 items-center justify-center rounded-sm text-sm font-semibold leading-none"
+                  style={{
+                    color: editorState.currentColor || FONT_COLORS[0].color,
+                    backgroundColor:
+                      editorState.currentBg || BG_COLORS[0].color,
                   }}
                 >
-                  取消
-                </Button>
-                <Button
-                  size="mini"
-                  type="primary"
-                  onClick={setLink}
-                  disabled={disabled}
-                >
-                  确认
-                </Button>
-              </div>
-            </div>
-          )}
-          disabled={!editorState.canLink}
-        >
-          <div
-            className={getButtonClass(editorState.isLink, !editorState.canLink)}
-          >
-            <IconLink1 />
-          </div>
-        </Trigger>
-      </Tooltip>
-
-      {contentType !== "markdown" && (
-        <Trigger
-          popup={() => (
+                  A
+                </span>
+                <ChevronDown className="icon-down" />
+              </PopoverTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">字体与背景色</TooltipContent>
+          </Tooltip>
+          <PopoverContent align="start" className="w-auto p-3">
             <ColorPickerContent
               editor={editor}
-              setColorPickerVisible={setColorPickerVisible}
+              onClose={() => setColorPickerVisible(false)}
             />
-          )}
-          position="bottom"
-          popupVisible={colorPickerVisible}
-          onVisibleChange={setColorPickerVisible}
-          disabled={!editorState.canColor}
-        >
-          <div
-            className={cn(cssPrefix`trigger-btn`, {
-              [cssPrefix`disabled`]: !editorState.canColor,
-            })}
-          >
-            <IconText1
-              style={{
-                color: editorState.currentColor || FONT_COLORS[0].color,
-                backgroundColor: editorState.currentBg || BG_COLORS[0].color,
-              }}
-            />
-            <IconDown className={cssPrefix`icon-down`} />
-          </div>
-        </Trigger>
+          </PopoverContent>
+        </Popover>
       )}
 
-      <div className={cssPrefix`divider`} />
+      <span className={dividerCls} />
 
       {toolbarMode === "fixed" && (
         <>
-          <Tooltip content="无序列表" mini>
-            <div
-              className={getButtonClass(
-                editorState.isBulletList,
-                !editorState.canChangeType,
-              )}
-              onClick={() =>
-                editorState.canChangeType &&
-                editor.chain().focus().toggleBulletList().run()
-              }
-            >
-              <IconUnorderedList1 />
-            </div>
-          </Tooltip>
-          <Tooltip content="有序列表" mini>
-            <div
-              className={getButtonClass(
-                editorState.isOrderedList,
-                !editorState.canChangeType,
-              )}
-              onClick={() =>
-                editorState.canChangeType &&
-                editor.chain().focus().toggleOrderedList().run()
-              }
-            >
-              <IconOrderedList1 />
-            </div>
-          </Tooltip>
-          <Tooltip content="任务列表" mini>
-            <div
-              className={getButtonClass(
-                editorState.isTaskList,
-                !editorState.canChangeType,
-              )}
-              onClick={() =>
-                editorState.canChangeType &&
-                editor.chain().focus().toggleTaskList().run()
-              }
-            >
-              <IconChecklist1 />
-            </div>
-          </Tooltip>
-          <Tooltip content="引用" mini>
-            <div
-              className={getButtonClass(
-                editorState.isBlockquote,
-                !editorState.canChangeType,
-              )}
-              onClick={() =>
-                editorState.canChangeType &&
-                editor.chain().focus().toggleBlockquote().run()
-              }
-            >
-              <IconQuoted1 />
-            </div>
-          </Tooltip>
-          <Tooltip content="代码块" mini>
-            <div
-              className={getButtonClass(
-                editorState.isCodeBlock,
-                !editorState.canChangeType,
-              )}
-              onClick={() =>
-                editorState.canChangeType &&
-                editor.chain().focus().toggleCodeBlock().run()
-              }
-            >
-              <IconCodeBrackets1 />
-            </div>
-          </Tooltip>
-          <Tooltip content={editorState.isTable ? "删除表格" : "插入表格"} mini>
-            {editorState.isTable ? (
-              <div
-                className={getButtonClass(true, false)}
-                onClick={() => editor.chain().focus().deleteTable().run()}
-              >
-                <IconTable1 />
-              </div>
-            ) : (
-              <Trigger
-                popup={() => (
-                  <TableSelector
-                    onSelect={(rows, cols) => {
-                      editor
-                        .chain()
-                        .focus()
-                        .insertTable({ rows, cols, withHeaderRow: true })
-                        .run();
-                    }}
-                  />
-                )}
-                popupAlign={{ bottom: 10 }}
-                position="bottom"
-                trigger="hover"
-              >
-                <div className={getButtonClass(false, false)}>
-                  <IconTable1 />
-                </div>
-              </Trigger>
-            )}
-          </Tooltip>
+          <IconBtn
+            label="无序列表"
+            icon={<List />}
+            isActive={editorState.isBulletList}
+            isDisabled={!editorState.canChangeType}
+            onClick={() => editor.chain().focus().toggleBulletList().run()}
+          />
+          <IconBtn
+            label="有序列表"
+            icon={<ListOrdered />}
+            isActive={editorState.isOrderedList}
+            isDisabled={!editorState.canChangeType}
+            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          />
+          <IconBtn
+            label="任务列表"
+            icon={<ListChecks />}
+            isActive={editorState.isTaskList}
+            isDisabled={!editorState.canChangeType}
+            onClick={() => editor.chain().focus().toggleTaskList().run()}
+          />
+          <IconBtn
+            label="引用"
+            icon={<Quote />}
+            isActive={editorState.isBlockquote}
+            isDisabled={!editorState.canChangeType}
+            onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          />
+          <IconBtn
+            label="代码块"
+            icon={<Code2 />}
+            isActive={editorState.isCodeBlock}
+            isDisabled={!editorState.canChangeType}
+            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          />
+          {/* 表格：插入用 hover popover，已存在则点击删除 */}
+          {editorState.isTable ? (
+            <IconBtn
+              label="删除表格"
+              icon={<TableIcon />}
+              isActive
+              onClick={() => editor.chain().focus().deleteTable().run()}
+            />
+          ) : (
+            <Popover>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger
+                    type="button"
+                    aria-label="插入表格"
+                    className={btnCls()}
+                  >
+                    <TableIcon />
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">插入表格</TooltipContent>
+              </Tooltip>
+              <PopoverContent align="start" className="w-auto p-2">
+                <TableSelector
+                  onSelect={(rows, cols) => {
+                    editor
+                      .chain()
+                      .focus()
+                      .insertTable({ rows, cols, withHeaderRow: true })
+                      .run();
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+          )}
           {onUpload && (
-            <Tooltip
-              content={editorState.isImage ? "删除图片" : "插入图片"}
-              mini
-            >
-              <div
-                className={getButtonClass(editorState.isImage, false)}
-                onClick={handleImageClick}
-              >
-                <IconImage1 />
-              </div>
-            </Tooltip>
+            <IconBtn
+              label={editorState.isImage ? "删除图片" : "插入图片"}
+              icon={<ImageIcon />}
+              isActive={editorState.isImage}
+              onClick={handleImageClick}
+            />
           )}
         </>
       )}
 
       {toolbarMode === "bubble" && (
         <>
-          <Tooltip content="撤销" mini>
-            <div
-              className={getButtonClass(false, !editorState.canUndo)}
-              onClick={() => editor.chain().focus().undo().run()}
-            >
-              <IconUndo1 />
-            </div>
-          </Tooltip>
-          <Tooltip content="重做" mini>
-            <div
-              className={getButtonClass(false, !editorState.canRedo)}
-              onClick={() => editor.chain().focus().redo().run()}
-            >
-              <IconRedo1 />
-            </div>
-          </Tooltip>
+          <IconBtn
+            label="撤销"
+            icon={<Undo2 />}
+            isDisabled={!editorState.canUndo}
+            onClick={() => editor.chain().focus().undo().run()}
+          />
+          <IconBtn
+            label="重做"
+            icon={<Redo2 />}
+            isDisabled={!editorState.canRedo}
+            onClick={() => editor.chain().focus().redo().run()}
+          />
         </>
       )}
 
       {commentEnable && (
         <>
-          <div className={cssPrefix`divider`} />
-          <Tooltip content="评论" mini>
-            <Trigger
-              popupVisible={commentVisible}
-              onVisibleChange={setCommentVisible}
-              trigger="click"
-              position="bottom"
-              disabled={!editorState.canAddComment}
-              popup={() => (
-                <div className={cssPrefix`input-popup`}>
-                  <Input.TextArea
-                    placeholder="输入评论"
-                    value={comment}
-                    onChange={setComment}
-                    className={cssPrefix`input-mb`}
-                  />
-                  <div className={cssPrefix`input-actions`}>
-                    <Button
-                      size="mini"
-                      onClick={() => setCommentVisible(false)}
-                    >
-                      取消
-                    </Button>
-                    <Button
-                      size="mini"
-                      type="primary"
-                      onClick={handleAddComment}
-                    >
-                      确认
-                    </Button>
-                  </div>
-                </div>
-              )}
-            >
-              <div
-                className={getButtonClass(false, !editorState.canAddComment)}
-                onClick={() => {
-                  if (!editorState.canAddComment) {
-                    return;
-                  }
-                  setCommentVisible(true);
-                }}
-              >
-                <IconMessage className={cssPrefix`icon`} />
+          <span className={dividerCls} />
+          <Popover
+            open={commentVisible}
+            onOpenChange={(v) => {
+              if (!editorState.canAddComment && v) return;
+              setCommentVisible(v);
+            }}
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger
+                  type="button"
+                  disabled={!editorState.canAddComment}
+                  aria-label="评论"
+                  className={btnCls({
+                    isDisabled: !editorState.canAddComment,
+                  })}
+                >
+                  <MessageSquare />
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">评论</TooltipContent>
+            </Tooltip>
+            <PopoverContent align="end" className="w-64 p-3">
+              <Textarea
+                placeholder="输入评论"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                className="mb-2 min-h-20"
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCommentVisible(false)}
+                >
+                  取消
+                </Button>
+                <Button size="sm" onClick={handleAddComment}>
+                  确认
+                </Button>
               </div>
-            </Trigger>
-          </Tooltip>
+            </PopoverContent>
+          </Popover>
         </>
       )}
+
       {toolbarRender && (
         <>
-          <div className={cssPrefix`divider`} />
+          <span className={dividerCls} />
           {toolbarRender(editor)}
         </>
       )}
+
       <input
         type="file"
         ref={imageInputRef}

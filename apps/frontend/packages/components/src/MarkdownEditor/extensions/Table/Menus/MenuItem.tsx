@@ -1,19 +1,8 @@
-import { Menu } from "../../../../compat/legacy-ui";
-import React from "react";
-import { slotClassNameFactory } from "../../../../compat/className";
-
-const cssPrefix = slotClassNameFactory("markdown-editor-table-menu");
-
-export const menuStyles = {
-  bubbleMenu: cssPrefix`bubble-menu`,
-  menuItem: cssPrefix`menu-item`,
-};
-
-export const MenuItem = (props: React.ComponentProps<typeof Menu.Item>) => (
-  <Menu.Item {...props} className={menuStyles.menuItem}>
-    {props.children}
-  </Menu.Item>
-);
+/**
+ * 兼容入口：旧实现里 Table 三个 BubbleMenu 共享的 MenuItem 包装。
+ * 现在直接复用 components 包的通用 Menu 体系，避免重复封装。
+ */
+export { MenuItem } from "../../../../Menu";
 
 /** Stable reference — avoids BubbleMenu re-renders caused by inline arrow functions */
 export const ALWAYS_SHOW = () => true;

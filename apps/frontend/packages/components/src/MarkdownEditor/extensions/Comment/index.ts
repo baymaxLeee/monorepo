@@ -5,7 +5,6 @@ import type {
 } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import { slotClassNameFactory } from "../../../compat/className";
 
 export interface CommentOptions {
   HTMLAttributes: Record<string, unknown>;
@@ -41,10 +40,8 @@ interface CommentPluginState {
   decorations: DecorationSet;
 }
 
-const cssPrefix = slotClassNameFactory("markdown-editor-comment");
-
-export const COMMENT_MARK_CLASS_NAME = cssPrefix``;
-export const COMMENT_ACTIVE_CLASS_NAME = cssPrefix`active`;
+export const COMMENT_MARK_CLASS_NAME = "markdown-editor-comment";
+export const COMMENT_ACTIVE_CLASS_NAME = "markdown-editor-comment-active";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {

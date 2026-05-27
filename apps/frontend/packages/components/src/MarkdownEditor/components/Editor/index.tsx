@@ -18,7 +18,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { slotClassNameFactory } from "../../../compat/className";
 import { EditorProvider } from "../../context";
 import {
   createBlockDragExtension,
@@ -53,7 +52,6 @@ import {
   MenuType,
 } from "../../interface";
 
-const cssPrefix = slotClassNameFactory("markdown-editor");
 const EMPTY_EXTENSIONS: AnyExtension[] = [];
 
 const normalizeMarkdownContent = (
@@ -358,13 +356,13 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
     return (
       <div
         className={cn(
-          cssPrefix``,
-          { [cssPrefix`editable`]: editable },
+          "markdown-editor text-sm text-foreground",
+          editable && "markdown-editor-editable",
           className,
         )}
         style={style}
       >
-        {maskVisible && <div className={cssPrefix`mask`}></div>}
+        {maskVisible && <div className="markdown-editor-mask" />}
         <EditorProvider
           maskVisible={maskVisible}
           setMaskVisible={setMaskVisible}
@@ -390,7 +388,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
               {renderToolbar()}
             </>
           )}
-          <EditorContent editor={editor} className={cssPrefix`content`} />
+          <EditorContent editor={editor} className="markdown-editor-content" />
         </EditorProvider>
       </div>
     );

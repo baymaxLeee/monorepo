@@ -1,9 +1,8 @@
-import { IconDragDotVertical } from "../../../compat/legacy-icons";
 import type { Editor } from "@tiptap/react";
+import { GripVertical } from "lucide-react";
 import { cn } from "shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { slotClassNameFactory } from "../../../compat/className";
 import { getBlockDragState } from "../../extensions/BlockDrag";
 import { getMountedEditorDom } from "../../utils";
 
@@ -11,8 +10,15 @@ interface DragHandlerProps {
   editor: Editor;
 }
 
-const cssPrefix = slotClassNameFactory("markdown-editor-drag-handle");
-const editorRootClassName = slotClassNameFactory("markdown-editor")``;
+const editorRootClassName = "markdown-editor";
+
+const HANDLE_BASE_CLS =
+  "absolute z-20 flex size-5 cursor-grab select-none items-center justify-center rounded text-foreground/80 transition-[background-color,color,opacity] duration-150 hover:bg-accent hover:text-foreground active:bg-accent active:text-foreground";
+
+const HANDLE_DRAGGING_CLS = "cursor-grabbing bg-accent text-foreground";
+
+const INDICATOR_CLS =
+  "pointer-events-none absolute z-[19] h-0.5 rounded-full bg-primary";
 
 function isHTMLElement(value: unknown): value is HTMLElement {
   return value instanceof HTMLElement;
@@ -235,21 +241,22 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
     <>
       {visible && (
         <div
-          className={cn(cssPrefix`root`, {
-            [cssPrefix`dragging`]: dragState.draggingBlockPos != null,
-          })}
+          className={cn(
+            HANDLE_BASE_CLS,
+            dragState.draggingBlockPos != null && HANDLE_DRAGGING_CLS,
+          )}
           style={{ top: position.top, left: position.left }}
           data-drag-handle=""
           tabIndex={-1}
           draggable
           onDragStart={onDragStart}
         >
-          <IconDragDotVertical fontSize="1.5em" />
+          <GripVertical className="size-[1.5em]" />
         </div>
       )}
       {dragState.draggingBlockPos != null && linePosition && (
         <div
-          className={cssPrefix`indicator`}
+          className={INDICATOR_CLS}
           style={{
             top: linePosition.top,
             left: linePosition.left,

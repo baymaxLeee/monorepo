@@ -1,5 +1,5 @@
-import { Message } from "../../../compat/legacy-ui";
 import { Extension } from "@tiptap/core";
+import { toast } from "sonner";
 import { ContentType } from "../../interface";
 
 export interface IndentOptions {
@@ -91,7 +91,7 @@ export const createIndentExtension = () =>
               return true;
             });
             if (!changed) {
-              Message.warning("已达到最大缩进层级");
+              toast.warning("已达到最大缩进层级");
             }
             return true;
           },
@@ -118,7 +118,7 @@ export const createIndentExtension = () =>
               return true;
             });
             if (!changed && !options?.silent) {
-              Message.warning("已达到最小缩进层级");
+              toast.warning("已达到最小缩进层级");
             }
             return changed;
           },

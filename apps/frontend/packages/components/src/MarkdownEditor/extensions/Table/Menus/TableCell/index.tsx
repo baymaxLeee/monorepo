@@ -1,15 +1,9 @@
-import { Menu } from "../../../../../compat/legacy-ui";
-import {
-  IconHorizontalAlignment1,
-  IconLeftAlignment1,
-  IconRightAlignment1,
-  IconTable1,
-  IconVerticalAlignment1,
-} from "../../../../../compat/legacy-icons";
-import { Editor } from "@tiptap/react";
+import type { Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
+import { AlignCenter, AlignLeft, AlignRight, Merge, Split } from "lucide-react";
 import React from "react";
-import { ALWAYS_SHOW, MenuItem, menuStyles } from "../MenuItem";
+import { Menu } from "../../../../../Menu";
+import { ALWAYS_SHOW, MenuItem } from "../MenuItem";
 
 interface TableCellMenuProps {
   editor: Editor;
@@ -20,45 +14,39 @@ export const TableCellMenu: React.FC<TableCellMenuProps> = ({ editor }) => {
     <BubbleMenu
       editor={editor}
       pluginKey="tableCellMenu"
-      className={menuStyles.bubbleMenu}
       appendTo={document.body}
       updateDelay={0}
       shouldShow={ALWAYS_SHOW}
     >
-      <Menu mode="pop" selectable={false}>
+      <Menu>
         <MenuItem
-          key="alignLeft"
+          icon={<AlignLeft />}
           onClick={() => editor.chain().focus().setTextAlign("left").run()}
         >
-          <IconLeftAlignment1 />
           左对齐
         </MenuItem>
         <MenuItem
-          key="alignCenter"
+          icon={<AlignCenter />}
           onClick={() => editor.chain().focus().setTextAlign("center").run()}
         >
-          <IconHorizontalAlignment1 />
           居中对齐
         </MenuItem>
         <MenuItem
-          key="alignRight"
+          icon={<AlignRight />}
           onClick={() => editor.chain().focus().setTextAlign("right").run()}
         >
-          <IconRightAlignment1 />
           右对齐
         </MenuItem>
         <MenuItem
-          key="mergeCells"
+          icon={<Merge />}
           onClick={() => editor.chain().focus().mergeCells().run()}
         >
-          <IconVerticalAlignment1 />
           合并单元格
         </MenuItem>
         <MenuItem
-          key="splitCells"
+          icon={<Split />}
           onClick={() => editor.chain().focus().splitCell().run()}
         >
-          <IconTable1 />
           分割单元格
         </MenuItem>
       </Menu>

@@ -113,6 +113,10 @@ interface PageViewportLike {
 interface LoadedFileLike {
   numPages: number;
   getPage?: (pageNumber: number) => Promise<unknown>;
+  getOutline?: () => Promise<unknown[] | null>;
+  getDestination?: (destination: string) => Promise<unknown[] | null>;
+  // ref 实际是 pdfjs RefProxy，这里用 any 以避免和 react-pdf 的回调签名变体冲突。
+  getPageIndex?: (ref: any) => Promise<number>;
 }
 
 interface PageProxyLike {
@@ -394,6 +398,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
     const [pageProxyMap, setPageProxyMap] = useState<Record<number, unknown>>(
       {},
     );
+    const [pdfDocument, setPdfDocument] = useState<LoadedFileLike | null>(null);
 
     const toolbarConfig = useMemo(
       () => resolveToolbarConfig(toolbar),
@@ -466,6 +471,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       documentLoadTokenRef.current += 1;
       cancelAutoScaleFrame();
       pdfDocumentRef.current = null;
+      setPdfDocument(null);
       pendingScrollHighlightIdRef.current = null;
       initialContinuousScrollDoneRef.current = false;
       pageElementRefs.current = {};
@@ -793,6 +799,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
     const handleDocumentLoadSuccess = (pdf: LoadedFileLike) => {
       const loadToken = documentLoadTokenRef.current;
       pdfDocumentRef.current = pdf;
+      setPdfDocument(pdf);
       setNumPages(pdf.numPages);
       setLoadStatus("ready");
       const next = Math.min(Math.max(1, currentPage), pdf.numPages || 1);
@@ -831,6 +838,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
     const handleDocumentLoadError = (error: Error) => {
       documentLoadTokenRef.current += 1;
       pdfDocumentRef.current = null;
+      setPdfDocument(null);
       setLoadStatus("error");
       onLoadError?.(error);
     };
@@ -1179,12 +1187,13 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
               sidebarType={sidebarType}
               numPages={numPages}
               currentPage={currentPage}
+              pdf={pdfDocument}
               width={sidebarWidth}
               onJumpPage={goToPage}
             />
 
             <div
-              className="relative min-w-0 flex-1 overflow-auto [&_.react-pdf\\_\\_Page__canvas]:mx-auto [&_.react-pdf\\_\\_Page__canvas]:block"
+              className="scrollbar-hide relative min-w-0 flex-1 overflow-auto [&_.react-pdf\\_\\_Page__canvas]:mx-auto [&_.react-pdf\\_\\_Page__canvas]:block"
               ref={viewportRef}
             >
               <div className="flex flex-col items-center gap-4 py-4">

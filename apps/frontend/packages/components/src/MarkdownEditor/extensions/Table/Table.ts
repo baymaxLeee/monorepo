@@ -7,12 +7,10 @@ import { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
 import StarterKit from "@tiptap/starter-kit";
-import { slotClassNameFactory } from "../../../compat/className";
 import { createCodeBlockExtension } from "../CodeBlock";
 
-const cssPrefix = slotClassNameFactory("markdown-editor-table");
-const tableClassName = cssPrefix`table`;
-const tableWrapperClassName = cssPrefix`wrapper`;
+const tableClassName = "markdown-editor-table-table";
+const tableWrapperClassName = "markdown-editor-table-wrapper";
 const TABLE_CELL_NEWLINE_TOKEN = "\\n";
 let cellMarkdownManager: MarkdownManager | null = null;
 

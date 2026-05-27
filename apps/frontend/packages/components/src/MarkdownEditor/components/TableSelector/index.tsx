@@ -1,13 +1,10 @@
 import { cn } from "shared";
 import { useState } from "react";
-import { slotClassNameFactory } from "../../../compat/className";
 
 interface TableSelectorProps {
   onSelect: (rows: number, cols: number) => void;
   className?: string;
 }
-
-const cssPrefix = slotClassNameFactory("markdown-editor-table-selector");
 
 const MAX_ROWS = 9;
 const MAX_COLS = 9;
@@ -40,13 +37,18 @@ export const TableSelector = ({ onSelect, className }: TableSelectorProps) => {
   }
 
   return (
-    <div className={cn(cssPrefix`root`, className)}>
-      <div className={cssPrefix`title`}>
+    <div
+      className={cn(
+        "min-w-[200px] rounded-lg border bg-popover p-2 shadow-md",
+        className,
+      )}
+    >
+      <div className="mb-2 flex items-center justify-between px-1 text-xs font-medium text-muted-foreground">
         <span>插入表格</span>
         <span>{hoverRow > 0 ? `${hoverRow} x ${hoverCol}` : ""}</span>
       </div>
       <div
-        className={cssPrefix`grid`}
+        className="grid select-none gap-1 px-1"
         style={{ gridTemplateColumns: `repeat(${MAX_COLS}, 1fr)` }}
         onMouseLeave={handleMouseLeave}
       >
@@ -57,8 +59,9 @@ export const TableSelector = ({ onSelect, className }: TableSelectorProps) => {
             <div
               key={`${row}-${col}`}
               className={cn(
-                cssPrefix`cell`,
-                isActive && cssPrefix`cell-active`,
+                "relative size-4 cursor-pointer rounded-[2px] border bg-background transition-all hover:z-10 hover:scale-110 hover:border-blue-500",
+                isActive &&
+                  "border-blue-500 bg-blue-100 shadow-[0_0_0_1px_var(--color-blue-200)]",
               )}
               onMouseEnter={() => handleMouseMove(row, col)}
               onClick={handleClick}

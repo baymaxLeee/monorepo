@@ -3,7 +3,6 @@ import { Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { slotClassNameFactory } from "../../../compat/className";
 import { AiPolishStatus } from "../../constants";
 import { isCellSelection } from "../../extensions/Table/utils";
 import { getMountedEditorDom } from "../../utils";
@@ -22,8 +21,15 @@ interface PolishPosition {
 
 const POSITION_EPSILON = 0.5;
 
-const cssPrefix = slotClassNameFactory("markdown-editor-bubble-toolbar");
-const editorRootClassName = slotClassNameFactory("markdown-editor")``;
+/** BubbleMenu 容器的稳定 hook class（无样式职责，用于 polish panel 定位查询） */
+const BUBBLE_TOOLBAR_HOOK_CLASS = "markdown-editor-bubble-toolbar";
+/** 浮起气泡工具栏容器（高保真还原自原 BubbleToolbar/index.less） */
+const FLOATING_PANEL_CLS = `${BUBBLE_TOOLBAR_HOOK_CLASS} relative z-[101] rounded-md border bg-background text-sm text-foreground shadow-lg`;
+/** AI 润色面板（独立 portal，固定定位） */
+const POLISH_PANEL_CLS =
+  "fixed z-[102] rounded-md border bg-background text-sm text-foreground shadow-lg";
+/** 用于 closest 查找编辑器根容器的稳定 hook */
+const EDITOR_ROOT_CLASS = "markdown-editor";
 
 const isValidSelection = (editor: Editor) => {
   const { selection } = editor.state;
@@ -111,7 +117,7 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
 
   const getEditorCenterPos = (): PolishPosition | null => {
     const wrapper = getMountedEditorDom(editor)?.closest(
-      `.${editorRootClassName}`,
+      `.${EDITOR_ROOT_CLASS}`,
     ) as HTMLElement | null;
     if (!wrapper) return null;
     const rect = wrapper.getBoundingClientRect();
@@ -123,7 +129,7 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
 
   const getCurrentToolbarPos = (): PolishPosition | null => {
     const toolbar = document.querySelector(
-      `.${cssPrefix`container`}`,
+      `.${BUBBLE_TOOLBAR_HOOK_CLASS}`,
     ) as HTMLElement | null;
     if (!toolbar) return null;
     const rect = toolbar.getBoundingClientRect();
@@ -175,7 +181,7 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
     if (!polishVisible) return;
 
     const editorWrapper = getMountedEditorDom(editor)?.closest(
-      `.${editorRootClassName}`,
+      `.${EDITOR_ROOT_CLASS}`,
     ) as HTMLElement | null;
     if (!editorWrapper) return;
 
@@ -200,7 +206,7 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
     const anchor = anchorRef.current;
 
     const wrapper = getMountedEditorDom(editor)?.closest(
-      `.${editorRootClassName}`,
+      `.${EDITOR_ROOT_CLASS}`,
     ) as HTMLElement | null;
     const bounds = wrapper?.getBoundingClientRect() ?? {
       top: 0,
@@ -269,7 +275,7 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
     <>
       {!polishVisible && !showCentered && (
         <BubbleMenu
-          className={cssPrefix`container`}
+          className={FLOATING_PANEL_CLS}
           editor={editor}
           shouldShow={shouldShow}
           appendTo={document.body}
@@ -295,7 +301,7 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
         centeredPos &&
         createPortal(
           <div
-            className={cssPrefix`polish-panel`}
+            className={POLISH_PANEL_CLS}
             style={{
               top: centeredPos.top,
               left: centeredPos.left,
@@ -317,7 +323,7 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
         createPortal(
           <div
             ref={polishRef}
-            className={cssPrefix`polish-panel`}
+            className={POLISH_PANEL_CLS}
             style={{
               top: polishPos.top,
               left: polishPos.left,

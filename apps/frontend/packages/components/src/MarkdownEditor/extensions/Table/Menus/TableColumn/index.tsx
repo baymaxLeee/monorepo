@@ -1,22 +1,22 @@
-import { Menu } from "../../../../../compat/legacy-ui";
-import {
-  IconAddLeft,
-  IconAddRight,
-  IconDelete,
-  IconHorizontalAlignment1,
-  IconLeftAlignment1,
-  IconRightAlignment1,
-  IconTable1,
-  IconVerticalAlignment1,
-} from "../../../../../compat/legacy-icons";
 import { Selection } from "@tiptap/pm/state";
 import { findTable, TableMap } from "@tiptap/pm/tables";
-import { Editor, useEditorState } from "@tiptap/react";
+import { type Editor, useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  ArrowLeftToLine,
+  ArrowRightToLine,
+  Merge,
+  Split,
+  Trash2,
+} from "lucide-react";
 import React from "react";
+import { Menu } from "../../../../../Menu";
 import { useEditorContext } from "../../../../context";
 import { isCellSelection, isEntireTableSelected } from "../../utils";
-import { ALWAYS_SHOW, MenuItem, menuStyles } from "../MenuItem";
+import { ALWAYS_SHOW, MenuItem } from "../MenuItem";
 
 interface TableColumnMenuProps {
   editor: Editor;
@@ -60,64 +60,51 @@ export const TableColumnMenu: React.FC<TableColumnMenuProps> = ({ editor }) => {
     <BubbleMenu
       editor={editor}
       pluginKey="tableColumnMenu"
-      className={menuStyles.bubbleMenu}
       appendTo={document.body}
       updateDelay={0}
       shouldShow={ALWAYS_SHOW}
       options={{ offset: 16 }}
     >
-      <Menu
-        mode="pop"
-        selectable={false}
-        triggerProps={{
-          popupAlign: {
-            bottom: 4,
-          },
-        }}
-      >
+      <Menu>
         {!isMarkdown && (
           <>
             <MenuItem
-              key="alignLeft"
+              icon={<AlignLeft />}
               onClick={() => editor.chain().focus().setTextAlign("left").run()}
             >
-              <IconLeftAlignment1 />
               左对齐
             </MenuItem>
             <MenuItem
-              key="alignCenter"
+              icon={<AlignCenter />}
               onClick={() =>
                 editor.chain().focus().setTextAlign("center").run()
               }
             >
-              <IconHorizontalAlignment1 />
               居中对齐
             </MenuItem>
             <MenuItem
-              key="alignRight"
+              icon={<AlignRight />}
               onClick={() => editor.chain().focus().setTextAlign("right").run()}
             >
-              <IconRightAlignment1 />
               右对齐
             </MenuItem>
           </>
         )}
         <MenuItem
-          key="addColumnBefore"
+          icon={<ArrowLeftToLine />}
           onClick={() => editor.chain().focus().addColumnBefore().run()}
         >
-          <IconAddLeft />
           在左侧插入
         </MenuItem>
         <MenuItem
-          key="addColumnAfter"
+          icon={<ArrowRightToLine />}
           onClick={() => editor.chain().focus().addColumnAfter().run()}
         >
-          <IconAddRight />
           在右侧插入
         </MenuItem>
         <MenuItem
-          key="deleteColumn"
+          icon={<Trash2 />}
+          destructive
           disabled={!isTableSelected && !canDeleteColumn}
           onClick={() => {
             const chain = editor.chain().focus();
@@ -128,23 +115,20 @@ export const TableColumnMenu: React.FC<TableColumnMenuProps> = ({ editor }) => {
             chain.deleteColumn().command(clearSelection).run();
           }}
         >
-          <IconDelete />
           {isTableSelected ? "删除该表" : "删除该列"}
         </MenuItem>
         {!isMarkdown && (
           <>
             <MenuItem
-              key="mergeCells"
+              icon={<Merge />}
               onClick={() => editor.chain().focus().mergeCells().run()}
             >
-              <IconVerticalAlignment1 />
               合并单元格
             </MenuItem>
             <MenuItem
-              key="splitCell"
+              icon={<Split />}
               onClick={() => editor.chain().focus().splitCell().run()}
             >
-              <IconTable1 />
               分割单元格
             </MenuItem>
           </>

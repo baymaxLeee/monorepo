@@ -1,25 +1,30 @@
-import { Menu, Trigger } from "../../../compat/legacy-ui";
-import {
-  IconChecklist1,
-  IconCodeBrackets1,
-  IconH11,
-  IconH21,
-  IconH31,
-  IconH41,
-  IconH51,
-  IconH61,
-  IconHn1,
-  IconImage1,
-  IconMinus,
-  IconOrderedList1,
-  IconQuoted1,
-  IconTable1,
-  IconUnorderedList1,
-} from "../../../compat/legacy-icons";
-import { Editor } from "@tiptap/react";
+import type { Editor } from "@tiptap/react";
 import { FloatingMenu } from "@tiptap/react/menus";
+import {
+  Braces,
+  CheckSquare,
+  Heading,
+  Heading1,
+  Heading2,
+  Heading3,
+  Heading4,
+  Heading5,
+  Heading6,
+  Image as ImageIcon,
+  List,
+  ListOrdered,
+  Minus,
+  Quote,
+  Table as TableIcon,
+} from "lucide-react";
 import React, { useRef, useState } from "react";
-import { slotClassNameFactory } from "../../../compat/className";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "../../../HoverCard";
+import { Menu, MenuItem, MenuItemGroup } from "../../../Menu";
+import { Popover, PopoverContent, PopoverTrigger } from "../../../Popover";
 import { ALLOWED_IMAGE_ACCEPT, isAllowedImageFile } from "../../constants";
 import { useEditorContext } from "../../context";
 import { TableSelector } from "../TableSelector";
@@ -28,18 +33,16 @@ interface BlockMenuProps {
   editor: Editor;
 }
 
-const cssPrefix = slotClassNameFactory("markdown-editor-block-menu");
-
-const SubMenu = Menu.SubMenu;
-const MenuItemGroup = Menu.ItemGroup;
-const MenuItem = (props: React.ComponentProps<typeof Menu.Item>) => {
-  return (
-    <Menu.Item {...props} className={cssPrefix`menu-item`}>
-      {props.children}
-    </Menu.Item>
-  );
-};
-
+/**
+ * BlockMenu —— 编辑器空段落左侧 "+" 浮起的块插入菜单。
+ *
+ * 高保真对照 paas-cloud-material/EAMarkdownEditor/components/BlockMenu/index.less：
+ * - "+" trigger 24×24 方块 / 1px border / 圆角 4 / hover 浅蓝放大 / active 缩小
+ * - popup 圆角 8 / max-height 600 / 内部滚动 / 隐藏滚动条
+ * - MenuItem 32px 高 / icon 16px / 与文字 8px 间距
+ * - "其他标题" hover 触发右侧 SubMenu —— 用 shadcn HoverCard
+ * - "表格" hover 触发右侧 TableSelector —— 用 shadcn HoverCard
+ */
 export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
   const [visible, setVisible] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -63,196 +66,216 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
     e.target.value = "";
   };
 
-  const menu = (
-    <Menu mode="pop" selectable={false} className={cssPrefix`popup`}>
-      <MenuItemGroup title="基础">
-        <MenuItem
-          key="h1"
-          onClick={() =>
-            handleInsert(() =>
-              editor.chain().focus().toggleHeading({ level: 1 }).run(),
-            )
-          }
-        >
-          <IconH11 />
-          一级标题
-        </MenuItem>
-        <MenuItem
-          key="h2"
-          onClick={() =>
-            handleInsert(() =>
-              editor.chain().focus().toggleHeading({ level: 2 }).run(),
-            )
-          }
-        >
-          <IconH21 />
-          二级标题
-        </MenuItem>
-        <MenuItem
-          key="h3"
-          onClick={() =>
-            handleInsert(() =>
-              editor.chain().focus().toggleHeading({ level: 3 }).run(),
-            )
-          }
-        >
-          <IconH31 />
-          三级标题
-        </MenuItem>
-      </MenuItemGroup>
-      <SubMenu
-        key="hn"
-        className={cssPrefix`menu-item`}
-        title={
-          <>
-            <IconHn1 />
-            其他标题
-          </>
-        }
-        triggerProps={{
-          position: "rt",
-          showArrow: true,
-        }}
-      >
-        <MenuItem
-          key="h4"
-          onClick={() =>
-            handleInsert(() =>
-              editor.chain().focus().toggleHeading({ level: 4 }).run(),
-            )
-          }
-        >
-          <IconH41 />
-          四级标题
-        </MenuItem>
-        <MenuItem
-          key="h5"
-          onClick={() =>
-            handleInsert(() =>
-              editor.chain().focus().toggleHeading({ level: 5 }).run(),
-            )
-          }
-        >
-          <IconH51 />
-          五级标题
-        </MenuItem>
-        <MenuItem
-          key="h6"
-          onClick={() =>
-            handleInsert(() =>
-              editor.chain().focus().toggleHeading({ level: 6 }).run(),
-            )
-          }
-        >
-          <IconH61 />
-          六级标题
-        </MenuItem>
-      </SubMenu>
-
-      <MenuItemGroup title="列表">
-        <MenuItem
-          key="bullet"
-          onClick={() =>
-            handleInsert(() => editor.chain().focus().toggleBulletList().run())
-          }
-        >
-          <IconUnorderedList1 />
-          无序列表
-        </MenuItem>
-        <MenuItem
-          key="ordered"
-          onClick={() =>
-            handleInsert(() => editor.chain().focus().toggleOrderedList().run())
-          }
-        >
-          <IconOrderedList1 />
-          有序列表
-        </MenuItem>
-        <MenuItem
-          key="task"
-          onClick={() =>
-            handleInsert(() => editor.chain().focus().toggleTaskList().run())
-          }
-        >
-          <IconChecklist1 />
-          任务列表
-        </MenuItem>
-      </MenuItemGroup>
-
-      <MenuItemGroup title="插入">
-        <MenuItem
-          key="code"
-          onClick={() =>
-            handleInsert(() => editor.chain().focus().setCodeBlock().run())
-          }
-        >
-          <IconCodeBrackets1 />
-          代码块
-        </MenuItem>
-        <MenuItem
-          key="quote"
-          onClick={() =>
-            handleInsert(() => editor.chain().focus().setBlockquote().run())
-          }
-        >
-          <IconQuoted1 />
-          引用
-        </MenuItem>
-        <MenuItem
-          key="divider"
-          onClick={() =>
-            handleInsert(() => editor.chain().focus().setHorizontalRule().run())
-          }
-        >
-          <IconMinus />
-          分割线
-        </MenuItem>
-        {onUpload && (
-          <MenuItem key="image" onClick={handleImageClick}>
-            <IconImage1 /> 图片
-          </MenuItem>
-        )}
-        <Trigger
-          showArrow
-          popup={() => (
-            <TableSelector
-              onSelect={(rows, cols) =>
-                handleInsert(() =>
-                  editor
-                    .chain()
-                    .focus()
-                    .insertTable({ rows, cols, withHeaderRow: true })
-                    .run(),
-                )
-              }
-            />
-          )}
-          position="right"
-          trigger="hover"
-        >
-          <MenuItem key="table">
-            <IconTable1 style={{ marginRight: 8 }} />
-            表格
-          </MenuItem>
-        </Trigger>
-      </MenuItemGroup>
-    </Menu>
-  );
-
   return (
     <FloatingMenu editor={editor}>
-      <Trigger
-        popup={() => menu}
-        position="bl"
-        className={cssPrefix`trigger-wrapper`}
-        popupVisible={visible}
-        onVisibleChange={setVisible}
-        popupAlign={{ bottom: 2 }}
-      >
-        <div className={cssPrefix`trigger`}>
-          <span className={cssPrefix`trigger-icon`}>+</span>
-        </div>
-      </Trigger>
+      <div className="-translate-x-[2.4em]">
+        <Popover open={visible} onOpenChange={setVisible}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label="插入块"
+              className="group/blockmenu-trigger flex size-6 cursor-pointer select-none items-center justify-center rounded border bg-background transition-all hover:scale-105 hover:border-blue-500 hover:bg-blue-50 active:scale-95"
+            >
+              <span className="font-serif text-lg font-light leading-none text-muted-foreground transition-colors group-hover/blockmenu-trigger:text-blue-600">
+                +
+              </span>
+            </button>
+          </PopoverTrigger>
+
+          <PopoverContent
+            side="bottom"
+            align="start"
+            sideOffset={4}
+            className="scrollbar-hide max-h-[600px] w-auto overflow-y-auto rounded-lg border bg-popover p-1 shadow-md"
+          >
+            <Menu inline>
+              <MenuItemGroup label="基础">
+                <MenuItem
+                  icon={<Heading1 />}
+                  onClick={() =>
+                    handleInsert(() =>
+                      editor.chain().focus().toggleHeading({ level: 1 }).run(),
+                    )
+                  }
+                >
+                  一级标题
+                </MenuItem>
+                <MenuItem
+                  icon={<Heading2 />}
+                  onClick={() =>
+                    handleInsert(() =>
+                      editor.chain().focus().toggleHeading({ level: 2 }).run(),
+                    )
+                  }
+                >
+                  二级标题
+                </MenuItem>
+                <MenuItem
+                  icon={<Heading3 />}
+                  onClick={() =>
+                    handleInsert(() =>
+                      editor.chain().focus().toggleHeading({ level: 3 }).run(),
+                    )
+                  }
+                >
+                  三级标题
+                </MenuItem>
+                <HoverCard openDelay={80} closeDelay={120}>
+                  <HoverCardTrigger asChild>
+                    <MenuItem icon={<Heading />}>其他标题</MenuItem>
+                  </HoverCardTrigger>
+                  <HoverCardContent
+                    side="right"
+                    align="start"
+                    sideOffset={8}
+                    className="w-auto rounded-lg border bg-popover p-1 shadow-md"
+                  >
+                    <Menu inline>
+                      <MenuItem
+                        icon={<Heading4 />}
+                        onClick={() =>
+                          handleInsert(() =>
+                            editor
+                              .chain()
+                              .focus()
+                              .toggleHeading({ level: 4 })
+                              .run(),
+                          )
+                        }
+                      >
+                        四级标题
+                      </MenuItem>
+                      <MenuItem
+                        icon={<Heading5 />}
+                        onClick={() =>
+                          handleInsert(() =>
+                            editor
+                              .chain()
+                              .focus()
+                              .toggleHeading({ level: 5 })
+                              .run(),
+                          )
+                        }
+                      >
+                        五级标题
+                      </MenuItem>
+                      <MenuItem
+                        icon={<Heading6 />}
+                        onClick={() =>
+                          handleInsert(() =>
+                            editor
+                              .chain()
+                              .focus()
+                              .toggleHeading({ level: 6 })
+                              .run(),
+                          )
+                        }
+                      >
+                        六级标题
+                      </MenuItem>
+                    </Menu>
+                  </HoverCardContent>
+                </HoverCard>
+              </MenuItemGroup>
+
+              <MenuItemGroup label="列表">
+                <MenuItem
+                  icon={<List />}
+                  onClick={() =>
+                    handleInsert(() =>
+                      editor.chain().focus().toggleBulletList().run(),
+                    )
+                  }
+                >
+                  无序列表
+                </MenuItem>
+                <MenuItem
+                  icon={<ListOrdered />}
+                  onClick={() =>
+                    handleInsert(() =>
+                      editor.chain().focus().toggleOrderedList().run(),
+                    )
+                  }
+                >
+                  有序列表
+                </MenuItem>
+                <MenuItem
+                  icon={<CheckSquare />}
+                  onClick={() =>
+                    handleInsert(() =>
+                      editor.chain().focus().toggleTaskList().run(),
+                    )
+                  }
+                >
+                  任务列表
+                </MenuItem>
+              </MenuItemGroup>
+
+              <MenuItemGroup label="插入">
+                <MenuItem
+                  icon={<Braces />}
+                  onClick={() =>
+                    handleInsert(() =>
+                      editor.chain().focus().setCodeBlock().run(),
+                    )
+                  }
+                >
+                  代码块
+                </MenuItem>
+                <MenuItem
+                  icon={<Quote />}
+                  onClick={() =>
+                    handleInsert(() =>
+                      editor.chain().focus().setBlockquote().run(),
+                    )
+                  }
+                >
+                  引用
+                </MenuItem>
+                <MenuItem
+                  icon={<Minus />}
+                  onClick={() =>
+                    handleInsert(() =>
+                      editor.chain().focus().setHorizontalRule().run(),
+                    )
+                  }
+                >
+                  分割线
+                </MenuItem>
+                {onUpload && (
+                  <MenuItem icon={<ImageIcon />} onClick={handleImageClick}>
+                    图片
+                  </MenuItem>
+                )}
+                <HoverCard openDelay={80} closeDelay={120}>
+                  <HoverCardTrigger asChild>
+                    <MenuItem icon={<TableIcon />}>表格</MenuItem>
+                  </HoverCardTrigger>
+                  <HoverCardContent
+                    side="right"
+                    align="start"
+                    sideOffset={8}
+                    className="w-auto rounded-lg border-none bg-transparent p-0 shadow-none"
+                  >
+                    <TableSelector
+                      onSelect={(rows, cols) =>
+                        handleInsert(() =>
+                          editor
+                            .chain()
+                            .focus()
+                            .insertTable({ rows, cols, withHeaderRow: true })
+                            .run(),
+                        )
+                      }
+                    />
+                  </HoverCardContent>
+                </HoverCard>
+              </MenuItemGroup>
+            </Menu>
+          </PopoverContent>
+        </Popover>
+      </div>
+
       <input
         type="file"
         ref={fileInputRef}

@@ -6,6 +6,7 @@ import {
 } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import React, { useEffect, useRef } from "react";
+import { cn } from "shared";
 import { basicSetup } from "./constants";
 import type { CodeEditorProps } from "./interface";
 import { getLanguageExtension } from "./utils";
@@ -189,7 +190,13 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     });
   }, [cacheKey, readOnly]);
 
-  return <div ref={containerRef} style={style} className={className} />;
+  return (
+    <div
+      ref={containerRef}
+      style={style}
+      className={cn("code-editor", className)}
+    />
+  );
 };
 
 CodeEditor.displayName = "CodeEditor";

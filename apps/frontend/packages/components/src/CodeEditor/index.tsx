@@ -13,7 +13,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   return (
     <Suspense
       fallback={
-        <div style={style} className={cn("h-full", className)}>
+        <div style={style} className={cn("code-editor", className)}>
           <div className="flex h-full min-h-30 items-center justify-center p-6 text-center text-sm leading-6 text-muted-foreground">
             {loadingText}
           </div>

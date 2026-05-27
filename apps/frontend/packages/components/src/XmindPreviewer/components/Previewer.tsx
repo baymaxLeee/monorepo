@@ -18,11 +18,7 @@ import {
 } from "react";
 import MindMap from "simple-mind-map";
 import { Button } from "../../Button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "../../Tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../Tooltip";
 import type {
   XMindFullData,
   XMindNode,
@@ -105,6 +101,8 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
     const [parseStatus, setParseStatus] = useState<
       "idle" | "loading" | "error"
     >("idle");
+    const [isCanvasReady, setIsCanvasReady] = useState(false);
+    const [isMindMapReady, setIsMindMapReady] = useState(false);
     const [viewportScale, setViewportScale] = useState(1);
     const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -120,7 +118,12 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
       effectiveData &&
       (isFullData(effectiveData) ? effectiveData.root : effectiveData),
     );
-    const canInteract = supported && parseStatus === "idle" && hasData;
+    const canInteract =
+      supported &&
+      isCanvasReady &&
+      isMindMapReady &&
+      parseStatus === "idle" &&
+      hasData;
 
     const rootData = useMemo(() => {
       if (!effectiveData) return undefined;
@@ -159,6 +162,11 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
         layoutRenderEndHandlerRef.current,
       );
       layoutRenderEndHandlerRef.current = null;
+    };
+
+    const getCanvasReady = () => {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      return Boolean(rect && rect.width > 0 && rect.height > 0);
     };
 
     const scheduleLayoutAutoFit = (instance: MindMap) => {
@@ -307,6 +315,9 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
       if (!supported || !canvasRef.current || !rootData) {
         return;
       }
+      if (!isCanvasReady) {
+        return;
+      }
 
       const instance = new MindMap({
         el: canvasRef.current,
@@ -348,6 +359,7 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
       }
 
       mindMapRef.current = instance;
+      setIsMindMapReady(true);
       syncViewportScale();
       onReadyRef.current?.(instance);
 
@@ -356,10 +368,41 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
         instance.off("scale", handleScaleChange);
         instance.destroy();
         mindMapRef.current = null;
+        setIsMindMapReady(false);
         clearAutoFitFrames();
         clearLayoutRenderEndHandler();
       };
-    }, [supported, hasData]);
+    }, [supported, hasData, isCanvasReady]);
+
+    useEffect(() => {
+      if (!supported || !rootData || !canvasRef.current) {
+        setIsCanvasReady(false);
+        return;
+      }
+
+      const updateCanvasReady = () => {
+        const nextReady = getCanvasReady();
+        setIsCanvasReady((current) =>
+          current === nextReady ? current : nextReady,
+        );
+      };
+
+      updateCanvasReady();
+
+      if (typeof ResizeObserver === "undefined") {
+        window.addEventListener("resize", updateCanvasReady);
+        return () => {
+          window.removeEventListener("resize", updateCanvasReady);
+        };
+      }
+
+      const observer = new ResizeObserver(updateCanvasReady);
+      observer.observe(canvasRef.current);
+
+      return () => {
+        observer.disconnect();
+      };
+    }, [supported, rootData]);
 
     useEffect(() => {
       const instance = mindMapRef.current;
@@ -476,7 +519,7 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
         ref={rootRef}
         style={{ ...style, width, height }}
         className={cn(
-          "relative overflow-hidden rounded-md border bg-background",
+          "relative min-h-80 overflow-hidden rounded-md border bg-background",
           className,
         )}
       >

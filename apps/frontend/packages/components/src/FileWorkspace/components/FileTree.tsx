@@ -1,16 +1,18 @@
-import { Input, Message } from "../../compat/legacy-ui";
-import { IconSearch } from "../../compat/legacy-icons";
 import {
-  IconAddDocLine,
-  IconAddFolderLine,
-  IconFileDoc,
-  IconFolderCloseFill,
-  IconFolderOpenFill,
-} from "../../compat/legacy-icons";
+  FilePlus,
+  FolderClosed,
+  FolderOpen,
+  FolderPlus,
+  Search,
+  X,
+} from "lucide-react";
 import { cn } from "shared";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
+import { FileIcon } from "../../FileIcon";
+import { Input } from "../../Input";
 import { ChangeAction, type FileChange, type FileNode } from "../interface";
 import { fileWorkspaceClass, isDescendant, updateTree } from "../utils";
 
@@ -318,7 +320,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
       // 目标目录下重名检测
       if (src && hasDuplicateName(targetId, src.name, srcId)) {
-        Message.warning(
+        toast.warning(
           `目标位置已存在同名文件或文件夹「${src.name}」，无法移动`,
         );
         return;
@@ -421,12 +423,12 @@ export const FileTree: React.FC<FileTreeProps> = ({
           <span className={fileWorkspaceClass`node-icon`}>
             {isDir ? (
               isOpen ? (
-                <IconFolderOpenFill />
+                <FolderOpen className="size-4" />
               ) : (
-                <IconFolderCloseFill />
+                <FolderClosed className="size-4" />
               )
             ) : (
-              <IconFileDoc />
+              <FileIcon filename={node.name} />
             )}
           </span>
           {isRenaming ? (
@@ -449,9 +451,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
               >
                 <span className={fileWorkspaceClass`node-icon`}>
                   {input.type === "directory" ? (
-                    <IconFolderCloseFill />
+                    <FolderClosed className="size-4" />
                   ) : (
-                    <IconFileDoc />
+                    <FileIcon filename="" />
                   )}
                 </span>
                 {renderInput()}
@@ -475,7 +477,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
               onClick={() => startCreate(null, "file")}
               title="新建文件"
             >
-              <IconAddDocLine fontSize={16} />
+              <FilePlus className="size-4" />
             </button>
             <button
               type="button"
@@ -483,20 +485,32 @@ export const FileTree: React.FC<FileTreeProps> = ({
               onClick={() => startCreate(null, "directory")}
               title="新建文件夹"
             >
-              <IconAddFolderLine fontSize={16} />
+              <FolderPlus className="size-4" />
             </button>
           </div>
         )}
       </div>
 
       <div className={fileWorkspaceClass`file-search`}>
-        <Input
-          placeholder="搜索"
-          value={searchKeyword}
-          onChange={(value) => setSearchKeyword(value)}
-          prefix={<IconSearch />}
-          allowClear
-        />
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="搜索"
+            value={searchKeyword}
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            className="h-8 pl-8 pr-7"
+          />
+          {searchKeyword && (
+            <button
+              type="button"
+              aria-label="清除"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setSearchKeyword("")}
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div
@@ -525,7 +539,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
                   onClick={() => onSelectFile(node.id)}
                 >
                   <span className={fileWorkspaceClass`node-icon`}>
-                    <IconFileDoc />
+                    <FileIcon filename={node.name} />
                   </span>
                   <span className={fileWorkspaceClass`search-item-name`}>
                     {highlightMatch(node.name, searchKeyword.trim())}
@@ -549,9 +563,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
               >
                 <span className={fileWorkspaceClass`node-icon`}>
                   {input.type === "directory" ? (
-                    <IconFolderCloseFill />
+                    <FolderClosed className="size-4" />
                   ) : (
-                    <IconFileDoc />
+                    <FileIcon filename="" />
                   )}
                 </span>
                 {renderInput()}

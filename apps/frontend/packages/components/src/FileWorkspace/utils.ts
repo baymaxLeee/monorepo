@@ -1,10 +1,10 @@
-import { slotClassNameFactory } from "../compat/className";
+import { bemClassFactory } from "../utils/bem";
 
 export { getLanguageExtension } from "../CodeEditor/utils";
 
 import { ChangeAction, type FileChange, type FileNode } from "./interface";
 
-export const fileWorkspaceClass = slotClassNameFactory("file-workspace");
+export const fileWorkspaceClass = bemClassFactory("file-workspace");
 
 /** 递归遍历树，构建 id → FileNode 索引，同时填充每个节点的 parent_id */
 export function buildNodeMap(tree: FileNode[]): Map<string, FileNode> {

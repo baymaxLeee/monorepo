@@ -1,6 +1,5 @@
 import { Editor } from "@tiptap/react";
 import React from "react";
-import { slotClassNameFactory } from "../../../compat/className";
 import { Toolbar } from "../Toolbar";
 
 interface IProps {
@@ -9,11 +8,9 @@ interface IProps {
   commentEnable?: boolean;
 }
 
-const cssPrefix = slotClassNameFactory("markdown-editor-top-toolbar");
-
 export const FixedToolbar: React.FC<IProps> = (props) => {
   return (
-    <div className={cssPrefix`container`}>
+    <div className="z-10 w-full border-b bg-muted/30">
       <Toolbar {...props} />
     </div>
   );
