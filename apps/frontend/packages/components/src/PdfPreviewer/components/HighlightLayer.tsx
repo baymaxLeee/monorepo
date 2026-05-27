@@ -1,13 +1,11 @@
-import { cn } from "shared";
 import { forwardRef, useImperativeHandle, useMemo } from "react";
-import { slotClassNameFactory } from "../../compat/className";
+
+import { cn } from "shared";
 import type {
   PdfHighlight,
   PdfHighlightRegions,
   PdfSelectionRegion,
 } from "../interface";
-
-const cssPrefix = slotClassNameFactory("pdf-previewer");
 
 export interface HighlightLayerProps {
   /** 当前正在展示的页码（1-based） */
@@ -37,11 +35,13 @@ interface RenderItem {
   id: string | undefined;
   index: number;
   className: string | undefined;
-  /** 业务显式传入的色；undefined 时由 className 默认色生效 */
+  /** 业务显式传入的色；undefined 时使用默认底色 */
   color: string | undefined;
   region: PdfSelectionRegion;
   highlight: PdfHighlight;
 }
+
+const DEFAULT_HIGHLIGHT_COLOR = "rgb(250 204 21 / 35%)";
 
 const HighlightLayer = forwardRef<HighlightLayerRef, HighlightLayerProps>(
   ({ pageNumber, highlights, onHighlightClick }, ref) => {
@@ -72,7 +72,7 @@ const HighlightLayer = forwardRef<HighlightLayerRef, HighlightLayerProps>(
         getHighlightElement: (id: string) => {
           if (typeof document === "undefined" || !id) return null;
           return document.querySelector<HTMLElement>(
-            `.${cssPrefix`highlight`}[data-highlight-id="${id}"]`,
+            `[data-pdf-highlight="region"][data-highlight-id="${id}"]`,
           );
         },
       }),
@@ -85,28 +85,22 @@ const HighlightLayer = forwardRef<HighlightLayerRef, HighlightLayerProps>(
 
     return (
       <div
-        className={cssPrefix`highlight-layer`}
+        className="pointer-events-none absolute inset-0 z-[2]"
         data-testid="pdf-highlight-layer"
-        style={{
-          position: "absolute",
-          inset: 0,
-          pointerEvents: "none",
-          zIndex: 2,
-        }}
       >
         {renderItems.map((item) => (
           <div
             key={item.key}
-            className={cn(cssPrefix`highlight`, item.className)}
+            data-pdf-highlight="region"
             data-highlight-id={item.id ?? ""}
             data-highlight-index={item.index}
+            className={cn("absolute rounded-sm", item.className)}
             style={{
-              position: "absolute",
               left: `${item.region.left}%`,
               top: `${item.region.top}%`,
               width: `${item.region.width}%`,
               height: `${item.region.height}%`,
-              background: item.color,
+              background: item.color ?? DEFAULT_HIGHLIGHT_COLOR,
               pointerEvents: onHighlightClick ? "auto" : "none",
               cursor: onHighlightClick ? "pointer" : undefined,
             }}

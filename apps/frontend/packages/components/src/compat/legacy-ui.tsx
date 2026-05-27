@@ -1,5 +1,6 @@
 import { cn } from "shared";
 import React from "react";
+import { HoverCard as HoverCardPrimitive } from "radix-ui";
 import { Button as BaseButton } from "../Button";
 import {
   DropdownMenu,
@@ -7,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "../DropdownMenu";
 import { Input as BaseInput } from "../Input";
+import { Popover, PopoverContent, PopoverTrigger } from "../Popover";
 import {
   Select as BaseSelect,
   SelectContent,
@@ -16,6 +18,55 @@ import {
 } from "../Select";
 import { toast } from "../Sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../Tooltip";
+
+type ArcoPosition =
+  | "top"
+  | "tl"
+  | "tr"
+  | "bottom"
+  | "bl"
+  | "br"
+  | "left"
+  | "lt"
+  | "lb"
+  | "right"
+  | "rt"
+  | "rb";
+
+type RadixSide = "top" | "right" | "bottom" | "left";
+type RadixAlign = "start" | "center" | "end";
+
+function mapArcoPosition(position: ArcoPosition): {
+  side: RadixSide;
+  align: RadixAlign;
+} {
+  switch (position) {
+    case "top":
+      return { side: "top", align: "center" };
+    case "tl":
+      return { side: "top", align: "start" };
+    case "tr":
+      return { side: "top", align: "end" };
+    case "bottom":
+      return { side: "bottom", align: "center" };
+    case "bl":
+      return { side: "bottom", align: "start" };
+    case "br":
+      return { side: "bottom", align: "end" };
+    case "left":
+      return { side: "left", align: "center" };
+    case "lt":
+      return { side: "left", align: "start" };
+    case "lb":
+      return { side: "left", align: "end" };
+    case "right":
+      return { side: "right", align: "center" };
+    case "rt":
+      return { side: "right", align: "start" };
+    case "rb":
+      return { side: "right", align: "end" };
+  }
+}
 
 type AnyProps = Record<string, unknown> & { children?: React.ReactNode };
 
@@ -308,20 +359,85 @@ export const Menu = Object.assign(MenuRoot, {
   ItemGroup,
 });
 
+/**
+ * Legacy arco-style `Trigger`, reimplemented on top of radix Popover (click /
+ * focus / contextMenu) and HoverCard (hover). Preserves the original prop
+ * surface so call sites under MarkdownEditor don't need to change.
+ *
+ * - `position` ("tl" | "bl" | ...) maps to radix `side` + `align`.
+ * - `popupAlign: { [side]: number }` maps to radix `sideOffset`.
+ * - `disabled` short-circuits to render only the children.
+ */
 export function Trigger({
   children,
   popup,
   popupVisible,
-}: AnyProps & {
+  onVisibleChange,
+  trigger = "click",
+  position = "bottom",
+  popupAlign,
+  disabled,
+  className,
+}: {
+  children: React.ReactNode;
   popup?: () => React.ReactNode;
   popupVisible?: boolean;
   onVisibleChange?: (visible: boolean) => void;
+  trigger?: "click" | "hover" | "focus" | "contextMenu";
+  position?: ArcoPosition;
+  popupAlign?: Partial<Record<RadixSide, number>>;
+  disabled?: boolean;
+  showArrow?: boolean;
+  className?: string;
 }) {
+  if (disabled || !popup) {
+    return <>{children}</>;
+  }
+  const { side, align } = mapArcoPosition(position);
+  const sideOffset = popupAlign?.[side] ?? 4;
+  const child = React.Children.only(children) as React.ReactElement;
+  const contentClass = cn("w-auto p-2 shadow-md", className);
+
+  if (trigger === "hover") {
+    return (
+      <HoverCardPrimitive.Root
+        open={popupVisible}
+        onOpenChange={onVisibleChange}
+        openDelay={120}
+        closeDelay={120}
+      >
+        <HoverCardPrimitive.Trigger asChild>{child}</HoverCardPrimitive.Trigger>
+        <HoverCardPrimitive.Portal>
+          <HoverCardPrimitive.Content
+            side={side}
+            align={align}
+            sideOffset={sideOffset}
+            className={cn(
+              "z-50 origin-(--radix-hover-card-content-transform-origin) rounded-md border bg-popover text-popover-foreground outline-hidden",
+              "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+              "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
+              contentClass,
+            )}
+          >
+            {popup()}
+          </HoverCardPrimitive.Content>
+        </HoverCardPrimitive.Portal>
+      </HoverCardPrimitive.Root>
+    );
+  }
+
   return (
-    <>
-      {children}
-      {popupVisible ? popup?.() : null}
-    </>
+    <Popover open={popupVisible} onOpenChange={onVisibleChange}>
+      <PopoverTrigger asChild>{child}</PopoverTrigger>
+      <PopoverContent
+        side={side}
+        align={align}
+        sideOffset={sideOffset}
+        className={contentClass}
+      >
+        {popup()}
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -349,60 +465,8 @@ export const Message = {
   info: (content: React.ReactNode) => toast(String(content)),
 };
 
-type LegacyFormInstance = {
-  resetFields: () => void;
-  setFieldsValue: (values: Record<string, unknown>) => void;
-  getFieldsValue: () => Record<string, unknown>;
-  validate: () => Promise<void>;
-};
-
-function createFormInstance(): LegacyFormInstance {
-  let values: Record<string, unknown> = {};
-  return {
-    resetFields: () => {
-      values = {};
-    },
-    setFieldsValue: (next) => {
-      values = { ...values, ...next };
-    },
-    getFieldsValue: () => values,
-    validate: async () => undefined,
-  };
-}
-
-function FormRoot({
-  children,
-  onSubmit,
-  onKeyDown,
-}: AnyProps & {
-  onSubmit?: (values: any) => void;
-  onKeyDown?: React.KeyboardEventHandler<HTMLFormElement>;
-}) {
-  const [form] = React.useState(createFormInstance);
-  return (
-    <form
-      className="grid gap-2"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onSubmit?.(form.getFieldsValue());
-      }}
-      onKeyDown={onKeyDown}
-    >
-      {children}
-    </form>
-  );
-}
-
-function FormItem({ children, label }: AnyProps & { label?: React.ReactNode }) {
-  return (
-    <label className="grid gap-1 text-sm">
-      {label ? <span className="text-muted-foreground">{label}</span> : null}
-      {children}
-    </label>
-  );
-}
-
-export const Form = Object.assign(FormRoot, {
-  Item: FormItem,
-  useForm: () => [createFormInstance()] as const,
-});
+// Note: a previous fake `Form / Form.useForm` shim was removed because it
+// silently no-op'd `validate()` and ignored arco-style `rules`. The only
+// consumer (LinkMenu) now uses react-hook-form + zod directly. Do not add
+// such a shim back; if a new caller needs forms, wire up RHF at the call
+// site (or build a thin local helper) so validation actually runs.

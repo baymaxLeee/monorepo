@@ -1,6 +1,12 @@
-import type { ObservabilityApp, ObservabilityConfig, ObservabilityUser } from "./types";
+import type {
+  ObservabilityApp,
+  ObservabilityConfig,
+  ObservabilityUser,
+} from "./types";
 
-type RuntimeContext = Required<Pick<ObservabilityConfig, "app" | "endpoint" | "release" | "sampleRate">> & {
+type RuntimeContext = Required<
+  Pick<ObservabilityConfig, "app" | "endpoint" | "release" | "sampleRate">
+> & {
   user: ObservabilityUser | null;
 };
 

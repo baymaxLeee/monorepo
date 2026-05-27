@@ -115,6 +115,12 @@ export {
   type PdfPreviewerRef,
 } from "./PdfPreviewer";
 export {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from "./Popover";
+export {
   Select,
   SelectContent,
   SelectGroup,

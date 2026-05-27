@@ -25,10 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "components";
-import {
-  fetchTelemetryErrors,
-  type TelemetryErrorEvent,
-} from "api";
+import { fetchTelemetryErrors, type TelemetryErrorEvent } from "api";
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {

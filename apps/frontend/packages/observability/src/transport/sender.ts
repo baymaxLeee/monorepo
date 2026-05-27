@@ -2,7 +2,10 @@ import { getObservabilityContext } from "../context";
 import { getDeviceId, getSessionId } from "../session";
 import type { ObservabilityApp, ObservabilityEvent, RumBatch } from "../types";
 
-export async function sendEvents(app: ObservabilityApp, events: ObservabilityEvent[]): Promise<void> {
+export async function sendEvents(
+  app: ObservabilityApp,
+  events: ObservabilityEvent[],
+): Promise<void> {
   if (events.length === 0) return;
   const context = getObservabilityContext();
   const body = JSON.stringify(createBatch(app, events));
@@ -15,15 +18,24 @@ export async function sendEvents(app: ObservabilityApp, events: ObservabilityEve
   });
 }
 
-export function sendEventsWithBeacon(app: ObservabilityApp, events: ObservabilityEvent[]): boolean {
+export function sendEventsWithBeacon(
+  app: ObservabilityApp,
+  events: ObservabilityEvent[],
+): boolean {
   if (events.length === 0 || !navigator.sendBeacon) return false;
   const context = getObservabilityContext();
   const body = JSON.stringify(createBatch(app, events));
   if (body.length > 60_000) return false;
-  return navigator.sendBeacon(context.endpoint, new Blob([body], { type: "application/json" }));
+  return navigator.sendBeacon(
+    context.endpoint,
+    new Blob([body], { type: "application/json" }),
+  );
 }
 
-function createBatch(app: ObservabilityApp, events: ObservabilityEvent[]): RumBatch {
+function createBatch(
+  app: ObservabilityApp,
+  events: ObservabilityEvent[],
+): RumBatch {
   const context = getObservabilityContext();
   return {
     app,

@@ -594,10 +594,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
                   重命名
                 </div>
                 <div
-                  className={cn(
-                    fileWorkspaceClass`menu-item`,
-                    "danger",
-                  )}
+                  className={cn(fileWorkspaceClass`menu-item`, "danger")}
                   onClick={() => handleDelete(menu.targetId!)}
                 >
                   删除

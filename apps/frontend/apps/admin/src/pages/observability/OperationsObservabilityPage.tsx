@@ -25,10 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "components";
-import {
-  fetchTelemetryErrors,
-  type TelemetryErrorEvent,
-} from "api";
+import { fetchTelemetryErrors, type TelemetryErrorEvent } from "api";
 import { telemetry } from "observability";
 
 const adminTelemetry = telemetry.scope({

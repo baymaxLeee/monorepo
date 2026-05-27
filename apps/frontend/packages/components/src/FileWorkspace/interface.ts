@@ -137,9 +137,8 @@ export interface FileWorkspaceProps {
   /**
    * @zh 根容器类名
    * @default undefined
-   * @description 追加在 `file-workspace` 根节点上，可传字符串或字符串数组
    */
-  className?: string | string[];
+  className?: string;
   /**
    * @zh 根容器样式
    * @default undefined

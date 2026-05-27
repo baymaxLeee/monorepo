@@ -43,11 +43,17 @@ export type TrackOptions = {
 export type MinimalAxiosInstance = {
   interceptors: {
     request: {
-      use: (onFulfilled: (config: Record<string, unknown>) => Record<string, unknown>) => unknown;
+      use: (
+        onFulfilled: (
+          config: Record<string, unknown>,
+        ) => Record<string, unknown>,
+      ) => unknown;
     };
     response: {
       use: (
-        onFulfilled: (response: Record<string, unknown>) => Record<string, unknown>,
+        onFulfilled: (
+          response: Record<string, unknown>,
+        ) => Record<string, unknown>,
         onRejected: (error: unknown) => Promise<never>,
       ) => unknown;
     };

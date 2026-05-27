@@ -172,5 +172,5 @@ export interface XMindPreviewerProps {
    */
   onParseError?: (error: Error) => void;
   style?: CSSProperties;
-  className?: string | string[];
+  className?: string;
 }

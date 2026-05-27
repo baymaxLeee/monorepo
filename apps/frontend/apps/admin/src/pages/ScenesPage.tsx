@@ -72,7 +72,11 @@ const defaults: SceneValues = {
 function statusBadge(item: AdminResource) {
   if (!item.is_enabled) return <Badge variant="secondary">停用</Badge>;
   const labels = { active: "启用", draft: "草稿", disabled: "停用" };
-  return <Badge variant={item.status === "active" ? "default" : "secondary"}>{labels[item.status]}</Badge>;
+  return (
+    <Badge variant={item.status === "active" ? "default" : "secondary"}>
+      {labels[item.status]}
+    </Badge>
+  );
 }
 
 export function ScenesPage() {
@@ -94,7 +98,9 @@ export function ScenesPage() {
     fetchScenes()
       .then((rows) => {
         setScenes(rows);
-        setSelectedIds((ids) => ids.filter((id) => rows.some((row) => row.id === id)));
+        setSelectedIds((ids) =>
+          ids.filter((id) => rows.some((row) => row.id === id)),
+        );
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
@@ -148,7 +154,8 @@ export function ScenesPage() {
 
   async function removeSelected() {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`确认删除选中的 ${selectedIds.length} 条场景？`)) return;
+    if (!window.confirm(`确认删除选中的 ${selectedIds.length} 条场景？`))
+      return;
     const result = await bulkDeleteScenes(selectedIds);
     toast.success(`已删除 ${result.deleted} 条场景`);
     setSelectedIds([]);
@@ -156,7 +163,9 @@ export function ScenesPage() {
   }
 
   function toggle(id: string) {
-    setSelectedIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+    setSelectedIds((ids) =>
+      ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id],
+    );
   }
 
   return (
@@ -164,13 +173,19 @@ export function ScenesPage() {
       <PageHeader>
         <PageHeaderContent>
           <PageTitle>场景管理</PageTitle>
-          <PageDescription>
-            配置业务场景、归属用户和启停状态。
-          </PageDescription>
+          <PageDescription>配置业务场景、归属用户和启停状态。</PageDescription>
         </PageHeaderContent>
         <PageActions>
-          <Button variant="outline" onClick={load} disabled={loading}>刷新</Button>
-          <Button variant="destructive" onClick={removeSelected} disabled={selectedIds.length === 0}>批量删除</Button>
+          <Button variant="outline" onClick={load} disabled={loading}>
+            刷新
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={removeSelected}
+            disabled={selectedIds.length === 0}
+          >
+            批量删除
+          </Button>
           <Button onClick={openCreate}>新建场景</Button>
         </PageActions>
       </PageHeader>
@@ -185,7 +200,13 @@ export function ScenesPage() {
       <Card>
         <CardHeader>
           <CardTitle>全部场景</CardTitle>
-          <CardDescription>{loading ? "加载中…" : scenes ? `共 ${scenes.length} 条` : "暂无数据"}</CardDescription>
+          <CardDescription>
+            {loading
+              ? "加载中…"
+              : scenes
+                ? `共 ${scenes.length} 条`
+                : "暂无数据"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -195,37 +216,59 @@ export function ScenesPage() {
             </div>
           ) : scenes && scenes.length > 0 ? (
             <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">选择</TableHead>
-                <TableHead>名称</TableHead>
-                <TableHead>用户名</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>更新时间</TableHead>
-                <TableHead className="text-right">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {scenes.map((scene) => (
-                <TableRow key={scene.id}>
-                  <TableCell>
-                    <input type="checkbox" checked={selectedIds.includes(scene.id)} onChange={() => toggle(scene.id)} />
-                  </TableCell>
-                  <TableCell className="font-medium">{scene.name}</TableCell>
-                  <TableCell>{scene.username}</TableCell>
-                  <TableCell>{statusBadge(scene)}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {new Date(scene.updated_at).toLocaleString()}
-                  </TableCell>
-                  <TableCell className="space-x-1 text-right">
-                    <Button variant="link" size="sm" onClick={() => setDetail(scene)}>详情</Button>
-                    <Button variant="link" size="sm" onClick={() => openEdit(scene)}>编辑</Button>
-                    <Button variant="link" size="sm" onClick={() => remove(scene)}>删除</Button>
-                  </TableCell>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">选择</TableHead>
+                  <TableHead>名称</TableHead>
+                  <TableHead>用户名</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead>更新时间</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {scenes.map((scene) => (
+                  <TableRow key={scene.id}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(scene.id)}
+                        onChange={() => toggle(scene.id)}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">{scene.name}</TableCell>
+                    <TableCell>{scene.username}</TableCell>
+                    <TableCell>{statusBadge(scene)}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(scene.updated_at).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="space-x-1 text-right">
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() => setDetail(scene)}
+                      >
+                        详情
+                      </Button>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() => openEdit(scene)}
+                      >
+                        编辑
+                      </Button>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() => remove(scene)}
+                      >
+                        删除
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           ) : (
             <Muted>列表为空，可点击「新建场景」添加。</Muted>
           )}
@@ -245,7 +288,10 @@ export function ScenesPage() {
         }}
         onSubmit={save}
       />
-      <Dialog open={Boolean(detail)} onOpenChange={(open) => !open && setDetail(null)}>
+      <Dialog
+        open={Boolean(detail)}
+        onOpenChange={(open) => !open && setDetail(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{detail?.name}</DialogTitle>
@@ -254,7 +300,9 @@ export function ScenesPage() {
           {detail && (
             <div className="space-y-2 text-sm">
               <p>用户：{detail.username}</p>
-              <p>状态：{detail.status} / {detail.is_enabled ? "启用" : "停用"}</p>
+              <p>
+                状态：{detail.status} / {detail.is_enabled ? "启用" : "停用"}
+              </p>
               <p>描述：{detail.description || "无"}</p>
             </div>
           )}
@@ -287,22 +335,80 @@ function SceneFormDialog({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FieldGroup>
-              <FormField control={form.control} name="name" render={({ field }) => (
-                <Field><FieldLabel>名称</FieldLabel><FormControl><Input {...field} /></FormControl><FieldError errors={[form.formState.errors.name]} /></Field>
-              )} />
-              <FormField control={form.control} name="description" render={({ field }) => (
-                <Field><FieldLabel>描述</FieldLabel><FormControl><Textarea {...field} /></FormControl><FieldError errors={[form.formState.errors.description]} /></Field>
-              )} />
-              <FormField control={form.control} name="status" render={({ field }) => (
-                <Field><FieldLabel>状态</FieldLabel><FormControl><select className="h-9 rounded-md border bg-background px-3 text-sm" {...field}><option value="draft">草稿</option><option value="active">启用</option><option value="disabled">停用</option></select></FormControl></Field>
-              )} />
-              <FormField control={form.control} name="is_enabled" render={({ field }) => (
-                <Field><FieldLabel><input type="checkbox" className="mr-2" checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />是否启用</FieldLabel></Field>
-              )} />
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel>名称</FieldLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FieldError errors={[form.formState.errors.name]} />
+                  </Field>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel>描述</FieldLabel>
+                    <FormControl>
+                      <Textarea {...field} />
+                    </FormControl>
+                    <FieldError errors={[form.formState.errors.description]} />
+                  </Field>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel>状态</FieldLabel>
+                    <FormControl>
+                      <select
+                        className="h-9 rounded-md border bg-background px-3 text-sm"
+                        {...field}
+                      >
+                        <option value="draft">草稿</option>
+                        <option value="active">启用</option>
+                        <option value="disabled">停用</option>
+                      </select>
+                    </FormControl>
+                  </Field>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="is_enabled"
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel>
+                      <input
+                        type="checkbox"
+                        className="mr-2"
+                        checked={field.value}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                      />
+                      是否启用
+                    </FieldLabel>
+                  </Field>
+                )}
+              />
             </FieldGroup>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>保存</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                取消
+              </Button>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                保存
+              </Button>
             </DialogFooter>
           </form>
         </Form>

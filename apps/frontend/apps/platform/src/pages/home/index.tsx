@@ -34,10 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "components";
-import {
-  fetchTelemetryErrors,
-  type TelemetryErrorEvent,
-} from "api";
+import { fetchTelemetryErrors, type TelemetryErrorEvent } from "api";
 import { usePlatformStore } from "runtime";
 
 use([
@@ -311,11 +308,23 @@ function buildDashboardData(items: TelemetryErrorEvent[]): DashboardData {
   const sessions = new Set(items.map((item) => item.session_id));
   const traces = new Set(items.map((item) => item.trace_id).filter(Boolean));
   return {
-    apps: topCounts(items.map((item) => item.app), 8),
+    apps: topCounts(
+      items.map((item) => item.app),
+      8,
+    ),
     errorsByHour: countsByHour(items),
-    fingerprints: topCounts(items.map((item) => item.fingerprint), 8),
-    releases: topCounts(items.map((item) => item.release || "dev"), 8),
-    routes: topCounts(items.map((item) => item.route || "/"), 8),
+    fingerprints: topCounts(
+      items.map((item) => item.fingerprint),
+      8,
+    ),
+    releases: topCounts(
+      items.map((item) => item.release || "dev"),
+      8,
+    ),
+    routes: topCounts(
+      items.map((item) => item.route || "/"),
+      8,
+    ),
     sessionPoints: items
       .slice()
       .reverse()

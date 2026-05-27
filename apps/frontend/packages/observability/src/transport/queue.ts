@@ -13,7 +13,10 @@ type QueueEntry = {
 const queue: QueueEntry[] = [];
 let timer: number | null = null;
 
-export function enqueue(app: ObservabilityApp, event: ObservabilityEvent): void {
+export function enqueue(
+  app: ObservabilityApp,
+  event: ObservabilityEvent,
+): void {
   const { sampleRate } = getObservabilityContext();
   if (sampleRate < 1 && Math.random() > sampleRate) return;
   queue.push({ app, event });

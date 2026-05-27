@@ -156,7 +156,9 @@ export function deleteIntention(id: string): Promise<void> {
   });
 }
 
-export function bulkDeleteIntentions(ids: string[]): Promise<{ deleted: number }> {
+export function bulkDeleteIntentions(
+  ids: string[],
+): Promise<{ deleted: number }> {
   return request<{ deleted: number }>({
     url: `${resourcePath("intentions")}/bulk-delete`,
     method: "POST",

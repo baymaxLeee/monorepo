@@ -76,7 +76,11 @@ const defaults: IntentionValues = {
 function statusBadge(item: Intention) {
   if (!item.is_enabled) return <Badge variant="secondary">停用</Badge>;
   const labels = { active: "启用", draft: "草稿", disabled: "停用" };
-  return <Badge variant={item.status === "active" ? "default" : "secondary"}>{labels[item.status]}</Badge>;
+  return (
+    <Badge variant={item.status === "active" ? "default" : "secondary"}>
+      {labels[item.status]}
+    </Badge>
+  );
 }
 
 export function IntentionsPage() {
@@ -98,7 +102,9 @@ export function IntentionsPage() {
     fetchIntentions()
       .then((rows) => {
         setIntentions(rows);
-        setSelectedIds((ids) => ids.filter((id) => rows.some((row) => row.id === id)));
+        setSelectedIds((ids) =>
+          ids.filter((id) => rows.some((row) => row.id === id)),
+        );
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
@@ -154,7 +160,8 @@ export function IntentionsPage() {
 
   async function removeSelected() {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`确认删除选中的 ${selectedIds.length} 条意图？`)) return;
+    if (!window.confirm(`确认删除选中的 ${selectedIds.length} 条意图？`))
+      return;
     const result = await bulkDeleteIntentions(selectedIds);
     toast.success(`已删除 ${result.deleted} 条意图`);
     setSelectedIds([]);
@@ -162,7 +169,9 @@ export function IntentionsPage() {
   }
 
   function toggle(id: string) {
-    setSelectedIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+    setSelectedIds((ids) =>
+      ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id],
+    );
   }
 
   return (
@@ -175,8 +184,16 @@ export function IntentionsPage() {
           </PageDescription>
         </PageHeaderContent>
         <PageActions>
-          <Button variant="outline" onClick={load} disabled={loading}>刷新</Button>
-          <Button variant="destructive" onClick={removeSelected} disabled={selectedIds.length === 0}>批量删除</Button>
+          <Button variant="outline" onClick={load} disabled={loading}>
+            刷新
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={removeSelected}
+            disabled={selectedIds.length === 0}
+          >
+            批量删除
+          </Button>
           <Button onClick={openCreate}>新建意图</Button>
         </PageActions>
       </PageHeader>
@@ -191,7 +208,13 @@ export function IntentionsPage() {
       <Card>
         <CardHeader>
           <CardTitle>全部意图</CardTitle>
-          <CardDescription>{loading ? "加载中…" : intentions ? `共 ${intentions.length} 条` : "暂无数据"}</CardDescription>
+          <CardDescription>
+            {loading
+              ? "加载中…"
+              : intentions
+                ? `共 ${intentions.length} 条`
+                : "暂无数据"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -201,39 +224,61 @@ export function IntentionsPage() {
             </div>
           ) : intentions && intentions.length > 0 ? (
             <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">选择</TableHead>
-                <TableHead>名称</TableHead>
-                <TableHead>归属场景</TableHead>
-                <TableHead>样例数</TableHead>
-                <TableHead>用户名</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead className="text-right">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {intentions.map((intention) => (
-                <TableRow key={intention.id}>
-                  <TableCell>
-                    <input type="checkbox" checked={selectedIds.includes(intention.id)} onChange={() => toggle(intention.id)} />
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {intention.name}
-                  </TableCell>
-                  <TableCell>{intention.scene_name || "-"}</TableCell>
-                  <TableCell>{intention.examples}</TableCell>
-                  <TableCell>{intention.username}</TableCell>
-                  <TableCell>{statusBadge(intention)}</TableCell>
-                  <TableCell className="space-x-1 text-right">
-                    <Button variant="link" size="sm" onClick={() => setDetail(intention)}>详情</Button>
-                    <Button variant="link" size="sm" onClick={() => openEdit(intention)}>编辑</Button>
-                    <Button variant="link" size="sm" onClick={() => remove(intention)}>删除</Button>
-                  </TableCell>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">选择</TableHead>
+                  <TableHead>名称</TableHead>
+                  <TableHead>归属场景</TableHead>
+                  <TableHead>样例数</TableHead>
+                  <TableHead>用户名</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {intentions.map((intention) => (
+                  <TableRow key={intention.id}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(intention.id)}
+                        onChange={() => toggle(intention.id)}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {intention.name}
+                    </TableCell>
+                    <TableCell>{intention.scene_name || "-"}</TableCell>
+                    <TableCell>{intention.examples}</TableCell>
+                    <TableCell>{intention.username}</TableCell>
+                    <TableCell>{statusBadge(intention)}</TableCell>
+                    <TableCell className="space-x-1 text-right">
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() => setDetail(intention)}
+                      >
+                        详情
+                      </Button>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() => openEdit(intention)}
+                      >
+                        编辑
+                      </Button>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() => remove(intention)}
+                      >
+                        删除
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           ) : (
             <Muted>列表为空，可点击「新建意图」添加。</Muted>
           )}
@@ -253,7 +298,10 @@ export function IntentionsPage() {
         }}
         onSubmit={save}
       />
-      <Dialog open={Boolean(detail)} onOpenChange={(open) => !open && setDetail(null)}>
+      <Dialog
+        open={Boolean(detail)}
+        onOpenChange={(open) => !open && setDetail(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{detail?.name}</DialogTitle>
@@ -264,7 +312,9 @@ export function IntentionsPage() {
               <p>用户：{detail.username}</p>
               <p>场景：{detail.scene_name || "-"}</p>
               <p>样例数：{detail.examples}</p>
-              <p>状态：{detail.status} / {detail.is_enabled ? "启用" : "停用"}</p>
+              <p>
+                状态：{detail.status} / {detail.is_enabled ? "启用" : "停用"}
+              </p>
               <p>描述：{detail.description || "无"}</p>
             </div>
           )}
@@ -292,33 +342,118 @@ function IntentionFormDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>维护意图名称、场景、样例数和状态。</DialogDescription>
+          <DialogDescription>
+            维护意图名称、场景、样例数和状态。
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FieldGroup>
-              <FormField control={form.control} name="name" render={({ field }) => (
-                <Field><FieldLabel>名称</FieldLabel><FormControl><Input {...field} /></FormControl><FieldError errors={[form.formState.errors.name]} /></Field>
-              )} />
-              <FormField control={form.control} name="scene_name" render={({ field }) => (
-                <Field><FieldLabel>归属场景</FieldLabel><FormControl><Input {...field} /></FormControl><FieldError errors={[form.formState.errors.scene_name]} /></Field>
-              )} />
-              <FormField control={form.control} name="examples" render={({ field }) => (
-                <Field><FieldLabel>样例数</FieldLabel><FormControl><Input type="number" min={0} {...field} onChange={(e) => field.onChange(Number(e.target.value))} /></FormControl><FieldError errors={[form.formState.errors.examples]} /></Field>
-              )} />
-              <FormField control={form.control} name="description" render={({ field }) => (
-                <Field><FieldLabel>描述</FieldLabel><FormControl><Textarea {...field} /></FormControl><FieldError errors={[form.formState.errors.description]} /></Field>
-              )} />
-              <FormField control={form.control} name="status" render={({ field }) => (
-                <Field><FieldLabel>状态</FieldLabel><FormControl><select className="h-9 rounded-md border bg-background px-3 text-sm" {...field}><option value="draft">草稿</option><option value="active">启用</option><option value="disabled">停用</option></select></FormControl></Field>
-              )} />
-              <FormField control={form.control} name="is_enabled" render={({ field }) => (
-                <Field><FieldLabel><input type="checkbox" className="mr-2" checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />是否启用</FieldLabel></Field>
-              )} />
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel>名称</FieldLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FieldError errors={[form.formState.errors.name]} />
+                  </Field>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="scene_name"
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel>归属场景</FieldLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FieldError errors={[form.formState.errors.scene_name]} />
+                  </Field>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="examples"
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel>样例数</FieldLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={0}
+                        {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
+                    </FormControl>
+                    <FieldError errors={[form.formState.errors.examples]} />
+                  </Field>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel>描述</FieldLabel>
+                    <FormControl>
+                      <Textarea {...field} />
+                    </FormControl>
+                    <FieldError errors={[form.formState.errors.description]} />
+                  </Field>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel>状态</FieldLabel>
+                    <FormControl>
+                      <select
+                        className="h-9 rounded-md border bg-background px-3 text-sm"
+                        {...field}
+                      >
+                        <option value="draft">草稿</option>
+                        <option value="active">启用</option>
+                        <option value="disabled">停用</option>
+                      </select>
+                    </FormControl>
+                  </Field>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="is_enabled"
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel>
+                      <input
+                        type="checkbox"
+                        className="mr-2"
+                        checked={field.value}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                      />
+                      是否启用
+                    </FieldLabel>
+                  </Field>
+                )}
+              />
             </FieldGroup>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>保存</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                取消
+              </Button>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                保存
+              </Button>
             </DialogFooter>
           </form>
         </Form>

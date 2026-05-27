@@ -46,6 +46,7 @@ function isWorkspacePackage(module, packageName) {
 export default defineConfig({
   entry: "./src/main.tsx",
   mode: isProduction ? "production" : "development",
+  lazyCompilation: false,
   output: {
     path: path.resolve(appDir, "dist"),
     filename: isProduction ? "[name].[contenthash:8].js" : "[name].js",

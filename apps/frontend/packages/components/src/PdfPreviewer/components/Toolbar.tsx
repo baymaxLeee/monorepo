@@ -1,27 +1,29 @@
 import {
-  Button,
-  Dropdown,
-  InputNumber,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  type LucideIcon,
+  Maximize,
   Menu,
-  Space,
-  Tooltip,
-} from "../../compat/legacy-ui";
-import {
-  IconDownload,
-  IconFullscreen,
-  IconFullscreenExit,
-  IconLeft,
-  IconMenu,
-  IconMinus,
-  IconPlus,
-  IconRight,
-  IconSync,
-} from "../../compat/legacy-icons";
-import { type ReactNode, useMemo } from "react";
-import { slotClassNameFactory } from "../../compat/className";
-import type { PdfSidebarType, PdfToolbarConfig } from "../interface";
+  Minimize,
+  Minus,
+  Plus,
+  RotateCw,
+} from "lucide-react";
+import { type ReactNode, useMemo, useState } from "react";
 
-const cssPrefix = slotClassNameFactory("pdf-previewer");
+import { cn } from "shared";
+import { Button } from "../../Button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../../DropdownMenu";
+import { Input } from "../../Input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../Tooltip";
+import type { PdfSidebarType, PdfToolbarConfig } from "../interface";
 
 export const DEFAULT_TOOLBAR_CONFIG: Required<PdfToolbarConfig> = {
   pageNav: true,
@@ -63,7 +65,8 @@ export interface PdfToolbarProps {
   canOperate: boolean;
   downloadDisabled: boolean;
   sidebarType: PdfSidebarType;
-  getPopupContainer: () => HTMLElement;
+  /** 用作 Tooltip / DropdownMenu 的 portal 容器（fullscreen 下需要挂到 root 内部） */
+  popupContainer?: HTMLElement | null;
   onPrevPage: () => void;
   onNextPage: () => void;
   onGoToPage: (page: number) => void;
@@ -89,7 +92,7 @@ const PdfToolbar = ({
   canOperate,
   downloadDisabled,
   sidebarType,
-  getPopupContainer,
+  popupContainer,
   onPrevPage,
   onNextPage,
   onGoToPage,
@@ -113,48 +116,6 @@ const PdfToolbar = ({
     [enabled.outline, enabled.thumbnail],
   );
 
-  const sidebarDropdown = useMemo(
-    () => (
-      <Menu
-        className={cssPrefix`toolbar-sidebar-menu`}
-        selectedKeys={[sidebarType ?? "none"]}
-        onClickMenuItem={(key) => {
-          const next = key as SidebarMenuKey;
-          onSetSidebar(next === "none" ? null : next);
-        }}
-      >
-        {sidebarPresets.map((preset) => (
-          <Menu.Item key={preset.key}>{preset.label}</Menu.Item>
-        ))}
-      </Menu>
-    ),
-    [sidebarPresets, sidebarType, onSetSidebar],
-  );
-
-  const zoomDropdown = useMemo(
-    () => (
-      <Menu
-        className={cssPrefix`toolbar-zoom-menu`}
-        onClickMenuItem={(key) => {
-          if (key.startsWith("page-")) {
-            onFit(key as "page-width" | "page-height" | "page-fit");
-          } else {
-            onSetScale(Number(key));
-          }
-        }}
-      >
-        {FIT_PRESETS.map((preset) => (
-          <Menu.Item key={preset.key}>{preset.label}</Menu.Item>
-        ))}
-        <div className={cssPrefix`toolbar-divider`} />
-        {ZOOM_PRESETS.map((value) => (
-          <Menu.Item key={String(value)}>{Math.round(value * 100)}%</Menu.Item>
-        ))}
-      </Menu>
-    ),
-    [onFit, onSetScale],
-  );
-
   const atFirstPage = currentPage <= 1;
   const atLastPage = numPages > 0 ? currentPage >= numPages : true;
   const atMinScale = scale <= minScale + 1e-4;
@@ -162,159 +123,175 @@ const PdfToolbar = ({
 
   return (
     <div
-      className={cssPrefix`toolbar`}
+      className="flex shrink-0 items-center gap-1.5 border-b bg-background/95 px-3 py-1.5"
       data-testid="pdf-toolbar"
       role="toolbar"
     >
-      <Space size={6} align="center">
-        {enabled.outline || enabled.thumbnail ? (
-          <Tooltip content="侧边栏" getPopupContainer={getPopupContainer}>
-            <Dropdown
-              droplist={sidebarDropdown}
-              trigger="click"
-              position="bottom"
-              disabled={!canOperate}
-              getPopupContainer={getPopupContainer}
-            >
-              <Button
-                size="mini"
-                shape="circle"
-                icon={<IconMenu />}
-                disabled={!canOperate}
-                aria-label="toggle-sidebar"
-              />
-            </Dropdown>
+      {enabled.outline || enabled.thumbnail ? (
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!canOperate}
+                  aria-label="toggle-sidebar"
+                  className="size-7 p-0"
+                >
+                  <Menu className="size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent container={popupContainer}>侧边栏</TooltipContent>
           </Tooltip>
-        ) : null}
+          <DropdownMenuContent
+            align="start"
+            container={popupContainer}
+            className="min-w-28"
+          >
+            {sidebarPresets.map((preset) => {
+              const active = (sidebarType ?? "none") === preset.key;
+              return (
+                <DropdownMenuItem
+                  key={preset.key}
+                  data-active={active || undefined}
+                  className={cn(
+                    active && "bg-accent text-accent-foreground",
+                    "justify-between",
+                  )}
+                  onSelect={() => {
+                    onSetSidebar(preset.key === "none" ? null : preset.key);
+                  }}
+                >
+                  {preset.label}
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
 
-        {enabled.pageNav ? (
-          <Space size={4} align="center">
-            <Tooltip content="上一页" getPopupContainer={getPopupContainer}>
-              <Button
-                size="mini"
-                shape="circle"
-                icon={<IconLeft />}
-                disabled={!canOperate || atFirstPage}
-                onClick={onPrevPage}
-                aria-label="prev-page"
-              />
-            </Tooltip>
-            <InputNumber
-              className={cssPrefix`toolbar-page-input`}
-              size="mini"
-              mode="button"
-              hideControl
-              suffix={
-                <span className={cssPrefix`toolbar-page-suffix`}>
-                  / {numPages || "-"}
-                </span>
-              }
-              min={1}
-              max={numPages || 1}
-              disabled={!canOperate}
-              value={currentPage}
-              onChange={(value) => {
-                if (typeof value !== "number" || Number.isNaN(value)) return;
-                onGoToPage(value);
-              }}
-            />
-            <Tooltip content="下一页" getPopupContainer={getPopupContainer}>
-              <Button
-                size="mini"
-                shape="circle"
-                icon={<IconRight />}
-                disabled={!canOperate || atLastPage}
-                onClick={onNextPage}
-                aria-label="next-page"
-              />
-            </Tooltip>
-          </Space>
-        ) : null}
+      {enabled.pageNav ? (
+        <ToolbarGroup>
+          <ToolbarIconButton
+            icon={ChevronLeft}
+            label="上一页"
+            disabled={!canOperate || atFirstPage}
+            popupContainer={popupContainer}
+            onClick={onPrevPage}
+            ariaLabel="prev-page"
+          />
+          <PageInput
+            value={currentPage}
+            numPages={numPages}
+            disabled={!canOperate}
+            onCommit={onGoToPage}
+          />
+          <ToolbarIconButton
+            icon={ChevronRight}
+            label="下一页"
+            disabled={!canOperate || atLastPage}
+            popupContainer={popupContainer}
+            onClick={onNextPage}
+            ariaLabel="next-page"
+          />
+        </ToolbarGroup>
+      ) : null}
 
-        {enabled.zoom ? (
-          <Space size={4} align="center">
-            <Tooltip content="缩小" getPopupContainer={getPopupContainer}>
+      {enabled.zoom ? (
+        <ToolbarGroup>
+          <ToolbarIconButton
+            icon={Minus}
+            label="缩小"
+            disabled={!canOperate || atMinScale}
+            popupContainer={popupContainer}
+            onClick={onZoomOut}
+            ariaLabel="zoom-out"
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button
-                size="mini"
-                shape="circle"
-                icon={<IconMinus />}
-                disabled={!canOperate || atMinScale}
-                onClick={onZoomOut}
-                aria-label="zoom-out"
-              />
-            </Tooltip>
-            <Dropdown
-              droplist={zoomDropdown}
-              trigger="click"
-              position="bottom"
-              disabled={!canOperate}
-              getPopupContainer={getPopupContainer}
-            >
-              <Button
-                size="mini"
-                className={cssPrefix`toolbar-scale`}
+                type="button"
+                variant="ghost"
+                size="sm"
                 disabled={!canOperate}
+                className="h-7 min-w-14 rounded-none px-2 font-mono text-xs"
               >
                 {Math.round(scale * 100)}%
               </Button>
-            </Dropdown>
-            <Tooltip content="放大" getPopupContainer={getPopupContainer}>
-              <Button
-                size="mini"
-                shape="circle"
-                icon={<IconPlus />}
-                disabled={!canOperate || atMaxScale}
-                onClick={onZoomIn}
-                aria-label="zoom-in"
-              />
-            </Tooltip>
-          </Space>
-        ) : null}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="center"
+              container={popupContainer}
+              className="min-w-32"
+            >
+              {FIT_PRESETS.map((preset) => (
+                <DropdownMenuItem
+                  key={preset.key}
+                  onSelect={() => onFit(preset.key)}
+                >
+                  {preset.label}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              {ZOOM_PRESETS.map((value) => (
+                <DropdownMenuItem
+                  key={String(value)}
+                  className="justify-end font-mono"
+                  onSelect={() => onSetScale(value)}
+                >
+                  {Math.round(value * 100)}%
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <ToolbarIconButton
+            icon={Plus}
+            label="放大"
+            disabled={!canOperate || atMaxScale}
+            popupContainer={popupContainer}
+            onClick={onZoomIn}
+            ariaLabel="zoom-in"
+          />
+        </ToolbarGroup>
+      ) : null}
 
-        {enabled.rotate ? (
-          <Tooltip content="旋转" getPopupContainer={getPopupContainer}>
-            <Button
-              size="mini"
-              shape="circle"
-              icon={<IconSync />}
-              disabled={!canOperate}
-              onClick={onRotate}
-              aria-label="rotate"
-            />
-          </Tooltip>
-        ) : null}
+      {enabled.rotate ? (
+        <ToolbarIconButton
+          icon={RotateCw}
+          label="旋转"
+          disabled={!canOperate}
+          popupContainer={popupContainer}
+          onClick={onRotate}
+          ariaLabel="rotate"
+        />
+      ) : null}
 
-        {enabled.download ? (
-          <Tooltip content="下载" getPopupContainer={getPopupContainer}>
-            <Button
-              size="mini"
-              shape="circle"
-              icon={<IconDownload />}
-              disabled={downloadDisabled}
-              onClick={onDownload}
-              aria-label="download"
-            />
-          </Tooltip>
-        ) : null}
+      {enabled.download ? (
+        <ToolbarIconButton
+          icon={Download}
+          label="下载"
+          disabled={downloadDisabled}
+          popupContainer={popupContainer}
+          onClick={onDownload}
+          ariaLabel="download"
+        />
+      ) : null}
 
-        {enabled.fullscreen ? (
-          <Tooltip
-            content={fullscreen ? "退出全屏" : "全屏"}
-            getPopupContainer={getPopupContainer}
-          >
-            <Button
-              size="mini"
-              shape="circle"
-              icon={fullscreen ? <IconFullscreenExit /> : <IconFullscreen />}
-              disabled={!canOperate}
-              onClick={onToggleFullscreen}
-              aria-label="toggle-fullscreen"
-            />
-          </Tooltip>
-        ) : null}
+      {enabled.fullscreen ? (
+        <ToolbarIconButton
+          icon={fullscreen ? Minimize : Maximize}
+          label={fullscreen ? "退出全屏" : "全屏"}
+          disabled={!canOperate}
+          popupContainer={popupContainer}
+          onClick={onToggleFullscreen}
+          ariaLabel="toggle-fullscreen"
+        />
+      ) : null}
 
-        {extra}
-      </Space>
+      {extra ? <div className="ml-auto flex items-center gap-1.5">{extra}</div> : null}
     </div>
   );
 };
@@ -322,6 +299,113 @@ const PdfToolbar = ({
 PdfToolbar.displayName = "PdfToolbar";
 
 export default PdfToolbar;
+
+function ToolbarGroup({ children }: { children: ReactNode }) {
+  return (
+    <div className="inline-flex divide-x divide-border overflow-hidden rounded-md border bg-background shadow-sm">
+      {children}
+    </div>
+  );
+}
+
+interface ToolbarIconButtonProps {
+  icon: LucideIcon;
+  label: string;
+  disabled?: boolean;
+  onClick?: () => void;
+  popupContainer?: HTMLElement | null;
+  ariaLabel?: string;
+}
+
+function ToolbarIconButton({
+  icon: Icon,
+  label,
+  disabled,
+  onClick,
+  popupContainer,
+  ariaLabel,
+}: ToolbarIconButtonProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          onClick={onClick}
+          aria-label={ariaLabel ?? label}
+          className="size-7 rounded-none p-0"
+        >
+          <Icon className="size-3.5" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent container={popupContainer}>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+interface PageInputProps {
+  value: number;
+  numPages: number;
+  disabled: boolean;
+  onCommit: (page: number) => void;
+}
+
+function PageInput({ value, numPages, disabled, onCommit }: PageInputProps) {
+  const [draft, setDraft] = useState<string>(String(value));
+  const [editing, setEditing] = useState(false);
+
+  // 外部 value 变化时（翻页 / 跳转）同步 draft，同时不打断当前编辑会话
+  if (!editing && draft !== String(value)) {
+    setDraft(String(value));
+  }
+
+  const commit = () => {
+    setEditing(false);
+    const parsed = Number.parseInt(draft, 10);
+    if (
+      !Number.isFinite(parsed) ||
+      parsed < 1 ||
+      (numPages > 0 && parsed > numPages)
+    ) {
+      setDraft(String(value));
+      return;
+    }
+    if (parsed !== value) onCommit(parsed);
+    else setDraft(String(value));
+  };
+
+  return (
+    <div className="inline-flex h-7 items-center gap-1 px-1 text-xs">
+      <Input
+        type="text"
+        inputMode="numeric"
+        value={draft}
+        disabled={disabled}
+        aria-label="page-input"
+        className="h-6 w-10 rounded-sm border-none bg-transparent px-1 py-0 text-center font-mono text-xs shadow-none focus-visible:ring-1"
+        onFocus={() => setEditing(true)}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            setDraft(String(value));
+            setEditing(false);
+            (event.target as HTMLInputElement).blur();
+          }
+        }}
+      />
+      <span className="font-mono text-muted-foreground">
+        / {numPages || "-"}
+      </span>
+    </div>
+  );
+}
 
 export const resolveToolbarConfig = (
   toolbar: boolean | PdfToolbarConfig | undefined,

@@ -40,7 +40,11 @@ export function attachAxios(instance: MinimalAxiosInstance): void {
   instance.interceptors.request.use((config) => {
     const next = config as AxiosRequestConfigLike;
     const traceId = createTraceId();
-    next.metadata = { ...(next.metadata ?? {}), startedAt: performance.now(), traceId };
+    next.metadata = {
+      ...(next.metadata ?? {}),
+      startedAt: performance.now(),
+      traceId,
+    };
     next.headers = { ...(next.headers ?? {}), ...traceHeaders(traceId) };
     return next;
   });
@@ -62,20 +66,37 @@ export const telemetry = createTelemetryScope();
 
 export function createTelemetryScope(scope: TelemetryScope = {}) {
   return {
-    captureException(error: unknown, attrs: Record<string, unknown> = {}, options: TrackOptions = {}) {
-      track("error", {
-        ...errorPayload(error),
-        ...attrs,
-      }, scope, options);
+    captureException(
+      error: unknown,
+      attrs: Record<string, unknown> = {},
+      options: TrackOptions = {},
+    ) {
+      track(
+        "error",
+        {
+          ...errorPayload(error),
+          ...attrs,
+        },
+        scope,
+        options,
+      );
     },
-    event(name: string, attrs: Record<string, unknown> = {}, options: TrackOptions = {}) {
+    event(
+      name: string,
+      attrs: Record<string, unknown> = {},
+      options: TrackOptions = {},
+    ) {
       track("event", { name, ...attrs }, scope, options);
     },
     flush,
     scope(nextScope: TelemetryScope) {
       return createTelemetryScope({ ...scope, ...nextScope });
     },
-    warn(message: string, attrs: Record<string, unknown> = {}, options: TrackOptions = {}) {
+    warn(
+      message: string,
+      attrs: Record<string, unknown> = {},
+      options: TrackOptions = {},
+    ) {
       track("warning", { message, ...attrs }, scope, options);
     },
   };
@@ -145,24 +166,28 @@ function recordHttpError(error: AxiosErrorLike): void {
 }
 
 function installGlobalHandlers(): void {
-  window.addEventListener("error", (event) => {
-    const target = event.target;
-    if (target instanceof HTMLElement) {
+  window.addEventListener(
+    "error",
+    (event) => {
+      const target = event.target;
+      if (target instanceof HTMLElement) {
+        track("error", {
+          message: "Resource failed to load",
+          name: "ResourceError",
+          source: resourceSource(target),
+          tag: target.tagName.toLowerCase(),
+        });
+        return;
+      }
       track("error", {
-        message: "Resource failed to load",
-        name: "ResourceError",
-        source: resourceSource(target),
-        tag: target.tagName.toLowerCase(),
+        colno: event.colno,
+        filename: event.filename,
+        lineno: event.lineno,
+        ...errorPayload(event.error ?? event.message),
       });
-      return;
-    }
-    track("error", {
-      colno: event.colno,
-      filename: event.filename,
-      lineno: event.lineno,
-      ...errorPayload(event.error ?? event.message),
-    });
-  }, true);
+    },
+    true,
+  );
 
   window.addEventListener("unhandledrejection", (event) => {
     track("error", {

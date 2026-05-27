@@ -60,5 +60,5 @@ export interface CodeEditorProps {
    */
   loadingText?: ReactNode;
   style?: CSSProperties;
-  className?: string | string[];
+  className?: string;
 }

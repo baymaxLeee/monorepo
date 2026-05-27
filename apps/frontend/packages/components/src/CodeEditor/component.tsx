@@ -5,11 +5,10 @@ import {
   type Extension,
 } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
-import { cn } from "shared";
 import React, { useEffect, useRef } from "react";
 import { basicSetup } from "./constants";
 import type { CodeEditorProps } from "./interface";
-import { codeEditorClass, getLanguageExtension } from "./utils";
+import { getLanguageExtension } from "./utils";
 
 interface CachedEditorState {
   state: EditorState;
@@ -190,13 +189,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     });
   }, [cacheKey, readOnly]);
 
-  return (
-    <div
-      ref={containerRef}
-      style={style}
-      className={cn(codeEditorClass``, className)}
-    />
-  );
+  return <div ref={containerRef} style={style} className={className} />;
 };
 
 CodeEditor.displayName = "CodeEditor";

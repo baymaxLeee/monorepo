@@ -1,4 +1,3 @@
-import { Message } from "../../compat/legacy-ui";
 import { cn } from "shared";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import {
@@ -12,7 +11,7 @@ import {
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
-import { slotClassNameFactory } from "../../compat/className";
+import { toast } from "sonner";
 import type {
   PdfHighlight,
   PdfHighlightKeyword,
@@ -42,9 +41,10 @@ import HighlightLayer, { type HighlightLayerRef } from "./HighlightLayer";
 import Sidebar from "./Sidebar";
 import PdfToolbar, { isToolbarVisible, resolveToolbarConfig } from "./Toolbar";
 
-const cssPrefix = slotClassNameFactory("pdf-previewer");
-
 const DEFAULT_DOWNLOAD_FILENAME = "document.pdf";
+
+/** keyword 高亮 `<mark>` 的稳定 hook，用于 onHighlightClick 与 scrollToHighlight 选择器 */
+const KEYWORD_MARK_DATA_ATTR = "data-pdf-keyword-mark";
 
 /**
  * 不允许通过 `documentProps` 覆盖（与 `ManagedDocumentKeys` 联合保持同步）。
@@ -588,18 +588,17 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
               flags.includes("g") ? flags : `${flags}g`,
             );
           })();
-          // 仅在业务显式传入 color 时拼 inline style 覆盖类规则的默认底色
-          const styleAttr = highlight.color
-            ? ` style="background:${highlight.color}"`
-            : "";
-          const cls = cn(cssPrefix`keyword-mark`, highlight.className);
+          // 业务未显式传 color 时走默认偏黄半透明底色
+          const bg = highlight.color ?? "rgb(250 204 21 / 35%)";
+          const styleAttr = ` style="background:${bg}"`;
+          const cls = cn("rounded-sm", highlight.className);
           const dataId = highlight.id
             ? ` data-highlight-id="${highlight.id}"`
             : "";
           html = html.replace(
             pattern,
             (match) =>
-              `<mark class="${cls}"${styleAttr}${dataId}>${match}</mark>`,
+              `<mark ${KEYWORD_MARK_DATA_ATTR}="" class="${cls}"${styleAttr}${dataId}>${match}</mark>`,
           );
         });
         return html;
@@ -985,7 +984,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
 
         throw new Error("Unsupported PDF file source");
       } catch {
-        Message.error("下载失败");
+        toast.error("下载失败");
       }
     };
 
@@ -996,7 +995,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       const target = event.target as HTMLElement | null;
       if (!target) return;
       const mark = target.closest(
-        `.${cssPrefix`keyword-mark`}`,
+        `[${KEYWORD_MARK_DATA_ATTR}]`,
       ) as HTMLElement | null;
       if (!mark) return;
       const id = mark.getAttribute("data-highlight-id") || undefined;
@@ -1075,8 +1074,12 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
     }));
 
     // ---- 渲染 ----
-    const getPopupContainer = () =>
-      isFullscreen && rootRef.current ? rootRef.current : document.body;
+    /**
+     * Tooltip / DropdownMenu 等 portal 的容器：
+     * - 全屏时挂到 root（否则全屏元素覆盖 body 后浮层不可见）
+     * - 非全屏时返回 null，走 radix 默认（document.body）
+     */
+    const popupContainer = isFullscreen ? rootRef.current : null;
 
     const download = () => {
       void handleDownload().catch(() => {});
@@ -1116,11 +1119,17 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       [numPages],
     );
 
+    const stateClass =
+      "flex h-full min-h-0 flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground";
+
     return (
       <div
         ref={rootRef}
         style={{ ...style, width, height }}
-        className={cn(cssPrefix``, className)}
+        className={cn(
+          "relative flex h-full flex-col overflow-hidden rounded-md border bg-muted/20 text-sm text-foreground",
+          className,
+        )}
         data-testid="pdf-previewer"
       >
         {toolbarVisible ? (
@@ -1135,7 +1144,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
             canOperate={canOperate}
             downloadDisabled={!onDownload && !Boolean(file)}
             sidebarType={sidebarType}
-            getPopupContainer={getPopupContainer}
+            popupContainer={popupContainer}
             onPrevPage={prevPage}
             onNextPage={nextPage}
             onGoToPage={goToPage}
@@ -1152,19 +1161,19 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
         ) : null}
 
         {!Boolean(file) ? (
-          <div className={cssPrefix`body`}>
-            <div className={cssPrefix`state`}>{emptyText}</div>
+          <div className="relative flex min-h-0 flex-1">
+            <div className={stateClass}>{emptyText}</div>
           </div>
         ) : (
           <Document
             {...safeDocumentProps}
             file={file}
-            loading={<div className={cssPrefix`state`}>{loadingText}</div>}
-            error={<div className={cssPrefix`state`}>{errorText}</div>}
-            noData={<div className={cssPrefix`state`}>{emptyText}</div>}
+            loading={<div className={stateClass}>{loadingText}</div>}
+            error={<div className={stateClass}>{errorText}</div>}
+            noData={<div className={stateClass}>{emptyText}</div>}
             onLoadSuccess={handleDocumentLoadSuccess}
             onLoadError={handleDocumentLoadError}
-            className={cssPrefix`body`}
+            className="relative flex min-h-0 flex-1 overflow-hidden"
           >
             <Sidebar
               sidebarType={sidebarType}
@@ -1174,13 +1183,11 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
               onJumpPage={goToPage}
             />
 
-            <div className={cssPrefix`viewport`} ref={viewportRef}>
-              <div
-                className={cn(
-                  cssPrefix`document`,
-                  cssPrefix`document-continuous`,
-                )}
-              >
+            <div
+              className="relative min-w-0 flex-1 overflow-auto [&_.react-pdf\\_\\_Page__canvas]:mx-auto [&_.react-pdf\\_\\_Page__canvas]:block"
+              ref={viewportRef}
+            >
+              <div className="flex flex-col items-center gap-4 py-4">
                 {scale !== undefined ? (
                   pageNumbers.map((pageNumber) => (
                     <div
@@ -1188,17 +1195,13 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
                       ref={(node) => {
                         pageElementRefs.current[pageNumber] = node;
                       }}
-                      className={cn(
-                        cssPrefix`page-wrapper`,
-                        cssPrefix`page-wrapper-continuous`,
-                      )}
+                      className="relative shadow-sm"
                       data-page-number={pageNumber}
                       data-testid={`pdf-page-wrapper-${pageNumber}`}
                       onClick={handleKeywordHighlightClick}
                     >
                       <Page
                         {...safePageProps}
-                        className={cssPrefix`page`}
                         scale={scale}
                         rotate={rotation}
                         pageNumber={pageNumber}
@@ -1226,7 +1229,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
                     </div>
                   ))
                 ) : (
-                  <div className={cssPrefix`state`}>{loadingText}</div>
+                  <div className={stateClass}>{loadingText}</div>
                 )}
               </div>
             </div>
@@ -1243,7 +1246,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
               if (!node) return null;
               return (
                 <div
-                  className={cssPrefix`selection-toolbar`}
+                  className="absolute z-20 -translate-x-1/2 -translate-y-full pb-1"
                   data-testid="pdf-selection-toolbar"
                   // 阻止点击工具栏触发选区清空（mousedown 会让浏览器收起 selection）
                   onMouseDown={(event) => {

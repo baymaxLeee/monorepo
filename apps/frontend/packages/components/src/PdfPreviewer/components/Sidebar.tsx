@@ -1,10 +1,8 @@
-import { cn } from "shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Outline, Thumbnail } from "react-pdf";
-import { slotClassNameFactory } from "../../compat/className";
-import type { PdfSidebarType } from "../interface";
 
-const cssPrefix = slotClassNameFactory("pdf-previewer");
+import { cn } from "shared";
+import type { PdfSidebarType } from "../interface";
 
 interface OnItemClickPayload {
   pageNumber: number;
@@ -97,21 +95,20 @@ const Sidebar = ({
 
   return (
     <aside
-      className={cssPrefix`sidebar`}
+      className="shrink-0 overflow-auto border-r bg-background"
       data-testid="pdf-sidebar"
       data-sidebar-type={sidebarType}
       style={{ width }}
     >
       {sidebarType === "outline" ? (
         <div
-          className={cn(
-            cssPrefix`sidebar-panel`,
-            cssPrefix`sidebar-outline`,
-          )}
+          className="p-2 text-sm [&_a]:block [&_a]:rounded-sm [&_a]:px-2 [&_a]:py-1 [&_a]:text-muted-foreground [&_a:hover]:bg-accent [&_a:hover]:text-accent-foreground [&_ul]:list-none [&_ul]:pl-3 [&_ul]:m-0 [&_ul]:p-0 [&_ul_ul]:pl-3"
           data-testid="pdf-sidebar-outline"
         >
           {outlineEmpty ? (
-            <div className={cssPrefix`sidebar-empty`}>暂无大纲</div>
+            <div className="px-2 py-4 text-center text-xs text-muted-foreground">
+              暂无大纲
+            </div>
           ) : null}
           <Outline
             onItemClick={handleItemClick}
@@ -125,10 +122,7 @@ const Sidebar = ({
       {sidebarType === "thumbnail" ? (
         <div
           ref={thumbnailListRef}
-          className={cn(
-            cssPrefix`sidebar-panel`,
-            cssPrefix`sidebar-thumbnails`,
-          )}
+          className="flex h-full flex-col items-center gap-2 p-2"
           data-testid="pdf-sidebar-thumbnails"
         >
           {pageNumbers.map((pageNumber) => {
@@ -139,14 +133,20 @@ const Sidebar = ({
                 ref={(node) => {
                   itemRefs.current[pageNumber] = node;
                 }}
-                className={cn(cssPrefix`sidebar-thumbnail-item`, {
-                  [cssPrefix`sidebar-thumbnail-item-active`]: isActive,
-                })}
+                className={cn(
+                  "flex w-full cursor-pointer flex-col items-center gap-1 rounded-md p-1.5 transition-colors hover:bg-accent",
+                  isActive && "bg-accent",
+                )}
                 data-page-number={pageNumber}
                 data-testid={`pdf-thumbnail-item-${pageNumber}`}
                 data-active={isActive ? "true" : undefined}
               >
-                <div className={cssPrefix`sidebar-thumbnail-canvas`}>
+                <div
+                  className={cn(
+                    "overflow-hidden rounded-sm border bg-background shadow-sm",
+                    isActive && "border-primary ring-1 ring-primary/40",
+                  )}
+                >
                   <Thumbnail
                     pageNumber={pageNumber}
                     width={thumbnailWidth}
@@ -159,7 +159,12 @@ const Sidebar = ({
                     }}
                   />
                 </div>
-                <div className={cssPrefix`sidebar-thumbnail-label`}>
+                <div
+                  className={cn(
+                    "text-xs text-muted-foreground",
+                    isActive && "font-medium text-foreground",
+                  )}
+                >
                   {pageNumber}
                 </div>
               </div>

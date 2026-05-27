@@ -27,7 +27,7 @@ Use the real pnpm workspace package names as the single module identity:
 
 Apps and packages both import internal packages by these names. Every consumer
 must declare the workspace dependency in its own `package.json` using
-`"workspace:*"`. Module Federation shared keys use the same names.
+`"workspace:*"`.
 
 包内模块必须从该包公开入口 re-export 出去；禁止业务代码导入
 `<包名>/<内部模块>` 或 `<包名>/src/...`。如果一个包需要新增对外 API，先在该包入口导出，再从包名使用。
@@ -54,17 +54,17 @@ must declare the workspace dependency in its own `package.json` using
 
 ### Shared package singletons (MF `shared`)
 
-Host provides all runtime-critical shared packages:
+Host provides only runtime-critical shared packages:
 
 - `react`, `react-dom`, `react-router-dom`
 - `zustand`
-- `runtime`, `api`, `shared`, `observability`
-- `components`
+- `runtime`, `shared`, `observability`
 
 Remotes consume these from the host with `import: false`; they must not bundle
-fallback copies of React, router, platform infra, or the shared UI kit. MFE
-remotes are independently deployed asset bundles, but platform is the only
-user-facing entry.
+fallback copies of React, router, or platform runtime infra. UI kits and API
+clients (`components`, `api`) remain normal workspace dependencies so each app
+can tree-shake the imports it actually uses. MFE remotes are independently
+deployed asset bundles, but platform is the only user-facing entry.
 
 ### API calls
 
@@ -78,12 +78,12 @@ user-facing entry.
 - **Tailwind v4 + theme**: `packages/components/src/styles.css` (`@import "tailwindcss"`, `shadcn/tailwind.css`, `@theme` + sidebar tokens)
 - **Build**: **platform host only** — `@tailwindcss/webpack` in `rspack.shared.mjs`; `main.tsx` imports `components/styles.css`（公开 CSS 入口）
 - **@source** in `styles.css`: `apps/*/src/**/*.{ts,tsx}` + `packages/components` only (not shared/runtime/api)
-- **MFE remotes**: no PostCSS; no CSS import — use platform-injected styles
-- **components**: MF-shared singleton provided by platform; remotes import it but do not bundle a fallback
+- **MFE remotes**: no PostCSS/Tailwind; app-level styles come from platform-injected `components/styles.css`. Component-owned third-party CSS may stay inside lazy component entries and is handled by the remote plain CSS rule.
+- **components**: normal workspace dependency, not MF-shared; preserve tree-shaking
 - **State**: shared cross-MFE state primitives live in `runtime`; `zustand`, `zustand/middleware`, and shallow selector helpers are host-provided MF singletons. Private MFE stores may import `create` / `useShallow` directly from `zustand` packages; do not wrap static Zustand APIs in `runtime`.
 - **Shell 布局**: platform `Layout` 使用 `Sidebar` + `registry.subNav`；MFE 只渲染内容区（无二次顶栏）
 - **全局浮层**: platform `AppProviders` 挂载 `TooltipProvider` + `Toaster`（`toast` 从 `components` 导出）
-- **MFE 内 Provider**: remote 一般不再重复挂全局 `TooltipProvider` / `Toaster`；需要局部 provider 时必须确认它来自 host-shared `components`
+- **MFE 内 Provider**: remote 一般不再重复挂全局 `TooltipProvider` / `Toaster`；需要局部 provider 时从 `components` 正常导入
 - **表单**: `Form` + `Field` + `react-hook-form` + `zod`；业务页勿手写裸 `Label`+`useState` 校验
 - **页面布局**: `Page` / `PageHeader`；加载态用 `Skeleton`
 - **组件升级流程**（在 `apps/frontend/packages/components`）:

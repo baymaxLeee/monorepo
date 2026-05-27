@@ -15,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  CodeEditor,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -29,8 +30,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  FileWorkspace,
   Input,
   Label,
+  MarkdownEditor,
   Select,
   SelectContent,
   SelectItem,
@@ -52,6 +55,8 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  PdfPreviewer,
+  XMindPreviewer,
   InlineCode,
   Page,
   PageDescription,
@@ -59,11 +64,156 @@ import {
   PageHeaderContent,
   PageTitle,
 } from "components";
+import type { FileChange, FileNode, XMindPreviewerProps } from "components";
+
+const demoCode = `import { apiHttp } from "api";
+
+export async function loadBotMetrics(botId: string) {
+  const { data } = await apiHttp.get(\`/api/admin-server/bot/\${botId}/metrics\`);
+
+  return {
+    successRate: data.success_rate ?? 0,
+    averageLatency: data.avg_latency_ms ?? 0,
+    totalSessions: data.total_sessions ?? 0,
+  };
+}
+`;
+
+const demoMarkdown = `# 智能体发布说明
+
+本次发布包含三个核心能力：
+
+- 支持按租户隔离知识库
+- 新增人工接管触发条件
+- 优化召回日志与链路追踪
+
+| 指标 | 发布前 | 发布后 |
+| --- | ---: | ---: |
+| 平均延迟 | 860ms | 520ms |
+| 命中率 | 72% | 86% |
+`;
+
+const demoFileTree: FileNode[] = [
+  {
+    id: "src",
+    name: "src",
+    type: "directory",
+    parent_id: null,
+    children: [
+      {
+        id: "bot-config",
+        name: "bot.config.json",
+        type: "file",
+        parent_id: "src",
+        content: JSON.stringify(
+          {
+            name: "客服质检助手",
+            model: "gpt-5-mini",
+            tools: ["ticket.search", "order.lookup"],
+            guardrails: {
+              handoffScore: 0.78,
+              maxTurns: 8,
+            },
+          },
+          null,
+          2,
+        ),
+      },
+      {
+        id: "prompt",
+        name: "system-prompt.md",
+        type: "file",
+        parent_id: "src",
+        content:
+          "你是客服质检助手。先确认用户诉求，再根据工单、订单与知识库给出可执行建议。",
+      },
+    ],
+  },
+  {
+    id: "README",
+    name: "README.md",
+    type: "file",
+    parent_id: null,
+    content:
+      "# Bot Workspace\n\n这个目录演示 FileWorkspace 的目录树、多标签和代码编辑能力。",
+  },
+];
+
+const demoMindMapData: NonNullable<XMindPreviewerProps["data"]> = {
+  layout: "mindMap",
+  theme: {
+    template: "default",
+  },
+  root: {
+    data: {
+      text: "智能体上线检查",
+      expand: true,
+    },
+    children: [
+      {
+        data: { text: "策略配置", expand: true },
+        children: [
+          { data: { text: "系统提示词" } },
+          { data: { text: "工具权限" } },
+          { data: { text: "兜底话术" } },
+        ],
+      },
+      {
+        data: { text: "观测指标", expand: true },
+        children: [
+          { data: { text: "成功率" } },
+          { data: { text: "平均延迟" } },
+          { data: { text: "人工接管率" } },
+        ],
+      },
+      {
+        data: { text: "发布流程", expand: true },
+        children: [
+          { data: { text: "灰度租户" } },
+          { data: { text: "回滚预案" } },
+        ],
+      },
+    ],
+  },
+};
+
+const pdfWorkerSrc =
+  "https://unpkg.com/pdfjs-dist@5.4.296/build/pdf.worker.min.mjs";
+
+const demoPdfUrl =
+  "https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf";
+
+const demoTabs = [
+  "basic",
+  "form",
+  "overlay",
+  "data",
+  "editors",
+  "previewers",
+] as const;
+
+type DemoTab = (typeof demoTabs)[number];
+
+const defaultDemoTab: DemoTab = "basic";
+
+function resolveDemoTab(value: string | null): DemoTab {
+  return demoTabs.includes(value as DemoTab)
+    ? (value as DemoTab)
+    : defaultDemoTab;
+}
 
 export function ComponentsDemoPage() {
   const [notify, setNotify] = useState(true);
   const [marketing, setMarketing] = useState(false);
   const [role, setRole] = useState("editor");
+  const [codeValue, setCodeValue] = useState(demoCode);
+  const [markdownValue, setMarkdownValue] = useState(demoMarkdown);
+  const [lastFileChange, setLastFileChange] = useState<FileChange | null>(null);
+  const [activeTab, setActiveTab] = useState<DemoTab>(defaultDemoTab);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(resolveDemoTab(value));
+  };
 
   return (
     <Page className="space-y-8">
@@ -85,12 +235,14 @@ export function ComponentsDemoPage() {
         </AlertDescription>
       </Alert>
 
-      <Tabs defaultValue="basic">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="basic">基础</TabsTrigger>
           <TabsTrigger value="form">表单</TabsTrigger>
           <TabsTrigger value="overlay">浮层</TabsTrigger>
           <TabsTrigger value="data">数据</TabsTrigger>
+          <TabsTrigger value="editors">编辑器</TabsTrigger>
+          <TabsTrigger value="previewers">预览</TabsTrigger>
         </TabsList>
 
         <TabsContent value="basic" className="mt-4 space-y-6">
@@ -284,6 +436,128 @@ export function ComponentsDemoPage() {
                   ))}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="editors" className="mt-4 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>CodeEditor</CardTitle>
+              <CardDescription>
+                CodeMirror 封装，示例数据为智能体指标加载函数
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              <CodeEditor
+                fileId="demo-bot-metrics"
+                fileName="bot-metrics.ts"
+                value={codeValue}
+                onChange={setCodeValue}
+                className="h-80 overflow-hidden rounded-md border"
+              />
+              <p className="text-xs text-muted-foreground">
+                当前字符数：{codeValue.length}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>FileWorkspace</CardTitle>
+              <CardDescription>
+                目录树、多标签和代码编辑器组合，内置项目文件数据
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              <FileWorkspace
+                defaultValue={demoFileTree}
+                defaultSelectedFileId="bot-config"
+                height="420px"
+                onChange={(change) => setLastFileChange(change)}
+              />
+              <div className="rounded-md border bg-muted/40 p-3">
+                <div className="mb-2 text-xs font-medium text-muted-foreground">
+                  最近一次变更
+                </div>
+                <pre className="overflow-auto text-xs leading-5">
+                  {lastFileChange
+                    ? JSON.stringify(lastFileChange, null, 2)
+                    : "尚未修改文件"}
+                </pre>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>MarkdownEditor</CardTitle>
+              <CardDescription>
+                TipTap 富文本 / Markdown 编辑器，示例数据为发布说明
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              <MarkdownEditor
+                value={markdownValue}
+                contentType="markdown"
+                editable
+                onChange={setMarkdownValue}
+                className="min-h-96 rounded-md border"
+              />
+              <div className="rounded-md border bg-muted/40 p-3">
+                <div className="mb-2 text-xs font-medium text-muted-foreground">
+                  Markdown 输出
+                </div>
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-xs leading-5">
+                  {markdownValue}
+                </pre>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="previewers" className="mt-4 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>PdfPreviewer</CardTitle>
+              <CardDescription>
+                远程 PDF（pdf.js TraceMonkey 论文），展示页码、缩放、缩略图与关键字高亮
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PdfPreviewer
+                file={demoPdfUrl}
+                workerSrc={pdfWorkerSrc}
+                height="520px"
+                defaultSidebar="thumbnail"
+                highlights={[
+                  {
+                    id: "summary-keyword",
+                    keyword: "TraceMonkey",
+                  },
+                ]}
+                toolbarExtraRender={() => (
+                  <Badge variant="secondary">mozilla.github.io</Badge>
+                )}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>XMindPreviewer</CardTitle>
+              <CardDescription>
+                simple-mind-map 预览，示例数据为智能体上线检查清单
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <XMindPreviewer
+                data={demoMindMapData}
+                height="520px"
+                layout="mindMap"
+                theme="default"
+                toolbar
+              />
             </CardContent>
           </Card>
         </TabsContent>

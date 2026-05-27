@@ -120,9 +120,7 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({
                 <span>自动换行</span>
               </div>
 
-              <div
-                className={cn(cssPrefix`divider`, cssPrefix`vertical`)}
-              />
+              <div className={cn(cssPrefix`divider`, cssPrefix`vertical`)} />
 
               <div className={cssPrefix`action-btn`} onClick={handleCopy}>
                 <IconCopy />

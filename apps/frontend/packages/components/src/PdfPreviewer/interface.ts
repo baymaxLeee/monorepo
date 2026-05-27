@@ -430,7 +430,7 @@ export interface PdfPreviewerProps {
    */
   pageProps?: PdfPreviewerPageEscapeProps;
   style?: CSSProperties;
-  className?: string | string[];
+  className?: string;
 }
 
 export interface PdfPreviewerRef {

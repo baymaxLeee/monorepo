@@ -12,10 +12,13 @@ export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 export function DropdownMenuContent({
   className,
   sideOffset = 4,
+  container,
   ...props
-}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>) {
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
+  container?: HTMLElement | null;
+}) {
   return (
-    <DropdownMenuPrimitive.Portal>
+    <DropdownMenuPrimitive.Portal container={container ?? undefined}>
       <DropdownMenuPrimitive.Content
         sideOffset={sideOffset}
         className={cn(

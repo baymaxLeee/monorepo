@@ -1,14 +1,13 @@
-import { Button, Space, Tooltip } from "../../compat/legacy-ui";
-import {
-  IconExpand,
-  IconFullscreen,
-  IconFullscreenExit,
-  IconMinus,
-  IconPlus,
-  IconScan,
-  IconShrink,
-} from "../../compat/legacy-icons";
 import { cn } from "shared";
+import {
+  Fullscreen,
+  Maximize2,
+  Minimize2,
+  Minus,
+  Plus,
+  Scan,
+  type LucideIcon,
+} from "lucide-react";
 import {
   forwardRef,
   useEffect,
@@ -18,7 +17,12 @@ import {
   useState,
 } from "react";
 import MindMap from "simple-mind-map";
-import { slotClassNameFactory } from "../../compat/className";
+import { Button } from "../../Button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "../../Tooltip";
 import type {
   XMindFullData,
   XMindNode,
@@ -27,7 +31,6 @@ import type {
 } from "../interface";
 import xmindParser from "./xmindParser";
 
-const cssPrefix = slotClassNameFactory("x-mind-previewer");
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 2;
 const SCALE_STEP = 0.1;
@@ -192,9 +195,7 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
       syncViewportScale();
     };
 
-    const getTooltipPopupContainer = () => {
-      return isFullscreen && rootRef.current ? rootRef.current : document.body;
-    };
+    const tooltipContainer = isFullscreen ? rootRef.current : null;
 
     const isRootFullscreen = () => {
       if (!rootRef.current || typeof document === "undefined") {
@@ -474,120 +475,130 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
       <div
         ref={rootRef}
         style={{ ...style, width, height }}
-        className={cn(cssPrefix``, className)}
+        className={cn(
+          "relative overflow-hidden rounded-md border bg-background",
+          className,
+        )}
       >
         {toolbar ? (
-          <div className={cssPrefix`toolbar`}>
-            <Space>
-              <Button.Group>
-                <Tooltip
-                  content="缩小"
-                  getPopupContainer={getTooltipPopupContainer}
-                >
-                  <Button
-                    icon={<IconMinus />}
-                    onClick={() => {
-                      setScaleByStep(-SCALE_STEP);
-                    }}
-                    disabled={!canInteract || !zoomable}
-                    size="mini"
-                  />
-                </Tooltip>
-                <Button
-                  className={cssPrefix`toolbar-scale`}
-                  size="mini"
-                  disabled
-                >
-                  {Math.round(viewportScale * 100)}%
-                </Button>
-                <Tooltip
-                  content="放大"
-                  getPopupContainer={getTooltipPopupContainer}
-                >
-                  <Button
-                    size="mini"
-                    icon={<IconPlus />}
-                    onClick={() => {
-                      setScaleByStep(SCALE_STEP);
-                    }}
-                    disabled={!canInteract || !zoomable}
-                  />
-                </Tooltip>
-              </Button.Group>
-              <Button.Group>
-                <Tooltip
-                  content="适配画布"
-                  getPopupContainer={getTooltipPopupContainer}
-                >
-                  <Button
-                    icon={<IconScan />}
-                    onClick={fitView}
-                    disabled={!canInteract}
-                    size="mini"
-                  />
-                </Tooltip>
-                <Tooltip
-                  content="全部展开"
-                  getPopupContainer={getTooltipPopupContainer}
-                >
-                  <Button
-                    icon={<IconExpand />}
-                    onClick={() => {
-                      mindMapRef.current?.renderer?.expandAllNode();
-                    }}
-                    disabled={!canInteract || !collapsible}
-                    size="mini"
-                  />
-                </Tooltip>
-                <Tooltip
-                  content="全部收起"
-                  getPopupContainer={getTooltipPopupContainer}
-                >
-                  <Button
-                    icon={<IconShrink />}
-                    onClick={() => {
-                      mindMapRef.current?.renderer?.unexpandAllNode();
-                    }}
-                    disabled={!canInteract || !collapsible}
-                    size="mini"
-                  />
-                </Tooltip>
-                <Tooltip
-                  content={isFullscreen ? "退出全屏" : "全屏"}
-                  getPopupContainer={getTooltipPopupContainer}
-                >
-                  <Button
-                    icon={
-                      isFullscreen ? <IconFullscreenExit /> : <IconFullscreen />
-                    }
-                    onClick={() => {
-                      void toggleFullscreen();
-                    }}
-                    disabled={!canInteract}
-                    size="mini"
-                  />
-                </Tooltip>
-              </Button.Group>
-            </Space>
+          <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
+            <ToolbarGroup>
+              <ToolbarIconButton
+                icon={Minus}
+                label="缩小"
+                disabled={!canInteract || !zoomable}
+                tooltipContainer={tooltipContainer}
+                onClick={() => setScaleByStep(-SCALE_STEP)}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled
+                className="h-7 min-w-12 rounded-none px-2 font-mono text-xs disabled:opacity-100"
+              >
+                {Math.round(viewportScale * 100)}%
+              </Button>
+              <ToolbarIconButton
+                icon={Plus}
+                label="放大"
+                disabled={!canInteract || !zoomable}
+                tooltipContainer={tooltipContainer}
+                onClick={() => setScaleByStep(SCALE_STEP)}
+              />
+            </ToolbarGroup>
+            <ToolbarGroup>
+              <ToolbarIconButton
+                icon={Scan}
+                label="适配画布"
+                disabled={!canInteract}
+                tooltipContainer={tooltipContainer}
+                onClick={fitView}
+              />
+              <ToolbarIconButton
+                icon={Maximize2}
+                label="全部展开"
+                disabled={!canInteract || !collapsible}
+                tooltipContainer={tooltipContainer}
+                onClick={() => mindMapRef.current?.renderer?.expandAllNode()}
+              />
+              <ToolbarIconButton
+                icon={Minimize2}
+                label="全部收起"
+                disabled={!canInteract || !collapsible}
+                tooltipContainer={tooltipContainer}
+                onClick={() => mindMapRef.current?.renderer?.unexpandAllNode()}
+              />
+              <ToolbarIconButton
+                icon={Fullscreen}
+                label={isFullscreen ? "退出全屏" : "全屏"}
+                disabled={!canInteract}
+                tooltipContainer={tooltipContainer}
+                onClick={() => void toggleFullscreen()}
+              />
+            </ToolbarGroup>
           </div>
         ) : null}
-        <div ref={canvasRef} className={cssPrefix`canvas`} />
-        {!supported ? (
-          <div className={cssPrefix`state`}>{unsupportedText}</div>
-        ) : null}
-        {supported && parseStatus === "loading" ? (
-          <div className={cssPrefix`state`}>{loadingText}</div>
-        ) : null}
-        {supported && parseStatus === "error" ? (
-          <div className={cssPrefix`state`}>{errorText}</div>
-        ) : null}
-        {supported && parseStatus === "idle" && !hasData ? (
-          <div className={cssPrefix`state`}>{emptyText}</div>
-        ) : null}
+        <div ref={canvasRef} className="size-full" />
+        {(!supported ||
+          parseStatus !== "idle" ||
+          (parseStatus === "idle" && !hasData)) && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+            {!supported
+              ? unsupportedText
+              : parseStatus === "loading"
+                ? loadingText
+                : parseStatus === "error"
+                  ? errorText
+                  : emptyText}
+          </div>
+        )}
       </div>
     );
   },
 );
+
+function ToolbarGroup({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="inline-flex divide-x divide-border overflow-hidden rounded-md border bg-background shadow-sm">
+      {children}
+    </div>
+  );
+}
+
+interface ToolbarIconButtonProps {
+  icon: LucideIcon;
+  label: string;
+  disabled?: boolean;
+  onClick?: () => void;
+  tooltipContainer?: HTMLElement | null;
+}
+
+function ToolbarIconButton({
+  icon: Icon,
+  label,
+  disabled,
+  onClick,
+  tooltipContainer,
+}: ToolbarIconButtonProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          onClick={onClick}
+          aria-label={label}
+          className="size-7 rounded-none p-0"
+        >
+          <Icon className="size-3.5" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent container={tooltipContainer}>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 XMindPreviewerInner.displayName = "XMindPreviewerInner";
 

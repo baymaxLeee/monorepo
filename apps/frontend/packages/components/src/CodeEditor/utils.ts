@@ -8,9 +8,6 @@ import { yaml } from "@codemirror/lang-yaml";
 import { StreamLanguage } from "@codemirror/language";
 import { shell } from "@codemirror/legacy-modes/mode/shell";
 import type { Extension } from "@codemirror/state";
-import { slotClassNameFactory } from "../compat/className";
-
-export const codeEditorClass = slotClassNameFactory("code-editor");
 
 const LANG_MAP: Record<string, () => Extension> = {
   js: () => javascript(),

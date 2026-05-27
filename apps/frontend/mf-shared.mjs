@@ -5,10 +5,10 @@
  * React, React DOM, JSX runtimes, and React Router. These must be singleton
  * because hooks, context, and router state break when duplicated.
  *
- * Tier 2 — Internal workspace packages:
- * product-owned packages consumed by host and remotes. The shared keys match
- * the real pnpm workspace package names so package.json dependencies, TypeScript
- * resolution, bundler resolution, and Module Federation all use one identity.
+ * Tier 2 — Internal runtime packages:
+ * only packages that carry cross-MFE runtime identity/state belong here.
+ * UI kits and API clients stay as normal workspace dependencies so each app can
+ * tree-shake the imports it actually uses.
  *
  * Tier 3 — State management:
  * Zustand core runtime and middleware used by the shared platform store.
@@ -69,8 +69,6 @@ const TIER2 = {
   shared: { singleton: true, requiredVersion: false },
   runtime: { singleton: true, requiredVersion: false },
   observability: { singleton: true, requiredVersion: false },
-  api: { singleton: true, requiredVersion: false },
-  components: { singleton: true, requiredVersion: false },
 };
 
 const TIER3 = {
@@ -95,8 +93,6 @@ const HOST_EAGER_SHARED = new Set([
   "shared",
   "runtime",
   "observability",
-  "api",
-  "components",
 ]);
 
 /**
