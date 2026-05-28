@@ -47,3 +47,21 @@
 
 - **同步**: gRPC(优先,定义在 `schemas/proto/`)或 REST(`schemas/openapi/`)
 - **异步**: CloudEvents(`schemas/events/`)
+
+### 内部 API (`/internal/*`)
+
+部分服务对**同集群 sibling 服务**额外暴露 `/internal/*` 路径
+(例如 `admin` 的 `/internal/providers/*`)。约定:
+
+- gateway **不**代理 `/internal/*` 到公网 —— 仅集群内可达。
+- 调用方在 header 携带 `X-Internal-Token`,由被调方用 `hmac.compare_digest`
+  校验值与本地 `INTERNAL_API_TOKEN` 一致。
+- 业务身份(目标用户)通过 query 参数 `user_id=<uid>` 显式传递,由调用方
+  在公开入口完成鉴权后再发起内部调用。
+- 内部响应可包含**解密后**的敏感字段(API key 等),公开 API **绝不**
+  返回相同形态 —— 必须脱敏(参考 `admin.services.encryption.mask`)。
+
+典型场景: `chat` 在每次发消息时调
+`admin:/internal/providers/default?user_id=<uid>` 取一份解密后的
+provider snapshot,本地 `cachetools.TTLCache` 缓存 5 分钟以避免每次流式
+chunk 都打 sibling。

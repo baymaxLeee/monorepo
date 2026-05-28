@@ -12,6 +12,11 @@ Environment = Literal["development", "staging", "single-vps", "production"]
 # Defaults that MUST NOT leak into staging/production.
 _INSECURE_PASSWORDS: frozenset[str] = frozenset({"", "dev", "password", "admin"})
 
+# Generated once with `Fernet.generate_key()`; OK for `just dev` only. We
+# refuse to start in production with this exact value.
+_DEV_ADMIN_SECRET_KEY = "MFnLpzWN-y-Hh0aJtaxKXh4uOFcljnPC6FwpDF4S5Y8="
+_DEV_INTERNAL_API_TOKEN = "dev-internal-token"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -32,6 +37,14 @@ class Settings(BaseSettings):
     redis_host: str = "localhost"
     redis_port: int = 6379
     redis_db: int = 0
+
+    # Symmetric key used to encrypt at-rest secrets (model provider api_keys).
+    # MUST be a 32-byte url-safe base64 Fernet key. Rotate with care.
+    admin_secret_key: str = _DEV_ADMIN_SECRET_KEY
+
+    # Shared secret presented by consumer services (chat, ...) on the
+    # `/internal/*` API surface. NEVER expose this to the gateway / browser.
+    internal_api_token: str = _DEV_INTERNAL_API_TOKEN
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -60,6 +73,10 @@ class Settings(BaseSettings):
             missing.append("MYSQL_HOST")
         if self.redis_host in {"localhost", "127.0.0.1"}:
             missing.append("REDIS_HOST")
+        if self.admin_secret_key == _DEV_ADMIN_SECRET_KEY:
+            missing.append("ADMIN_SECRET_KEY")
+        if self.internal_api_token == _DEV_INTERNAL_API_TOKEN:
+            missing.append("INTERNAL_API_TOKEN")
         if missing:
             raise ValueError("production environment requires explicit values for: " + ", ".join(missing))
         return self

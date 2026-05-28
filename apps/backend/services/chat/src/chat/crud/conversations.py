@@ -40,6 +40,7 @@ async def create_conversation(
     title: str,
     model: str,
     user_id: str,
+    provider_id: str = "",
 ) -> ConversationRow:
     now = datetime.now(UTC)
     row = ConversationRow(
@@ -47,6 +48,7 @@ async def create_conversation(
         user_id=user_id,
         title=title,
         model=model,
+        provider_id=provider_id,
         created_at=now,
         updated_at=now,
     )

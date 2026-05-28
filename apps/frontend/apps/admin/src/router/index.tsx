@@ -5,6 +5,7 @@ import { BotListPage } from "../pages/BotListPage";
 import { ComponentsDemoPage } from "../pages/ComponentsDemoPage";
 import { IntentionsPage } from "../pages/IntentionsPage";
 import { OperationsObservabilityPage } from "../pages/observability/OperationsObservabilityPage";
+import { ProvidersPage } from "../pages/ProvidersPage";
 import { ScenesPage } from "../pages/ScenesPage";
 
 /**
@@ -20,6 +21,7 @@ export const routes: RouteObject[] = [
       { path: "bots/:id", element: <BotDetailPage /> },
       { path: "scenes", element: <ScenesPage /> },
       { path: "intentions", element: <IntentionsPage /> },
+      { path: "providers", element: <ProvidersPage /> },
       { path: "observability", element: <OperationsObservabilityPage /> },
       { path: "demo", element: <ComponentsDemoPage /> },
     ],

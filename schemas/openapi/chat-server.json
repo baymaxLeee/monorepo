@@ -526,7 +526,7 @@
           "conversations"
         ],
         "summary": "Send Message",
-        "description": "Persist user message, stream assistant reply over SSE.\n\nThe response is `text/event-stream`. Each event is `data: <text-chunk>\\n\\n`\nwhere `<text-chunk>` is a JSON-encoded string (so client-side parsing is\ntrivial and binary-safe). A final `data: [DONE]\\n\\n` event signals end.",
+        "description": "Persist user message, stream assistant reply over SSE.\n\nThe response is `text/event-stream`. Each event is `data: <text-chunk>\\n\\n`\nwhere `<text-chunk>` is a JSON-encoded string (so client-side parsing is\ntrivial and binary-safe). A final `data: [DONE]\\n\\n` event signals end.\n\nWe resolve the conversation row AND the model provider **before** the\nresponse headers go out so 404 / `provider_not_configured` errors stay\non the normal exception-handler path (proper status code + JSON body)\ninstead of leaking as plaintext SSE chunks.",
         "operationId": "send_message_conversations__conversation_id__messages_post",
         "parameters": [
           {
@@ -640,6 +640,10 @@
             "type": "string",
             "title": "Model"
           },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id"
+          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -655,6 +659,7 @@
           "user_id",
           "title",
           "model",
+          "provider_id",
           "created_at",
           "updated_at"
         ],
@@ -677,6 +682,10 @@
           "model": {
             "type": "string",
             "title": "Model"
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id"
           },
           "created_at": {
             "type": "string",
@@ -701,6 +710,7 @@
           "user_id",
           "title",
           "model",
+          "provider_id",
           "created_at",
           "updated_at"
         ],
@@ -714,6 +724,18 @@
             "minLength": 1,
             "title": "Title",
             "default": "新对话"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
           }
         },
         "type": "object",
@@ -787,6 +809,19 @@
             "maxLength": 8000,
             "minLength": 1,
             "title": "Content"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id",
+            "description": "Override the model provider for this message only."
           },
           "thinking": {
             "anyOf": [

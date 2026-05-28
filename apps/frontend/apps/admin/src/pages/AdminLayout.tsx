@@ -1,6 +1,7 @@
 import { Aside, Button, Layout, Main, Section } from "components";
 import {
   BotIcon,
+  BrainCircuitIcon,
   ComponentIcon,
   ListTreeIcon,
   type LucideIcon,
@@ -19,6 +20,11 @@ const adminMenus: AdminMenuItem[] = [
   { title: "智能体", href: "/platform/admin/bots", icon: BotIcon },
   { title: "场景", href: "/platform/admin/scenes", icon: ListTreeIcon },
   { title: "意图", href: "/platform/admin/intentions", icon: NetworkIcon },
+  {
+    title: "模型管理",
+    href: "/platform/admin/providers",
+    icon: BrainCircuitIcon,
+  },
 ];
 
 const utilityMenus: AdminMenuItem[] = [

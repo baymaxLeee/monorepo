@@ -11,6 +11,7 @@ export interface Conversation {
   user_id: string;
   title: string;
   model: string;
+  provider_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -47,6 +48,7 @@ export interface ConversationDetail {
   user_id: string;
   title: string;
   model: string;
+  provider_id: string;
   created_at: string;
   updated_at: string;
   messages?: Message[];
@@ -58,6 +60,7 @@ export interface CreateConversationInput {
      * @maxLength 200
      */
   title?: string;
+  provider_id?: string | null;
 }
 
 export type ValidationErrorCtx = { [key: string]: unknown };
@@ -92,6 +95,8 @@ export interface SendMessageInput {
      * @maxLength 8000
      */
   content: string;
+  /** Override the model provider for this message only. */
+  provider_id?: string | null;
   /** Enable chain-of-thought reasoning when the model supports it. */
   thinking?: boolean | null;
   /** Reasoning compute budget for thinking-enabled models. */
@@ -219,6 +224,11 @@ const deleteConversationConversationsConversationIdDelete = (
  * The response is `text/event-stream`. Each event is `data: <text-chunk>\n\n`
  * where `<text-chunk>` is a JSON-encoded string (so client-side parsing is
  * trivial and binary-safe). A final `data: [DONE]\n\n` event signals end.
+ *
+ * We resolve the conversation row AND the model provider **before** the
+ * response headers go out so 404 / `provider_not_configured` errors stay
+ * on the normal exception-handler path (proper status code + JSON body)
+ * instead of leaking as plaintext SSE chunks.
  * @summary Send Message
  */
 const sendMessageConversationsConversationIdMessagesPost = (

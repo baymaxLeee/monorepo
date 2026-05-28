@@ -11,6 +11,7 @@ Environment = Literal["development", "staging", "single-vps", "production"]
 
 # Defaults that MUST NOT leak into staging/production.
 _INSECURE_PASSWORDS: frozenset[str] = frozenset({"", "dev", "password", "admin"})
+_DEV_INTERNAL_API_TOKEN = "dev-internal-token"
 
 
 class Settings(BaseSettings):
@@ -33,11 +34,19 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_db: int = 2
 
-    # LLM upstream (OpenAI-compatible). Empty api key → echo mock fallback.
-    openai_base_url: str = "https://api.openai.com/v1"
-    openai_api_key: str = ""
-    openai_model: str = "gpt-4o-mini"
+    # Admin owns the model_providers domain. chat fetches decrypted
+    # credentials from `${admin_service_url}/internal/providers/...` using
+    # the shared `internal_api_token`. Never expose either to the browser.
+    admin_service_url: str = "http://localhost:8001"
+    internal_api_token: str = _DEV_INTERNAL_API_TOKEN
+
+    # Upstream LLM call timeout (seconds).
     llm_timeout_seconds: float = 60.0
+    # How long to cache a decrypted provider snapshot in-process. Five
+    # minutes balances "admin can rotate keys without restarts" with
+    # "don't hammer admin on every streamed reply chunk".
+    provider_cache_ttl_seconds: float = 300.0
+    provider_cache_size: int = 256
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -55,10 +64,6 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.environment == "production"
 
-    @property
-    def llm_enabled(self) -> bool:
-        return bool(self.openai_api_key.strip())
-
     @model_validator(mode="after")
     def _enforce_production_safety(self) -> Settings:
         if self.environment != "production":
@@ -70,6 +75,10 @@ class Settings(BaseSettings):
             missing.append("MYSQL_HOST")
         if self.redis_host in {"localhost", "127.0.0.1"}:
             missing.append("REDIS_HOST")
+        if self.internal_api_token == _DEV_INTERNAL_API_TOKEN:
+            missing.append("INTERNAL_API_TOKEN")
+        if self.admin_service_url.startswith(("http://localhost", "http://127.")):
+            missing.append("ADMIN_SERVICE_URL")
         if missing:
             raise ValueError("production environment requires explicit values for: " + ", ".join(missing))
         return self

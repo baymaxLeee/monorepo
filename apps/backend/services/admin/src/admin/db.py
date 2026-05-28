@@ -15,6 +15,7 @@ from .config import get_settings
 from .models.base import Base
 from .models.bot import BotRow
 from .models.intention import IntentionRow
+from .models.provider import ModelProviderRow  # noqa: F401 — registers with Base.metadata
 from .models.scene import SceneRow
 
 _engine: AsyncEngine | None = None

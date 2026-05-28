@@ -36,6 +36,18 @@ export interface BulkDeleteIntentionsResult {
   deleted: number;
 }
 
+export interface BulkDeleteModelProvidersInput {
+  /**
+     * @minItems 1
+     * @maxItems 100
+     */
+  ids: string[];
+}
+
+export interface BulkDeleteModelProvidersResult {
+  deleted: number;
+}
+
 export interface BulkDeleteScenesInput {
   /**
      * @minItems 1
@@ -78,6 +90,34 @@ export interface CreateIntentionInput {
   /** @minimum 0 */
   examples?: number;
   status?: CreateIntentionInputStatus;
+  is_enabled?: boolean;
+}
+
+export type CreateModelProviderInputExtraBody = { [key: string]: unknown };
+
+export interface CreateModelProviderInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  name: string;
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  model: string;
+  /**
+     * @minLength 1
+     * @maxLength 2083
+     */
+  base_url: string;
+  /**
+     * @minLength 1
+     * @maxLength 4096
+     */
+  api_key: string;
+  extra_body?: CreateModelProviderInputExtraBody;
+  is_default?: boolean;
   is_enabled?: boolean;
 }
 
@@ -139,6 +179,42 @@ export interface Intention {
   updated_at: string;
 }
 
+export type InternalModelProviderExtraBody = { [key: string]: unknown };
+
+/**
+ * Internal view: decrypted api_key. Service-to-service only.
+ */
+export interface InternalModelProvider {
+  id: string;
+  user_id: string;
+  name: string;
+  model: string;
+  base_url: string;
+  api_key: string;
+  extra_body: InternalModelProviderExtraBody;
+  is_default: boolean;
+  is_enabled: boolean;
+}
+
+export type ModelProviderExtraBody = { [key: string]: unknown };
+
+/**
+ * Public view: masked api_key, safe to serve to admin MFE / browser.
+ */
+export interface ModelProvider {
+  id: string;
+  user_id: string;
+  name: string;
+  model: string;
+  base_url: string;
+  api_key_masked: string;
+  extra_body: ModelProviderExtraBody;
+  is_default: boolean;
+  is_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export type SceneStatus = typeof SceneStatus[keyof typeof SceneStatus];
 
 
@@ -160,6 +236,22 @@ export interface Scene {
   updated_at: string;
 }
 
+/**
+ * Optional override; if omitted, tests the persisted configuration.
+ */
+export interface TestModelProviderInput {
+  model?: string | null;
+  base_url?: string | null;
+  api_key?: string | null;
+}
+
+export interface TestModelProviderResult {
+  ok: boolean;
+  latency_ms?: number | null;
+  sample?: string | null;
+  error?: string | null;
+}
+
 export type UpdateIntentionInputStatus = typeof UpdateIntentionInputStatus[keyof typeof UpdateIntentionInputStatus] | null;
 
 
@@ -175,6 +267,18 @@ export interface UpdateIntentionInput {
   scene_name?: string | null;
   examples?: number | null;
   status?: UpdateIntentionInputStatus;
+  is_enabled?: boolean | null;
+}
+
+export type UpdateModelProviderInputExtraBody = { [key: string]: unknown } | null;
+
+export interface UpdateModelProviderInput {
+  name?: string | null;
+  model?: string | null;
+  base_url?: string | null;
+  api_key?: string | null;
+  extra_body?: UpdateModelProviderInputExtraBody;
+  is_default?: boolean | null;
   is_enabled?: boolean | null;
 }
 
@@ -199,6 +303,22 @@ export type LivezLivezGet200 = {[key: string]: string};
 export type ReadyzReadyzGet200 = { [key: string]: unknown };
 
 export type HealthzHealthzGet200 = { [key: string]: unknown };
+
+export type GetDefaultProviderInternalInternalProvidersDefaultGetParams = {
+/**
+ * Owner of the provider
+ * @minLength 1
+ */
+user_id: string;
+};
+
+export type GetProviderInternalInternalProvidersProviderIdGetParams = {
+/**
+ * Owner of the provider
+ * @minLength 1
+ */
+user_id: string;
+};
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -436,7 +556,140 @@ const bulkDeleteIntentionsIntentionsBulkDeletePost = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,listScenesScenesGet,createSceneScenesPost,getSceneScenesSceneIdGet,updateSceneScenesSceneIdPatch,deleteSceneScenesSceneIdDelete,bulkDeleteScenesScenesBulkDeletePost,listIntentionsIntentionsGet,createIntentionIntentionsPost,getIntentionIntentionsIntentionIdGet,updateIntentionIntentionsIntentionIdPatch,deleteIntentionIntentionsIntentionIdDelete,bulkDeleteIntentionsIntentionsBulkDeletePost}};
+/**
+ * @summary List Providers
+ */
+const listProvidersProvidersGet = (
+
+ options?: SecondParameter<typeof apiMutator<ModelProvider[]>>,) => {
+      return apiMutator<ModelProvider[]>(
+      {url: `/providers`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * @summary Create Provider
+ */
+const createProviderProvidersPost = (
+    createModelProviderInput: CreateModelProviderInput,
+ options?: SecondParameter<typeof apiMutator<ModelProvider>>,) => {
+      return apiMutator<ModelProvider>(
+      {url: `/providers`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createModelProviderInput
+    },
+      options);
+    }
+
+/**
+ * @summary Get Provider
+ */
+const getProviderProvidersProviderIdGet = (
+    providerId: string,
+ options?: SecondParameter<typeof apiMutator<ModelProvider>>,) => {
+      return apiMutator<ModelProvider>(
+      {url: `/providers/${providerId}`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * @summary Update Provider
+ */
+const updateProviderProvidersProviderIdPatch = (
+    providerId: string,
+    updateModelProviderInput: UpdateModelProviderInput,
+ options?: SecondParameter<typeof apiMutator<ModelProvider>>,) => {
+      return apiMutator<ModelProvider>(
+      {url: `/providers/${providerId}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: updateModelProviderInput
+    },
+      options);
+    }
+
+/**
+ * @summary Delete Provider
+ */
+const deleteProviderProvidersProviderIdDelete = (
+    providerId: string,
+ options?: SecondParameter<typeof apiMutator<void>>,) => {
+      return apiMutator<void>(
+      {url: `/providers/${providerId}`, method: 'DELETE'
+    },
+      options);
+    }
+
+/**
+ * @summary Bulk Delete Providers
+ */
+const bulkDeleteProvidersProvidersBulkDeletePost = (
+    bulkDeleteModelProvidersInput: BulkDeleteModelProvidersInput,
+ options?: SecondParameter<typeof apiMutator<BulkDeleteModelProvidersResult>>,) => {
+      return apiMutator<BulkDeleteModelProvidersResult>(
+      {url: `/providers/bulk-delete`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: bulkDeleteModelProvidersInput
+    },
+      options);
+    }
+
+/**
+ * @summary Set Default Provider
+ */
+const setDefaultProviderProvidersProviderIdSetDefaultPost = (
+    providerId: string,
+ options?: SecondParameter<typeof apiMutator<ModelProvider>>,) => {
+      return apiMutator<ModelProvider>(
+      {url: `/providers/${providerId}/set-default`, method: 'POST'
+    },
+      options);
+    }
+
+/**
+ * @summary Test Provider
+ */
+const testProviderProvidersProviderIdTestPost = (
+    providerId: string,
+    testModelProviderInput: TestModelProviderInput,
+ options?: SecondParameter<typeof apiMutator<TestModelProviderResult>>,) => {
+      return apiMutator<TestModelProviderResult>(
+      {url: `/providers/${providerId}/test`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: testModelProviderInput
+    },
+      options);
+    }
+
+/**
+ * @summary Get Default Provider Internal
+ */
+const getDefaultProviderInternalInternalProvidersDefaultGet = (
+    params: GetDefaultProviderInternalInternalProvidersDefaultGetParams,
+ options?: SecondParameter<typeof apiMutator<InternalModelProvider>>,) => {
+      return apiMutator<InternalModelProvider>(
+      {url: `/internal/providers/default`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+/**
+ * @summary Get Provider Internal
+ */
+const getProviderInternalInternalProvidersProviderIdGet = (
+    providerId: string,
+    params: GetProviderInternalInternalProvidersProviderIdGetParams,
+ options?: SecondParameter<typeof apiMutator<InternalModelProvider>>,) => {
+      return apiMutator<InternalModelProvider>(
+      {url: `/internal/providers/${providerId}`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,listScenesScenesGet,createSceneScenesPost,getSceneScenesSceneIdGet,updateSceneScenesSceneIdPatch,deleteSceneScenesSceneIdDelete,bulkDeleteScenesScenesBulkDeletePost,listIntentionsIntentionsGet,createIntentionIntentionsPost,getIntentionIntentionsIntentionIdGet,updateIntentionIntentionsIntentionIdPatch,deleteIntentionIntentionsIntentionIdDelete,bulkDeleteIntentionsIntentionsBulkDeletePost,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderInternalInternalProvidersProviderIdGet}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -460,3 +713,13 @@ export type GetIntentionIntentionsIntentionIdGetResult = NonNullable<Awaited<Ret
 export type UpdateIntentionIntentionsIntentionIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateIntentionIntentionsIntentionIdPatch']>>>
 export type DeleteIntentionIntentionsIntentionIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['deleteIntentionIntentionsIntentionIdDelete']>>>
 export type BulkDeleteIntentionsIntentionsBulkDeletePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['bulkDeleteIntentionsIntentionsBulkDeletePost']>>>
+export type ListProvidersProvidersGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listProvidersProvidersGet']>>>
+export type CreateProviderProvidersPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createProviderProvidersPost']>>>
+export type GetProviderProvidersProviderIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getProviderProvidersProviderIdGet']>>>
+export type UpdateProviderProvidersProviderIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateProviderProvidersProviderIdPatch']>>>
+export type DeleteProviderProvidersProviderIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['deleteProviderProvidersProviderIdDelete']>>>
+export type BulkDeleteProvidersProvidersBulkDeletePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['bulkDeleteProvidersProvidersBulkDeletePost']>>>
+export type SetDefaultProviderProvidersProviderIdSetDefaultPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['setDefaultProviderProvidersProviderIdSetDefaultPost']>>>
+export type TestProviderProvidersProviderIdTestPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['testProviderProvidersProviderIdTestPost']>>>
+export type GetDefaultProviderInternalInternalProvidersDefaultGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getDefaultProviderInternalInternalProvidersDefaultGet']>>>
+export type GetProviderInternalInternalProvidersProviderIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getProviderInternalInternalProvidersProviderIdGet']>>>

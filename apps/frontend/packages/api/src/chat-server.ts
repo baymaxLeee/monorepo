@@ -19,6 +19,7 @@ export interface Conversation {
   user_id: string;
   title: string;
   model: string;
+  provider_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +30,8 @@ export interface ConversationDetail extends Conversation {
 
 export interface CreateConversationInput {
   title?: string;
+  /** Optionally pin the conversation to a specific admin-configured provider. */
+  provider_id?: string | null;
 }
 
 export interface UpdateConversationInput {
@@ -37,6 +40,11 @@ export interface UpdateConversationInput {
 
 export interface SendMessageInput {
   content: string;
+  /**
+   * Override the model provider for this message only. Omit to keep using
+   * the conversation's previously pinned provider or the user's default.
+   */
+  provider_id?: string | null;
   /** Enable chain-of-thought reasoning (e.g. DeepSeek V4 `thinking: enabled`). */
   thinking?: boolean | null;
   /** Reasoning compute budget for thinking-enabled models. */
@@ -62,7 +70,10 @@ export function createConversation(
   return request<Conversation>({
     url: BASE,
     method: "POST",
-    data: { title: input.title ?? "新对话" },
+    data: {
+      title: input.title ?? "新对话",
+      ...(input.provider_id ? { provider_id: input.provider_id } : {}),
+    },
   });
 }
 

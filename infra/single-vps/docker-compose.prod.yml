@@ -166,6 +166,10 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "0"
+      # Fernet key encrypting model_providers.api_key_enc.
+      ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY:?ADMIN_SECRET_KEY is required}
+      # Shared secret with chat for `/internal/*` calls.
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
     <<: *restart_policy
 
   chat:
@@ -186,13 +190,10 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "2"
-      # LLM upstream (OpenAI-compatible). When unset, the chat service falls
-      # back to a deterministic mock — useful for demo deploys without
-      # spending API credits.
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
-      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
+      # admin owns LLM credentials; chat asks it for decrypted snapshots.
+      ADMIN_SERVICE_URL: http://admin:8001
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-60}
     <<: *restart_policy
 
   telemetry:

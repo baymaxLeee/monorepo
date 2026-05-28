@@ -2,6 +2,7 @@ import {
   type ConversationDetail,
   fetchConversation,
   type Message,
+  type ModelProvider,
   type ReasoningEffort,
   streamChatMessage,
 } from "api";
@@ -27,15 +28,18 @@ import {
   Textarea,
   toast,
 } from "components";
-import { SendHorizonalIcon } from "lucide-react";
+import { SendHorizonalIcon, SettingsIcon } from "lucide-react";
 import {
   type FormEvent,
+  memo,
   useCallback,
   useEffect,
   useRef,
   useState,
 } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
+import { Streamdown } from "streamdown";
+import "streamdown/styles.css";
 import { useShallow } from "zustand/react/shallow";
 import { useChatStore } from "../store/useChatStore";
 
@@ -102,12 +106,38 @@ export function ChatRoomPage() {
     });
   }, []);
 
-  const { sending, setSending } = useChatStore(
+  const {
+    sending,
+    setSending,
+    providers,
+    providersError,
+    isLoadingProviders,
+    selectedProviderId,
+    setSelectedProviderId,
+  } = useChatStore(
     useShallow((state) => ({
       sending: state.sendingConversationId === id,
       setSending: state.setSendingConversationId,
+      providers: state.providers,
+      providersError: state.providersError,
+      isLoadingProviders: state.isLoadingProviders,
+      selectedProviderId: state.selectedProviderId,
+      setSelectedProviderId: state.setSelectedProviderId,
     })),
   );
+
+  const enabledProviders: ModelProvider[] =
+    providers?.filter((p) => p.is_enabled) ?? [];
+  const hasProviders = enabledProviders.length > 0;
+  // Effective provider id sent with each message: explicit user pick wins,
+  // else the conversation's pinned provider, else the default (server side
+  // also re-resolves; this just keeps the UI honest).
+  const effectiveProviderId = selectedProviderId ?? detail?.provider_id ?? null;
+  const effectiveProvider =
+    enabledProviders.find((p) => p.id === effectiveProviderId) ??
+    enabledProviders.find((p) => p.is_default) ??
+    enabledProviders[0] ??
+    null;
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -173,6 +203,10 @@ export function ChatRoomPage() {
         id,
         {
           content,
+          // Send the user-picked provider so the bubble matches what's
+          // shown in the selector even if the conversation's pinned
+          // provider was changed elsewhere.
+          provider_id: effectiveProvider?.id ?? null,
           // Only forward when thinking is on — keeps the request payload tiny
           // for backends that don't recognise these vendor extensions.
           thinking: prefs.thinking ? true : null,
@@ -228,7 +262,11 @@ export function ChatRoomPage() {
             {detail?.title ?? (loading ? "加载中…" : "对话")}
           </PageTitle>
           <PageDescription className="flex items-center gap-2">
-            {detail?.model ? (
+            {effectiveProvider ? (
+              <Badge variant="outline" className="font-mono text-xs">
+                {effectiveProvider.name} · {effectiveProvider.model}
+              </Badge>
+            ) : detail?.model ? (
               <Badge variant="outline" className="font-mono text-xs">
                 {detail.model}
               </Badge>
@@ -242,6 +280,25 @@ export function ChatRoomPage() {
         <Alert variant="destructive">
           <AlertTitle>会话加载失败</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {providersError ? (
+        <Alert variant="destructive">
+          <AlertTitle>无法加载模型列表</AlertTitle>
+          <AlertDescription>{providersError}</AlertDescription>
+        </Alert>
+      ) : !isLoadingProviders && !hasProviders ? (
+        <Alert>
+          <SettingsIcon aria-hidden="true" className="size-4" />
+          <AlertTitle>尚未配置模型 Provider</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center gap-2">
+            <span>请先到</span>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/platform/admin/providers">Admin → 模型管理</Link>
+            </Button>
+            <span>配置至少一个 OpenAI 兼容端点，然后再发送消息。</span>
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -267,6 +324,45 @@ export function ChatRoomPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t px-3 py-2 text-sm">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="chat-provider" className="text-muted-foreground">
+              模型
+            </Label>
+            <Select
+              value={effectiveProvider?.id ?? ""}
+              onValueChange={(value) => setSelectedProviderId(value)}
+              disabled={!hasProviders || sending}
+            >
+              <SelectTrigger id="chat-provider" className="h-8 w-56">
+                <SelectValue
+                  placeholder={
+                    isLoadingProviders
+                      ? "加载中…"
+                      : hasProviders
+                        ? "选择 Provider"
+                        : "未配置"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {enabledProviders.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="flex items-center gap-2">
+                      <span>{p.name}</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {p.model}
+                      </span>
+                      {p.is_default && (
+                        <Badge variant="outline" className="h-4 text-[10px]">
+                          默认
+                        </Badge>
+                      )}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex items-center gap-2">
             <Switch
               id="chat-thinking"
@@ -326,7 +422,7 @@ export function ChatRoomPage() {
           />
           <Button
             type="submit"
-            disabled={!draft.trim() || sending}
+            disabled={!draft.trim() || sending || !hasProviders}
             className="gap-1"
           >
             <SendHorizonalIcon aria-hidden="true" className="size-4" />
@@ -338,12 +434,24 @@ export function ChatRoomPage() {
   );
 }
 
-function MessageBubble({ message }: { message: StreamingMessage }) {
+// Assistant replies are rendered as streaming-aware Markdown (Vercel
+// `streamdown`): GFM tables / task lists, KaTeX math, Mermaid diagrams,
+// and crucially "unterminated block" handling so the bubble doesn't
+// flicker while a code fence or bold span is still being typed.
+// User input stays plain text — most users type prose, not Markdown.
+const MessageBubble = memo(function MessageBubble({
+  message,
+}: {
+  message: StreamingMessage;
+}) {
   const isUser = message.role === "user";
+  const isStreaming =
+    Boolean(message.streaming) || message.status === "streaming";
+
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[80%] rounded-lg px-3 py-2 text-sm shadow-sm ${
+        className={`max-w-[85%] rounded-lg px-3 py-2 text-sm shadow-sm ${
           isUser
             ? "bg-primary text-primary-foreground"
             : "bg-muted text-foreground"
@@ -355,16 +463,27 @@ function MessageBubble({ message }: { message: StreamingMessage }) {
             <Badge variant="destructive" className="h-4 px-1 text-[10px]">
               失败
             </Badge>
-          ) : message.streaming || message.status === "streaming" ? (
+          ) : isStreaming ? (
             <Badge variant="secondary" className="h-4 px-1 text-[10px]">
               输出中…
             </Badge>
           ) : null}
         </div>
-        <div className="whitespace-pre-wrap break-words leading-relaxed">
-          {message.content || (message.streaming ? "…" : "")}
-        </div>
+        {isUser ? (
+          <div className="whitespace-pre-wrap break-words leading-relaxed">
+            {message.content}
+          </div>
+        ) : message.content ? (
+          <Streamdown
+            isAnimating={isStreaming}
+            className="prose prose-sm max-w-none break-words leading-relaxed dark:prose-invert prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-md prose-code:before:content-none prose-code:after:content-none"
+          >
+            {message.content}
+          </Streamdown>
+        ) : (
+          <div className="text-muted-foreground">…</div>
+        )}
       </div>
     </div>
   );
-}
+});

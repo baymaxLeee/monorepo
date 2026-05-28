@@ -16,6 +16,8 @@ import {
 import { MessageSquareIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useShallow } from "zustand/react/shallow";
+import { useChatStore } from "../store/useChatStore";
 
 export function ChatLayout() {
   const navigate = useNavigate();
@@ -24,6 +26,16 @@ export function ChatLayout() {
     null,
   );
   const [creating, setCreating] = useState(false);
+  const { loadProviders, selectedProviderId } = useChatStore(
+    useShallow((s) => ({
+      loadProviders: s.loadProviders,
+      selectedProviderId: s.selectedProviderId,
+    })),
+  );
+
+  useEffect(() => {
+    loadProviders();
+  }, [loadProviders]);
 
   const load = useCallback(async () => {
     try {
@@ -45,7 +57,12 @@ export function ChatLayout() {
     if (creating) return;
     setCreating(true);
     try {
-      const conv = await createConversation({});
+      // Pin the new conversation to the currently selected provider so the
+      // first reply uses what the sidebar shows. Backend still falls back
+      // to the user's default provider when this is null.
+      const conv = await createConversation({
+        provider_id: selectedProviderId ?? undefined,
+      });
       setConversations((prev) => (prev ? [conv, ...prev] : [conv]));
       navigate(`/platform/chat/conversations/${conv.id}`);
     } catch (error) {

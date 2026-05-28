@@ -11,6 +11,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0",
     "asyncmy>=0.2",
     "cryptography>=42",
+    "openai>=1.50",
     "redis>=5.0",
     "kernel",
 ]

@@ -1,5 +1,6 @@
 """FastAPI dependencies."""
 
+import hmac
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Annotated
@@ -9,6 +10,7 @@ from kernel.errors import UnauthorizedError
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .config import get_settings
 from .db import get_db_session
 from .redis_client import get_redis
 
@@ -68,8 +70,24 @@ def auth_context(
     )
 
 
+def internal_service_token(
+    x_internal_token: Annotated[str | None, Header(alias="X-Internal-Token")] = None,
+) -> None:
+    """Shared-secret check for service-to-service `/internal/*` calls.
+
+    Constant-time comparison; refuses when the configured token is empty so
+    we never accidentally accept un-authenticated traffic in misconfigured
+    environments.
+    """
+
+    expected = get_settings().internal_api_token
+    if not expected or not x_internal_token or not hmac.compare_digest(expected, x_internal_token):
+        raise UnauthorizedError("invalid or missing X-Internal-Token header")
+
+
 DbSession = Annotated[AsyncSession, Depends(db_session)]
 RedisClient = Annotated[Redis, Depends(redis_client)]
 AuthUserID = Annotated[str, Depends(auth_user_id)]
 AuthUserName = Annotated[str, Depends(auth_user_name)]
 CurrentUser = Annotated[AuthContext, Depends(auth_context)]
+InternalCaller = Annotated[None, Depends(internal_service_token)]

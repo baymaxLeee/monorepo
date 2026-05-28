@@ -124,6 +124,48 @@ migration is incomplete.
 - `libs/` MUST stay kernel-only: errors, logging, transport, observability,
   auth, audit. **NEVER** add domain models to `libs/`.
 
+### Domain ownership of `admin`
+`admin` (both `services/admin` and `apps/frontend/apps/admin`) is the project's
+**"management & configuration" plane**. Anything that fits the shape of "a
+human operator configures it, other services consume it" lives here:
+
+- Tenants / users / RBAC roles (when added)
+- System-wide feature flags
+- Third-party integrations and credentials (LLM providers, payment keys,
+  webhook endpoints, ...) — admin owns the table + CRUD; consuming services
+  fetch via admin's internal HTTP API
+- Bots / scenes / intentions / other curated content
+
+Consumer services (e.g. `chat`) MUST NOT replicate admin-owned tables in
+their own DB. They fetch on demand and cache short-term (Redis, TTL minutes).
+Admin invalidates cache on writes via `DEL` / pub/sub.
+
+This is why `admin` is the only Python service that talks to almost
+everything else — it is by design a hub, not a peer.
+
+### AI-Native technology preference
+The project is positioned as **AI-Native**. When choosing a third-party
+library for an AI-adjacent surface (streaming chat, tool calling, structured
+output, embeddings, RAG, agent loops, ...), **the deciding factor is fit for
+AI scenarios, NOT raw GitHub star count or library age**.
+
+Concretely:
+- A focused 2k-star library purpose-built for LLM streaming (e.g. `streamdown`)
+  beats a 30k-star generalist (e.g. `react-markdown`) for AI surfaces — the
+  generalist will silently do the wrong thing under token-by-token streams
+  (re-parse storms, mid-stream block flicker, unterminated fence rendering).
+- Prefer libraries published / maintained by the AI-tooling cohort: Vercel
+  AI SDK, LangChain, LlamaIndex, OpenAI / Anthropic SDKs, etc. — even when a
+  more general alternative looks "safer".
+- The drop-in / drop-out cost matters more than the star count: if the
+  AI-native lib has a compatible API with the mainstream one, the risk of
+  trying it is near-zero.
+
+When in doubt, ask: "does this library know about streaming tokens, tool
+calls, structured output, or LLM-specific failure modes?" If yes, prefer it.
+If no, you're picking a tool that will require you to re-implement those
+concerns by hand.
+
 ### Forbidden zones for unprompted edits
 - `**/generated/**` — codegen output
 - `apps/backend/services/*/migrations/versions/**` — DB migrations

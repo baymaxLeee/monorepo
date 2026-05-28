@@ -36,6 +36,7 @@ def conversation_to_schema(row: ConversationRow) -> Conversation:
         user_id=row.user_id,
         title=row.title,
         model=row.model,
+        provider_id=row.provider_id,
         created_at=_iso(row.created_at),
         updated_at=_iso(row.updated_at),
     )
@@ -57,11 +58,9 @@ class ConversationService:
         self,
         session: AsyncSession,
         current_user: AuthContext,
-        default_model: str = "",
     ) -> None:
         self._session = session
         self._current_user = current_user
-        self._default_model = default_model
 
     async def list(self) -> list[Conversation]:
         rows = await conversation_crud.list_conversations(
@@ -81,11 +80,15 @@ class ConversationService:
         )
 
     async def create(self, payload: CreateConversationInput) -> Conversation:
+        # `model` is populated lazily on the first `send_message` call from
+        # the resolved provider snapshot — admin owns model strings, not
+        # this service. `provider_id` is optionally pinned up front.
         row = await conversation_crud.create_conversation(
             self._session,
             title=payload.title,
-            model=self._default_model,
+            model="",
             user_id=self._current_user.user_id,
+            provider_id=payload.provider_id or "",
         )
         return conversation_to_schema(row)
 

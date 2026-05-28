@@ -10,7 +10,7 @@ from kernel.tracing import TraceIDMiddleware
 from .config import get_settings
 from .db import close_db, seed_demo_bots
 from .redis_client import close_redis, init_redis
-from .routers import bots, health, intentions, scenes
+from .routers import bots, health, intentions, providers, providers_internal, scenes
 
 
 @asynccontextmanager
@@ -41,6 +41,8 @@ def create_app() -> FastAPI:
     app.include_router(bots.router)
     app.include_router(scenes.router)
     app.include_router(intentions.router)
+    app.include_router(providers.router)
+    app.include_router(providers_internal.router)
     return app
 
 

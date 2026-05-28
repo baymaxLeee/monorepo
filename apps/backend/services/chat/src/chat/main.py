@@ -11,6 +11,7 @@ from .config import get_settings
 from .db import close_db, seed_demo_conversations
 from .redis_client import close_redis, init_redis
 from .routers import conversations, health
+from .services.admin_client import close_admin_client
 
 
 @asynccontextmanager
@@ -21,6 +22,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     if not get_settings().is_production:
         await seed_demo_conversations()
     yield
+    await close_admin_client()
     await close_redis()
     await close_db()
 
