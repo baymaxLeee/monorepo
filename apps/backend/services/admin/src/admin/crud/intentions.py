@@ -1,9 +1,11 @@
 """Intention persistence operations."""
 
 from datetime import UTC, datetime
+from typing import cast
 from uuid import uuid4
 
 from sqlalchemy import delete, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from admin.models.intention import IntentionRow
@@ -91,4 +93,4 @@ async def bulk_delete_intentions(
         stmt = stmt.where(IntentionRow.user_id == user_id)
     result = await session.execute(stmt)
     await session.commit()
-    return result.rowcount or 0
+    return cast(CursorResult[object], result).rowcount or 0

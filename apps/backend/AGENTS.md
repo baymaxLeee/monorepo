@@ -1,6 +1,6 @@
 # Backend Monorepo — Microservices
 
-Python 3.12 + FastAPI + SQLAlchemy 2.0 (Alembic) + gRPC.
+Python 3.14 + FastAPI + SQLAlchemy 2.0 (Alembic) + gRPC.
 Go for performance-critical services (gateway).
 
 ## Layout

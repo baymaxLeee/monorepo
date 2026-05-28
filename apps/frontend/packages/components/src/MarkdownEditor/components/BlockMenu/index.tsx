@@ -18,11 +18,6 @@ import {
   Table as TableIcon,
 } from "lucide-react";
 import React, { useRef, useState } from "react";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "../../../HoverCard";
 import { Menu, MenuItem, MenuItemGroup } from "../../../Menu";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../Popover";
 import { ALLOWED_IMAGE_ACCEPT, isAllowedImageFile } from "../../constants";
@@ -40,8 +35,8 @@ interface BlockMenuProps {
  * - "+" trigger 24×24 方块 / 1px border / 圆角 4 / hover 浅蓝放大 / active 缩小
  * - popup 圆角 8 / max-height 600 / 内部滚动 / 隐藏滚动条
  * - MenuItem 32px 高 / icon 16px / 与文字 8px 间距
- * - "其他标题" hover 触发右侧 SubMenu —— 用 shadcn HoverCard
- * - "表格" hover 触发右侧 TableSelector —— 用 shadcn HoverCard
+ * - "其他标题" / "表格" 两处 hover 弹出二级面板（原 arco SubMenu / Trigger trigger="hover"），
+ *   现统一用 `Popover trigger="hover"` —— 与 toolbar 内 NodeType / Align / 颜色保持一致。
  */
 export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
   const [visible, setVisible] = useState(false);
@@ -120,11 +115,11 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
                 >
                   三级标题
                 </MenuItem>
-                <HoverCard openDelay={80} closeDelay={120}>
-                  <HoverCardTrigger asChild>
+                <Popover trigger="hover">
+                  <PopoverTrigger asChild>
                     <MenuItem icon={<Heading />}>其他标题</MenuItem>
-                  </HoverCardTrigger>
-                  <HoverCardContent
+                  </PopoverTrigger>
+                  <PopoverContent
                     side="right"
                     align="start"
                     sideOffset={8}
@@ -174,8 +169,8 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
                         六级标题
                       </MenuItem>
                     </Menu>
-                  </HoverCardContent>
-                </HoverCard>
+                  </PopoverContent>
+                </Popover>
               </MenuItemGroup>
 
               <MenuItemGroup label="列表">
@@ -247,11 +242,11 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
                     图片
                   </MenuItem>
                 )}
-                <HoverCard openDelay={80} closeDelay={120}>
-                  <HoverCardTrigger asChild>
+                <Popover trigger="hover">
+                  <PopoverTrigger asChild>
                     <MenuItem icon={<TableIcon />}>表格</MenuItem>
-                  </HoverCardTrigger>
-                  <HoverCardContent
+                  </PopoverTrigger>
+                  <PopoverContent
                     side="right"
                     align="start"
                     sideOffset={8}
@@ -268,8 +263,8 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
                         )
                       }
                     />
-                  </HoverCardContent>
-                </HoverCard>
+                  </PopoverContent>
+                </Popover>
               </MenuItemGroup>
             </Menu>
           </PopoverContent>

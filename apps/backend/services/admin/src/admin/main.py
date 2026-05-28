@@ -1,5 +1,6 @@
 """FastAPI app entry."""
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -16,7 +17,7 @@ load_dotenv()
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI):
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await init_redis()
     # Demo data is only useful for development/staging. In production,
     # seed data must be loaded through explicit migrations / admin tooling.

@@ -12,6 +12,10 @@ import { cn } from "shared";
  *
  * 注意：本组件**不内置键盘导航**，若需要请在 trigger 一体的 `DropdownMenu`
  * 体系中实现，或后续升级为 Radix Roving Focus 模式。
+ *
+ * MenuItem 使用 `forwardRef` —— 用于支持作为 `<DropdownMenuTrigger asChild>` /
+ * `<PopoverTrigger asChild>` 的 children；Radix 的 asChild 模式必须能拿到
+ * 底层 DOM 的 ref，否则定位会失败 / 事件无法注入。
  */
 
 export interface MenuProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -23,9 +27,13 @@ export interface MenuProps extends React.HTMLAttributes<HTMLDivElement> {
   inline?: boolean;
 }
 
-export function Menu({ className, inline = false, ...props }: MenuProps) {
+export const Menu = React.forwardRef<HTMLDivElement, MenuProps>(function Menu(
+  { className, inline = false, ...props },
+  ref,
+) {
   return (
     <div
+      ref={ref}
       role="menu"
       data-slot="menu"
       className={cn(
@@ -37,7 +45,7 @@ export function Menu({ className, inline = false, ...props }: MenuProps) {
       {...props}
     />
   );
-}
+});
 
 export interface MenuItemProps extends Omit<
   React.ButtonHTMLAttributes<HTMLButtonElement>,
@@ -63,50 +71,56 @@ export interface MenuItemProps extends Omit<
   shortcut?: React.ReactNode;
 }
 
-export function MenuItem({
-  className,
-  active = false,
-  destructive = false,
-  icon,
-  shortcut,
-  disabled,
-  children,
-  ...props
-}: MenuItemProps) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      data-slot="menu-item"
-      data-active={active ? "" : undefined}
-      data-destructive={destructive ? "" : undefined}
-      disabled={disabled}
-      className={cn(
-        "flex h-8 w-full select-none items-center gap-2 rounded-sm px-2 text-left text-sm outline-none transition-colors",
-        "[&>svg]:size-4 [&>svg]:shrink-0",
-        "hover:bg-accent focus-visible:bg-accent",
-        "disabled:pointer-events-none disabled:opacity-50",
-        active && "text-blue-600 focus-visible:text-blue-600",
-        destructive &&
-          "text-destructive hover:text-destructive focus-visible:text-destructive",
-        className,
-      )}
-      {...props}
-    >
-      {icon ? (
-        <span className="flex size-4 shrink-0 items-center justify-center [&>svg]:size-4">
-          {icon}
-        </span>
-      ) : null}
-      {children}
-      {shortcut ? (
-        <span className="ml-auto text-xs tracking-widest text-muted-foreground">
-          {shortcut}
-        </span>
-      ) : null}
-    </button>
-  );
-}
+export const MenuItem = React.forwardRef<HTMLButtonElement, MenuItemProps>(
+  function MenuItem(
+    {
+      className,
+      active = false,
+      destructive = false,
+      icon,
+      shortcut,
+      disabled,
+      children,
+      ...props
+    },
+    ref,
+  ) {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        role="menuitem"
+        data-slot="menu-item"
+        data-active={active ? "" : undefined}
+        data-destructive={destructive ? "" : undefined}
+        disabled={disabled}
+        className={cn(
+          "flex h-8 w-full select-none items-center gap-2 rounded-sm px-2 text-left text-sm outline-none transition-colors",
+          "[&>svg]:size-4 [&>svg]:shrink-0",
+          "hover:bg-accent focus-visible:bg-accent",
+          "disabled:pointer-events-none disabled:opacity-50",
+          active && "text-blue-600 focus-visible:text-blue-600",
+          destructive &&
+            "text-destructive hover:text-destructive focus-visible:text-destructive",
+          className,
+        )}
+        {...props}
+      >
+        {icon ? (
+          <span className="flex size-4 shrink-0 items-center justify-center [&>svg]:size-4">
+            {icon}
+          </span>
+        ) : null}
+        {children}
+        {shortcut ? (
+          <span className="ml-auto text-xs tracking-widest text-muted-foreground">
+            {shortcut}
+          </span>
+        ) : null}
+      </button>
+    );
+  },
+);
 
 export interface MenuItemGroupProps extends React.HTMLAttributes<HTMLDivElement> {
   /**
@@ -115,14 +129,13 @@ export interface MenuItemGroupProps extends React.HTMLAttributes<HTMLDivElement>
   label?: React.ReactNode;
 }
 
-export function MenuItemGroup({
-  label,
-  className,
-  children,
-  ...props
-}: MenuItemGroupProps) {
+export const MenuItemGroup = React.forwardRef<
+  HTMLDivElement,
+  MenuItemGroupProps
+>(function MenuItemGroup({ label, className, children, ...props }, ref) {
   return (
     <div
+      ref={ref}
       role="group"
       data-slot="menu-group"
       className={cn("py-0.5", className)}
@@ -132,14 +145,15 @@ export function MenuItemGroup({
       {children}
     </div>
   );
-}
+});
 
-export function MenuLabel({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+export const MenuLabel = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(function MenuLabel({ className, ...props }, ref) {
   return (
     <div
+      ref={ref}
       data-slot="menu-label"
       className={cn(
         "px-2 py-1 text-xs font-medium text-muted-foreground",
@@ -148,17 +162,18 @@ export function MenuLabel({
       {...props}
     />
   );
-}
+});
 
-export function MenuSeparator({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLHRElement>) {
+export const MenuSeparator = React.forwardRef<
+  HTMLHRElement,
+  React.HTMLAttributes<HTMLHRElement>
+>(function MenuSeparator({ className, ...props }, ref) {
   return (
     <hr
+      ref={ref}
       data-slot="menu-separator"
       className={cn("-mx-1 my-1 border-border", className)}
       {...props}
     />
   );
-}
+});

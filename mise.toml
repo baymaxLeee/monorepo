@@ -1,9 +1,9 @@
 [tools]
 node = "22"
 pnpm = "9"
-python = "3.12"
+python = "3.14.5"
 uv = "latest"
-go = "1.23"
+go = "1.26.3"
 just = "latest"
 
 # Deploy / K8s tooling.

@@ -1,26 +1,132 @@
+import { createContext, useContext } from "react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { Check, ChevronRight, Circle } from "lucide-react";
 import { cn } from "shared";
 
-export const DropdownMenu = DropdownMenuPrimitive.Root;
-export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
+import {
+  type HoverTriggerHandlers,
+  type TriggerKind,
+  useHoverTrigger,
+} from "../utils/useHoverTrigger";
+
+const DropdownHoverContext = createContext<HoverTriggerHandlers | null>(null);
+const useDropdownHoverHandlers = () => useContext(DropdownHoverContext);
+
+export interface DropdownMenuProps extends React.ComponentPropsWithoutRef<
+  typeof DropdownMenuPrimitive.Root
+> {
+  /** 触发方式，参考 arco `Trigger.trigger`，默认 `"click"`。 */
+  trigger?: TriggerKind;
+  /** 鼠标进入后延时打开（毫秒），仅 `trigger="hover"` 生效，默认 80。 */
+  hoverEnterDelay?: number;
+  /** 鼠标移出后延时关闭（毫秒），仅 `trigger="hover"` 生效，默认 200。 */
+  hoverCloseDelay?: number;
+}
+
+export function DropdownMenu({
+  trigger = "click",
+  hoverEnterDelay,
+  hoverCloseDelay,
+  modal,
+  open,
+  defaultOpen,
+  onOpenChange,
+  children,
+  ...rootProps
+}: DropdownMenuProps) {
+  const hover = useHoverTrigger({
+    trigger,
+    open,
+    defaultOpen,
+    onOpenChange,
+    hoverEnterDelay,
+    hoverCloseDelay,
+  });
+
+  // hover 模式默认 modal=false：Radix DropdownMenu 默认 modal=true 会通过
+  // DismissableLayer.disableOutsidePointerEvents 给 trigger 也加上 pointer-events:none，
+  // 与 hover 触发互斥（trigger 被禁用 → mouseleave → 关弹层 → 恢复可交互 → mouseenter → 再次打开 → 高频闪烁）。
+  // hover 菜单本就是瞬时的，不应该 trap focus / 禁止外部交互，因此 hover 模式默认 false。
+  // click 模式保持 Radix 原生默认（true，模态体验）。
+  const effectiveModal = modal ?? (hover.enabled ? false : undefined);
+
+  if (!hover.enabled) {
+    return (
+      <DropdownMenuPrimitive.Root
+        modal={effectiveModal}
+        open={open}
+        defaultOpen={defaultOpen}
+        onOpenChange={onOpenChange}
+        {...rootProps}
+      >
+        {children}
+      </DropdownMenuPrimitive.Root>
+    );
+  }
+
+  return (
+    <DropdownHoverContext.Provider value={hover.handlers}>
+      <DropdownMenuPrimitive.Root
+        modal={effectiveModal}
+        open={hover.open}
+        onOpenChange={hover.setOpen}
+        {...rootProps}
+      >
+        {children}
+      </DropdownMenuPrimitive.Root>
+    </DropdownHoverContext.Provider>
+  );
+}
+
 export const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 export const DropdownMenuPortal = DropdownMenuPrimitive.Portal;
 export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
+export function DropdownMenuTrigger({
+  onMouseEnter,
+  onMouseLeave,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Trigger>) {
+  const hover = useDropdownHoverHandlers();
+  return (
+    <DropdownMenuPrimitive.Trigger
+      onMouseEnter={(event) => {
+        hover?.onMouseEnter();
+        onMouseEnter?.(event);
+      }}
+      onMouseLeave={(event) => {
+        hover?.onMouseLeave();
+        onMouseLeave?.(event);
+      }}
+      {...props}
+    />
+  );
+}
+
 export function DropdownMenuContent({
   className,
   sideOffset = 4,
   container,
+  onMouseEnter,
+  onMouseLeave,
   ...props
 }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
   container?: HTMLElement | null;
 }) {
+  const hover = useDropdownHoverHandlers();
   return (
     <DropdownMenuPrimitive.Portal container={container ?? undefined}>
       <DropdownMenuPrimitive.Content
         sideOffset={sideOffset}
+        onMouseEnter={(event) => {
+          hover?.onMouseEnter();
+          onMouseEnter?.(event);
+        }}
+        onMouseLeave={(event) => {
+          hover?.onMouseLeave();
+          onMouseLeave?.(event);
+        }}
         className={cn(
           "z-50 min-w-32 overflow-hidden rounded-md border bg-background p-1 text-foreground shadow-md",
           className,

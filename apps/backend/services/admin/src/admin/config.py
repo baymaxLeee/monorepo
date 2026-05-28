@@ -50,7 +50,7 @@ class Settings(BaseSettings):
         return self.environment == "production"
 
     @model_validator(mode="after")
-    def _enforce_production_safety(self) -> "Settings":
+    def _enforce_production_safety(self) -> Settings:
         if self.environment != "production":
             return self
         missing: list[str] = []
@@ -61,10 +61,7 @@ class Settings(BaseSettings):
         if self.redis_host in {"localhost", "127.0.0.1"}:
             missing.append("REDIS_HOST")
         if missing:
-            raise ValueError(
-                "production environment requires explicit values for: "
-                + ", ".join(missing)
-            )
+            raise ValueError("production environment requires explicit values for: " + ", ".join(missing))
         return self
 
 

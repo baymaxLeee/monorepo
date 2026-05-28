@@ -27,7 +27,7 @@ class AuthContext:
         return self.user_id == ADMIN_USER_ID or self.email == ADMIN_EMAIL
 
 
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
+async def db_session() -> AsyncGenerator[AsyncSession]:
     async for session in get_db_session():
         yield session
 

@@ -1,10 +1,19 @@
 """Redis connection for cache / ephemeral state."""
 
+from inspect import isawaitable
+from typing import Any
+
 from redis.asyncio import Redis
 
 from .config import get_settings
 
 _redis: Redis | None = None
+
+
+async def _bool_result(value: Any) -> bool:
+    if isawaitable(value):
+        value = await value
+    return bool(value)
 
 
 def get_redis() -> Redis:
@@ -16,8 +25,8 @@ def get_redis() -> Redis:
 
 async def init_redis() -> None:
     client = get_redis()
-    await client.ping()
-    await client.set("admin:boot", "ok")
+    await _bool_result(client.ping())
+    await _bool_result(client.set("admin:boot", "ok"))
 
 
 async def close_redis() -> None:
@@ -29,6 +38,6 @@ async def close_redis() -> None:
 
 async def ping_redis() -> bool:
     try:
-        return bool(await get_redis().ping())
+        return await _bool_result(get_redis().ping())
     except Exception:
         return False

@@ -45,7 +45,7 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else ""
 
 
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
+async def db_session() -> AsyncGenerator[AsyncSession]:
     async for session in get_db_session():
         yield session
 

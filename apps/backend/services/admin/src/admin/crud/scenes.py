@@ -1,9 +1,11 @@
 """Scene persistence operations."""
 
 from datetime import UTC, datetime
+from typing import cast
 from uuid import uuid4
 
 from sqlalchemy import delete, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from admin.models.scene import SceneRow
@@ -83,4 +85,4 @@ async def bulk_delete_scenes(
         stmt = stmt.where(SceneRow.user_id == user_id)
     result = await session.execute(stmt)
     await session.commit()
-    return result.rowcount or 0
+    return cast(CursorResult[object], result).rowcount or 0

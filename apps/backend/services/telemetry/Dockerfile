@@ -1,4 +1,4 @@
-FROM python:3.12-slim AS builder
+FROM python:3.14.5-slim AS builder
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
@@ -14,7 +14,7 @@ COPY libs /app/libs
 WORKDIR /app/services/telemetry
 RUN uv sync --frozen --no-dev
 
-FROM python:3.12-slim
+FROM python:3.14.5-slim
 WORKDIR /app
 COPY --from=builder /app /app
 # uv puts the venv at the workspace root (apps/backend = /app here), not at

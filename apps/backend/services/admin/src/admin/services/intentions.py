@@ -8,7 +8,8 @@
 # at import time → uvicorn fails to load the app. PEP 563 fixes it cleanly.
 from __future__ import annotations
 
-from datetime import UTC
+from collections.abc import Sequence
+from datetime import UTC, datetime
 
 from kernel.errors import NotFoundError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +20,7 @@ from admin.models.intention import IntentionRow
 from admin.schemas.intention import CreateIntentionInput, Intention, UpdateIntentionInput
 
 
-def _iso(dt) -> str:
+def _iso(dt: datetime) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
     return dt.isoformat().replace("+00:00", "Z")
@@ -82,10 +83,10 @@ class IntentionService:
             await self._get_row(intention_id),
         )
 
-    async def bulk_delete(self, ids: list[str]) -> int:
+    async def bulk_delete(self, ids: Sequence[str]) -> int:
         return await intention_crud.bulk_delete_intentions(
             self._session,
-            ids,
+            list(ids),
             self._current_user.user_id,
             self._current_user.is_admin,
         )

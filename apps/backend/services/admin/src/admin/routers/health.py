@@ -30,9 +30,7 @@ async def readyz(response: Response) -> dict[str, object]:
         mysql_ok = False
 
     healthy = mysql_ok and redis_ok
-    response.status_code = (
-        status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE
-    )
+    response.status_code = status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE
     return {
         "status": "ok" if healthy else "degraded",
         "mysql": "up" if mysql_ok else "down",

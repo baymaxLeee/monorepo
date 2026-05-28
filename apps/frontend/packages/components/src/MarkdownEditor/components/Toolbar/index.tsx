@@ -1011,11 +1011,9 @@ const ToolbarContent = ({
     }));
   const [linkUrl, setLinkUrl] = useState("");
   const [linkVisible, setLinkVisible] = useState(false);
-  const [colorPickerVisible, setColorPickerVisible] = useState(false);
   const [comment, setComment] = useState("");
   const [commentVisible, setCommentVisible] = useState(false);
-  const [nodeTypeVisible, setNodeTypeVisible] = useState(false);
-  const [textAlignVisible, setTextAlignVisible] = useState(false);
+  const [colorPickerVisible, setColorPickerVisible] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageClick = () => {
@@ -1220,24 +1218,20 @@ const ToolbarContent = ({
         </>
       )}
 
-      {/* 节点类型 */}
-      <DropdownMenu open={nodeTypeVisible} onOpenChange={setNodeTypeVisible}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger
-              type="button"
-              disabled={!editorState.canChangeType}
-              className={triggerCls({
-                isDisabled: !editorState.canChangeType,
-              })}
-            >
-              {getNodeTypeIcon(editorState.activeNodeType)}
-              <ChevronDown className="icon-down" />
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">节点类型</TooltipContent>
-        </Tooltip>
-        <DropdownMenuContent align="start" className="min-w-40">
+      {/* 节点类型（hover 触发） */}
+      <DropdownMenu trigger="hover">
+        <DropdownMenuTrigger
+          type="button"
+          aria-label="节点类型"
+          disabled={!editorState.canChangeType}
+          className={triggerCls({
+            isDisabled: !editorState.canChangeType,
+          })}
+        >
+          {getNodeTypeIcon(editorState.activeNodeType)}
+          <ChevronDown className="icon-down" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-32">
           <NodeTypeDropdownItems
             editor={editor}
             activeNodeType={editorState.activeNodeType}
@@ -1249,26 +1243,19 @@ const ToolbarContent = ({
       {contentType !== "markdown" && (
         <>
           <span className={dividerCls} />
-          <DropdownMenu
-            open={textAlignVisible}
-            onOpenChange={setTextAlignVisible}
-          >
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger
-                  type="button"
-                  disabled={!editorState.canAlign}
-                  className={triggerCls({
-                    isDisabled: !editorState.canAlign,
-                  })}
-                >
-                  {getAlignIcon(editorState.textAlign)}
-                  <ChevronDown className="icon-down" />
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">对齐方式</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent align="start" className="min-w-36">
+          <DropdownMenu trigger="hover">
+            <DropdownMenuTrigger
+              type="button"
+              aria-label="对齐方式"
+              disabled={!editorState.canAlign}
+              className={triggerCls({
+                isDisabled: !editorState.canAlign,
+              })}
+            >
+              {getAlignIcon(editorState.textAlign)}
+              <ChevronDown className="icon-down" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-28">
               <AlignDropdownItems
                 editor={editor}
                 textAlign={editorState.textAlign}
@@ -1379,34 +1366,32 @@ const ToolbarContent = ({
         </PopoverContent>
       </Popover>
 
-      {/* 颜色（仅非 markdown 模式） */}
+      {/* 颜色（仅非 markdown 模式，hover 触发） */}
       {contentType !== "markdown" && (
-        <Popover open={colorPickerVisible} onOpenChange={setColorPickerVisible}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <PopoverTrigger
-                type="button"
-                disabled={!editorState.canColor}
-                aria-label="字体与背景色"
-                className={triggerCls({
-                  isDisabled: !editorState.canColor,
-                })}
-              >
-                <span
-                  className="inline-flex size-4 items-center justify-center rounded-sm text-sm font-semibold leading-none"
-                  style={{
-                    color: editorState.currentColor || FONT_COLORS[0].color,
-                    backgroundColor:
-                      editorState.currentBg || BG_COLORS[0].color,
-                  }}
-                >
-                  A
-                </span>
-                <ChevronDown className="icon-down" />
-              </PopoverTrigger>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">字体与背景色</TooltipContent>
-          </Tooltip>
+        <Popover
+          trigger="hover"
+          open={colorPickerVisible}
+          onOpenChange={setColorPickerVisible}
+        >
+          <PopoverTrigger
+            type="button"
+            disabled={!editorState.canColor}
+            aria-label="字体与背景色"
+            className={triggerCls({
+              isDisabled: !editorState.canColor,
+            })}
+          >
+            <span
+              className="inline-flex size-4 items-center justify-center rounded-sm text-sm font-semibold leading-none"
+              style={{
+                color: editorState.currentColor || FONT_COLORS[0].color,
+                backgroundColor: editorState.currentBg || BG_COLORS[0].color,
+              }}
+            >
+              A
+            </span>
+            <ChevronDown className="icon-down" />
+          </PopoverTrigger>
           <PopoverContent align="start" className="w-auto p-3">
             <ColorPickerContent
               editor={editor}

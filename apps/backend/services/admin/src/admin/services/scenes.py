@@ -5,7 +5,8 @@
 # up at import time. See intentions.py for the full story.
 from __future__ import annotations
 
-from datetime import UTC
+from collections.abc import Sequence
+from datetime import UTC, datetime
 
 from kernel.errors import NotFoundError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +17,7 @@ from admin.models.scene import SceneRow
 from admin.schemas.scene import CreateSceneInput, Scene, UpdateSceneInput
 
 
-def _iso(dt) -> str:
+def _iso(dt: datetime) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
     return dt.isoformat().replace("+00:00", "Z")
@@ -72,10 +73,10 @@ class SceneService:
     async def delete(self, scene_id: str) -> None:
         await scene_crud.delete_scene(self._session, await self._get_row(scene_id))
 
-    async def bulk_delete(self, ids: list[str]) -> int:
+    async def bulk_delete(self, ids: Sequence[str]) -> int:
         return await scene_crud.bulk_delete_scenes(
             self._session,
-            ids,
+            list(ids),
             self._current_user.user_id,
             self._current_user.is_admin,
         )

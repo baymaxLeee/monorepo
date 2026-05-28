@@ -1,29 +1,17 @@
 import { cn } from "shared";
-import { lazy, Suspense } from "react";
+import { createLazyComponent } from "../Lazy";
 import type { CodeEditorProps } from "./interface";
 
-const LazyCodeEditor = lazy(() => import("./component"));
-
-export const CodeEditor: React.FC<CodeEditorProps> = ({
-  style,
-  className,
-  loadingText = "编辑器加载中...",
-  ...props
-}) => {
-  return (
-    <Suspense
-      fallback={
-        <div style={style} className={cn("code-editor", className)}>
-          <div className="flex h-full min-h-30 items-center justify-center p-6 text-center text-sm leading-6 text-muted-foreground">
-            {loadingText}
-          </div>
-        </div>
-      }
-    >
-      <LazyCodeEditor {...props} style={style} className={className} />
-    </Suspense>
-  );
-};
+export const CodeEditor = createLazyComponent<CodeEditorProps>(
+  () => import("./component"),
+  ({ style, className, loadingText = "编辑器加载中..." }) => (
+    <div style={style} className={cn("code-editor", className)}>
+      <div className="flex h-full min-h-30 items-center justify-center p-6 text-center text-sm leading-6 text-muted-foreground">
+        {loadingText}
+      </div>
+    </div>
+  ),
+);
 
 CodeEditor.displayName = "CodeEditor";
 

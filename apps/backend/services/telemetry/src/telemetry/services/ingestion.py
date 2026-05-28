@@ -150,7 +150,7 @@ def _client_time(value: int | None) -> datetime | None:
     try:
         # Strip tzinfo to match MySQL DATETIME column semantics.
         return datetime.fromtimestamp(value / 1000, UTC).replace(tzinfo=None)
-    except (OSError, OverflowError, ValueError):
+    except OSError, OverflowError, ValueError:
         return None
 
 
@@ -177,7 +177,7 @@ def _sample(rate: float) -> bool:
 def _float(value: Any) -> float:
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0.0
 
 
