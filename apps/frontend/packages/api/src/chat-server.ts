@@ -1,5 +1,6 @@
 import { API_BASE_URL, request, toApiError } from "./http";
-import { getToken } from "./storage";
+import { refreshSession } from "./session";
+import { getToken, isAccessTokenValid } from "./storage";
 
 export type MessageRole = "user" | "assistant" | "system";
 export type MessageStatus = "ok" | "streaming" | "failed";
@@ -100,46 +101,59 @@ export interface StreamMessageOptions {
   onChunk: (chunk: string) => void;
 }
 
-/**
- * Stream the assistant reply for a `(conversationId, userContent)` pair.
- *
- * SSE is intentionally narrow here — frames are `data: <json-encoded-string>`
- * separated by blank lines, terminated by `data: [DONE]`. `axios` does not
- * surface a streaming response in browsers, so this is the one place in the
- * frontend where we have to use `fetch` directly. The wrapper keeps that
- * detail out of every MFE; consumers only see `onChunk`.
- */
+async function sendStreamRequest(
+  url: string,
+  body: string,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "text/event-stream",
+  };
+
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  try {
+    return await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body,
+      signal,
+    });
+  } catch (error) {
+    throw toApiError(error);
+  }
+}
+
 export async function streamChatMessage(
   conversationId: string,
   payload: SendMessageInput,
   { onChunk, signal }: StreamMessageOptions,
 ): Promise<void> {
   const url = `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/messages`;
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Accept: "text/event-stream",
-  };
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const body = JSON.stringify(payload);
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      credentials: "include",
-      headers,
-      body: JSON.stringify(payload),
-      signal,
-    });
-  } catch (error) {
-    throw toApiError(error);
+  // (1) Proactive refresh — keeps the 401-retry path cold in normal use.
+  if (!isAccessTokenValid()) {
+    await refreshSession();
+  }
+
+  let response = await sendStreamRequest(url, body, signal);
+
+  if (response.status === 401) {
+    const refreshed = await refreshSession();
+    if (refreshed) {
+      response = await sendStreamRequest(url, body, signal);
+    }
   }
 
   if (!response.ok || !response.body) {
     let detail = `chat stream failed: ${response.status}`;
     try {
-      const body = await response.text();
-      if (body) detail = body;
+      const text = await response.text();
+      if (text) detail = text;
     } catch {
       // body already consumed or unreadable; keep the status detail
     }
