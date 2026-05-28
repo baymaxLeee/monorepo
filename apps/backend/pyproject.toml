@@ -8,18 +8,10 @@ members = [
     "services/admin",
     "services/telemetry",
     "libs/kernel",
-    "libs/transport",
-    "libs/observability",
-    "libs/auth_sdk",
-    "libs/audit_sdk",
 ]
 
 [tool.uv.sources]
 kernel = { workspace = true }
-transport = { workspace = true }
-observability = { workspace = true }
-auth_sdk = { workspace = true }
-audit_sdk = { workspace = true }
 
 [tool.ruff]
 line-length = 120
@@ -37,10 +29,6 @@ quote-style = "double"
 python_version = "3.14"
 strict = true
 exclude = ["migrations/", "build/", "dist/"]
-
-[[tool.mypy.overrides]]
-module = ["alembic.*"]
-ignore_missing_imports = true
 
 [dependency-groups]
 dev = [

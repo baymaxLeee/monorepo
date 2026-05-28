@@ -3,15 +3,12 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from dotenv import load_dotenv
 from fastapi import FastAPI
 from kernel.errors import register_exception_handlers
 from kernel.tracing import TraceIDMiddleware
 
 from .db import close_db
 from .routers import errors, health, rum
-
-load_dotenv()
 
 
 @asynccontextmanager

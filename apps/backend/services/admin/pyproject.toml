@@ -7,18 +7,12 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "pydantic>=2.7",
+    "pydantic-settings>=2.7",
     "sqlalchemy[asyncio]>=2.0",
-    "greenlet>=3.0",
-    "alembic>=1.13",
     "asyncmy>=0.2",
     "cryptography>=42",
-    "pydantic-settings>=2.7",
-    "python-dotenv>=1.0",
     "redis>=5.0",
     "kernel",
-    "auth_sdk",
-    "audit_sdk",
-    "observability",
 ]
 
 [build-system]

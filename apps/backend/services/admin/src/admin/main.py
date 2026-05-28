@@ -3,7 +3,6 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from dotenv import load_dotenv
 from fastapi import FastAPI
 from kernel.errors import register_exception_handlers
 from kernel.tracing import TraceIDMiddleware
@@ -12,8 +11,6 @@ from .config import get_settings
 from .db import close_db, seed_demo_bots
 from .redis_client import close_redis, init_redis
 from .routers import bots, health, intentions, scenes
-
-load_dotenv()
 
 
 @asynccontextmanager

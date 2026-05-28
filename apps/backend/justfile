@@ -70,7 +70,11 @@ build-image service registry="local" tag="latest":
     @if [ ! -f "services/{{ service }}/Dockerfile" ]; then \
         echo "✗ services/{{ service }}/Dockerfile not found"; exit 1; fi
     @echo "→ docker build {{ registry }}/{{ service }}:{{ tag }}"
-    docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile services/{{ service }}
+    @if echo "{{ PY_SERVICES }}" | tr ' ' '\n' | grep -qx "{{ service }}"; then \
+        docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile .; \
+    else \
+        docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile services/{{ service }}; \
+    fi
     @echo "✓ {{ registry }}/{{ service }}:{{ tag }}"
 
 # Build images for ALL services (Python + Go).
