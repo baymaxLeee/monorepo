@@ -39,10 +39,12 @@ dev-shell:
 dev-urls:
     @echo "  platform:  http://localhost:3000"
     @echo "  mfe-admin: http://localhost:3001"
+    @echo "  mfe-chat:  http://localhost:3005"
     @echo "  gateway:   http://localhost:8000"
     @echo "  telemetry: http://localhost:8008/healthz"
     @echo "  iam:      http://localhost:8002/healthz"
     @echo "  svc-admin: http://localhost:8001/docs"
+    @echo "  svc-chat:  http://localhost:8009/docs"
 
 # ─── Build ──────────────────────────────────────────────────
 # Usage: build [target]  target = frontend | backend | platform | admin | gateway | ...

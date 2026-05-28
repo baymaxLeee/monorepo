@@ -6,7 +6,8 @@ Module Federation 2.0 + Rspack。一个 shell host 加载多个 mfe-\* remote。
 
 ```
 shell (host @ :3000)
-  └── loads → mfe_admin (remote assets @ :3001)
+  ├── loads → mfe_admin (remote assets @ :3001)
+  └── loads → mfe_chat  (remote assets @ :3005)
 ```
 
 ## 现有模块
@@ -15,6 +16,7 @@ shell (host @ :3000)
 | --------- | ---- | ----------------------------------------------------- | ------------- |
 | platform  | 3000 | `/`、`/login`、`/platform/*`                          | n/a           |
 | mfe_admin | 3001 | 仅提供 `mf-manifest.json` / `remoteEntry.js` / chunks | admin service |
+| mfe_chat  | 3005 | 仅提供 `mf-manifest.json` / `remoteEntry.js` / chunks | chat service  |
 
 用户入口只有 platform。`mfe_*` 可以独立部署、独立启动 dev server，但 remote
 root URL 不是业务入口，也不提供状态页；本地与生产都通过 platform 路由渲染业务页面。

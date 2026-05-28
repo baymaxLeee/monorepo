@@ -24,3 +24,4 @@ jobs:
       - run: pnpm test
       - run: pnpm -F platform build
       - run: pnpm -F admin build
+      - run: pnpm -F chat build

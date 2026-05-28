@@ -31,6 +31,12 @@ const MFE_ADMIN_ENTRY =
     ? "mfe_admin@/mfe-admin/mf-manifest.json"
     : "mfe_admin@http://localhost:3001/mf-manifest.json");
 
+const MFE_CHAT_ENTRY =
+  process.env.MFE_CHAT_ENTRY ??
+  (isProduction
+    ? "mfe_chat@/mfe-chat/mf-manifest.json"
+    : "mfe_chat@http://localhost:3005/mf-manifest.json");
+
 function isPackageModule(module, packageName) {
   return module.resource?.includes(
     `${path.sep}node_modules${path.sep}${packageName}${path.sep}`,
@@ -170,6 +176,7 @@ export default defineConfig({
       dts: false,
       remotes: {
         mfe_admin: MFE_ADMIN_ENTRY,
+        mfe_chat: MFE_CHAT_ENTRY,
       },
       shared: buildShared("host"),
     }),

@@ -33,6 +33,7 @@ type Config struct {
 	Environment              string
 	Port                     string
 	AdminServiceURL          string
+	ChatServiceURL           string
 	IAMServiceURL            string
 	TelemetryServiceURL      string
 	AllowedOrigins           []string
@@ -79,6 +80,7 @@ func Load() (Config, error) {
 		Environment:         envOr("ENVIRONMENT", EnvDevelopment),
 		Port:                envOr("PORT", "8000"),
 		AdminServiceURL:     envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
+		ChatServiceURL:      envOr("CHAT_SERVICE_URL", "http://localhost:8009"),
 		IAMServiceURL:       envOr("IAM_SERVICE_URL", "http://localhost:8002"),
 		TelemetryServiceURL: envOr("TELEMETRY_SERVICE_URL", "http://localhost:8008"),
 		AllowedOrigins:      csvOr("ALLOWED_FRONTEND_ORIGINS", []string{"http://localhost:3000", "http://localhost:3001"}),

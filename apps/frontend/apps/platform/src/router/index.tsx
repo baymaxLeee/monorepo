@@ -79,6 +79,7 @@ function RemoteErrorFallback({
 
 const remoteAppLoaders = {
   mfe_admin: () => import("mfe_admin/App"),
+  mfe_chat: () => import("mfe_chat/App"),
 } satisfies Record<string, RouteLoader>;
 
 const remoteRoutes: RouteObject[] = registry.flatMap((m) => {

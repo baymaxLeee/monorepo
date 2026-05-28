@@ -18,6 +18,7 @@ COPY infra/single-vps/mysql-init.sh /init.sh
 # database mapping in mysql-init.sh's DATABASES list.
 COPY apps/backend/services/iam/migrations/versions       /schema/iam
 COPY apps/backend/services/admin/migrations/versions     /schema/admin
+COPY apps/backend/services/chat/migrations/versions      /schema/chat
 COPY apps/backend/services/gateway/migrations/versions   /schema/gateway
 COPY apps/backend/services/telemetry/migrations/versions /schema/telemetry
 

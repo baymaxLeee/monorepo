@@ -23,6 +23,13 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: chat
+spec:
+  replicas: 2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: telemetry
 spec:
   replicas: 2

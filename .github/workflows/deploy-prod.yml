@@ -78,7 +78,7 @@ jobs:
         run: |
           REG="${{ steps.vars.outputs.registry }}"
           TAG="${{ steps.vars.outputs.tag }}"
-          for svc in gateway iam admin telemetry; do
+          for svc in gateway iam admin chat telemetry; do
             kustomize edit set image \
               "ghcr.io/example/${svc}=${REG}/${svc}:${TAG}"
           done
@@ -134,7 +134,7 @@ jobs:
 
       - name: Wait for rollouts
         run: |
-          for svc in gateway iam admin telemetry; do
+          for svc in gateway iam admin chat telemetry; do
             kubectl -n monorepo-prod rollout status deployment/${svc} --timeout=5m
           done
 

@@ -17,6 +17,20 @@ export default defineConfig({
       },
     },
   },
+  "chat-server": {
+    input: `${schemasRoot}/chat-server.json`,
+    output: {
+      mode: "single",
+      target: "generated/chat-server/index.ts",
+      client: "axios",
+      override: {
+        mutator: {
+          path: "./src/orval-mutator.ts",
+          name: "apiMutator",
+        },
+      },
+    },
+  },
   "telemetry-server": {
     input: `${schemasRoot}/telemetry-server.json`,
     output: {

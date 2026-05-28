@@ -6,6 +6,54 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/livez": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Livez",
+        "operationId": "livez_livez_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Livez Livez Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Readyz",
+        "operationId": "readyz_readyz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Readyz Readyz Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [

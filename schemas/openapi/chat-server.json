@@ -1,0 +1,888 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Chat Service",
+    "description": "对话 / 大模型微服务",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/livez": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Livez",
+        "operationId": "livez_livez_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Livez Livez Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Readyz",
+        "operationId": "readyz_readyz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Readyz Readyz Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Healthz",
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Healthz Healthz Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/conversations": {
+      "get": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "List Conversations",
+        "operationId": "list_conversations_conversations_get",
+        "parameters": [
+          {
+            "name": "X-Auth-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Email"
+            }
+          },
+          {
+            "name": "X-Auth-User-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Name",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Conversation"
+                  },
+                  "title": "Response List Conversations Conversations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Create Conversation",
+        "operationId": "create_conversation_conversations_post",
+        "parameters": [
+          {
+            "name": "X-Auth-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Email"
+            }
+          },
+          {
+            "name": "X-Auth-User-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Name",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/conversations/{conversation_id}": {
+      "get": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Get Conversation",
+        "operationId": "get_conversation_conversations__conversation_id__get",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "X-Auth-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Email"
+            }
+          },
+          {
+            "name": "X-Auth-User-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Name",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Update Conversation",
+        "operationId": "update_conversation_conversations__conversation_id__patch",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "X-Auth-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Email"
+            }
+          },
+          {
+            "name": "X-Auth-User-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Name",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConversationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Delete Conversation",
+        "operationId": "delete_conversation_conversations__conversation_id__delete",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "X-Auth-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Email"
+            }
+          },
+          {
+            "name": "X-Auth-User-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Name",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Name"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/conversations/{conversation_id}/messages": {
+      "post": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Send Message",
+        "description": "Persist user message, stream assistant reply over SSE.\n\nThe response is `text/event-stream`. Each event is `data: <text-chunk>\\n\\n`\nwhere `<text-chunk>` is a JSON-encoded string (so client-side parsing is\ntrivial and binary-safe). A final `data: [DONE]\\n\\n` event signals end.",
+        "operationId": "send_message_conversations__conversation_id__messages_post",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "X-Auth-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Email"
+            }
+          },
+          {
+            "name": "X-Auth-User-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Name",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Conversation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "title",
+          "model",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Conversation"
+      },
+      "ConversationDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "type": "array",
+            "title": "Messages",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "title",
+          "model",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ConversationDetail"
+      },
+      "CreateConversationInput": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "default": "新对话"
+          }
+        },
+        "type": "object",
+        "title": "CreateConversationInput"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Message": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "conversation_id": {
+            "type": "string",
+            "title": "Conversation Id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant",
+              "system"
+            ],
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "streaming",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "conversation_id",
+          "role",
+          "content",
+          "status",
+          "created_at"
+        ],
+        "title": "Message"
+      },
+      "SendMessageInput": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Content"
+          },
+          "thinking": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thinking",
+            "description": "Enable chain-of-thought reasoning when the model supports it."
+          },
+          "reasoning_effort": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Effort",
+            "description": "Reasoning compute budget for thinking-enabled models."
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "SendMessageInput"
+      },
+      "UpdateConversationInput": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "title": "UpdateConversationInput"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

@@ -6,6 +6,9 @@
 |---|---|---|---|
 | gateway | Go | 8000 | BFF / 边缘网关 |
 | admin | Python | 8001 | 智能体管理 |
+| iam | Go | 8002 | 身份认证 / 会话 |
+| telemetry | Python | 8008 | 可观测 / RUM 上报 |
+| chat | Python | 8009 | 对话 / 大模型（SSE 流式） |
 
 ## 通用规则
 

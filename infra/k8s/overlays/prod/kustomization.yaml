@@ -9,6 +9,7 @@ resources:
   - ../../base/gateway
   - ../../base/iam
   - ../../base/admin
+  - ../../base/chat
   - ../../base/telemetry
   - ../../base/ingress.yaml
 
@@ -31,6 +32,9 @@ images:
   - name: ghcr.io/example/admin
     newName: registry.invalid/monorepo/admin
     newTag: placeholder
+  - name: ghcr.io/example/chat
+    newName: registry.invalid/monorepo/chat
+    newTag: placeholder
   - name: ghcr.io/example/telemetry
     newName: registry.invalid/monorepo/telemetry
     newTag: placeholder
@@ -43,6 +47,8 @@ patches:
     target: { kind: ConfigMap, name: iam-config }
   - path: patches/admin-config.yaml
     target: { kind: ConfigMap, name: admin-config }
+  - path: patches/chat-config.yaml
+    target: { kind: ConfigMap, name: chat-config }
   - path: patches/telemetry-config.yaml
     target: { kind: ConfigMap, name: telemetry-config }
   - path: patches/ingress-host.yaml

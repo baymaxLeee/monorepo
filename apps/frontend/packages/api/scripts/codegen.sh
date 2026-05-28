@@ -9,5 +9,10 @@ if [ ! -f "$SCHEMA_DIR/admin-server.json" ]; then
   exit 0
 fi
 
+if [ ! -f "$SCHEMA_DIR/chat-server.json" ]; then
+  echo "⚠ schema missing: $SCHEMA_DIR/chat-server.json (run backend OpenAPI export first)" >&2
+  exit 0
+fi
+
 cd "$PKG_DIR"
 pnpm exec orval --config orval.config.ts

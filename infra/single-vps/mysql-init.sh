@@ -37,7 +37,7 @@ done
 # Mirror the service → database naming used by scripts/db-migrate.sh.
 # `telemetry` was originally ClickHouse-backed; we moved it onto the shared
 # MySQL instance to keep the single-VPS footprint small.
-DATABASES="iam admin gateway telemetry"
+DATABASES="iam admin chat gateway telemetry"
 
 for db in ${DATABASES}; do
     echo "→ ensuring database \`${db}\` exists and APP_USER \`${APP_USER}\` has access"

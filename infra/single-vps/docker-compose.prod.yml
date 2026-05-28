@@ -9,9 +9,11 @@
 #   browser  →  nginx (web, port 80 in-container, mapped to host PUBLIC_PORT)
 #                 ├─ /             → SPA platform dist
 #                 ├─ /mfe-admin/   → MFE admin dist
+#                 ├─ /mfe-chat/    → MFE chat dist
 #                 └─ /api/*        → reverse-proxy → gateway:8000
 #                                     ├─ iam:8002
 #                                     ├─ admin:8001
+#                                     ├─ chat:8009
 #                                     └─ telemetry:8008
 #                                         ↓
 #                                    mysql + redis (internal)
@@ -138,6 +140,7 @@ services:
       REDIS_DB: "1"
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:?ACCESS_TOKEN_SECRET is required}
       ADMIN_SERVICE_URL: http://admin:8001
+      CHAT_SERVICE_URL: http://chat:8009
       IAM_SERVICE_URL: http://iam:8002
       TELEMETRY_SERVICE_URL: http://telemetry:8008
       # Same-origin behind nginx → browser never sends Origin for navigations.
@@ -165,6 +168,33 @@ services:
       REDIS_DB: "0"
     <<: *restart_policy
 
+  chat:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/chat:${IMAGE_TAG:-main}
+    container_name: monorepo-chat
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      db-init: { condition: service_completed_successfully }
+    environment:
+      ENVIRONMENT: single-vps
+      PORT: "8009"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: ${MYSQL_USER:-app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_DATABASE: chat
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "2"
+      # LLM upstream (OpenAI-compatible). When unset, the chat service falls
+      # back to a deterministic mock — useful for demo deploys without
+      # spending API credits.
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
+    <<: *restart_policy
+
   telemetry:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/telemetry:${IMAGE_TAG:-main}
     container_name: monorepo-telemetry
@@ -186,6 +216,7 @@ services:
   # and contains:
   #   /usr/share/nginx/html             ← platform dist
   #   /usr/share/nginx/html/mfe-admin/  ← admin (MFE remote) dist
+  #   /usr/share/nginx/html/mfe-chat/   ← chat  (MFE remote) dist
   #   /etc/nginx/conf.d/default.conf    ← nginx.conf from this directory
   web:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/web:${IMAGE_TAG:-main}

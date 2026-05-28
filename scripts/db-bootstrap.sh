@@ -44,6 +44,7 @@ for service_dir in "${SERVICE_DIRS[@]}"; do
 done
 
 ADMIN_DIR="$SERVICES_DIR/admin"
+CHAT_DIR="$SERVICES_DIR/chat"
 IAM_DIR="$SERVICES_DIR/iam"
 
 if [ ! -f "$ADMIN_DIR/.env" ]; then
@@ -67,6 +68,27 @@ async def main() -> None:
 asyncio.run(main())
 PY
 echo "✓ admin demo data ready"
+
+if [ -f "$CHAT_DIR/.env" ]; then
+  echo "→ Seeding chat demo data..."
+  cd "$CHAT_DIR"
+  uv run python - <<'PY'
+import asyncio
+
+from chat.db import close_db, seed_demo_conversations
+
+
+async def main() -> None:
+    await seed_demo_conversations()
+    await close_db()
+
+
+asyncio.run(main())
+PY
+  echo "✓ chat demo data ready"
+else
+  echo "⚠ $CHAT_DIR/.env missing; skipping chat seed (run install-deps.sh)" >&2
+fi
 
 echo "→ Seeding iam demo data..."
 cd "$IAM_DIR"

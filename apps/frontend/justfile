@@ -2,7 +2,7 @@ set positional-arguments
 set shell := ["bash", "-cu"]
 
 # Fixed port allocation so multiple agents/dev servers don't collide
-PORTS := '{"platform":3000,"admin":3001,"mfe-scene":3002,"mfe-intention":3003,"mfe-portal":3004}'
+PORTS := '{"platform":3000,"admin":3001,"mfe-scene":3002,"mfe-intention":3003,"mfe-portal":3004,"chat":3005}'
 
 default:
     @just --list

@@ -30,5 +30,12 @@ export const registry: MfeEntry[] = [
     remoteName: "mfe_admin",
     exposeKey: "./App",
   },
+  {
+    id: "chat",
+    title: "对话",
+    basePath: "/platform/chat",
+    remoteName: "mfe_chat",
+    exposeKey: "./App",
+  },
   // { id: "scene", title: "场景", basePath: "/platform/scene", remoteName: "mfe_scene", exposeKey: "./App" },
 ];

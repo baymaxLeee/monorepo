@@ -25,11 +25,7 @@ import { useEffect } from "react";
 import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
-import { type MfeEntry, registry } from "../../registry";
-
-function activeMfe(pathname: string): MfeEntry | undefined {
-  return registry.find((m) => pathname.startsWith(m.basePath));
-}
+import { registry } from "../../registry";
 
 function getUserInitials(name: string) {
   return name.trim().slice(0, 1).toUpperCase() || "U";
@@ -37,27 +33,12 @@ function getUserInitials(name: string) {
 
 export function Layout() {
   const location = useLocation();
-  const { user, menus, setUser, setActiveMenuId } = usePlatformStore(
+  const { user, setUser } = usePlatformStore(
     useShallow((state) => ({
       user: state.user,
-      menus: state.menus,
       setUser: state.setUser,
-      setActiveMenuId: state.setActiveMenuId,
     })),
   );
-  const current = activeMfe(location.pathname);
-  const platformMenus =
-    menus.length > 0
-      ? menus
-      : registry.map((m) => ({
-          id: m.id,
-          title: m.title,
-          basePath: m.basePath,
-        }));
-
-  useEffect(() => {
-    setActiveMenuId(current?.id ?? null);
-  }, [current?.id, setActiveMenuId]);
 
   useEffect(() => {
     recordPageView();
@@ -100,7 +81,7 @@ export function Layout() {
           aria-label="应用"
           className="flex min-w-0 items-center justify-start gap-1"
         >
-          {platformMenus.map((m) => (
+          {registry.map((m) => (
             <Button
               key={m.id}
               asChild

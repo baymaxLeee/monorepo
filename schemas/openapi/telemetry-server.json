@@ -2,10 +2,58 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Telemetry Service",
-    "description": "自托管前端 RUM 采集与查询服务",
+    "description": "自托管前端 RUM 采集与查询服务(MySQL 后端)",
     "version": "0.1.0"
   },
   "paths": {
+    "/livez": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Livez",
+        "operationId": "livez_livez_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Livez Livez Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Readyz",
+        "operationId": "readyz_readyz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Readyz Readyz Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [

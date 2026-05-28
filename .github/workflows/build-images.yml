@@ -44,10 +44,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # gateway / iam / admin / telemetry → backend service images
-        # web                               → nginx + bundled frontend SPA dist
-        # db-init                           → one-shot MySQL schema bootstrap
-        service: [gateway, iam, admin, telemetry, web, db-init]
+        # gateway / iam / admin / chat / telemetry → backend service images
+        # web                                      → nginx + bundled frontend SPA dist
+        # db-init                                  → one-shot MySQL schema bootstrap
+        service: [gateway, iam, admin, chat, telemetry, web, db-init]
     env:
       # Surfaced into the shell of every step so the "Compute tags" script
       # can branch on whether the TCR mirror is configured.
@@ -118,7 +118,7 @@ jobs:
               echo "context=apps/backend/services/${{ matrix.service }}" >> "$GITHUB_OUTPUT"
               echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
               ;;
-            admin|telemetry)
+            admin|chat|telemetry)
               # Python services need apps/backend/{pyproject,services/<svc>,libs}.
               echo "context=apps/backend" >> "$GITHUB_OUTPUT"
               echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"

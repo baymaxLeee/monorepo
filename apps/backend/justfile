@@ -2,11 +2,11 @@ set positional-arguments
 set shell := ["bash", "-cu"]
 
 # Service registry (Python services and their fixed dev ports)
-PY_SERVICES := "admin telemetry"
+PY_SERVICES := "admin chat telemetry"
 GO_SERVICES := "gateway iam"
 
 # Fixed port allocation so multiple agents/dev servers don't collide
-PORTS := '{"admin":8001,"iam":8002,"scene":8003,"intention":8004,"permission":8005,"audit":8006,"notification":8007,"telemetry":8008,"gateway":8000}'
+PORTS := '{"admin":8001,"iam":8002,"scene":8003,"intention":8004,"permission":8005,"audit":8006,"notification":8007,"telemetry":8008,"chat":8009,"gateway":8000}'
 
 default:
     @just --list
