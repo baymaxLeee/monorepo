@@ -1,12 +1,8 @@
 import JSZip from "jszip";
-// simple-mind-map 不为这些内部工具模块发布类型。组件包内有 src/types.d.ts
-// 提供 ambient declaration，本包 typecheck 时类型可解析；但被 admin / platform
-// 等外部 tsconfig 引用时不会自动包含 d.ts —— 必须用宽松的抑制指令保证跨包
-// 编译通过；本包内严格指令会被认为"未使用"，因此选用宽松版做双向兼容。
-// biome-ignore lint/suspicious/noTsIgnore: 跨包兼容需要
+// biome-ignore lint/suspicious/noTsIgnore: 上游包元数据缺失
 // @ts-ignore
 import * as mindMapUtils from "simple-mind-map/src/utils/index";
-// biome-ignore lint/suspicious/noTsIgnore: 跨包兼容需要
+// biome-ignore lint/suspicious/noTsIgnore: 上游包元数据缺失
 // @ts-ignore
 import * as xmindUtils from "simple-mind-map/src/utils/xmind";
 import xmlConvert from "xml-js";

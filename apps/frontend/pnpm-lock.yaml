@@ -14,18 +14,12 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.41
-      shadcn:
-        specifier: ^3.0.0
-        version: 3.8.5(@types/node@20.19.41)(typescript@5.9.3)
       tailwindcss:
         specifier: ^4.1.0
         version: 4.3.0
       turbo:
         specifier: ^2.0.0
         version: 2.9.15
-      tw-animate-css:
-        specifier: ^1.2.0
-        version: 1.4.0
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -56,9 +50,6 @@ importers:
       react-hook-form:
         specifier: ^7.76.0
         version: 7.76.1(react@18.3.1)
-      react-router:
-        specifier: ^6.26.0
-        version: 6.30.3(react@18.3.1)
       react-router-dom:
         specifier: ^6.26.0
         version: 6.30.3(react-dom@18.3.1)(react@18.3.1)
@@ -129,9 +120,6 @@ importers:
       react-hook-form:
         specifier: ^7.76.0
         version: 7.76.1(react@18.3.1)
-      react-router:
-        specifier: ^6.26.0
-        version: 6.30.3(react@18.3.1)
       react-router-dom:
         specifier: ^6.26.0
         version: 6.30.3(react-dom@18.3.1)(react@18.3.1)
@@ -185,8 +173,6 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
-  packages: {}
-
   packages/api:
     dependencies:
       axios:
@@ -198,7 +184,7 @@ importers:
     devDependencies:
       orval:
         specifier: ^8.8.0
-        version: 8.13.0(prettier@3.8.3)(typescript@5.9.3)
+        version: 8.13.0(typescript@5.9.3)
 
   packages/components:
     dependencies:
@@ -247,12 +233,6 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.4.0
         version: 5.4.0(react-hook-form@7.76.1)
-      '@radix-ui/react-slot':
-        specifier: ^1.2.4
-        version: 1.2.4(@types/react@18.3.29)(react@18.3.1)
-      '@radix-ui/react-tooltip':
-        specifier: ^1.2.8
-        version: 1.2.8(@types/react-dom@18.3.7)(@types/react@18.3.29)(react-dom@18.3.1)(react@18.3.1)
       '@tiptap/core':
         specifier: ^3.22.3
         version: 3.23.6(@tiptap/pm@3.23.6)
@@ -331,6 +311,9 @@ importers:
       react-pdf:
         specifier: ^10
         version: 10.4.1(@types/react@18.3.29)(react-dom@18.3.1)(react@18.3.1)
+      shadcn:
+        specifier: ^3.0.0
+        version: 3.8.5(@types/node@20.19.41)(typescript@5.9.3)
       shared:
         specifier: workspace:*
         version: link:../shared
@@ -1051,11 +1034,11 @@ packages:
   '@lezer/lr@1.4.10':
     resolution: {integrity: sha512-rnCpTIBafOx4mRp43xOxDJbFipJm/c0cia/V5TiGlhmMa+wsSdoGmUN3w5Bqrks/09Q/D4tNAmWaT8p6NRi77A==}
 
-  '@lezer/markdown@1.6.3':
-    resolution: {integrity: sha512-jpGm5Ps+XErS+xA4urw7ogEGkeZOahVQF21Z6oECF0sj+2liwZopd2+I8uH5I/vZsRuuze3OxBREIANLf6KKUw==}
+  '@lezer/markdown@1.6.4':
+    resolution: {integrity: sha512-N0SxazMj4k65DBfaf1azqtMZd6u7MqluP84/NZnB/io8Td9aleFmAhz9hcbvSfsxT5tdYlJ5qgv5aMJGY4zEtA==}
 
-  '@lezer/python@1.1.18':
-    resolution: {integrity: sha512-31FiUrU7z9+d/ElGQLJFXl+dKOdx0jALlP3KEOsGTex8mvj+SoE1FgItcHWK/axkxCHGUSpqIHt6JAWfWu9Rhg==}
+  '@lezer/python@1.1.19':
+    resolution: {integrity: sha512-MhQIURHRytsNzP/YXnqpYKW6la6voAH3kyplTOOiCdjyFY6cWWGFVmYVdHIPrElqSDf4iCDktQCockB9FxuhzQ==}
 
   '@lezer/xml@1.0.6':
     resolution: {integrity: sha512-CdDwirL0OEaStFue/66ZmFSeppuL6Dwjlk8qk153mSQwiSH/Dlri4GNymrNWnUmPl2Um7QfV1FO9KFUyX3Twww==}
@@ -1835,15 +1818,6 @@ packages:
 
   '@radix-ui/react-slot@1.2.3':
     resolution: {integrity: sha512-aeNmHnBxbi2St0au6VBVC7JXFlhLlOnvIIlePNniyUNAClzmtAUEY8/pBiK3iHjufOlwA+c20/8jngo7xcrg8A==}
-    peerDependencies:
-      '@types/react': '*'
-      react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
-    peerDependenciesMeta:
-      '@types/react':
-        optional: true
-
-  '@radix-ui/react-slot@1.2.4':
-    resolution: {integrity: sha512-Jl+bCv8HxKnlTLVrcDE8zTMJ09R9/ukw4qBs/oZClOfoQk/cOTbDn+NceXfV7j09YPVQUryJPHurafcSg6EVKA==}
     peerDependencies:
       '@types/react': '*'
       react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
@@ -4557,11 +4531,6 @@ packages:
     resolution: {integrity: sha512-dM0jVuXJPsDN6DvRpea484tCUaMiXWjuCn++HGTqUWzGDjv5tZkEZldAJ/UMlqRYGFrD/etByo4/xOuC/snX2A==}
     engines: {node: '>=20'}
 
-  prettier@3.8.3:
-    resolution: {integrity: sha512-7igPTM53cGHMW8xWuVTydi2KO233VFiTNyF5hLJqpilHfmn8C8gPf+PS7dUT64YcXFbiMGZxS9pCSxL/Dxm/Jw==}
-    engines: {node: '>=14'}
-    hasBin: true
-
   pretty-error@4.0.0:
     resolution: {integrity: sha512-AoJ5YMAcXKYxKhuJGdcvse+Voc6v1RgnsR3nWcYU7q4t6z0Q6T86sv5Zq8VIRbOWWFpvdGE83LtdSMNd+6Y0xw==}
 
@@ -5854,7 +5823,7 @@ snapshots:
       '@codemirror/state': 6.6.0
       '@codemirror/view': 6.43.0
       '@lezer/common': 1.5.2
-      '@lezer/markdown': 1.6.3
+      '@lezer/markdown': 1.6.4
 
   '@codemirror/lang-python@6.2.1':
     dependencies:
@@ -5862,7 +5831,7 @@ snapshots:
       '@codemirror/language': 6.12.3
       '@codemirror/state': 6.6.0
       '@lezer/common': 1.5.2
-      '@lezer/python': 1.1.18
+      '@lezer/python': 1.1.19
 
   '@codemirror/lang-xml@6.1.0':
     dependencies:
@@ -6283,12 +6252,12 @@ snapshots:
     dependencies:
       '@lezer/common': 1.5.2
 
-  '@lezer/markdown@1.6.3':
+  '@lezer/markdown@1.6.4':
     dependencies:
       '@lezer/common': 1.5.2
       '@lezer/highlight': 1.2.3
 
-  '@lezer/python@1.1.18':
+  '@lezer/python@1.1.19':
     dependencies:
       '@lezer/common': 1.5.2
       '@lezer/highlight': 1.2.3
@@ -7229,12 +7198,6 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
 
   '@radix-ui/react-slot@1.2.3(@types/react@18.3.29)(react@18.3.1)':
-    dependencies:
-      '@radix-ui/react-compose-refs': 1.1.2(@types/react@18.3.29)(react@18.3.1)
-      '@types/react': 18.3.29
-      react: 18.3.1
-
-  '@radix-ui/react-slot@1.2.4(@types/react@18.3.29)(react@18.3.1)':
     dependencies:
       '@radix-ui/react-compose-refs': 1.1.2(@types/react@18.3.29)(react@18.3.1)
       '@types/react': 18.3.29
@@ -9813,7 +9776,7 @@ snapshots:
 
   orderedmap@2.1.1: {}
 
-  orval@8.13.0(prettier@3.8.3)(typescript@5.9.3):
+  orval@8.13.0(typescript@5.9.3):
     dependencies:
       '@commander-js/extra-typings': 14.0.0(commander@14.0.3)
       '@orval/angular': 8.13.0(typescript@5.9.3)
@@ -9839,7 +9802,6 @@ snapshots:
       get-tsconfig: 4.14.0
       jiti: 2.7.0
       js-yaml: 4.1.1
-      prettier: 3.8.3
       remeda: 2.37.0
       string-argv: 0.3.2
       typedoc: 0.28.19(typescript@5.9.3)
@@ -9971,8 +9933,6 @@ snapshots:
       source-map-js: 1.2.1
 
   powershell-utils@0.1.0: {}
-
-  prettier@3.8.3: {}
 
   pretty-error@4.0.0:
     dependencies:
