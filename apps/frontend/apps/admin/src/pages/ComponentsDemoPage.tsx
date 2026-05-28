@@ -1,9 +1,9 @@
-import { useState } from "react";
 import { Page, Tabs, TabsContent, TabsList, TabsTrigger } from "components";
+import { useState } from "react";
 import {
+  type DemoTab,
   defaultDemoTab,
   resolveDemoTab,
-  type DemoTab,
 } from "./components-demo/data";
 import { BasicTab } from "./components-demo/tabs/BasicTab";
 import { CodeEditorTab } from "./components-demo/tabs/CodeEditorTab";

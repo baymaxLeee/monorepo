@@ -46,7 +46,7 @@ export function XMindPreviewerTab() {
       description="simple-mind-map 预览，示例数据为智能体上线检查清单"
       fill
     >
-      <div className="flex min-h-0 flex-1 overflow-hidden rounded-md border">
+      <div className="flex min-h-0 flex-1 overflow-hidden min-w-100 min-h-100 rounded-md border">
         <XMindPreviewer
           data={demoMindMapData}
           height="100%"

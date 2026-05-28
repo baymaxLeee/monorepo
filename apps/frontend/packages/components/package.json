@@ -64,7 +64,8 @@
     "zod": "^4.4.3"
   },
   "scripts": {
-    "lint": "eslint src",
+    "lint": "biome check src",
+    "format": "biome check --write src",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {

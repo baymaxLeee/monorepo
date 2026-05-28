@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import {
   Button,
   Page,
@@ -8,6 +7,7 @@ import {
   PageHeaderContent,
   PageTitle,
 } from "components";
+import { Link } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 
 export function NotFoundPage() {

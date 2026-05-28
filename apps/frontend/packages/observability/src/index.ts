@@ -6,14 +6,14 @@ export {
   telemetry,
   track,
 } from "./api";
-export { clearUser, setRelease, setUser } from "./context";
 export { installWebVitals } from "./auto/vitals";
+export { clearUser, setRelease, setUser } from "./context";
 export type {
+  MinimalAxiosInstance,
   ObservabilityApp,
   ObservabilityConfig,
   ObservabilityEvent,
   ObservabilityEventType,
   ObservabilityUser,
-  MinimalAxiosInstance,
   TelemetryScope,
 } from "./types";

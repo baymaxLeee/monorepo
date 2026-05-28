@@ -1,5 +1,4 @@
-import { Editor, useEditorState } from "@tiptap/react";
-import { cn } from "shared";
+import { type Editor, useEditorState } from "@tiptap/react";
 import {
   AlignCenter,
   AlignLeft,
@@ -30,8 +29,8 @@ import {
   Outdent,
   Pilcrow,
   Quote,
-  RefreshCw,
   Redo2,
+  RefreshCw,
   RotateCcw,
   Send,
   Sparkles,
@@ -43,8 +42,9 @@ import {
   Wand2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
+import { cn } from "shared";
 import { toast } from "sonner";
+import { v4 as uuidv4 } from "uuid";
 
 import { Button } from "../../../Button";
 import {
@@ -71,14 +71,18 @@ import {
   URL_REGEX,
 } from "../../constants";
 import { useEditorContext } from "../../context";
-import { ContentType, RewriteActionType, ToolbarMode } from "../../interface";
+import {
+  type ContentType,
+  RewriteActionType,
+  type ToolbarMode,
+} from "../../interface";
 import {
   applyBlocksToSelection,
   extractSelectionToBlocks,
   extractTextFromPartialJson,
   getFullUrl,
   parseSSEStream,
-  SelectionSnapshot,
+  type SelectionSnapshot,
 } from "../../utils";
 import { TableSelector } from "../TableSelector";
 
@@ -480,7 +484,7 @@ const NodeTypeDropdownItems = ({
       default:
         if (key.startsWith("h")) {
           const level = parseInt(key.replace("h", ""), 10);
-          if (!isNaN(level)) {
+          if (!Number.isNaN(level)) {
             chain
               .toggleHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 })
               .run();
@@ -665,6 +669,8 @@ export const AIPolishContent = ({
       setTriggerVisible(false);
       setMaskVisible?.(false);
     };
+    // 故意 mount-once：只在弹层装载/卸载时切换 mask；
+    // setMaskVisible 引用变化不应触发清理（会让 UI 闪烁）
   }, []);
 
   const handlePolish = async () => {

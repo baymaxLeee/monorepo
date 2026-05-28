@@ -1,13 +1,13 @@
 import { request, setRefreshAccessToken } from "./http";
 import {
+  type AuthSession,
+  type AuthUser,
   clearSession,
   commitSession,
   getCurrentUser,
   getToken,
   isAccessTokenValid,
   syncSessionFromStorage,
-  type AuthSession,
-  type AuthUser,
 } from "./storage";
 
 export type { AuthSession, AuthUser } from "./storage";

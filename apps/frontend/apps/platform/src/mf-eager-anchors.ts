@@ -4,19 +4,15 @@
  * Every package marked `eager: true` in `mf-shared.mjs` must be statically
  * reachable from the platform entry. These imports make the host register
  * core shared factories before any lazy route consumes them.
+ *
+ * `void _xxx` 强制保留 import，防止打包器 tree-shaking。
  */
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import * as _shared from "shared";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import * as _runtime from "runtime";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import * as _observability from "observability";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import * as _runtime from "runtime";
+import * as _shared from "shared";
 import * as _zustand from "zustand";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import * as _zustandMiddleware from "zustand/middleware";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import * as _zustandReactShallow from "zustand/react/shallow";
 
 void _shared;

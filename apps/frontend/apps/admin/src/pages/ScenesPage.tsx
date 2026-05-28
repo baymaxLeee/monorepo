@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+import {
+  type AdminResource,
+  bulkDeleteScenes,
+  createScene,
+  deleteScene,
+  fetchScenes,
+  updateScene,
+} from "api";
 import {
   Alert,
   AlertDescription,
@@ -44,14 +49,9 @@ import {
   Textarea,
   toast,
 } from "components";
-import {
-  bulkDeleteScenes,
-  createScene,
-  deleteScene,
-  fetchScenes,
-  type AdminResource,
-  updateScene,
-} from "api";
+import { useCallback, useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 const sceneSchema = z.object({
   name: z.string().trim().min(1, "请输入名称").max(100),
@@ -88,7 +88,7 @@ export function ScenesPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const form = useForm<SceneValues>({
-    resolver: zodResolver(sceneSchema),
+    resolver: zodResolver(sceneSchema as never),
     defaultValues: defaults,
   });
 

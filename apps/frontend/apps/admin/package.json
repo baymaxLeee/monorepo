@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "rspack serve",
     "build": "rspack build",
-    "lint": "eslint src",
+    "lint": "biome check src",
+    "format": "biome check --write src",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

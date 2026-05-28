@@ -1,13 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { EChartsOption } from "echarts";
-import { BarChart, LineChart, PieChart, ScatterChart } from "echarts/charts";
-import {
-  GridComponent,
-  LegendComponent,
-  TooltipComponent,
-} from "echarts/components";
-import { init, use, type EChartsType } from "echarts/core";
-import { CanvasRenderer } from "echarts/renderers";
+import { fetchTelemetryErrors, type TelemetryErrorEvent } from "api";
 import {
   Alert,
   AlertDescription,
@@ -34,7 +25,16 @@ import {
   TableHeader,
   TableRow,
 } from "components";
-import { fetchTelemetryErrors, type TelemetryErrorEvent } from "api";
+import type { EChartsOption } from "echarts";
+import { BarChart, LineChart, PieChart, ScatterChart } from "echarts/charts";
+import {
+  GridComponent,
+  LegendComponent,
+  TooltipComponent,
+} from "echarts/components";
+import { type EChartsType, init, use } from "echarts/core";
+import { CanvasRenderer } from "echarts/renderers";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePlatformStore } from "runtime";
 
 use([

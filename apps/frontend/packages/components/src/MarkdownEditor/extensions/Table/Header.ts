@@ -1,5 +1,5 @@
 import TiptapTableHeader from "@tiptap/extension-table-header";
-import { EditorState, Plugin, PluginKey } from "@tiptap/pm/state";
+import { type EditorState, Plugin, PluginKey } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { cn } from "shared";

@@ -12,7 +12,7 @@ import {
   Split,
   Trash2,
 } from "lucide-react";
-import React from "react";
+import type React from "react";
 import { Menu } from "../../../../../Menu";
 import { useEditorContext } from "../../../../context";
 import { isCellSelection, isEntireTableSelected } from "../../utils";

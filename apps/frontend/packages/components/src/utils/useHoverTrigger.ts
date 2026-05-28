@@ -108,6 +108,8 @@ export function useHoverTrigger({
       cancelOpen();
       cancelClose();
     },
+    // mount-once cleanup：cancelOpen / cancelClose 引用每渲染都新建，加入 deps
+    // 会导致计时器被频繁清掉，反而引发 hover 闪烁
     [],
   );
 
@@ -149,6 +151,8 @@ export function useHoverTrigger({
         }, hoverCloseDelay);
       },
     };
+    // cancelOpen / cancelClose 通过 closure 拿到稳定的 ref-based 实现，
+    // 不要塞进 deps 里 —— 否则 handlers 每渲染都新建，破坏 trigger 监听稳定性
   }, [enabled, hoverEnterDelay, hoverCloseDelay, setOpen]);
 
   return { open, setOpen, handlers, enabled };

@@ -1,8 +1,8 @@
 import type { Editor } from "@tiptap/react";
 import { GripVertical } from "lucide-react";
-import { cn } from "shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { cn } from "shared";
 import { getBlockDragState } from "../../extensions/BlockDrag";
 import { getMountedEditorDom } from "../../utils";
 

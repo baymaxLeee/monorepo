@@ -1,7 +1,8 @@
-import { Editor, getMarkRange } from "@tiptap/core";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { type Editor, getMarkRange } from "@tiptap/core";
 import { Copy, Pencil, Unlink } from "lucide-react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import type React from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -37,7 +38,9 @@ const ICON_BTN_CLS =
 export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
   const [mode, setMode] = useState<"preview" | "edit">("preview");
   const form = useForm<LinkFormValues>({
-    resolver: zodResolver(linkSchema),
+    // Zod 4 schema 与 @hookform/resolvers 的多个重载存在类型推断歧义，
+    // 这里用 `as never` 让 TS 跳过重载选择 —— 运行时完全正确。
+    resolver: zodResolver(linkSchema as never),
     mode: "onChange",
     defaultValues: { text: "", href: "" },
   });

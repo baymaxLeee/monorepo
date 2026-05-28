@@ -1,7 +1,12 @@
 import JSZip from "jszip";
-// simple-mind-map does not publish types for these internal utility modules.
+// simple-mind-map 不为这些内部工具模块发布类型。组件包内有 src/types.d.ts
+// 提供 ambient declaration，本包 typecheck 时类型可解析；但被 admin / platform
+// 等外部 tsconfig 引用时不会自动包含 d.ts —— 必须用宽松的抑制指令保证跨包
+// 编译通过；本包内严格指令会被认为"未使用"，因此选用宽松版做双向兼容。
+// biome-ignore lint/suspicious/noTsIgnore: 跨包兼容需要
 // @ts-ignore
 import * as mindMapUtils from "simple-mind-map/src/utils/index";
+// biome-ignore lint/suspicious/noTsIgnore: 跨包兼容需要
 // @ts-ignore
 import * as xmindUtils from "simple-mind-map/src/utils/xmind";
 import xmlConvert from "xml-js";
@@ -277,8 +282,7 @@ const transformOldXmind = async (
     // 超链接
     try {
       if (
-        node.attributes &&
-        node.attributes["xlink:href"] &&
+        node.attributes?.["xlink:href"] &&
         /^https?:\/\//.test(node.attributes["xlink:href"])
       ) {
         newNode.data.hyperlink = node.attributes["xlink:href"];
@@ -332,11 +336,7 @@ const transformOldXmind = async (
     newNode.data.generalization = selfSummary;
     // 子节点
     newNode.children = [];
-    if (
-      childrenItem &&
-      childrenItem.elements &&
-      childrenItem.elements.length > 0
-    ) {
+    if (childrenItem?.elements && childrenItem.elements.length > 0) {
       const children = getOldTopicChildren(childrenItem);
       const appendChild = (item: AnyRecord, index: number) => {
         const newChild: AnyRecord = {};
@@ -360,7 +360,7 @@ const transformToXmind = async (
   data: AnyRecord,
   name: string,
 ): Promise<Blob> => {
-  const id = "simpleMindMap_" + Date.now();
+  const id = `simpleMindMap_${Date.now()}`;
   const imageList: AnyRecord[] = [];
   // 转换核心数据
   const newTree: AnyRecord = {};
@@ -461,7 +461,7 @@ const transformToXmind = async (
   // 图片
   if (imageList.length > 0) {
     imageList.forEach((item: AnyRecord) => {
-      manifestData["file-entries"]["resources/" + item.name] = {};
+      manifestData["file-entries"][`resources/${item.name}`] = {};
       const img = zip.folder("resources") as any;
       img.file(item.name, item.data, { base64: true });
     });

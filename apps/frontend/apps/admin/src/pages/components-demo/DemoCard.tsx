@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import {
   Card,
   CardContent,
@@ -6,6 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "components";
+import type { ReactNode } from "react";
 import { cn } from "shared";
 
 export interface DemoCardProps {

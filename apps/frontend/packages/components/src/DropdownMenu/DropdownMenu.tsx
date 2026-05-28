@@ -1,6 +1,6 @@
-import { createContext, useContext } from "react";
-import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { Check, ChevronRight, Circle } from "lucide-react";
+import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
+import { createContext, forwardRef, useContext } from "react";
 import { cn } from "shared";
 
 import {
@@ -12,9 +12,8 @@ import {
 const DropdownHoverContext = createContext<HoverTriggerHandlers | null>(null);
 const useDropdownHoverHandlers = () => useContext(DropdownHoverContext);
 
-export interface DropdownMenuProps extends React.ComponentPropsWithoutRef<
-  typeof DropdownMenuPrimitive.Root
-> {
+export interface DropdownMenuProps
+  extends React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Root> {
   /** 触发方式，参考 arco `Trigger.trigger`，默认 `"click"`。 */
   trigger?: TriggerKind;
   /** 鼠标进入后延时打开（毫秒），仅 `trigger="hover"` 生效，默认 80。 */
@@ -83,14 +82,16 @@ export const DropdownMenuPortal = DropdownMenuPrimitive.Portal;
 export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
-export function DropdownMenuTrigger({
-  onMouseEnter,
-  onMouseLeave,
-  ...props
-}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Trigger>) {
+// forwardRef：嵌套 `asChild` 时（例如外层 TooltipTrigger 包裹本组件），
+// 上层 SlotClone 会向 DropdownMenuTrigger 传 ref，function 组件接不住会触发 React warning。
+export const DropdownMenuTrigger = forwardRef<
+  React.ComponentRef<typeof DropdownMenuPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Trigger>
+>(function DropdownMenuTrigger({ onMouseEnter, onMouseLeave, ...props }, ref) {
   const hover = useDropdownHoverHandlers();
   return (
     <DropdownMenuPrimitive.Trigger
+      ref={ref}
       onMouseEnter={(event) => {
         hover?.onMouseEnter();
         onMouseEnter?.(event);
@@ -102,7 +103,7 @@ export function DropdownMenuTrigger({
       {...props}
     />
   );
-}
+});
 
 export function DropdownMenuContent({
   className,

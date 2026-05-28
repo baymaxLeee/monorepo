@@ -4,7 +4,7 @@ import {
   NodeSelection,
   Plugin,
   PluginKey,
-  Transaction,
+  type Transaction,
 } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import type { Editor } from "@tiptap/react";
@@ -49,7 +49,7 @@ function isTopLevelDraggable(
   pos: number,
 ): TopLevelBlockInfo | null {
   const node = view.state.doc.nodeAt(pos);
-  if (!node || !node.isBlock) return null;
+  if (!node?.isBlock) return null;
 
   let dom = view.nodeDOM(pos);
   if (dom instanceof Text) dom = dom.parentElement;

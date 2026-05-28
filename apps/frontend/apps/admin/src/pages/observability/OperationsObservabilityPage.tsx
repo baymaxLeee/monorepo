@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { fetchTelemetryErrors, type TelemetryErrorEvent } from "api";
 import {
   Alert,
   AlertDescription,
@@ -25,8 +25,8 @@ import {
   TableHeader,
   TableRow,
 } from "components";
-import { fetchTelemetryErrors, type TelemetryErrorEvent } from "api";
 import { telemetry } from "observability";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const adminTelemetry = telemetry.scope({
   app: "mfe-admin",

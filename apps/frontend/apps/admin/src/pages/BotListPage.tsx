@@ -1,8 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { Link } from "react-router-dom";
-import { z } from "zod";
+import { type Bot, createBot, fetchBots } from "api";
 import {
   Alert,
   AlertDescription,
@@ -46,7 +43,10 @@ import {
   TableRow,
   toast,
 } from "components";
-import { createBot, fetchBots, type Bot } from "api";
+import { useCallback, useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { Link } from "react-router-dom";
+import { z } from "zod";
 import { useShallow } from "zustand/react/shallow";
 import { useAdminStore } from "../store/useAdminStore";
 
@@ -82,7 +82,7 @@ export function BotListPage() {
   );
 
   const form = useForm<CreateBotValues>({
-    resolver: zodResolver(createBotSchema),
+    resolver: zodResolver(createBotSchema as never),
     defaultValues: { name: "" },
   });
 

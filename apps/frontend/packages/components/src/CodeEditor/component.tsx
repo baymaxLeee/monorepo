@@ -5,7 +5,8 @@ import {
   type Extension,
 } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
-import React, { useEffect, useRef } from "react";
+import type React from "react";
+import { useEffect, useRef } from "react";
 import { cn } from "shared";
 import { basicSetup } from "./constants";
 import type { CodeEditorProps } from "./interface";

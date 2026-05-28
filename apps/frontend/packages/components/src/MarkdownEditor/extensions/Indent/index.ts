@@ -1,6 +1,6 @@
 import { Extension } from "@tiptap/core";
 import { toast } from "sonner";
-import { ContentType } from "../../interface";
+import type { ContentType } from "../../interface";
 
 export interface IndentOptions {
   types: string[];

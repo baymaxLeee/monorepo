@@ -3,11 +3,11 @@
  * MFEs SHOULD NOT import from each other; cross-MFE signaling goes here.
  */
 export {
-  usePlatformStore,
   type PlatformMenuItem,
   type PlatformState,
   type PlatformSubMenuItem,
   type PlatformUser,
+  usePlatformStore,
 } from "./store/usePlatformStore";
 
 type Handler<T = unknown> = (payload: T) => void;

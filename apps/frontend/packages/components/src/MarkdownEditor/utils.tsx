@@ -1,6 +1,6 @@
-import { Editor } from "@tiptap/core";
-import { Mark, ResolvedPos } from "@tiptap/pm/model";
-import { Selection } from "@tiptap/pm/state";
+import type { Editor } from "@tiptap/core";
+import type { Mark, ResolvedPos } from "@tiptap/pm/model";
+import type { Selection } from "@tiptap/pm/state";
 import { isAllowedImageFile } from "./constants";
 
 /**
@@ -256,6 +256,7 @@ export function extractTextFromPartialJson(partial: string): string {
   let match: RegExpExecArray | null;
   let lastIndex = 0;
 
+  // biome-ignore lint/suspicious/noAssignInExpressions: RegExp.exec 循环惯用法
   while ((match = completeRegex.exec(partial)) !== null) {
     texts.push(unescapeJsonString(match[1]));
     lastIndex = completeRegex.lastIndex;

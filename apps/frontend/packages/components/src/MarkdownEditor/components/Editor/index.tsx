@@ -7,7 +7,6 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import { Markdown } from "@tiptap/markdown";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { cn } from "shared";
 import {
   forwardRef,
   memo,
@@ -18,6 +17,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { cn } from "shared";
 import { EditorProvider } from "../../context";
 import {
   createBlockDragExtension,
@@ -38,19 +38,19 @@ import { TableCellMenu } from "../../extensions/Table/Menus/TableCell";
 import { TableColumnMenu } from "../../extensions/Table/Menus/TableColumn";
 import { TableRowMenu } from "../../extensions/Table/Menus/TableRow";
 import { isCellSelection } from "../../extensions/Table/utils";
+import {
+  type ContentType,
+  type Editor,
+  type MarkdownEditorProps,
+  type MarkdownEditorRef,
+  MenuType,
+} from "../../interface";
 import { getMountedEditorDom } from "../../utils";
 import { BlockMenu } from "../BlockMenu";
 import { BubbleToolbar } from "../BubbleToolbar";
 import { DragHandler } from "../DragHandler";
 import { LinkMenu } from "../Link/LinkMenu";
 import { FixedToolbar } from "../TopToolbar";
-import {
-  ContentType,
-  MarkdownEditorProps,
-  MarkdownEditorRef,
-  type Editor,
-  MenuType,
-} from "../../interface";
 
 const EMPTY_EXTENSIONS: AnyExtension[] = [];
 
@@ -179,6 +179,8 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
         createPasteFlattenExtension(),
         ...stableExtensions,
       ],
+      // 故意只依赖 [contentType, editable, stableExtensions]：onUpload / imageLoader
+      // 通过 ref / closure 捕获，避免父组件每次传新回调都重建 editor extensions
       [contentType, editable, stableExtensions],
     );
 

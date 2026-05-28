@@ -1,9 +1,9 @@
 import {
+  type MutableRefObject,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type MutableRefObject,
 } from "react";
 import { Thumbnail } from "react-pdf";
 

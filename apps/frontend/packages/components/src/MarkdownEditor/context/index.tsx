@@ -1,13 +1,13 @@
 import type { Editor } from "@tiptap/core";
 import {
   createContext,
-  FC,
-  PropsWithChildren,
+  type FC,
+  type PropsWithChildren,
   type ReactNode,
   useContext,
   useMemo,
 } from "react";
-import { AiPolishCallback, ContentType, ToolbarMode } from "../interface";
+import type { AiPolishCallback, ContentType, ToolbarMode } from "../interface";
 
 type Props = {
   editable: boolean;

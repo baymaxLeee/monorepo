@@ -1,5 +1,5 @@
-import * as React from "react";
 import { HoverCard as HoverCardPrimitive } from "radix-ui";
+import { forwardRef } from "react";
 
 import { cn } from "shared";
 
@@ -18,13 +18,18 @@ function HoverCard({
   );
 }
 
-function HoverCardTrigger({
-  ...props
-}: React.ComponentProps<typeof HoverCardPrimitive.Trigger>) {
+const HoverCardTrigger = forwardRef<
+  React.ComponentRef<typeof HoverCardPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof HoverCardPrimitive.Trigger>
+>(function HoverCardTrigger(props, ref) {
   return (
-    <HoverCardPrimitive.Trigger data-slot="hover-card-trigger" {...props} />
+    <HoverCardPrimitive.Trigger
+      ref={ref}
+      data-slot="hover-card-trigger"
+      {...props}
+    />
   );
-}
+});
 
 function HoverCardContent({
   className,

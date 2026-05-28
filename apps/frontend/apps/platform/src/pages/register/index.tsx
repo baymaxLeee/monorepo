@@ -1,9 +1,4 @@
-import { useRef } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link, Navigate, useNavigate } from "react-router-dom";
-import { useForm } from "react-hook-form";
-import { useShallow } from "zustand/react/shallow";
-import { z } from "zod";
 import { checkAccountAvailability, register } from "api";
 import {
   Button,
@@ -23,7 +18,12 @@ import {
   toast,
 } from "components";
 import { setUser as setObservabilityUser } from "observability";
+import { useRef } from "react";
+import { useForm } from "react-hook-form";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { usePlatformStore } from "runtime";
+import { z } from "zod";
+import { useShallow } from "zustand/react/shallow";
 
 const registerSchema = z.object({
   name: z
@@ -53,7 +53,7 @@ export function RegisterPage() {
   );
   const lastCheckedName = useRef<string | null>(null);
   const form = useForm<RegisterValues>({
-    resolver: zodResolver(registerSchema),
+    resolver: zodResolver(registerSchema as never),
     defaultValues: {
       name: "",
       password: "",

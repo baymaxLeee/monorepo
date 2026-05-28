@@ -1,5 +1,5 @@
+import { type FileChange, type FileNode, FileWorkspace } from "components";
 import { useState } from "react";
-import { FileWorkspace, type FileChange, type FileNode } from "components";
 import { DemoCard } from "../DemoCard";
 
 const demoFileTree: FileNode[] = [

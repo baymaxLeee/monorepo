@@ -1,9 +1,9 @@
+import type React from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import { cn } from "shared";
-import React, { useCallback, useLayoutEffect, useRef } from "react";
 import CodeEditor from "../../CodeEditor";
 import type { CodeEditorProps } from "../../CodeEditor/interface";
 import type { FileNode, FileTab } from "../interface";
-import { fileWorkspaceClass } from "../utils";
 
 interface EditorPanelProps {
   tabs: FileTab[];
@@ -54,10 +54,10 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
 
   if (!tabs.length) {
     return (
-      <div className={fileWorkspaceClass`editor-panel`}>
-        <div className={fileWorkspaceClass`empty-editor`}>
-          <div className={fileWorkspaceClass`empty-icon`}>📝</div>
-          <p>选择文件开始编辑</p>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
+          <div className="text-5xl opacity-40">📝</div>
+          <p className="mt-3 text-sm">选择文件开始编辑</p>
         </div>
       </div>
     );
@@ -66,33 +66,49 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   const readyFileId = !loading && file ? file.id : null;
 
   return (
-    <div className={fileWorkspaceClass`editor-panel`}>
-      <div className={fileWorkspaceClass`tab-bar`} ref={tabBarRef}>
-        {tabs.map((tab) => (
-          <div
-            key={tab.id}
-            data-tab-id={tab.id}
-            className={cn(fileWorkspaceClass`tab`, {
-              "active-tab": tab.id === activeFileId,
-            })}
-            onClick={() => onTabSelect(tab.id)}
-          >
-            <span className={fileWorkspaceClass`tab-name`}>{tab.name}</span>
-            <span
-              className={fileWorkspaceClass`tab-close`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onTabClose(tab.id);
-              }}
+    <div className="flex min-w-0 flex-1 flex-col">
+      <div
+        ref={tabBarRef}
+        className={cn(
+          "flex h-8 shrink-0 overflow-x-auto overflow-y-hidden border-b bg-muted/40",
+          "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        )}
+      >
+        {tabs.map((tab) => {
+          const active = tab.id === activeFileId;
+          return (
+            <div
+              key={tab.id}
+              data-tab-id={tab.id}
+              className={cn(
+                "relative flex h-8 max-w-48 shrink-0 cursor-default items-center gap-2 border-r px-3 text-sm transition-colors",
+                active
+                  ? "bg-background text-foreground after:absolute after:-bottom-px after:inset-x-0 after:h-px after:bg-background"
+                  : "text-muted-foreground hover:bg-muted",
+              )}
+              onClick={() => onTabSelect(tab.id)}
             >
-              ×
-            </span>
-          </div>
-        ))}
+              <span className="min-w-0 max-w-36 overflow-hidden text-ellipsis whitespace-nowrap">
+                {tab.name}
+              </span>
+              <button
+                type="button"
+                aria-label="关闭"
+                className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-transparent text-base leading-none opacity-50 transition hover:bg-border hover:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTabClose(tab.id);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
       </div>
-      <div className={fileWorkspaceClass`editor-wrapper`}>
+      <div className="relative min-h-0 flex-1 overflow-auto">
         {loading && (
-          <div className={fileWorkspaceClass`loading-overlay`}>
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/75 text-sm text-muted-foreground">
             <p>加载中...</p>
           </div>
         )}

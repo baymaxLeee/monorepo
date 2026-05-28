@@ -1,5 +1,5 @@
-import { cn } from "shared";
-import React, {
+import type React from "react";
+import {
   forwardRef,
   useCallback,
   useEffect,
@@ -7,21 +7,16 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { cn } from "shared";
 import {
   ChangeAction,
-  type FileWorkspaceProps,
-  type FileWorkspaceRef,
   type FileChange,
   type FileNode,
   type FileTab,
+  type FileWorkspaceProps,
+  type FileWorkspaceRef,
 } from "../interface";
-import {
-  buildNodeMap,
-  cloneTree,
-  diffTree,
-  fileWorkspaceClass,
-  patchNode,
-} from "../utils";
+import { buildNodeMap, cloneTree, diffTree, patchNode } from "../utils";
 import { EditorPanel } from "./EditorPanel";
 import { FileTree } from "./FileTree";
 
@@ -113,47 +108,55 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
     }, [value, init]);
 
     // ---- 打开文件 + 懒加载 ----
-    const handleSelectFile = useCallback(async (id: string) => {
-      const node = nodeMapRef.current.get(id);
-      if (!node || node.type !== "file") return;
+    const handleSelectFile = useCallback(
+      async (id: string) => {
+        const node = nodeMapRef.current.get(id);
+        if (node?.type !== "file") return;
 
-      setActiveFileId(id);
-      setTabs((prev) =>
-        prev.some((t) => t.id === id)
-          ? prev
-          : [...prev, { id, name: node.name }],
-      );
+        setActiveFileId(id);
+        setTabs((prev) =>
+          prev.some((t) => t.id === id)
+            ? prev
+            : [...prev, { id, name: node.name }],
+        );
 
-      if (
-        onLoadContent &&
-        !loadedRef.current.has(id) &&
-        node.content === undefined
-      ) {
-        loadedRef.current.add(id);
-        setLoadingId(id);
-        try {
-          const content = await onLoadContent(id);
-          // 增量更新 map，不需要全量 rebuild
-          nodeMapRef.current.set(id, {
-            ...nodeMapRef.current.get(id)!,
-            content,
-          });
-          setTree((prev) => patchNode(prev, id, { content }));
-          // 同步更新基线，避免「仅加载未编辑」被误判为变更
-          baselineRef.current = patchNode(baselineRef.current, id, { content });
-        } catch {
-          loadedRef.current.delete(id);
-        } finally {
-          setLoadingId((prev) => (prev === id ? null : prev));
+        if (
+          onLoadContent &&
+          !loadedRef.current.has(id) &&
+          node.content === undefined
+        ) {
+          loadedRef.current.add(id);
+          setLoadingId(id);
+          try {
+            const content = await onLoadContent(id);
+            // 增量更新 map，不需要全量 rebuild
+            nodeMapRef.current.set(id, {
+              ...nodeMapRef.current.get(id)!,
+              content,
+            });
+            setTree((prev) => patchNode(prev, id, { content }));
+            // 同步更新基线，避免「仅加载未编辑」被误判为变更
+            baselineRef.current = patchNode(baselineRef.current, id, {
+              content,
+            });
+          } catch {
+            loadedRef.current.delete(id);
+          } finally {
+            setLoadingId((prev) => (prev === id ? null : prev));
+          }
         }
-      }
-    }, []);
+      },
+      // 故意保持 [] —— handleSelectFile 通过 ref / closure 抓取必要状态，
+      // 不希望 onLoadContent 引用变化触发回调重建（会让传给子组件的 Tree 频繁刷新）。
+      [],
+    );
 
     useEffect(() => {
       if (defaultSelectedFileId) {
         handleSelectFile(defaultSelectedFileId);
       }
-      // fileTreeKey 变化意味着 init 刚执行完，需要重新选中默认文件
+      // fileTreeKey 变化意味着 init 刚执行完，需要重新选中默认文件；
+      // 不要把 defaultSelectedFileId / handleSelectFile 加进来，否则语义错位。
     }, [fileTreeKey]);
 
     // ---- Tab 关闭 ----
@@ -171,12 +174,16 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
     );
 
     // ---- 编辑内容：增量更新 map ----
-    const handleContentChange = useCallback((id: string, content: string) => {
-      const node = nodeMapRef.current.get(id);
-      if (node) nodeMapRef.current.set(id, { ...node, content });
-      setTree((prev) => patchNode(prev, id, { content }));
-      onChange?.({ action: ChangeAction.UPDATE, id, content }, tree);
-    }, []);
+    const handleContentChange = useCallback(
+      (id: string, content: string) => {
+        const node = nodeMapRef.current.get(id);
+        if (node) nodeMapRef.current.set(id, { ...node, content });
+        setTree((prev) => patchNode(prev, id, { content }));
+        onChange?.({ action: ChangeAction.UPDATE, id, content }, tree);
+      },
+      // tree / onChange 通过 closure 引用；保持 callback 稳定避免下游 re-render
+      [],
+    );
 
     // ---- 树操作：按 action 增量维护 map（含父节点 children 同步） ----
     const handleTreeChange = useCallback(
@@ -297,11 +304,15 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
 
     return (
       <div
-        className={cn(fileWorkspaceClass``, className)}
+        className={cn(
+          "flex h-full min-h-0 w-full overflow-hidden border bg-background text-sm text-foreground",
+          "border-[oklch(0.9_0_0)]",
+          className,
+        )}
         style={{ height, ...style }}
       >
         <div
-          className={fileWorkspaceClass`sidebar`}
+          className="flex shrink-0 flex-col overflow-hidden bg-background"
           style={{ width: sidebarWidth }}
         >
           <FileTree
@@ -316,10 +327,13 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
           />
         </div>
         <div
-          className={fileWorkspaceClass`resizer`}
+          className="group relative z-10 w-px shrink-0 cursor-col-resize bg-border"
           onMouseDown={handleResizeStart}
-        />
-        <div className={fileWorkspaceClass`main-panel`}>
+        >
+          {/* hover/active 时显示 4px 蓝色指示条 */}
+          <span className="pointer-events-none absolute inset-y-0 -left-px w-0.5 bg-transparent transition-colors group-hover:bg-[#1677ff] group-active:bg-[#1677ff]" />
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col">
           <EditorPanel
             tabs={tabs}
             activeFileId={activeFileId}

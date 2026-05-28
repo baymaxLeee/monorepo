@@ -1,3 +1,4 @@
+export type { MenuItemGroupProps, MenuItemProps, MenuProps } from "./Menu";
 export {
   Menu,
   MenuItem,
@@ -5,4 +6,3 @@ export {
   MenuLabel,
   MenuSeparator,
 } from "./Menu";
-export type { MenuProps, MenuItemProps, MenuItemGroupProps } from "./Menu";

@@ -1,9 +1,9 @@
-import { JSONContent, mergeAttributes } from "@tiptap/core";
+import { type JSONContent, mergeAttributes } from "@tiptap/core";
 import { Table as TiptapTable } from "@tiptap/extension-table";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
 import { MarkdownManager } from "@tiptap/markdown";
-import { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
 import StarterKit from "@tiptap/starter-kit";
@@ -238,7 +238,7 @@ export const createTableExtension = () => {
             const insertRow = (tablePos: number) => {
               const { state } = editorView;
               const tableNode = state.doc.nodeAt(tablePos);
-              if (!tableNode || tableNode.type.name !== "table") return;
+              if (tableNode?.type.name !== "table") return;
 
               const { tableRow, tableCell } = state.schema.nodes;
               if (!tableRow || !tableCell) return;
@@ -261,7 +261,7 @@ export const createTableExtension = () => {
             const insertColumn = (tablePos: number) => {
               const { state } = editorView;
               const tableNode = state.doc.nodeAt(tablePos);
-              if (!tableNode || tableNode.type.name !== "table") return;
+              if (tableNode?.type.name !== "table") return;
 
               const { tableCell, tableHeader } = state.schema.nodes;
               if (!tableCell) return;

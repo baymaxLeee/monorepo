@@ -1,9 +1,4 @@
-import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link, Navigate, useNavigate } from "react-router-dom";
-import { useForm } from "react-hook-form";
-import { useShallow } from "zustand/react/shallow";
-import { z } from "zod";
 import { bootstrapSession, login } from "api";
 import {
   Button,
@@ -28,7 +23,12 @@ import {
   clearUser as clearObservabilityUser,
   setUser as setObservabilityUser,
 } from "observability";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { usePlatformStore } from "runtime";
+import { z } from "zod";
+import { useShallow } from "zustand/react/shallow";
 
 const loginSchema = z.object({
   account: z.string().min(1, "请输入账号").max(64, "账号最多 64 位"),
@@ -47,7 +47,7 @@ export function LoginPage() {
   );
   const [ready, setReady] = useState(false);
   const form = useForm<LoginValues>({
-    resolver: zodResolver(loginSchema),
+    resolver: zodResolver(loginSchema as never),
     defaultValues: { account: "", password: "" },
   });
 

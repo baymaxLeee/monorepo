@@ -36,13 +36,13 @@ test pkg="":
     else pnpm -F {{ pkg }} test; fi
 
 # ─── quality ────────────────────────────────────────────
+# Biome 一把梭：lint + format + import sort + 自动修复（safe + unsafe）
 lint:
-    pnpm lint
+    pnpm exec biome check .
     pnpm typecheck
 
 fmt:
-    pnpm exec prettier --write "apps/**/*.{ts,tsx,json,md,css}" "packages/**/*.{ts,tsx,json,md,css}"
-    pnpm exec eslint --fix "apps/**/*.{ts,tsx}" "packages/**/*.{ts,tsx}" || true
+    pnpm exec biome check --write .
 
 # ─── schema ─────────────────────────────────────────────
 # Regenerate unified api package from schemas/openapi/*.json

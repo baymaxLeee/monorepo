@@ -1,5 +1,5 @@
-import * as React from "react";
 import { Popover as PopoverPrimitive } from "radix-ui";
+import * as React from "react";
 
 import { cn } from "shared";
 import {
@@ -13,9 +13,8 @@ const PopoverHoverContext = React.createContext<HoverTriggerHandlers | null>(
 );
 const usePopoverHoverHandlers = () => React.useContext(PopoverHoverContext);
 
-export interface PopoverProps extends React.ComponentProps<
-  typeof PopoverPrimitive.Root
-> {
+export interface PopoverProps
+  extends React.ComponentProps<typeof PopoverPrimitive.Root> {
   /** 触发方式，参考 arco `Trigger.trigger`，默认 `"click"`。 */
   trigger?: TriggerKind;
   /** 鼠标进入后延时打开（毫秒），仅 `trigger="hover"` 生效，默认 80。 */
@@ -71,14 +70,16 @@ function Popover({
   );
 }
 
-function PopoverTrigger({
-  onMouseEnter,
-  onMouseLeave,
-  ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Trigger>) {
+// forwardRef：嵌套 `asChild` 时（例如外层 TooltipTrigger 包裹本组件），
+// 上层 SlotClone 会向 PopoverTrigger 传 ref，function 组件接不住会触发 React warning。
+const PopoverTrigger = React.forwardRef<
+  React.ComponentRef<typeof PopoverPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Trigger>
+>(function PopoverTrigger({ onMouseEnter, onMouseLeave, ...props }, ref) {
   const hover = usePopoverHoverHandlers();
   return (
     <PopoverPrimitive.Trigger
+      ref={ref}
       data-slot="popover-trigger"
       onMouseEnter={(event) => {
         hover?.onMouseEnter();
@@ -91,7 +92,7 @@ function PopoverTrigger({
       {...props}
     />
   );
-}
+});
 
 function PopoverAnchor({
   ...props

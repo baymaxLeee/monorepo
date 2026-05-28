@@ -1,8 +1,8 @@
 import "./mf-eager-anchors";
 import "components/styles.css";
 
-import { createRoot } from "react-dom/client";
 import { initObservability, installWebVitals } from "observability";
+import { createRoot } from "react-dom/client";
 import { App } from "./App";
 
 // Both values are baked in at build time via rspack DefinePlugin.

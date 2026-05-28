@@ -1,13 +1,14 @@
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import {
   NodeViewContent,
-  NodeViewProps,
+  type NodeViewProps,
   NodeViewWrapper,
   ReactNodeViewRenderer,
 } from "@tiptap/react";
-import { ChevronDown, ChevronRight, Copy, WrapText } from "lucide-react";
 import { common, createLowlight } from "lowlight";
-import React, { useState } from "react";
+import { ChevronDown, ChevronRight, Copy, WrapText } from "lucide-react";
+import type React from "react";
+import { useState } from "react";
 import { cn } from "shared";
 import { toast } from "sonner";
 import { Input } from "../../../Input";

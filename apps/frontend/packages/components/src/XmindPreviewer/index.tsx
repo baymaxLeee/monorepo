@@ -1,34 +1,41 @@
+import { forwardRef } from "react";
 import { cn } from "shared";
-import { createLazyComponent } from "../Lazy";
+import { Lazy } from "../Lazy";
 import type { XMindPreviewerProps, XMindPreviewerRef } from "./interface";
 
-const XMindPreviewer = createLazyComponent<
-  XMindPreviewerProps,
-  XMindPreviewerRef
->(
-  () => import("./components/Previewer"),
-  ({
-    width = "100%",
-    height = "100%",
-    style,
-    className,
-    loadingText = "脑图文件解析中...",
-  }) => (
-    <div
-      style={{ ...style, width, height }}
-      className={cn(
-        "relative min-h-0 overflow-hidden rounded-md border bg-background",
-        className,
-      )}
-    >
-      <div className="flex h-full min-h-30 items-center justify-center p-6 text-sm text-muted-foreground">
-        {loadingText}
-      </div>
-    </div>
-  ),
-);
+const loadPreviewer = () => import("./components/Previewer");
 
-XMindPreviewer.displayName = "XMindPreviewer";
+const XMindPreviewer = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
+  function XMindPreviewer(props, ref) {
+    const {
+      width = "100%",
+      height = "100%",
+      style,
+      className,
+      loadingText = "脑图文件解析中...",
+    } = props;
+    return (
+      <Lazy<XMindPreviewerProps>
+        {...props}
+        loader={loadPreviewer}
+        ref={ref}
+        fallback={
+          <div
+            style={{ ...style, width, height }}
+            className={cn(
+              "relative min-h-0 overflow-hidden rounded-md border bg-background",
+              className,
+            )}
+          >
+            <div className="flex h-full min-h-30 items-center justify-center p-6 text-sm text-muted-foreground">
+              {loadingText}
+            </div>
+          </div>
+        }
+      />
+    );
+  },
+);
 
 export { XMindPreviewer };
 export default XMindPreviewer;

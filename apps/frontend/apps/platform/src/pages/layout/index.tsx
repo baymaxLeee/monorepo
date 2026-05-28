@@ -1,7 +1,3 @@
-import { useEffect } from "react";
-import { ActivityIcon, BoxesIcon, LogOutIcon, UserIcon } from "lucide-react";
-import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
-import { useShallow } from "zustand/react/shallow";
 import { logout } from "api";
 import {
   Avatar,
@@ -19,13 +15,17 @@ import {
   Layout as LayoutFrame,
   Main,
 } from "components";
+import { ActivityIcon, BoxesIcon, LogOutIcon, UserIcon } from "lucide-react";
 import {
   clearUser as clearObservabilityUser,
   recordPageView,
   setUser as setObservabilityUser,
 } from "observability";
+import { useEffect } from "react";
+import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
 import { usePlatformStore } from "runtime";
-import { registry, type MfeEntry } from "../../registry";
+import { useShallow } from "zustand/react/shallow";
+import { type MfeEntry, registry } from "../../registry";
 
 function activeMfe(pathname: string): MfeEntry | undefined {
   return registry.find((m) => pathname.startsWith(m.basePath));

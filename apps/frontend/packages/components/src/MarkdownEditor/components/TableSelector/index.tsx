@@ -1,5 +1,5 @@
-import { cn } from "shared";
 import { useState } from "react";
+import { cn } from "shared";
 
 interface TableSelectorProps {
   onSelect: (rows: number, cols: number) => void;

@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { type Bot, fetchBot } from "api";
 import {
   Badge,
   Button,
@@ -12,7 +11,8 @@ import {
   Separator,
   Skeleton,
 } from "components";
-import { fetchBot, type Bot } from "api";
+import { useEffect, useState } from "react";
+import { Link, Navigate, useParams } from "react-router-dom";
 
 export function BotDetailPage() {
   const { id } = useParams<{ id: string }>();

@@ -17,7 +17,8 @@ import {
   Quote,
   Table as TableIcon,
 } from "lucide-react";
-import React, { useRef, useState } from "react";
+import type React from "react";
+import { useRef, useState } from "react";
 import { Menu, MenuItem, MenuItemGroup } from "../../../Menu";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../Popover";
 import { ALLOWED_IMAGE_ACCEPT, isAllowedImageFile } from "../../constants";

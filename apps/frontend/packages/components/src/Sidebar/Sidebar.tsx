@@ -1,11 +1,10 @@
-import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { PanelLeftIcon } from "lucide-react";
 import { Slot } from "radix-ui";
-
-import { useIsMobile } from "../hooks/use-mobile";
+import * as React from "react";
 import { cn } from "shared";
 import { Button } from "../Button";
+import { useIsMobile } from "../hooks/use-mobile";
 import { Input } from "../Input";
 import { Separator } from "../Separator";
 import {

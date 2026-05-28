@@ -1,13 +1,13 @@
+import { Aside, Button, Layout, Main, Section } from "components";
 import {
   BotIcon,
   ComponentIcon,
   ListTreeIcon,
+  type LucideIcon,
   NetworkIcon,
   RadarIcon,
-  type LucideIcon,
 } from "lucide-react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { Aside, Button, Layout, Main, Section } from "components";
 
 type AdminMenuItem = {
   title: string;

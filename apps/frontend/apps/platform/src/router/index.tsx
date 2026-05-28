@@ -1,9 +1,3 @@
-import type { ComponentType } from "react";
-import {
-  createBrowserRouter,
-  Navigate,
-  type RouteObject,
-} from "react-router-dom";
 import {
   Button,
   Card,
@@ -13,15 +7,22 @@ import {
   CardTitle,
   ErrorBoundary,
   type ErrorFallbackProps,
+  type LazyLoader,
 } from "components";
+import type { ComponentType } from "react";
+import {
+  createBrowserRouter,
+  Navigate,
+  type RouteObject,
+} from "react-router-dom";
 import { registry } from "../registry";
 
-type RouteLoader = () => Promise<{ default: ComponentType }>;
+type RouteLoader = LazyLoader<object>;
 
 function lazyPage(loader: RouteLoader): RouteObject["lazy"] {
   return async () => {
     const module = await loader();
-    return { Component: module.default };
+    return { Component: module.default as ComponentType };
   };
 }
 
@@ -31,7 +32,7 @@ function lazyRemote(
 ): RouteObject["lazy"] {
   return async () => {
     const module = await loader();
-    const RemoteApp = module.default;
+    const RemoteApp = module.default as ComponentType;
 
     function RemoteRoute() {
       return (

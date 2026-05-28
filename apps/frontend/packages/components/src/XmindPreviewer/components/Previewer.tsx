@@ -1,12 +1,17 @@
-import { cn } from "shared";
+// 注意：本组件的 useEffect 故意写窄依赖（仅 supported / hasData / isCanvasReady
+// 等关键控制位）。simple-mind-map 实例必须保持稳定，把闭包函数 / useMemo 推导
+// 对象塞进依赖数组会让父组件每次重渲染都触发 destroy + new MindMap()，进而让
+// SVG.js 在 detach 后调用 rbox 抛 `Getting rbox of element "g" is not possible`。
+// 在补足"内部状态机"之前，请勿按 lint 提示无脑扩展依赖数组。
+
 import {
   Fullscreen,
+  type LucideIcon,
   Maximize2,
   Minimize2,
   Minus,
   Plus,
   Scan,
-  type LucideIcon,
 } from "lucide-react";
 import {
   forwardRef,
@@ -16,6 +21,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { cn } from "shared";
 import MindMap from "simple-mind-map";
 import { Button } from "../../Button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../Tooltip";
@@ -116,7 +122,7 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
     const normalizedData = effectiveData ?? undefined;
     const hasData = Boolean(
       effectiveData &&
-      (isFullData(effectiveData) ? effectiveData.root : effectiveData),
+        (isFullData(effectiveData) ? effectiveData.root : effectiveData),
     );
     const canInteract =
       supported &&
@@ -213,8 +219,8 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
       const fullscreenElement = document.fullscreenElement;
       return Boolean(
         fullscreenElement &&
-        (fullscreenElement === rootRef.current ||
-          rootRef.current.contains(fullscreenElement)),
+          (fullscreenElement === rootRef.current ||
+            rootRef.current.contains(fullscreenElement)),
       );
     };
 

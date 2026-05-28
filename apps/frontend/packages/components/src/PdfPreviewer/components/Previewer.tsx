@@ -1,4 +1,3 @@
-import { cn } from "shared";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import {
   forwardRef,
@@ -9,10 +8,13 @@ import {
   useState,
 } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
+import { cn } from "shared";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import { toast } from "sonner";
 import type {
+  ManagedDocumentKeys,
+  ManagedPageKeys,
   PdfHighlight,
   PdfHighlightKeyword,
   PdfHighlightRegions,
@@ -23,8 +25,6 @@ import type {
   PdfPreviewerRef,
   PdfSelectionRegion,
   PdfSidebarType,
-  ManagedDocumentKeys,
-  ManagedPageKeys,
 } from "../interface";
 
 const isKeywordHighlight = (
@@ -485,6 +485,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       setRotation(0);
       setSidebarType(defaultSidebar);
       resetSelection();
+      // 故意只依赖 file：换文件时复位状态，其他 prop 变化不应触发整体复位
     }, [file]);
 
     // ---- 文本选区监听 ----
@@ -1150,7 +1151,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
             maxScale={maxScale}
             fullscreen={isFullscreen}
             canOperate={canOperate}
-            downloadDisabled={!onDownload && !Boolean(file)}
+            downloadDisabled={!onDownload && !file}
             sidebarType={sidebarType}
             popupContainer={popupContainer}
             onPrevPage={prevPage}
@@ -1168,7 +1169,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
           />
         ) : null}
 
-        {!Boolean(file) ? (
+        {!file ? (
           <div className="relative flex min-h-0 flex-1">
             <div className={stateClass}>{emptyText}</div>
           </div>
@@ -1280,10 +1281,7 @@ PdfPreviewerInner.displayName = "PdfPreviewerInner";
 
 export default PdfPreviewerInner;
 
-// 便于测试的命名导出
-export { resolveBestFitScale, clampScale };
-export type { FitMode };
-
 // 避免 TS 未使用警告（PdfHighlight 类型在 interface.ts 声明供外部使用）
-export type { PdfHighlight };
-export type { PdfSelectionRegion };
+export type { FitMode, PdfHighlight, PdfSelectionRegion };
+// 便于测试的命名导出
+export { clampScale, resolveBestFitScale };

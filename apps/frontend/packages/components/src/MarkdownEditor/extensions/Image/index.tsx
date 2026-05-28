@@ -1,13 +1,14 @@
 import { Image as TiptapImage } from "@tiptap/extension-image";
 import { TextSelection } from "@tiptap/pm/state";
 import {
-  NodeViewProps,
+  type NodeViewProps,
   NodeViewWrapper,
   ReactNodeViewRenderer,
 } from "@tiptap/react";
 import { Loader2 } from "lucide-react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import { cn } from "shared";
-import React, { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { isSelectionInsideTableCell } from "../../utils";
 
@@ -140,6 +141,7 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
       cancelled = true;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
+    // 故意 mount-once：上传只能触发一次，依赖项追加会导致重复上传
   }, []);
 
   return (

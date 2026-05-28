@@ -1,7 +1,8 @@
 import { isNodeSelection } from "@tiptap/core";
-import { Editor } from "@tiptap/react";
+import type { Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import type React from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AiPolishStatus } from "../../constants";
 import { isCellSelection } from "../../extensions/Table/utils";

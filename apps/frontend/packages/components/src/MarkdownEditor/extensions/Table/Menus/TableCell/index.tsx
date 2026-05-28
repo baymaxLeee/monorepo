@@ -1,7 +1,7 @@
 import type { Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { AlignCenter, AlignLeft, AlignRight, Merge, Split } from "lucide-react";
-import React from "react";
+import type React from "react";
 import { Menu } from "../../../../../Menu";
 import { ALWAYS_SHOW, MenuItem } from "../MenuItem";
 

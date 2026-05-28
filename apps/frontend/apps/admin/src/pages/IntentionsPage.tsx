@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+import {
+  bulkDeleteIntentions,
+  createIntention,
+  deleteIntention,
+  fetchIntentions,
+  type Intention,
+  updateIntention,
+} from "api";
 import {
   Alert,
   AlertDescription,
@@ -44,14 +49,9 @@ import {
   Textarea,
   toast,
 } from "components";
-import {
-  bulkDeleteIntentions,
-  createIntention,
-  deleteIntention,
-  fetchIntentions,
-  type Intention,
-  updateIntention,
-} from "api";
+import { useCallback, useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 const intentionSchema = z.object({
   name: z.string().trim().min(1, "请输入名称").max(100),
@@ -92,7 +92,7 @@ export function IntentionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const form = useForm<IntentionValues>({
-    resolver: zodResolver(intentionSchema),
+    resolver: zodResolver(intentionSchema as never),
     defaultValues: defaults,
   });
 

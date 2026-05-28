@@ -1,4 +1,4 @@
-import { AnyExtension, Editor } from "@tiptap/core";
+import type { AnyExtension, Editor } from "@tiptap/core";
 import type { CSSProperties, ReactNode } from "react";
 
 /**

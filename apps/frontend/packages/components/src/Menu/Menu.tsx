@@ -47,10 +47,8 @@ export const Menu = React.forwardRef<HTMLDivElement, MenuProps>(function Menu(
   );
 });
 
-export interface MenuItemProps extends Omit<
-  React.ButtonHTMLAttributes<HTMLButtonElement>,
-  "type"
-> {
+export interface MenuItemProps
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "type"> {
   /**
    * @zh 当前选中态（仅文字着色，不带背景）
    * @default false
@@ -122,7 +120,8 @@ export const MenuItem = React.forwardRef<HTMLButtonElement, MenuItemProps>(
   },
 );
 
-export interface MenuItemGroupProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface MenuItemGroupProps
+  extends React.HTMLAttributes<HTMLDivElement> {
   /**
    * @zh 分组 label
    */

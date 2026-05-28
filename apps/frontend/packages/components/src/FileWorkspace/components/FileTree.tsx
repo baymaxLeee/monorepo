@@ -6,15 +6,35 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { cn } from "shared";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { cn } from "shared";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { FileIcon } from "../../FileIcon";
 import { Input } from "../../Input";
 import { ChangeAction, type FileChange, type FileNode } from "../interface";
-import { fileWorkspaceClass, isDescendant, updateTree } from "../utils";
+import { isDescendant, updateTree } from "../utils";
+
+/* ────────────── style tokens ──────────────
+ * 提取为本地常量，避免 className 拼接得太长，便于一处修改样式。
+ * 颜色魔法值（#1677ff / #e8f3ff / #f3c623 等）来自原 file-workspace 视觉系统，
+ * 本仓 design tokens 未直接暴露，先以 arbitrary value 保真还原。
+ */
+const NODE_BASE = "flex cursor-default items-center text-sm transition-colors";
+const TREE_NODE_CLS =
+  "h-8 gap-2 whitespace-nowrap pr-2 text-foreground hover:bg-muted";
+const TREE_NODE_ACTIVE = "bg-[#e8f3ff] text-[#1677ff] hover:bg-[#e8f3ff]";
+const TREE_NODE_DRAGOVER = "bg-[#d4e8ff]";
+const NODE_ICON_CLS =
+  "mr-1 flex shrink-0 items-center justify-center [&_svg]:size-5 [&_svg]:stroke-2 [&:has(svg.lucide-folder)]:text-[#f3c623] [&:has(svg.lucide-folder-open)]:text-[#f3c623] [&:has(svg.lucide-file-text)]:text-[#1677ff]";
+const SEARCH_ITEM_CLS =
+  "h-7 gap-1 whitespace-nowrap px-3 text-foreground hover:bg-muted";
+const SEARCH_ITEM_ACTIVE = "bg-[#e8f3ff]";
+const MENU_ITEM_CLS =
+  "cursor-default px-4 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground";
+const MENU_ITEM_DANGER =
+  "text-[#e5484d] hover:bg-[#fff0ed] hover:text-[#e5484d]";
 
 function buildDirPath(nodeMap: Map<string, FileNode>, node: FileNode): string {
   const parts: string[] = [];
@@ -36,7 +56,7 @@ function highlightMatch(text: string, keyword: string): React.ReactNode {
   return (
     <>
       {text.slice(0, idx)}
-      <span className={fileWorkspaceClass`search-highlight`}>
+      <span className="font-semibold text-[#1677ff]">
         {text.slice(idx, idx + kw.length)}
       </span>
       {text.slice(idx + kw.length)}
@@ -305,7 +325,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
       // 只允许拖入目录或根级
       if (targetId !== null) {
         const target = nodeMap.get(targetId);
-        if (!target || target.type !== "directory") return;
+        if (target?.type !== "directory") return;
       }
 
       // 同层级拖拽，不改变位置
@@ -368,12 +388,13 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
   // ---- Render helpers ----
   const renderInput = (defaultValue = "") => (
-    <div className={fileWorkspaceClass`inline-input-wrapper`}>
+    <div className="relative min-w-0 flex-1">
       <input
         ref={inputRef}
-        className={cn(fileWorkspaceClass`inline-input`, {
-          error: !!nameError,
-        })}
+        className={cn(
+          "h-6 w-full rounded-sm border bg-background px-1 text-sm text-foreground outline-none",
+          nameError ? "border-destructive" : "border-[#1677ff]",
+        )}
         defaultValue={defaultValue}
         onChange={(e) => validateName(e.target.value.trim())}
         onBlur={(e) => {
@@ -394,7 +415,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
         }}
       />
       {nameError && (
-        <div className={fileWorkspaceClass`name-error-tip`}>{nameError}</div>
+        <div className="absolute inset-x-0 top-full z-10 mt-px break-all border border-[#be1100] bg-[#752020] px-2 py-1 text-xs leading-5 text-white">
+          {nameError}
+        </div>
       )}
     </div>
   );
@@ -407,10 +430,12 @@ export const FileTree: React.FC<FileTreeProps> = ({
     return (
       <div key={node.id}>
         <div
-          className={cn(fileWorkspaceClass`tree-node`, {
-            active: node.id === activeFileId,
-            dragOver: dragOverId === node.id,
-          })}
+          className={cn(
+            NODE_BASE,
+            TREE_NODE_CLS,
+            node.id === activeFileId && TREE_NODE_ACTIVE,
+            dragOverId === node.id && TREE_NODE_DRAGOVER,
+          )}
           style={{ paddingLeft: depth * 16 + 8 }}
           onClick={() => (isDir ? toggle(node.id) : onSelectFile(node.id))}
           onContextMenu={(e) => onCtxMenu(e, node)}
@@ -420,7 +445,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
           onDrop={isDir ? (e) => onDrop(e, node.id) : undefined}
           onDragLeave={() => setDragOverId(null)}
         >
-          <span className={fileWorkspaceClass`node-icon`}>
+          <span className={NODE_ICON_CLS}>
             {isDir ? (
               isOpen ? (
                 <FolderOpen className="size-4" />
@@ -434,7 +459,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
           {isRenaming ? (
             renderInput(node.name)
           ) : (
-            <span className={fileWorkspaceClass`node-name`}>{node.name}</span>
+            <span className="min-w-0 overflow-hidden text-ellipsis">
+              {node.name}
+            </span>
           )}
         </div>
         {isDir && isOpen && (
@@ -446,10 +473,10 @@ export const FileTree: React.FC<FileTreeProps> = ({
             {node.children?.map((c) => renderNode(c, depth + 1))}
             {input && !input.renameId && input.parent_id === node.id && (
               <div
-                className={fileWorkspaceClass`tree-node`}
+                className={cn(NODE_BASE, TREE_NODE_CLS)}
                 style={{ paddingLeft: (depth + 1) * 16 + 8 }}
               >
-                <span className={fileWorkspaceClass`node-icon`}>
+                <span className={NODE_ICON_CLS}>
                   {input.type === "directory" ? (
                     <FolderClosed className="size-4" />
                   ) : (
@@ -467,38 +494,40 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
   return (
     <>
-      <div className={fileWorkspaceClass`tree-header`}>
-        <span className={fileWorkspaceClass`tree-title`}>目录</span>
+      <div className="flex h-8 shrink-0 items-center justify-between border-b bg-muted/40 px-3">
+        <span className="text-sm font-medium leading-5 text-foreground">
+          目录
+        </span>
         {!readOnly && (
-          <div className={fileWorkspaceClass`tree-actions`}>
+          <div className="flex items-center gap-1">
             <button
               type="button"
-              className={fileWorkspaceClass`tree-action-btn`}
+              className="inline-flex size-6 items-center justify-center rounded-sm bg-transparent text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               onClick={() => startCreate(null, "file")}
               title="新建文件"
             >
-              <FilePlus className="size-4" />
+              <FilePlus className="size-4 stroke-2" />
             </button>
             <button
               type="button"
-              className={fileWorkspaceClass`tree-action-btn`}
+              className="inline-flex size-6 items-center justify-center rounded-sm bg-transparent text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               onClick={() => startCreate(null, "directory")}
               title="新建文件夹"
             >
-              <FolderPlus className="size-4" />
+              <FolderPlus className="size-4 stroke-2" />
             </button>
           </div>
         )}
       </div>
 
-      <div className={fileWorkspaceClass`file-search`}>
+      <div className="shrink-0 border-b bg-background px-3 py-3">
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="搜索"
             value={searchKeyword}
             onChange={(e) => setSearchKeyword(e.target.value)}
-            className="h-8 pl-8 pr-7"
+            className="h-9 pl-8 pr-7"
           />
           {searchKeyword && (
             <button
@@ -514,7 +543,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
       </div>
 
       <div
-        className={fileWorkspaceClass`file-tree`}
+        className="min-h-0 flex-1 select-none overflow-hidden bg-background"
         onContextMenu={(e) => onCtxMenu(e)}
         onDragOver={(e) => {
           e.preventDefault();
@@ -524,28 +553,36 @@ export const FileTree: React.FC<FileTreeProps> = ({
         onClick={closeMenu}
       >
         {searchResults ? (
-          <div className={fileWorkspaceClass`tree-content`}>
+          <div
+            className={cn(
+              "h-full overflow-y-auto overflow-x-hidden py-1",
+              "[scrollbar-width:thin] [scrollbar-color:oklch(0.82_0_0)_transparent]",
+              "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[oklch(0.82_0_0)]",
+            )}
+          >
             {searchResults.length === 0 ? (
-              <div className={fileWorkspaceClass`search-empty`}>
+              <div className="px-3 py-8 text-center text-xs text-muted-foreground">
                 未找到匹配的文件
               </div>
             ) : (
               searchResults.map(({ node, dirPath }) => (
                 <div
                   key={node.id}
-                  className={cn(fileWorkspaceClass`search-item`, {
-                    active: node.id === activeFileId,
-                  })}
+                  className={cn(
+                    NODE_BASE,
+                    SEARCH_ITEM_CLS,
+                    node.id === activeFileId && SEARCH_ITEM_ACTIVE,
+                  )}
                   onClick={() => onSelectFile(node.id)}
                 >
-                  <span className={fileWorkspaceClass`node-icon`}>
+                  <span className={NODE_ICON_CLS}>
                     <FileIcon filename={node.name} />
                   </span>
-                  <span className={fileWorkspaceClass`search-item-name`}>
+                  <span className="shrink-0 text-sm">
                     {highlightMatch(node.name, searchKeyword.trim())}
                   </span>
                   {dirPath && (
-                    <span className={fileWorkspaceClass`search-item-path`}>
+                    <span className="ml-1 overflow-hidden text-ellipsis text-xs text-muted-foreground">
                       {dirPath}
                     </span>
                   )}
@@ -554,14 +591,20 @@ export const FileTree: React.FC<FileTreeProps> = ({
             )}
           </div>
         ) : (
-          <div className={fileWorkspaceClass`tree-content`}>
+          <div
+            className={cn(
+              "h-full overflow-y-auto overflow-x-hidden py-1",
+              "[scrollbar-width:thin] [scrollbar-color:oklch(0.82_0_0)_transparent]",
+              "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[oklch(0.82_0_0)]",
+            )}
+          >
             {tree.map((n) => renderNode(n, 0))}
             {input && !input.renameId && !input.parent_id && (
               <div
-                className={fileWorkspaceClass`tree-node`}
+                className={cn(NODE_BASE, TREE_NODE_CLS)}
                 style={{ paddingLeft: 8 }}
               >
-                <span className={fileWorkspaceClass`node-icon`}>
+                <span className={NODE_ICON_CLS}>
                   {input.type === "directory" ? (
                     <FolderClosed className="size-4" />
                   ) : (
@@ -579,20 +622,20 @@ export const FileTree: React.FC<FileTreeProps> = ({
         createPortal(
           <div
             ref={menuRef}
-            className={fileWorkspaceClass`context-menu`}
+            className="fixed z-[9999] min-w-36 rounded-md border bg-popover py-1 text-popover-foreground shadow-md"
             style={{ top: menu.y, left: menu.x }}
             onClick={(e) => e.stopPropagation()}
           >
             {menu.targetType === "directory" && (
               <>
                 <div
-                  className={fileWorkspaceClass`menu-item`}
+                  className={MENU_ITEM_CLS}
                   onClick={() => startCreate(menu.targetId, "file")}
                 >
                   新建文件
                 </div>
                 <div
-                  className={fileWorkspaceClass`menu-item`}
+                  className={MENU_ITEM_CLS}
                   onClick={() => startCreate(menu.targetId, "directory")}
                 >
                   新建文件夹
@@ -602,13 +645,13 @@ export const FileTree: React.FC<FileTreeProps> = ({
             {menu.targetId !== null && (
               <>
                 <div
-                  className={fileWorkspaceClass`menu-item`}
+                  className={MENU_ITEM_CLS}
                   onClick={() => startRename(menu.targetId!)}
                 >
                   重命名
                 </div>
                 <div
-                  className={cn(fileWorkspaceClass`menu-item`, "danger")}
+                  className={cn(MENU_ITEM_CLS, MENU_ITEM_DANGER)}
                   onClick={() => handleDelete(menu.targetId!)}
                 >
                   删除

@@ -81,7 +81,7 @@ export function createDecorations(
   markName: string,
 ): DecorationSet {
   // 如果没有激活的评论 ID 或文档无效，返回空集合
-  if (!activeCommentId || !doc || !doc.content) {
+  if (!activeCommentId || !doc?.content) {
     return DecorationSet.empty;
   }
 
@@ -106,8 +106,7 @@ export function createDecorations(
       // 查找匹配的评论标记
       const mark = node.marks.find(
         (m: ProseMirrorMark) =>
-          m &&
-          m.type &&
+          m?.type &&
           m.type.name === markName &&
           m.attrs &&
           m.attrs.commentId === activeCommentId,

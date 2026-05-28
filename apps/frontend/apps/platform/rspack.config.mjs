@@ -1,9 +1,9 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ModuleFederationPlugin } from "@module-federation/enhanced/rspack";
+import { defineConfig } from "@rspack/cli";
 import rspack from "@rspack/core";
 import HtmlWebpackPlugin from "html-webpack-plugin";
-import { defineConfig } from "@rspack/cli";
 import { buildShared } from "../../mf-shared.mjs";
 import {
   createAppResolveAlias,

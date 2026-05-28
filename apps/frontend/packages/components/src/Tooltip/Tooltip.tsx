@@ -1,5 +1,5 @@
-import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import { forwardRef } from "react";
 
 import { cn } from "shared";
 
@@ -22,11 +22,21 @@ function Tooltip({
   return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
 }
 
-function TooltipTrigger({
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
-}
+// 使用 forwardRef：嵌套 `asChild` 时（例如 `<TooltipTrigger asChild><DropdownMenuTrigger asChild>`）
+// 外层的 SlotClone 会向内传 ref，function 组件接不到 ref 会触发 React warning，
+// 严重时 Radix 内部的 anchor / collision 检测也会失效。
+const TooltipTrigger = forwardRef<
+  React.ComponentRef<typeof TooltipPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Trigger>
+>(function TooltipTrigger(props, ref) {
+  return (
+    <TooltipPrimitive.Trigger
+      ref={ref}
+      data-slot="tooltip-trigger"
+      {...props}
+    />
+  );
+});
 
 function TooltipContent({
   className,
@@ -55,4 +65,4 @@ function TooltipContent({
   );
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };
+export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger };
