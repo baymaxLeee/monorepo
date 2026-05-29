@@ -5,6 +5,7 @@
 export {
   type PlatformState,
   type PlatformUser,
+  type PlatformUserType,
   usePlatformStore,
 } from "./store/usePlatformStore";
 

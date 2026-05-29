@@ -9,20 +9,22 @@ import {
   ErrorBoundary,
   type ErrorFallbackProps,
   type LazyLoader,
+  Skeleton,
 } from "components";
-import type { ComponentType } from "react";
+import { type ComponentType, lazy, Suspense } from "react";
 import {
   createBrowserRouter,
   Navigate,
   type RouteObject,
+  useParams,
 } from "react-router-dom";
-import { registry } from "../registry";
+import { useShallow } from "zustand/react/shallow";
+import { type AppEntry, remoteModuleId, useAppsStore } from "../store/apps";
 
 type RouteLoader = LazyLoader<object>;
 
-/** A federated remote module exposing `./App` as its default export. */
+/** A federated remote module exposing its app as the default export. */
 type RemoteModule = { default: ComponentType };
-type RemoteLoader = () => Promise<RemoteModule | null>;
 
 function lazyPage(loader: RouteLoader): RouteObject["lazy"] {
   return async () => {
@@ -31,34 +33,67 @@ function lazyPage(loader: RouteLoader): RouteObject["lazy"] {
   };
 }
 
-function lazyRemote(
-  remoteName: string,
-  loader: RemoteLoader,
-): RouteObject["lazy"] {
-  return async () => {
-    const module = await loader();
-    if (!module?.default) {
-      throw new Error(`Remote "${remoteName}" did not expose ./App`);
-    }
-    const RemoteApp = module.default;
+// Cache lazy remote components by module id so navigation doesn't recreate them.
+const remoteComponents = new Map<string, ComponentType>();
 
-    function RemoteRoute() {
-      return (
-        <ErrorBoundary
-          fallback={(props) => (
-            <RemoteErrorFallback {...props} remoteName={remoteName} />
-          )}
-          onError={(error, info) => {
-            console.error(`[${remoteName}] remote failed`, error, info);
-          }}
-        >
-          <RemoteApp />
-        </ErrorBoundary>
+function getRemoteComponent(app: AppEntry): ComponentType {
+  const moduleId = remoteModuleId(app);
+  const cached = remoteComponents.get(moduleId);
+  if (cached) return cached;
+  const RemoteLazy = lazy(async () => {
+    const module = await loadRemote<RemoteModule>(moduleId);
+    if (!module?.default) {
+      throw new Error(
+        `Remote "${app.remote_name}" did not expose ${app.expose_key}`,
       );
     }
+    return { default: module.default };
+  });
+  remoteComponents.set(moduleId, RemoteLazy);
+  return RemoteLazy;
+}
 
-    return { Component: RemoteRoute };
-  };
+function RemoteLoading() {
+  return (
+    <div className="space-y-3 p-6">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-64 w-full" />
+    </div>
+  );
+}
+
+/**
+ * Resolves `/platform/:appSlug/*` against the user's entitled apps (fetched +
+ * registered by `loadApps`). Apps the user may not see are simply absent from
+ * the store, so unknown/forbidden slugs redirect home — server-side filtering
+ * is the source of truth, this is the client-side projection of it.
+ */
+function RemoteHost() {
+  const { appSlug } = useParams();
+  const { apps, loaded } = useAppsStore(
+    useShallow((state) => ({ apps: state.apps, loaded: state.loaded })),
+  );
+
+  if (!loaded) return <RemoteLoading />;
+
+  const app = apps.find((entry) => entry.id === appSlug);
+  if (!app) return <Navigate to="/platform/home" replace />;
+
+  const Remote = getRemoteComponent(app);
+  return (
+    <ErrorBoundary
+      fallback={(props) => (
+        <RemoteErrorFallback {...props} remoteName={app.remote_name} />
+      )}
+      onError={(error, info) => {
+        console.error(`[${app.remote_name}] remote failed`, error, info);
+      }}
+    >
+      <Suspense fallback={<RemoteLoading />}>
+        <Remote />
+      </Suspense>
+    </ErrorBoundary>
+  );
 }
 
 function RemoteErrorFallback({
@@ -84,27 +119,6 @@ function RemoteErrorFallback({
     </Card>
   );
 }
-
-// Runtime resolution via the MF runtime (remotes are registered from the
-// registry in bootstrap.tsx). Using `loadRemote` instead of a static
-// `import("mfe_admin/App")` keeps the registry as the single discovery source.
-const remoteAppLoaders = {
-  mfe_admin: () => loadRemote<RemoteModule>("mfe_admin/App"),
-  mfe_chat: () => loadRemote<RemoteModule>("mfe_chat/App"),
-} satisfies Record<string, RemoteLoader>;
-
-const remoteRoutes: RouteObject[] = registry.flatMap((m) => {
-  const loader =
-    remoteAppLoaders[m.remoteName as keyof typeof remoteAppLoaders];
-  if (!loader) return [];
-
-  return [
-    {
-      path: `${m.id}/*`,
-      lazy: lazyRemote(m.remoteName, loader),
-    },
-  ];
-});
 
 export const routes: RouteObject[] = [
   {
@@ -146,7 +160,11 @@ export const routes: RouteObject[] = [
             path: "observability",
             lazy: lazyPage(() => import("../pages/observability")),
           },
-          ...remoteRoutes,
+          // Dynamic remote mount; static siblings above out-rank this.
+          {
+            path: ":appSlug/*",
+            element: <RemoteHost />,
+          },
         ],
       },
       {

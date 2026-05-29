@@ -86,7 +86,7 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string, meta Req
 	if err != nil {
 		return schema.AuthResponse{}, "", time.Time{}, ErrInvalidRefreshToken
 	}
-	response, err := s.AuthResponse(user)
+	response, err := s.AuthResponse(ctx, user)
 	if err != nil {
 		return schema.AuthResponse{}, "", time.Time{}, err
 	}
@@ -104,7 +104,7 @@ func (s *AuthService) Me(ctx context.Context, userID string) (schema.UserRespons
 	if err != nil {
 		return schema.UserResponse{}, ErrInvalidSubject
 	}
-	return UserResponse(user), nil
+	return s.userResponse(ctx, user), nil
 }
 
 func (s *AuthService) IssueSession(ctx context.Context, user model.User, meta RequestMeta) (schema.AuthResponse, string, time.Time, error) {
@@ -125,14 +125,14 @@ func (s *AuthService) IssueSession(ctx context.Context, user model.User, meta Re
 	if err := s.store.CreateRefreshToken(ctx, token); err != nil {
 		return schema.AuthResponse{}, "", time.Time{}, err
 	}
-	response, err := s.AuthResponse(user)
+	response, err := s.AuthResponse(ctx, user)
 	if err != nil {
 		return schema.AuthResponse{}, "", time.Time{}, err
 	}
 	return response, plain, refreshExpiresAt, nil
 }
 
-func (s *AuthService) AuthResponse(user model.User) (schema.AuthResponse, error) {
+func (s *AuthService) AuthResponse(ctx context.Context, user model.User) (schema.AuthResponse, error) {
 	expiresAt := time.Now().UTC().Add(s.cfg.AccessTokenTTL)
 	token, err := security.SignAccessToken(s.cfg.AccessTokenSecret, security.Claims{
 		Subject: user.ID,
@@ -144,7 +144,30 @@ func (s *AuthService) AuthResponse(user model.User) (schema.AuthResponse, error)
 	if err != nil {
 		return schema.AuthResponse{}, err
 	}
-	return schema.AuthResponse{AccessToken: token, ExpiresAt: expiresAt, User: UserResponse(user)}, nil
+	return schema.AuthResponse{AccessToken: token, ExpiresAt: expiresAt, User: s.userResponse(ctx, user)}, nil
+}
+
+// UserType classes consumed by the frontend shell for app/product gating.
+const (
+	UserTypeAdmin  = "admin"
+	UserTypeNormal = "normal"
+)
+
+// userResponse maps a user to its DTO and resolves the coarse identity Type
+// from role assignments. A failed role lookup degrades to "normal" (least
+// privilege) rather than blocking auth.
+func (s *AuthService) userResponse(ctx context.Context, user model.User) schema.UserResponse {
+	resp := UserResponse(user)
+	resp.Type = UserTypeNormal
+	if roles, err := s.store.UserRoles(ctx, user.ID); err == nil {
+		for _, role := range roles {
+			if _, ok := adminRoleNames[role.Name]; ok {
+				resp.Type = UserTypeAdmin
+				break
+			}
+		}
+	}
+	return resp
 }
 
 func UserResponse(user model.User) schema.UserResponse {
@@ -159,6 +182,7 @@ func UserResponse(user model.User) schema.UserResponse {
 		Theme:          user.Theme,
 		MarketingOptIn: user.MarketingOptIn,
 		EmailVerified:  user.EmailVerifiedAt != nil,
+		Type:           UserTypeNormal,
 	}
 }
 

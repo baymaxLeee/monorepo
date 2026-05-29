@@ -25,7 +25,7 @@ import { useEffect } from "react";
 import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
-import { registry } from "../../registry";
+import { resetApps, useAppsStore } from "../../store/apps";
 
 function getUserInitials(name: string) {
   return name.trim().slice(0, 1).toUpperCase() || "U";
@@ -39,6 +39,7 @@ export function Layout() {
       setUser: state.setUser,
     })),
   );
+  const apps = useAppsStore((state) => state.apps);
 
   useEffect(() => {
     recordPageView();
@@ -60,6 +61,7 @@ export function Layout() {
   async function handleLogout() {
     await logout();
     setUser(null);
+    resetApps();
     clearObservabilityUser();
   }
 
@@ -81,16 +83,18 @@ export function Layout() {
           aria-label="应用"
           className="flex min-w-0 items-center justify-start gap-1"
         >
-          {registry.map((m) => (
+          {apps.map((m) => (
             <Button
               key={m.id}
               asChild
               variant={
-                location.pathname.startsWith(m.basePath) ? "secondary" : "ghost"
+                location.pathname.startsWith(m.base_path)
+                  ? "secondary"
+                  : "ghost"
               }
               size="sm"
             >
-              <Link to={m.basePath}>{m.title}</Link>
+              <Link to={m.base_path}>{m.title}</Link>
             </Button>
           ))}
         </nav>

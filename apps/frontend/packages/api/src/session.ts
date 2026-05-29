@@ -10,7 +10,7 @@ import {
   syncSessionFromStorage,
 } from "./storage";
 
-export type { AuthSession, AuthUser } from "./storage";
+export type { AuthSession, AuthUser, UserType } from "./storage";
 
 export type AuthCredentials = {
   account: string;

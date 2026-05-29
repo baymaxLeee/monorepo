@@ -272,3 +272,58 @@ export function testModelProvider(
     data: input,
   });
 }
+
+// ── App registry (operator-managed MFE catalog, owned by admin service) ──────
+
+/** A platform app/product entry. Mirrors admin `App` schema. */
+export interface AppEntry {
+  id: string;
+  title: string;
+  base_path: string;
+  remote_name: string;
+  expose_key: string;
+  entry: string;
+  requires_admin: boolean;
+  is_enabled: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateAppInput {
+  id: string;
+  title: string;
+  base_path: string;
+  remote_name: string;
+  expose_key?: string;
+  entry?: string;
+  requires_admin?: boolean;
+  is_enabled?: boolean;
+  sort_order?: number;
+}
+
+export type UpdateAppInput = Partial<Omit<CreateAppInput, "id">>;
+
+function appPath(id?: string) {
+  return id ? `/api/admin-server/apps/${id}` : "/api/admin-server/apps";
+}
+
+/** Apps the current user may mount (server-filtered by user type). */
+export function fetchApps(): Promise<AppEntry[]> {
+  return request<AppEntry[]>({ url: appPath(), method: "GET" });
+}
+
+export function createApp(input: CreateAppInput): Promise<AppEntry> {
+  return request<AppEntry>({ url: appPath(), method: "POST", data: input });
+}
+
+export function updateApp(
+  id: string,
+  input: UpdateAppInput,
+): Promise<AppEntry> {
+  return request<AppEntry>({ url: appPath(id), method: "PATCH", data: input });
+}
+
+export function deleteApp(id: string): Promise<void> {
+  return request<void>({ url: appPath(id), method: "DELETE" });
+}

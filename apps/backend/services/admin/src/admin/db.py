@@ -1,7 +1,7 @@
 """Async SQLAlchemy engine and session factory."""
 
 from collections.abc import AsyncGenerator
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from .config import get_settings
+from .models.apps import AppRow
 from .models.base import Base
 from .models.bot import BotRow
 from .models.intention import IntentionRow
@@ -109,9 +110,52 @@ _DEMO_INTENTIONS: list[tuple[str, str, str, int, str, bool, str]] = [
 ]
 
 
+# (id, title, base_path, remote_name, entry, requires_admin, sort_order)
+_DEMO_APPS: list[tuple[str, str, str, str, str, bool, int]] = [
+    (
+        "admin",
+        "后台管理",
+        "/platform/admin",
+        "mfe_admin",
+        "http://localhost:3001/mf-manifest.json",
+        True,
+        10,
+    ),
+    (
+        "chat",
+        "对话",
+        "/platform/chat",
+        "mfe_chat",
+        "http://localhost:3005/mf-manifest.json",
+        True,
+        20,
+    ),
+]
+
+
 async def seed_demo_bots() -> None:
     factory = get_session_factory()
     async with factory() as session:
+        existing_app = await session.scalar(select(AppRow.id).limit(1))
+        if existing_app is None:
+            for app_id, title, base_path, remote_name, entry, requires_admin, sort_order in _DEMO_APPS:
+                now = datetime.now(UTC)
+                session.add(
+                    AppRow(
+                        id=app_id,
+                        title=title,
+                        base_path=base_path,
+                        remote_name=remote_name,
+                        expose_key="./App",
+                        entry=entry,
+                        requires_admin=requires_admin,
+                        is_enabled=True,
+                        sort_order=sort_order,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+
         existing_bot = await session.scalar(select(BotRow.id).limit(1))
         if existing_bot is None:
             for bot_id, name, status, created_at in _DEMO_BOTS:

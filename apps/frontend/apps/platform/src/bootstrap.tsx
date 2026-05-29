@@ -9,11 +9,9 @@
  */
 import "components/styles.css";
 
-import { registerRemotes } from "@module-federation/enhanced/runtime";
 import { initObservability, installWebVitals } from "observability";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import { registry } from "./registry";
 
 // Baked in at build time via rspack DefinePlugin.
 declare const process: {
@@ -39,12 +37,9 @@ initObservability({
 });
 installWebVitals();
 
-// (d) registry.ts is the single source of truth for remote discovery.
-// `force: true` lets the registry URL win over the build-time config entry.
-registerRemotes(
-  registry.map((m) => ({ name: m.remoteName, entry: m.entry })),
-  { force: true },
-);
+// Remotes are no longer registered here: the entitled app catalog is owned by
+// the admin service and fetched per user after login (see `apps.ts` / Layout),
+// which registers exactly the remotes that user may mount.
 
 const container = document.getElementById("root");
 if (!container) throw new Error("#root not found");

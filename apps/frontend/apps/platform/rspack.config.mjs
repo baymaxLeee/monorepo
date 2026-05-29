@@ -13,7 +13,6 @@ import {
 const PORT = Number(process.env.PORT ?? 3000);
 const API_TARGET = process.env.API_TARGET ?? "http://localhost:8000";
 const appDir = path.dirname(fileURLToPath(import.meta.url));
-const frontendRoot = path.resolve(appDir, "../..");
 const isProduction = process.env.NODE_ENV === "production";
 
 const API_BASE_URL = process.env.API_BASE_URL ?? "";
@@ -37,18 +36,6 @@ const MFE_CHAT_ENTRY =
     ? "mfe_chat@/mfe-chat/mf-manifest.json"
     : "mfe_chat@http://localhost:3005/mf-manifest.json");
 
-function isPackageModule(module, packageName) {
-  return module.resource?.includes(
-    `${path.sep}node_modules${path.sep}${packageName}${path.sep}`,
-  );
-}
-
-function isWorkspacePackage(module, packageName) {
-  return module.resource?.startsWith(
-    path.join(frontendRoot, "packages", packageName, "src"),
-  );
-}
-
 export default defineConfig({
   entry: "./src/main.tsx",
   mode: isProduction ? "production" : "development",
@@ -64,66 +51,13 @@ export default defineConfig({
   optimization: {
     splitChunks: {
       chunks: "all",
-      minSize: 30 * 1024,
-      maxInitialRequests: 8,
-      maxAsyncRequests: 12,
+      maxSize: 500 * 1024,
       cacheGroups: {
-        default: false,
-        defaultVendors: false,
         framework: {
-          test: (module) =>
-            ["react", "react-dom", "react-router", "react-router-dom"].some(
-              (pkg) => isPackageModule(module, pkg),
-            ),
+          test: /[\\/]node_modules[\\/](?:react|react-dom|react-router|react-router-dom|scheduler|zustand|use-sync-external-store)[\\/]/,
           name: "framework",
-          priority: 50,
-          enforce: true,
-        },
-        workspace: {
-          test: (module) =>
-            ["components", "runtime", "shared"].some((pkg) =>
-              isWorkspacePackage(module, pkg),
-            ),
-          name: "workspace",
           priority: 40,
-          enforce: true,
-        },
-        radixVendor: {
-          test: (module) =>
-            ["@radix-ui", "radix-ui"].some((pkg) =>
-              isPackageModule(module, pkg),
-            ),
-          name: "radix-vendor",
-          priority: 34,
-          enforce: true,
-        },
-        uiVendor: {
-          test: (module) =>
-            [
-              "sonner",
-              "class-variance-authority",
-              "clsx",
-              "tailwind-merge",
-            ].some((pkg) => isPackageModule(module, pkg)),
-          name: "ui-vendor",
-          priority: 30,
-          enforce: true,
-        },
-        validationVendor: {
-          test: (module) =>
-            ["@hookform/resolvers", "zod"].some((pkg) =>
-              isPackageModule(module, pkg),
-            ),
-          name: "validation-vendor",
-          priority: 21,
-          enforce: true,
-        },
-        formVendor: {
-          test: (module) =>
-            ["react-hook-form"].some((pkg) => isPackageModule(module, pkg)),
-          name: "form-vendor",
-          priority: 20,
-          enforce: true,
+          reuseExistingChunk: true,
         },
       },
     },
@@ -180,14 +114,8 @@ export default defineConfig({
       : []),
     new ModuleFederationPlugin({
       name: "platform",
-      // PRODUCTION BUILD ONLY. In `rspack serve` the dts plugin writes consumed
-      // remote types into a watched `@mf-types` dir, which retriggers compile →
-      // HMR → full reload → re-fetch types → … an infinite dev reload loop.
-      // Dev stays untyped (router casts loadRemote results); types sync only at
-      // build time.
       dts: isProduction ? { consumeTypes: true, generateTypes: false } : false,
       shareStrategy: "loaded-first",
-      runtimePlugins: [path.resolve(appDir, "src/mf-runtime-plugin.ts")],
       remotes: {
         mfe_admin: MFE_ADMIN_ENTRY,
         mfe_chat: MFE_CHAT_ENTRY,

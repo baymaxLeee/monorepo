@@ -1,5 +1,6 @@
 import { Aside, Button, Layout, Main, Section } from "components";
 import {
+  AppWindowIcon,
   BotIcon,
   BrainCircuitIcon,
   ComponentIcon,
@@ -24,6 +25,11 @@ const adminMenus: AdminMenuItem[] = [
     title: "模型管理",
     href: "/platform/admin/providers",
     icon: BrainCircuitIcon,
+  },
+  {
+    title: "应用入口管理",
+    href: "/platform/admin/apps",
+    icon: AppWindowIcon,
   },
 ];
 

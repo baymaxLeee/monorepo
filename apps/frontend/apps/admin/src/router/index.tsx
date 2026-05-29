@@ -1,5 +1,6 @@
 import { Navigate, type RouteObject } from "react-router-dom";
 import { AdminLayout } from "../pages/AdminLayout";
+import { AppsRegistryPage } from "../pages/AppsRegistryPage";
 import { BotDetailPage } from "../pages/BotDetailPage";
 import { BotListPage } from "../pages/BotListPage";
 import { ComponentsDemoPage } from "../pages/ComponentsDemoPage";
@@ -22,6 +23,7 @@ export const routes: RouteObject[] = [
       { path: "scenes", element: <ScenesPage /> },
       { path: "intentions", element: <IntentionsPage /> },
       { path: "providers", element: <ProvidersPage /> },
+      { path: "apps", element: <AppsRegistryPage /> },
       { path: "observability", element: <OperationsObservabilityPage /> },
       { path: "demo", element: <ComponentsDemoPage /> },
     ],

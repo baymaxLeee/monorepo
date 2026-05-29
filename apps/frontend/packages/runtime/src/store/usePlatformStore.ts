@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
+/** Coarse identity class used to gate which apps/products are visible. */
+export type PlatformUserType = "admin" | "normal";
+
 export type PlatformUser = {
   id: string;
   account: string;
@@ -12,6 +15,8 @@ export type PlatformUser = {
   theme: "system" | "light" | "dark" | string;
   marketingOptIn: boolean;
   emailVerified: boolean;
+  /** Absent in pre-upgrade cached sessions → callers treat as "normal". */
+  type?: PlatformUserType;
 };
 
 export type PlatformState = {

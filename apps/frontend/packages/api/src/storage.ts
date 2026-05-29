@@ -1,3 +1,6 @@
+/** Coarse identity class used by the platform shell to gate app visibility. */
+export type UserType = "admin" | "normal";
+
 export type AuthUser = {
   id: string;
   account: string;
@@ -9,6 +12,8 @@ export type AuthUser = {
   theme: "system" | "light" | "dark" | string;
   marketingOptIn: boolean;
   emailVerified: boolean;
+  /** From iam auth response; absent in pre-upgrade cached sessions → treat as "normal". */
+  type?: UserType;
 };
 
 export type AuthSession = {
