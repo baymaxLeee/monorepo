@@ -1,5 +1,4 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { GlobalWorkerOptions } from "pdfjs-dist";
 import {
   forwardRef,
   useEffect,
@@ -8,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Document, Page } from "react-pdf";
+import { Document, Page, pdfjs } from "react-pdf";
 import { cn } from "shared";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -47,6 +46,20 @@ const DEFAULT_WORKER_SRC = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url,
 ).toString();
+
+const configurePdfWorker = (workerSrc: string) => {
+  const options = (
+    pdfjs as unknown as {
+      GlobalWorkerOptions?: { workerSrc?: string };
+    }
+  ).GlobalWorkerOptions;
+  if (!options) return;
+  if (options.workerSrc !== workerSrc) {
+    options.workerSrc = workerSrc;
+  }
+};
+
+configurePdfWorker(DEFAULT_WORKER_SRC);
 
 /** keyword 高亮 `<mark>` 的稳定 hook，用于 onHighlightClick 与 scrollToHighlight 选择器 */
 const KEYWORD_MARK_DATA_ATTR = "data-pdf-keyword-mark";
@@ -467,9 +480,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
     };
 
     useEffect(() => {
-      if (GlobalWorkerOptions.workerSrc !== workerSrc) {
-        GlobalWorkerOptions.workerSrc = workerSrc;
-      }
+      configurePdfWorker(workerSrc);
     }, [workerSrc]);
 
     useEffect(() => {
