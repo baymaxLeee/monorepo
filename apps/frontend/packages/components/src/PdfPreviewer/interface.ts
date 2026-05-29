@@ -282,7 +282,7 @@ export interface PdfPreviewerProps {
   /**
    * @zh pdfjs worker 地址
    */
-  workerSrc: string;
+  workerSrc?: string;
   /**
    * @zh 初始页码（1-based）
    * @default 1

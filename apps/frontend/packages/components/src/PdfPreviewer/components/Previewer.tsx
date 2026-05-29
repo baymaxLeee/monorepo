@@ -1,4 +1,5 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
+import { GlobalWorkerOptions } from "pdfjs-dist";
 import {
   forwardRef,
   useEffect,
@@ -7,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
+import { Document, Page } from "react-pdf";
 import { cn } from "shared";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -42,6 +43,10 @@ import Sidebar from "./Sidebar";
 import PdfToolbar, { isToolbarVisible, resolveToolbarConfig } from "./Toolbar";
 
 const DEFAULT_DOWNLOAD_FILENAME = "document.pdf";
+const DEFAULT_WORKER_SRC = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url,
+).toString();
 
 /** keyword 高亮 `<mark>` 的稳定 hook，用于 onHighlightClick 与 scrollToHighlight 选择器 */
 const KEYWORD_MARK_DATA_ATTR = "data-pdf-keyword-mark";
@@ -344,7 +349,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
   (props, ref) => {
     const {
       file,
-      workerSrc,
+      workerSrc = DEFAULT_WORKER_SRC,
       initialPage = 1,
       layout = "page-width",
       minScale = 0.25,
@@ -462,8 +467,8 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
     };
 
     useEffect(() => {
-      if (pdfjs.GlobalWorkerOptions.workerSrc !== workerSrc) {
-        pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+      if (GlobalWorkerOptions.workerSrc !== workerSrc) {
+        GlobalWorkerOptions.workerSrc = workerSrc;
       }
     }, [workerSrc]);
 

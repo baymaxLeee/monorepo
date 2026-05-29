@@ -2,9 +2,6 @@ import { Badge } from "components";
 import { PdfPreviewer } from "components/pdf-previewer";
 import { DemoCard } from "../DemoCard";
 
-const pdfWorkerSrc =
-  "https://unpkg.com/pdfjs-dist@5.4.296/build/pdf.worker.min.mjs";
-
 const demoPdfUrl =
   "https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf";
 
@@ -18,7 +15,6 @@ export function PdfPreviewerTab() {
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-md border">
         <PdfPreviewer
           file={demoPdfUrl}
-          workerSrc={pdfWorkerSrc}
           height="100%"
           defaultSidebar="thumbnail"
           highlights={[
