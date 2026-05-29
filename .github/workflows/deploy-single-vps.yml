@@ -111,6 +111,47 @@ jobs:
               echo "PUBLIC_PORT=${PORT}"
           } >> infra/single-vps/.env
 
+      - name: Verify .env completeness
+        # Catch missing keys BEFORE shipping to the VPS — gives a readable
+        # error pointing at the GitHub `VPS_ENV_FILE` secret, instead of
+        # an obscure `docker compose pull` interpolation failure on the
+        # remote shell. When new required variables are added (e.g. the
+        # admin/chat ADMIN_SECRET_KEY pair from the LLM provider feature),
+        # this is the line to append them to.
+        run: |
+          required_keys=(
+            IMAGE_REGISTRY
+            IMAGE_TAG
+            PUBLIC_PORT
+            MYSQL_ROOT_PASSWORD
+            MYSQL_USER
+            MYSQL_PASSWORD
+            ACCESS_TOKEN_SECRET
+            SUPER_ADMIN_ACCOUNT
+            SUPER_ADMIN_EMAIL
+            SUPER_ADMIN_PASSWORD
+            ADMIN_SECRET_KEY
+            INTERNAL_API_TOKEN
+          )
+          missing=()
+          for key in "${required_keys[@]}"; do
+            # Match `KEY=` at start of line with non-empty value (allow
+            # quoted values too). Empty / unset / commented entries fail.
+            if ! grep -qE "^${key}=[^[:space:]\"']*[^[:space:]\"'#]" infra/single-vps/.env; then
+              missing+=("${key}")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Missing required keys in VPS_ENV_FILE secret:"
+            for k in "${missing[@]}"; do echo "  - ${k}"; done
+            echo ""
+            echo "Fix: GitHub repo → Settings → Secrets and variables → Actions"
+            echo "     → edit VPS_ENV_FILE → append the missing keys."
+            echo "See infra/single-vps/.env.example for the template + how to generate each value."
+            exit 1
+          fi
+          echo "✓ all required keys present"
+
       - name: Deploy
         env:
           DEPLOY_DIR: ${{ steps.vars.outputs.deploy_dir }}

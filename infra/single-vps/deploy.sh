@@ -42,6 +42,39 @@ if [ ! -f "${ENV_FILE}" ]; then
     exit 1
 fi
 
+# Check every required key is present + non-empty. Failing here is much
+# nicer than letting `docker compose pull` blow up on the remote with a
+# cryptic "required variable X is missing a value" message. When the
+# compose file grows a new `${KEY:?...}` reference, append the key here.
+required_keys=(
+    IMAGE_REGISTRY
+    IMAGE_TAG
+    PUBLIC_PORT
+    MYSQL_ROOT_PASSWORD
+    MYSQL_USER
+    MYSQL_PASSWORD
+    ACCESS_TOKEN_SECRET
+    SUPER_ADMIN_ACCOUNT
+    SUPER_ADMIN_EMAIL
+    SUPER_ADMIN_PASSWORD
+    ADMIN_SECRET_KEY
+    INTERNAL_API_TOKEN
+)
+missing=()
+for key in "${required_keys[@]}"; do
+    if ! grep -qE "^${key}=[^[:space:]\"']*[^[:space:]\"'#]" "${ENV_FILE}"; then
+        missing+=("${key}")
+    fi
+done
+if [ "${#missing[@]}" -gt 0 ]; then
+    echo "✗ ${ENV_FILE} is missing required keys:" >&2
+    for k in "${missing[@]}"; do echo "    - ${k}" >&2; done
+    echo "" >&2
+    echo "  See infra/single-vps/.env.example for the template + the command to" >&2
+    echo "  generate each value (e.g. Fernet for ADMIN_SECRET_KEY)." >&2
+    exit 1
+fi
+
 # Read PUBLIC_PORT from .env for the post-deploy health check.
 PUBLIC_PORT="$(grep -E '^PUBLIC_PORT=' "${ENV_FILE}" | tail -1 | cut -d= -f2 | tr -d '"' || true)"
 PUBLIC_PORT="${PUBLIC_PORT:-8080}"
