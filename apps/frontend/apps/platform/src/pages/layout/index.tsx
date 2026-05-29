@@ -66,7 +66,7 @@ export function Layout() {
   }
 
   return (
-    <LayoutFrame>
+    <LayoutFrame className="h-svh overflow-hidden">
       <Header>
         <HeaderSection>
           <Link
@@ -145,7 +145,7 @@ export function Layout() {
         </HeaderSection>
       </Header>
 
-      <Main>
+      <Main className="overflow-y-auto">
         <Outlet />
       </Main>
     </LayoutFrame>
