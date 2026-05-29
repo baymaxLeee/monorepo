@@ -207,7 +207,6 @@ const select =
     if (table) {
       const map = TableMap.get(table.node);
 
-      // Check if the index is valid
       if (index >= 0 && index < (isRowSelection ? map.height : map.width)) {
         const left = isRowSelection ? 0 : index;
         const top = isRowSelection ? index : 0;

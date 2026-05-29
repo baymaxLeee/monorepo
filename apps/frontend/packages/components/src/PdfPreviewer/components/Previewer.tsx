@@ -488,7 +488,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       // 故意只依赖 file：换文件时复位状态，其他 prop 变化不应触发整体复位
     }, [file]);
 
-    // ---- 文本选区监听 ----
     const selectionEnabled = Boolean(renderSelectionToolbar || onTextSelect);
     useEffect(() => {
       if (!selectionEnabled) return;
@@ -564,13 +563,11 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       };
     }, [selectionEnabled]);
 
-    // ---- 关键字高亮（走文本层 customTextRenderer） ----
     const keywordHighlights = useMemo<PdfHighlightKeyword[]>(
       () => (highlights || []).filter(isKeywordHighlight),
       [highlights],
     );
 
-    // ---- region 高亮（走 HighlightLayer overlay） ----
     const regionHighlights = useMemo<PdfHighlightRegions[]>(
       () => (highlights || []).filter(isRegionsHighlight),
       [highlights],
@@ -629,7 +626,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       };
     }, [keywordTextRenderer, pageProps?.customTextRenderer]);
 
-    // ---- 自适应缩放计算 ----
     const scheduleFitScale = (fitMode: FitMode, targetPage?: unknown) => {
       fitModeRef.current = fitMode;
       cancelAutoScaleFrame();
@@ -688,7 +684,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       };
     }, [pageProxy, rotation, minScale, maxScale]);
 
-    // ---- 全屏监听 ----
     useEffect(() => {
       const sync = () => {
         const root = rootRef.current;
@@ -706,7 +701,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       };
     }, []);
 
-    // ---- 缩放 / 页码回调 ----
     useEffect(() => {
       if (scale === undefined) return;
       onScaleChange?.(scale);
@@ -796,7 +790,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       };
     }, [scale, currentPage, loadStatus]);
 
-    // ---- react-pdf 回调 ----
     const handleDocumentLoadSuccess = (pdf: LoadedFileLike) => {
       const loadToken = documentLoadTokenRef.current;
       pdfDocumentRef.current = pdf;
@@ -863,14 +856,12 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
           }
         });
       }
-      // 叠加业务监听
       const userOnRenderSuccess = pageProps?.onRenderSuccess;
       userOnRenderSuccess?.(
         pageProxy as Parameters<NonNullable<typeof userOnRenderSuccess>>[0],
       );
     };
 
-    // ---- 工具栏操作 ----
     const scrollToPage = (
       pageNumber: number,
       behavior: ScrollBehavior = "smooth",
@@ -1064,7 +1055,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       scrollToHighlightById(firstHighlightId);
     }, [firstHighlightId, loadStatus, autoScrollToFirstHighlight]);
 
-    // ---- ref 命令式 API ----
     useImperativeHandle(ref, () => ({
       goToPage,
       nextPage,
@@ -1082,7 +1072,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       setSidebar: applySidebar,
     }));
 
-    // ---- 渲染 ----
     /**
      * Tooltip / DropdownMenu 等 portal 的容器：
      * - 全屏时挂到 root（否则全屏元素覆盖 body 后浮层不可见）

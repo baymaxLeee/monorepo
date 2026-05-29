@@ -14,9 +14,7 @@ export interface DemoCardProps {
   children: ReactNode;
   /** 让卡片撑满父级剩余高度，并使 CardContent 内部成为 flex column。 */
   fill?: boolean;
-  /** 自定义 Card 类名 */
   className?: string;
-  /** 自定义 CardContent 类名 */
   contentClassName?: string;
 }
 

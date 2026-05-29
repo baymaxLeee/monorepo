@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 # Deploy / update the single-VPS stack from a local checkout.
 #
-# What it does:
-#   1. Validates local .env exists
-#   2. rsync's infra/single-vps/ (compose.yml + mysql-init helper script)
-#      to the VPS at /opt/monorepo/
-#   3. SSH's in and runs `docker compose pull && docker compose up -d`
-#   4. Waits for /healthz to return 200
-#
 # Usage:
 #   ./infra/single-vps/deploy.sh <user>@<vps-ip>
 #   ./infra/single-vps/deploy.sh root@1.2.3.4
@@ -34,7 +27,6 @@ REMOTE="$1"
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/monorepo}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
-# ── 1. preflight ─────────────────────────────────────────────────
 ENV_FILE="${HERE}/.env"
 if [ ! -f "${ENV_FILE}" ]; then
     echo "✗ ${ENV_FILE} missing." >&2
@@ -75,14 +67,11 @@ if [ "${#missing[@]}" -gt 0 ]; then
     exit 1
 fi
 
-# Read PUBLIC_PORT from .env for the post-deploy health check.
 PUBLIC_PORT="$(grep -E '^PUBLIC_PORT=' "${ENV_FILE}" | tail -1 | cut -d= -f2 | tr -d '"' || true)"
 PUBLIC_PORT="${PUBLIC_PORT:-8080}"
 
-# Extract just the host part of REMOTE for the curl probe.
 REMOTE_HOST="${REMOTE#*@}"
 
-# ── 2. ship the deploy artifacts ─────────────────────────────────
 echo "→ syncing infra/single-vps → ${REMOTE}:${DEPLOY_DIR}"
 ssh "${REMOTE}" "mkdir -p ${DEPLOY_DIR}"
 
@@ -101,14 +90,12 @@ echo "→ uploading .env (0600 on remote)"
 scp -q "${ENV_FILE}" "${REMOTE}:${DEPLOY_DIR}/.env"
 ssh "${REMOTE}" "chmod 600 ${DEPLOY_DIR}/.env"
 
-# ── 3. pull images + restart ─────────────────────────────────────
 echo "→ pulling latest images on remote"
 ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env pull"
 
 echo "→ starting/restarting services"
 ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env up -d --remove-orphans"
 
-# ── 4. wait for healthz ──────────────────────────────────────────
 echo "→ waiting for http://${REMOTE_HOST}:${PUBLIC_PORT}/healthz to return 200"
 deadline=$((SECONDS + 120))
 while [ ${SECONDS} -lt ${deadline} ]; do

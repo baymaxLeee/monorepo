@@ -96,9 +96,7 @@ interface IProps {
 const colorNormalizer =
   typeof document !== "undefined" ? document.createElement("div") : null;
 
-// ============================================================
 // 工具栏内联 utility class（高保真还原自原 Toolbar/index.less）
-// ============================================================
 /**
  * 普通图标按钮（B/I/U/S/Code/Link 等）。
  * active 仅改文字色（高保真还原原 less `color: rgb(var(--primary-6))`），

@@ -38,13 +38,6 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_db: int = 0
 
-    # Module Federation manifest URLs used to SEED the app-registry defaults.
-    # Env-configurable per environment (dev → MFE dev servers; prod → same-origin
-    # paths served by nginx). After first seed, operators manage entries via the
-    # admin UI. Keys map to seeded app ids (admin/chat).
-    mfe_admin_entry: str = "http://localhost:3001/mf-manifest.json"
-    mfe_chat_entry: str = "http://localhost:3005/mf-manifest.json"
-
     # Symmetric key used to encrypt at-rest secrets (model provider api_keys).
     # MUST be a 32-byte url-safe base64 Fernet key. Rotate with care.
     admin_secret_key: str = _DEV_ADMIN_SECRET_KEY

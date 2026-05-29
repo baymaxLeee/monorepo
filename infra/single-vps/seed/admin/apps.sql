@@ -13,13 +13,13 @@
 INSERT INTO `apps`
   (`id`, `title`, `base_path`, `remote_name`, `expose_key`, `entry`,
    `requires_admin`, `is_enabled`, `sort_order`, `created_at`, `updated_at`)
--- `__MFE_*_ENTRY__` placeholders are substituted by mysql-init.sh from the
--- MFE_ADMIN_ENTRY / MFE_CHAT_ENTRY env vars (default: same-origin paths).
+-- Remotes are served SAME-ORIGIN under /mfe-<id>/ by nginx/ingress, so the
+-- manifest entry is a fixed relative path (identical for dev and prod).
 VALUES
   ('admin', '后台管理', '/platform/admin', 'mfe_admin', './App',
-   '__MFE_ADMIN_ENTRY__', 1, 1, 10, NOW(6), NOW(6)),
+   '/mfe-admin/mf-manifest.json', 1, 1, 10, NOW(6), NOW(6)),
   ('chat', '对话', '/platform/chat', 'mfe_chat', './App',
-   '__MFE_CHAT_ENTRY__', 0, 1, 20, NOW(6), NOW(6))
+   '/mfe-chat/mf-manifest.json', 0, 1, 20, NOW(6), NOW(6))
 ON DUPLICATE KEY UPDATE
   `title` = VALUES(`title`),
   `base_path` = VALUES(`base_path`),

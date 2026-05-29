@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# wait-for-url.sh — block until a URL returns 2xx, then exit 0.
 #
 # Usage: ./scripts/wait-for-url.sh <url> [label] [timeout-seconds]
 #   <url>             URL to poll (HEAD/GET, follows redirects, considers any 2xx success)

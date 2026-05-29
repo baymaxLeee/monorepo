@@ -33,10 +33,8 @@ export const createSelectionPersistenceExtension = () => {
             },
             decorations(state) {
               const isFocused = focusKey.getState(state);
-              // 如果 focused，不显示 decoration（使用原生）
               if (isFocused) return DecorationSet.empty;
 
-              // 如果 blur，显示 decoration
               const { selection } = state;
               if (selection.empty) return DecorationSet.empty;
 

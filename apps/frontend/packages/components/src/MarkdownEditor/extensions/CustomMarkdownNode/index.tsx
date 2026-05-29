@@ -106,7 +106,6 @@ export const AttachmentNode = Node.create({
     return ReactNodeViewRenderer(AttachmentComponent);
   },
 
-  // Markdown 序列化 / 反序列化
   markdownTokenName: NODE_NAME,
 
   markdownTokenizer: {

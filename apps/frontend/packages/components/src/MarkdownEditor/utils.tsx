@@ -59,7 +59,6 @@ export const extractSelectionToBlocks = (editor: Editor): SelectionSnapshot => {
 
   const blocks: StyledTextBlock[] = [];
 
-  // 使用 nodesBetween 遍历选区内的节点
   editor.state.doc.nodesBetween(from, to, (node, pos) => {
     if (node.isText) {
       // 计算当前文本节点在选区内的有效范围（处理选区只覆盖文本节点一部分的情况）
@@ -71,12 +70,10 @@ export const extractSelectionToBlocks = (editor: Editor): SelectionSnapshot => {
         const parent = $pos.parent;
         let type = parent.type.name;
 
-        // 处理标题层级
         if (type === "heading") {
           type = `h${parent.attrs.level}`;
         }
 
-        // 检查 Marks (link, comment)
         const markNames = node.marks.map((m) => m.type.name);
         if (markNames.includes("comment")) {
           type = "comment";
@@ -85,10 +82,10 @@ export const extractSelectionToBlocks = (editor: Editor): SelectionSnapshot => {
         }
 
         const currentBlock = {
-          id: `block_${start}_${end}`, // 简单生成唯一ID
+          id: `block_${start}_${end}`,
           text: node.text?.slice(start - pos, end - pos) || "",
           type,
-          marks: [...node.marks], // 复制 Marks
+          marks: [...node.marks],
           from: start,
           to: end,
         };
@@ -106,20 +103,15 @@ export const extractSelectionToBlocks = (editor: Editor): SelectionSnapshot => {
             "h5",
             "h6",
           ]);
-          // 只合并连续的相同类型的块
           const isContiguous = lastBlock.to === currentBlock.from;
           if (
             lastBlock.type === currentBlock.type &&
             mergeableTypes.has(currentBlock.type) &&
             isContiguous
           ) {
-            // 合并逻辑：
-            // 1. 更新上一个block的 text, to
-            // 2. 丢弃当前block的 marks，使用上一个block的 marks (保持一致)
             lastBlock.text += currentBlock.text;
             lastBlock.to = currentBlock.to;
             lastBlock.id = `block_${lastBlock.from}_${currentBlock.to}`; // 更新ID以反映新的范围
-            // 不需要做其他操作，因为我们直接修改了 blocks 数组中的引用
           } else {
             blocks.push(currentBlock);
           }
@@ -156,14 +148,10 @@ export const applyBlocksToSelection = (
     const newText = newTexts[i];
 
     if (newText) {
-      // 创建带有原 Marks 的新文本节点
-      // schema.text(text, marks) 会创建一个保留了原有加粗、链接等格式的节点
       const newNode = editor.schema.text(newText, block.marks);
 
-      // 使用 replaceWith 替换原位置的内容
       tr.replaceWith(block.from, block.to, newNode);
     } else {
-      // 如果新文本为空，执行删除操作
       tr.delete(block.from, block.to);
     }
   }

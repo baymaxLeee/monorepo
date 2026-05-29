@@ -166,7 +166,6 @@ export function bulkDeleteIntentions(
   });
 }
 
-// ---- Model providers (OpenAI-compatible LLM endpoints) -----------------
 
 export interface ModelProvider {
   id: string;
@@ -273,7 +272,6 @@ export function testModelProvider(
   });
 }
 
-// ── App registry (operator-managed MFE catalog, owned by admin service) ──────
 
 /** A platform app/product entry. Mirrors admin `App` schema. */
 export interface AppEntry {

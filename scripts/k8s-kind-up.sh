@@ -3,14 +3,6 @@
 # overlay against it. Use this to validate the K8s manifest design without
 # spending money on a real cloud cluster.
 #
-# What it does:
-#   1. Creates kind cluster `monorepo` (idempotent)
-#   2. Installs Nginx Ingress Controller
-#   3. Creates `monorepo-prod` namespace + placeholder Secrets
-#   4. Loads locally-built images into the cluster (if present)
-#   5. Renders prod overlay and applies it (dry-run by default; pass --apply
-#      to actually apply)
-#
 # Usage:
 #   scripts/k8s-kind-up.sh                # dry-run only
 #   scripts/k8s-kind-up.sh --apply        # actually create resources
@@ -34,7 +26,6 @@ for arg in "$@"; do
   esac
 done
 
-# ── 1. dependencies ───────────────────────────────────────
 need() {
   command -v "$1" >/dev/null 2>&1 || { echo "✗ missing: $1" >&2; exit 1; }
 }
@@ -53,7 +44,6 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-# ── 2. cluster ────────────────────────────────────────────
 if kind get clusters | grep -q "^${CLUSTER_NAME}$"; then
   echo "→ kind cluster '${CLUSTER_NAME}' already exists"
 else
@@ -80,7 +70,6 @@ fi
 kubectl config use-context "kind-${CLUSTER_NAME}" >/dev/null
 kubectl cluster-info --context "kind-${CLUSTER_NAME}" | head -3
 
-# ── 3. Nginx Ingress Controller ───────────────────────────
 if ! kubectl get ns ingress-nginx >/dev/null 2>&1; then
   echo "→ installing Nginx Ingress Controller..."
   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
@@ -92,7 +81,6 @@ echo "→ waiting for ingress controller to become ready..."
 # race when pods haven't been scheduled yet.
 kubectl -n ingress-nginx rollout status deployment/ingress-nginx-controller --timeout=180s
 
-# ── 4. namespace + placeholder secrets ────────────────────
 kubectl get ns "${NAMESPACE}" >/dev/null 2>&1 || kubectl create ns "${NAMESPACE}"
 
 create_secret_if_missing() {
@@ -142,7 +130,6 @@ if ! kubectl -n "${NAMESPACE}" get secret api-tls >/dev/null 2>&1; then
   rm -rf "$TMPDIR"
 fi
 
-# ── 5. optional: build & load images ──────────────────────
 if $BUILD; then
   echo "→ building service images..."
   for svc in gateway iam; do
@@ -157,7 +144,6 @@ if $BUILD; then
   done
 fi
 
-# ── 6. render + apply ─────────────────────────────────────
 RENDER_DIR=$(mktemp -d)
 trap 'rm -rf "$RENDER_DIR"' EXIT
 

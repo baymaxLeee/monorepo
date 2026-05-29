@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
 # Run this ONCE on a fresh VPS (Debian / Ubuntu / RHEL-derived).
 #
-# What it does:
-#   1. Installs Docker + Docker Compose plugin
-#   2. Creates /opt/monorepo  (deploy target)
-#   3. Opens firewall for the public port (if ufw / firewalld present)
-#   4. Sets up a `monorepo-update` systemd path-trigger? — no, kept simple
-#
 # Usage (on the VPS):
 #   curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/infra/single-vps/bootstrap.sh | sudo bash
 # Or:
@@ -26,7 +20,6 @@ PUBLIC_PORT="${PUBLIC_PORT:-8080}"
 
 echo "→ bootstrapping single-VPS deployment to ${DEPLOY_DIR} (port ${PUBLIC_PORT})"
 
-# ── 1. install Docker ─────────────────────────────────────────────
 if ! command -v docker >/dev/null 2>&1; then
     echo "→ installing Docker (via get.docker.com)"
     curl -fsSL https://get.docker.com | sh
@@ -43,12 +36,10 @@ else
     echo "  ✓ docker compose plugin available: $(docker compose version)"
 fi
 
-# ── 2. create deploy directory ────────────────────────────────────
 mkdir -p "${DEPLOY_DIR}"
 chmod 750 "${DEPLOY_DIR}"
 echo "  ✓ ${DEPLOY_DIR} ready"
 
-# ── 3. open firewall for the public port ──────────────────────────
 # Cloud providers (Aliyun / 火山 / Tencent) ALSO require opening this port
 # in the web console's "安全组 / Security Group" — this script can only
 # manage the OS-level firewall.
@@ -63,7 +54,6 @@ else
     echo "  (no active ufw / firewalld; nothing to open at OS layer)"
 fi
 
-# ── 4. sanity check ───────────────────────────────────────────────
 echo ""
 echo "✓ bootstrap complete."
 echo ""

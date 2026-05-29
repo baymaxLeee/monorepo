@@ -19,7 +19,6 @@ metadata:
   name: db-migrate
   labels: { app: db-migrate }
 spec:
-  # Re-run on failure up to 2 times before failing the deploy.
   backoffLimit: 2
   # Auto-clean Job records 1 day after completion to avoid clutter.
   ttlSecondsAfterFinished: 86400
@@ -30,8 +29,6 @@ spec:
       restartPolicy: Never
       containers:
         - name: migrator
-          # Patched to the deploying service image. Each service image
-          # contains its own migration scripts and runner.
           image: ghcr.io/example/iam:latest
           imagePullPolicy: IfNotPresent
           env:

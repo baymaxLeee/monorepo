@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Scaffold a new Python microservice under apps/backend/services/<name>.
 set -euo pipefail
 
 NAME="${1:?Usage: new-service.sh <name>}"

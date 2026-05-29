@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Install all workspace dependencies (tools + frontend + backend). Idempotent.
 # Does NOT start Docker — run `just up` for MySQL/Redis and schema.
 set -euo pipefail
 

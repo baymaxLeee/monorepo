@@ -14,7 +14,6 @@
 #     -t ghcr.io/<owner>/<repo>/web:<tag> \
 #     .
 
-# ─── stage 1: build both frontends with pnpm ─────────────────────
 FROM node:22-alpine AS builder
 
 # Enable corepack; the actual pnpm version is taken from frontend/package.json's
@@ -57,7 +56,6 @@ ENV NODE_ENV=production \
 # (platform) consumes the path-based entry URLs at runtime.
 RUN pnpm -F admin build && pnpm -F chat build && pnpm -F platform build
 
-# ─── stage 2: nginx serving both dist trees ──────────────────────
 FROM nginx:1.27-alpine
 
 # Drop the default config; ours fully replaces it.

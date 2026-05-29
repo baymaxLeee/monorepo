@@ -110,7 +110,6 @@ _DEMO_INTENTIONS: list[tuple[str, str, str, int, str, bool, str]] = [
 ]
 
 
-# (id, title, base_path, remote_name, entry, requires_admin, sort_order)
 # (id, title, base_path, remote_name, requires_admin, sort_order). The MF
 # manifest `entry` is resolved per-environment from settings at seed time.
 _DEMO_APPS: list[tuple[str, str, str, str, bool, int]] = [
@@ -120,10 +119,13 @@ _DEMO_APPS: list[tuple[str, str, str, str, bool, int]] = [
 
 
 async def seed_demo_bots() -> None:
-    settings = get_settings()
+    # Remotes are mounted same-origin under /mfe-<id>/ in every environment
+    # (prod nginx/ingress; dev devServer proxy), so the manifest entry is a
+    # fixed relative path identical for dev and prod. Operators can override an
+    # entry (e.g. for a cross-origin CDN) in the admin "应用入口管理" UI.
     app_entries = {
-        "admin": settings.mfe_admin_entry,
-        "chat": settings.mfe_chat_entry,
+        "admin": "/mfe-admin/mf-manifest.json",
+        "chat": "/mfe-chat/mf-manifest.json",
     }
     factory = get_session_factory()
     async with factory() as session:

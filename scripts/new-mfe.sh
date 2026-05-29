@@ -15,7 +15,6 @@ if [ -d "$MFE_DIR" ]; then
   exit 1
 fi
 
-# snake_case name for Module Federation (rspack remote name)
 MF_NAME="${NAME//-/_}"
 
 mkdir -p "$MFE_DIR/src"

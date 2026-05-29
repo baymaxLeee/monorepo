@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Apply service-owned MySQL migrations by semantic version.
 set -euo pipefail
 
 SERVICE_DIR="${1:?Usage: db-migrate.sh <service-dir> [target-version]}"

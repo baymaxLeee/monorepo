@@ -173,10 +173,8 @@
     @apply relative min-h-0 flex-1 overflow-auto;
   }
 
-  /* ============================================================
-     MarkdownEditor 容器（基底，不含 toolbar/popup —— 后者由组件内联 utility 提供）
-     高保真还原自原 EAMarkdownEditor/components/Editor/index.less
-     ============================================================ */
+  /* MarkdownEditor 容器（基底，不含 toolbar/popup —— 后者由组件内联 utility 提供）
+     高保真还原自原 EAMarkdownEditor/components/Editor/index.less */
   .markdown-editor {
     height: 100%;
     width: 100%;
@@ -202,7 +200,6 @@
     padding-right: 0.5em;
   }
 
-  /* ---------- 内容区滚动容器 ---------- */
   .markdown-editor-content {
     flex: 1;
     overflow-y: auto;
@@ -234,7 +231,6 @@
     outline: none !important;
   }
 
-  /* ---------- 段落 ---------- */
   .markdown-editor-content p {
     margin: 0.5em 0;
     word-wrap: break-word;
@@ -247,7 +243,6 @@
     margin-bottom: 0;
   }
 
-  /* ---------- 标题 ---------- */
   .markdown-editor-content h1,
   .markdown-editor-content h2,
   .markdown-editor-content h3,
@@ -281,7 +276,6 @@
     font-size: 1em;
   }
 
-  /* ---------- 列表 ---------- */
   .markdown-editor-content ul,
   .markdown-editor-content ol {
     padding-left: 1em;
@@ -323,7 +317,6 @@
     list-style-type: decimal;
   }
 
-  /* ---------- 任务列表 ---------- */
   .markdown-editor-content ul[data-type="taskList"] {
     list-style: none;
     padding-left: 0;
@@ -388,7 +381,6 @@
     opacity: 0.7;
   }
 
-  /* ---------- 链接 ---------- */
   .markdown-editor-content a {
     color: var(--primary);
     text-decoration: none;
@@ -402,7 +394,6 @@
     text-underline-offset: 0.25em;
   }
 
-  /* ---------- mark ---------- */
   .markdown-editor-content mark {
     background-color: var(--yellow-2, #fefebe);
     color: var(--foreground);
@@ -412,7 +403,6 @@
     box-decoration-break: clone;
   }
 
-  /* ---------- blockquote ---------- */
   .markdown-editor-content blockquote {
     border-left: 2px solid #3491fa;
     background-color: var(--muted);
@@ -440,7 +430,6 @@
     margin-right: 0;
   }
 
-  /* ---------- hr ---------- */
   .markdown-editor-content hr {
     border: none;
     border-top: 1px solid var(--border);
@@ -448,7 +437,6 @@
     position: relative;
   }
 
-  /* ---------- 图片 ---------- */
   .markdown-editor-content img {
     display: block;
     max-width: 100%;
@@ -466,7 +454,6 @@
     border-radius: 6px;
   }
 
-  /* ---------- 排版增强 ---------- */
   .markdown-editor-content strong {
     font-weight: 600;
   }
@@ -474,7 +461,6 @@
     text-underline-offset: 0.25em;
   }
 
-  /* ---------- 行内 code ---------- */
   .markdown-editor-content code {
     font-family:
       "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
@@ -489,11 +475,9 @@
     box-decoration-break: clone;
   }
 
-  /* ============================================================
-     表格（D-1 兜底版本：保证 markdown 表格能可视化渲染）
+  /* 表格（D-1 兜底版本：保证 markdown 表格能可视化渲染）
      完整版本（grip handles / column-resize / selectedCell）见 D-5：
-       原 EAMarkdownEditor/extensions/Table/index.less
-     ============================================================ */
+       原 EAMarkdownEditor/extensions/Table/index.less */
   .markdown-editor-content table {
     border-collapse: collapse;
     margin: 1em 0 1.5em;
@@ -527,10 +511,8 @@
     border: 1px double rgb(0 0 0 / 20%);
   }
 
-  /* ============================================================
-     代码块 pre（D-1 兜底版本，完整版见 D-4：
-       原 EAMarkdownEditor/extensions/CodeBlock/index.less）
-     ============================================================ */
+  /* 代码块 pre（D-1 兜底版本，完整版见 D-4：
+       原 EAMarkdownEditor/extensions/CodeBlock/index.less） */
   .markdown-editor-content pre {
     margin: 0.5em 0;
     padding: 1em;
@@ -556,7 +538,6 @@
     border: none;
   }
 
-  /* ---------- 打印 ---------- */
   @media print {
     .markdown-editor-content {
       padding: 0;

@@ -2,8 +2,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: monorepo-prod
 
-# All standing prod resources. Images are pinned to a git-sha by CI before
-# `kubectl apply` (see images: section).
 resources:
   - namespace.yaml
   - ../../base/gateway
@@ -11,6 +9,7 @@ resources:
   - ../../base/admin
   - ../../base/chat
   - ../../base/telemetry
+  - ../../base/web
   - ../../base/ingress.yaml
 
 # CI patches `newName` + `newTag` to the real registry + git-sha via
@@ -38,8 +37,10 @@ images:
   - name: ghcr.io/example/telemetry
     newName: registry.invalid/monorepo/telemetry
     newTag: placeholder
+  - name: ghcr.io/example/web
+    newName: registry.invalid/monorepo/web
+    newTag: placeholder
 
-# Replicas and prod-specific config / secret overrides.
 patches:
   - path: patches/gateway-config.yaml
     target: { kind: ConfigMap, name: gateway-config }

@@ -351,7 +351,7 @@ function AppFormDialog({
                 placeholder: "./App",
               })}
               {textField("entry", "Manifest 入口 URL", {
-                placeholder: "http://localhost:3001/mf-manifest.json",
+                placeholder: "/mfe-admin/mf-manifest.json",
               })}
               {textField("sort_order", "排序")}
               <FormField

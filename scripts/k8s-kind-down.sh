@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Delete the local kind cluster used for K8s manifest validation.
 set -euo pipefail
 
 CLUSTER_NAME="${KIND_CLUSTER_NAME:-monorepo}"

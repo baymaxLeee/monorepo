@@ -128,7 +128,6 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
   const closeMenu = useCallback(() => setMenu(null), []);
 
-  // 点击菜单外部关闭右键菜单
   const menuRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     if (!menu) return;
@@ -148,7 +147,6 @@ export const FileTree: React.FC<FileTreeProps> = ({
     });
   }, []);
 
-  // ---- Context Menu ----
   const onCtxMenu = useCallback(
     (e: React.MouseEvent, node?: FileNode) => {
       if (readOnly) return;
@@ -164,7 +162,6 @@ export const FileTree: React.FC<FileTreeProps> = ({
     [readOnly],
   );
 
-  // ---- Delete ----
   const handleDelete = useCallback(
     (id: string) => {
       const result = updateTree(tree, id, (_n, siblings, idx) => {
@@ -178,7 +175,6 @@ export const FileTree: React.FC<FileTreeProps> = ({
     [tree, onTreeChange, closeMenu],
   );
 
-  // ---- Create / Rename trigger ----
   const startCreate = useCallback(
     (parent_id: string | null, type: "file" | "directory") => {
       if (parent_id) setExpanded((s) => new Set(s).add(parent_id));
@@ -201,7 +197,6 @@ export const FileTree: React.FC<FileTreeProps> = ({
     [closeMenu],
   );
 
-  // ---- 同级重名检测 ----
   const hasDuplicateName = useCallback(
     (parent_id: string | null, name: string, excludeId?: string): boolean => {
       const siblings = parent_id
@@ -231,7 +226,6 @@ export const FileTree: React.FC<FileTreeProps> = ({
     [input, nodeMap, hasDuplicateName],
   );
 
-  // ---- Commit inline input ----
   const commit = useCallback(
     (value: string) => {
       const name = value.trim();
@@ -300,7 +294,6 @@ export const FileTree: React.FC<FileTreeProps> = ({
     [input, tree, onTreeChange, onSelectFile, nodeMap, hasDuplicateName],
   );
 
-  // ---- Drag & Drop ----
   const onDragStart = useCallback((e: React.DragEvent, id: string) => {
     dragSrcRef.current = id;
     e.dataTransfer.effectAllowed = "move";
@@ -322,13 +315,11 @@ export const FileTree: React.FC<FileTreeProps> = ({
       const srcId = dragSrcRef.current;
       if (!srcId || srcId === targetId) return;
 
-      // 只允许拖入目录或根级
       if (targetId !== null) {
         const target = nodeMap.get(targetId);
         if (target?.type !== "directory") return;
       }
 
-      // 同层级拖拽，不改变位置
       const srcParentId = nodeMap.get(srcId)?.parent_id ?? null;
       if (srcParentId === targetId) return;
 
@@ -338,7 +329,6 @@ export const FileTree: React.FC<FileTreeProps> = ({
         if (isDescendant(src, targetId)) return;
       }
 
-      // 目标目录下重名检测
       if (src && hasDuplicateName(targetId, src.name, srcId)) {
         toast.warning(
           `目标位置已存在同名文件或文件夹「${src.name}」，无法移动`,
@@ -386,7 +376,6 @@ export const FileTree: React.FC<FileTreeProps> = ({
     [tree, nodeMap, onTreeChange, hasDuplicateName],
   );
 
-  // ---- Render helpers ----
   const renderInput = (defaultValue = "") => (
     <div className="relative min-w-0 flex-1">
       <input

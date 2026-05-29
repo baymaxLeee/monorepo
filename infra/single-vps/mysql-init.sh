@@ -17,11 +17,6 @@ HOST="${MYSQL_HOST:-mysql}"
 ROOT_PASS="${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD required}"
 APP_USER="${APP_USER:-app}"
 
-# MF remote manifest URLs injected into seed SQL (env-configurable per env).
-# Prod default is same-origin (served by nginx); override for CDN-hosted remotes.
-MFE_ADMIN_ENTRY="${MFE_ADMIN_ENTRY:-/mfe-admin/mf-manifest.json}"
-MFE_CHAT_ENTRY="${MFE_CHAT_ENTRY:-/mfe-chat/mf-manifest.json}"
-
 mysql_root() {
     # `-N` numeric/no-headers; we use it for control statements too because
     # column headers don't hurt either way.
@@ -38,7 +33,6 @@ for i in 1 2 3 4 5; do
     sleep 2
 done
 
-# ── databases this stack needs ────────────────────────────────
 # Mirror the service → database naming used by scripts/db-migrate.sh.
 # `telemetry` was originally ClickHouse-backed; we moved it onto the shared
 # MySQL instance to keep the single-VPS footprint small.
@@ -55,7 +49,6 @@ done
 
 mysql_root -e "FLUSH PRIVILEGES;"
 
-# ── apply per-database schema files ───────────────────────────
 # Convention: /schema/<db>/*.sql, applied in alphabetical (== semver) order.
 # Files are mounted from infra/single-vps/schema/<db>/ in docker-compose.
 for db in ${DATABASES}; do
@@ -75,7 +68,6 @@ for db in ${DATABASES}; do
     done
 done
 
-# ── apply per-database seed data (env-specific config rows) ───
 # Convention: /seed/<db>/*.sql, applied AFTER schema, alphabetical order.
 # Seeds MUST be idempotent (INSERT ... ON DUPLICATE KEY UPDATE) so re-runs are
 # cheap no-ops and never clobber operator changes. Unlike the per-service demo
@@ -91,10 +83,7 @@ for db in ${DATABASES}; do
     fi
     for f in "${seed_dir}"/*.sql; do
         echo "  → seeding $(basename "${f}") into \`${db}\`"
-        # Substitute env-driven placeholders (no-op for files without them).
-        sed -e "s#__MFE_ADMIN_ENTRY__#${MFE_ADMIN_ENTRY}#g" \
-            -e "s#__MFE_CHAT_ENTRY__#${MFE_CHAT_ENTRY}#g" \
-            "${f}" | mysql_root "${db}"
+        mysql_root "${db}" < "${f}"
     done
 done
 

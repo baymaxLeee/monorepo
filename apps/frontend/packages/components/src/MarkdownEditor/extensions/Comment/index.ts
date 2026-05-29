@@ -80,30 +80,24 @@ export function createDecorations(
   activeCommentId: string | null,
   markName: string,
 ): DecorationSet {
-  // 如果没有激活的评论 ID 或文档无效，返回空集合
   if (!activeCommentId || !doc?.content) {
     return DecorationSet.empty;
   }
 
   const docSize = doc.content.size;
 
-  // 文档为空时返回空集合
   if (docSize <= 0) {
     return DecorationSet.empty;
   }
 
-  // 收集所有匹配的文本范围
   const ranges: Array<{ from: number; to: number }> = [];
 
   try {
-    // 遍历文档查找匹配的评论标记
     doc.nodesBetween(0, docSize, (node: ProseMirrorNode, pos: number) => {
-      // 只处理文本节点
       if (!node.isText || !node.marks || node.marks.length === 0) {
         return true; // 继续遍历子节点
       }
 
-      // 查找匹配的评论标记
       const mark = node.marks.find(
         (m: ProseMirrorMark) =>
           m?.type &&
@@ -113,11 +107,9 @@ export function createDecorations(
       );
 
       if (mark) {
-        // 计算装饰器的位置范围
         const from = pos;
         const to = pos + node.nodeSize;
 
-        // 确保位置有效
         if (from >= 0 && to > from && to <= docSize) {
           ranges.push({ from, to });
         }
@@ -130,14 +122,11 @@ export function createDecorations(
     return DecorationSet.empty;
   }
 
-  // 如果没有匹配的范围，返回空集合
   if (ranges.length === 0) {
     return DecorationSet.empty;
   }
 
-  // 合并相邻或重叠的范围
   const mergedRanges: Array<{ from: number; to: number }> = [];
-  // 按起始位置排序
   ranges.sort((a, b) => a.from - b.from);
 
   for (const range of ranges) {
@@ -145,7 +134,6 @@ export function createDecorations(
       mergedRanges.push({ ...range });
     } else {
       const last = mergedRanges[mergedRanges.length - 1];
-      // 如果当前范围与最后一个范围相邻或重叠，合并它们
       if (range.from <= last.to) {
         last.to = Math.max(last.to, range.to);
       } else {
@@ -154,14 +142,11 @@ export function createDecorations(
     }
   }
 
-  // 创建装饰器数组
   const decorations: Decoration[] = [];
 
   for (const { from, to } of mergedRanges) {
-    // 确保范围有效
     if (from >= 0 && to > from && to <= docSize) {
       try {
-        // 为每个文本节点创建装饰器（参考 TemporarySelectionHighlight 的实现）
         doc.nodesBetween(from, to, (node: ProseMirrorNode, pos: number) => {
           if (node.isText) {
             const start = Math.max(pos, from);
@@ -171,7 +156,6 @@ export function createDecorations(
                 const decoration = Decoration.inline(start, end, {
                   class: COMMENT_ACTIVE_CLASS_NAME,
                 });
-                // 验证装饰器是否创建成功
                 if (decoration) {
                   decorations.push(decoration);
                 }
@@ -193,16 +177,13 @@ export function createDecorations(
     }
   }
 
-  // 如果没有装饰器，返回空集合
   if (decorations.length === 0) {
     return DecorationSet.empty;
   }
 
   try {
-    // 创建装饰器集合
     const decorationSet = DecorationSet.create(doc, decorations);
 
-    // 验证装饰器集合是否有效
     if (!decorationSet || decorationSet === DecorationSet.empty) {
       return DecorationSet.empty;
     }
@@ -232,7 +213,6 @@ export const createCommentExtension = () => {
     },
 
     addStorage() {
-      // 事件总线实现
       const eventBus = new Map<
         keyof CommentEventMap,
         Set<(...args: any[]) => void>
@@ -334,15 +314,12 @@ export const createCommentExtension = () => {
             const content = state.doc.textBetween(selection.from, selection.to);
             const selectionEnd = selection.to;
 
-            // 设置评论标记
             const result = commands.setMark(this.name, { commentId });
 
             if (result && dispatch) {
-              // 更新激活的评论 ID
               tr.setMeta(commentDecorationKey, { activeCommentId: commentId });
               tr.setSelection(TextSelection.create(tr.doc, selectionEnd));
 
-              // 触发事件
               this.storage.emit("commentAdded", { commentId, content });
             }
 
@@ -355,7 +332,6 @@ export const createCommentExtension = () => {
               return false;
             }
 
-            // 查找所有匹配该 commentId 的标记范围
             const ranges: { from: number; to: number }[] = [];
 
             state.doc.descendants((node: ProseMirrorNode, pos: number) => {
@@ -375,7 +351,6 @@ export const createCommentExtension = () => {
             if (dispatch) {
               const pluginState = commentDecorationKey.getState(state);
 
-              // 移除所有匹配的标记
               ranges.forEach(({ from, to }) => {
                 tr.removeMark(from, to, this.type);
               });
@@ -397,7 +372,6 @@ export const createCommentExtension = () => {
               return false;
             }
 
-            // 查找评论的范围
             let foundFrom = -1;
             let foundTo = -1;
 
@@ -419,7 +393,6 @@ export const createCommentExtension = () => {
             }
 
             if (dispatch) {
-              // 滚动到评论位置
               if (view) {
                 try {
                   const dom = view.nodeDOM(foundFrom);
@@ -431,7 +404,6 @@ export const createCommentExtension = () => {
                 }
               }
 
-              // 更新激活的评论 ID
               tr.setMeta(commentDecorationKey, { activeCommentId: commentId });
             }
 
@@ -454,7 +426,6 @@ export const createCommentExtension = () => {
               };
             },
             apply(tr, oldPluginState, _oldState, newState) {
-              // 检查事务元数据中是否有 activeCommentId 更新
               const meta = tr.getMeta(commentDecorationKey) as
                 | { activeCommentId: string | null }
                 | undefined;
@@ -505,10 +476,8 @@ export const createCommentExtension = () => {
           },
           props: {
             decorations(state) {
-              // 获取插件状态
               const pluginState = commentDecorationKey.getState(state);
 
-              // 确保返回有效的 DecorationSet
               if (
                 !pluginState ||
                 pluginState.decorations === DecorationSet.empty
@@ -522,7 +491,6 @@ export const createCommentExtension = () => {
               const { doc } = view.state;
               const $pos = doc.resolve(pos);
 
-              // 查找当前位置的评论标记
               const marks = $pos.marks();
               const commentMark = marks.find(
                 (mark) => mark.type.name === extension.name,
@@ -531,7 +499,6 @@ export const createCommentExtension = () => {
               const nextCommentId = commentMark?.attrs.commentId || null;
               const pluginState = commentDecorationKey.getState(view.state);
 
-              // 如果评论状态发生变化，更新状态
               if ((pluginState?.activeCommentId ?? null) !== nextCommentId) {
                 const tr = view.state.tr.setMeta(commentDecorationKey, {
                   activeCommentId: nextCommentId,

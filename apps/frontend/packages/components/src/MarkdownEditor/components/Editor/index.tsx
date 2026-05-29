@@ -169,7 +169,6 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
         TaskList,
         Markdown,
         createTaskItemExtension(),
-        // 自定义扩展
         createCommentExtension(),
         createIndentExtension().configure({ contentType }),
         createCodeBlockExtension(),
@@ -282,7 +281,6 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
       };
     }, [editor, autoScrollToBottom]);
 
-    // 受控模式：外部 value 变化时同步到编辑器
     useEffect(() => {
       if (!editor || editor.isDestroyed) return;
       const normalizedValue = normalizeMarkdownContent(

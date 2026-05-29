@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Create local MySQL databases and apply service-owned SQL migrations.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

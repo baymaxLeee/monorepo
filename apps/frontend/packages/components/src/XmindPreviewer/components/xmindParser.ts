@@ -138,7 +138,6 @@ const getSafeSummaryText2 = (item: any, topicId: string) => {
   }
 };
 
-//  解析.xmind文件
 const parseXmindFile = (file: Blob, handleMultiCanvas?: any): Promise<any> => {
   return new Promise((resolve, reject) => {
     JSZip.loadAsync(file).then(
@@ -171,7 +170,6 @@ const parseXmindFile = (file: Blob, handleMultiCanvas?: any): Promise<any> => {
   });
 };
 
-//  转换xmind数据
 const transformXmind = async (
   content: string,
   files: AnyRecord,
@@ -190,25 +188,19 @@ const transformXmind = async (
   const waitLoadImageList: Promise<any>[] = [];
   const walk = async (node: AnyRecord, newNode: AnyRecord) => {
     newNode.data = {
-      // 节点内容
       text: isUndef(node.title) ? "" : node.title,
     };
-    // 节点备注
     if (node.notes) {
       const notesData = node.notes.realHTML || node.notes.plain;
       newNode.data.note = notesData ? notesData.content || "" : "";
     }
-    // 超链接
     if (node.href && /^https?:\/\//.test(node.href)) {
       newNode.data.hyperlink = node.href;
     }
-    // 标签
     if (node.labels && node.labels.length > 0) {
       newNode.data.tag = node.labels;
     }
-    // 图片
     handleNodeImageFromXmind(node, newNode, waitLoadImageList, files);
-    // 概要
     const selfSummary: any[] = [];
     const childrenSummary: any[] = [];
     if (newNode._summary) {
@@ -227,7 +219,6 @@ const transformXmind = async (
       });
     }
     newNode.data.generalization = selfSummary;
-    // 子节点
     newNode.children = [];
     const children = getXmindTopicChildren(node.children);
     if (children.length > 0) {
@@ -246,7 +237,6 @@ const transformXmind = async (
   return newTree;
 };
 
-//  转换旧版xmind数据，xmind8
 const transformOldXmind = async (
   content: string,
   files: AnyRecord,
@@ -261,11 +251,9 @@ const transformOldXmind = async (
   const walk = (node: AnyRecord, newNode: AnyRecord, isRoot?: boolean) => {
     const nodeElements = node.elements;
     const nodeTitle = getOldTopicTitle(node);
-    // 节点内容
     newNode.data = {
       text: isUndef(nodeTitle) ? (isRoot ? sheetTitle || "" : "") : nodeTitle,
     };
-    // 节点备注
     try {
       const notesElement = getItemByName(nodeElements, "notes");
       if (notesElement) {
@@ -275,7 +263,6 @@ const transformOldXmind = async (
     } catch (error) {
       console.error(error);
     }
-    // 超链接
     try {
       if (
         node.attributes?.["xlink:href"] &&
@@ -286,7 +273,6 @@ const transformOldXmind = async (
     } catch (error) {
       console.error(error);
     }
-    // 标签
     try {
       const labelsElement = getItemByName(nodeElements, "labels");
       if (labelsElement) {
@@ -299,7 +285,6 @@ const transformOldXmind = async (
     }
     handleOldNodeImageFromXmind(node, newNode, waitLoadImageList, files);
     const childrenItem = getItemByName(nodeElements, "children");
-    // 概要
     const selfSummary: any[] = [];
     const childrenSummary: any[] = [];
     try {
@@ -330,7 +315,6 @@ const transformOldXmind = async (
       console.error(error);
     }
     newNode.data.generalization = selfSummary;
-    // 子节点
     newNode.children = [];
     if (childrenItem?.elements && childrenItem.elements.length > 0) {
       const children = getOldTopicChildren(childrenItem);
@@ -350,7 +334,6 @@ const transformOldXmind = async (
   return newTree;
 };
 
-// 数据转换为xmind文件
 // 直接转换为最新版本的xmind文件 2023.09.11172
 const transformToXmind = async (
   data: AnyRecord,
@@ -358,7 +341,6 @@ const transformToXmind = async (
 ): Promise<Blob> => {
   const id = `simpleMindMap_${Date.now()}`;
   const imageList: AnyRecord[] = [];
-  // 转换核心数据
   const newTree: AnyRecord = {};
   const waitLoadImageList: Promise<any>[] = [];
   const walk = async (
@@ -369,12 +351,11 @@ const transformToXmind = async (
     const newData: AnyRecord = {
       id: node.data.uid,
       structureClass: "org.xmind.ui.logic.right",
-      title: getTextFromHtml(node.data.text), // 节点文本
+      title: getTextFromHtml(node.data.text),
       children: {
         attached: [] as AnyRecord[],
       },
     };
-    // 备注
     if (node.data.note !== undefined) {
       newData.notes = {
         realHTML: {
@@ -385,19 +366,15 @@ const transformToXmind = async (
         },
       };
     }
-    // 超链接
     if (node.data.hyperlink !== undefined) {
       newData.href = node.data.hyperlink;
     }
-    // 标签
     if (node.data.tag !== undefined) {
       newData.labels = (node.data.tag || []).map((item: any) => {
         return typeof item === "object" && item !== null ? item.text : item;
       });
     }
-    // 图片
     handleNodeImageToXmind(node, newNode, waitLoadImageList, imageList);
-    // 样式
     // 暂时不考虑样式
     if (isRoot) {
       newData.class = "topic";
@@ -414,7 +391,6 @@ const transformToXmind = async (
         newNode[key] = newData[key];
       });
     }
-    // 概要
     const { summary, summaries } = parseNodeGeneralizationToXmind(node);
     if (isRoot) {
       if (summaries.length > 0) {
@@ -427,7 +403,6 @@ const transformToXmind = async (
         newNode.summaries = summaries;
       }
     }
-    // 子节点
     if (node.children && node.children.length > 0) {
       node.children.forEach((child: AnyRecord) => {
         const newChild: AnyRecord = {};
@@ -439,7 +414,6 @@ const transformToXmind = async (
   walk(data, newTree, true);
   await Promise.all(waitLoadImageList);
   const contentData = [newTree];
-  // 创建压缩包
   const zip = new JSZip();
   zip.file("content.json", JSON.stringify(contentData));
   zip.file(
@@ -454,7 +428,6 @@ const transformToXmind = async (
       "Thumbnails/thumbnail.png": {},
     },
   } as AnyRecord;
-  // 图片
   if (imageList.length > 0) {
     imageList.forEach((item: AnyRecord) => {
       manifestData["file-entries"][`resources/${item.name}`] = {};

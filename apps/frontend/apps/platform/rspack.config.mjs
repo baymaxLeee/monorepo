@@ -24,18 +24,6 @@ if (isProduction && !API_BASE_URL) {
   );
 }
 
-const MFE_ADMIN_ENTRY =
-  process.env.MFE_ADMIN_ENTRY ??
-  (isProduction
-    ? "mfe_admin@/mfe-admin/mf-manifest.json"
-    : "mfe_admin@http://localhost:3001/mf-manifest.json");
-
-const MFE_CHAT_ENTRY =
-  process.env.MFE_CHAT_ENTRY ??
-  (isProduction
-    ? "mfe_chat@/mfe-chat/mf-manifest.json"
-    : "mfe_chat@http://localhost:3005/mf-manifest.json");
-
 export default defineConfig({
   entry: "./src/main.tsx",
   mode: isProduction ? "production" : "development",
@@ -96,13 +84,6 @@ export default defineConfig({
       "process.env.APP_RELEASE": JSON.stringify(
         process.env.APP_RELEASE ?? (isProduction ? "unknown" : "dev"),
       ),
-      // Manifest URLs (no `name@` prefix) consumed by registry.ts at runtime.
-      "process.env.MFE_ADMIN_ENTRY_URL": JSON.stringify(
-        MFE_ADMIN_ENTRY.split("@").slice(1).join("@"),
-      ),
-      "process.env.MFE_CHAT_ENTRY_URL": JSON.stringify(
-        MFE_CHAT_ENTRY.split("@").slice(1).join("@"),
-      ),
     }),
     ...(isProduction
       ? [
@@ -114,12 +95,8 @@ export default defineConfig({
       : []),
     new ModuleFederationPlugin({
       name: "platform",
-      dts: isProduction ? { consumeTypes: true, generateTypes: false } : false,
+      dts: false,
       shareStrategy: "loaded-first",
-      remotes: {
-        mfe_admin: MFE_ADMIN_ENTRY,
-        mfe_chat: MFE_CHAT_ENTRY,
-      },
       shared: buildShared("host"),
     }),
   ],
@@ -139,6 +116,20 @@ export default defineConfig({
         secure: false,
         ws: false,
         selfHandleResponse: false,
+      },
+      {
+        context: ["/mfe-admin"],
+        target: "http://localhost:3001",
+        changeOrigin: true,
+        secure: false,
+        pathRewrite: { "^/mfe-admin": "" },
+      },
+      {
+        context: ["/mfe-chat"],
+        target: "http://localhost:3005",
+        changeOrigin: true,
+        secure: false,
+        pathRewrite: { "^/mfe-chat": "" },
       },
     ],
   },

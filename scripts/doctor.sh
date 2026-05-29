@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Quick health check for required tools.
 set -u
 
 ok() { printf "  \033[32m✓\033[0m %s\n" "$1"; }

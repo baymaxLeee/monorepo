@@ -30,7 +30,6 @@ export const createPasteFlattenExtension = () =>
               // tableCell内允许复杂嵌套 交给 PM 处理
               if (isSelectionInsideTableCell(selection)) return false;
 
-              // 顶层块直接粘贴
               if ($from.depth <= 1) {
                 if (slice.content.size === 0) return true;
                 view.dispatch(

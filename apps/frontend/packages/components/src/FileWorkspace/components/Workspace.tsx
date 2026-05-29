@@ -107,7 +107,6 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
       init(value);
     }, [value, init]);
 
-    // ---- 打开文件 + 懒加载 ----
     const handleSelectFile = useCallback(
       async (id: string) => {
         const node = nodeMapRef.current.get(id);
@@ -159,7 +158,6 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
       // 不要把 defaultSelectedFileId / handleSelectFile 加进来，否则语义错位。
     }, [fileTreeKey]);
 
-    // ---- Tab 关闭 ----
     const handleTabClose = useCallback(
       (id: string) => {
         setTabs((prev) => {
@@ -173,7 +171,6 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
       [activeFileId],
     );
 
-    // ---- 编辑内容：增量更新 map ----
     const handleContentChange = useCallback(
       (id: string, content: string) => {
         const node = nodeMapRef.current.get(id);
@@ -185,7 +182,6 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
       [],
     );
 
-    // ---- 树操作：按 action 增量维护 map（含父节点 children 同步） ----
     const handleTreeChange = useCallback(
       (newTree: FileNode[], change: FileChange) => {
         const map = nodeMapRef.current;
@@ -269,7 +265,6 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
       [activeFileId],
     );
 
-    // ---- ref API ----
     useImperativeHandle(ref, () => ({
       getTree: () => treeRef.current,
       getChanges: () => diffTree(baselineRef.current, treeRef.current),
@@ -278,7 +273,6 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
       },
     }));
 
-    // ---- 拖拽分割线 ----
     const handleResizeStart = useCallback(
       (e: React.MouseEvent) => {
         e.preventDefault();
