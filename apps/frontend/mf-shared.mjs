@@ -1,31 +1,13 @@
 /**
  * Module Federation shared-deps registry.
  *
- * Tier 1 — React core ecosystem:
- * React, React DOM, JSX runtimes, and React Router. These MUST be singleton
- * because hooks, context, and router state break when duplicated. React itself
- * is `strictVersion` so a genuinely incompatible copy fails loudly at load time
- * instead of silently rendering a second React.
- *
- * Tier 2 — Internal runtime packages:
- * only packages that carry cross-MFE runtime identity/state belong here.
- * UI kits and API clients stay as normal workspace dependencies so each app can
- * tree-shake the imports it actually uses.
- *
- * Tier 3 — State management:
- * Zustand core runtime and middleware used by the shared platform store.
- *
- * Tier 4 — Heavy leaf libraries (DEDUPE, NOT singleton):
- * Large, stable third-party engines (rich-text / code editor cores) that two or
- * more remotes may each pull in through `components`. They are shared with
- * `singleton: false` so identical versions are de-duplicated into ONE async
- * chunk negotiated at runtime, while incompatible versions can still load side
- * by side. They are NOT provided by the host (platform never imports them) —
- * the first remote that needs one registers it into the shared scope and later
- * remotes reuse it. This keeps tree-shaking intact (leaf libs) and avoids
- * shipping the same editor engine inside every remote bundle.
- *
- * Internal packages resolve through package.json exports and workspace links.
+ * - Tier1 React/Router: singleton (hooks/context/router break if duplicated);
+ *   React is strictVersion so an incompatible copy fails loudly, not silently.
+ * - Tier2 runtime/shared/observability: cross-MFE runtime identity → singleton.
+ *   (UI kit `components` + `api` stay normal deps so each app tree-shakes them.)
+ * - Tier3 Zustand: singleton for the shared platform store.
+ * - Tier4 heavy leaf libs (tiptap/codemirror): singleton:false dedupe, provided
+ *   by remotes (host never imports), de-duped into one runtime chunk.
  */
 
 /**
@@ -146,19 +128,10 @@ const HOST_SHARED = { ...TIER1, ...TIER2, ...TIER3 };
 const REMOTE_CONSUME = { ...TIER1, ...TIER2, ...TIER3 };
 
 /**
- * Build the `shared` config dict for a Module Federation plugin instance.
- *
- * Host (platform):
- *   - provides every singleton; not eager because the entry uses an async
- *     `import("./bootstrap")` boundary, so shared factories are registered
- *     before any host/remote code consumes them.
- *
- * Remote (mfe_*):
- *   - Tier 1-3: `import: false` — never bundle a fallback copy, always consume
- *     the host's singleton.
- *   - Tier 4: bundled normally (no `import: false`) so the remote can act as a
- *     provider; `singleton: false` dedupes identical versions at runtime.
- *
+ * `shared` config for an MF plugin instance.
+ * - Host: provides every singleton (not eager — async bootstrap boundary).
+ * - Remote: Tier1-3 `import:false` (consume host singleton); Tier4 bundled so
+ *   the remote can provide + dedupe it.
  * @param {Role} role
  * @returns {Record<string, SharedSpec>}
  */

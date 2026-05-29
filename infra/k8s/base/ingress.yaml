@@ -2,10 +2,8 @@
 # - Cloudflare proxies api.your-domain.com → cluster LoadBalancer → this Ingress
 # - Ingress terminates HTTPS using a TLS secret (cert-manager auto-issues via
 #   Let's Encrypt; or upload Cloudflare Origin CA cert as a Secret)
-# - Routes /api/* to the gateway service; everything else (/, /mfe-admin/,
-#   /mfe-chat/) to the web service (nginx serving the SPA + MFE remotes
-#   same-origin). Same-origin mounting keeps the app-registry entry a fixed
-#   relative path across single-vps and k8s.
+# - Routes /api/* to gateway; everything else (/, /mfe-admin/, /mfe-chat/) to
+#   the web service (SPA + MFE remotes served same-origin).
 #
 # Host is templated as a placeholder; overlays/prod patches it to the real
 # domain. Cloudflare's "Full (strict)" SSL mode REQUIRES a real cert on the

@@ -23,11 +23,8 @@ spec:
           labelSelector:
             matchLabels: { app: web }
       containers:
-        # Same nginx image as the single-VPS profile: serves the platform SPA
-        # plus the MFE remotes (mfe-admin / mfe-chat) SAME-ORIGIN under
-        # /mfe-<id>/ (see infra/single-vps/nginx.conf). Mounting remotes
-        # same-origin is what lets the app-registry `entry` be a fixed relative
-        # path across both single-vps and k8s.
+        # Same nginx image as single-vps: serves the SPA + MFE remotes
+        # same-origin under /mfe-<id>/ (so app-registry entries stay relative).
         - name: web
           image: ghcr.io/example/web:latest
           imagePullPolicy: IfNotPresent

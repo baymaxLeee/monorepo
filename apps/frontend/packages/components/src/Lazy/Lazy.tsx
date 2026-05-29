@@ -9,28 +9,6 @@ import {
   useState,
 } from "react";
 
-/**
- * Lazy —— 路由 + 组件统一懒加载入口。
- *
- * 设计原则：使用方**只关注 loader**，其余样板（lazy / Suspense / fallback / ref / props 透传）
- * 全部由本组件吸收。
- *
- * 示例：
- * ```tsx
- * // 路由
- * { path: "404", element: <Lazy loader={() => import("../pages/404")} /> }
- *
- * // 组件入口（无需 ref）
- * export const Foo = (props: FooProps) => (
- *   <Lazy loader={() => import("./components/Inner")} {...props} />
- * );
- *
- * // 组件入口（需要 ref forward 到目标组件）
- * export const Bar = forwardRef<BarRef, BarProps>((props, ref) => (
- *   <Lazy<BarProps> loader={() => import("./components/Inner")} ref={ref} {...props} />
- * ));
- * ```
- */
 export type LazyLoader<P> = () => Promise<{ default: ComponentType<P> }>;
 
 export interface LazyBaseProps<P> {
@@ -48,22 +26,28 @@ function DefaultFallback() {
   );
 }
 
-// Lazy 内部用 any 承接异构 props（消费方在外层通过泛型给具体类型）。
-// 对外通过下方 `as` 转型暴露强类型签名。
+type AnyLoader = LazyLoader<unknown>;
+type AnyLazyComponent = ComponentType<
+  Record<string, unknown> & { ref?: Ref<unknown> }
+>;
+const lazyComponentCache = new WeakMap<AnyLoader, AnyLazyComponent>();
+
+function resolveLazyComponent(loader: AnyLoader): AnyLazyComponent {
+  let cached = lazyComponentCache.get(loader);
+  if (!cached) {
+    cached = reactLazy(loader) as unknown as AnyLazyComponent;
+    lazyComponentCache.set(loader, cached);
+  }
+  return cached;
+}
+
 const LazyImpl = forwardRef<unknown, LazyBaseProps<unknown>>(function Lazy(
   props: any,
   ref,
 ) {
   const { loader, fallback, ...rest } = props as LazyBaseProps<unknown> &
     Record<string, unknown>;
-  // useState lazy initializer：保证仅在挂载时调用一次 lazy()，
-  // 即便消费方传入的 loader 是行内箭头函数（每次渲染新引用）也不会重建。
-  const [Component] = useState(
-    () =>
-      reactLazy(loader as LazyLoader<unknown>) as unknown as ComponentType<
-        Record<string, unknown> & { ref?: Ref<unknown> }
-      >,
-  );
+  const [Component] = useState(() => resolveLazyComponent(loader));
   return (
     <Suspense fallback={(fallback as ReactNode) ?? <DefaultFallback />}>
       <Component ref={ref} {...rest} />

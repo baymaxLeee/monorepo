@@ -62,12 +62,8 @@ function RemoteLoading() {
   );
 }
 
-/**
- * Resolves `/platform/:appSlug/*` against the user's entitled apps (fetched +
- * registered by `loadApps`). Apps the user may not see are simply absent from
- * the store, so unknown/forbidden slugs redirect home — server-side filtering
- * is the source of truth, this is the client-side projection of it.
- */
+// Resolves /platform/:appSlug/* against the entitled apps. A slug the user may
+// not see is simply absent from the store → redirect home (server is the SoT).
 function RemoteHost() {
   const { appSlug } = useParams();
   const { apps, loaded } = useAppsStore(

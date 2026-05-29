@@ -1,12 +1,5 @@
-/**
- * Runtime app registry (replaces the old hard-coded `registry.ts`).
- *
- * The catalog of apps/products is owned by the admin service and fetched per
- * user: `GET /api/admin-server/apps` returns exactly the apps the current user
- * may mount (server-side filtered by user type — admin sees all, normal users
- * see only enabled, non-admin-only apps). The platform then dynamically
- * registers those remotes and drives nav + routing from the result.
- */
+// Runtime app registry: the catalog is owned by the admin service and fetched
+// per user (GET /api/admin-server/apps, server-side filtered by user type).
 import { registerRemotes } from "@module-federation/enhanced/runtime";
 import { type AppEntry, fetchApps } from "api";
 import { create } from "zustand";
@@ -33,17 +26,13 @@ export const useAppsStore = create<AppsState>((set) => ({
 
 let loadPromise: Promise<void> | null = null;
 
-/**
- * Fetch the entitled apps once (cached), register their remotes with the MF
- * runtime, and populate the store. Safe to call from multiple places; the
- * shared promise dedupes concurrent callers and resolves the nav/route race.
- */
+// Cached so concurrent callers (App effect + RemoteHost) dedupe and the
+// nav/route race resolves once.
 export function loadApps(): Promise<void> {
   if (loadPromise) return loadPromise;
   loadPromise = fetchApps()
     .then((apps) => {
-      // The admin service already returns exactly the apps this user may mount
-      // (server-side filtered by user type). Trust it — no client-side filter.
+      // Server already filtered to this user's apps; no client-side filter.
       registerRemotes(
         apps.map((app) => ({ name: app.remote_name, entry: app.entry })),
         { force: true },

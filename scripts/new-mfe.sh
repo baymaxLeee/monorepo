@@ -126,9 +126,9 @@ export default defineConfig({
     new ModuleFederationPlugin({
       name: "__MF_NAME__",
       filename: "remoteEntry.js",
-      // dts PRODUCTION BUILD ONLY: under `rspack serve` it writes into a watched
-      // dir and causes an HMR reload loop.
-      dts: isProduction ? { generateTypes: true, consumeTypes: false } : false,
+      // No MF type generation: host loads remotes via loadRemote (cast); types
+      // come from the pnpm workspace + packages in this single-repo setup.
+      dts: false,
       shareStrategy: "loaded-first",
       exposes: {
         "./App": "./src/App.tsx",
