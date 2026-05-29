@@ -18,6 +18,8 @@ export default defineConfig({
   lazyCompilation: false,
   output: {
     path: path.resolve(appDir, "dist"),
+    filename: isProduction ? "[name].[contenthash:8].js" : "[name].js",
+    chunkFilename: isProduction ? "[name].[contenthash:8].js" : "[name].js",
     publicPath: "auto",
     uniqueName: "mfe_chat",
     clean: true,

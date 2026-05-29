@@ -24,6 +24,8 @@ export default defineConfig({
   ],
   output: {
     path: path.resolve(appDir, "dist"),
+    filename: isProduction ? "[name].[contenthash:8].js" : "[name].js",
+    chunkFilename: isProduction ? "[name].[contenthash:8].js" : "[name].js",
     publicPath: "auto",
     uniqueName: "mfe_admin",
     clean: true,

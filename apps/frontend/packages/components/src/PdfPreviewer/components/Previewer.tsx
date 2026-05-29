@@ -1,5 +1,5 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { GlobalWorkerOptions } from "pdfjs-dist";
+import * as pdfjs from "pdfjs-dist";
 import {
   forwardRef,
   useEffect,
@@ -467,8 +467,13 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
     };
 
     useEffect(() => {
-      if (GlobalWorkerOptions.workerSrc !== workerSrc) {
-        GlobalWorkerOptions.workerSrc = workerSrc;
+      const options = (
+        pdfjs as unknown as {
+          GlobalWorkerOptions?: { workerSrc?: string };
+        }
+      ).GlobalWorkerOptions;
+      if (options && options.workerSrc !== workerSrc) {
+        options.workerSrc = workerSrc;
       }
     }, [workerSrc]);
 
