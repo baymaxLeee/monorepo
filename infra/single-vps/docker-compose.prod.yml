@@ -88,6 +88,10 @@ services:
       MYSQL_HOST: mysql
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
       APP_USER: ${MYSQL_USER:-app}
+      # App-registry seed: MF remote manifest URLs. Default same-origin (nginx);
+      # override for CDN-hosted remotes.
+      MFE_ADMIN_ENTRY: ${MFE_ADMIN_ENTRY:-/mfe-admin/mf-manifest.json}
+      MFE_CHAT_ENTRY: ${MFE_CHAT_ENTRY:-/mfe-chat/mf-manifest.json}
     restart: "no"
 
   # ─── backend services ────────────────────────────────────────────

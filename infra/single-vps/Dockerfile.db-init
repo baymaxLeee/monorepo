@@ -22,4 +22,8 @@ COPY apps/backend/services/chat/migrations/versions      /schema/chat
 COPY apps/backend/services/gateway/migrations/versions   /schema/gateway
 COPY apps/backend/services/telemetry/migrations/versions /schema/telemetry
 
+# Prod-only seed data (env-specific config rows, e.g. the app-registry with
+# same-origin MFE manifest URLs). Layout: /seed/<db>/*.sql, applied AFTER schema.
+COPY infra/single-vps/seed /seed
+
 ENTRYPOINT ["sh", "/init.sh"]

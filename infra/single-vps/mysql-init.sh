@@ -17,6 +17,11 @@ HOST="${MYSQL_HOST:-mysql}"
 ROOT_PASS="${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD required}"
 APP_USER="${APP_USER:-app}"
 
+# MF remote manifest URLs injected into seed SQL (env-configurable per env).
+# Prod default is same-origin (served by nginx); override for CDN-hosted remotes.
+MFE_ADMIN_ENTRY="${MFE_ADMIN_ENTRY:-/mfe-admin/mf-manifest.json}"
+MFE_CHAT_ENTRY="${MFE_CHAT_ENTRY:-/mfe-chat/mf-manifest.json}"
+
 mysql_root() {
     # `-N` numeric/no-headers; we use it for control statements too because
     # column headers don't hurt either way.
@@ -67,6 +72,29 @@ for db in ${DATABASES}; do
     for f in "${schema_dir}"/*.sql; do
         echo "  → applying $(basename "${f}") to \`${db}\`"
         mysql_root "${db}" < "${f}"
+    done
+done
+
+# ── apply per-database seed data (env-specific config rows) ───
+# Convention: /seed/<db>/*.sql, applied AFTER schema, alphabetical order.
+# Seeds MUST be idempotent (INSERT ... ON DUPLICATE KEY UPDATE) so re-runs are
+# cheap no-ops and never clobber operator changes. Unlike the per-service demo
+# seed (dev-only, in app code), this carries prod config such as the
+# app-registry rows with same-origin MFE manifest URLs.
+for db in ${DATABASES}; do
+    seed_dir="/seed/${db}"
+    if [ ! -d "${seed_dir}" ]; then
+        continue
+    fi
+    if ! ls "${seed_dir}"/*.sql >/dev/null 2>&1; then
+        continue
+    fi
+    for f in "${seed_dir}"/*.sql; do
+        echo "  → seeding $(basename "${f}") into \`${db}\`"
+        # Substitute env-driven placeholders (no-op for files without them).
+        sed -e "s#__MFE_ADMIN_ENTRY__#${MFE_ADMIN_ENTRY}#g" \
+            -e "s#__MFE_CHAT_ENTRY__#${MFE_CHAT_ENTRY}#g" \
+            "${f}" | mysql_root "${db}"
     done
 done
 
