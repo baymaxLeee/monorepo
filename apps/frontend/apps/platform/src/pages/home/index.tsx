@@ -1,4 +1,9 @@
-import { fetchTelemetryErrors, type TelemetryErrorEvent } from "api";
+import {
+  fetchTelemetryErrors,
+  fetchTelemetryPerformance,
+  type TelemetryErrorEvent,
+  type TelemetryPerformanceEvent,
+} from "api";
 import {
   Alert,
   AlertDescription,
@@ -64,6 +69,23 @@ type DashboardData = {
   traces: number;
 };
 
+type VitalMetric = "fcp" | "lcp" | "inp" | "cls" | "ttfb";
+
+type VitalSummary = {
+  count: number;
+  metric: VitalMetric;
+  p75: number | null;
+  rating: string | null;
+};
+
+const VITAL_LABELS: Record<VitalMetric, string> = {
+  cls: "CLS",
+  fcp: "FCP",
+  inp: "INP",
+  lcp: "LCP",
+  ttfb: "TTFB",
+};
+
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {
     day: "2-digit",
@@ -80,14 +102,20 @@ function shortId(value: string | null) {
 export function HomePage() {
   const user = usePlatformStore((state) => state.user);
   const [items, setItems] = useState<TelemetryErrorEvent[]>([]);
+  const [performanceItems, setPerformanceItems] = useState<
+    TelemetryPerformanceEvent[]
+  >([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchTelemetryErrors(200)
-      .then((data) => setItems(data.items))
+    Promise.all([fetchTelemetryErrors(200), fetchTelemetryPerformance(500)])
+      .then(([errors, performance]) => {
+        setItems(errors.items);
+        setPerformanceItems(performance.items);
+      })
       .catch((err) => {
         setError(err instanceof Error ? err.message : String(err));
       })
@@ -99,6 +127,10 @@ export function HomePage() {
   }, [load]);
 
   const data = useMemo(() => buildDashboardData(items), [items]);
+  const vitals = useMemo(
+    () => buildVitalSummaries(performanceItems),
+    [performanceItems],
+  );
 
   return (
     <Page>
@@ -128,6 +160,12 @@ export function HomePage() {
         <MetricCard label="影响会话" value={data.sessions} />
         <MetricCard label="关联 Trace" value={data.traces} />
         <MetricCard label="版本数" value={data.releases.length} />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-5">
+        {vitals.map((item) => (
+          <VitalCard key={item.metric} item={item} />
+        ))}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-12">
@@ -198,6 +236,23 @@ function MetricCard({ label, value }: { label: string; value: number }) {
       <CardHeader className="pb-2">
         <CardDescription>{label}</CardDescription>
         <CardTitle className="text-2xl">{value}</CardTitle>
+      </CardHeader>
+    </Card>
+  );
+}
+
+function VitalCard({ item }: { item: VitalSummary }) {
+  return (
+    <Card>
+      <CardHeader className="space-y-2 pb-2">
+        <div className="flex items-center justify-between gap-2">
+          <CardDescription>{VITAL_LABELS[item.metric]}</CardDescription>
+          {item.rating ? <Badge variant="outline">{item.rating}</Badge> : null}
+        </div>
+        <CardTitle className="text-2xl">
+          {item.p75 === null ? "-" : formatVitalValue(item.metric, item.p75)}
+        </CardTitle>
+        <CardDescription>p75 · {item.count} samples</CardDescription>
       </CardHeader>
     </Card>
   );
@@ -335,6 +390,52 @@ function buildDashboardData(items: TelemetryErrorEvent[]): DashboardData {
     sessions: sessions.size,
     traces: traces.size,
   };
+}
+
+function buildVitalSummaries(
+  items: TelemetryPerformanceEvent[],
+): VitalSummary[] {
+  const metrics: VitalMetric[] = ["fcp", "lcp", "inp", "cls", "ttfb"];
+  return metrics.map((metric) => {
+    const values = items
+      .filter((item) => item.metric === metric)
+      .map((item) => item.value)
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => a - b);
+    const p75 = percentile(values, 0.75);
+    return {
+      count: values.length,
+      metric,
+      p75,
+      rating: p75 === null ? null : rateVital(metric, p75),
+    };
+  });
+}
+
+function percentile(values: number[], ratio: number): number | null {
+  if (values.length === 0) return null;
+  const index = Math.ceil(values.length * ratio) - 1;
+  return values[Math.max(0, Math.min(index, values.length - 1))];
+}
+
+function formatVitalValue(metric: VitalMetric, value: number): string {
+  if (metric === "cls") return value.toFixed(3);
+  if (value >= 1000) return `${(value / 1000).toFixed(2)}s`;
+  return `${Math.round(value)}ms`;
+}
+
+function rateVital(metric: VitalMetric, value: number): string {
+  const thresholds: Record<VitalMetric, [number, number]> = {
+    cls: [0.1, 0.25],
+    fcp: [1800, 3000],
+    inp: [200, 500],
+    lcp: [2500, 4000],
+    ttfb: [800, 1800],
+  };
+  const [good, poor] = thresholds[metric];
+  if (value <= good) return "good";
+  if (value <= poor) return "needs improvement";
+  return "poor";
 }
 
 function topCounts(values: string[], limit: number): CountItem[] {

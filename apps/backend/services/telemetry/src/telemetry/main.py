@@ -8,7 +8,7 @@ from kernel.errors import register_exception_handlers
 from kernel.tracing import TraceIDMiddleware
 
 from .db import close_db
-from .routers import errors, health, rum
+from .routers import errors, health, performance, rum
 
 
 @asynccontextmanager
@@ -29,6 +29,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(rum.router)
     app.include_router(errors.router)
+    app.include_router(performance.router)
     return app
 
 

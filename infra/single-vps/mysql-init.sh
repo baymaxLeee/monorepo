@@ -20,7 +20,7 @@ APP_USER="${APP_USER:-app}"
 mysql_root() {
     # `-N` numeric/no-headers; we use it for control statements too because
     # column headers don't hurt either way.
-    MYSQL_PWD="${ROOT_PASS}" mysql -h "${HOST}" -uroot "$@"
+    MYSQL_PWD="${ROOT_PASS}" mysql --default-character-set=utf8mb4 -h "${HOST}" -uroot "$@"
 }
 
 # Wait a tick past the healthcheck just to be safe — mysql_data init can
