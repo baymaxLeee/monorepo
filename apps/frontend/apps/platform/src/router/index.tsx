@@ -1,3 +1,4 @@
+import { loadRemote } from "@module-federation/enhanced/runtime";
 import {
   Button,
   Card,
@@ -19,6 +20,10 @@ import { registry } from "../registry";
 
 type RouteLoader = LazyLoader<object>;
 
+/** A federated remote module exposing `./App` as its default export. */
+type RemoteModule = { default: ComponentType };
+type RemoteLoader = () => Promise<RemoteModule | null>;
+
 function lazyPage(loader: RouteLoader): RouteObject["lazy"] {
   return async () => {
     const module = await loader();
@@ -28,11 +33,14 @@ function lazyPage(loader: RouteLoader): RouteObject["lazy"] {
 
 function lazyRemote(
   remoteName: string,
-  loader: RouteLoader,
+  loader: RemoteLoader,
 ): RouteObject["lazy"] {
   return async () => {
     const module = await loader();
-    const RemoteApp = module.default as ComponentType;
+    if (!module?.default) {
+      throw new Error(`Remote "${remoteName}" did not expose ./App`);
+    }
+    const RemoteApp = module.default;
 
     function RemoteRoute() {
       return (
@@ -77,10 +85,13 @@ function RemoteErrorFallback({
   );
 }
 
+// Runtime resolution via the MF runtime (remotes are registered from the
+// registry in bootstrap.tsx). Using `loadRemote` instead of a static
+// `import("mfe_admin/App")` keeps the registry as the single discovery source.
 const remoteAppLoaders = {
-  mfe_admin: () => import("mfe_admin/App"),
-  mfe_chat: () => import("mfe_chat/App"),
-} satisfies Record<string, RouteLoader>;
+  mfe_admin: () => loadRemote<RemoteModule>("mfe_admin/App"),
+  mfe_chat: () => loadRemote<RemoteModule>("mfe_chat/App"),
+} satisfies Record<string, RemoteLoader>;
 
 const remoteRoutes: RouteObject[] = registry.flatMap((m) => {
   const loader =

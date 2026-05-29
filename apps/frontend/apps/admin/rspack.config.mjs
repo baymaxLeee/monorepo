@@ -10,10 +10,11 @@ import {
 
 const PORT = Number(process.env.PORT ?? 3001);
 const appDir = path.dirname(fileURLToPath(import.meta.url));
+const isProduction = process.env.NODE_ENV === "production";
 
 export default defineConfig({
   entry: {},
-  mode: process.env.NODE_ENV === "production" ? "production" : "development",
+  mode: isProduction ? "production" : "development",
   lazyCompilation: false,
   ignoreWarnings: [
     {
@@ -51,7 +52,12 @@ export default defineConfig({
     new ModuleFederationPlugin({
       name: "mfe_admin",
       filename: "remoteEntry.js",
-      dts: false,
+      // (c) emit .d.ts for exposes so the platform host can type `loadRemote`.
+      // PRODUCTION BUILD ONLY — generating types under `rspack serve` writes
+      // into a watched dir and triggers an HMR reload loop.
+      dts: isProduction ? { generateTypes: true, consumeTypes: false } : false,
+      // (d) match the host negotiation strategy.
+      shareStrategy: "loaded-first",
       exposes: {
         "./App": "./src/App.tsx",
       },

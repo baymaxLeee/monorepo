@@ -1,4 +1,4 @@
-import { MarkdownEditor } from "components";
+import { MarkdownEditor } from "components/markdown-editor";
 import { useState } from "react";
 import { DemoCard } from "../DemoCard";
 

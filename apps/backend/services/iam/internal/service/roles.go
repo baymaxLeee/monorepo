@@ -18,6 +18,30 @@ func NewRoleService(store *crud.Store) *RoleService {
 	return &RoleService{store: store}
 }
 
+// adminRoleNames are the role names that grant IAM administration privileges
+// (managing roles and user-role assignments). Names are stored normalized.
+var adminRoleNames = map[string]struct{}{
+	"super_admin": {},
+	"admin":       {},
+}
+
+// IsAdmin reports whether the user holds any role that grants IAM
+// administration privileges. It is the authorization gate for every
+// role-management endpoint — without it any authenticated user could grant
+// themselves a privileged role.
+func (s *RoleService) IsAdmin(ctx context.Context, userID string) (bool, error) {
+	roles, err := s.store.UserRoles(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	for _, role := range roles {
+		if _, ok := adminRoleNames[role.Name]; ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (s *RoleService) List(ctx context.Context) ([]schema.RoleResponse, error) {
 	roles, err := s.store.ListRoles(ctx)
 	if err != nil {

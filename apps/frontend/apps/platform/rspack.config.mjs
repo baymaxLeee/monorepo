@@ -162,6 +162,13 @@ export default defineConfig({
       "process.env.APP_RELEASE": JSON.stringify(
         process.env.APP_RELEASE ?? (isProduction ? "unknown" : "dev"),
       ),
+      // Manifest URLs (no `name@` prefix) consumed by registry.ts at runtime.
+      "process.env.MFE_ADMIN_ENTRY_URL": JSON.stringify(
+        MFE_ADMIN_ENTRY.split("@").slice(1).join("@"),
+      ),
+      "process.env.MFE_CHAT_ENTRY_URL": JSON.stringify(
+        MFE_CHAT_ENTRY.split("@").slice(1).join("@"),
+      ),
     }),
     ...(isProduction
       ? [
@@ -173,7 +180,14 @@ export default defineConfig({
       : []),
     new ModuleFederationPlugin({
       name: "platform",
-      dts: false,
+      // PRODUCTION BUILD ONLY. In `rspack serve` the dts plugin writes consumed
+      // remote types into a watched `@mf-types` dir, which retriggers compile →
+      // HMR → full reload → re-fetch types → … an infinite dev reload loop.
+      // Dev stays untyped (router casts loadRemote results); types sync only at
+      // build time.
+      dts: isProduction ? { consumeTypes: true, generateTypes: false } : false,
+      shareStrategy: "loaded-first",
+      runtimePlugins: [path.resolve(appDir, "src/mf-runtime-plugin.ts")],
       remotes: {
         mfe_admin: MFE_ADMIN_ENTRY,
         mfe_chat: MFE_CHAT_ENTRY,
@@ -188,32 +202,15 @@ export default defineConfig({
     },
     headers: { "Access-Control-Allow-Origin": "*" },
     hot: true,
-    // Disable gzip in dev: webpack-dev-server's compression middleware
-    // sits in FRONT of the proxy and buffers chunks until the gzip
-    // deflate window fills, which kills `text/event-stream` streaming
-    // (the AI reply only "appears" after EOF, defeating SSE). Bundle
-    // assets are served from localhost so compression saves nothing
-    // here. Production should still compress via nginx/ingress, where
-    // the SSE content-type is excluded explicitly.
     compress: false,
-    // Same-origin proxy so the browser never preflights /api/* in dev.
-    // Production should mirror this via nginx / ingress.
     proxy: [
       {
         context: ["/api"],
         target: API_TARGET,
         changeOrigin: true,
         secure: false,
-        // SSE streaming requires no buffering on the proxy side. By
-        // default http-proxy-middleware streams chunks straight to the
-        // client; we force keep-alive Connection + opt out of any
-        // request body re-encoding so chunks flush per-token.
         ws: false,
-        // node-http-proxy: don't strip the chunked transfer encoding.
         selfHandleResponse: false,
-        // Forward Accept-Encoding as-is — the browser asks for gzip but
-        // upstream (FastAPI/uvicorn) won't apply it on text/event-stream
-        // since we set compress=false on the dev-server above too.
       },
     ],
   },

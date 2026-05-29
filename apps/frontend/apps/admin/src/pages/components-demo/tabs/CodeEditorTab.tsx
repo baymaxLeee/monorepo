@@ -1,4 +1,4 @@
-import { CodeEditor } from "components";
+import { CodeEditor } from "components/code-editor";
 import { useState } from "react";
 import { DemoCard } from "../DemoCard";
 

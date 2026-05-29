@@ -21,8 +21,3 @@ export interface SharedSpec {
  * normal bundler tree-shaking instead of host fallback chunks.
  */
 export function buildShared(role: Role): Record<string, SharedSpec>;
-
-/**
- * Names of host shared packages configured as eager.
- */
-export const HOST_EAGER_ANCHORS: readonly string[];

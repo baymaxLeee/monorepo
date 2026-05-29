@@ -1,4 +1,7 @@
-import { XMindPreviewer, type XMindPreviewerProps } from "components";
+import {
+  XMindPreviewer,
+  type XMindPreviewerProps,
+} from "components/xmind-previewer";
 import { DemoCard } from "../DemoCard";
 
 const demoMindMapData: NonNullable<XMindPreviewerProps["data"]> = {

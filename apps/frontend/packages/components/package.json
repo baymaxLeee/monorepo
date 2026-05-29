@@ -11,6 +11,11 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./markdown-editor": "./src/MarkdownEditor/index.tsx",
+    "./code-editor": "./src/CodeEditor/index.tsx",
+    "./pdf-previewer": "./src/PdfPreviewer/index.tsx",
+    "./xmind-previewer": "./src/XmindPreviewer/index.tsx",
+    "./file-workspace": "./src/FileWorkspace/index.tsx",
     "./styles.css": "./src/styles.css"
   },
   "dependencies": {

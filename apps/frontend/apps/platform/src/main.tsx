@@ -1,36 +1,9 @@
-import "./mf-eager-anchors";
-import "components/styles.css";
-
-import { initObservability, installWebVitals } from "observability";
-import { createRoot } from "react-dom/client";
-import { App } from "./App";
-
-// Both values are baked in at build time via rspack DefinePlugin.
-// In cross-origin prod (Cloudflare → API), endpoint resolves to an absolute
-// URL by combining process.env.API_BASE_URL + the relative telemetry path.
-declare const process: {
-  env: {
-    API_BASE_URL?: string;
-    TELEMETRY_ENDPOINT?: string;
-    APP_RELEASE?: string;
-  };
-};
-
-const telemetryPath =
-  process.env.TELEMETRY_ENDPOINT ?? "/api/telemetry-server/rum/batch";
-const apiBase = process.env.API_BASE_URL ?? "";
-const telemetryEndpoint =
-  apiBase && telemetryPath.startsWith("/")
-    ? `${apiBase.replace(/\/$/, "")}${telemetryPath}`
-    : telemetryPath;
-
-initObservability({
-  app: "platform",
-  endpoint: telemetryEndpoint,
-  release: process.env.APP_RELEASE ?? "dev",
-});
-installWebVitals();
-
-const container = document.getElementById("root");
-if (!container) throw new Error("#root not found");
-createRoot(container).render(<App />);
+/**
+ * Module Federation host entry.
+ *
+ * Keep this file side-effect-light: the single dynamic import below is the
+ * async boundary that lets the shared scope initialize before any shared
+ * dependency (React, Router, Zustand, platform runtime) is consumed. All real
+ * startup logic lives in `./bootstrap`.
+ */
+import("./bootstrap");

@@ -1,4 +1,5 @@
-import { Badge, PdfPreviewer } from "components";
+import { Badge } from "components";
+import { PdfPreviewer } from "components/pdf-previewer";
 import { DemoCard } from "../DemoCard";
 
 const pdfWorkerSrc =

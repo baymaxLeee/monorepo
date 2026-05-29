@@ -61,9 +61,9 @@ cat > "$MFE_DIR/package.json" <<EOF
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
-    "@module-federation/enhanced": "^0.8.0",
-    "@rspack/cli": "^1.0.0",
-    "@rspack/core": "^1.0.0",
+    "@module-federation/enhanced": "^2.4.0",
+    "@rspack/cli": "^1.7.11",
+    "@rspack/core": "^1.7.11",
     "@swc/helpers": "^0.5.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
@@ -92,6 +92,7 @@ import { createAppResolveAlias } from "../../rspack.shared.mjs";
 
 const PORT = Number(process.env.PORT ?? 3099);
 const appDir = path.dirname(fileURLToPath(import.meta.url));
+const isProduction = process.env.NODE_ENV === "production";
 
 export default defineConfig({
   entry: "./src/main.tsx",
@@ -126,7 +127,10 @@ export default defineConfig({
     new ModuleFederationPlugin({
       name: "__MF_NAME__",
       filename: "remoteEntry.js",
-      dts: false,
+      // dts PRODUCTION BUILD ONLY: under `rspack serve` it writes into a watched
+      // dir and causes an HMR reload loop.
+      dts: isProduction ? { generateTypes: true, consumeTypes: false } : false,
+      shareStrategy: "loaded-first",
       exposes: {
         "./App": "./src/App.tsx",
       },
@@ -193,9 +197,13 @@ EOF
 echo "✓ Created $MFE_DIR"
 echo ""
 echo "Next:"
-echo "  1. Add to apps/frontend/apps/platform/rspack.config.mjs remotes:"
-echo "       $MF_NAME: \`$MF_NAME@http://localhost:<port>/mf-manifest.json\`"
-echo "  2. Add to apps/frontend/apps/platform/src/registry.ts"
+echo "  1. Add to apps/frontend/apps/platform/src/registry.ts (single source):"
+echo "       { id, title, basePath, remoteName: '$MF_NAME', exposeKey: './App',"
+echo "         entry: process.env.MFE_<NAME>_ENTRY_URL ?? 'http://localhost:<port>/mf-manifest.json' }"
+echo "     and register the loader in src/router/index.tsx remoteAppLoaders:"
+echo "       $MF_NAME: () => loadRemote('$MF_NAME/App')"
+echo "  2. (Optional, for build-time types) add $MF_NAME to platform rspack.config.mjs"
+echo "     remotes + a MFE_<NAME>_ENTRY_URL DefinePlugin entry."
 echo "  3. Pick a free port in apps/frontend/justfile PORTS map"
 echo "  4. Add to root Procfile.dev so 'just dev' starts it"
 echo "  5. Add k8s manifests: infra/k8s/base/$NAME/"

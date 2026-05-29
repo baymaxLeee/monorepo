@@ -32,6 +32,18 @@ must declare the workspace dependency in its own `package.json` using
 包内模块必须从该包公开入口 re-export 出去；禁止业务代码导入
 `<包名>/<内部模块>` 或 `<包名>/src/...`。如果一个包需要新增对外 API，先在该包入口导出，再从包名使用。
 
+**`components` 子路径白名单（例外）**：重型组件不进主 barrel，改为 `package.json`
+`exports` 声明的公开子路径，按需从子路径导入（保住主入口 tree-shaking / dev 冷启动）：
+
+- `components/markdown-editor` → `MarkdownEditor`（tiptap）
+- `components/code-editor` → `CodeEditor`（codemirror）
+- `components/pdf-previewer` → `PdfPreviewer`（react-pdf）
+- `components/xmind-previewer` → `XMindPreviewer`（simple-mind-map）
+- `components/file-workspace` → `FileWorkspace`（codemirror + 文件树）
+
+这些子路径是包**公开声明的入口**，不算违反"禁止 `<包名>/src/...`"。新增重型组件时，
+在 `components/package.json` 的 `exports` 增加子路径、并从主 `src/index.ts` 移除其 re-export。
+
 ## Layout
 
 - `apps/<name>/` — independently deployable MFE

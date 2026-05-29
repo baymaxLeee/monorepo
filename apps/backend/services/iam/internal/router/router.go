@@ -158,7 +158,7 @@ func (rt *Router) me(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *Router) listRoles(w http.ResponseWriter, r *http.Request) {
-	if _, ok := rt.claimsFromRequest(w, r); !ok {
+	if _, ok := rt.requireAdmin(w, r); !ok {
 		return
 	}
 	roles, err := rt.roles.List(r.Context())
@@ -170,7 +170,7 @@ func (rt *Router) listRoles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *Router) createRole(w http.ResponseWriter, r *http.Request) {
-	if _, ok := rt.claimsFromRequest(w, r); !ok {
+	if _, ok := rt.requireAdmin(w, r); !ok {
 		return
 	}
 	var req schema.RoleRequest
@@ -194,10 +194,17 @@ func (rt *Router) createRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *Router) listUserRoles(w http.ResponseWriter, r *http.Request) {
-	if _, ok := rt.claimsFromRequest(w, r); !ok {
+	claims, ok := rt.claimsFromRequest(w, r)
+	if !ok {
 		return
 	}
-	roles, err := rt.roles.ListUserRoles(r.Context(), chi.URLParam(r, "userID"))
+	// A user may read their own role assignments; reading anyone else's
+	// requires admin privileges.
+	userID := chi.URLParam(r, "userID")
+	if userID != claims.Subject && !rt.authorizeAdmin(w, r, claims.Subject) {
+		return
+	}
+	roles, err := rt.roles.ListUserRoles(r.Context(), userID)
 	if err != nil {
 		writeProblem(w, http.StatusInternalServerError, "roles_failed", "could not list user roles")
 		return
@@ -206,7 +213,7 @@ func (rt *Router) listUserRoles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *Router) assignUserRole(w http.ResponseWriter, r *http.Request) {
-	if _, ok := rt.claimsFromRequest(w, r); !ok {
+	if _, ok := rt.requireAdmin(w, r); !ok {
 		return
 	}
 	var req schema.AssignRoleRequest
@@ -221,7 +228,7 @@ func (rt *Router) assignUserRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *Router) removeUserRole(w http.ResponseWriter, r *http.Request) {
-	if _, ok := rt.claimsFromRequest(w, r); !ok {
+	if _, ok := rt.requireAdmin(w, r); !ok {
 		return
 	}
 	if err := rt.roles.Remove(r.Context(), chi.URLParam(r, "userID"), chi.URLParam(r, "roleID")); err != nil {
@@ -243,6 +250,35 @@ func (rt *Router) claimsFromRequest(w http.ResponseWriter, r *http.Request) (sec
 		return security.Claims{}, false
 	}
 	return claims, true
+}
+
+// requireAdmin authenticates the caller AND verifies they hold an IAM admin
+// role. Role-management endpoints MUST use this instead of claimsFromRequest —
+// otherwise any authenticated user could grant themselves a privileged role.
+func (rt *Router) requireAdmin(w http.ResponseWriter, r *http.Request) (security.Claims, bool) {
+	claims, ok := rt.claimsFromRequest(w, r)
+	if !ok {
+		return security.Claims{}, false
+	}
+	if !rt.authorizeAdmin(w, r, claims.Subject) {
+		return security.Claims{}, false
+	}
+	return claims, true
+}
+
+// authorizeAdmin reports whether subject holds an admin role, writing the
+// appropriate problem response and returning false when it does not.
+func (rt *Router) authorizeAdmin(w http.ResponseWriter, r *http.Request, subject string) bool {
+	isAdmin, err := rt.roles.IsAdmin(r.Context(), subject)
+	if err != nil {
+		writeProblem(w, http.StatusInternalServerError, "authorization_failed", "could not verify privileges")
+		return false
+	}
+	if !isAdmin {
+		writeProblem(w, http.StatusForbidden, "forbidden", "administrator privileges are required")
+		return false
+	}
+	return true
 }
 
 func (rt *Router) setRefreshCookie(w http.ResponseWriter, token string, expiresAt time.Time) {

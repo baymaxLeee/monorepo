@@ -14,6 +14,12 @@ build/
 .turbo/
 target/
 
+# Module Federation generated remote types (emitted by the dts plugin in
+# production builds; never commit — they pollute the source tree if written
+# outside dist/)
+@mf-types/
+*.mf-types.zip
+
 # Test/lint caches
 .pytest_cache/
 .mypy_cache/

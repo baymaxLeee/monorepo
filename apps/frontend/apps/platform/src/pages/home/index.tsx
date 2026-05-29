@@ -274,8 +274,11 @@ function RecentErrors({ items }: { items: TelemetryErrorEvent[] }) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {items.slice(0, 10).map((item) => (
-          <TableRow key={`${item.fingerprint}-${item.ts_server}`}>
+        {items.slice(0, 10).map((item, index) => (
+          // fingerprint+ts_server is not unique (identical errors batch at the
+          // same millisecond); index is a safe tiebreaker for this read-only,
+          // non-reordered list.
+          <TableRow key={`${item.fingerprint}-${item.ts_server}-${index}`}>
             <TableCell className="whitespace-nowrap">
               {formatTime(item.ts_server)}
             </TableCell>
