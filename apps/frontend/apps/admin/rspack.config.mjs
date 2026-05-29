@@ -30,6 +30,9 @@ export default defineConfig({
     uniqueName: "mfe_admin",
     clean: true,
   },
+  optimization: {
+    mangleExports: false,
+  },
   resolve: {
     extensions: [".ts", ".tsx", ".js", ".jsx"],
     alias: createAppResolveAlias(appDir),
