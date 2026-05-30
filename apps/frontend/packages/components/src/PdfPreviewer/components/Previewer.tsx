@@ -47,19 +47,13 @@ const DEFAULT_WORKER_SRC = new URL(
   import.meta.url,
 ).toString();
 
-const configurePdfWorker = (workerSrc: string) => {
-  const options = (
-    pdfjs as unknown as {
-      GlobalWorkerOptions?: { workerSrc?: string };
-    }
-  ).GlobalWorkerOptions;
-  if (!options) return;
-  if (options.workerSrc !== workerSrc) {
-    options.workerSrc = workerSrc;
+const setPdfWorkerSrc = (workerSrc: string) => {
+  if (pdfjs.GlobalWorkerOptions.workerSrc !== workerSrc) {
+    pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
   }
 };
 
-configurePdfWorker(DEFAULT_WORKER_SRC);
+setPdfWorkerSrc(DEFAULT_WORKER_SRC);
 
 /** keyword 高亮 `<mark>` 的稳定 hook，用于 onHighlightClick 与 scrollToHighlight 选择器 */
 const KEYWORD_MARK_DATA_ATTR = "data-pdf-keyword-mark";
@@ -480,7 +474,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
     };
 
     useEffect(() => {
-      configurePdfWorker(workerSrc);
+      setPdfWorkerSrc(workerSrc);
     }, [workerSrc]);
 
     useEffect(() => {
