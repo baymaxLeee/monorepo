@@ -6,8 +6,11 @@
  * - Tier2 runtime/shared/observability: cross-MFE runtime identity → singleton.
  *   (UI kit `components` + `api` stay normal deps so each app tree-shakes them.)
  * - Tier3 Zustand: singleton for the shared platform store.
- * - Tier4 heavy leaf libs (tiptap/codemirror): singleton:false dedupe, provided
- *   by remotes (host never imports), de-duped into one runtime chunk.
+ * - Tier4 editor runtimes (tiptap/prosemirror): singleton because editor state,
+ *   plugin decorations, node views, and commands carry runtime object identity.
+ *   Remotes provide them on demand; the first loaded remote owns the singleton.
+ * - Tier5 heavy leaf libs (codemirror): singleton:false dedupe, provided by
+ *   remotes (host never imports), de-duped into one runtime chunk.
  */
 
 /**
@@ -15,7 +18,6 @@
  * @property {boolean} [singleton]
  * @property {string|false} [requiredVersion]
  * @property {boolean} [strictVersion]
- * @property {boolean} [eager]
  * @property {string|false} [import]
  */
 
@@ -23,6 +25,7 @@
  * @typedef {"host" | "remote"} Role
  */
 
+// react core must singleton
 const TIER1 = {
   react: { singleton: true, requiredVersion: "^18.0.0", strictVersion: true },
   "react/jsx-runtime": {
@@ -57,12 +60,14 @@ const TIER1 = {
   },
 };
 
+// runtime core must singleton
 const TIER2 = {
   shared: { singleton: true, requiredVersion: false },
   runtime: { singleton: true, requiredVersion: false },
   observability: { singleton: true, requiredVersion: false },
 };
 
+// global store must singleton
 const TIER3 = {
   zustand: { singleton: true, requiredVersion: "^5.0.0", strictVersion: false },
   "zustand/middleware": {
@@ -77,33 +82,87 @@ const TIER3 = {
   },
 };
 
-/**
- * Heavy, dedupe-only libraries. Provided by remotes (not the host) and shared
- * across remotes via the runtime share scope. Add an entry here ONLY when a
- * library is (1) heavy, (2) stable across versions, and (3) imported by 2+ apps
- * through `components`. Tree-shaking still applies inside the shared chunk.
- */
-const TIER4_DEDUPE = {
+const EDITOR_SINGLETON_SPEC = {
+  singleton: true,
+  requiredVersion: "^3.0.0",
+  strictVersion: false,
+};
+
+// prosemirror/tiptap must singleton
+const TIER4 = {
   "@tiptap/core": {
-    singleton: false,
-    requiredVersion: "^3.0.0",
-    strictVersion: false,
+    ...EDITOR_SINGLETON_SPEC,
   },
   "@tiptap/react": {
-    singleton: false,
-    requiredVersion: "^3.0.0",
-    strictVersion: false,
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/react/menus": {
+    ...EDITOR_SINGLETON_SPEC,
   },
   "@tiptap/pm": {
-    singleton: false,
-    requiredVersion: "^3.0.0",
-    strictVersion: false,
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/pm/model": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/pm/state": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/pm/tables": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/pm/view": {
+    ...EDITOR_SINGLETON_SPEC,
   },
   "@tiptap/starter-kit": {
-    singleton: false,
-    requiredVersion: "^3.0.0",
-    strictVersion: false,
+    ...EDITOR_SINGLETON_SPEC,
   },
+  "@tiptap/markdown": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/extension-code": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/extension-code-block-lowlight": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/extension-code-block": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/extension-color": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/extension-highlight": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/extension-image": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/extension-table": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/extension-table-header": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/extension-table-row": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/extension-task-item": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/extension-task-list": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/extension-text-align": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+  "@tiptap/extension-text-style": {
+    ...EDITOR_SINGLETON_SPEC,
+  },
+};
+
+// remote-provided dedupe-only libraries
+const TIER5 = {
   "@codemirror/state": {
     singleton: false,
     requiredVersion: "^6.0.0",
@@ -121,17 +180,20 @@ const TIER4_DEDUPE = {
   },
 };
 
-/** Singleton runtime contracts the host owns and provides to every remote. */
-const HOST_SHARED = { ...TIER1, ...TIER2, ...TIER3 };
+/** Runtime contracts the host owns and provides to every remote. */
+const hostProviders = { ...TIER1, ...TIER2, ...TIER3 };
 
-/** Remotes consume host singletons AND can provide/dedupe Tier-4 leaf libs. */
-const REMOTE_CONSUME = { ...TIER1, ...TIER2, ...TIER3 };
+/** Runtime contracts remotes can provide on demand and consume from each other. */
+const remoteProviders = {
+  ...TIER4,
+  ...TIER5,
+};
 
 /**
  * `shared` config for an MF plugin instance.
- * - Host: provides every singleton (not eager — async bootstrap boundary).
- * - Remote: Tier1-3 `import:false` (consume host singleton); Tier4 bundled so
- *   the remote can provide + dedupe it.
+ * - Host: provides platform-owned runtime contracts.
+ * - Remote: consumes host-owned contracts with `import:false`; editor/dedupe
+ *   contracts stay bundled so remotes can provide and consume them on demand.
  * @param {Role} role
  * @returns {Record<string, SharedSpec>}
  */
@@ -140,17 +202,18 @@ export function buildShared(role) {
   const out = {};
 
   if (role === "host") {
-    for (const [name, spec] of Object.entries(HOST_SHARED)) {
-      out[name] = { ...spec, eager: false };
+    for (const [name, spec] of Object.entries(hostProviders)) {
+      out[name] = { ...spec };
     }
     return out;
   }
 
-  for (const [name, spec] of Object.entries(REMOTE_CONSUME)) {
-    out[name] = { ...spec, eager: false, import: false };
+  for (const [name, spec] of Object.entries(hostProviders)) {
+    out[name] = { ...spec, import: false };
   }
-  for (const [name, spec] of Object.entries(TIER4_DEDUPE)) {
-    out[name] = { ...spec, eager: false };
+
+  for (const [name, spec] of Object.entries(remoteProviders)) {
+    out[name] = { ...spec };
   }
   return out;
 }

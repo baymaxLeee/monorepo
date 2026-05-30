@@ -10,7 +10,6 @@ export interface SharedSpec {
   singleton?: boolean;
   requiredVersion?: string | false;
   strictVersion?: boolean;
-  eager?: boolean;
   import?: string | false;
 }
 

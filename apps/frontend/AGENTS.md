@@ -87,7 +87,7 @@ deployed asset bundles, but platform is the only user-facing entry.
 - **State**: shared cross-MFE state primitives live in `runtime`; `zustand`, `zustand/middleware`, and shallow selector helpers are host-provided MF singletons. Private MFE stores may import `create` / `useShallow` directly from `zustand` packages; do not wrap static Zustand APIs in `runtime`.
 - **Shell 布局**: platform `Layout` 使用 `Sidebar` + `registry.subNav`；MFE 只渲染内容区（无二次顶栏）
 - **全局浮层**: platform `AppProviders` 挂载 `TooltipProvider` + `Toaster`（`toast` 从 `components` 导出）
-- **MFE 内 Provider**: remote 一般不再重复挂全局 `TooltipProvider` / `Toaster`；需要局部 provider 时从 `components` 正常导入
+- **MFE 内 Provider**: 每个 remote 的 `App` 也要挂载自己的 `TooltipProvider`；`Toaster` 保持由 platform 统一挂载
 - **表单**: `Form` + `Field` + `react-hook-form` + `zod`；业务页勿手写裸 `Label`+`useState` 校验
 - **页面布局**: `Page` / `PageHeader`；加载态用 `Skeleton`
 - **组件升级流程**（在 `apps/frontend/packages/components`）:
