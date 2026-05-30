@@ -52,6 +52,10 @@ export function createRemoteCssRule({ loader = "style-loader" } = {}) {
 export function createAppResolveAlias(appDir) {
   return {
     "@": path.resolve(appDir, "src"),
+    // pdfjs-dist's default build/pdf.mjs declares an internal
+    // `__webpack_exports__`, which Rspack can shadow when wrapping the module.
+    // The minified ESM build does not contain that internal webpack export var.
+    "pdfjs-dist$": "pdfjs-dist/build/pdf.min.mjs",
     ...workspaceAliases,
   };
 }

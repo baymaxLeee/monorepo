@@ -48,11 +48,7 @@ export default defineConfig({
     new ModuleFederationPlugin({
       name: "mfe_chat",
       filename: "remoteEntry.js",
-      // No MF type generation: the host loads remotes dynamically via
-      // `loadRemote` (cast), and shared/workspace types come from the pnpm
-      // workspace + packages. MF dts adds no value in a single-repo setup.
       dts: false,
-      // (d) match the host negotiation strategy.
       shareStrategy: "loaded-first",
       exposes: {
         "./App": "./src/App.tsx",
