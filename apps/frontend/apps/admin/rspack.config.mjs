@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { rspack } from "@rspack/core";
 import { ModuleFederationPlugin } from "@module-federation/enhanced/rspack";
 import { defineConfig } from "@rspack/cli";
 import { buildShared } from "../../mf-shared.mjs";
@@ -32,6 +33,15 @@ export default defineConfig({
   },
   optimization: {
     mangleExports: false,
+    // pdfjs-dist ships as a bundled ESM file; SWC name mangling can collide
+    // with its internal exports object and make react-pdf see an empty module.
+    minimizer: [
+      new rspack.SwcJsMinimizerRspackPlugin({
+        minimizerOptions: {
+          mangle: false,
+        },
+      }),
+    ],
   },
   resolve: {
     extensions: [".ts", ".tsx", ".js", ".jsx"],
