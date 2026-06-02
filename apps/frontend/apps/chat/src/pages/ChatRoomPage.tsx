@@ -25,18 +25,11 @@ import {
   SelectValue,
   Skeleton,
   Switch,
-  Textarea,
   toast,
 } from "components";
-import { SendHorizonalIcon, SettingsIcon } from "lucide-react";
-import {
-  type FormEvent,
-  memo,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { PromptInput, type PromptInputRef } from "components/prompt-input";
+import { SettingsIcon } from "lucide-react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Streamdown } from "streamdown";
 import "streamdown/styles.css";
@@ -94,9 +87,9 @@ export function ChatRoomPage() {
   const [messages, setMessages] = useState<StreamingMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
   const [prefs, setPrefs] = useState<ReasoningPrefs>(() => loadPrefs());
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const promptInputRef = useRef<PromptInputRef | null>(null);
 
   const updatePrefs = useCallback((patch: Partial<ReasoningPrefs>) => {
     setPrefs((prev) => {
@@ -170,14 +163,12 @@ export function ChatRoomPage() {
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function sendPrompt(content: string) {
     if (!id) return;
-    const content = draft.trim();
     if (!content || sending) return;
 
     setSending(id);
-    setDraft("");
+    promptInputRef.current?.clear();
     const now = new Date().toISOString();
     const userMsg: StreamingMessage = {
       id: placeholderId("user"),
@@ -403,32 +394,17 @@ export function ChatRoomPage() {
           </span>
         </div>
 
-        <form onSubmit={onSubmit} className="flex items-end gap-2 border-t p-3">
-          <Textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                (
-                  e.currentTarget.form as HTMLFormElement | null
-                )?.requestSubmit();
-              }
-            }}
+        <div className="border-t p-3">
+          <PromptInput
+            ref={promptInputRef}
             placeholder="向模型发送一条消息…"
-            rows={2}
-            className="min-h-[3rem] flex-1 resize-none"
-            disabled={sending}
-            aria-label="消息输入框"
+            disabled={sending || !hasProviders}
+            loading={sending}
+            onSubmit={(value) => {
+              void sendPrompt(value.text.trim());
+            }}
           />
-          <Button
-            type="submit"
-            disabled={!draft.trim() || sending || !hasProviders}
-            className="gap-1"
-          >
-            <SendHorizonalIcon aria-hidden="true" className="size-4" />
-            {sending ? "回复中…" : "发送"}
-          </Button>
-        </form>
+        </div>
       </div>
     </Page>
   );
