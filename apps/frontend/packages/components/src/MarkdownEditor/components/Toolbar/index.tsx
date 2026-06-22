@@ -61,7 +61,7 @@ import { Input } from "../../../Input";
 import { Menu, MenuItem, MenuItemGroup } from "../../../Menu";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../Popover";
 import { Textarea } from "../../../Textarea";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../../Tooltip";
+import { Tooltip, TooltipTrigger } from "../../../Tooltip";
 import {
   AiPolishStatus,
   ALLOWED_IMAGE_ACCEPT,
@@ -84,6 +84,7 @@ import {
   parseSSEStream,
   type SelectionSnapshot,
 } from "../../utils";
+import { EditorTooltipContent } from "../EditorTooltipContent";
 import { TableSelector } from "../TableSelector";
 
 interface IProps {
@@ -306,7 +307,7 @@ export const ColorPickerContent = ({
                   </span>
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="top">{item.label}</TooltipContent>
+              <EditorTooltipContent>{item.label}</EditorTooltipContent>
             </Tooltip>
           ))}
         </div>
@@ -340,7 +341,7 @@ export const ColorPickerContent = ({
                   </div>
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="top">{item.label}</TooltipContent>
+              <EditorTooltipContent>{item.label}</EditorTooltipContent>
             </Tooltip>
           ))}
         </div>
@@ -836,7 +837,7 @@ export const AIPolishContent = ({
               <Send className="size-3.5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>发送</TooltipContent>
+          <EditorTooltipContent>发送</EditorTooltipContent>
         </Tooltip>
       );
     } else if (status === AiPolishStatus.Loading) {
@@ -852,7 +853,7 @@ export const AIPolishContent = ({
               <Square className="size-3 fill-current" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>终止</TooltipContent>
+          <EditorTooltipContent>终止</EditorTooltipContent>
         </Tooltip>
       );
     }
@@ -890,7 +891,7 @@ export const AIPolishContent = ({
                 <Copy className="size-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>复制</TooltipContent>
+            <EditorTooltipContent>复制</EditorTooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -903,7 +904,7 @@ export const AIPolishContent = ({
                 <RefreshCw className="size-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>重试</TooltipContent>
+            <EditorTooltipContent>重试</EditorTooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -916,7 +917,7 @@ export const AIPolishContent = ({
                 <RotateCcw className="size-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>重置</TooltipContent>
+            <EditorTooltipContent>重置</EditorTooltipContent>
           </Tooltip>
         </div>
       </>
@@ -1175,7 +1176,7 @@ const ToolbarContent = ({
           {icon}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
+      <EditorTooltipContent>{label}</EditorTooltipContent>
     </Tooltip>
   );
 
@@ -1198,7 +1199,7 @@ const ToolbarContent = ({
                   <span className="text-xs">AI 润色</span>
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">AI 润色</TooltipContent>
+              <EditorTooltipContent>AI 润色</EditorTooltipContent>
             </Tooltip>
             <span className={dividerCls} />
           </>
@@ -1329,7 +1330,7 @@ const ToolbarContent = ({
               <Link2 />
             </PopoverTrigger>
           </TooltipTrigger>
-          <TooltipContent side="bottom">链接</TooltipContent>
+          <EditorTooltipContent>链接</EditorTooltipContent>
         </Tooltip>
         <PopoverContent
           align="start"
@@ -1464,7 +1465,7 @@ const ToolbarContent = ({
                     <TableIcon />
                   </PopoverTrigger>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">插入表格</TooltipContent>
+                <EditorTooltipContent>插入表格</EditorTooltipContent>
               </Tooltip>
               <PopoverContent align="start" className="w-auto p-2">
                 <TableSelector
@@ -1530,7 +1531,7 @@ const ToolbarContent = ({
                   <MessageSquare />
                 </PopoverTrigger>
               </TooltipTrigger>
-              <TooltipContent side="bottom">评论</TooltipContent>
+              <EditorTooltipContent>评论</EditorTooltipContent>
             </Tooltip>
             <PopoverContent align="end" className="w-64 p-3">
               <Textarea

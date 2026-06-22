@@ -17,9 +17,10 @@ import {
 } from "../../../Form";
 import { Input } from "../../../Input";
 import { Popover, PopoverAnchor, PopoverContent } from "../../../Popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../../Tooltip";
+import { Tooltip, TooltipTrigger } from "../../../Tooltip";
 import { URL_REGEX } from "../../constants";
 import { getFullUrl, getMountedEditorDom } from "../../utils";
+import { EditorTooltipContent } from "../EditorTooltipContent";
 
 interface LinkMenuProps {
   editor: Editor;
@@ -253,7 +254,7 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
                   <Pencil className="size-4" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent>编辑链接</TooltipContent>
+              <EditorTooltipContent>编辑链接</EditorTooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -265,7 +266,7 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
                   <Unlink className="size-4" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent>移除链接</TooltipContent>
+              <EditorTooltipContent>移除链接</EditorTooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -277,7 +278,7 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
                   <Copy className="size-4" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent>复制链接</TooltipContent>
+              <EditorTooltipContent>复制链接</EditorTooltipContent>
             </Tooltip>
           </div>
         ) : (

@@ -42,6 +42,12 @@ class Settings(BaseSettings):
 
     # Upstream LLM call timeout (seconds).
     llm_timeout_seconds: float = 60.0
+    # MarkItDown demo upload guardrails. Keep the gateway body limit aligned
+    # above this value so small docs can pass through while large files fail
+    # before conversion work starts.
+    attachment_max_upload_bytes: int = 10 * 1024 * 1024
+    attachment_markdown_max_chars: int = 12_000
+    agent_max_turns: int = 8
     # How long to cache a decrypted provider snapshot in-process. Five
     # minutes balances "admin can rotate keys without restarts" with
     # "don't hammer admin on every streamed reply chunk".

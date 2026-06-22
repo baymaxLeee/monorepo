@@ -166,7 +166,6 @@ export function bulkDeleteIntentions(
   });
 }
 
-
 export interface ModelProvider {
   id: string;
   user_id: string;
@@ -271,7 +270,6 @@ export function testModelProvider(
     data: input,
   });
 }
-
 
 /** A platform app/product entry. Mirrors admin `App` schema. */
 export interface AppEntry {

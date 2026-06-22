@@ -34,7 +34,8 @@ export function ConversationListPage() {
             开启第一个会话
           </CardTitle>
           <CardDescription>
-            点击左侧「新建」创建会话，发消息后即会通过 SSE 流式渲染助手回复。
+            点击左侧「新建」创建会话，后续消息默认通过 chat agent
+            runtime 处理。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
@@ -43,15 +44,13 @@ export function ConversationListPage() {
             gateway 暴露为 <InlineCode>/api/chat-server/*</InlineCode>。
           </p>
           <p>
-            未配置 <InlineCode>OPENAI_API_KEY</InlineCode>{" "}
-            时，服务会自动切到内置 echo mock，保证 demo 始终可用。
+            默认发送入口会调用{" "}
+            <InlineCode>POST /api/chat-server/conversations/:id/agents/run</InlineCode>
+            ，由 agent 判断是否需要读取附件、调用工具并写入会话 artifact。
           </p>
           <Muted>
-            正式接入：在{" "}
-            <InlineCode>apps/backend/services/chat/.env</InlineCode> 中设置{" "}
-            <InlineCode>OPENAI_BASE_URL</InlineCode> /{" "}
-            <InlineCode>OPENAI_API_KEY</InlineCode> /{" "}
-            <InlineCode>OPENAI_MODEL</InlineCode>。
+            模型 Provider 在 Admin「模型管理」中配置，chat-server 只在服务端读取
+            已配置的 OpenAI 兼容端点。
           </Muted>
         </CardContent>
       </Card>

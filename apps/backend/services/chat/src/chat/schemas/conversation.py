@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from chat.schemas.document import ConversationDocument
+
 MessageRole = Literal["user", "assistant", "system"]
 MessageStatus = Literal["ok", "streaming", "failed"]
 ReasoningEffort = Literal["low", "medium", "high"]
@@ -30,6 +32,7 @@ class Conversation(BaseModel):
 
 class ConversationDetail(Conversation):
     messages: list[Message] = []
+    documents: list[ConversationDocument] = []
 
 
 class CreateConversationInput(BaseModel):
@@ -43,8 +46,17 @@ class UpdateConversationInput(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
 
 
+class MessageAttachmentContext(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    mime_type: str = Field(default="application/octet-stream", max_length=120)
+    markdown: str = Field(min_length=1, max_length=12_500)
+    truncated: bool = False
+
+
 class SendMessageInput(BaseModel):
-    content: str = Field(min_length=1, max_length=8000)
+    content: str = Field(min_length=1, max_length=24000)
+    attachments: list[MessageAttachmentContext] = Field(default_factory=list, max_length=5)
+    document_ids: list[str] = Field(default_factory=list, max_length=10)
 
     # Optional pinning of the model provider for this message. When omitted,
     # the message inherits the conversation's `model` field (if previously

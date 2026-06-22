@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import (
 from .config import get_settings
 from .models.base import Base
 from .models.conversation import ConversationRow
+from .models.document import ConversationDocumentRow as ConversationDocumentRow
 from .models.message import MessageRow
 
 _engine: AsyncEngine | None = None

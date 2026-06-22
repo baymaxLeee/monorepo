@@ -44,6 +44,28 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
+export type PerformanceEventPayload = { [key: string]: unknown };
+
+export interface PerformanceEvent {
+  ts_server: string;
+  app: string;
+  release: string;
+  user_id: string | null;
+  username: string | null;
+  is_admin: boolean;
+  device_id: string;
+  session_id: string;
+  trace_id: string | null;
+  route: string;
+  metric: string;
+  value: number;
+  payload: PerformanceEventPayload;
+}
+
+export interface PerformanceListResponse {
+  items: PerformanceEvent[];
+}
+
 export type RumBatchApp = typeof RumBatchApp[keyof typeof RumBatchApp];
 
 
@@ -103,6 +125,14 @@ export type ListErrorEventsErrorsGetParams = {
 /**
  * @minimum 1
  * @maximum 500
+ */
+limit?: number;
+};
+
+export type ListPerformanceEventsPerformanceGetParams = {
+/**
+ * @minimum 1
+ * @maximum 1000
  */
 limit?: number;
 };
@@ -174,7 +204,20 @@ const listErrorEventsErrorsGet = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,batchRumBatchPost,listErrorEventsErrorsGet}};
+/**
+ * @summary List Performance Events
+ */
+const listPerformanceEventsPerformanceGet = (
+    params?: ListPerformanceEventsPerformanceGetParams,
+ options?: SecondParameter<typeof apiMutator<PerformanceListResponse>>,) => {
+      return apiMutator<PerformanceListResponse>(
+      {url: `/performance`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,batchRumBatchPost,listErrorEventsErrorsGet,listPerformanceEventsPerformanceGet}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -185,3 +228,4 @@ export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<ty
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTelemetryService>['healthzHealthzGet']>>>
 export type BatchRumBatchPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTelemetryService>['batchRumBatchPost']>>>
 export type ListErrorEventsErrorsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTelemetryService>['listErrorEventsErrorsGet']>>>
+export type ListPerformanceEventsPerformanceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTelemetryService>['listPerformanceEventsPerformanceGet']>>>

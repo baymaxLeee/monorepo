@@ -47,14 +47,14 @@ func Recoverer(next http.Handler) http.Handler {
 // Specifically we MUST forward:
 //
 //   - http.Flusher    — without this, `httputil.ReverseProxy` can't detect
-//                       that the downstream supports streaming, and SSE
-//                       responses get buffered to EOF instead of being
-//                       flushed per chunk. That breaks /api/chat-server's
-//                       `text/event-stream` reply (request hangs in
-//                       "pending" until the LLM finishes the whole answer).
+//     that the downstream supports streaming, and SSE
+//     responses get buffered to EOF instead of being
+//     flushed per chunk. That breaks /api/chat-server's
+//     `text/event-stream` reply (request hangs in
+//     "pending" until the LLM finishes the whole answer).
 //   - http.Hijacker   — websockets / connection upgrades.
 //   - Unwrap()        — lets Go 1.20+ `http.ResponseController` reach the
-//                       original writer for read/write deadline tweaks.
+//     original writer for read/write deadline tweaks.
 type statusWriter struct {
 	http.ResponseWriter
 	status      int

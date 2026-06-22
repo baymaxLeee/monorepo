@@ -6,6 +6,20 @@
  * OpenAPI spec version: 0.1.0
  */
 import { apiMutator } from '../../src/orval-mutator';
+export interface App {
+  id: string;
+  title: string;
+  base_path: string;
+  remote_name: string;
+  expose_key: string;
+  entry: string;
+  requires_admin: boolean;
+  is_enabled: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export type BotStatus = typeof BotStatus[keyof typeof BotStatus];
 
 
@@ -58,6 +72,40 @@ export interface BulkDeleteScenesInput {
 
 export interface BulkDeleteScenesResult {
   deleted: number;
+}
+
+export interface CreateAppInput {
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  title: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  base_path: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  remote_name: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  expose_key?: string;
+  /** @maxLength 500 */
+  entry?: string;
+  requires_admin?: boolean;
+  is_enabled?: boolean;
+  /** @minimum 0 */
+  sort_order?: number;
 }
 
 export interface CreateBotInput {
@@ -250,6 +298,17 @@ export interface TestModelProviderResult {
   latency_ms?: number | null;
   sample?: string | null;
   error?: string | null;
+}
+
+export interface UpdateAppInput {
+  title?: string | null;
+  base_path?: string | null;
+  remote_name?: string | null;
+  expose_key?: string | null;
+  entry?: string | null;
+  requires_admin?: boolean | null;
+  is_enabled?: boolean | null;
+  sort_order?: number | null;
 }
 
 export type UpdateIntentionInputStatus = typeof UpdateIntentionInputStatus[keyof typeof UpdateIntentionInputStatus] | null;
@@ -689,7 +748,72 @@ const getProviderInternalInternalProvidersProviderIdGet = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,listScenesScenesGet,createSceneScenesPost,getSceneScenesSceneIdGet,updateSceneScenesSceneIdPatch,deleteSceneScenesSceneIdDelete,bulkDeleteScenesScenesBulkDeletePost,listIntentionsIntentionsGet,createIntentionIntentionsPost,getIntentionIntentionsIntentionIdGet,updateIntentionIntentionsIntentionIdPatch,deleteIntentionIntentionsIntentionIdDelete,bulkDeleteIntentionsIntentionsBulkDeletePost,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderInternalInternalProvidersProviderIdGet}};
+/**
+ * @summary List Apps
+ */
+const listAppsAppsGet = (
+
+ options?: SecondParameter<typeof apiMutator<App[]>>,) => {
+      return apiMutator<App[]>(
+      {url: `/apps`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * @summary Create App
+ */
+const createAppAppsPost = (
+    createAppInput: CreateAppInput,
+ options?: SecondParameter<typeof apiMutator<App>>,) => {
+      return apiMutator<App>(
+      {url: `/apps`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createAppInput
+    },
+      options);
+    }
+
+/**
+ * @summary Get App
+ */
+const getAppAppsAppIdGet = (
+    appId: string,
+ options?: SecondParameter<typeof apiMutator<App>>,) => {
+      return apiMutator<App>(
+      {url: `/apps/${appId}`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * @summary Update App
+ */
+const updateAppAppsAppIdPatch = (
+    appId: string,
+    updateAppInput: UpdateAppInput,
+ options?: SecondParameter<typeof apiMutator<App>>,) => {
+      return apiMutator<App>(
+      {url: `/apps/${appId}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: updateAppInput
+    },
+      options);
+    }
+
+/**
+ * @summary Delete App
+ */
+const deleteAppAppsAppIdDelete = (
+    appId: string,
+ options?: SecondParameter<typeof apiMutator<void>>,) => {
+      return apiMutator<void>(
+      {url: `/apps/${appId}`, method: 'DELETE'
+    },
+      options);
+    }
+
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,listScenesScenesGet,createSceneScenesPost,getSceneScenesSceneIdGet,updateSceneScenesSceneIdPatch,deleteSceneScenesSceneIdDelete,bulkDeleteScenesScenesBulkDeletePost,listIntentionsIntentionsGet,createIntentionIntentionsPost,getIntentionIntentionsIntentionIdGet,updateIntentionIntentionsIntentionIdPatch,deleteIntentionIntentionsIntentionIdDelete,bulkDeleteIntentionsIntentionsBulkDeletePost,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderInternalInternalProvidersProviderIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -723,3 +847,8 @@ export type SetDefaultProviderProvidersProviderIdSetDefaultPostResult = NonNulla
 export type TestProviderProvidersProviderIdTestPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['testProviderProvidersProviderIdTestPost']>>>
 export type GetDefaultProviderInternalInternalProvidersDefaultGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getDefaultProviderInternalInternalProvidersDefaultGet']>>>
 export type GetProviderInternalInternalProvidersProviderIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getProviderInternalInternalProvidersProviderIdGet']>>>
+export type ListAppsAppsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listAppsAppsGet']>>>
+export type CreateAppAppsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createAppAppsPost']>>>
+export type GetAppAppsAppIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getAppAppsAppIdGet']>>>
+export type UpdateAppAppsAppIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateAppAppsAppIdPatch']>>>
+export type DeleteAppAppsAppIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['deleteAppAppsAppIdDelete']>>>

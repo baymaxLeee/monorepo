@@ -23,14 +23,27 @@
 
 - 普通 CRUD 走 `api.fetchConversations` / `createConversation` /
   `fetchConversation` / `deleteConversation`。
+- 聊天框附件走 `api.uploadConversationDocument(conversationId, file)`，由
+  chat-server 使用 Microsoft MarkItDown 转成 Markdown，并以 `source` 文档写入
+  当前会话。
 - 发送消息走 `streamChatMessage(conversationId, { content }, { onChunk })`。
   这是前端唯一一处直接 `fetch`+`ReadableStream` 的封装，集中在
   `packages/api/src/chat-server.ts`，业务侧（MFE）只看到 `onChunk` 回调。
+  当有附件时，MFE 先上传生成会话文档，再把 `document_ids[]` 传给消息接口；
+  用户气泡持久化 `[[chat-document:<id>]]` 标记并渲染成可点击文档 card。
+- 聊天输入框的“Agent 运行”走
+  `api.runConversationAgent(conversationId, { prompt, document_ids })`：agent 可读取
+  会话文档，并在需要输出文件时调用 `write_artifact` 写入新的 `artifact`
+  文档。
+- 所有 `source` / `artifact` 文档 card 点击后都用现有
+  `components/markdown-editor` 打开，可预览、二次编辑并保存回 chat-server。
 
 ## 状态管理
 
 - 会话与消息列表是页面级 `useState`（请求结束后从服务端回填权威 id /
   时间戳）。
+- 会话文档列表随 `ConversationDetail.documents` 一起回填；完整 Markdown 内容按需
+  通过 `fetchConversationDocument()` 懒加载，避免时间线一次性拉大。
 - 发送过程中的 "锁" 放在私有 zustand store `useChatStore.sendingConversationId`，
   避免重复提交。
 - 跨 MFE 通信走 `runtime` 事件总线（当前未启用，后续接入 admin 已发布的

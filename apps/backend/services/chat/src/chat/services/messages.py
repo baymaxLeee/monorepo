@@ -12,8 +12,9 @@ from chat.crud import conversations as conversation_crud
 from chat.crud import messages as message_crud
 from chat.deps import AuthContext
 from chat.models.conversation import ConversationRow
-from chat.schemas.conversation import ReasoningEffort
+from chat.schemas.conversation import MessageAttachmentContext, ReasoningEffort
 from chat.services.admin_client import AdminClient, ProviderSnapshot
+from chat.services.documents import ConversationDocumentService, with_document_context, with_document_refs
 from chat.services.llm import LLMClient
 
 
@@ -55,6 +56,8 @@ class MessageService:
         conversation_id: str,
         user_content: str,
         *,
+        attachments: list[MessageAttachmentContext] | None = None,
+        document_ids: list[str] | None = None,
         provider_id: str | None = None,
         thinking: bool | None = None,
         reasoning_effort: ReasoningEffort | None = None,
@@ -71,11 +74,16 @@ class MessageService:
             row.provider_id = snapshot.id
             row.model = snapshot.model
 
+        documents = await ConversationDocumentService(self._session, self._current_user).get_rows(
+            row.id,
+            document_ids or [],
+        )
+        display_content = with_document_refs(user_content, documents)
         await message_crud.create_message(
             self._session,
             conversation_id=row.id,
             role="user",
-            content=user_content,
+            content=display_content,
             status="ok",
         )
 
@@ -83,6 +91,10 @@ class MessageService:
         history: list[dict[str, str]] = [
             {"role": m.role, "content": m.content} for m in history_rows if m.status != "failed"
         ]
+        if attachments and history and history[-1]["role"] == "user":
+            history[-1]["content"] = self._with_attachment_context(user_content, attachments)
+        elif documents and history and history[-1]["role"] == "user":
+            history[-1]["content"] = with_document_context(user_content, documents)
 
         llm = LLMClient.from_provider(
             snapshot,
@@ -119,6 +131,33 @@ class MessageService:
             status="ok",
         )
         await conversation_crud.touch_conversation(self._session, row)
+
+    @staticmethod
+    def _with_attachment_context(
+        user_content: str,
+        attachments: list[MessageAttachmentContext],
+    ) -> str:
+        blocks = []
+        for index, attachment in enumerate(attachments, start=1):
+            truncated = " (truncated)" if attachment.truncated else ""
+            blocks.append(
+                "\n".join(
+                    [
+                        f"### Attachment {index}: {attachment.filename}{truncated}",
+                        f"Content-Type: {attachment.mime_type}",
+                        "",
+                        attachment.markdown,
+                    ]
+                )
+            )
+        return "\n\n".join(
+            [
+                user_content,
+                "<attachments converted_by='microsoft/markitdown'>",
+                *blocks,
+                "</attachments>",
+            ]
+        )
 
     async def get_conversation_row(self, conversation_id: str) -> ConversationRow:
         """Load the conversation, enforcing per-user ownership.

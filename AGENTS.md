@@ -56,7 +56,7 @@ MUST keep them working — see "Migration safety" rule below.
 | `just dev` | Start full demo stack (gateway + iam + admin svc + platform + admin MFE) |
 | `just build [target]` | Build frontend / backend / specific service (target optional) |
 | `just sync` | Backend → OpenAPI → frontend TS client regen |
-| `just fmt` | Format both stacks (auto-run after edits, no need to ask) |
+| `just fmt` | Format both stacks (run only when explicitly requested or clearly needed) |
 | `just lint` | Lint both stacks |
 | `just status` | Git + service health overview |
 | `just doctor` | Environment diagnostics |
@@ -96,7 +96,8 @@ commands working** — verify before declaring done:
 - `just dev` (full stack still boots; ports unchanged)
 - `just build` (with no target, and with each affected service/mfe target)
 - `just sync` (after backend route or schema changes)
-- `just fmt` / `just lint` (after any code change)
+- `just lint` (after any code change); `just fmt` only when explicitly requested
+  or clearly needed for generated / mechanical formatting drift
 
 Common silent-breakers to watch:
 
@@ -181,8 +182,9 @@ concerns by hand.
 | Cross-service refactor | `.agents/playbooks/cross-service-refactor.md` |
 
 ### Definition of done (every change)
-1. `just fmt` (auto-run, do not ask)
-2. `just lint` scoped to affected area
+1. `just lint` scoped to affected area
+2. `just fmt` only when explicitly requested or clearly needed; do not auto-run
+   it after every code edit
 3. ~~`just test`~~ — **skipped during demo phase** (see above)
 4. If cross-stack: `just sync` and verify both sides build
 5. If new behavior: add/update ADR in `docs/ADR/NNNN-<slug>.md`

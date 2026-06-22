@@ -97,6 +97,8 @@ async def send_message(
             async for piece in svc.stream_reply(
                 conversation_id,
                 payload.content,
+                attachments=payload.attachments,
+                document_ids=payload.document_ids,
                 provider_id=snapshot.id,
                 thinking=payload.thinking,
                 reasoning_effort=payload.reasoning_effort,

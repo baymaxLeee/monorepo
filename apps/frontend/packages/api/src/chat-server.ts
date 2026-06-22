@@ -1,6 +1,4 @@
-import { API_BASE_URL, request, toApiError } from "./http";
-import { refreshSession } from "./session";
-import { getToken, isAccessTokenValid } from "./storage";
+import { request } from "./http";
 
 export type MessageRole = "user" | "assistant" | "system";
 export type MessageStatus = "ok" | "streaming" | "failed";
@@ -27,6 +25,7 @@ export interface Conversation {
 
 export interface ConversationDetail extends Conversation {
   messages: Message[];
+  documents: ConversationDocument[];
 }
 
 export interface CreateConversationInput {
@@ -39,20 +38,60 @@ export interface UpdateConversationInput {
   title?: string;
 }
 
-export interface SendMessageInput {
-  content: string;
-  /**
-   * Override the model provider for this message only. Omit to keep using
-   * the conversation's previously pinned provider or the user's default.
-   */
+export interface ConvertedAttachment {
+  filename: string;
+  mime_type: string;
+  size: number;
+  markdown: string;
+  markdown_chars: number;
+  truncated: boolean;
+}
+
+export type ConversationDocumentKind = "source" | "artifact";
+
+export interface ConversationDocument {
+  id: string;
+  conversation_id: string;
+  kind: ConversationDocumentKind;
+  title: string;
+  filename: string;
+  mime_type: string;
+  source_size: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationDocumentDetail extends ConversationDocument {
+  content_md: string;
+}
+
+export interface UpdateConversationDocumentInput {
+  title?: string;
+  content_md?: string;
+}
+
+export interface AgentToolCall {
+  name: string;
+  input: string;
+  output_preview: string;
+}
+
+export interface AgentRunResult {
+  message: string;
+  created_documents: ConversationDocument[];
+  tool_calls: AgentToolCall[];
+}
+
+export interface RunConversationAgentInput {
+  prompt: string;
   provider_id?: string | null;
-  /** Enable chain-of-thought reasoning (e.g. DeepSeek V4 `thinking: enabled`). */
+  document_ids?: string[];
   thinking?: boolean | null;
-  /** Reasoning compute budget for thinking-enabled models. */
   reasoning_effort?: ReasoningEffort | null;
 }
 
 const BASE = "/api/chat-server/conversations";
+const ATTACHMENTS_BASE = "/api/chat-server/attachments";
 
 export function fetchConversations(): Promise<Conversation[]> {
   return request<Conversation[]>({ url: BASE, method: "GET" });
@@ -96,106 +135,66 @@ export function deleteConversation(id: string): Promise<void> {
   });
 }
 
-export interface StreamMessageOptions {
-  signal?: AbortSignal;
-  onChunk: (chunk: string) => void;
+export function convertChatAttachment(
+  file: File,
+): Promise<ConvertedAttachment> {
+  const form = new FormData();
+  form.append("file", file);
+  return request<ConvertedAttachment>({
+    url: `${ATTACHMENTS_BASE}/convert`,
+    method: "POST",
+    data: form,
+  });
 }
 
-async function sendStreamRequest(
-  url: string,
-  body: string,
-  signal?: AbortSignal,
-): Promise<Response> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Accept: "text/event-stream",
-  };
-
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  try {
-    return await fetch(url, {
-      method: "POST",
-      credentials: "include",
-      headers,
-      body,
-      signal,
-    });
-  } catch (error) {
-    throw toApiError(error);
-  }
-}
-
-export async function streamChatMessage(
+export function uploadConversationDocument(
   conversationId: string,
-  payload: SendMessageInput,
-  { onChunk, signal }: StreamMessageOptions,
-): Promise<void> {
-  const url = `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/messages`;
-  const body = JSON.stringify(payload);
+  file: File,
+): Promise<ConversationDocumentDetail> {
+  const form = new FormData();
+  form.append("file", file);
+  return request<ConversationDocumentDetail>({
+    url: `${BASE}/${encodeURIComponent(conversationId)}/documents`,
+    method: "POST",
+    data: form,
+  });
+}
 
-  // (1) Proactive refresh — keeps the 401-retry path cold in normal use.
-  if (!isAccessTokenValid()) {
-    await refreshSession();
-  }
+export function fetchConversationDocument(
+  conversationId: string,
+  documentId: string,
+): Promise<ConversationDocumentDetail> {
+  return request<ConversationDocumentDetail>({
+    url: `${BASE}/${encodeURIComponent(conversationId)}/documents/${encodeURIComponent(documentId)}`,
+    method: "GET",
+  });
+}
 
-  let response = await sendStreamRequest(url, body, signal);
+export function updateConversationDocument(
+  conversationId: string,
+  documentId: string,
+  input: UpdateConversationDocumentInput,
+): Promise<ConversationDocumentDetail> {
+  return request<ConversationDocumentDetail>({
+    url: `${BASE}/${encodeURIComponent(conversationId)}/documents/${encodeURIComponent(documentId)}`,
+    method: "PATCH",
+    data: input,
+  });
+}
 
-  if (response.status === 401) {
-    const refreshed = await refreshSession();
-    if (refreshed) {
-      response = await sendStreamRequest(url, body, signal);
-    }
-  }
-
-  if (!response.ok || !response.body) {
-    let detail = `chat stream failed: ${response.status}`;
-    try {
-      const text = await response.text();
-      if (text) detail = text;
-    } catch {
-      // body already consumed or unreadable; keep the status detail
-    }
-    throw new Error(detail);
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      let separatorIndex = buffer.indexOf("\n\n");
-      while (separatorIndex !== -1) {
-        const frame = buffer.slice(0, separatorIndex);
-        buffer = buffer.slice(separatorIndex + 2);
-
-        const dataLines = frame
-          .split("\n")
-          .filter((line) => line.startsWith("data:"))
-          .map((line) => line.slice(5).trimStart());
-        if (dataLines.length > 0) {
-          const data = dataLines.join("\n");
-          if (data === "[DONE]") {
-            return;
-          }
-          try {
-            const decoded = JSON.parse(data) as string;
-            onChunk(decoded);
-          } catch {
-            onChunk(data);
-          }
-        }
-
-        separatorIndex = buffer.indexOf("\n\n");
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
+export function runConversationAgent(
+  conversationId: string,
+  input: RunConversationAgentInput,
+): Promise<AgentRunResult> {
+  return request<AgentRunResult>({
+    url: `${BASE}/${encodeURIComponent(conversationId)}/agents/run`,
+    method: "POST",
+    data: {
+      prompt: input.prompt,
+      provider_id: input.provider_id ?? null,
+      document_ids: input.document_ids ?? [],
+      thinking: input.thinking ?? null,
+      reasoning_effort: input.reasoning_effort ?? null,
+    },
+  });
 }

@@ -11,6 +11,7 @@ from kernel.errors import NotFoundError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from chat.crud import conversations as conversation_crud
+from chat.crud import documents as document_crud
 from chat.crud import messages as message_crud
 from chat.deps import AuthContext
 from chat.models.conversation import ConversationRow
@@ -22,6 +23,7 @@ from chat.schemas.conversation import (
     Message,
     UpdateConversationInput,
 )
+from chat.services.documents import document_to_schema
 
 
 def _iso(dt: datetime) -> str:
@@ -73,10 +75,12 @@ class ConversationService:
     async def get(self, conversation_id: str) -> ConversationDetail:
         row = await self._get_row(conversation_id)
         message_rows = await message_crud.list_messages(self._session, row.id)
+        document_rows = await document_crud.list_documents(self._session, row.id)
         base = conversation_to_schema(row)
         return ConversationDetail(
             **base.model_dump(),
             messages=[message_to_schema(m) for m in message_rows],
+            documents=[document_to_schema(d) for d in document_rows],
         )
 
     async def create(self, payload: CreateConversationInput) -> Conversation:

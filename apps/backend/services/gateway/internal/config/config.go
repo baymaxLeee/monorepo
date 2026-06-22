@@ -104,7 +104,7 @@ func Load() (Config, error) {
 		OptionalAuthPathPrefixes: csvOr("OPTIONAL_AUTH_PATH_PREFIXES", []string{
 			"/api/telemetry-server/rum",
 		}),
-		MaxRequestBodyBytes: bytesOr("MAX_REQUEST_BODY_BYTES", 1<<20), // 1 MiB
+		MaxRequestBodyBytes: bytesOr("MAX_REQUEST_BODY_BYTES", 10<<20), // 10 MiB
 		ReadTimeout:         durationOr("HTTP_READ_TIMEOUT", 15*time.Second),
 		WriteTimeout:        durationOr("HTTP_WRITE_TIMEOUT", 30*time.Second),
 		IdleTimeout:         durationOr("HTTP_IDLE_TIMEOUT", 120*time.Second),

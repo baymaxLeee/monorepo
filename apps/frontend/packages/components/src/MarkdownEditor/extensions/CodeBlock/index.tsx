@@ -19,7 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../Select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../../Tooltip";
+import { Tooltip, TooltipTrigger } from "../../../Tooltip";
+import { EditorTooltipContent } from "../../components/EditorTooltipContent";
 import { useEditorContext } from "../../context";
 
 const lowlight = createLowlight(common);
@@ -118,7 +119,7 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({
                     </Select>
                   </div>
                 </TooltipTrigger>
-                <TooltipContent>切换代码语言</TooltipContent>
+                <EditorTooltipContent>切换代码语言</EditorTooltipContent>
               </Tooltip>
 
               <span className="mx-2 h-3 w-px bg-border" />

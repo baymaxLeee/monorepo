@@ -6,6 +6,52 @@
  * OpenAPI spec version: 0.1.0
  */
 import { apiMutator } from '../../src/orval-mutator';
+export type ConversationDocumentKind = typeof ConversationDocumentKind[keyof typeof ConversationDocumentKind];
+
+
+export const ConversationDocumentKind = {
+  source: 'source',
+  artifact: 'artifact',
+} as const;
+
+export interface ConversationDocument {
+  id: string;
+  conversation_id: string;
+  kind: ConversationDocumentKind;
+  title: string;
+  filename: string;
+  mime_type: string;
+  source_size: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentToolCall {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name: string;
+  /** @maxLength 500 */
+  input?: string;
+  /** @maxLength 500 */
+  output_preview?: string;
+}
+
+export interface AgentRunResult {
+  message?: string;
+  created_documents?: ConversationDocument[];
+  tool_calls?: AgentToolCall[];
+}
+
+export interface BodyConvertAttachmentAttachmentsConvertPost {
+  file: Blob;
+}
+
+export interface BodyUploadDocumentConversationsConversationIdDocumentsPost {
+  file: Blob;
+}
+
 export interface Conversation {
   id: string;
   user_id: string;
@@ -52,6 +98,44 @@ export interface ConversationDetail {
   created_at: string;
   updated_at: string;
   messages?: Message[];
+  documents?: ConversationDocument[];
+}
+
+export type ConversationDocumentDetailKind = typeof ConversationDocumentDetailKind[keyof typeof ConversationDocumentDetailKind];
+
+
+export const ConversationDocumentDetailKind = {
+  source: 'source',
+  artifact: 'artifact',
+} as const;
+
+export interface ConversationDocumentDetail {
+  id: string;
+  conversation_id: string;
+  kind: ConversationDocumentDetailKind;
+  title: string;
+  filename: string;
+  mime_type: string;
+  source_size: number;
+  created_at: string;
+  updated_at: string;
+  content_md: string;
+}
+
+export interface ConvertedAttachment {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  filename: string;
+  /** @maxLength 120 */
+  mime_type?: string;
+  /** @minimum 0 */
+  size: number;
+  markdown: string;
+  /** @minimum 0 */
+  markdown_chars: number;
+  truncated?: boolean;
 }
 
 export interface CreateConversationInput {
@@ -77,6 +161,49 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
+export interface MessageAttachmentContext {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  filename: string;
+  /** @maxLength 120 */
+  mime_type?: string;
+  /**
+     * @minLength 1
+     * @maxLength 12500
+     */
+  markdown: string;
+  truncated?: boolean;
+}
+
+/**
+ * Reasoning compute budget for thinking-enabled models.
+ */
+export type RunAgentInputReasoningEffort = typeof RunAgentInputReasoningEffort[keyof typeof RunAgentInputReasoningEffort] | null;
+
+
+export const RunAgentInputReasoningEffort = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const;
+
+export interface RunAgentInput {
+  /**
+     * @minLength 1
+     * @maxLength 8000
+     */
+  prompt: string;
+  provider_id?: string | null;
+  /** @maxItems 10 */
+  document_ids?: string[];
+  /** Enable chain-of-thought reasoning when the model supports it. */
+  thinking?: boolean | null;
+  /** Reasoning compute budget for thinking-enabled models. */
+  reasoning_effort?: RunAgentInputReasoningEffort;
+}
+
 /**
  * Reasoning compute budget for thinking-enabled models.
  */
@@ -92,15 +219,24 @@ export const SendMessageInputReasoningEffort = {
 export interface SendMessageInput {
   /**
      * @minLength 1
-     * @maxLength 8000
+     * @maxLength 24000
      */
   content: string;
+  /** @maxItems 5 */
+  attachments?: MessageAttachmentContext[];
+  /** @maxItems 10 */
+  document_ids?: string[];
   /** Override the model provider for this message only. */
   provider_id?: string | null;
   /** Enable chain-of-thought reasoning when the model supports it. */
   thinking?: boolean | null;
   /** Reasoning compute budget for thinking-enabled models. */
   reasoning_effort?: SendMessageInputReasoningEffort;
+}
+
+export interface UpdateConversationDocumentInput {
+  title?: string | null;
+  content_md?: string | null;
 }
 
 export interface UpdateConversationInput {
@@ -149,6 +285,39 @@ const healthzHealthzGet = (
  options?: SecondParameter<typeof apiMutator<HealthzHealthzGet200>>,) => {
       return apiMutator<HealthzHealthzGet200>(
       {url: `/healthz`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * Run an OpenAI Agents SDK agent with conversation document tools.
+ * @summary Run Agent
+ */
+const runAgentConversationsConversationIdAgentsRunPost = (
+    conversationId: string,
+    runAgentInput: RunAgentInput,
+ options?: SecondParameter<typeof apiMutator<AgentRunResult>>,) => {
+      return apiMutator<AgentRunResult>(
+      {url: `/conversations/${conversationId}/agents/run`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: runAgentInput
+    },
+      options);
+    }
+
+/**
+ * Convert one uploaded file to Markdown for LLM context.
+ * @summary Convert Attachment
+ */
+const convertAttachmentAttachmentsConvertPost = (
+    bodyConvertAttachmentAttachmentsConvertPost: BodyConvertAttachmentAttachmentsConvertPost,
+ options?: SecondParameter<typeof apiMutator<ConvertedAttachment>>,) => {const formData = new FormData();
+formData.append(`file`, bodyConvertAttachmentAttachmentsConvertPost.file);
+
+      return apiMutator<ConvertedAttachment>(
+      {url: `/attachments/convert`, method: 'POST',
+      headers: {'Content-Type': 'multipart/form-data', },
+       data: formData
     },
       options);
     }
@@ -243,7 +412,65 @@ const sendMessageConversationsConversationIdMessagesPost = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listConversationsConversationsGet,createConversationConversationsPost,getConversationConversationsConversationIdGet,updateConversationConversationsConversationIdPatch,deleteConversationConversationsConversationIdDelete,sendMessageConversationsConversationIdMessagesPost}};
+/**
+ * @summary List Documents
+ */
+const listDocumentsConversationsConversationIdDocumentsGet = (
+    conversationId: string,
+ options?: SecondParameter<typeof apiMutator<ConversationDocument[]>>,) => {
+      return apiMutator<ConversationDocument[]>(
+      {url: `/conversations/${conversationId}/documents`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * @summary Upload Document
+ */
+const uploadDocumentConversationsConversationIdDocumentsPost = (
+    conversationId: string,
+    bodyUploadDocumentConversationsConversationIdDocumentsPost: BodyUploadDocumentConversationsConversationIdDocumentsPost,
+ options?: SecondParameter<typeof apiMutator<ConversationDocumentDetail>>,) => {const formData = new FormData();
+formData.append(`file`, bodyUploadDocumentConversationsConversationIdDocumentsPost.file);
+
+      return apiMutator<ConversationDocumentDetail>(
+      {url: `/conversations/${conversationId}/documents`, method: 'POST',
+      headers: {'Content-Type': 'multipart/form-data', },
+       data: formData
+    },
+      options);
+    }
+
+/**
+ * @summary Get Document
+ */
+const getDocumentConversationsConversationIdDocumentsDocumentIdGet = (
+    conversationId: string,
+    documentId: string,
+ options?: SecondParameter<typeof apiMutator<ConversationDocumentDetail>>,) => {
+      return apiMutator<ConversationDocumentDetail>(
+      {url: `/conversations/${conversationId}/documents/${documentId}`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * @summary Update Document
+ */
+const updateDocumentConversationsConversationIdDocumentsDocumentIdPatch = (
+    conversationId: string,
+    documentId: string,
+    updateConversationDocumentInput: UpdateConversationDocumentInput,
+ options?: SecondParameter<typeof apiMutator<ConversationDocumentDetail>>,) => {
+      return apiMutator<ConversationDocumentDetail>(
+      {url: `/conversations/${conversationId}/documents/${documentId}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: updateConversationDocumentInput
+    },
+      options);
+    }
+
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,runAgentConversationsConversationIdAgentsRunPost,convertAttachmentAttachmentsConvertPost,listConversationsConversationsGet,createConversationConversationsPost,getConversationConversationsConversationIdGet,updateConversationConversationsConversationIdPatch,deleteConversationConversationsConversationIdDelete,sendMessageConversationsConversationIdMessagesPost,listDocumentsConversationsConversationIdDocumentsGet,uploadDocumentConversationsConversationIdDocumentsPost,getDocumentConversationsConversationIdDocumentsDocumentIdGet,updateDocumentConversationsConversationIdDocumentsDocumentIdPatch}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -252,9 +479,15 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['healthzHealthzGet']>>>
+export type RunAgentConversationsConversationIdAgentsRunPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['runAgentConversationsConversationIdAgentsRunPost']>>>
+export type ConvertAttachmentAttachmentsConvertPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['convertAttachmentAttachmentsConvertPost']>>>
 export type ListConversationsConversationsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['listConversationsConversationsGet']>>>
 export type CreateConversationConversationsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['createConversationConversationsPost']>>>
 export type GetConversationConversationsConversationIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationConversationsConversationIdGet']>>>
 export type UpdateConversationConversationsConversationIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['updateConversationConversationsConversationIdPatch']>>>
 export type DeleteConversationConversationsConversationIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['deleteConversationConversationsConversationIdDelete']>>>
 export type SendMessageConversationsConversationIdMessagesPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['sendMessageConversationsConversationIdMessagesPost']>>>
+export type ListDocumentsConversationsConversationIdDocumentsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['listDocumentsConversationsConversationIdDocumentsGet']>>>
+export type UploadDocumentConversationsConversationIdDocumentsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['uploadDocumentConversationsConversationIdDocumentsPost']>>>
+export type GetDocumentConversationsConversationIdDocumentsDocumentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getDocumentConversationsConversationIdDocumentsDocumentIdGet']>>>
+export type UpdateDocumentConversationsConversationIdDocumentsDocumentIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['updateDocumentConversationsConversationIdDocumentsDocumentIdPatch']>>>
