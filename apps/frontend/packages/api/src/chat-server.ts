@@ -84,11 +84,37 @@ export interface AgentRunResult {
   tool_calls: AgentToolCall[];
 }
 
+export interface AgentStepEvent {
+  type: "step";
+  text: string;
+  status?: "pending" | "running" | "completed" | "failed";
+  tool_name?: string;
+  output_preview?: string;
+}
+
+export interface AgentMessageEvent {
+  type: "message";
+  role?: "assistant";
+  status?: "streaming" | "completed" | "failed";
+  delta?: string;
+  text?: string;
+  tool_calls?: AgentToolCall[];
+}
+
+export interface AgentCardEvent {
+  type: "card";
+  card: {
+    type: "artifact" | "chart";
+    document?: ConversationDocument;
+    title?: string;
+    payload?: unknown;
+  };
+}
+
 export type AgentRunStreamEvent =
-  | { type: "step"; text: string }
-  | { type: "summary_delta"; delta: string }
-  | { type: "artifacts"; documents: ConversationDocument[] }
-  | { type: "done"; message: string; tool_calls: AgentToolCall[] }
+  | AgentMessageEvent
+  | AgentStepEvent
+  | AgentCardEvent
   | { type: "error"; message: string };
 
 export interface RunConversationAgentInput {

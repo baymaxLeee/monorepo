@@ -26,17 +26,18 @@
 - 聊天框附件走 `api.uploadConversationDocument(conversationId, file)`，由
   chat-server 使用 Microsoft MarkItDown 转成 Markdown，并以 `source` 文档写入
   当前会话。
-- 发送消息走 `streamChatMessage(conversationId, { content }, { onChunk })`。
-  这是前端唯一一处直接 `fetch`+`ReadableStream` 的封装，集中在
-  `packages/api/src/chat-server.ts`，业务侧（MFE）只看到 `onChunk` 回调。
-  当有附件时，MFE 先上传生成会话文档，再把 `document_ids[]` 传给消息接口；
+- 发送消息走 `api.streamConversationAgent(conversationId, input, { onEvent })`。
+  SSE 封装集中在 `packages/api/src/chat-server.ts`，业务侧（MFE）只消费
+  `message` / `step` / `card` 三类事件：`message` 渲染助手主回复，`step`
+  渲染 runtime 调用模型/工具/代码执行状态，`card` 渲染模型决定生成的产物卡片。
+  当有附件时，MFE 先上传生成会话文档，再把 `document_ids[]` 传给 agent run；
   用户气泡持久化 `[[chat-document:<id>]]` 标记并渲染成可点击文档 card。
-- 聊天输入框的“Agent 运行”走
-  `api.runConversationAgent(conversationId, { prompt, document_ids })`：agent 可读取
-  会话文档，并在需要输出文件时调用 `write_artifact` 写入新的 `artifact`
-  文档。
+- Agent 可读取当前会话历史和文档，并在需要输出文件时调用 `write_artifacts`
+  写入新的 `artifact` 文档；是否展示 card 由后端 SSE `card` 事件决定，不和
+  普通消息强绑定。
 - 所有 `source` / `artifact` 文档 card 点击后都用现有
-  `components/markdown-editor` 打开，可预览、二次编辑并保存回 chat-server。
+  `components/markdown-editor` 打开，可预览、二次编辑；Markdown 编辑走防抖自动
+  保存回 chat-server，HTML artifact 以 iframe 占满剩余区域预览。
 
 ## 状态管理
 

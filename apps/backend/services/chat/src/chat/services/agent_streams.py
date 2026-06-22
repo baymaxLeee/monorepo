@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable
 from dataclasses import dataclass
 from time import time
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from kernel.errors import NotFoundError
@@ -57,14 +57,17 @@ class AgentStreamService:
 
         run_id = uuid4().hex
         await self._redis.delete(self._stream_key(conversation_id, run_id))
-        await self._redis.hset(
-            active_key,
-            mapping={
-                "run_id": run_id,
-                "status": "running",
-                "started_at_ms": self._now_ms(),
-                "last_event_at_ms": "",
-            },
+        await cast(
+            Awaitable[int],
+            self._redis.hset(
+                active_key,
+                mapping={
+                    "run_id": run_id,
+                    "status": "running",
+                    "started_at_ms": self._now_ms(),
+                    "last_event_at_ms": "",
+                },
+            ),
         )
         await self._redis.expire(active_key, self._settings.agent_event_stream_ttl_seconds)
         return AgentStreamRun(run_id=run_id, started=True)
@@ -82,9 +85,12 @@ class AgentStreamService:
     ) -> None:
         stream_key = self._stream_key(conversation_id, run_id)
         await self._redis.xadd(stream_key, {"event": json.dumps(event, ensure_ascii=False)})
-        await self._redis.hset(
-            self._active_key(conversation_id),
-            mapping={"last_event_at_ms": self._now_ms()},
+        await cast(
+            Awaitable[int],
+            self._redis.hset(
+                self._active_key(conversation_id),
+                mapping={"last_event_at_ms": self._now_ms()},
+            ),
         )
         await self._redis.expire(stream_key, self._settings.agent_event_stream_ttl_seconds)
         await self._redis.expire(
@@ -94,7 +100,7 @@ class AgentStreamService:
 
     async def finish_run(self, *, conversation_id: str, run_id: str) -> None:
         active_key = self._active_key(conversation_id)
-        active_run_id = await self._redis.hget(active_key, "run_id")
+        active_run_id = await cast(Awaitable[str | None], self._redis.hget(active_key, "run_id"))
         if active_run_id == run_id:
             await self._redis.delete(active_key)
 
@@ -129,7 +135,9 @@ class AgentStreamService:
                         continue
                     event = json.loads(raw_event)
                     yield event
-                    if event.get("type") in {"done", "error"}:
+                    if event.get("type") in {"done", "error"} or (
+                        event.get("type") == "message" and event.get("status") in {"completed", "failed"}
+                    ):
                         should_stop = True
                         break
                 if should_stop:
@@ -143,7 +151,7 @@ class AgentStreamService:
 
     async def _live_run_id(self, conversation_id: str) -> str | None:
         active_key = self._active_key(conversation_id)
-        active = await self._redis.hgetall(active_key)
+        active = await cast(Awaitable[dict[str, str]], self._redis.hgetall(active_key))
         run_id = active.get("run_id")
         if not run_id:
             return None

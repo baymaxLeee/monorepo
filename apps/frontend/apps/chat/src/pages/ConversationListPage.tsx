@@ -34,8 +34,7 @@ export function ConversationListPage() {
             开启第一个会话
           </CardTitle>
           <CardDescription>
-            点击左侧「新建」创建会话，后续消息默认通过 chat agent
-            runtime 处理。
+            点击左侧「新建」创建会话，后续消息默认通过 chat agent runtime 处理。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
@@ -45,7 +44,9 @@ export function ConversationListPage() {
           </p>
           <p>
             默认发送入口会调用{" "}
-            <InlineCode>POST /api/chat-server/conversations/:id/agents/run</InlineCode>
+            <InlineCode>
+              POST /api/chat-server/conversations/:id/agents/run
+            </InlineCode>
             ，由 agent 判断是否需要读取附件、调用工具并写入会话 artifact。
           </p>
           <Muted>

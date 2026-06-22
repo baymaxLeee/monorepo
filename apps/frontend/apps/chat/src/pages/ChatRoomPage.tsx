@@ -1,4 +1,5 @@
 import {
+  type AgentRunStreamEvent,
   type ConversationDetail,
   type ConversationDocument,
   type ConversationDocumentDetail,
@@ -9,7 +10,6 @@ import {
   type ReasoningEffort,
   resumeConversationAgent,
   streamConversationAgent,
-  type AgentRunStreamEvent,
   updateConversationDocument,
   uploadConversationDocument,
 } from "api";
@@ -37,7 +37,6 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
-  SheetFooter,
   SheetHeader,
   SheetTitle,
   Skeleton,
@@ -50,11 +49,7 @@ import {
   type PromptInputRef,
   type PromptInputValue,
 } from "components/prompt-input";
-import {
-  DownloadIcon,
-  FileTextIcon,
-  SettingsIcon,
-} from "lucide-react";
+import { DownloadIcon, FileTextIcon, SettingsIcon } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Streamdown } from "streamdown";
@@ -63,14 +58,28 @@ import { useShallow } from "zustand/react/shallow";
 import { useChatStore } from "../store/useChatStore";
 
 type AgentProgress = {
-  steps: string[];
-  summary: string;
-  artifacts: ConversationDocument[];
+  steps: AgentProgressStep[];
+  message: string;
+  cards: AgentProgressCard[];
 };
 
 type StreamingMessage = Message & {
   streaming?: boolean;
   agentProgress?: AgentProgress;
+};
+
+type AgentProgressStep = {
+  id: string;
+  text: string;
+  status: "pending" | "running" | "completed" | "failed";
+  toolName?: string;
+  outputPreview?: string;
+};
+
+type AgentProgressCard = {
+  id: string;
+  type: "artifact" | "chart";
+  document?: ConversationDocument;
 };
 
 const REASONING_OPTIONS: { value: ReasoningEffort; label: string }[] = [
@@ -132,7 +141,7 @@ function buildUserDisplayContent(
 }
 
 function createEmptyAgentProgress(): AgentProgress {
-  return { steps: [], summary: "", artifacts: [] };
+  return { steps: [], message: "", cards: [] };
 }
 
 function mergeDocumentsById(
@@ -240,7 +249,7 @@ export function ChatRoomPage() {
   const updateAgentProgress = useCallback(
     (
       updater: (progress: AgentProgress) => AgentProgress,
-      status: "streaming" | "ok" = "streaming",
+      status: "streaming" | "ok" | "failed" = "streaming",
     ) => {
       if (!id) return;
       setMessages((prev) => {
@@ -266,7 +275,9 @@ export function ChatRoomPage() {
           ...current,
           status,
           streaming: status === "streaming",
-          agentProgress: updater(current.agentProgress ?? createEmptyAgentProgress()),
+          agentProgress: updater(
+            current.agentProgress ?? createEmptyAgentProgress(),
+          ),
         };
         return next;
       });
@@ -279,40 +290,66 @@ export function ChatRoomPage() {
       if (event.type === "step") {
         updateAgentProgress((progress) => ({
           ...progress,
-          steps: [...progress.steps, event.text],
+          steps: [
+            ...progress.steps,
+            {
+              text: event.text,
+              id: placeholderId("assistant"),
+              status: event.status ?? "completed",
+              toolName: event.tool_name,
+              outputPreview: event.output_preview,
+            },
+          ],
         }));
         return;
       }
-      if (event.type === "summary_delta") {
-        updateAgentProgress((progress) => ({
-          ...progress,
-          summary: progress.summary + event.delta,
-        }));
-        return;
-      }
-      if (event.type === "artifacts") {
-        setDetail((prev) =>
-          prev
-            ? {
-                ...prev,
-                documents: mergeDocumentsById(prev.documents, event.documents),
-              }
-            : prev,
-        );
-        updateAgentProgress((progress) => ({
-          ...progress,
-          artifacts: mergeDocumentsById(progress.artifacts, event.documents),
-        }));
-        return;
-      }
-      if (event.type === "done") {
+      if (event.type === "message") {
+        if (event.status === "failed") {
+          updateAgentProgress(
+            (progress) => ({
+              ...progress,
+              message: event.text || progress.message || "agent runtime failed",
+            }),
+            "failed",
+          );
+          return;
+        }
         updateAgentProgress(
           (progress) => ({
             ...progress,
-            summary: progress.summary || event.message,
+            message:
+              event.delta !== undefined
+                ? progress.message + event.delta
+                : event.text || progress.message,
           }),
-          "ok",
+          event.status === "completed" ? "ok" : "streaming",
         );
+        return;
+      }
+      if (event.type === "card") {
+        const { card } = event;
+        const document = card.document;
+        if (document) {
+          setDetail((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  documents: mergeDocumentsById(prev.documents, [document]),
+                }
+              : prev,
+          );
+        }
+        updateAgentProgress((progress) => ({
+          ...progress,
+          cards: [
+            ...progress.cards,
+            {
+              id: document?.id ?? placeholderId("assistant"),
+              type: card.type,
+              document,
+            },
+          ],
+        }));
         return;
       }
       if (event.type === "error") {
@@ -333,6 +370,48 @@ export function ChatRoomPage() {
     setHtmlPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [documentOpen, htmlPreview]);
+
+  useEffect(() => {
+    if (!id || !documentOpen || !selectedDocument || loadingDocument) return;
+    if (htmlPreviewUrl) return;
+    if (documentDraft === selectedDocument.content_md) return;
+
+    setSavingDocument(true);
+    const timer = window.setTimeout(() => {
+      void updateConversationDocument(id, selectedDocument.id, {
+        content_md: documentDraft,
+      })
+        .then((next) => {
+          setSelectedDocument(next);
+          setDetail((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  documents: prev.documents.map((document) =>
+                    document.id === next.id ? next : document,
+                  ),
+                }
+              : prev,
+          );
+        })
+        .catch((e) => {
+          toast.error(String(e));
+        })
+        .finally(() => setSavingDocument(false));
+    }, 800);
+
+    return () => {
+      window.clearTimeout(timer);
+      setSavingDocument(false);
+    };
+  }, [
+    documentDraft,
+    documentOpen,
+    htmlPreviewUrl,
+    id,
+    loadingDocument,
+    selectedDocument,
+  ]);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -446,33 +525,6 @@ export function ChatRoomPage() {
     }
   }
 
-  async function saveDocument() {
-    if (!id || !selectedDocument) return;
-    setSavingDocument(true);
-    try {
-      const next = await updateConversationDocument(id, selectedDocument.id, {
-        content_md: documentDraft,
-      });
-      setSelectedDocument(next);
-      setDocumentDraft(next.content_md);
-      setDetail((prev) =>
-        prev
-          ? {
-              ...prev,
-              documents: prev.documents.map((document) =>
-                document.id === next.id ? next : document,
-              ),
-            }
-          : prev,
-      );
-      toast.success("文档已保存");
-    } catch (e) {
-      toast.error(String(e));
-    } finally {
-      setSavingDocument(false);
-    }
-  }
-
   async function sendPrompt(value: PromptInputValue) {
     if (!id || sending) return;
 
@@ -533,7 +585,7 @@ export function ChatRoomPage() {
           next[next.length - 1] = {
             ...last,
             content:
-              !last.agentProgress?.summary &&
+              !last.agentProgress?.message &&
               last.agentProgress?.steps.length === 0
                 ? "[chat] 请求失败，请稍后重试或检查后端配置。"
                 : last.content,
@@ -734,14 +786,17 @@ export function ChatRoomPage() {
       </div>
 
       <Sheet open={documentOpen} onOpenChange={setDocumentOpen}>
-        <SheetContent side="right" className="w-full gap-0 sm:max-w-4xl">
-          <SheetHeader className="border-b">
+        <SheetContent
+          side="right"
+          className="w-full min-w-0 gap-0 overflow-hidden sm:max-w-5xl"
+        >
+          <SheetHeader className="shrink-0 border-b">
             <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
               <div>
                 <SheetTitle>{selectedDocument?.title ?? "文档预览"}</SheetTitle>
                 <SheetDescription>
                   {selectedDocument
-                    ? `${selectedDocument.kind === "artifact" ? "Agent 产物" : "上传文件"} · ${selectedDocument.filename}`
+                    ? `${selectedDocument.kind === "artifact" ? "Agent 产物" : "上传文件"} · ${selectedDocument.filename}${savingDocument ? " · 自动保存中" : ""}`
                     : "加载中..."}
                 </SheetDescription>
               </div>
@@ -758,13 +813,13 @@ export function ChatRoomPage() {
               ) : null}
             </div>
           </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-auto p-4">
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden p-4">
             {loadingDocument ? (
               <Skeleton className="h-96 w-full" />
             ) : selectedDocument ? (
               htmlPreviewUrl ? (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
+                <div className="flex h-full min-h-0 min-w-0 flex-col gap-2">
+                  <div className="flex shrink-0 items-center justify-between">
                     <Badge variant="outline">HTML iframe 预览</Badge>
                     <span className="text-xs text-muted-foreground">
                       由当前文档源码生成临时 URL
@@ -774,32 +829,23 @@ export function ChatRoomPage() {
                     title={selectedDocument.title}
                     src={htmlPreviewUrl}
                     sandbox="allow-scripts"
-                    className="h-[75vh] w-full rounded-md border bg-white"
+                    className="min-h-0 w-full flex-1 rounded-md border bg-white"
                   />
                 </div>
               ) : (
-                <MarkdownEditor
-                  value={documentDraft}
-                  contentType="markdown"
-                  editable
-                  // toolbarMode="fixed"
-                  className="min-h-[70vh] rounded-md border"
-                  onChange={setDocumentDraft}
-                />
+                <div className="h-full min-h-0 min-w-0 w-full overflow-hidden">
+                  <MarkdownEditor
+                    value={documentDraft}
+                    contentType="markdown"
+                    editable
+                    // toolbarMode="fixed"
+                    className="h-full min-h-0 w-full min-w-0 max-w-full rounded-md border"
+                    onChange={setDocumentDraft}
+                  />
+                </div>
               )
             ) : null}
           </div>
-          {!htmlPreviewUrl ? (
-            <SheetFooter className="border-t">
-              <Button
-                type="button"
-                disabled={!selectedDocument || savingDocument}
-                onClick={() => void saveDocument()}
-              >
-                {savingDocument ? "保存中..." : "保存修改"}
-              </Button>
-            </SheetFooter>
-          ) : null}
         </SheetContent>
       </Sheet>
     </Page>
@@ -846,31 +892,56 @@ const MessageBubble = memo(function MessageBubble({
           <div className="space-y-3">
             {progress.steps.length > 0 ? (
               <ul className="space-y-1 text-xs text-muted-foreground">
-                {progress.steps.map((step, index) => (
-                  <li key={`${index}-${step}`}>{step}</li>
+                {progress.steps.map((step) => (
+                  <li key={step.id} className="space-y-0.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant="outline" className="h-5 text-[10px]">
+                        {step.status}
+                      </Badge>
+                      {step.toolName ? (
+                        <span className="font-mono text-[11px]">
+                          {step.toolName}
+                        </span>
+                      ) : null}
+                      <span>{step.text}</span>
+                    </div>
+                    {step.outputPreview ? (
+                      <div className="line-clamp-2 rounded bg-background/70 px-2 py-1 font-mono text-[11px]">
+                        {step.outputPreview}
+                      </div>
+                    ) : null}
+                  </li>
                 ))}
               </ul>
             ) : isStreaming ? (
               <div className="text-xs text-muted-foreground">准备中...</div>
             ) : null}
-            {progress.summary ? (
+            {progress.message ? (
               <Streamdown
                 isAnimating={isStreaming}
                 className="prose prose-sm max-w-none break-words leading-relaxed dark:prose-invert prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-md prose-code:before:content-none prose-code:after:content-none"
               >
-                {progress.summary}
+                {progress.message}
               </Streamdown>
             ) : null}
-            {progress.artifacts.length > 0 ? (
+            {progress.cards.length > 0 ? (
               <div className="space-y-2">
-                {progress.artifacts.map((document) => (
-                  <DocumentCard
-                    key={document.id}
-                    document={document}
-                    documentId={document.id}
-                    onOpen={() => onOpenDocument(document.id)}
-                  />
-                ))}
+                {progress.cards.map((card) =>
+                  card.type === "artifact" && card.document ? (
+                    <DocumentCard
+                      key={card.document.id}
+                      document={card.document}
+                      documentId={card.document.id}
+                      onOpen={() => onOpenDocument(card.document!.id)}
+                    />
+                  ) : (
+                    <Card key={card.id} className="rounded-md">
+                      <CardHeader className="p-3">
+                        <CardTitle className="text-sm">{card.type}</CardTitle>
+                      </CardHeader>
+                    </Card>
+                  ),
+                )}
               </div>
             ) : null}
           </div>

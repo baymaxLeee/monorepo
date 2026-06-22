@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
+from kernel.errors import BaseError
 
 from chat.db import get_session_factory
 from chat.deps import AuthContext, CurrentUser, DbSession, RedisClient
@@ -132,10 +133,16 @@ async def _run_agent_to_stream(
                     event=event,
                 )
         except Exception as exc:
+            logger.exception("agent stream run failed")
             await stream_service.append_event(
                 conversation_id=conversation_id,
                 run_id=run_id,
-                event={"type": "error", "message": str(exc)},
+                event={
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "failed",
+                    "text": _stream_error_text(exc),
+                },
             )
         finally:
             await stream_service.finish_run(conversation_id=conversation_id, run_id=run_id)
@@ -171,3 +178,14 @@ def _sse_response(event_stream: AsyncIterator[bytes]) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+def _stream_error_text(exc: Exception) -> str:
+    if isinstance(exc, BaseError):
+        reason = exc.details.get("reason")
+        if reason:
+            return f"{exc.message}: {reason}"
+        if exc.details:
+            return f"{exc.message}: {exc.details}"
+        return exc.message
+    return str(exc)

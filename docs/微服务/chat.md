@@ -23,13 +23,12 @@
   - `POST   /attachments/convert` 上传单个附件并用 Microsoft MarkItDown 转成
     Markdown，保留为轻量 demo/兼容接口；主流程使用 documents 落库接口
   - `POST   /conversations/{id}/agents/run` 运行 OpenAI Agents SDK agent，模型可调用
-    `list_conversation_documents` / `read_document_markdown` / `write_artifact`
-    工具；`write_artifact` 会写入新的 `artifact` 文档
+    会话检索、虚拟文件系统、受限 URL 抓取、受限 Python 执行与 artifact 写入工具；
+    `write_artifacts` 会写入新的 `artifact` 文档
   - `POST   /conversations/{id}/agents/run/stream` 同上，但通过 SSE 实时推送进度：
-    - `step`：每个执行阶段一条文本
-    - `summary_delta`：模型回复的增量 token
-    - `artifacts`：run 结束时批量返回新建的 artifact 文档
-    - `done`：最终 message 与 tool_calls
+    - `message`：助手主回复，支持 `delta` 增量与最终 `text`
+    - `step`：agent runtime 执行态，含 `status`、`tool_name`、`output_preview`
+    - `card`：可选产物卡片，目前支持 `artifact` 文档 card
   - `POST   /conversations/{id}/messages` 发用户消息 + SSE 流式返回 assistant
     增量（`text/event-stream`，每帧 `data: <json-string>`，结束 `data: [DONE]`）
     - 可选 body：`provider_id`（按需切换模型）、`thinking`、`reasoning_effort`
@@ -72,6 +71,7 @@ Header: X-Internal-Token: <INTERNAL_API_TOKEN>
 | `ATTACHMENT_MAX_UPLOAD_BYTES` | `10485760` | MarkItDown demo 单附件上传上限 |
 | `ATTACHMENT_MARKDOWN_MAX_CHARS` | `12000` | 单附件注入 LLM 前的 Markdown 字符上限 |
 | `AGENT_MAX_TURNS` | `8` | Agents SDK 单次会话 agent run 最大 turn 数 |
+| `AGENT_RUN_TIMEOUT_SECONDS` | `120` | 单次 agent run 的整体超时，覆盖多轮工具调用和流式等待 |
 
 ## 入口文件
 
@@ -84,7 +84,8 @@ Header: X-Internal-Token: <INTERNAL_API_TOKEN>
 - `src/chat/services/messages.py` — 用户/助手消息持久化 + LLM 流式拼装
 - `src/chat/services/documents.py` — MarkItDown 转换后的 Markdown 文档持久化
 - `src/chat/services/attachments.py` — `MarkItDown.convert_stream()` 封装
-- `src/chat/services/agent_runtime.py` — Agents SDK runtime + function tools
+- `src/chat/services/agent_runtime.py` — Agents SDK runtime + SSE event 编排
+- `src/chat/services/agent_tools.py` — runtime function tools
 - `src/chat/services/llm.py` — `LLMClient.from_provider(snapshot)` —— 纯 IO，无 secret
 - `src/chat/services/admin_client.py` — admin `/internal/providers/*` 客户端 + TTL 缓存
 - `src/chat/crud/` / `models/` / `schemas/` — 表对应分层
@@ -106,5 +107,15 @@ Header: X-Internal-Token: <INTERNAL_API_TOKEN>
   `MarkdownEditor` 读取并编辑 `conversation_documents.content_md`。
 - Agent runtime 使用 `OpenAIChatCompletionsModel`，可对接 DeepSeek 等
   OpenAI-compatible Chat Completions provider；provider 仍由 admin 解密下发。
-- Agent 如需输出完整文件，应调用 `write_artifact`，由 chat-server 在当前会话
+- Agent runtime 每次 run 都会注入当前会话的全部历史消息和全部会话文档
+  （包含 source 与之前生成的 artifact），避免同一会话内前文和产物丢失。
+- Agent runtime 注入的工具保持后端受控边界：
+  `search_conversation` 只检索当前会话；`list_workspace_files` /
+  `read_workspace_file` 只访问会话虚拟文件系统；`fetch_url_text` 只抓取公网
+  http(s) 文本且不执行 JS；`execute_python` 只运行受限 Python 片段，不开放 shell；
+  `write_artifacts` 只写当前会话 artifact，单文件和多文件都走同一个批量工具。
+- Agent runtime 默认禁用并行工具调用，提高 DeepSeek 等 OpenAI-compatible
+  provider 下的 artifact 写入稳定性；artifact 工具成功后会立即通过 `card`
+  SSE 事件推给前端，即使后续模型回合失败也能看到已生成产物。
+- Agent 如需输出完整文件，应调用 `write_artifacts`，由 chat-server 在当前会话
   写入 `kind=artifact` 的 Markdown 文档，再通过同一 card/编辑器预览。

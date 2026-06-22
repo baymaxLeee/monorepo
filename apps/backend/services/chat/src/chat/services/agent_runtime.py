@@ -11,11 +11,9 @@ from agents import (
     Agent,
     ModelSettings,
     OpenAIChatCompletionsModel,
-    RunContextWrapper,
     Runner,
     RunResult,
     RunResultStreaming,
-    function_tool,
     set_tracing_disabled,
 )
 from agents.stream_events import AgentUpdatedStreamEvent, RawResponsesStreamEvent, RunItemStreamEvent
@@ -28,9 +26,11 @@ from chat.crud import conversations as conversation_crud
 from chat.crud import messages as message_crud
 from chat.deps import AuthContext
 from chat.models.document import ConversationDocumentRow
+from chat.models.message import MessageRow
 from chat.schemas.agent import AgentRunResult, AgentToolCall
 from chat.schemas.conversation import ReasoningEffort
 from chat.services.admin_client import ProviderSnapshot
+from chat.services.agent_tools import agent_runtime_tools
 from chat.services.documents import (
     ConversationDocumentService,
     document_to_schema,
@@ -47,6 +47,7 @@ class ConversationAgentContext:
     current_user: AuthContext
     conversation_id: str
     documents: dict[str, ConversationDocumentRow]
+    messages: list[MessageRow]
     created_documents: list[ConversationDocumentRow] = field(default_factory=list)
     tool_calls: list[AgentToolCall] = field(default_factory=list)
     tool_write_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -80,66 +81,6 @@ class AgentRuntimeError(BaseError):
 type AgentRunStreamEvent = dict[str, Any]
 
 
-@function_tool
-def list_conversation_documents(ctx: RunContextWrapper[ConversationAgentContext]) -> str:
-    """List Markdown documents available in this conversation."""
-
-    rows = list(ctx.context.documents.values()) + ctx.context.created_documents
-    if rows:
-        output = "\n".join(f"- {row.id}: {row.title} ({row.kind}, {row.filename})" for row in rows)
-    else:
-        output = "No conversation documents."
-    ctx.context.record_tool_call("list_conversation_documents", "", output)
-    return output
-
-
-@function_tool
-def read_document_markdown(
-    ctx: RunContextWrapper[ConversationAgentContext],
-    document_id: str,
-) -> str:
-    """Read a conversation document's Markdown content.
-
-    Args:
-        document_id: Document ID from list_conversation_documents.
-    """
-
-    row = ctx.context.get_document(document_id)
-    output = row.content_md
-    ctx.context.record_tool_call("read_document_markdown", document_id, output)
-    return output
-
-
-@function_tool(timeout=20.0)
-async def write_artifact(
-    ctx: RunContextWrapper[ConversationAgentContext],
-    title: str,
-    filename: str,
-    content_markdown: str,
-) -> str:
-    """Create a Markdown artifact document in the current conversation.
-
-    Args:
-        title: Human-readable artifact title.
-        filename: Markdown filename, preferably ending in .md.
-        content_markdown: Complete Markdown content for the artifact.
-    """
-
-    async with ctx.context.tool_write_lock:
-        row = await ConversationDocumentService(ctx.context.session, ctx.context.current_user).create_artifact_row(
-            conversation_id=ctx.context.conversation_id,
-            kind="artifact",
-            title=title,
-            filename=filename if filename.endswith(".md") else f"{filename}.md",
-            mime_type="text/markdown",
-            content_md=content_markdown,
-        )
-    ctx.context.created_documents.append(row)
-    output = f"Created artifact {row.id}: {row.title}"
-    ctx.context.record_tool_call("write_artifact", title, output)
-    return output
-
-
 class AgentRunService:
     def __init__(
         self,
@@ -163,13 +104,12 @@ class AgentRunService:
     ) -> AgentRunResult:
         if not prompt.strip():
             raise RequestError("agent prompt is required")
-        context, document_rows = await self._prepare_context(conversation_id, document_ids)
-        await self._persist_user_message(conversation_id, prompt, document_rows)
+        context, selected_document_rows = await self._prepare_context(conversation_id, document_ids)
+        await self._persist_user_message(conversation_id, prompt, selected_document_rows)
 
         try:
             result, client = await self._run_agent(
                 prompt=prompt,
-                document_rows=document_rows,
                 context=context,
                 thinking=thinking,
                 reasoning_effort=reasoning_effort,
@@ -206,19 +146,23 @@ class AgentRunService:
     ) -> AsyncIterator[AgentRunStreamEvent]:
         if not prompt.strip():
             raise RequestError("agent prompt is required")
-        context, document_rows = await self._prepare_context(conversation_id, document_ids)
+        context, selected_document_rows = await self._prepare_context(conversation_id, document_ids)
 
         steps: list[str] = []
 
         step = "已接收任务 正在准备上下文"
         steps.append(step)
         yield self._step_event(step)
-        if document_rows:
-            step = f"已加载 {len(document_rows)} 个会话文档"
+        if context.messages:
+            step = f"已加载 {len(context.messages)} 条历史消息"
+            steps.append(step)
+            yield self._step_event(step)
+        if context.documents:
+            step = f"已加载 {len(context.documents)} 个会话文档"
             steps.append(step)
             yield self._step_event(step)
 
-        await self._persist_user_message(conversation_id, prompt, document_rows)
+        await self._persist_user_message(conversation_id, prompt, selected_document_rows)
 
         step = "正在调用模型"
         steps.append(step)
@@ -228,28 +172,67 @@ class AgentRunService:
         client = None
         summary_parts: list[str] = []
         emitted_steps: set[str] = set()
+        emitted_card_document_ids: set[str] = set()
         try:
-            result, client = await self._run_agent_streamed(
-                prompt=prompt,
-                document_rows=document_rows,
-                context=context,
-                thinking=thinking,
-                reasoning_effort=reasoning_effort,
-            )
-            async for event in result.stream_events():
-                if isinstance(event, RawResponsesStreamEvent):
-                    delta = self._extract_text_delta(event)
-                    if delta:
-                        summary_parts.append(delta)
-                        yield {"type": "summary_delta", "delta": delta}
-                    continue
+            async with asyncio.timeout(self._settings.agent_run_timeout_seconds):
+                result, client = await self._run_agent_streamed(
+                    prompt=prompt,
+                    context=context,
+                    thinking=thinking,
+                    reasoning_effort=reasoning_effort,
+                )
+                async for event in result.stream_events():
+                    if isinstance(event, RawResponsesStreamEvent):
+                        delta = self._extract_text_delta(event)
+                        if delta:
+                            summary_parts.append(delta)
+                            yield self._message_event(delta=delta)
+                        continue
 
-                step = self._stream_step(event)
-                if step and step not in emitted_steps:
-                    emitted_steps.add(step)
-                    steps.append(step)
-                    yield self._step_event(step)
+                    step_event = self._stream_step_event(event)
+                    if step_event:
+                        step_key = self._step_key(step_event)
+                        if step_key and step_key in emitted_steps:
+                            continue
+                        if step_key:
+                            emitted_steps.add(step_key)
+                        step_text = str(step_event.get("text") or "")
+                        if step_text:
+                            steps.append(step_text)
+                        yield step_event
+
+                    if isinstance(event, RunItemStreamEvent) and event.name == "tool_output":
+                        for row in context.created_documents:
+                            if row.id in emitted_card_document_ids:
+                                continue
+                            emitted_card_document_ids.add(row.id)
+                            yield self._artifact_card_event(row)
+        except TimeoutError as exc:
+            await self._persist_failed_assistant_message(
+                conversation_id=conversation_id,
+                message="agent run timed out",
+                created_documents=context.created_documents,
+                steps=steps,
+                partial_summary="".join(summary_parts).strip(),
+            )
+            if client is not None:
+                await self._session.rollback()
+                await client.close()
+            raise AgentRuntimeError(
+                "agent run timed out",
+                details={
+                    "provider": self._provider.name,
+                    "timeout_seconds": self._settings.agent_run_timeout_seconds,
+                },
+            ) from exc
         except Exception as exc:
+            await self._persist_failed_assistant_message(
+                conversation_id=conversation_id,
+                message=str(exc),
+                created_documents=context.created_documents,
+                steps=steps,
+                partial_summary="".join(summary_parts).strip(),
+            )
             if client is not None:
                 await self._session.rollback()
                 await client.close()
@@ -271,18 +254,17 @@ class AgentRunService:
         )
 
         if context.created_documents:
-            yield {
-                "type": "artifacts",
-                "documents": [
-                    document_to_schema(row).model_dump(mode="json") for row in context.created_documents
-                ],
-            }
+            for row in context.created_documents:
+                if row.id in emitted_card_document_ids:
+                    continue
+                emitted_card_document_ids.add(row.id)
+                yield self._artifact_card_event(row)
 
-        yield {
-            "type": "done",
-            "message": message,
-            "tool_calls": [tool_call.model_dump(mode="json") for tool_call in context.tool_calls],
-        }
+        yield self._message_event(
+            text=message,
+            status="completed",
+            tool_calls=[tool_call.model_dump(mode="json") for tool_call in context.tool_calls],
+        )
 
     async def _prepare_context(
         self,
@@ -300,22 +282,23 @@ class AgentRunService:
 
             raise NotFoundError(f"conversation {conversation_id} not found")
 
-        document_rows = await ConversationDocumentService(
-            self._session,
-            self._current_user,
-        ).get_rows(conversation_id, document_ids)
+        document_service = ConversationDocumentService(self._session, self._current_user)
+        selected_document_rows = await document_service.get_rows(conversation_id, document_ids)
+        all_document_rows = await document_service.list_rows(conversation_id)
+        message_rows = await message_crud.list_messages(self._session, conversation_id)
         context = ConversationAgentContext(
             session=self._session,
             current_user=self._current_user,
             conversation_id=conversation_id,
-            documents={row.id: row for row in document_rows},
+            documents={row.id: row for row in all_document_rows},
+            messages=message_rows,
         )
 
         if conversation.provider_id != self._provider.id or conversation.model != self._provider.model:
             conversation.provider_id = self._provider.id
             conversation.model = self._provider.model
 
-        return context, list(document_rows)
+        return context, list(selected_document_rows)
 
     async def _persist_user_message(
         self,
@@ -338,6 +321,7 @@ class AgentRunService:
         message: str,
         created_documents: Sequence[ConversationDocumentRow],
         steps: Sequence[str],
+        status: str = "ok",
     ) -> None:
         assistant_text = self._assistant_summary(message, created_documents)
         assistant_content = self._assistant_content(
@@ -350,7 +334,7 @@ class AgentRunService:
             conversation_id=conversation_id,
             role="assistant",
             content=assistant_content,
-            status="ok",
+            status=status,
         )
         conversation = await conversation_crud.get_conversation(
             self._session,
@@ -360,6 +344,27 @@ class AgentRunService:
         )
         if conversation is not None:
             await conversation_crud.touch_conversation(self._session, conversation)
+
+    async def _persist_failed_assistant_message(
+        self,
+        *,
+        conversation_id: str,
+        message: str,
+        created_documents: Sequence[ConversationDocumentRow],
+        steps: Sequence[str],
+        partial_summary: str,
+    ) -> None:
+        summary = partial_summary or f"[agent] 运行失败: {message}"
+        try:
+            await self._persist_assistant_message(
+                conversation_id=conversation_id,
+                message=summary,
+                created_documents=created_documents,
+                steps=steps,
+                status="failed",
+            )
+        except Exception:
+            await self._session.rollback()
 
     def _build_agent(
         self,
@@ -385,6 +390,7 @@ class AgentRunService:
                 reasoning_effort=reasoning_effort,
             ),
             tools=self._tools(),
+            tool_use_behavior={"stop_at_tool_names": ["write_artifacts"]},
         )
         return agent, client
 
@@ -392,7 +398,6 @@ class AgentRunService:
         self,
         *,
         prompt: str,
-        document_rows: Sequence[ConversationDocumentRow],
         context: ConversationAgentContext,
         thinking: bool | None,
         reasoning_effort: ReasoningEffort | None,
@@ -401,7 +406,11 @@ class AgentRunService:
             thinking=thinking,
             reasoning_effort=reasoning_effort,
         )
-        agent_input = self._build_input(prompt, document_rows)
+        agent_input = self._build_input(
+            prompt=prompt,
+            messages=context.messages,
+            documents=list(context.documents.values()),
+        )
         try:
             result = await Runner.run(
                 agent,
@@ -419,7 +428,6 @@ class AgentRunService:
         self,
         *,
         prompt: str,
-        document_rows: Sequence[ConversationDocumentRow],
         context: ConversationAgentContext,
         thinking: bool | None,
         reasoning_effort: ReasoningEffort | None,
@@ -428,7 +436,11 @@ class AgentRunService:
             thinking=thinking,
             reasoning_effort=reasoning_effort,
         )
-        agent_input = self._build_input(prompt, document_rows)
+        agent_input = self._build_input(
+            prompt=prompt,
+            messages=context.messages,
+            documents=list(context.documents.values()),
+        )
         try:
             result = Runner.run_streamed(
                 agent,
@@ -443,8 +455,54 @@ class AgentRunService:
             raise
 
     @staticmethod
-    def _step_event(text: str) -> AgentRunStreamEvent:
-        return {"type": "step", "text": text}
+    def _step_event(
+        text: str,
+        *,
+        status: str = "completed",
+        tool_name: str | None = None,
+        output_preview: str | None = None,
+    ) -> AgentRunStreamEvent:
+        event: AgentRunStreamEvent = {
+            "type": "step",
+            "text": text,
+            "status": status,
+        }
+        if tool_name:
+            event["tool_name"] = tool_name
+        if output_preview:
+            event["output_preview"] = output_preview[:500]
+        return event
+
+    @staticmethod
+    def _message_event(
+        *,
+        delta: str | None = None,
+        text: str | None = None,
+        status: str = "streaming",
+        tool_calls: list[dict[str, Any]] | None = None,
+    ) -> AgentRunStreamEvent:
+        event: AgentRunStreamEvent = {
+            "type": "message",
+            "role": "assistant",
+            "status": status,
+        }
+        if delta is not None:
+            event["delta"] = delta
+        if text is not None:
+            event["text"] = text
+        if tool_calls is not None:
+            event["tool_calls"] = tool_calls
+        return event
+
+    @staticmethod
+    def _artifact_card_event(row: ConversationDocumentRow) -> AgentRunStreamEvent:
+        return {
+            "type": "card",
+            "card": {
+                "type": "artifact",
+                "document": document_to_schema(row).model_dump(mode="json"),
+            },
+        }
 
     @staticmethod
     def _extract_text_delta(event: RawResponsesStreamEvent) -> str | None:
@@ -469,43 +527,67 @@ class AgentRunService:
         return None
 
     @staticmethod
-    def _stream_step(event: Any) -> str | None:
+    def _stream_step_event(event: Any) -> AgentRunStreamEvent | None:
         if isinstance(event, AgentUpdatedStreamEvent):
-            return f"切换到 Agent: {event.new_agent.name}"
+            return AgentRunService._step_event(f"切换到 Agent: {event.new_agent.name}")
         if not isinstance(event, RunItemStreamEvent):
             return None
         if event.name == "reasoning_item_created":
-            return "正在推理和规划下一步"
+            return AgentRunService._step_event("正在推理和规划下一步", status="running")
         if event.name == "tool_called":
             item_name = getattr(event.item, "name", None)
-            return f"正在调用工具{f': {item_name}' if item_name else ''}"
+            return AgentRunService._step_event(
+                f"正在调用工具{f': {item_name}' if item_name else ''}",
+                status="running",
+                tool_name=item_name,
+            )
         if event.name == "tool_output":
-            return "工具执行完成 正在读取结果"
+            item_name = getattr(event.item, "name", None)
+            output = getattr(event.item, "output", None)
+            return AgentRunService._step_event(
+                f"工具执行完成{f': {item_name}' if item_name else ''}",
+                status="completed",
+                tool_name=item_name,
+                output_preview=str(output) if output else None,
+            )
         if event.name == "message_output_created":
-            return "正在整理最终回复"
+            return AgentRunService._step_event("正在整理最终回复", status="running")
         if event.name == "handoff_requested":
-            return "正在请求任务交接"
+            return AgentRunService._step_event("正在请求任务交接", status="running")
         if event.name == "handoff_occured":
-            return "任务交接完成"
+            return AgentRunService._step_event("任务交接完成")
         return None
+
+    @staticmethod
+    def _step_key(event: AgentRunStreamEvent) -> str:
+        status = event.get("status", "")
+        tool_name = event.get("tool_name", "")
+        text = event.get("text", "")
+        return f"{status}:{tool_name}:{text}"
 
     @staticmethod
     def _instructions() -> str:
         return "\n".join(
             [
                 "You are a general-purpose office assistant.",
+                "The input includes the current conversation history and all conversation documents, including prior artifacts.",
+                "Use the conversation history to resolve references such as previous requests, earlier answers, and generated files.",
                 "The user may reference Markdown documents converted by Microsoft MarkItDown.",
-                "Use list_conversation_documents and read_document_markdown when documents are relevant.",
+                "Use search_conversation for retrieval across history and documents before asking the user to resend context.",
+                "Use the virtual workspace tools to list/read conversation files. Do not claim access to the server filesystem.",
+                "Use fetch_url_text only for public http(s) pages when the user asks for web/browser lookup.",
+                "Use execute_python for bounded calculations or text transformations; do not use it for filesystem, network, or process work.",
                 "Answer directly in the conversation for normal questions, analysis, summaries, edits, plans, and brainstorming.",
-                "Call write_artifact only when you decide the user needs a reusable, downloadable, or editable file-like deliverable.",
+                "Call write_artifacts when you decide the user needs reusable, downloadable, or editable file-like deliverables.",
+                "Use write_artifacts for both single-file and multi-file output; put every requested file in one call.",
                 "If you create an artifact, keep the final answer concise and mention it instead of pasting the full file content.",
-                "Artifacts are persisted in the Markdown document table. If you create an HTML artifact, write the raw complete HTML string directly as content_markdown, without wrapping it in a fenced code block.",
+                "Artifacts are persisted in the conversation document table. For HTML artifacts, write the raw complete HTML string directly as content_markdown, without wrapping it in a fenced code block, and use a .html filename.",
             ]
         )
 
     @staticmethod
     def _tools() -> list[Any]:
-        return [list_conversation_documents, read_document_markdown, write_artifact]
+        return agent_runtime_tools()
 
     def _model_settings(
         self,
@@ -519,13 +601,56 @@ class AgentRunService:
         if reasoning_effort is not None:
             extra_body["reasoning_effort"] = reasoning_effort
         return ModelSettings(
-            parallel_tool_calls=True,
+            # OpenAI-compatible providers vary in parallel tool-call support.
+            # Sequential tools are slower but much more reliable for artifact
+            # creation because each write becomes visible before the next turn.
+            parallel_tool_calls=False,
             extra_body=extra_body or None,
         )
 
     @staticmethod
-    def _build_input(prompt: str, documents: Sequence[ConversationDocumentRow]) -> str:
-        return with_document_context(prompt, documents)
+    def _build_input(
+        *,
+        prompt: str,
+        messages: Sequence[MessageRow],
+        documents: Sequence[ConversationDocumentRow],
+    ) -> str:
+        sections: list[str] = []
+        if messages:
+            sections.append(AgentRunService._conversation_history_context(messages))
+        sections.append(
+            "\n".join(
+                [
+                    "<current_user_request>",
+                    prompt,
+                    "</current_user_request>",
+                ]
+            )
+        )
+        return with_document_context("\n\n".join(sections), documents)
+
+    @staticmethod
+    def _conversation_history_context(messages: Sequence[MessageRow]) -> str:
+        blocks: list[str] = []
+        for index, row in enumerate(messages, start=1):
+            blocks.append(
+                "\n".join(
+                    [
+                        f"### Message {index}",
+                        f"Role: {row.role}",
+                        f"Status: {row.status}",
+                        "",
+                        row.content,
+                    ]
+                )
+            )
+        return "\n\n".join(
+            [
+                "<conversation_history>",
+                *blocks,
+                "</conversation_history>",
+            ]
+        )
 
     @staticmethod
     def _assistant_content(

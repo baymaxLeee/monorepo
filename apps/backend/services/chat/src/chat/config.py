@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     attachment_max_upload_bytes: int = 10 * 1024 * 1024
     attachment_markdown_max_chars: int = 12_000
     agent_max_turns: int = 8
+    agent_run_timeout_seconds: float = 120.0
     agent_event_stream_ttl_seconds: int = 30 * 60
     agent_event_stream_block_ms: int = 1000
     agent_event_stream_stale_seconds: int = 15

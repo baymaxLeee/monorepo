@@ -100,6 +100,10 @@ class ConversationDocumentService:
         rows = await document_crud.list_documents(self._session, conversation_id)
         return [document_to_schema(row) for row in rows]
 
+    async def list_rows(self, conversation_id: str) -> Sequence[ConversationDocumentRow]:
+        await self._get_conversation(conversation_id)
+        return await document_crud.list_documents(self._session, conversation_id)
+
     async def get(
         self,
         conversation_id: str,
