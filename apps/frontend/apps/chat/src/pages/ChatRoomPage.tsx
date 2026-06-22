@@ -7,7 +7,9 @@ import {
   type Message,
   type ModelProvider,
   type ReasoningEffort,
+  resumeConversationAgent,
   streamConversationAgent,
+  type AgentRunStreamEvent,
   updateConversationDocument,
   uploadConversationDocument,
 } from "api";
@@ -60,7 +62,16 @@ import "streamdown/styles.css";
 import { useShallow } from "zustand/react/shallow";
 import { useChatStore } from "../store/useChatStore";
 
-type StreamingMessage = Message & { streaming?: boolean };
+type AgentProgress = {
+  steps: string[];
+  summary: string;
+  artifacts: ConversationDocument[];
+};
+
+type StreamingMessage = Message & {
+  streaming?: boolean;
+  agentProgress?: AgentProgress;
+};
 
 const REASONING_OPTIONS: { value: ReasoningEffort; label: string }[] = [
   { value: "low", label: "低" },
@@ -120,31 +131,23 @@ function buildUserDisplayContent(
   );
 }
 
-function buildAgentProgressContent({
-  steps,
-  summary,
-  artifacts,
-}: {
-  steps: string[];
-  summary?: string;
-  artifacts: ConversationDocument[];
-}) {
-  const sections = [];
-  if (steps.length > 0) {
-    sections.push(["**Steps**", ...steps.map((step) => `- ${step}`)].join("\n"));
-  }
-  if (summary) {
-    sections.push(["**Summary**", summary].join("\n\n"));
-  }
-  if (artifacts.length > 0) {
-    sections.push(
-      [
-        "**Result Artifact**",
-        ...artifacts.map((document) => documentRef(document.id)),
-      ].join("\n\n"),
-    );
-  }
-  return sections.join("\n\n") || "Agent 正在运行...";
+function createEmptyAgentProgress(): AgentProgress {
+  return { steps: [], summary: "", artifacts: [] };
+}
+
+function mergeDocumentsById(
+  current: ConversationDocument[],
+  incoming: ConversationDocument[],
+) {
+  const seen = new Set(current.map((document) => document.id));
+  return [
+    ...current,
+    ...incoming.filter((document) => {
+      if (seen.has(document.id)) return false;
+      seen.add(document.id);
+      return true;
+    }),
+  ];
 }
 
 function downloadMarkdown(document: ConversationDocumentDetail) {
@@ -191,6 +194,7 @@ export function ChatRoomPage() {
   const [savingDocument, setSavingDocument] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const promptInputRef = useRef<PromptInputRef | null>(null);
+  const resumedConversationRef = useRef<string | null>(null);
 
   const {
     sending,
@@ -233,6 +237,91 @@ export function ChatRoomPage() {
     [documentDraft],
   );
 
+  const updateAgentProgress = useCallback(
+    (
+      updater: (progress: AgentProgress) => AgentProgress,
+      status: "streaming" | "ok" = "streaming",
+    ) => {
+      if (!id) return;
+      setMessages((prev) => {
+        const next = [...prev];
+        let index = next.length - 1;
+        let current = next[index];
+        if (current?.role !== "assistant" || !current.agentProgress) {
+          current = {
+            id: placeholderId("assistant"),
+            conversation_id: id,
+            role: "assistant",
+            content: "",
+            status: "streaming",
+            created_at: new Date().toISOString(),
+            streaming: true,
+            agentProgress: createEmptyAgentProgress(),
+          };
+          next.push(current);
+          index = next.length - 1;
+        }
+
+        next[index] = {
+          ...current,
+          status,
+          streaming: status === "streaming",
+          agentProgress: updater(current.agentProgress ?? createEmptyAgentProgress()),
+        };
+        return next;
+      });
+    },
+    [id],
+  );
+
+  const applyAgentEvent = useCallback(
+    (event: AgentRunStreamEvent) => {
+      if (event.type === "step") {
+        updateAgentProgress((progress) => ({
+          ...progress,
+          steps: [...progress.steps, event.text],
+        }));
+        return;
+      }
+      if (event.type === "summary_delta") {
+        updateAgentProgress((progress) => ({
+          ...progress,
+          summary: progress.summary + event.delta,
+        }));
+        return;
+      }
+      if (event.type === "artifacts") {
+        setDetail((prev) =>
+          prev
+            ? {
+                ...prev,
+                documents: mergeDocumentsById(prev.documents, event.documents),
+              }
+            : prev,
+        );
+        updateAgentProgress((progress) => ({
+          ...progress,
+          artifacts: mergeDocumentsById(progress.artifacts, event.documents),
+        }));
+        return;
+      }
+      if (event.type === "done") {
+        updateAgentProgress(
+          (progress) => ({
+            ...progress,
+            summary: progress.summary || event.message,
+          }),
+          "ok",
+        );
+        return;
+      }
+      if (event.type === "error") {
+        throw new Error(event.message);
+      }
+    },
+    [updateAgentProgress],
+  );
+
   useEffect(() => {
     if (!documentOpen || !htmlPreview) {
       setHtmlPreviewUrl(null);
@@ -263,6 +352,39 @@ export function ChatRoomPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    resumedConversationRef.current = null;
+  }, [id]);
+
+  useEffect(() => {
+    if (!id || loading || sending || resumedConversationRef.current === id) {
+      return;
+    }
+    resumedConversationRef.current = id;
+    const controller = new AbortController();
+    let receivedEvents = false;
+
+    void resumeConversationAgent(id, {
+      signal: controller.signal,
+      onEvent: (event) => {
+        receivedEvents = true;
+        applyAgentEvent(event);
+      },
+    })
+      .then(async () => {
+        if (!receivedEvents || controller.signal.aborted) return;
+        const next = await fetchConversation(id);
+        setDetail(next);
+        setMessages(next.messages);
+      })
+      .catch((e) => {
+        if (controller.signal.aborted) return;
+        toast.error(String(e));
+      });
+
+    return () => controller.abort();
+  }, [applyAgentEvent, id, loading, sending]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -375,36 +497,15 @@ export function ChatRoomPage() {
         id: placeholderId("assistant"),
         conversation_id: id,
         role: "assistant",
-        content: "Agent 正在运行...",
+        content: "",
         status: "streaming",
         created_at: now,
         streaming: true,
+        agentProgress: createEmptyAgentProgress(),
       };
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
       promptInputRef.current?.clear();
       setAttachmentCount(0);
-
-      const steps: string[] = [];
-      let summary = "";
-      const artifacts: ConversationDocument[] = [];
-      const updateAssistantProgress = () => {
-        const nextContent = buildAgentProgressContent({
-          steps,
-          summary,
-          artifacts,
-        });
-        setMessages((prev) => {
-          const next = [...prev];
-          const last = next[next.length - 1];
-          if (last?.role === "assistant") {
-            next[next.length - 1] = {
-              ...last,
-              content: nextContent,
-            };
-          }
-          return next;
-        });
-      };
 
       await streamConversationAgent(
         id,
@@ -416,34 +517,7 @@ export function ChatRoomPage() {
           reasoning_effort: prefs.thinking ? prefs.effort : null,
         },
         {
-          onEvent: (event) => {
-            if (event.type === "step") {
-              steps.push(event.text);
-              updateAssistantProgress();
-              return;
-            }
-            if (event.type === "summary") {
-              summary = event.summary;
-              updateAssistantProgress();
-              return;
-            }
-            if (event.type === "artifact") {
-              artifacts.push(event.document);
-              setDetail((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      documents: [...prev.documents, event.document],
-                    }
-                  : prev,
-              );
-              updateAssistantProgress();
-              return;
-            }
-            if (event.type === "error") {
-              throw new Error(event.message);
-            }
-          },
+          onEvent: applyAgentEvent,
         },
       );
       const refreshed = await fetchConversation(id);
@@ -459,7 +533,8 @@ export function ChatRoomPage() {
           next[next.length - 1] = {
             ...last,
             content:
-              last.content === "Agent 正在运行..."
+              !last.agentProgress?.summary &&
+              last.agentProgress?.steps.length === 0
                 ? "[chat] 请求失败，请稍后重试或检查后端配置。"
                 : last.content,
             status: "failed",
@@ -743,7 +818,8 @@ const MessageBubble = memo(function MessageBubble({
   const isUser = message.role === "user";
   const isStreaming =
     Boolean(message.streaming) || message.status === "streaming";
-  const parts = splitDocumentRefs(message.content);
+  const progress = message.agentProgress;
+  const parts = progress ? [] : splitDocumentRefs(message.content);
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -766,7 +842,39 @@ const MessageBubble = memo(function MessageBubble({
             </Badge>
           ) : null}
         </div>
-        {parts.length > 0 ? (
+        {progress ? (
+          <div className="space-y-3">
+            {progress.steps.length > 0 ? (
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                {progress.steps.map((step, index) => (
+                  <li key={`${index}-${step}`}>{step}</li>
+                ))}
+              </ul>
+            ) : isStreaming ? (
+              <div className="text-xs text-muted-foreground">准备中...</div>
+            ) : null}
+            {progress.summary ? (
+              <Streamdown
+                isAnimating={isStreaming}
+                className="prose prose-sm max-w-none break-words leading-relaxed dark:prose-invert prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-md prose-code:before:content-none prose-code:after:content-none"
+              >
+                {progress.summary}
+              </Streamdown>
+            ) : null}
+            {progress.artifacts.length > 0 ? (
+              <div className="space-y-2">
+                {progress.artifacts.map((document) => (
+                  <DocumentCard
+                    key={document.id}
+                    document={document}
+                    documentId={document.id}
+                    onOpen={() => onOpenDocument(document.id)}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : parts.length > 0 ? (
           <div className="space-y-2">
             {parts.map((part) =>
               part.type === "document" ? (

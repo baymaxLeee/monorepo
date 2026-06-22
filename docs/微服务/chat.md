@@ -25,6 +25,11 @@
   - `POST   /conversations/{id}/agents/run` 运行 OpenAI Agents SDK agent，模型可调用
     `list_conversation_documents` / `read_document_markdown` / `write_artifact`
     工具；`write_artifact` 会写入新的 `artifact` 文档
+  - `POST   /conversations/{id}/agents/run/stream` 同上，但通过 SSE 实时推送进度：
+    - `step`：每个执行阶段一条文本
+    - `summary_delta`：模型回复的增量 token
+    - `artifacts`：run 结束时批量返回新建的 artifact 文档
+    - `done`：最终 message 与 tool_calls
   - `POST   /conversations/{id}/messages` 发用户消息 + SSE 流式返回 assistant
     增量（`text/event-stream`，每帧 `data: <json-string>`，结束 `data: [DONE]`）
     - 可选 body：`provider_id`（按需切换模型）、`thinking`、`reasoning_effort`

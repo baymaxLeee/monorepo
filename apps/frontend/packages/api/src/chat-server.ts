@@ -86,8 +86,8 @@ export interface AgentRunResult {
 
 export type AgentRunStreamEvent =
   | { type: "step"; text: string }
-  | { type: "summary"; summary: string }
-  | { type: "artifact"; document: ConversationDocument }
+  | { type: "summary_delta"; delta: string }
+  | { type: "artifacts"; documents: ConversationDocument[] }
   | { type: "done"; message: string; tool_calls: AgentToolCall[] }
   | { type: "error"; message: string };
 
@@ -215,23 +215,23 @@ export interface StreamConversationAgentOptions {
 
 async function sendAgentStreamRequest(
   url: string,
-  body: string,
+  init: { method: "GET" } | { method: "POST"; body: string },
   signal?: AbortSignal,
 ): Promise<Response> {
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     Accept: "text/event-stream",
   };
+  if (init.method === "POST") headers["Content-Type"] = "application/json";
 
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
   try {
     return await fetch(url, {
-      method: "POST",
+      method: init.method,
       credentials: "include",
       headers,
-      body,
+      body: init.method === "POST" ? init.body : undefined,
       signal,
     });
   } catch (error) {
@@ -239,30 +239,21 @@ async function sendAgentStreamRequest(
   }
 }
 
-export async function streamConversationAgent(
-  conversationId: string,
-  input: RunConversationAgentInput,
+async function openAgentEventStream(
+  url: string,
+  init: { method: "GET" } | { method: "POST"; body: string },
   { onEvent, signal }: StreamConversationAgentOptions,
-): Promise<void> {
-  const url = `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/agents/run/stream`;
-  const body = JSON.stringify({
-    prompt: input.prompt,
-    provider_id: input.provider_id ?? null,
-    document_ids: input.document_ids ?? [],
-    thinking: input.thinking ?? null,
-    reasoning_effort: input.reasoning_effort ?? null,
-  });
-
+) {
   if (!isAccessTokenValid()) {
     await refreshSession();
   }
 
-  let response = await sendAgentStreamRequest(url, body, signal);
+  let response = await sendAgentStreamRequest(url, init, signal);
 
   if (response.status === 401) {
     const refreshed = await refreshSession();
     if (refreshed) {
-      response = await sendAgentStreamRequest(url, body, signal);
+      response = await sendAgentStreamRequest(url, init, signal);
     }
   }
 
@@ -308,4 +299,28 @@ export async function streamConversationAgent(
   } finally {
     reader.releaseLock();
   }
+}
+
+export async function streamConversationAgent(
+  conversationId: string,
+  input: RunConversationAgentInput,
+  options: StreamConversationAgentOptions,
+): Promise<void> {
+  const url = `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/agents/run/stream`;
+  const body = JSON.stringify({
+    prompt: input.prompt,
+    provider_id: input.provider_id ?? null,
+    document_ids: input.document_ids ?? [],
+    thinking: input.thinking ?? null,
+    reasoning_effort: input.reasoning_effort ?? null,
+  });
+  await openAgentEventStream(url, { method: "POST", body }, options);
+}
+
+export async function resumeConversationAgent(
+  conversationId: string,
+  options: StreamConversationAgentOptions,
+): Promise<void> {
+  const url = `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/agents/run/stream`;
+  await openAgentEventStream(url, { method: "GET" }, options);
 }
