@@ -7,7 +7,7 @@ import {
   type Message,
   type ModelProvider,
   type ReasoningEffort,
-  runConversationAgent,
+  streamConversationAgent,
   updateConversationDocument,
   uploadConversationDocument,
 } from "api";
@@ -118,6 +118,33 @@ function buildUserDisplayContent(
   return [text, ...documents.map((document) => documentRef(document.id))].join(
     "\n\n",
   );
+}
+
+function buildAgentProgressContent({
+  steps,
+  summary,
+  artifacts,
+}: {
+  steps: string[];
+  summary?: string;
+  artifacts: ConversationDocument[];
+}) {
+  const sections = [];
+  if (steps.length > 0) {
+    sections.push(["**Steps**", ...steps.map((step) => `- ${step}`)].join("\n"));
+  }
+  if (summary) {
+    sections.push(["**Summary**", summary].join("\n\n"));
+  }
+  if (artifacts.length > 0) {
+    sections.push(
+      [
+        "**Result Artifact**",
+        ...artifacts.map((document) => documentRef(document.id)),
+      ].join("\n\n"),
+    );
+  }
+  return sections.join("\n\n") || "Agent 正在运行...";
 }
 
 function downloadMarkdown(document: ConversationDocumentDetail) {
@@ -357,13 +384,68 @@ export function ChatRoomPage() {
       promptInputRef.current?.clear();
       setAttachmentCount(0);
 
-      await runConversationAgent(id, {
-        prompt: content,
-        provider_id: effectiveProvider?.id ?? null,
-        document_ids: uploaded.map((document) => document.id),
-        thinking: prefs.thinking ? true : null,
-        reasoning_effort: prefs.thinking ? prefs.effort : null,
-      });
+      const steps: string[] = [];
+      let summary = "";
+      const artifacts: ConversationDocument[] = [];
+      const updateAssistantProgress = () => {
+        const nextContent = buildAgentProgressContent({
+          steps,
+          summary,
+          artifacts,
+        });
+        setMessages((prev) => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last?.role === "assistant") {
+            next[next.length - 1] = {
+              ...last,
+              content: nextContent,
+            };
+          }
+          return next;
+        });
+      };
+
+      await streamConversationAgent(
+        id,
+        {
+          prompt: content,
+          provider_id: effectiveProvider?.id ?? null,
+          document_ids: uploaded.map((document) => document.id),
+          thinking: prefs.thinking ? true : null,
+          reasoning_effort: prefs.thinking ? prefs.effort : null,
+        },
+        {
+          onEvent: (event) => {
+            if (event.type === "step") {
+              steps.push(event.text);
+              updateAssistantProgress();
+              return;
+            }
+            if (event.type === "summary") {
+              summary = event.summary;
+              updateAssistantProgress();
+              return;
+            }
+            if (event.type === "artifact") {
+              artifacts.push(event.document);
+              setDetail((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      documents: [...prev.documents, event.document],
+                    }
+                  : prev,
+              );
+              updateAssistantProgress();
+              return;
+            }
+            if (event.type === "error") {
+              throw new Error(event.message);
+            }
+          },
+        },
+      );
       const refreshed = await fetchConversation(id);
       setDetail(refreshed);
       setMessages(refreshed.messages);

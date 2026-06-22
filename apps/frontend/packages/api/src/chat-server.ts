@@ -1,4 +1,6 @@
-import { request } from "./http";
+import { API_BASE_URL, request, toApiError } from "./http";
+import { refreshSession } from "./session";
+import { getToken, isAccessTokenValid } from "./storage";
 
 export type MessageRole = "user" | "assistant" | "system";
 export type MessageStatus = "ok" | "streaming" | "failed";
@@ -81,6 +83,13 @@ export interface AgentRunResult {
   created_documents: ConversationDocument[];
   tool_calls: AgentToolCall[];
 }
+
+export type AgentRunStreamEvent =
+  | { type: "step"; text: string }
+  | { type: "summary"; summary: string }
+  | { type: "artifact"; document: ConversationDocument }
+  | { type: "done"; message: string; tool_calls: AgentToolCall[] }
+  | { type: "error"; message: string };
 
 export interface RunConversationAgentInput {
   prompt: string;
@@ -197,4 +206,106 @@ export function runConversationAgent(
       reasoning_effort: input.reasoning_effort ?? null,
     },
   });
+}
+
+export interface StreamConversationAgentOptions {
+  signal?: AbortSignal;
+  onEvent: (event: AgentRunStreamEvent) => void;
+}
+
+async function sendAgentStreamRequest(
+  url: string,
+  body: string,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "text/event-stream",
+  };
+
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  try {
+    return await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body,
+      signal,
+    });
+  } catch (error) {
+    throw toApiError(error);
+  }
+}
+
+export async function streamConversationAgent(
+  conversationId: string,
+  input: RunConversationAgentInput,
+  { onEvent, signal }: StreamConversationAgentOptions,
+): Promise<void> {
+  const url = `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/agents/run/stream`;
+  const body = JSON.stringify({
+    prompt: input.prompt,
+    provider_id: input.provider_id ?? null,
+    document_ids: input.document_ids ?? [],
+    thinking: input.thinking ?? null,
+    reasoning_effort: input.reasoning_effort ?? null,
+  });
+
+  if (!isAccessTokenValid()) {
+    await refreshSession();
+  }
+
+  let response = await sendAgentStreamRequest(url, body, signal);
+
+  if (response.status === 401) {
+    const refreshed = await refreshSession();
+    if (refreshed) {
+      response = await sendAgentStreamRequest(url, body, signal);
+    }
+  }
+
+  if (!response.ok || !response.body) {
+    let detail = `agent stream failed: ${response.status}`;
+    try {
+      const text = await response.text();
+      if (text) detail = text;
+    } catch {
+      // body already consumed or unreadable; keep the status detail
+    }
+    throw new Error(detail);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let separatorIndex = buffer.indexOf("\n\n");
+      while (separatorIndex !== -1) {
+        const frame = buffer.slice(0, separatorIndex);
+        buffer = buffer.slice(separatorIndex + 2);
+
+        const dataLines = frame
+          .split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trimStart());
+        if (dataLines.length > 0) {
+          const data = dataLines.join("\n");
+          if (data === "[DONE]") return;
+          onEvent(JSON.parse(data) as AgentRunStreamEvent);
+        }
+
+        separatorIndex = buffer.indexOf("\n\n");
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }

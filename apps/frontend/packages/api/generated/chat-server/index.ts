@@ -306,6 +306,22 @@ const runAgentConversationsConversationIdAgentsRunPost = (
     }
 
 /**
+ * Run the conversation agent and stream high-level progress over SSE.
+ * @summary Stream Agent Run
+ */
+const streamAgentRunConversationsConversationIdAgentsRunStreamPost = (
+    conversationId: string,
+    runAgentInput: RunAgentInput,
+ options?: SecondParameter<typeof apiMutator<unknown>>,) => {
+      return apiMutator<unknown>(
+      {url: `/conversations/${conversationId}/agents/run/stream`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: runAgentInput
+    },
+      options);
+    }
+
+/**
  * Convert one uploaded file to Markdown for LLM context.
  * @summary Convert Attachment
  */
@@ -470,7 +486,7 @@ const updateDocumentConversationsConversationIdDocumentsDocumentIdPatch = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,runAgentConversationsConversationIdAgentsRunPost,convertAttachmentAttachmentsConvertPost,listConversationsConversationsGet,createConversationConversationsPost,getConversationConversationsConversationIdGet,updateConversationConversationsConversationIdPatch,deleteConversationConversationsConversationIdDelete,sendMessageConversationsConversationIdMessagesPost,listDocumentsConversationsConversationIdDocumentsGet,uploadDocumentConversationsConversationIdDocumentsPost,getDocumentConversationsConversationIdDocumentsDocumentIdGet,updateDocumentConversationsConversationIdDocumentsDocumentIdPatch}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,runAgentConversationsConversationIdAgentsRunPost,streamAgentRunConversationsConversationIdAgentsRunStreamPost,convertAttachmentAttachmentsConvertPost,listConversationsConversationsGet,createConversationConversationsPost,getConversationConversationsConversationIdGet,updateConversationConversationsConversationIdPatch,deleteConversationConversationsConversationIdDelete,sendMessageConversationsConversationIdMessagesPost,listDocumentsConversationsConversationIdDocumentsGet,uploadDocumentConversationsConversationIdDocumentsPost,getDocumentConversationsConversationIdDocumentsDocumentIdGet,updateDocumentConversationsConversationIdDocumentsDocumentIdPatch}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -480,6 +496,7 @@ export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<type
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['healthzHealthzGet']>>>
 export type RunAgentConversationsConversationIdAgentsRunPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['runAgentConversationsConversationIdAgentsRunPost']>>>
+export type StreamAgentRunConversationsConversationIdAgentsRunStreamPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['streamAgentRunConversationsConversationIdAgentsRunStreamPost']>>>
 export type ConvertAttachmentAttachmentsConvertPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['convertAttachmentAttachmentsConvertPost']>>>
 export type ListConversationsConversationsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['listConversationsConversationsGet']>>>
 export type CreateConversationConversationsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['createConversationConversationsPost']>>>

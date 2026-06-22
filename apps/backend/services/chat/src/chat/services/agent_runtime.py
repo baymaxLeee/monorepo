@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -18,6 +18,7 @@ from agents import (
     function_tool,
     set_tracing_disabled,
 )
+from agents.stream_events import AgentUpdatedStreamEvent, RunItemStreamEvent
 from kernel.errors import BaseError, RequestError
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +33,7 @@ from chat.schemas.conversation import ReasoningEffort
 from chat.services.admin_client import ProviderSnapshot
 from chat.services.documents import (
     ConversationDocumentService,
+    document_ref,
     document_to_schema,
     with_document_context,
     with_document_refs,
@@ -74,6 +76,9 @@ class ConversationAgentContext:
 class AgentRuntimeError(BaseError):
     status_code = 502
     code = "agent_runtime_failed"
+
+
+type AgentRunStreamEvent = dict[str, Any]
 
 
 @function_tool
@@ -205,9 +210,8 @@ class AgentRunService:
         agent = Agent[ConversationAgentContext](
             name="Conversation document agent",
             model=model,
-            instructions=self._instructions(artifact_required=self._wants_artifact(prompt)),
+            instructions=self._instructions(),
             model_settings=self._model_settings(
-                prompt,
                 thinking=thinking,
                 reasoning_effort=reasoning_effort,
             ),
@@ -224,30 +228,11 @@ class AgentRunService:
             )
         except Exception as exc:
             await self._session.rollback()
-            if self._wants_artifact(prompt):
-                context.record_tool_call(
-                    "forced_tool_call_failed",
-                    "tool_choice=write_artifact",
-                    str(exc),
-                )
-                if not context.created_documents:
-                    try:
-                        result = await self._run_text_fallback(
-                            model=model,
-                            prompt=prompt,
-                            document_rows=document_rows,
-                            context=context,
-                        )
-                    finally:
-                        await client.close()
-                else:
-                    await client.close()
-            else:
-                await client.close()
-                raise AgentRuntimeError(
-                    "agent run failed",
-                    details={"provider": self._provider.name, "reason": str(exc)},
-                ) from exc
+            await client.close()
+            raise AgentRuntimeError(
+                "agent run failed",
+                details={"provider": self._provider.name, "reason": str(exc)},
+            ) from exc
         else:
             await client.close()
 
@@ -282,100 +267,236 @@ class AgentRunService:
             tool_calls=context.tool_calls,
         )
 
-    async def _run_text_fallback(
+    async def stream_run(
         self,
         *,
-        model: OpenAIChatCompletionsModel,
+        conversation_id: str,
         prompt: str,
-        document_rows: Sequence[ConversationDocumentRow],
-        context: ConversationAgentContext,
-    ) -> RunResult:
-        agent = Agent[ConversationAgentContext](
-            name="Conversation document fallback writer",
-            model=model,
-            instructions=self._fallback_instructions(),
-            tools=[],
+        document_ids: list[str],
+        thinking: bool | None = None,
+        reasoning_effort: ReasoningEffort | None = None,
+    ) -> AsyncIterator[AgentRunStreamEvent]:
+        if not prompt.strip():
+            raise RequestError("agent prompt is required")
+        conversation = await conversation_crud.get_conversation(
+            self._session,
+            conversation_id,
+            self._current_user.user_id,
+            self._current_user.is_admin,
         )
+        if conversation is None:
+            from kernel.errors import NotFoundError
+
+            raise NotFoundError(f"conversation {conversation_id} not found")
+
+        document_rows = await ConversationDocumentService(
+            self._session,
+            self._current_user,
+        ).get_rows(conversation_id, document_ids)
+        context = ConversationAgentContext(
+            session=self._session,
+            current_user=self._current_user,
+            conversation_id=conversation_id,
+            documents={row.id: row for row in document_rows},
+        )
+
+        if conversation.provider_id != self._provider.id or conversation.model != self._provider.model:
+            conversation.provider_id = self._provider.id
+            conversation.model = self._provider.model
+
+        steps: list[str] = []
+
+        step = "已接收任务 正在准备上下文"
+        steps.append(step)
+        yield self._step_event(step)
+        if document_rows:
+            step = f"已加载 {len(document_rows)} 个会话文档"
+            steps.append(step)
+            yield self._step_event(step)
+
+        await message_crud.create_message(
+            self._session,
+            conversation_id=conversation_id,
+            role="user",
+            content=with_document_refs(prompt, document_rows),
+            status="ok",
+        )
+
+        client = AsyncOpenAI(
+            api_key=self._provider.api_key,
+            base_url=self._provider.base_url,
+            timeout=self._settings.llm_timeout_seconds,
+        )
+        model = OpenAIChatCompletionsModel(
+            model=self._provider.model,
+            openai_client=client,
+        )
+        agent = Agent[ConversationAgentContext](
+            name="Conversation document agent",
+            model=model,
+            instructions=self._instructions(),
+            model_settings=self._model_settings(
+                thinking=thinking,
+                reasoning_effort=reasoning_effort,
+            ),
+            tools=self._tools(prompt),
+        )
+
+        result = None
+        emitted_steps: set[str] = set()
         try:
-            return await Runner.run(
+            step = "正在调用模型"
+            steps.append(step)
+            yield self._step_event(step)
+            result = Runner.run_streamed(
                 agent,
                 input=self._build_input(prompt, document_rows),
                 context=context,
-                max_turns=1,
+                max_turns=self._settings.agent_max_turns,
             )
+            async for event in result.stream_events():
+                step = self._stream_step(event)
+                if step and step not in emitted_steps:
+                    emitted_steps.add(step)
+                    steps.append(step)
+                    yield self._step_event(step)
         except Exception as exc:
+            await self._session.rollback()
+            await client.close()
             raise AgentRuntimeError(
                 "agent run failed",
                 details={"provider": self._provider.name, "reason": str(exc)},
             ) from exc
-
-    @staticmethod
-    def _instructions(*, artifact_required: bool) -> str:
-        lines = [
-            "You are a conversation document agent.",
-            "The user may reference Markdown documents converted by Microsoft MarkItDown.",
-            "Use list_conversation_documents and read_document_markdown when documents are relevant.",
-        ]
-        if artifact_required:
-            lines.extend(
-                [
-                    "This request requires file-like deliverables. You MUST call write_artifact once for each requested file.",
-                    "If the user asks for both HTML and Markdown, call write_artifact twice: one artifact for the HTML source and one artifact for the Markdown summary.",
-                    "Never place complete HTML or long Markdown artifact content in your final answer. Persist it with write_artifact instead.",
-                ]
-            )
         else:
-            lines.extend(
-                [
-                    "If the user asks for a complete document, report, plan, HTML source, Markdown file, or other file-like deliverable, call write_artifact with complete Markdown content.",
-                    "Never place complete HTML or long Markdown artifact content in your final answer. Persist it with write_artifact instead.",
-                ]
+            await client.close()
+
+        message = "" if result is None else str(result.final_output).strip()
+        if not context.created_documents and self._should_persist_fallback(prompt, message):
+            step = "检测到文件型输出 正在写入 artifact"
+            steps.append(step)
+            yield self._step_event(step)
+            fallback_rows = await self._create_fallback_artifacts(
+                conversation_id=conversation_id,
+                prompt=prompt,
+                content=message,
             )
-        lines.extend(
-            [
-                "Artifacts are persisted in the Markdown document table. If the user wants HTML, write the raw complete HTML string directly as content_markdown, without wrapping it in a fenced code block.",
-                "Your final answer should be concise and mention any artifact you created. Do not include the full artifact content after calling write_artifact.",
-            ]
+            context.created_documents.extend(fallback_rows)
+            context.record_tool_call(
+                "write_artifact_fallback",
+                "agent final_output",
+                f"Created {len(fallback_rows)} artifact(s)",
+            )
+
+        assistant_text = self._assistant_summary(message, context.created_documents)
+        assistant_content = self._assistant_report(
+            steps=steps,
+            summary=assistant_text,
+            created_documents=context.created_documents,
         )
-        return "\n".join(lines)
+        await message_crud.create_message(
+            self._session,
+            conversation_id=conversation_id,
+            role="assistant",
+            content=assistant_content,
+            status="ok",
+        )
+        await conversation_crud.touch_conversation(self._session, conversation)
+
+        yield {
+            "type": "summary",
+            "summary": assistant_text,
+        }
+        for row in context.created_documents:
+            yield {
+                "type": "artifact",
+                "document": document_to_schema(row).model_dump(mode="json"),
+            }
+        yield {
+            "type": "done",
+            "message": message,
+            "tool_calls": [tool_call.model_dump(mode="json") for tool_call in context.tool_calls],
+        }
 
     @staticmethod
-    def _fallback_instructions() -> str:
+    def _step_event(text: str) -> AgentRunStreamEvent:
+        return {"type": "step", "text": text}
+
+    @staticmethod
+    def _assistant_report(
+        *,
+        steps: Sequence[str],
+        summary: str,
+        created_documents: Sequence[ConversationDocumentRow],
+    ) -> str:
+        sections: list[str] = []
+        if steps:
+            sections.append("\n".join(["**Steps**", *[f"- {step}" for step in steps]]))
+        sections.append("\n\n".join(["**Summary**", summary or "已完成。"]))
+        if created_documents:
+            sections.append(
+                "\n\n".join(
+                    [
+                        "**Result Artifact**",
+                        *[document_ref(row.id) for row in created_documents],
+                    ]
+                )
+            )
+        return "\n\n".join(sections).strip()
+
+    @staticmethod
+    def _stream_step(event: Any) -> str | None:
+        if isinstance(event, AgentUpdatedStreamEvent):
+            return f"切换到 Agent: {event.new_agent.name}"
+        if not isinstance(event, RunItemStreamEvent):
+            return None
+        if event.name == "reasoning_item_created":
+            return "正在推理和规划下一步"
+        if event.name == "tool_called":
+            item_name = getattr(event.item, "name", None)
+            return f"正在调用工具{f': {item_name}' if item_name else ''}"
+        if event.name == "tool_output":
+            return "工具执行完成 正在读取结果"
+        if event.name == "message_output_created":
+            return "正在整理最终回复"
+        if event.name == "handoff_requested":
+            return "正在请求任务交接"
+        if event.name == "handoff_occured":
+            return "任务交接完成"
+        return None
+
+    @staticmethod
+    def _instructions() -> str:
         return "\n".join(
             [
-                "You generate complete artifact content for persistence by the server.",
-                "Return the full requested file content only.",
-                "For HTML files, return the raw complete HTML string directly.",
-                "If multiple non-HTML files are requested, return one fenced code block per file using the right language tag, such as markdown.",
+                "You are a general-purpose office assistant.",
+                "The user may reference Markdown documents converted by Microsoft MarkItDown.",
+                "Use list_conversation_documents and read_document_markdown when documents are relevant.",
+                "Answer directly in the conversation for normal questions, analysis, summaries, edits, plans, and brainstorming.",
+                "Call write_artifact only when you decide the user needs a reusable, downloadable, or editable file-like deliverable.",
+                "If you create an artifact, keep the final answer concise and mention it instead of pasting the full file content.",
+                "Artifacts are persisted in the Markdown document table. If you create an HTML artifact, write the raw complete HTML string directly as content_markdown, without wrapping it in a fenced code block.",
             ]
         )
 
     @staticmethod
-    def _tools(prompt: str) -> list[Any]:
-        if AgentRunService._wants_artifact(prompt):
-            return [write_artifact]
+    def _tools(_prompt: str) -> list[Any]:
         return [list_conversation_documents, read_document_markdown, write_artifact]
 
     def _model_settings(
         self,
-        prompt: str,
         *,
         thinking: bool | None,
         reasoning_effort: ReasoningEffort | None,
     ) -> ModelSettings:
         extra_body: dict[str, Any] = dict(self._provider.extra_body)
-        if AgentRunService._wants_artifact(prompt):
-            extra_body["thinking"] = {"type": "disabled"}
-            return ModelSettings(
-                tool_choice="required",
-                parallel_tool_calls=True,
-                extra_body=extra_body,
-            )
         if thinking is not None:
             extra_body["thinking"] = {"type": "enabled" if thinking else "disabled"}
         if reasoning_effort is not None:
             extra_body["reasoning_effort"] = reasoning_effort
-        return ModelSettings(extra_body=extra_body or None)
+        return ModelSettings(
+            parallel_tool_calls=True,
+            extra_body=extra_body or None,
+        )
 
     @staticmethod
     def _build_input(prompt: str, documents: Sequence[ConversationDocumentRow]) -> str:
@@ -418,52 +539,12 @@ class AgentRunService:
         return f"已生成 {len(created_documents)} 个文档: {titles}"
 
     @staticmethod
-    def _should_persist_fallback(prompt: str, content: str) -> bool:
+    def _should_persist_fallback(_prompt: str, content: str) -> bool:
         stripped = content.strip()
         if not stripped:
             return False
         lowered = stripped.lower()
-        if any(marker in lowered for marker in ("<!doctype html", "<html", "```html", "```markdown")):
-            return True
-        prompt_lower = prompt.lower()
-        file_intent = any(
-            marker in prompt_lower
-            for marker in (
-                "html",
-                "markdown",
-                " md",
-                ".md",
-                "文件",
-                "文档",
-                "报告",
-                "方案",
-                "生成",
-                "输出",
-            )
-        )
-        markdown_shape = stripped.startswith(("# ", "## ")) or "\n## " in stripped or "\n```" in stripped
-        return file_intent and (markdown_shape or len(stripped) >= 300)
-
-    @staticmethod
-    def _wants_artifact(prompt: str) -> bool:
-        prompt_lower = prompt.lower()
-        return any(
-            marker in prompt_lower
-            for marker in (
-                "html",
-                "markdown",
-                " md",
-                ".md",
-                "文件",
-                "文档",
-                "报告",
-                "方案",
-                "演示文稿",
-                "ppt",
-                "生成",
-                "输出",
-            )
-        )
+        return any(marker in lowered for marker in ("<!doctype html", "<html", "```html", "```markdown"))
 
     @staticmethod
     def _normalize_artifact_markdown(content: str) -> str:
