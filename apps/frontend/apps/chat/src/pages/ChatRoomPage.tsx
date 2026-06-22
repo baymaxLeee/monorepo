@@ -140,6 +140,10 @@ function extractHtmlPreview(content: string): string | null {
   if (lowered.startsWith("<!doctype html") || lowered.startsWith("<html")) {
     return trimmed;
   }
+  const embeddedHtml = trimmed.match(
+    /(?:<!doctype html\s*)?<html[\s\S]*<\/html>/i,
+  );
+  if (embeddedHtml?.[0]?.trim()) return embeddedHtml[0].trim();
   return null;
 }
 
@@ -601,47 +605,44 @@ export function ChatRoomPage() {
             {loadingDocument ? (
               <Skeleton className="h-96 w-full" />
             ) : selectedDocument ? (
-              <div className="space-y-4">
-                {htmlPreviewUrl ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Badge variant="outline">HTML iframe 预览</Badge>
-                      <span className="text-xs text-muted-foreground">
-                        由当前 Markdown 源码生成临时 URL
-                      </span>
-                    </div>
-                    <iframe
-                      title={selectedDocument.title}
-                      src={htmlPreviewUrl}
-                      sandbox="allow-scripts"
-                      className="h-[70vh] w-full rounded-md border bg-white"
-                    />
+              htmlPreviewUrl ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Badge variant="outline">HTML iframe 预览</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      由当前文档源码生成临时 URL
+                    </span>
                   </div>
-                ) : null}
+                  <iframe
+                    title={selectedDocument.title}
+                    src={htmlPreviewUrl}
+                    sandbox="allow-scripts"
+                    className="h-[75vh] w-full rounded-md border bg-white"
+                  />
+                </div>
+              ) : (
                 <MarkdownEditor
                   value={documentDraft}
                   contentType="markdown"
                   editable
-                  toolbarMode="fixed"
-                  className={
-                    htmlPreviewUrl
-                      ? "min-h-[42vh] rounded-md border"
-                      : "min-h-[70vh] rounded-md border"
-                  }
+                  // toolbarMode="fixed"
+                  className="min-h-[70vh] rounded-md border"
                   onChange={setDocumentDraft}
                 />
-              </div>
+              )
             ) : null}
           </div>
-          <SheetFooter className="border-t">
-            <Button
-              type="button"
-              disabled={!selectedDocument || savingDocument}
-              onClick={() => void saveDocument()}
-            >
-              {savingDocument ? "保存中..." : "保存修改"}
-            </Button>
-          </SheetFooter>
+          {!htmlPreviewUrl ? (
+            <SheetFooter className="border-t">
+              <Button
+                type="button"
+                disabled={!selectedDocument || savingDocument}
+                onClick={() => void saveDocument()}
+              >
+                {savingDocument ? "保存中..." : "保存修改"}
+              </Button>
+            </SheetFooter>
+          ) : null}
         </SheetContent>
       </Sheet>
     </Page>

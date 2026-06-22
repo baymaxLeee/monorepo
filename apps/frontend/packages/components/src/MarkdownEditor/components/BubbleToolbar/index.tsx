@@ -31,6 +31,8 @@ const POLISH_PANEL_CLS =
   "fixed z-[102] rounded-md border bg-background text-sm text-foreground shadow-lg";
 /** 用于 closest 查找编辑器根容器的稳定 hook */
 const EDITOR_ROOT_CLASS = "markdown-editor";
+const OVERLAY_CONTENT_SELECTOR =
+  '[data-slot="sheet-content"], [data-slot="dialog-content"]';
 
 const isValidSelection = (editor: Editor) => {
   const { selection } = editor.state;
@@ -60,6 +62,14 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
   const polishCenteredRef = useRef(false);
   const lastPolishPosRef = useRef<PolishPosition | null>(null);
   const skipNextResizeAdjustRef = useRef(false);
+
+  const getPortalContainer = useCallback(() => {
+    const dom = getMountedEditorDom(editor);
+    const overlayContent = dom?.closest(
+      OVERLAY_CONTENT_SELECTOR,
+    ) as HTMLElement | null;
+    return overlayContent ?? document.body;
+  }, [editor]);
 
   useEffect(() => {
     const dom = getMountedEditorDom(editor);
@@ -279,7 +289,7 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
           className={FLOATING_PANEL_CLS}
           editor={editor}
           shouldShow={shouldShow}
-          appendTo={document.body}
+          appendTo={getPortalContainer()}
           options={{
             placement: "top",
             offset: 8,
@@ -316,7 +326,7 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
               onOpenPolish={handleOpenPolish}
             />
           </div>,
-          document.body,
+          getPortalContainer(),
         )}
 
       {polishVisible &&
@@ -337,7 +347,7 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
               statusRef={polishStatusRef}
             />
           </div>,
-          document.body,
+          getPortalContainer(),
         )}
     </>
   );

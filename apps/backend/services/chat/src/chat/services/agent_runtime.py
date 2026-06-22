@@ -333,7 +333,7 @@ class AgentRunService:
             )
         lines.extend(
             [
-                "Artifacts are persisted as Markdown documents. If the user wants HTML, write Markdown containing the full HTML source in a fenced html code block or as clearly labeled source.",
+                "Artifacts are persisted in the Markdown document table. If the user wants HTML, write the raw complete HTML string directly as content_markdown, without wrapping it in a fenced code block.",
                 "Your final answer should be concise and mention any artifact you created. Do not include the full artifact content after calling write_artifact.",
             ]
         )
@@ -345,7 +345,8 @@ class AgentRunService:
             [
                 "You generate complete artifact content for persistence by the server.",
                 "Return the full requested file content only.",
-                "If multiple files are requested, return one fenced code block per file using the right language tag, such as html and markdown.",
+                "For HTML files, return the raw complete HTML string directly.",
+                "If multiple non-HTML files are requested, return one fenced code block per file using the right language tag, such as markdown.",
             ]
         )
 
@@ -469,7 +470,7 @@ class AgentRunService:
         stripped = content.strip()
         lowered = stripped.lower()
         if lowered.startswith(("<!doctype html", "<html")):
-            return f"```html\n{stripped}\n```"
+            return stripped
         return stripped
 
     @staticmethod
@@ -484,7 +485,7 @@ class AgentRunService:
             if lang in {"html", "htm"}:
                 title = "HTML 演示文稿"
                 filename = "html-presentation.md"
-                markdown = f"```html\n{body}\n```"
+                markdown = body
             elif lang in {"markdown", "md"}:
                 title = "Markdown 总结文件"
                 filename = "summary.md"

@@ -81,6 +81,7 @@ import {
   extractSelectionToBlocks,
   extractTextFromPartialJson,
   getFullUrl,
+  getMountedEditorDom,
   parseSSEStream,
   type SelectionSnapshot,
 } from "../../utils";
@@ -129,6 +130,20 @@ function triggerCls(opts?: { isActive?: boolean; isDisabled?: boolean }) {
 
 /** 工具栏内的竖向分隔线 */
 const dividerCls = "mx-1 h-4 w-px shrink-0 bg-border";
+const OVERLAY_CONTENT_SELECTOR =
+  '[data-slot="sheet-content"], [data-slot="dialog-content"]';
+
+function preventToolbarMouseDown(event: React.MouseEvent) {
+  event.preventDefault();
+}
+
+function getOverlayContainer(editor: Editor): HTMLElement | null {
+  return (
+    (getMountedEditorDom(editor)?.closest(
+      OVERLAY_CONTENT_SELECTOR,
+    ) as HTMLElement | null) ?? null
+  );
+}
 
 export function getActiveNodeType(
   editor: Editor,
@@ -634,6 +649,7 @@ export const AIPolishContent = ({
   const [triggerVisible, setTriggerVisible] = useState(false);
   const [newTexts, setNewTexts] = useState<string[]>([]);
   const [status, _setStatus] = useState<AiPolishStatus>(AiPolishStatus.Pending);
+  const overlayContainer = useMemo(() => getOverlayContainer(editor), [editor]);
   const setStatus = (s: AiPolishStatus) => {
     _setStatus(s);
     if (statusRef) statusRef.current = s;
@@ -965,6 +981,7 @@ export const AIPolishContent = ({
         align="start"
         sideOffset={4}
         className="w-auto rounded-lg border bg-popover p-1 shadow-md"
+        container={overlayContainer}
         // 阻止 Popover 抢焦点，让 contentEditable 能正常输入
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
@@ -1020,6 +1037,7 @@ const ToolbarContent = ({
   const [commentVisible, setCommentVisible] = useState(false);
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const overlayContainer = useMemo(() => getOverlayContainer(editor), [editor]);
 
   const handleImageClick = () => {
     if (editorState.isImage) {
@@ -1181,7 +1199,10 @@ const ToolbarContent = ({
   );
 
   return (
-    <div className="flex h-9 select-none items-center px-1 text-sm leading-tight text-foreground">
+    <div
+      className="flex h-9 select-none items-center px-1 text-sm leading-tight text-foreground"
+      onMouseDownCapture={preventToolbarMouseDown}
+    >
       {aiEnable &&
         editorState.canColor &&
         editorState.selectionTextLength > 0 &&
@@ -1236,7 +1257,11 @@ const ToolbarContent = ({
           {getNodeTypeIcon(editorState.activeNodeType)}
           <ChevronDown className="icon-down" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-32">
+        <DropdownMenuContent
+          align="start"
+          className="min-w-32"
+          container={overlayContainer}
+        >
           <NodeTypeDropdownItems
             editor={editor}
             activeNodeType={editorState.activeNodeType}
@@ -1260,7 +1285,11 @@ const ToolbarContent = ({
               {getAlignIcon(editorState.textAlign)}
               <ChevronDown className="icon-down" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-28">
+            <DropdownMenuContent
+              align="start"
+              className="min-w-28"
+              container={overlayContainer}
+            >
               <AlignDropdownItems
                 editor={editor}
                 textAlign={editorState.textAlign}
@@ -1335,6 +1364,7 @@ const ToolbarContent = ({
         <PopoverContent
           align="start"
           className="w-64 p-3"
+          container={overlayContainer}
           onOpenAutoFocus={(e) => {
             // 让 Input 接管首焦
             e.preventDefault();
@@ -1397,7 +1427,11 @@ const ToolbarContent = ({
             </span>
             <ChevronDown className="icon-down" />
           </PopoverTrigger>
-          <PopoverContent align="start" className="w-auto p-3">
+          <PopoverContent
+            align="start"
+            className="w-auto p-3"
+            container={overlayContainer}
+          >
             <ColorPickerContent
               editor={editor}
               onClose={() => setColorPickerVisible(false)}
@@ -1467,7 +1501,11 @@ const ToolbarContent = ({
                 </TooltipTrigger>
                 <EditorTooltipContent>插入表格</EditorTooltipContent>
               </Tooltip>
-              <PopoverContent align="start" className="w-auto p-2">
+              <PopoverContent
+                align="start"
+                className="w-auto p-2"
+                container={overlayContainer}
+              >
                 <TableSelector
                   onSelect={(rows, cols) => {
                     editor
@@ -1533,7 +1571,11 @@ const ToolbarContent = ({
               </TooltipTrigger>
               <EditorTooltipContent>评论</EditorTooltipContent>
             </Tooltip>
-            <PopoverContent align="end" className="w-64 p-3">
+            <PopoverContent
+              align="end"
+              className="w-64 p-3"
+              container={overlayContainer}
+            >
               <Textarea
                 placeholder="输入评论"
                 value={comment}
