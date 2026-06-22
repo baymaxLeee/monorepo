@@ -42,6 +42,11 @@ class Settings(BaseSettings):
 
     # Upstream LLM call timeout (seconds).
     llm_timeout_seconds: float = 60.0
+    # OpenRouter and similar gateways may default compatible models to very
+    # large output caps (for example 65536), which can fail low-credit keys
+    # before generation starts. Keep defaults conservative; admin provider
+    # extra_body may lower these further but cannot raise them.
+    llm_max_output_tokens: int = 1024
     # MarkItDown demo upload guardrails. Keep the gateway body limit aligned
     # above this value so small docs can pass through while large files fail
     # before conversion work starts.
@@ -52,6 +57,15 @@ class Settings(BaseSettings):
     attachment_vision_max_tokens: int = 256
     agent_max_turns: int = 8
     agent_run_timeout_seconds: float = 120.0
+    agent_max_output_tokens: int = 1024
+    agent_artifact_max_files: int = 3
+    agent_artifact_max_chars: int = 20_000
+    agent_artifact_total_max_chars: int = 40_000
+    agent_context_recent_messages: int = 10
+    agent_context_message_max_chars: int = 1_000
+    agent_context_document_preview_chars: int = 1_200
+    agent_context_selected_document_preview_chars: int = 4_000
+    agent_context_max_chars: int = 12_000
     agent_event_stream_ttl_seconds: int = 30 * 60
     agent_event_stream_block_ms: int = 1000
     agent_event_stream_stale_seconds: int = 15

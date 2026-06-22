@@ -63,12 +63,22 @@ Header: X-Internal-Token: <INTERNAL_API_TOKEN>
 | `ADMIN_SERVICE_URL` | `http://localhost:8001` | admin 微服务地址 |
 | `INTERNAL_API_TOKEN` | （dev fallback） | 与 admin 共享的服务级密钥 |
 | `LLM_TIMEOUT_SECONDS` | `60` | 单次上游调用超时 |
+| `LLM_MAX_OUTPUT_TOKENS` | `1024` | 普通 chat completion 的显式输出 token 上限，避免 OpenAI-compatible 网关默认请求过大 |
 | `PROVIDER_CACHE_TTL_SECONDS` | `300` | provider 快照本地缓存 TTL |
 | `PROVIDER_CACHE_SIZE` | `256` | 本地缓存条目上限（LRU） |
 | `ATTACHMENT_MAX_UPLOAD_BYTES` | `10485760` | MarkItDown demo 单附件上传上限 |
 | `ATTACHMENT_MARKDOWN_MAX_CHARS` | `12000` | 单附件注入 LLM 前的 Markdown 字符上限 |
 | `AGENT_MAX_TURNS` | `8` | Agents SDK 单次会话 agent run 最大 turn 数 |
 | `AGENT_RUN_TIMEOUT_SECONDS` | `120` | 单次 agent run 的整体超时，覆盖多轮工具调用和流式等待 |
+| `AGENT_MAX_OUTPUT_TOKENS` | `1024` | Agent runtime 单次模型调用输出 token 上限；provider `extra_body` 只能进一步降低，不能抬高 |
+| `AGENT_ARTIFACT_MAX_FILES` | `3` | `write_artifacts` 单次最多写入的 artifact 数 |
+| `AGENT_ARTIFACT_MAX_CHARS` | `20000` | 单个 artifact 内容字符上限 |
+| `AGENT_ARTIFACT_TOTAL_MAX_CHARS` | `40000` | 单次 `write_artifacts` 总内容字符上限 |
+| `AGENT_CONTEXT_RECENT_MESSAGES` | `10` | Agent 初始 prompt 注入的最近历史消息条数 |
+| `AGENT_CONTEXT_MESSAGE_MAX_CHARS` | `1000` | 单条历史消息注入 preview 字符上限 |
+| `AGENT_CONTEXT_DOCUMENT_PREVIEW_CHARS` | `1200` | 普通会话文档注入 preview 字符上限 |
+| `AGENT_CONTEXT_SELECTED_DOCUMENT_PREVIEW_CHARS` | `4000` | 用户显式选中文档注入 preview 字符上限 |
+| `AGENT_CONTEXT_MAX_CHARS` | `12000` | Agent 初始 prompt 的上下文字符预算，超出后优先截断旧历史/旧文档 |
 
 ## 入口文件
 
@@ -109,6 +119,12 @@ Header: X-Internal-Token: <INTERNAL_API_TOKEN>
   `search_conversation` 只检索当前会话；`list_conversation_documents` /
   `read_document_markdown` 只访问当前会话文档；`web_search` 只做公网搜索结果检索；
   `write_artifacts` 只写当前会话 artifact，单文件和多文件都走同一个批量工具。
+- Agent runtime 会显式设置 `max_tokens`，并裁剪 provider `extra_body` 中的
+  `max_tokens` / `max_completion_tokens`，避免 OpenRouter 等网关默认 65536 token
+  导致低余额账号在生成前直接 402。
+- Agent runtime 不再把全量历史和全量文档直接塞进初始 prompt；初始上下文只放
+  最近历史、文档索引和 preview，全文通过 `read_document_markdown` 分片读取，避免
+  OpenRouter 低额度账号触发 prompt token limit。
 - Agent runtime 默认禁用并行工具调用，提高 DeepSeek 等 OpenAI-compatible
   provider 下的 artifact 写入稳定性；artifact 工具成功后会立即通过 `card`
   SSE 事件推给前端，即使后续模型回合失败也能看到已生成产物。

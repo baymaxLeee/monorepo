@@ -96,9 +96,11 @@ class MessageService:
         elif documents and history and history[-1]["role"] == "user":
             history[-1]["content"] = with_document_context(user_content, documents)
 
+        settings = get_settings()
         llm = LLMClient.from_provider(
             snapshot,
-            timeout_seconds=get_settings().llm_timeout_seconds,
+            timeout_seconds=settings.llm_timeout_seconds,
+            max_output_tokens=settings.llm_max_output_tokens,
         )
         buffer: list[str] = []
         try:

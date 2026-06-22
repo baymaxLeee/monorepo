@@ -16,6 +16,7 @@ from openai.types.chat import ChatCompletionChunk
 
 from chat.schemas.conversation import ReasoningEffort
 from chat.services.admin_client import ProviderSnapshot
+from chat.services.model_limits import bounded_extra_body_and_max_tokens
 
 
 class LLMClient:
@@ -27,9 +28,11 @@ class LLMClient:
         model: str,
         provider_extra_body: dict[str, Any] | None = None,
         timeout_seconds: float = 60.0,
+        max_output_tokens: int = 1024,
     ) -> None:
         self._model = model
         self._provider_extra_body = provider_extra_body or {}
+        self._max_output_tokens = max_output_tokens
         self._client = AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
@@ -42,6 +45,7 @@ class LLMClient:
         snapshot: ProviderSnapshot,
         *,
         timeout_seconds: float = 60.0,
+        max_output_tokens: int = 1024,
     ) -> LLMClient:
         return cls(
             api_key=snapshot.api_key,
@@ -49,6 +53,7 @@ class LLMClient:
             model=snapshot.model,
             provider_extra_body=snapshot.extra_body,
             timeout_seconds=timeout_seconds,
+            max_output_tokens=max_output_tokens,
         )
 
     @property
@@ -69,7 +74,10 @@ class LLMClient:
         # then per-request overrides. Per-request wins on conflicts so the
         # admin can ship sane defaults while the UI still lets the user
         # toggle thinking on/off per message.
-        extra_body: dict[str, Any] = dict(self._provider_extra_body)
+        extra_body, max_tokens = bounded_extra_body_and_max_tokens(
+            self._provider_extra_body,
+            default_max_tokens=self._max_output_tokens,
+        )
         if thinking is not None:
             extra_body["thinking"] = {"type": "enabled" if thinking else "disabled"}
         if reasoning_effort is not None:
@@ -81,6 +89,7 @@ class LLMClient:
                 model=self._model,
                 messages=list(history),  # type: ignore[arg-type]
                 stream=True,
+                max_tokens=max_tokens,
                 extra_body=extra_body or None,
             ),
         )

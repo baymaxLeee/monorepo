@@ -32,9 +32,9 @@ from chat.services.agent_tools import agent_runtime_tools
 from chat.services.documents import (
     ConversationDocumentService,
     document_to_schema,
-    with_document_context,
     with_document_refs,
 )
+from chat.services.model_limits import bounded_extra_body_and_max_tokens
 
 set_tracing_disabled(disabled=True)
 
@@ -45,6 +45,7 @@ class ConversationAgentContext:
     current_user: AuthContext
     conversation_id: str
     documents: dict[str, ConversationDocumentRow]
+    selected_documents: list[ConversationDocumentRow]
     messages: list[MessageRow]
     created_documents: list[ConversationDocumentRow] = field(default_factory=list)
     tool_write_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -236,6 +237,7 @@ class AgentRunService:
             current_user=self._current_user,
             conversation_id=conversation_id,
             documents={row.id: row for row in all_document_rows},
+            selected_documents=list(selected_document_rows),
             messages=message_rows,
         )
 
@@ -355,6 +357,7 @@ class AgentRunService:
             prompt=prompt,
             messages=context.messages,
             documents=list(context.documents.values()),
+            selected_documents=context.selected_documents,
         )
         try:
             result = Runner.run_streamed(
@@ -483,14 +486,16 @@ class AgentRunService:
             [
                 "You are a general-purpose office assistant.",
                 "The input includes the current conversation history and all conversation documents, including prior artifacts.",
+                "Long history and documents may be represented as compact previews to fit the model context window.",
                 "Use the conversation history to resolve references such as previous requests, earlier answers, and generated files.",
                 "The user may reference Markdown documents converted by Microsoft MarkItDown.",
                 "Use search_conversation for retrieval across history and documents before asking the user to resend context.",
-                "Use list_conversation_documents and read_document_markdown to inspect conversation files. Do not claim access to the server filesystem.",
+                "Use list_conversation_documents and read_document_markdown to inspect conversation files when previews are insufficient; read_document_markdown returns bounded slices, so continue with the next start offset when needed. Do not claim access to the server filesystem.",
                 "Use web_search for public web lookup or current information requests. Do not claim web access unless web_search succeeds.",
                 "Answer directly in the conversation for normal questions, analysis, summaries, edits, plans, and brainstorming.",
                 "Call write_artifacts when you decide the user needs reusable, downloadable, or editable file-like deliverables.",
                 "Use write_artifacts for both single-file and multi-file output; put every requested file in one call.",
+                "Keep artifact files concise enough for one tool call. If the user asks for an unlimited or very long document, create a useful first version instead of trying to exhaust the topic.",
                 "If you create an artifact, keep the final answer concise and mention it instead of pasting the full file content.",
                 "Artifacts are persisted in the conversation document table. For HTML artifacts, write the raw complete HTML string directly as content_markdown, without wrapping it in a fenced code block, and use a .html filename.",
             ]
@@ -506,7 +511,10 @@ class AgentRunService:
         thinking: bool | None,
         reasoning_effort: ReasoningEffort | None,
     ) -> ModelSettings:
-        extra_body: dict[str, Any] = dict(self._provider.extra_body)
+        extra_body, max_tokens = bounded_extra_body_and_max_tokens(
+            self._provider.extra_body,
+            default_max_tokens=self._settings.agent_max_output_tokens,
+        )
         if thinking is not None:
             extra_body["thinking"] = {"type": "enabled" if thinking else "disabled"}
         if reasoning_effort is not None:
@@ -516,6 +524,7 @@ class AgentRunService:
             # Sequential tools are slower but much more reliable for artifact
             # creation because each write becomes visible before the next turn.
             parallel_tool_calls=False,
+            max_tokens=max_tokens,
             extra_body=extra_body or None,
         )
 
@@ -525,10 +534,25 @@ class AgentRunService:
         prompt: str,
         messages: Sequence[MessageRow],
         documents: Sequence[ConversationDocumentRow],
+        selected_documents: Sequence[ConversationDocumentRow],
     ) -> str:
+        settings = get_settings()
         sections: list[str] = []
         if messages:
-            sections.append(AgentRunService._conversation_history_context(messages))
+            sections.append(
+                AgentRunService._conversation_history_context(
+                    messages[-settings.agent_context_recent_messages :],
+                    max_chars_per_message=settings.agent_context_message_max_chars,
+                )
+            )
+        document_context = AgentRunService._documents_context(
+            documents,
+            selected_ids={row.id for row in selected_documents},
+            preview_chars=settings.agent_context_document_preview_chars,
+            selected_preview_chars=settings.agent_context_selected_document_preview_chars,
+        )
+        if document_context:
+            sections.append(document_context)
         sections.append(
             "\n".join(
                 [
@@ -538,12 +562,17 @@ class AgentRunService:
                 ]
             )
         )
-        return with_document_context("\n\n".join(sections), documents)
+        return AgentRunService._truncate_context(
+            "\n\n".join(sections),
+            max_chars=settings.agent_context_max_chars,
+            preserve_tail_chars=max(settings.agent_context_message_max_chars, len(prompt) + 200),
+        )
 
     @staticmethod
-    def _conversation_history_context(messages: Sequence[MessageRow]) -> str:
+    def _conversation_history_context(messages: Sequence[MessageRow], *, max_chars_per_message: int) -> str:
         blocks: list[str] = []
         for index, row in enumerate(messages, start=1):
+            content = AgentRunService._truncate_text(row.content, max_chars=max_chars_per_message)
             blocks.append(
                 "\n".join(
                     [
@@ -551,7 +580,7 @@ class AgentRunService:
                         f"Role: {row.role}",
                         f"Status: {row.status}",
                         "",
-                        row.content,
+                        content,
                     ]
                 )
             )
@@ -562,6 +591,63 @@ class AgentRunService:
                 "</conversation_history>",
             ]
         )
+
+    @staticmethod
+    def _documents_context(
+        documents: Sequence[ConversationDocumentRow],
+        *,
+        selected_ids: set[str],
+        preview_chars: int,
+        selected_preview_chars: int,
+    ) -> str:
+        if not documents:
+            return ""
+        blocks: list[str] = []
+        ordered_documents = sorted(documents, key=lambda row: (row.id not in selected_ids, row.created_at))
+        for index, row in enumerate(ordered_documents, start=1):
+            limit = selected_preview_chars if row.id in selected_ids else preview_chars
+            preview = AgentRunService._truncate_text(row.content_md, max_chars=limit)
+            blocks.append(
+                "\n".join(
+                    [
+                        f"### Document {index}: {row.title}",
+                        f"Document ID: {row.id}",
+                        f"Filename: {row.filename}",
+                        f"Kind: {row.kind}",
+                        f"MIME: {row.mime_type}",
+                        f"Full chars: {len(row.content_md)}",
+                        "Preview:",
+                        preview,
+                    ]
+                )
+            )
+        return "\n\n".join(
+            [
+                "<conversation_documents mode='index_and_preview'>",
+                "Use read_document_markdown(document_id) when full content is needed.",
+                *blocks,
+                "</conversation_documents>",
+            ]
+        )
+
+    @staticmethod
+    def _truncate_context(text: str, *, max_chars: int, preserve_tail_chars: int) -> str:
+        if len(text) <= max_chars:
+            return text
+        min_head_chars = min(1_000, max_chars // 4)
+        tail_chars = min(max(1, preserve_tail_chars), max_chars - min_head_chars)
+        head_chars = max_chars - tail_chars
+        return (
+            text[:head_chars].rstrip()
+            + "\n\n...[context truncated to fit provider prompt budget]...\n\n"
+            + text[-tail_chars:].lstrip()
+        )
+
+    @staticmethod
+    def _truncate_text(text: str, *, max_chars: int) -> str:
+        if len(text) <= max_chars:
+            return text
+        return text[:max_chars].rstrip() + f"\n...[truncated {len(text) - max_chars} chars; use tools for full content]"
 
     @staticmethod
     def _assistant_content(

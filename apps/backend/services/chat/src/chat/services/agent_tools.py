@@ -16,11 +16,16 @@ from kernel.errors import RequestError
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from chat.config import get_settings
 from chat.deps import AuthContext
 from chat.models.document import ConversationDocumentRow
 from chat.models.message import MessageRow
 from chat.services.documents import ConversationDocumentService
 
+_ARTIFACT_TITLE_MAX_CHARS = 120
+_ARTIFACT_FILENAME_MAX_CHARS = 160
+_ARTIFACT_CONTENT_MAX_CHARS = 20_000
+_MAX_DOCUMENT_READ_CHARS = 6_000
 _MAX_SEARCH_RESULTS = 8
 _MAX_SNIPPET_CHARS = 500
 _MAX_WEB_SEARCH_RESULTS = 5
@@ -42,9 +47,15 @@ class AgentToolContext(Protocol):
 
 
 class ArtifactWriteInput(BaseModel):
-    title: str = Field(description="Human-readable artifact title.")
-    filename: str = Field(description="Output filename, preferably ending in .md or .html.")
-    content_markdown: str = Field(description="Complete artifact content. For HTML, pass raw complete HTML.")
+    title: str = Field(max_length=_ARTIFACT_TITLE_MAX_CHARS, description="Human-readable artifact title.")
+    filename: str = Field(
+        max_length=_ARTIFACT_FILENAME_MAX_CHARS,
+        description="Output filename, preferably ending in .md or .html.",
+    )
+    content_markdown: str = Field(
+        max_length=_ARTIFACT_CONTENT_MAX_CHARS,
+        description="Complete artifact content. For HTML, pass raw complete HTML.",
+    )
 
 
 @function_tool
@@ -65,16 +76,27 @@ def list_conversation_documents(ctx: RunContextWrapper[AgentToolContext]) -> str
 def read_document_markdown(
     ctx: RunContextWrapper[AgentToolContext],
     document_id: str,
+    start: int = 0,
+    max_chars: int = 4_000,
 ) -> str:
-    """Read a conversation document's stored content.
+    """Read a bounded slice of a conversation document's stored content.
 
     Args:
         document_id: Document ID from list_conversation_documents.
+        start: Zero-based character offset to start reading from.
+        max_chars: Maximum characters to return. The runtime caps this value.
     """
 
     row = ctx.context.get_document(document_id)
-    output = row.content_md
-    return output
+    safe_start = max(0, start)
+    safe_limit = max(1, min(max_chars, _MAX_DOCUMENT_READ_CHARS))
+    content = row.content_md
+    chunk = content[safe_start : safe_start + safe_limit]
+    next_offset = safe_start + len(chunk)
+    suffix = ""
+    if next_offset < len(content):
+        suffix = f"\n\n[truncated; next start={next_offset}; total chars={len(content)}]"
+    return chunk + suffix
 
 
 @function_tool
@@ -133,10 +155,33 @@ async def write_artifacts(
 
     if not artifacts:
         raise RequestError("at least one artifact is required")
-    if len(artifacts) > 5:
-        raise RequestError("too many artifacts in one request", details={"max_artifacts": 5})
+    settings = get_settings()
+    if len(artifacts) > settings.agent_artifact_max_files:
+        raise RequestError(
+            "too many artifacts in one request",
+            details={"max_artifacts": settings.agent_artifact_max_files},
+        )
+    total_chars = sum(len(artifact.content_markdown.strip()) for artifact in artifacts)
+    if total_chars > settings.agent_artifact_total_max_chars:
+        raise RequestError(
+            "artifact batch is too large",
+            details={
+                "max_total_chars": settings.agent_artifact_total_max_chars,
+                "actual_total_chars": total_chars,
+            },
+        )
     created: list[ConversationDocumentRow] = []
     for artifact in artifacts:
+        content_chars = len(artifact.content_markdown.strip())
+        if content_chars > settings.agent_artifact_max_chars:
+            raise RequestError(
+                "artifact content is too large",
+                details={
+                    "filename": artifact.filename,
+                    "max_chars": settings.agent_artifact_max_chars,
+                    "actual_chars": content_chars,
+                },
+            )
         row = await _create_artifact(
             ctx.context,
             title=artifact.title,
