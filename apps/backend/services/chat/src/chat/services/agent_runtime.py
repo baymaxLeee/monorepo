@@ -12,7 +12,6 @@ from agents import (
     ModelSettings,
     OpenAIChatCompletionsModel,
     Runner,
-    RunResult,
     RunResultStreaming,
     set_tracing_disabled,
 )
@@ -27,7 +26,6 @@ from chat.crud import messages as message_crud
 from chat.deps import AuthContext
 from chat.models.document import ConversationDocumentRow
 from chat.models.message import MessageRow
-from chat.schemas.agent import AgentRunResult, AgentToolCall
 from chat.schemas.conversation import ReasoningEffort
 from chat.services.admin_client import ProviderSnapshot
 from chat.services.agent_tools import agent_runtime_tools
@@ -49,7 +47,6 @@ class ConversationAgentContext:
     documents: dict[str, ConversationDocumentRow]
     messages: list[MessageRow]
     created_documents: list[ConversationDocumentRow] = field(default_factory=list)
-    tool_calls: list[AgentToolCall] = field(default_factory=list)
     tool_write_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     def get_document(self, document_id: str) -> ConversationDocumentRow:
@@ -61,15 +58,6 @@ class ConversationAgentContext:
         raise RequestError(
             "conversation document not found",
             details={"document_id": document_id, "available": list(self.documents.keys())},
-        )
-
-    def record_tool_call(self, name: str, input_text: str, output: str) -> None:
-        self.tool_calls.append(
-            AgentToolCall(
-                name=name,
-                input=input_text,
-                output_preview=output[:500],
-            )
         )
 
 
@@ -92,48 +80,6 @@ class AgentRunService:
         self._current_user = current_user
         self._provider = provider
         self._settings = get_settings()
-
-    async def run(
-        self,
-        *,
-        conversation_id: str,
-        prompt: str,
-        document_ids: list[str],
-        thinking: bool | None = None,
-        reasoning_effort: ReasoningEffort | None = None,
-    ) -> AgentRunResult:
-        if not prompt.strip():
-            raise RequestError("agent prompt is required")
-        context, selected_document_rows = await self._prepare_context(conversation_id, document_ids)
-        await self._persist_user_message(conversation_id, prompt, selected_document_rows)
-
-        try:
-            result, client = await self._run_agent(
-                prompt=prompt,
-                context=context,
-                thinking=thinking,
-                reasoning_effort=reasoning_effort,
-            )
-        except Exception as exc:
-            raise AgentRuntimeError(
-                "agent run failed",
-                details={"provider": self._provider.name, "reason": str(exc)},
-            ) from exc
-        await client.close()
-
-        message = "" if result is None else str(result.final_output).strip()
-        await self._persist_assistant_message(
-            conversation_id=conversation_id,
-            message=message,
-            created_documents=context.created_documents,
-            steps=[],
-        )
-
-        return AgentRunResult(
-            message=message,
-            created_documents=[document_to_schema(row) for row in context.created_documents],
-            tool_calls=context.tool_calls,
-        )
 
     async def stream_run(
         self,
@@ -263,7 +209,6 @@ class AgentRunService:
         yield self._message_event(
             text=message,
             status="completed",
-            tool_calls=[tool_call.model_dump(mode="json") for tool_call in context.tool_calls],
         )
 
     async def _prepare_context(
@@ -394,36 +339,6 @@ class AgentRunService:
         )
         return agent, client
 
-    async def _run_agent(
-        self,
-        *,
-        prompt: str,
-        context: ConversationAgentContext,
-        thinking: bool | None,
-        reasoning_effort: ReasoningEffort | None,
-    ) -> tuple[RunResult, AsyncOpenAI]:
-        agent, client = self._build_agent(
-            thinking=thinking,
-            reasoning_effort=reasoning_effort,
-        )
-        agent_input = self._build_input(
-            prompt=prompt,
-            messages=context.messages,
-            documents=list(context.documents.values()),
-        )
-        try:
-            result = await Runner.run(
-                agent,
-                input=agent_input,
-                context=context,
-                max_turns=self._settings.agent_max_turns,
-            )
-            return result, client
-        except Exception:
-            await self._session.rollback()
-            await client.close()
-            raise
-
     async def _run_agent_streamed(
         self,
         *,
@@ -479,7 +394,6 @@ class AgentRunService:
         delta: str | None = None,
         text: str | None = None,
         status: str = "streaming",
-        tool_calls: list[dict[str, Any]] | None = None,
     ) -> AgentRunStreamEvent:
         event: AgentRunStreamEvent = {
             "type": "message",
@@ -490,8 +404,6 @@ class AgentRunService:
             event["delta"] = delta
         if text is not None:
             event["text"] = text
-        if tool_calls is not None:
-            event["tool_calls"] = tool_calls
         return event
 
     @staticmethod
@@ -574,9 +486,8 @@ class AgentRunService:
                 "Use the conversation history to resolve references such as previous requests, earlier answers, and generated files.",
                 "The user may reference Markdown documents converted by Microsoft MarkItDown.",
                 "Use search_conversation for retrieval across history and documents before asking the user to resend context.",
-                "Use the virtual workspace tools to list/read conversation files. Do not claim access to the server filesystem.",
-                "Use fetch_url_text only for public http(s) pages when the user asks for web/browser lookup.",
-                "Use execute_python for bounded calculations or text transformations; do not use it for filesystem, network, or process work.",
+                "Use list_conversation_documents and read_document_markdown to inspect conversation files. Do not claim access to the server filesystem.",
+                "Use web_search for public web lookup or current information requests. Do not claim web access unless web_search succeeds.",
                 "Answer directly in the conversation for normal questions, analysis, summaries, edits, plans, and brainstorming.",
                 "Call write_artifacts when you decide the user needs reusable, downloadable, or editable file-like deliverables.",
                 "Use write_artifacts for both single-file and multi-file output; put every requested file in one call.",

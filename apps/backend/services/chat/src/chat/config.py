@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     # before conversion work starts.
     attachment_max_upload_bytes: int = 10 * 1024 * 1024
     attachment_markdown_max_chars: int = 12_000
+    # MarkItDown image captions call chat.completions without max_tokens; some
+    # gateways (e.g. OpenRouter) default to huge limits and reject low-credit keys.
+    attachment_vision_max_tokens: int = 256
     agent_max_turns: int = 8
     agent_run_timeout_seconds: float = 120.0
     agent_event_stream_ttl_seconds: int = 30 * 60

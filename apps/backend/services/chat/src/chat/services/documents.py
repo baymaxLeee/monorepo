@@ -21,6 +21,12 @@ from chat.schemas.document import (
     DocumentKind,
     UpdateConversationDocumentInput,
 )
+from chat.services.admin_client import (
+    AdminUnavailableError,
+    ProviderNotConfiguredError,
+    ProviderSnapshot,
+    get_admin_client,
+)
 from chat.services.attachments import AttachmentService, AttachmentTooLargeError
 
 
@@ -113,7 +119,8 @@ class ConversationDocumentService:
         return document_to_detail(row)
 
     async def upload(self, conversation_id: str, file: UploadFile) -> ConversationDocumentDetail:
-        await self._get_conversation(conversation_id)
+        conversation = await self._get_conversation(conversation_id)
+        provider = await self._resolve_attachment_provider(conversation)
         content = await file.read(self._attachments.max_upload_bytes + 1)
         if len(content) > self._attachments.max_upload_bytes:
             raise AttachmentTooLargeError(
@@ -128,6 +135,7 @@ class ConversationDocumentService:
             filename=filename,
             mime_type=file.content_type or "application/octet-stream",
             content=content,
+            provider=provider,
         )
         row = await self.create_artifact_row(
             conversation_id=conversation_id,
@@ -206,6 +214,19 @@ class ConversationDocumentService:
         if row is None:
             raise NotFoundError(f"document {document_id} not found")
         return row
+
+    async def _resolve_attachment_provider(
+        self,
+        conversation: ConversationRow,
+    ) -> ProviderSnapshot | None:
+        """Best-effort provider for MarkItDown vision captions on images."""
+        try:
+            return await get_admin_client().get_provider(
+                user_id=self._current_user.user_id,
+                provider_id=conversation.provider_id or None,
+            )
+        except (ProviderNotConfiguredError, AdminUnavailableError):
+            return None
 
     async def _get_conversation(self, conversation_id: str) -> ConversationRow:
         row = await conversation_crud.get_conversation(

@@ -9,7 +9,7 @@ Manages the "对话" domain on the frontend. Backed by
 - `http://localhost:3005/` is not a supported page; this app only serves
   federation assets
 - API calls go through `api` ONLY (no raw fetch). Chat message submission
-  defaults to `runConversationAgent()`; do not add a parallel ordinary
+  defaults to `streamConversationAgent()`; do not add a parallel ordinary
   completion/SSE sending path.
 - NEVER import from `admin`, `mfe-scene`, or any other MFE
 - For cross-MFE coordination, use `runtime` event bus

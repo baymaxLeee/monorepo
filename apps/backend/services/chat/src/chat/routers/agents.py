@@ -12,7 +12,7 @@ from kernel.errors import BaseError
 from chat.db import get_session_factory
 from chat.deps import AuthContext, CurrentUser, DbSession, RedisClient
 from chat.redis_client import get_redis
-from chat.schemas.agent import AgentRunResult, RunAgentInput
+from chat.schemas.agent import RunAgentInput
 from chat.services.admin_client import ProviderSnapshot, get_admin_client
 from chat.services.agent_runtime import AgentRunService
 from chat.services.agent_streams import AgentStreamService
@@ -20,28 +20,6 @@ from chat.services.agent_streams import AgentStreamService
 router = APIRouter(prefix="/conversations/{conversation_id}/agents", tags=["agents"])
 logger = logging.getLogger(__name__)
 _RUN_TASKS: set[asyncio.Task[None]] = set()
-
-
-@router.post("/run", response_model=AgentRunResult)
-async def run_agent(
-    conversation_id: str,
-    payload: RunAgentInput,
-    current_user: CurrentUser,
-    session: DbSession,
-) -> AgentRunResult:
-    """Run an OpenAI Agents SDK agent with conversation document tools."""
-
-    provider = await get_admin_client().get_provider(
-        user_id=current_user.user_id,
-        provider_id=payload.provider_id,
-    )
-    return await AgentRunService(session, current_user, provider).run(
-        conversation_id=conversation_id,
-        prompt=payload.prompt,
-        document_ids=payload.document_ids,
-        thinking=payload.thinking,
-        reasoning_effort=payload.reasoning_effort,
-    )
 
 
 @router.post("/run/stream")

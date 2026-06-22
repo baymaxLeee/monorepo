@@ -40,15 +40,6 @@ export interface UpdateConversationInput {
   title?: string;
 }
 
-export interface ConvertedAttachment {
-  filename: string;
-  mime_type: string;
-  size: number;
-  markdown: string;
-  markdown_chars: number;
-  truncated: boolean;
-}
-
 export type ConversationDocumentKind = "source" | "artifact";
 
 export interface ConversationDocument {
@@ -72,18 +63,6 @@ export interface UpdateConversationDocumentInput {
   content_md?: string;
 }
 
-export interface AgentToolCall {
-  name: string;
-  input: string;
-  output_preview: string;
-}
-
-export interface AgentRunResult {
-  message: string;
-  created_documents: ConversationDocument[];
-  tool_calls: AgentToolCall[];
-}
-
 export interface AgentStepEvent {
   type: "step";
   text: string;
@@ -98,7 +77,6 @@ export interface AgentMessageEvent {
   status?: "streaming" | "completed" | "failed";
   delta?: string;
   text?: string;
-  tool_calls?: AgentToolCall[];
 }
 
 export interface AgentCardEvent {
@@ -126,7 +104,6 @@ export interface RunConversationAgentInput {
 }
 
 const BASE = "/api/chat-server/conversations";
-const ATTACHMENTS_BASE = "/api/chat-server/attachments";
 
 export function fetchConversations(): Promise<Conversation[]> {
   return request<Conversation[]>({ url: BASE, method: "GET" });
@@ -170,18 +147,6 @@ export function deleteConversation(id: string): Promise<void> {
   });
 }
 
-export function convertChatAttachment(
-  file: File,
-): Promise<ConvertedAttachment> {
-  const form = new FormData();
-  form.append("file", file);
-  return request<ConvertedAttachment>({
-    url: `${ATTACHMENTS_BASE}/convert`,
-    method: "POST",
-    data: form,
-  });
-}
-
 export function uploadConversationDocument(
   conversationId: string,
   file: File,
@@ -214,23 +179,6 @@ export function updateConversationDocument(
     url: `${BASE}/${encodeURIComponent(conversationId)}/documents/${encodeURIComponent(documentId)}`,
     method: "PATCH",
     data: input,
-  });
-}
-
-export function runConversationAgent(
-  conversationId: string,
-  input: RunConversationAgentInput,
-): Promise<AgentRunResult> {
-  return request<AgentRunResult>({
-    url: `${BASE}/${encodeURIComponent(conversationId)}/agents/run`,
-    method: "POST",
-    data: {
-      prompt: input.prompt,
-      provider_id: input.provider_id ?? null,
-      document_ids: input.document_ids ?? [],
-      thinking: input.thinking ?? null,
-      reasoning_effort: input.reasoning_effort ?? null,
-    },
   });
 }
 

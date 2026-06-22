@@ -3,13 +3,6 @@
 from pydantic import BaseModel, Field
 
 from chat.schemas.conversation import ReasoningEffort
-from chat.schemas.document import ConversationDocument
-
-
-class AgentToolCall(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
-    input: str = Field(default="", max_length=500)
-    output_preview: str = Field(default="", max_length=500)
 
 
 class RunAgentInput(BaseModel):
@@ -24,9 +17,3 @@ class RunAgentInput(BaseModel):
         default=None,
         description="Reasoning compute budget for thinking-enabled models.",
     )
-
-
-class AgentRunResult(BaseModel):
-    message: str = Field(default="")
-    created_documents: list[ConversationDocument] = []
-    tool_calls: list[AgentToolCall] = []

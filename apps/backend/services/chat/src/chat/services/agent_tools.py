@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-import ast
 import asyncio
-import ipaddress
+import html as html_lib
 import re
-import socket
-import sys
-import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Protocol
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import httpx
 from agents import RunContextWrapper, function_tool
@@ -27,36 +23,10 @@ from chat.services.documents import ConversationDocumentService
 
 _MAX_SEARCH_RESULTS = 8
 _MAX_SNIPPET_CHARS = 500
-_MAX_FETCH_CHARS = 20_000
-_MAX_CODE_CHARS = 8_000
-_MAX_CODE_OUTPUT_CHARS = 12_000
-_FETCH_TIMEOUT_SECONDS = 10.0
-_CODE_TIMEOUT_SECONDS = 8.0
-_ALLOWED_CODE_IMPORTS = frozenset(
-    {
-        "collections",
-        "datetime",
-        "decimal",
-        "fractions",
-        "functools",
-        "itertools",
-        "json",
-        "math",
-        "random",
-        "re",
-        "statistics",
-    }
-)
-_BLOCKED_CODE_NAMES = frozenset(
-    {
-        "__import__",
-        "compile",
-        "eval",
-        "exec",
-        "input",
-        "open",
-    }
-)
+_MAX_WEB_SEARCH_RESULTS = 5
+_MAX_WEB_SNIPPET_CHARS = 300
+_WEB_SEARCH_TIMEOUT_SECONDS = 10.0
+_DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/"
 
 
 class AgentToolContext(Protocol):
@@ -69,8 +39,6 @@ class AgentToolContext(Protocol):
     tool_write_lock: asyncio.Lock
 
     def get_document(self, document_id: str) -> ConversationDocumentRow: ...
-
-    def record_tool_call(self, name: str, input_text: str, output: str) -> None: ...
 
 
 class ArtifactWriteInput(BaseModel):
@@ -90,7 +58,6 @@ def list_conversation_documents(ctx: RunContextWrapper[AgentToolContext]) -> str
         )
     else:
         output = "No conversation documents."
-    ctx.context.record_tool_call("list_conversation_documents", "", output)
     return output
 
 
@@ -107,7 +74,6 @@ def read_document_markdown(
 
     row = ctx.context.get_document(document_id)
     output = row.content_md
-    ctx.context.record_tool_call("read_document_markdown", document_id, output)
     return output
 
 
@@ -148,62 +114,6 @@ def search_conversation(
                     break
 
     output = "\n".join(results) if results else "No matches in the current conversation."
-    ctx.context.record_tool_call("search_conversation", query, output)
-    return output
-
-
-@function_tool
-def list_workspace_files(ctx: RunContextWrapper[AgentToolContext]) -> str:
-    """List files in the agent's conversation-scoped virtual workspace."""
-
-    rows = _document_rows(ctx.context)
-    output = "\n".join(
-        f"- {row.filename} -> document_id={row.id} title={row.title} mime={row.mime_type}" for row in rows
-    )
-    if not output:
-        output = "The virtual workspace has no files yet."
-    ctx.context.record_tool_call("list_workspace_files", "", output)
-    return output
-
-
-@function_tool
-def read_workspace_file(ctx: RunContextWrapper[AgentToolContext], path_or_document_id: str) -> str:
-    """Read a file from the conversation-scoped virtual workspace.
-
-    Args:
-        path_or_document_id: Document ID, filename, or title from list_workspace_files.
-    """
-
-    row = _resolve_workspace_file(ctx.context, path_or_document_id)
-    output = row.content_md
-    ctx.context.record_tool_call("read_workspace_file", path_or_document_id, output)
-    return output
-
-
-@function_tool(timeout=20.0)
-async def write_artifact(
-    ctx: RunContextWrapper[AgentToolContext],
-    title: str,
-    filename: str,
-    content_markdown: str,
-) -> str:
-    """Create an artifact file in the current conversation.
-
-    Args:
-        title: Human-readable artifact title.
-        filename: Output filename, preferably ending in .md or .html.
-        content_markdown: Complete artifact content. For HTML artifacts, pass raw complete HTML.
-    """
-
-    row = await _create_artifact(
-        ctx.context,
-        title=title,
-        filename=filename,
-        content_markdown=content_markdown,
-    )
-    ctx.context.created_documents.append(row)
-    output = f"Created artifact {row.id}: {row.title} ({row.filename}, {row.mime_type})"
-    ctx.context.record_tool_call("write_artifact", title, output)
     return output
 
 
@@ -214,8 +124,8 @@ async def write_artifacts(
 ) -> str:
     """Create multiple artifact files in the current conversation with one tool call.
 
-    Use this instead of calling write_artifact repeatedly when the user asks for
-    multiple files, such as a Markdown summary and an HTML demo.
+    Use this single batch tool when the user asks for one or more files, such
+    as a Markdown summary and an HTML demo.
 
     Args:
         artifacts: Files to create.
@@ -236,67 +146,45 @@ async def write_artifacts(
         ctx.context.created_documents.append(row)
         created.append(row)
     output = "\n".join(f"Created artifact {row.id}: {row.title} ({row.filename}, {row.mime_type})" for row in created)
-    ctx.context.record_tool_call("write_artifacts", f"{len(artifacts)} artifacts", output)
     return output
 
 
 @function_tool(timeout=15.0)
-async def fetch_url_text(ctx: RunContextWrapper[AgentToolContext], url: str) -> str:
-    """Fetch readable text from an http(s) URL. This is a limited browser-like tool without JavaScript.
+async def web_search(
+    ctx: RunContextWrapper[AgentToolContext],
+    query: str,
+    max_results: int = 5,
+) -> str:
+    """Search the public web and return compact result titles, URLs, and snippets.
 
     Args:
-        url: Public http(s) URL to fetch.
+        query: Search keywords.
+        max_results: Maximum number of search results to return.
     """
 
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-        raise RequestError("fetch_url_text only accepts http(s) URLs")
-    await _assert_public_hostname(parsed.hostname)
-    async with httpx.AsyncClient(timeout=_FETCH_TIMEOUT_SECONDS, follow_redirects=True) as client:
-        response = await client.get(url, headers={"User-Agent": "ProjectMonorepoAgent/0.1"})
-        response.raise_for_status()
-    text = _html_to_text(response.text)
-    output = text[:_MAX_FETCH_CHARS]
-    if len(text) > _MAX_FETCH_CHARS:
-        output += "\n\n[truncated]"
-    ctx.context.record_tool_call("fetch_url_text", url, output)
-    return output
+    search_query = query.strip()
+    if not search_query:
+        raise RequestError("web search query is required")
+    limit = max(1, min(max_results, _MAX_WEB_SEARCH_RESULTS))
+    try:
+        async with httpx.AsyncClient(timeout=_WEB_SEARCH_TIMEOUT_SECONDS, follow_redirects=True) as client:
+            response = await client.get(
+                _DUCKDUCKGO_HTML_URL,
+                params={"q": search_query},
+                headers={"User-Agent": "ProjectMonorepoAgent/0.1"},
+            )
+            response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise RequestError("web search failed", details={"reason": str(exc)}) from exc
 
-
-@function_tool(timeout=10.0)
-async def execute_python(ctx: RunContextWrapper[AgentToolContext], code: str) -> str:
-    """Execute a small Python snippet for calculation or text transformation.
-
-    The runtime rejects filesystem, process, network, and dynamic-code imports.
-
-    Args:
-        code: Python code to execute. Print useful results to stdout.
-    """
-
-    if len(code) > _MAX_CODE_CHARS:
-        raise RequestError("python code is too large")
-    _validate_python_code(code)
-    with tempfile.TemporaryDirectory(prefix="chat-agent-code-") as tmpdir:
-        process = await asyncio.create_subprocess_exec(
-            sys.executable,
-            "-I",
-            "-S",
-            "-c",
-            code,
-            cwd=tmpdir,
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+    results = _parse_web_search_results(response.text, limit)
+    if results:
+        output = "\n".join(
+            f"{index}. {item['title']}\n   {item['url']}\n   {item['snippet']}"
+            for index, item in enumerate(results, start=1)
         )
-        try:
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=_CODE_TIMEOUT_SECONDS)
-        except TimeoutError as exc:
-            process.kill()
-            await process.communicate()
-            raise RequestError("python execution timed out") from exc
-
-    output = _decode_process_output(stdout, stderr, process.returncode)
-    ctx.context.record_tool_call("execute_python", code, output)
+    else:
+        output = "No web search results."
     return output
 
 
@@ -305,24 +193,13 @@ def agent_runtime_tools() -> list[Any]:
         list_conversation_documents,
         read_document_markdown,
         search_conversation,
-        list_workspace_files,
-        read_workspace_file,
-        fetch_url_text,
-        execute_python,
+        web_search,
         write_artifacts,
     ]
 
 
 def _document_rows(context: AgentToolContext) -> list[ConversationDocumentRow]:
     return list(context.documents.values()) + context.created_documents
-
-
-def _resolve_workspace_file(context: AgentToolContext, path_or_document_id: str) -> ConversationDocumentRow:
-    value = path_or_document_id.strip()
-    for row in _document_rows(context):
-        if value in {row.id, row.filename, row.title}:
-            return row
-    raise RequestError("workspace file not found", details={"path_or_document_id": path_or_document_id})
 
 
 def _match_snippet(text: str, terms: Sequence[str]) -> str | None:
@@ -371,52 +248,60 @@ async def _create_artifact(
         )
 
 
-async def _assert_public_hostname(hostname: str) -> None:
-    infos = await asyncio.to_thread(socket.getaddrinfo, hostname, None)
-    for info in infos:
-        address = info[4][0]
-        ip = ipaddress.ip_address(address)
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved:
-            raise RequestError("fetch_url_text cannot access private or local network addresses")
+def _parse_web_search_results(raw: str, limit: int) -> list[dict[str, str]]:
+    anchors = list(
+        re.finditer(
+            r'(?is)<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>(.*?)</a>',
+            raw,
+        )
+    )
+    results: list[dict[str, str]] = []
+    for index, anchor in enumerate(anchors):
+        block_end = anchors[index + 1].start() if index + 1 < len(anchors) else len(raw)
+        block = raw[anchor.start() : block_end]
+        title = _clean_search_html(anchor.group(2))
+        url = _normalize_result_url(anchor.group(1))
+        snippet = _extract_search_snippet(block)
+        if not title or not url:
+            continue
+        results.append(
+            {
+                "title": title,
+                "url": url,
+                "snippet": snippet[:_MAX_WEB_SNIPPET_CHARS] or "No snippet.",
+            }
+        )
+        if len(results) >= limit:
+            break
+    return results
 
 
-def _html_to_text(raw: str) -> str:
+def _extract_search_snippet(block: str) -> str:
+    match = re.search(
+        r'(?is)<(?:a|div)[^>]+class="[^"]*result__snippet[^"]*"[^>]*>(.*?)</(?:a|div)>',
+        block,
+    )
+    return _clean_search_html(match.group(1)) if match else ""
+
+
+def _clean_search_html(raw: str) -> str:
     text = re.sub(r"(?is)<(script|style).*?>.*?</\1>", " ", raw)
     text = re.sub(r"(?s)<[^>]+>", " ", text)
-    text = re.sub(r"&nbsp;", " ", text)
-    text = re.sub(r"&amp;", "&", text)
-    text = re.sub(r"&lt;", "<", text)
-    text = re.sub(r"&gt;", ">", text)
+    text = html_lib.unescape(text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
 
-def _validate_python_code(code: str) -> None:
-    try:
-        tree = ast.parse(code)
-    except SyntaxError as exc:
-        raise RequestError("invalid python code", details={"reason": str(exc)}) from exc
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            for alias in node.names:
-                root_name = alias.name.split(".", 1)[0]
-                if root_name not in _ALLOWED_CODE_IMPORTS:
-                    raise RequestError("python import is not allowed", details={"module": root_name})
-        if isinstance(node, ast.Name) and node.id in _BLOCKED_CODE_NAMES:
-            raise RequestError("python name is not allowed", details={"name": node.id})
-        if isinstance(node, ast.Attribute) and node.attr.startswith("__"):
-            raise RequestError("python dunder attribute access is not allowed")
-
-
-def _decode_process_output(stdout: bytes, stderr: bytes, returncode: int | None) -> str:
-    output = stdout.decode("utf-8", errors="replace")
-    error = stderr.decode("utf-8", errors="replace")
-    combined = output
-    if error:
-        combined = f"{combined}\n[stderr]\n{error}".strip()
-    if returncode not in {0, None}:
-        combined = f"[exit_code={returncode}]\n{combined}".strip()
-    combined = combined.strip() or "[no output]"
-    if len(combined) > _MAX_CODE_OUTPUT_CHARS:
-        return combined[:_MAX_CODE_OUTPUT_CHARS] + "\n\n[truncated]"
-    return combined
+def _normalize_result_url(raw_url: str) -> str:
+    url = html_lib.unescape(raw_url)
+    if url.startswith("//"):
+        url = f"https:{url}"
+    parsed = urlparse(url)
+    redirect_target = parse_qs(parsed.query).get("uddg")
+    if redirect_target:
+        return unquote(redirect_target[0])
+    if parsed.scheme in {"http", "https"}:
+        return url
+    if url.startswith("/"):
+        return f"https://duckduckgo.com{url}"
+    return url

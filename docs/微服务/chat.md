@@ -20,12 +20,9 @@
   - `GET    /conversations/{id}/documents/{document_id}` 读取完整 Markdown
     内容，供前端预览/二次编辑
   - `PATCH  /conversations/{id}/documents/{document_id}` 保存 Markdown 编辑结果
-  - `POST   /attachments/convert` 上传单个附件并用 Microsoft MarkItDown 转成
-    Markdown，保留为轻量 demo/兼容接口；主流程使用 documents 落库接口
-  - `POST   /conversations/{id}/agents/run` 运行 OpenAI Agents SDK agent，模型可调用
-    会话检索、虚拟文件系统、受限 URL 抓取、受限 Python 执行与 artifact 写入工具；
-    `write_artifacts` 会写入新的 `artifact` 文档
-  - `POST   /conversations/{id}/agents/run/stream` 同上，但通过 SSE 实时推送进度：
+  - `POST   /conversations/{id}/agents/run/stream` 运行 OpenAI Agents SDK agent，
+    模型可调用会话检索、会话文件读取、web search 与 artifact 写入工具；
+    `write_artifacts` 会写入新的 `artifact` 文档，并通过 SSE 实时推送进度：
     - `message`：助手主回复，支持 `delta` 增量与最终 `text`
     - `step`：agent runtime 执行态，含 `status`、`tool_name`、`output_preview`
     - `card`：可选产物卡片，目前支持 `artifact` 文档 card
@@ -78,7 +75,6 @@ Header: X-Internal-Token: <INTERNAL_API_TOKEN>
 - `src/chat/main.py` — FastAPI app + lifespan（关闭 admin_client）
 - `src/chat/routers/conversations.py` — HTTP 路由（含 SSE 流式终端）
 - `src/chat/routers/documents.py` — 会话级 Markdown 文档上传/读取/编辑
-- `src/chat/routers/attachments.py` — MarkItDown 附件转 Markdown demo
 - `src/chat/routers/agents.py` — OpenAI Agents SDK 会话文档 agent
 - `src/chat/services/conversations.py` — 会话 CRUD 编排
 - `src/chat/services/messages.py` — 用户/助手消息持久化 + LLM 流式拼装
@@ -110,9 +106,8 @@ Header: X-Internal-Token: <INTERNAL_API_TOKEN>
 - Agent runtime 每次 run 都会注入当前会话的全部历史消息和全部会话文档
   （包含 source 与之前生成的 artifact），避免同一会话内前文和产物丢失。
 - Agent runtime 注入的工具保持后端受控边界：
-  `search_conversation` 只检索当前会话；`list_workspace_files` /
-  `read_workspace_file` 只访问会话虚拟文件系统；`fetch_url_text` 只抓取公网
-  http(s) 文本且不执行 JS；`execute_python` 只运行受限 Python 片段，不开放 shell；
+  `search_conversation` 只检索当前会话；`list_conversation_documents` /
+  `read_document_markdown` 只访问当前会话文档；`web_search` 只做公网搜索结果检索；
   `write_artifacts` 只写当前会话 artifact，单文件和多文件都走同一个批量工具。
 - Agent runtime 默认禁用并行工具调用，提高 DeepSeek 等 OpenAI-compatible
   provider 下的 artifact 写入稳定性；artifact 工具成功后会立即通过 `card`

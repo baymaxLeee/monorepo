@@ -10,7 +10,7 @@ from kernel.tracing import TraceIDMiddleware
 from .config import get_settings
 from .db import close_db, seed_demo_conversations
 from .redis_client import close_redis, init_redis
-from .routers import agents, attachments, conversations, documents, health
+from .routers import agents, conversations, documents, health
 from .services.admin_client import close_admin_client
 
 
@@ -41,7 +41,6 @@ def create_app() -> FastAPI:
     app.add_middleware(TraceIDMiddleware)
     app.include_router(health.router)
     app.include_router(agents.router)
-    app.include_router(attachments.router)
     app.include_router(conversations.router)
     app.include_router(documents.router)
     return app

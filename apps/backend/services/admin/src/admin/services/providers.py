@@ -192,7 +192,7 @@ class ModelProviderService:
                     {"role": "system", "content": "You are a helpful assistant."},
                     {"role": "user", "content": "ping"},
                 ],
-                max_tokens=4,
+                max_tokens=16,
                 stream=False,
             )
         except AuthenticationError as exc:
