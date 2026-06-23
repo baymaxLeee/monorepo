@@ -27,6 +27,7 @@ from chat.services.agent_tools import (
     execute_agent_runtime_tool,
     is_successful_artifact_write,
 )
+from chat.services.artifact_slots import extract_slot_ids
 from chat.services.documents import (
     ConversationDocumentService,
     document_to_schema,
@@ -93,9 +94,13 @@ class AgentRunService:
         thinking: bool | None = None,
         reasoning_effort: ReasoningEffort | None = None,
     ) -> AsyncIterator[AgentRunStreamEvent]:
-        if not prompt.strip():
+        if not prompt.strip() and not extract_slot_ids(prompt):
             raise RequestError("agent prompt is required")
-        context, selected_document_rows = await self._prepare_context(conversation_id, document_ids)
+        resolved_document_ids = list(document_ids)
+        for slot_id in extract_slot_ids(prompt):
+            if slot_id not in resolved_document_ids:
+                resolved_document_ids.append(slot_id)
+        context, _selected_document_rows = await self._prepare_context(conversation_id, resolved_document_ids)
 
         steps: list[str] = []
         emitted_card_document_ids: set[str] = set()
@@ -113,7 +118,7 @@ class AgentRunService:
             steps.append(str(event["text"]))
             yield event
 
-        await self._persist_user_message(conversation_id, prompt, selected_document_rows)
+        await self._persist_user_message(conversation_id, prompt)
 
         try:
             async with asyncio.timeout(self._settings.agent_run_timeout_seconds):
@@ -235,13 +240,12 @@ class AgentRunService:
         self,
         conversation_id: str,
         prompt: str,
-        document_rows: Sequence[ConversationDocumentRow],
     ) -> None:
         await message_crud.create_message(
             self._session,
             conversation_id=conversation_id,
             role="user",
-            content=with_document_refs(prompt, document_rows),
+            content=prompt,
             status="ok",
         )
 
@@ -550,6 +554,8 @@ class AgentRunService:
                 "Long history and documents may be represented as compact previews to fit the model context window.",
                 "Use the conversation history to resolve references such as previous requests, earlier answers, and generated files.",
                 "The user may reference Markdown documents converted by Microsoft MarkItDown.",
+                "Inline references like [16hex] are conversation document IDs; use read_document_markdown(document_id) for full content.",
+                "Legacy references like [[chat-document:id]] are also document IDs.",
                 "Use list_conversation_documents and read_document_markdown to inspect conversation files when previews are insufficient; read_document_markdown returns bounded slices, so continue with the next start offset when needed. Do not claim access to the server filesystem.",
                 "Use analyze_image when the user asks about an uploaded image or visual details are required. The tool uses the configured multimodal provider and returns text for reasoning.",
                 "Use web_search at most once for public web lookup or current information requests.",

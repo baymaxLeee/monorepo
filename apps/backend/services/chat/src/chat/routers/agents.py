@@ -16,6 +16,7 @@ from chat.schemas.agent import RunAgentInput
 from chat.services.admin_client import ProviderSnapshot, get_admin_client
 from chat.services.agent_runtime import AgentRunService
 from chat.services.agent_streams import AgentStreamService
+from chat.services.artifact_slots import extract_slot_ids
 
 router = APIRouter(prefix="/conversations/{conversation_id}/agents", tags=["agents"])
 logger = logging.getLogger(__name__)
@@ -108,10 +109,14 @@ async def _run_agent_to_stream(
         stream_service = AgentStreamService(get_redis(), session, current_user)
         try:
             service = AgentRunService(session, current_user, provider, multimodal_provider)
+            document_ids = list(payload.document_ids)
+            for slot_id in extract_slot_ids(payload.prompt):
+                if slot_id not in document_ids:
+                    document_ids.append(slot_id)
             async for event in service.stream_run(
                 conversation_id=conversation_id,
                 prompt=payload.prompt,
-                document_ids=payload.document_ids,
+                document_ids=document_ids,
                 thinking=payload.thinking,
                 reasoning_effort=payload.reasoning_effort,
             ):

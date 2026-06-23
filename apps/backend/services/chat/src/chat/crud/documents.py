@@ -51,6 +51,9 @@ async def create_document(
     source_object_key: str | None = None,
     source_sha256: str | None = None,
     source_filename: str | None = None,
+    ingest_status: str = "ready",
+    ingest_progress: int = 100,
+    ingest_error: str | None = None,
 ) -> ConversationDocumentRow:
     now = datetime.now(UTC)
     row = ConversationDocumentRow(
@@ -67,6 +70,9 @@ async def create_document(
         source_object_key=source_object_key,
         source_sha256=source_sha256,
         source_filename=source_filename,
+        ingest_status=ingest_status,
+        ingest_progress=ingest_progress,
+        ingest_error=ingest_error,
         created_at=now,
         updated_at=now,
     )

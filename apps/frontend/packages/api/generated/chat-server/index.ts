@@ -6,6 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import { apiMutator } from '../../src/orval-mutator';
+export interface BodyIngestDocumentsStreamConversationsConversationIdDocumentsIngestStreamPost {
+  files: Blob[];
+  client_refs: string;
+}
+
 export interface BodyUploadDocumentConversationsConversationIdDocumentsPost {
   file: Blob;
 }
@@ -55,6 +60,18 @@ export const ConversationDocumentKind = {
   artifact: 'artifact',
 } as const;
 
+export type ConversationDocumentIngestStatus = typeof ConversationDocumentIngestStatus[keyof typeof ConversationDocumentIngestStatus];
+
+
+export const ConversationDocumentIngestStatus = {
+  pending: 'pending',
+  queued: 'queued',
+  storing: 'storing',
+  converting: 'converting',
+  ready: 'ready',
+  failed: 'failed',
+} as const;
+
 export interface ConversationDocument {
   id: string;
   conversation_id: string;
@@ -68,6 +85,9 @@ export interface ConversationDocument {
   source_object_key?: string | null;
   source_sha256?: string | null;
   source_filename?: string | null;
+  ingest_status?: ConversationDocumentIngestStatus;
+  ingest_progress?: number;
+  ingest_error?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -92,6 +112,18 @@ export const ConversationDocumentDetailKind = {
   artifact: 'artifact',
 } as const;
 
+export type ConversationDocumentDetailIngestStatus = typeof ConversationDocumentDetailIngestStatus[keyof typeof ConversationDocumentDetailIngestStatus];
+
+
+export const ConversationDocumentDetailIngestStatus = {
+  pending: 'pending',
+  queued: 'queued',
+  storing: 'storing',
+  converting: 'converting',
+  ready: 'ready',
+  failed: 'failed',
+} as const;
+
 export interface ConversationDocumentDetail {
   id: string;
   conversation_id: string;
@@ -105,6 +137,9 @@ export interface ConversationDocumentDetail {
   source_object_key?: string | null;
   source_sha256?: string | null;
   source_filename?: string | null;
+  ingest_status?: ConversationDocumentDetailIngestStatus;
+  ingest_progress?: number;
+  ingest_error?: string | null;
   created_at: string;
   updated_at: string;
   content_md: string;
@@ -341,6 +376,24 @@ formData.append(`file`, bodyUploadDocumentConversationsConversationIdDocumentsPo
     }
 
 /**
+ * @summary Ingest Documents Stream
+ */
+const ingestDocumentsStreamConversationsConversationIdDocumentsIngestStreamPost = (
+    conversationId: string,
+    bodyIngestDocumentsStreamConversationsConversationIdDocumentsIngestStreamPost: BodyIngestDocumentsStreamConversationsConversationIdDocumentsIngestStreamPost,
+ options?: SecondParameter<typeof apiMutator<unknown>>,) => {const formData = new FormData();
+bodyIngestDocumentsStreamConversationsConversationIdDocumentsIngestStreamPost.files.forEach(value => formData.append(`files`, value));
+formData.append(`client_refs`, bodyIngestDocumentsStreamConversationsConversationIdDocumentsIngestStreamPost.client_refs);
+
+      return apiMutator<unknown>(
+      {url: `/conversations/${conversationId}/documents/ingest/stream`, method: 'POST',
+      headers: {'Content-Type': 'multipart/form-data', },
+       data: formData
+    },
+      options);
+    }
+
+/**
  * @summary Get Document
  */
 const getDocumentConversationsConversationIdDocumentsDocumentIdGet = (
@@ -369,7 +422,20 @@ const updateDocumentConversationsConversationIdDocumentsDocumentIdPatch = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,streamAgentRunConversationsConversationIdAgentsRunStreamPost,resumeAgentRunConversationsConversationIdAgentsRunStreamGet,listConversationsConversationsGet,createConversationConversationsPost,getConversationConversationsConversationIdGet,updateConversationConversationsConversationIdPatch,deleteConversationConversationsConversationIdDelete,listDocumentsConversationsConversationIdDocumentsGet,uploadDocumentConversationsConversationIdDocumentsPost,getDocumentConversationsConversationIdDocumentsDocumentIdGet,updateDocumentConversationsConversationIdDocumentsDocumentIdPatch}};
+/**
+ * @summary Get Document Source
+ */
+const getDocumentSourceConversationsConversationIdDocumentsDocumentIdSourceGet = (
+    conversationId: string,
+    documentId: string,
+ options?: SecondParameter<typeof apiMutator<unknown>>,) => {
+      return apiMutator<unknown>(
+      {url: `/conversations/${conversationId}/documents/${documentId}/source`, method: 'GET'
+    },
+      options);
+    }
+
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,streamAgentRunConversationsConversationIdAgentsRunStreamPost,resumeAgentRunConversationsConversationIdAgentsRunStreamGet,listConversationsConversationsGet,createConversationConversationsPost,getConversationConversationsConversationIdGet,updateConversationConversationsConversationIdPatch,deleteConversationConversationsConversationIdDelete,listDocumentsConversationsConversationIdDocumentsGet,uploadDocumentConversationsConversationIdDocumentsPost,ingestDocumentsStreamConversationsConversationIdDocumentsIngestStreamPost,getDocumentConversationsConversationIdDocumentsDocumentIdGet,updateDocumentConversationsConversationIdDocumentsDocumentIdPatch,getDocumentSourceConversationsConversationIdDocumentsDocumentIdSourceGet}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -387,5 +453,7 @@ export type UpdateConversationConversationsConversationIdPatchResult = NonNullab
 export type DeleteConversationConversationsConversationIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['deleteConversationConversationsConversationIdDelete']>>>
 export type ListDocumentsConversationsConversationIdDocumentsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['listDocumentsConversationsConversationIdDocumentsGet']>>>
 export type UploadDocumentConversationsConversationIdDocumentsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['uploadDocumentConversationsConversationIdDocumentsPost']>>>
+export type IngestDocumentsStreamConversationsConversationIdDocumentsIngestStreamPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['ingestDocumentsStreamConversationsConversationIdDocumentsIngestStreamPost']>>>
 export type GetDocumentConversationsConversationIdDocumentsDocumentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getDocumentConversationsConversationIdDocumentsDocumentIdGet']>>>
 export type UpdateDocumentConversationsConversationIdDocumentsDocumentIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['updateDocumentConversationsConversationIdDocumentsDocumentIdPatch']>>>
+export type GetDocumentSourceConversationsConversationIdDocumentsDocumentIdSourceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getDocumentSourceConversationsConversationIdDocumentsDocumentIdSourceGet']>>>

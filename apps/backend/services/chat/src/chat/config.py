@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     # MarkItDown image captions call chat.completions without max_tokens; some
     # gateways (e.g. OpenRouter) default to huge limits and reject low-credit keys.
     attachment_vision_max_tokens: int = 256
+    ingest_max_parallel: int = 3
     agent_max_turns: int = 120
     agent_run_timeout_seconds: float = 3600.0
     agent_max_output_tokens: int = 4096

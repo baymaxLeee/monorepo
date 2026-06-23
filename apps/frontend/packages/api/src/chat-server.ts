@@ -55,9 +55,20 @@ export interface ConversationDocument {
   source_object_key?: string | null;
   source_sha256?: string | null;
   source_filename?: string | null;
+  ingest_status?: IngestStatus;
+  ingest_progress?: number;
+  ingest_error?: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export type IngestStatus =
+  | "pending"
+  | "queued"
+  | "storing"
+  | "converting"
+  | "ready"
+  | "failed";
 
 export interface ConversationDocumentDetail extends ConversationDocument {
   content_md: string;
@@ -176,6 +187,49 @@ export function fetchConversationDocument(
   });
 }
 
+export function conversationDocumentSourceUrl(
+  conversationId: string,
+  documentId: string,
+): string {
+  return `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/documents/${encodeURIComponent(documentId)}/source`;
+}
+
+export async function fetchConversationDocumentSource(
+  conversationId: string,
+  documentId: string,
+): Promise<Blob> {
+  if (!isAccessTokenValid()) {
+    await refreshSession();
+  }
+
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let response = await fetch(
+    conversationDocumentSourceUrl(conversationId, documentId),
+    { credentials: "include", headers },
+  );
+
+  if (response.status === 401) {
+    const refreshed = await refreshSession();
+    if (refreshed) {
+      const retryHeaders: Record<string, string> = {};
+      const retryToken = getToken();
+      if (retryToken) retryHeaders.Authorization = `Bearer ${retryToken}`;
+      response = await fetch(
+        conversationDocumentSourceUrl(conversationId, documentId),
+        { credentials: "include", headers: retryHeaders },
+      );
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(`document source failed: ${response.status}`);
+  }
+  return response.blob();
+}
+
 export function updateConversationDocument(
   conversationId: string,
   documentId: string,
@@ -193,52 +247,85 @@ export interface StreamConversationAgentOptions {
   onEvent: (event: AgentRunStreamEvent) => void;
 }
 
-async function sendAgentStreamRequest(
-  url: string,
-  init: { method: "GET" } | { method: "POST"; body: string },
-  signal?: AbortSignal,
-): Promise<Response> {
-  const headers: Record<string, string> = {
-    Accept: "text/event-stream",
-  };
-  if (init.method === "POST") headers["Content-Type"] = "application/json";
-
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  try {
-    return await fetch(url, {
-      method: init.method,
-      credentials: "include",
-      headers,
-      body: init.method === "POST" ? init.body : undefined,
-      signal,
-    });
-  } catch (error) {
-    throw toApiError(error);
-  }
+export interface StreamEventOptions<T> {
+  signal?: AbortSignal;
+  onEvent: (event: T) => void;
 }
 
-async function openAgentEventStream(
+export interface DocumentIngestBatchStartedEvent {
+  type: "batch_started";
+  total: number;
+  max_parallel: number;
+}
+
+export interface DocumentIngestFileStartedEvent {
+  type: "file_started";
+  index: number;
+  client_ref: string;
+  filename: string;
+}
+
+export interface DocumentIngestFileProgressEvent {
+  type: "file_progress";
+  index: number;
+  client_ref: string;
+  artifact_id: string;
+  status: IngestStatus;
+  progress: number;
+}
+
+export interface DocumentIngestFileReadyEvent {
+  type: "file_ready";
+  index: number;
+  client_ref: string;
+  artifact_id: string;
+  progress: number;
+  document: ConversationDocumentDetail;
+}
+
+export interface DocumentIngestFileFailedEvent {
+  type: "file_failed";
+  index: number;
+  client_ref: string;
+  artifact_id?: string | null;
+  error: string;
+  code?: string | null;
+}
+
+export interface DocumentIngestBatchDoneEvent {
+  type: "batch_done";
+  succeeded: number;
+  failed: number;
+}
+
+export type DocumentIngestStreamEvent =
+  | DocumentIngestBatchStartedEvent
+  | DocumentIngestFileStartedEvent
+  | DocumentIngestFileProgressEvent
+  | DocumentIngestFileReadyEvent
+  | DocumentIngestFileFailedEvent
+  | DocumentIngestBatchDoneEvent;
+
+async function openEventStream<T>(
   url: string,
-  init: { method: "GET" } | { method: "POST"; body: string },
-  { onEvent, signal }: StreamConversationAgentOptions,
+  init: { method: "GET" } | { method: "POST"; body: string | FormData },
+  { onEvent, signal }: StreamEventOptions<T>,
 ) {
   if (!isAccessTokenValid()) {
     await refreshSession();
   }
 
-  let response = await sendAgentStreamRequest(url, init, signal);
+  let response = await sendStreamRequest(url, init, signal);
 
   if (response.status === 401) {
     const refreshed = await refreshSession();
     if (refreshed) {
-      response = await sendAgentStreamRequest(url, init, signal);
+      response = await sendStreamRequest(url, init, signal);
     }
   }
 
   if (!response.ok || !response.body) {
-    let detail = `agent stream failed: ${response.status}`;
+    let detail = `stream failed: ${response.status}`;
     try {
       const text = await response.text();
       if (text) detail = text;
@@ -270,7 +357,7 @@ async function openAgentEventStream(
         if (dataLines.length > 0) {
           const data = dataLines.join("\n");
           if (data === "[DONE]") return;
-          onEvent(JSON.parse(data) as AgentRunStreamEvent);
+          onEvent(JSON.parse(data) as T);
         }
 
         separatorIndex = buffer.indexOf("\n\n");
@@ -278,6 +365,34 @@ async function openAgentEventStream(
     }
   } finally {
     reader.releaseLock();
+  }
+}
+
+async function sendStreamRequest(
+  url: string,
+  init: { method: "GET" } | { method: "POST"; body: string | FormData },
+  signal?: AbortSignal,
+): Promise<Response> {
+  const headers: Record<string, string> = {
+    Accept: "text/event-stream",
+  };
+  if (init.method === "POST" && typeof init.body === "string") {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  try {
+    return await fetch(url, {
+      method: init.method,
+      credentials: "include",
+      headers,
+      body: init.method === "POST" ? init.body : undefined,
+      signal,
+    });
+  } catch (error) {
+    throw toApiError(error);
   }
 }
 
@@ -295,7 +410,11 @@ export async function streamConversationAgent(
     thinking: input.thinking ?? null,
     reasoning_effort: input.reasoning_effort ?? null,
   });
-  await openAgentEventStream(url, { method: "POST", body }, options);
+  await openEventStream<AgentRunStreamEvent>(
+    url,
+    { method: "POST", body },
+    options,
+  );
 }
 
 export async function resumeConversationAgent(
@@ -303,5 +422,25 @@ export async function resumeConversationAgent(
   options: StreamConversationAgentOptions,
 ): Promise<void> {
   const url = `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/agents/run/stream`;
-  await openAgentEventStream(url, { method: "GET" }, options);
+  await openEventStream<AgentRunStreamEvent>(url, { method: "GET" }, options);
+}
+
+export async function streamConversationDocumentIngest(
+  conversationId: string,
+  files: Array<{ clientRef: string; file: File }>,
+  options: StreamEventOptions<DocumentIngestStreamEvent>,
+): Promise<void> {
+  const form = new FormData();
+  const clientRefs: string[] = [];
+  for (const item of files) {
+    form.append("files", item.file);
+    clientRefs.push(item.clientRef);
+  }
+  form.append("client_refs", JSON.stringify(clientRefs));
+  const url = `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/documents/ingest/stream`;
+  await openEventStream<DocumentIngestStreamEvent>(
+    url,
+    { method: "POST", body: form },
+    options,
+  );
 }

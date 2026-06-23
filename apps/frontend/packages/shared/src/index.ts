@@ -5,6 +5,17 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
+export {
+  extractSlotIds,
+  formatArtifactSlot,
+  parseSlots,
+  serializeSlots,
+  tokenIdByArtifactId,
+  resolveArtifactId,
+  type ArtifactSlotSegment,
+  type SerializeSlotsInput,
+} from "./artifact-slots";
+
 declare const process: { env: { API_BASE_URL?: string } } | undefined;
 
 export const API_BASE_URL =

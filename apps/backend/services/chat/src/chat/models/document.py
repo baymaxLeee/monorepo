@@ -29,5 +29,8 @@ class ConversationDocumentRow(Base):
     source_object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     source_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ingest_status: Mapped[str] = mapped_column(String(20), nullable=False, default="ready")
+    ingest_progress: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    ingest_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

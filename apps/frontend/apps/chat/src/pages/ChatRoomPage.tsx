@@ -3,15 +3,17 @@ import {
   type ConversationDetail,
   type ConversationDocument,
   type ConversationDocumentDetail,
+  type DocumentIngestStreamEvent,
   fetchConversation,
   fetchConversationDocument,
+  fetchConversationDocumentSource,
   type Message,
   type ModelProvider,
   type ReasoningEffort,
   resumeConversationAgent,
   streamConversationAgent,
+  streamConversationDocumentIngest,
   updateConversationDocument,
-  uploadConversationDocument,
 } from "api";
 import {
   Alert,
@@ -47,8 +49,11 @@ import { MarkdownEditor } from "components/markdown-editor";
 import {
   PromptInput,
   type PromptInputRef,
+  type PromptInputToken,
   type PromptInputValue,
 } from "components/prompt-input";
+import { PromptMessageContent } from "components/prompt-message-content";
+import { extractSlotIds, parseSlots, serializeSlots, tokenIdByArtifactId } from "shared";
 import { DownloadIcon, FileTextIcon, SettingsIcon } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -89,7 +94,6 @@ const REASONING_OPTIONS: { value: ReasoningEffort; label: string }[] = [
 ];
 const STORAGE_KEY = "chat.reasoning-prefs.v1";
 const MAX_ATTACHMENTS_PER_MESSAGE = 5;
-const DOCUMENT_REF_RE = /\[\[chat-document:([a-zA-Z0-9_-]+)\]\]/g;
 const MULTIMODAL_PROVIDER_HINT_RE =
   /doubao|seed|vision|image|multimodal|video/i;
 const MULTIMODAL_PROVIDER_AUTO = "__auto";
@@ -129,19 +133,12 @@ function placeholderId(role: "user" | "assistant") {
   return `local-${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function documentRef(documentId: string) {
-  return `[[chat-document:${documentId}]]`;
-}
-
-function buildUserDisplayContent(
-  value: PromptInputValue,
-  documents: ConversationDocument[],
-) {
-  const text = value.text.trim() || "请阅读附件并总结要点";
-  if (documents.length === 0) return text;
-  return [text, ...documents.map((document) => documentRef(document.id))].join(
-    "\n\n",
+function buildPromptContent(value: PromptInputValue): string {
+  const serialized = serializeSlots(
+    { segments: value.segments },
+    tokenIdByArtifactId(value.tokens),
   );
+  return serialized.trim() || "请阅读附件并总结要点";
 }
 
 function createEmptyAgentProgress(): AgentProgress {
@@ -163,16 +160,6 @@ function mergeDocumentsById(
   ];
 }
 
-function downloadMarkdown(document: ConversationDocumentDetail) {
-  const blob = new Blob([document.content_md], { type: "text/markdown" });
-  const url = URL.createObjectURL(blob);
-  const link = window.document.createElement("a");
-  link.href = url;
-  link.download = document.filename || `${document.title}.md`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 function extractHtmlPreview(content: string): string | null {
   const trimmed = content.trim();
   const fenced = trimmed.match(/^```(?:html|htm)\s*\n([\s\S]*?)\n```$/i);
@@ -190,6 +177,33 @@ function extractHtmlPreview(content: string): string | null {
   return null;
 }
 
+type DocumentPreviewMode = "markdown" | "html" | "image" | "video" | "audio";
+
+function resolveDocumentPreviewMode(
+  document: ConversationDocumentDetail,
+): DocumentPreviewMode {
+  const mime = (
+    document.source_mime_type ||
+    document.mime_type ||
+    ""
+  ).toLowerCase();
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  if (extractHtmlPreview(document.content_md)) return "html";
+  return "markdown";
+}
+
+function downloadMarkdown(document: ConversationDocumentDetail) {
+  const blob = new Blob([document.content_md], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const link = window.document.createElement("a");
+  link.href = url;
+  link.download = document.filename || `${document.title}.md`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export function ChatRoomPage() {
   const { id } = useParams<{ id: string }>();
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
@@ -198,11 +212,15 @@ export function ChatRoomPage() {
   const [error, setError] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<ReasoningPrefs>(() => loadPrefs());
   const [attachmentCount, setAttachmentCount] = useState(0);
+  const [ingestInFlight, setIngestInFlight] = useState(false);
   const [documentOpen, setDocumentOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] =
     useState<ConversationDocumentDetail | null>(null);
   const [documentDraft, setDocumentDraft] = useState("");
+  const [documentPreviewMode, setDocumentPreviewMode] =
+    useState<DocumentPreviewMode>("markdown");
   const [htmlPreviewUrl, setHtmlPreviewUrl] = useState<string | null>(null);
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
   const [loadingDocument, setLoadingDocument] = useState(false);
   const [savingDocument, setSavingDocument] = useState(false);
   const [selectedMultimodalProviderId, setSelectedMultimodalProviderId] =
@@ -210,6 +228,9 @@ export function ChatRoomPage() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const promptInputRef = useRef<PromptInputRef | null>(null);
   const resumedConversationRef = useRef<string | null>(null);
+  const ingestQueueRef = useRef<Array<{ clientRef: string; file: File }>>([]);
+  const ingestTimerRef = useRef<number | null>(null);
+  const ingestAbortRef = useRef<AbortController | null>(null);
 
   const {
     sending,
@@ -259,10 +280,6 @@ export function ChatRoomPage() {
     for (const document of documents) map.set(document.id, document);
     return map;
   }, [documents]);
-  const htmlPreview = useMemo(
-    () => extractHtmlPreview(documentDraft),
-    [documentDraft],
-  );
 
   const updateAgentProgress = useCallback(
     (
@@ -378,19 +395,30 @@ export function ChatRoomPage() {
   );
 
   useEffect(() => {
-    if (!documentOpen || !htmlPreview) {
+    if (!documentOpen || documentPreviewMode !== "html") {
       setHtmlPreviewUrl(null);
       return;
     }
-    const url = URL.createObjectURL(
-      new Blob([htmlPreview], { type: "text/html" }),
-    );
+    const html = selectedDocument
+      ? extractHtmlPreview(selectedDocument.content_md)
+      : null;
+    if (!html) {
+      setHtmlPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
     setHtmlPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
-  }, [documentOpen, htmlPreview]);
+  }, [documentOpen, documentPreviewMode, selectedDocument]);
+
+  useEffect(() => {
+    if (!documentOpen || !mediaPreviewUrl) return;
+    return () => URL.revokeObjectURL(mediaPreviewUrl);
+  }, [documentOpen, mediaPreviewUrl]);
 
   useEffect(() => {
     if (!id || !documentOpen || !selectedDocument || loadingDocument) return;
+    if (documentPreviewMode !== "markdown") return;
     if (htmlPreviewUrl) return;
     if (documentDraft === selectedDocument.content_md) return;
 
@@ -425,6 +453,7 @@ export function ChatRoomPage() {
   }, [
     documentDraft,
     documentOpen,
+    documentPreviewMode,
     htmlPreviewUrl,
     id,
     loadingDocument,
@@ -503,38 +532,139 @@ export function ChatRoomPage() {
     });
   }, []);
 
-  const uploadPromptDocuments = useCallback(
-    async (value: PromptInputValue) => {
-      if (!id) return [];
-      if (value.tokens.length > MAX_ATTACHMENTS_PER_MESSAGE) {
-        toast.warning(`最多处理前 ${MAX_ATTACHMENTS_PER_MESSAGE} 个附件`);
-      }
-      const uploaded: ConversationDocumentDetail[] = [];
-      for (const token of value.tokens.slice(0, MAX_ATTACHMENTS_PER_MESSAGE)) {
-        const file = value.files[token.id];
-        if (!file) continue;
-        uploaded.push(await uploadConversationDocument(id, file));
-      }
-      if (uploaded.length > 0) {
+  const applyIngestEvent = useCallback((event: DocumentIngestStreamEvent) => {
+    const api = promptInputRef.current;
+    if (!api) return;
+
+    const patchToken = (
+      clientRef: string,
+      patch: Partial<PromptInputToken>,
+    ) => {
+      api.updateToken(clientRef, patch);
+    };
+
+    switch (event.type) {
+      case "file_started":
+        patchToken(event.client_ref, {
+          meta: {
+            ingestStatus: "storing",
+            ingestProgress: 5,
+          },
+        });
+        break;
+      case "file_progress":
+        patchToken(event.client_ref, {
+          meta: {
+            artifactId: event.artifact_id,
+            ingestStatus: event.status,
+            ingestProgress: event.progress,
+          },
+        });
+        break;
+      case "file_ready":
+        patchToken(event.client_ref, {
+          id: event.artifact_id,
+          label: event.document.title || event.document.filename,
+          meta: {
+            clientRef: event.client_ref,
+            artifactId: event.artifact_id,
+            ingestStatus: "ready",
+            ingestProgress: 100,
+          },
+        });
         setDetail((prev) =>
           prev
-            ? { ...prev, documents: [...prev.documents, ...uploaded] }
+            ? {
+                ...prev,
+                documents: mergeDocumentsById(prev.documents, [
+                  event.document,
+                ]),
+              }
             : prev,
         );
+        break;
+      case "file_failed":
+        patchToken(event.client_ref, {
+          meta: {
+            ingestStatus: "failed",
+            ingestProgress: 0,
+            ingestError: event.error,
+          },
+        });
+        toast.error(event.error);
+        break;
+      default:
+        break;
+    }
+  }, []);
+
+  const flushIngestQueue = useCallback(async () => {
+    if (!id || ingestQueueRef.current.length === 0) return;
+    const batch = ingestQueueRef.current.splice(
+      0,
+      MAX_ATTACHMENTS_PER_MESSAGE,
+    );
+    ingestAbortRef.current?.abort();
+    const controller = new AbortController();
+    ingestAbortRef.current = controller;
+    setIngestInFlight(true);
+    try {
+      await streamConversationDocumentIngest(
+        id,
+        batch.map((item) => ({
+          clientRef: item.clientRef,
+          file: item.file,
+        })),
+        {
+          signal: controller.signal,
+          onEvent: applyIngestEvent,
+        },
+      );
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      toast.error(String(error));
+    } finally {
+      setIngestInFlight(false);
+    }
+  }, [applyIngestEvent, id]);
+
+  const queueIngestFiles = useCallback(
+    (items: Array<{ token: PromptInputToken; file: File }>) => {
+      if (!id) return;
+      if (items.length === 0) return;
+      for (const item of items) {
+        ingestQueueRef.current.push({
+          clientRef: item.token.id,
+          file: item.file,
+        });
       }
-      return uploaded;
+      if (ingestTimerRef.current !== null) {
+        window.clearTimeout(ingestTimerRef.current);
+      }
+      ingestTimerRef.current = window.setTimeout(() => {
+        ingestTimerRef.current = null;
+        void flushIngestQueue();
+      }, 150);
     },
-    [id],
+    [flushIngestQueue, id],
   );
 
   async function openDocument(documentId: string) {
     if (!id) return;
     setDocumentOpen(true);
     setLoadingDocument(true);
+    setMediaPreviewUrl(null);
+    setHtmlPreviewUrl(null);
     try {
       const next = await fetchConversationDocument(id, documentId);
+      const mode = resolveDocumentPreviewMode(next);
       setSelectedDocument(next);
       setDocumentDraft(next.content_md);
+      setDocumentPreviewMode(mode);
+      if (mode === "image" || mode === "video" || mode === "audio") {
+        const blob = await fetchConversationDocumentSource(id, documentId);
+        setMediaPreviewUrl(URL.createObjectURL(blob));
+      }
     } catch (e) {
       toast.error(String(e));
       setDocumentOpen(false);
@@ -546,14 +676,11 @@ export function ChatRoomPage() {
   async function sendPrompt(value: PromptInputValue) {
     if (!id || sending) return;
 
-    const rawContent = value.text.trim();
-    if (!rawContent && value.tokens.length === 0) return;
-    const content = rawContent || "请阅读附件并总结要点";
+    const displayContent = buildPromptContent(value);
+    if (!displayContent && value.tokens.length === 0) return;
 
     setSending(id);
     try {
-      const uploaded = await uploadPromptDocuments(value);
-      const displayContent = buildUserDisplayContent(value, uploaded);
       const now = new Date().toISOString();
       const userMsg: StreamingMessage = {
         id: placeholderId("user"),
@@ -580,10 +707,10 @@ export function ChatRoomPage() {
       await streamConversationAgent(
         id,
         {
-          prompt: content,
+          prompt: displayContent,
           provider_id: effectiveProvider?.id ?? null,
           multimodal_provider_id: effectiveMultimodalProvider?.id ?? null,
-          document_ids: uploaded.map((document) => document.id),
+          document_ids: extractSlotIds(displayContent),
           thinking: prefs.thinking ? true : null,
           reasoning_effort: prefs.thinking ? prefs.effort : null,
         },
@@ -811,7 +938,7 @@ export function ChatRoomPage() {
             </Select>
           </div>
           <span className="ml-auto text-xs text-muted-foreground">
-            附件会先通过 MarkItDown 转为 Markdown 并存入当前会话。
+            附件会在输入时并行导入，全部就绪后才能发送。
           </span>
         </div>
 
@@ -820,15 +947,21 @@ export function ChatRoomPage() {
             ref={promptInputRef}
             placeholder="发送消息，或拖入文件让 MarkItDown 转成可编辑 Markdown..."
             disabled={sending || !hasProviders}
-            loading={sending}
+            loading={sending || ingestInFlight}
             onChange={(value) => setAttachmentCount(value.tokens.length)}
+            onFilesAdded={queueIngestFiles}
             footerRender={() => {
               return (
                 <>
+                  {ingestInFlight ? (
+                    <Badge variant="outline" className="gap-1 text-xs">
+                      导入中...
+                    </Badge>
+                  ) : null}
                   {attachmentCount > 0 ? (
                     <Badge variant="secondary" className="gap-1 text-xs">
                       <FileTextIcon className="size-3" />
-                      MarkItDown x{" "}
+                      附件 x{" "}
                       {Math.min(attachmentCount, MAX_ATTACHMENTS_PER_MESSAGE)}
                     </Badge>
                   ) : null}
@@ -857,7 +990,7 @@ export function ChatRoomPage() {
                     : "加载中..."}
                 </SheetDescription>
               </div>
-              {selectedDocument ? (
+              {selectedDocument && documentPreviewMode === "markdown" ? (
                 <Button
                   type="button"
                   size="sm"
@@ -874,7 +1007,29 @@ export function ChatRoomPage() {
             {loadingDocument ? (
               <Skeleton className="h-96 w-full" />
             ) : selectedDocument ? (
-              htmlPreviewUrl ? (
+              documentPreviewMode === "image" && mediaPreviewUrl ? (
+                <div className="flex h-full min-h-0 items-center justify-center">
+                  <img
+                    src={mediaPreviewUrl}
+                    alt={selectedDocument.title}
+                    className="max-h-full max-w-full rounded-md border object-contain"
+                  />
+                </div>
+              ) : documentPreviewMode === "video" && mediaPreviewUrl ? (
+                <video
+                  src={mediaPreviewUrl}
+                  controls
+                  className="max-h-full w-full rounded-md border bg-black"
+                />
+              ) : documentPreviewMode === "audio" && mediaPreviewUrl ? (
+                <div className="flex h-full items-center justify-center">
+                  <audio
+                    src={mediaPreviewUrl}
+                    controls
+                    className="w-full max-w-lg"
+                  />
+                </div>
+              ) : documentPreviewMode === "html" && htmlPreviewUrl ? (
                 <div className="flex h-full min-h-0 min-w-0 flex-col gap-2">
                   <div className="flex shrink-0 items-center justify-between">
                     <Badge variant="outline">HTML iframe 预览</Badge>
@@ -894,8 +1049,7 @@ export function ChatRoomPage() {
                   <MarkdownEditor
                     value={documentDraft}
                     contentType="markdown"
-                    editable
-                    // toolbarMode="fixed"
+                    editable={documentPreviewMode === "markdown"}
                     className="h-full min-h-0 w-full min-w-0 max-w-full rounded-md border"
                     onChange={setDocumentDraft}
                   />
@@ -922,7 +1076,8 @@ const MessageBubble = memo(function MessageBubble({
   const isStreaming =
     Boolean(message.streaming) || message.status === "streaming";
   const progress = message.agentProgress;
-  const parts = progress ? [] : splitDocumentRefs(message.content);
+  const slotSegments = progress ? [] : parseSlots(message.content);
+  const hasInlineSlots = slotSegments.some((segment) => segment.type === "slot");
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -1002,32 +1157,33 @@ const MessageBubble = memo(function MessageBubble({
               </div>
             ) : null}
           </div>
-        ) : parts.length > 0 ? (
+        ) : hasInlineSlots || isUser ? (
           <div className="space-y-2">
-            {parts.map((part) =>
-              part.type === "document" ? (
-                <DocumentCard
-                  key={part.key}
-                  document={documents.get(part.documentId)}
-                  documentId={part.documentId}
-                  onOpen={() => onOpenDocument(part.documentId)}
-                />
-              ) : isUser ? (
-                <div
-                  key={part.key}
-                  className="whitespace-pre-wrap break-words leading-relaxed"
-                >
-                  {part.text}
-                </div>
-              ) : (
-                <Streamdown
-                  key={part.key}
-                  isAnimating={isStreaming}
-                  className="prose prose-sm max-w-none break-words leading-relaxed dark:prose-invert prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-md prose-code:before:content-none prose-code:after:content-none"
-                >
-                  {part.text}
-                </Streamdown>
-              ),
+            {isUser ? (
+              <PromptMessageContent
+                content={message.content}
+                documents={documents}
+                onOpenDocument={onOpenDocument}
+              />
+            ) : (
+              slotSegments.map((segment, index) =>
+                segment.type === "slot" ? (
+                  <DocumentCard
+                    key={`${segment.documentId}-${index}`}
+                    document={documents.get(segment.documentId)}
+                    documentId={segment.documentId}
+                    onOpen={() => onOpenDocument(segment.documentId)}
+                  />
+                ) : segment.text.trim() ? (
+                  <Streamdown
+                    key={`text-${index}`}
+                    isAnimating={isStreaming}
+                    className="prose prose-sm max-w-none break-words leading-relaxed dark:prose-invert prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-md prose-code:before:content-none prose-code:after:content-none"
+                  >
+                    {segment.text}
+                  </Streamdown>
+                ) : null,
+              )
             )}
           </div>
         ) : message.content ? (
@@ -1080,26 +1236,4 @@ function DocumentCard({
       </CardContent>
     </Card>
   );
-}
-
-function splitDocumentRefs(content: string) {
-  const parts: (
-    | { type: "text"; key: string; text: string }
-    | { type: "document"; key: string; documentId: string }
-  )[] = [];
-  let lastIndex = 0;
-  for (const match of content.matchAll(DOCUMENT_REF_RE)) {
-    const index = match.index ?? 0;
-    const text = content.slice(lastIndex, index).trim();
-    if (text) parts.push({ type: "text", key: `text-${lastIndex}`, text });
-    parts.push({
-      type: "document",
-      key: `document-${index}-${match[1]}`,
-      documentId: match[1],
-    });
-    lastIndex = index + match[0].length;
-  }
-  const tail = content.slice(lastIndex).trim();
-  if (tail) parts.push({ type: "text", key: `text-${lastIndex}`, text: tail });
-  return parts;
 }

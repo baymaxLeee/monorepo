@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 DocumentKind = Literal["source", "artifact"]
+IngestStatus = Literal["pending", "queued", "storing", "converting", "ready", "failed"]
 
 
 class ConversationDocument(BaseModel):
@@ -20,6 +21,9 @@ class ConversationDocument(BaseModel):
     source_object_key: str | None = None
     source_sha256: str | None = None
     source_filename: str | None = None
+    ingest_status: IngestStatus = "ready"
+    ingest_progress: int = 100
+    ingest_error: str | None = None
     created_at: str
     updated_at: str
 

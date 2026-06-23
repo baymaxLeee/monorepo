@@ -40,6 +40,7 @@ export interface PromptInputProps {
   autoFocus?: boolean;
   maxHeight?: number;
   onChange?: (value: PromptInputValue) => void;
+  onFilesAdded?: (items: Array<{ token: PromptInputToken; file: File }>) => void;
   onSubmit?: (
     value: PromptInputValue,
     event: FormEvent<HTMLFormElement>,
@@ -59,6 +60,7 @@ export interface PromptInputApi {
   getValue: () => PromptInputValue;
   insertToken: (token: PromptInputToken, file?: File) => void;
   insertFiles: (files: File[]) => void;
+  updateToken: (tokenId: string, patch: Partial<PromptInputToken>) => void;
 }
 
 export interface PromptInputRef extends PromptInputApi {}

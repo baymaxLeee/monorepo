@@ -33,13 +33,19 @@ const createId = () => {
 
 const fileToToken = (file: File, url?: string): PromptInputToken => {
   const isImage = file.type.startsWith("image/");
+  const id = createId();
   return {
-    id: createId(),
+    id,
     kind: isImage ? "image" : "file",
     label: file.name,
     mime: file.type || undefined,
     size: file.size,
     url: isImage ? url : undefined,
+    meta: {
+      clientRef: id,
+      ingestStatus: "pending",
+      ingestProgress: 0,
+    },
   };
 };
 
@@ -51,6 +57,11 @@ const filterFiles = (
   return Object.fromEntries(
     Object.entries(filesRef.current).filter(([id]) => tokenIds.has(id)),
   );
+};
+
+const tokenMatchesRef = (token: PromptInputToken, tokenRef: string) => {
+  const meta = (token.meta ?? {}) as Record<string, unknown>;
+  return token.id === tokenRef || meta.clientRef === tokenRef;
 };
 
 const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
@@ -66,6 +77,7 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
       autoFocus,
       maxHeight = 240,
       onChange,
+      onFilesAdded,
       onSubmit,
       renderToken,
       toolbarRender,
@@ -75,6 +87,13 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
     const objectUrlsRef = useRef<string[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const editorRef = useRef<Editor | null>(null);
+    const onChangeRef = useRef(onChange);
+    const onFilesAddedRef = useRef(onFilesAdded);
+    const renderTokenRef = useRef(renderToken);
+
+    onChangeRef.current = onChange;
+    onFilesAddedRef.current = onFilesAdded;
+    renderTokenRef.current = renderToken;
 
     const extensions = useMemo(
       () => [
@@ -89,10 +108,23 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
           listItem: false,
           orderedList: false,
         }),
-        createPromptTokenExtension({ renderToken }),
+        createPromptTokenExtension({
+          renderToken: (token, context) =>
+            renderTokenRef.current?.(token, context),
+        }),
       ],
-      [renderToken],
+      [],
     );
+
+    const emitChange = useCallback((currentEditor: Editor) => {
+      if (currentEditor.isDestroyed || !onChangeRef.current) return;
+      const value = serializePromptInput(
+        currentEditor.getJSON(),
+        filesRef.current,
+      );
+      value.files = filterFiles(value, filesRef);
+      onChangeRef.current(value);
+    }, []);
 
     const getValue = useCallback(() => {
       const currentEditor = editorRef.current;
@@ -112,11 +144,15 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
       if (!currentEditor || currentEditor.isDestroyed) return;
       if (file) filesRef.current[token.id] = file;
       currentEditor.chain().focus().insertPromptToken(token).run();
-    }, []);
+      emitChange(currentEditor);
+    }, [emitChange]);
 
-    const insertFiles = useCallback((files: File[]) => {
+    const insertFilesRef = useRef<(files: File[]) => void>(() => {});
+
+    insertFilesRef.current = (files: File[]) => {
       const currentEditor = editorRef.current;
       if (!currentEditor || currentEditor.isDestroyed) return;
+      const added: Array<{ token: PromptInputToken; file: File }> = [];
       for (const file of files) {
         const url = file.type.startsWith("image/")
           ? URL.createObjectURL(file)
@@ -125,8 +161,49 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
         const token = fileToToken(file, url);
         filesRef.current[token.id] = file;
         currentEditor.chain().focus().insertPromptToken(token).run();
+        added.push({ token, file });
       }
-    }, []);
+      if (added.length > 0) {
+        emitChange(currentEditor);
+        onFilesAddedRef.current?.(added);
+      }
+    };
+
+    const updateToken = useCallback(
+      (tokenRef: string, patch: Partial<PromptInputToken>) => {
+        const currentEditor = editorRef.current;
+        if (!currentEditor || currentEditor.isDestroyed) return;
+
+        const applied = currentEditor.commands.command(({ tr, dispatch }) => {
+          const { doc } = tr;
+          let updated = false;
+
+          doc.descendants((node, pos) => {
+            if (updated || node.type.name !== "promptToken") return;
+            const attrs = node.attrs as PromptInputToken;
+            if (!tokenMatchesRef(attrs, tokenRef)) return;
+
+            const nextMeta = {
+              ...(attrs.meta ?? {}),
+              ...(patch.meta ?? {}),
+            };
+            const nextAttrs = {
+              ...attrs,
+              ...patch,
+              meta: nextMeta,
+            };
+            tr.setNodeMarkup(pos, undefined, nextAttrs);
+            updated = true;
+          });
+
+          if (updated && dispatch) dispatch(tr);
+          return updated;
+        });
+
+        if (applied) emitChange(currentEditor);
+      },
+      [emitChange],
+    );
 
     const editor = useEditor(
       {
@@ -142,13 +219,15 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
           handlePaste: (_view, event) => {
             const files = Array.from(event.clipboardData?.files ?? []);
             if (files.length === 0) return false;
-            insertFiles(files);
+            event.preventDefault();
+            insertFilesRef.current(files);
             return true;
           },
           handleDrop: (_view, event) => {
             const files = Array.from(event.dataTransfer?.files ?? []);
             if (files.length === 0) return false;
-            insertFiles(files);
+            event.preventDefault();
+            insertFilesRef.current(files);
             return true;
           },
           handleKeyDown: (view, event) => {
@@ -161,18 +240,22 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
           },
         },
         onUpdate: ({ editor: updatedEditor }) => {
-          if (updatedEditor.isDestroyed || !onChange) return;
-          const value = serializePromptInput(
-            updatedEditor.getJSON(),
-            filesRef.current,
-          );
-          value.files = filterFiles(value, filesRef);
-          onChange(value);
+          emitChange(updatedEditor);
         },
       },
-      [extensions, disabled, placeholder],
+      [extensions],
     );
     editorRef.current = editor;
+
+    useEffect(() => {
+      if (!editor || editor.isDestroyed) return;
+      editor.setEditable(!disabled);
+    }, [editor, disabled]);
+
+    useEffect(() => {
+      if (!editor || editor.isDestroyed) return;
+      editor.view.dom.setAttribute("data-placeholder", placeholder);
+    }, [editor, placeholder]);
 
     useEffect(
       () => () => {
@@ -186,12 +269,18 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
       () => ({
         editor,
         focus: () => editor?.chain().focus().run(),
-        clear: () => editor?.chain().clearContent().focus().run(),
+        clear: () => {
+          if (!editor || editor.isDestroyed) return;
+          editor.chain().clearContent().focus().run();
+          filesRef.current = {};
+          emitChange(editor);
+        },
         getValue,
         insertToken,
-        insertFiles,
+        insertFiles: (files) => insertFilesRef.current(files),
+        updateToken,
       }),
-      [editor, getValue, insertFiles, insertToken],
+      [editor, emitChange, getValue, insertToken, updateToken],
     );
 
     useImperativeHandle(ref, () => api, [api]);
@@ -201,6 +290,12 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
       if (disabled || loading) return;
       const value = api.getValue();
       if (!value.text.trim() && value.tokens.length === 0) return;
+      const hasPendingIngest = value.tokens.some((token) => {
+        const status = (token.meta as Record<string, unknown> | undefined)
+          ?.ingestStatus;
+        return typeof status === "string" && status !== "ready";
+      });
+      if (hasPendingIngest) return;
       onSubmit?.(value, event);
     };
 
@@ -224,7 +319,9 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
               multiple
               className="hidden"
               onChange={(event) => {
-                insertFiles(Array.from(event.currentTarget.files ?? []));
+                insertFilesRef.current(
+                  Array.from(event.currentTarget.files ?? []),
+                );
                 event.currentTarget.value = "";
               }}
             />

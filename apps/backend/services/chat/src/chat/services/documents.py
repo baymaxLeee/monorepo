@@ -51,6 +51,9 @@ def document_to_schema(row: ConversationDocumentRow) -> ConversationDocument:
         source_object_key=row.source_object_key,
         source_sha256=row.source_sha256,
         source_filename=row.source_filename,
+        ingest_status=row.ingest_status,  # type: ignore[arg-type]
+        ingest_progress=row.ingest_progress,
+        ingest_error=row.ingest_error,
         created_at=_iso(row.created_at),
         updated_at=_iso(row.updated_at),
     )
@@ -248,6 +251,22 @@ class ConversationDocumentService:
         if row is None:
             raise NotFoundError(f"document {document_id} not found")
         return row
+
+    async def get_source_bytes(
+        self,
+        conversation_id: str,
+        document_id: str,
+    ) -> tuple[bytes, str, str]:
+        row = await self.get_row(conversation_id, document_id)
+        if not row.source_object_bucket or not row.source_object_key:
+            raise NotFoundError(f"document {document_id} has no stored source object")
+        content = await StorageClient().get_bytes(
+            bucket=row.source_object_bucket,
+            key=row.source_object_key,
+        )
+        mime_type = row.source_mime_type or row.mime_type or "application/octet-stream"
+        filename = row.source_filename or row.filename
+        return content, mime_type, filename
 
     async def _resolve_attachment_provider(
         self,
