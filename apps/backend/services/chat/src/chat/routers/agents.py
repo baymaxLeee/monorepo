@@ -36,6 +36,14 @@ async def stream_agent_run(
         user_id=current_user.user_id,
         provider_id=payload.provider_id,
     )
+    multimodal_provider = None
+    if payload.multimodal_provider_id:
+        multimodal_provider = await get_admin_client().get_provider(
+            user_id=current_user.user_id,
+            provider_id=payload.multimodal_provider_id,
+        )
+    else:
+        multimodal_provider = provider
     stream_service = AgentStreamService(redis, session, current_user)
     run = await stream_service.start_run(conversation_id)
     if run.started:
@@ -46,6 +54,7 @@ async def stream_agent_run(
                     payload=payload,
                     current_user=current_user,
                     provider=provider,
+                    multimodal_provider=multimodal_provider,
                     run_id=run.run_id,
                 )
             )
@@ -91,13 +100,14 @@ async def _run_agent_to_stream(
     payload: RunAgentInput,
     current_user: AuthContext,
     provider: ProviderSnapshot,
+    multimodal_provider: ProviderSnapshot | None,
     run_id: str,
 ) -> None:
     factory = get_session_factory()
     async with factory() as session:
         stream_service = AgentStreamService(get_redis(), session, current_user)
         try:
-            service = AgentRunService(session, current_user, provider)
+            service = AgentRunService(session, current_user, provider, multimodal_provider)
             async for event in service.stream_run(
                 conversation_id=conversation_id,
                 prompt=payload.prompt,

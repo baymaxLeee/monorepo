@@ -32,9 +32,8 @@
   渲染 runtime 调用模型/工具/代码执行状态，`card` 渲染模型决定生成的产物卡片。
   当有附件时，MFE 先上传生成会话文档，再把 `document_ids[]` 传给 agent run；
   用户气泡持久化 `[[chat-document:<id>]]` 标记并渲染成可点击文档 card。
-- Agent 可读取当前会话历史和文档，并在需要输出文件时调用 `write_artifacts`
-  写入新的 `artifact` 文档；是否展示 card 由后端 SSE `card` 事件决定，不和
-  普通消息强绑定。
+- Agent 可读取当前会话历史和文档，并在最终回复里输出 artifact block 生成新的
+  `artifact` 文档；是否展示 card 由后端 SSE `card` 事件决定，不和普通消息强绑定。
 - 所有 `source` / `artifact` 文档 card 点击后都用现有
   `components/markdown-editor` 打开，可预览、二次编辑；Markdown 编辑走防抖自动
   保存回 chat-server，HTML artifact 以 iframe 占满剩余区域预览。

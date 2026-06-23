@@ -13,4 +13,8 @@ data:
   # `${ADMIN_SERVICE_URL}/internal/providers/...` with INTERNAL_API_TOKEN
   # (kept in the Secret).
   ADMIN_SERVICE_URL: "http://admin.default.svc.cluster.local:8001"
+  STORAGE_SERVICE_URL: "http://storage.default.svc.cluster.local:8010"
   LLM_TIMEOUT_SECONDS: "60"
+  AGENT_MAX_TURNS: "120"
+  AGENT_RUN_TIMEOUT_SECONDS: "3600"
+  AGENT_EVENT_STREAM_TTL_SECONDS: "7200"

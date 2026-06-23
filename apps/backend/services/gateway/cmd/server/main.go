@@ -65,6 +65,11 @@ func main() {
 		"chat-server",
 		"/api/chat-server",
 	))
+	r.Mount("/api/storage-server", handlers.NewServiceProxy(
+		cfg.StorageServiceURL,
+		"storage-server",
+		"/api/storage-server",
+	))
 	r.Mount("/api/telemetry-server", handlers.NewServiceProxy(
 		cfg.TelemetryServiceURL,
 		"telemetry-server",
@@ -87,6 +92,7 @@ func main() {
 			"admin_upstream", cfg.AdminServiceURL,
 			"chat_upstream", cfg.ChatServiceURL,
 			"iam_upstream", cfg.IAMServiceURL,
+			"storage_upstream", cfg.StorageServiceURL,
 			"telemetry_upstream", cfg.TelemetryServiceURL,
 			"mysql", "connected",
 			"redis", "connected",

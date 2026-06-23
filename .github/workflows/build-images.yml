@@ -44,10 +44,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # gateway / iam / admin / chat / telemetry → backend service images
+        # gateway / iam / storage / admin / chat / telemetry → backend service images
         # web                                      → nginx + bundled frontend SPA dist
         # db-init                                  → one-shot MySQL schema bootstrap
-        service: [gateway, iam, admin, chat, telemetry, web, db-init]
+        service: [gateway, iam, storage, admin, chat, telemetry, web, db-init]
     env:
       # Surfaced into the shell of every step so the "Compute tags" script
       # can branch on whether the TCR mirror is configured.
@@ -113,7 +113,7 @@ jobs:
         id: ctx
         run: |
           case "${{ matrix.service }}" in
-            gateway|iam)
+            gateway|iam|storage)
               # Go services' Dockerfile COPYs from the service directory only.
               echo "context=apps/backend/services/${{ matrix.service }}" >> "$GITHUB_OUTPUT"
               echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"

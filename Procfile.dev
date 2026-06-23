@@ -11,6 +11,7 @@ svc-admin: cd apps/backend/services/admin && uv run uvicorn admin.main:app --rel
 svc-chat:  cd apps/backend/services/chat && uv run uvicorn chat.main:app --reload --port 8009
 telemetry: cd apps/backend/services/telemetry && uv run uvicorn telemetry.main:app --reload --port 8008
 iam:  cd apps/backend/services/iam && go run ./cmd/server
+storage: cd apps/backend/services/storage && go run ./cmd/server
 gateway:   cd apps/backend/services/gateway && go run ./cmd/server
 mfe-admin: cd apps/frontend && PORT=3001 pnpm -F admin dev
 mfe-chat:  cd apps/frontend && PORT=3005 pnpm -F chat dev

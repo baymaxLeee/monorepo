@@ -28,6 +28,7 @@ from chat.services.admin_client import (
     get_admin_client,
 )
 from chat.services.attachments import AttachmentService, AttachmentTooLargeError
+from chat.services.storage_client import StorageClient
 
 
 def _iso(dt: datetime) -> str:
@@ -45,6 +46,11 @@ def document_to_schema(row: ConversationDocumentRow) -> ConversationDocument:
         filename=row.filename,
         mime_type=row.mime_type,
         source_size=row.source_size,
+        source_mime_type=row.source_mime_type,
+        source_object_bucket=row.source_object_bucket,
+        source_object_key=row.source_object_key,
+        source_sha256=row.source_sha256,
+        source_filename=row.source_filename,
         created_at=_iso(row.created_at),
         updated_at=_iso(row.updated_at),
     )
@@ -120,7 +126,6 @@ class ConversationDocumentService:
 
     async def upload(self, conversation_id: str, file: UploadFile) -> ConversationDocumentDetail:
         conversation = await self._get_conversation(conversation_id)
-        provider = await self._resolve_attachment_provider(conversation)
         content = await file.read(self._attachments.max_upload_bytes + 1)
         if len(content) > self._attachments.max_upload_bytes:
             raise AttachmentTooLargeError(
@@ -131,21 +136,40 @@ class ConversationDocumentService:
                 },
             )
         filename = Path(file.filename or "attachment").name or "attachment"
+        mime_type = file.content_type or "application/octet-stream"
+        provider = None if _is_image_mime(mime_type) else await self._resolve_attachment_provider(conversation)
         converted = await self._attachments.convert(
             filename=filename,
-            mime_type=file.content_type or "application/octet-stream",
+            mime_type=mime_type,
             content=content,
             provider=provider,
         )
-        row = await self.create_artifact_row(
-            conversation_id=conversation_id,
-            kind="source",
-            title=filename,
+        storage = StorageClient()
+        stored = await storage.put_bytes(
+            content=content,
             filename=filename,
-            mime_type="text/markdown",
-            content_md=converted.markdown,
-            source_size=converted.size,
+            mime_type=mime_type,
+            user_id=self._current_user.user_id,
+            prefix=f"conversations/{conversation_id}",
         )
+        try:
+            row = await self.create_artifact_row(
+                conversation_id=conversation_id,
+                kind="source",
+                title=filename,
+                filename=filename,
+                mime_type="text/markdown",
+                content_md=converted.markdown,
+                source_size=converted.size,
+                source_mime_type=converted.mime_type,
+                source_object_bucket=stored.bucket,
+                source_object_key=stored.key,
+                source_sha256=stored.sha256,
+                source_filename=filename,
+            )
+        except Exception:
+            await storage.delete(bucket=stored.bucket, key=stored.key)
+            raise
         return document_to_detail(row)
 
     async def update(
@@ -171,6 +195,11 @@ class ConversationDocumentService:
         mime_type: str,
         content_md: str,
         source_size: int = 0,
+        source_mime_type: str | None = None,
+        source_object_bucket: str | None = None,
+        source_object_key: str | None = None,
+        source_sha256: str | None = None,
+        source_filename: str | None = None,
     ) -> ConversationDocumentRow:
         if not content_md.strip():
             raise RequestError("document content is required")
@@ -183,6 +212,11 @@ class ConversationDocumentService:
             mime_type=mime_type,
             content_md=content_md.strip(),
             source_size=source_size,
+            source_mime_type=source_mime_type,
+            source_object_bucket=source_object_bucket,
+            source_object_key=source_object_key,
+            source_sha256=source_sha256,
+            source_filename=source_filename,
         )
 
     async def get_rows(
@@ -238,3 +272,7 @@ class ConversationDocumentService:
         if row is None:
             raise NotFoundError(f"conversation {conversation_id} not found")
         return row
+
+
+def _is_image_mime(mime_type: str) -> bool:
+    return mime_type.lower().startswith("image/")

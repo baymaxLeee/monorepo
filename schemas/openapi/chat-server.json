@@ -706,105 +706,6 @@
         }
       }
     },
-    "/conversations/{conversation_id}/messages": {
-      "post": {
-        "tags": [
-          "conversations"
-        ],
-        "summary": "Send Message",
-        "description": "Persist user message, stream assistant reply over SSE.\n\nThe response is `text/event-stream`. Each event is `data: <text-chunk>\\n\\n`\nwhere `<text-chunk>` is a JSON-encoded string (so client-side parsing is\ntrivial and binary-safe). A final `data: [DONE]\\n\\n` event signals end.\n\nWe resolve the conversation row AND the model provider **before** the\nresponse headers go out so 404 / `provider_not_configured` errors stay\non the normal exception-handler path (proper status code + JSON body)\ninstead of leaking as plaintext SSE chunks.",
-        "operationId": "send_message_conversations__conversation_id__messages_post",
-        "parameters": [
-          {
-            "name": "conversation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Conversation Id"
-            }
-          },
-          {
-            "name": "X-Auth-Email",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Email"
-            }
-          },
-          {
-            "name": "X-Auth-User-ID",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-User-Id"
-            }
-          },
-          {
-            "name": "X-Auth-Name",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Name"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SendMessageInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/conversations/{conversation_id}/documents": {
       "get": {
         "tags": [
@@ -1356,6 +1257,61 @@
             "type": "integer",
             "title": "Source Size"
           },
+          "source_mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Mime Type"
+          },
+          "source_object_bucket": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Object Bucket"
+          },
+          "source_object_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Object Key"
+          },
+          "source_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Sha256"
+          },
+          "source_filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Filename"
+          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -1412,6 +1368,61 @@
           "source_size": {
             "type": "integer",
             "title": "Source Size"
+          },
+          "source_mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Mime Type"
+          },
+          "source_object_bucket": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Object Bucket"
+          },
+          "source_object_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Object Key"
+          },
+          "source_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Sha256"
+          },
+          "source_filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Filename"
           },
           "created_at": {
             "type": "string",
@@ -1527,39 +1538,6 @@
         ],
         "title": "Message"
       },
-      "MessageAttachmentContext": {
-        "properties": {
-          "filename": {
-            "type": "string",
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Filename"
-          },
-          "mime_type": {
-            "type": "string",
-            "maxLength": 120,
-            "title": "Mime Type",
-            "default": "application/octet-stream"
-          },
-          "markdown": {
-            "type": "string",
-            "maxLength": 12500,
-            "minLength": 1,
-            "title": "Markdown"
-          },
-          "truncated": {
-            "type": "boolean",
-            "title": "Truncated",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "filename",
-          "markdown"
-        ],
-        "title": "MessageAttachmentContext"
-      },
       "RunAgentInput": {
         "properties": {
           "prompt": {
@@ -1579,6 +1557,19 @@
               }
             ],
             "title": "Provider Id"
+          },
+          "multimodal_provider_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multimodal Provider Id",
+            "description": "Optional provider used by multimodal tools such as image analysis."
           },
           "document_ids": {
             "items": {
@@ -1623,79 +1614,6 @@
           "prompt"
         ],
         "title": "RunAgentInput"
-      },
-      "SendMessageInput": {
-        "properties": {
-          "content": {
-            "type": "string",
-            "maxLength": 24000,
-            "minLength": 1,
-            "title": "Content"
-          },
-          "attachments": {
-            "items": {
-              "$ref": "#/components/schemas/MessageAttachmentContext"
-            },
-            "type": "array",
-            "maxItems": 5,
-            "title": "Attachments"
-          },
-          "document_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "maxItems": 10,
-            "title": "Document Ids"
-          },
-          "provider_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 32
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Provider Id",
-            "description": "Override the model provider for this message only."
-          },
-          "thinking": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Thinking",
-            "description": "Enable chain-of-thought reasoning when the model supports it."
-          },
-          "reasoning_effort": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "low",
-                  "medium",
-                  "high"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reasoning Effort",
-            "description": "Reasoning compute budget for thinking-enabled models."
-          }
-        },
-        "type": "object",
-        "required": [
-          "content"
-        ],
-        "title": "SendMessageInput"
       },
       "UpdateConversationDocumentInput": {
         "properties": {

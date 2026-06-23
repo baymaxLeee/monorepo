@@ -38,7 +38,7 @@ version_le() {
 migration_version_from_file() {
   local name
   name="$(basename "$1")"
-  if [[ "$name" =~ ^(v[0-9]+\.[0-9]+\.[0-9]+)(__.+)?\.sql$ ]]; then
+  if [[ "$name" =~ ^(v[0-9]+\.[0-9]+\.[0-9]+)\.sql$ ]]; then
     printf "%s" "${BASH_REMATCH[1]}"
   fi
 }

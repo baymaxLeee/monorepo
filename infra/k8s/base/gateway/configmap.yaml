@@ -9,10 +9,12 @@ data:
   ENVIRONMENT: "development"
   # In-cluster DNS — services talk to each other via Service name.
   ADMIN_SERVICE_URL: "http://admin:8001"
+  CHAT_SERVICE_URL: "http://chat:8009"
   IAM_SERVICE_URL: "http://iam:8002"
+  STORAGE_SERVICE_URL: "http://storage:8010"
   TELEMETRY_SERVICE_URL: "http://telemetry:8008"
   ALLOWED_FRONTEND_ORIGINS: "http://localhost:3000,http://localhost:3001"
-  MAX_REQUEST_BODY_BYTES: "1048576"
+  MAX_REQUEST_BODY_BYTES: "10485760"
   HTTP_READ_TIMEOUT: "15s"
   HTTP_WRITE_TIMEOUT: "30s"
   HTTP_IDLE_TIMEOUT: "120s"

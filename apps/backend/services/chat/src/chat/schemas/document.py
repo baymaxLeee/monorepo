@@ -15,6 +15,11 @@ class ConversationDocument(BaseModel):
     filename: str
     mime_type: str
     source_size: int
+    source_mime_type: str | None = None
+    source_object_bucket: str | None = None
+    source_object_key: str | None = None
+    source_sha256: str | None = None
+    source_filename: str | None = None
     created_at: str
     updated_at: str
 

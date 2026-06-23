@@ -3,10 +3,10 @@ set shell := ["bash", "-cu"]
 
 # Service registry (Python services and their fixed dev ports)
 PY_SERVICES := "admin chat telemetry"
-GO_SERVICES := "gateway iam"
+GO_SERVICES := "gateway iam storage"
 
 # Fixed port allocation so multiple agents/dev servers don't collide
-PORTS := '{"admin":8001,"iam":8002,"scene":8003,"intention":8004,"permission":8005,"audit":8006,"notification":8007,"telemetry":8008,"chat":8009,"gateway":8000}'
+PORTS := '{"admin":8001,"iam":8002,"scene":8003,"intention":8004,"permission":8005,"audit":8006,"notification":8007,"telemetry":8008,"chat":8009,"storage":8010,"gateway":8000}'
 
 default:
     @just --list
@@ -118,13 +118,13 @@ gen-proto:
     @echo "✓ proto codegen done"
 
 # ─── db ─────────────────────────────────────────────────
-migrate-new service version msg:
+migrate-new service version:
     @mkdir -p services/{{ service }}/migrations/versions
     @if ! [[ "{{ version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then \
         echo "✗ version must match v<major>.<minor>.<patch>: {{ version }}"; exit 1; \
     fi
-    @slug=$(echo "{{ msg }}" | tr '[:upper:] ' '[:lower:]_' | tr -cd '[:alnum:]_-') && \
-        file="services/{{ service }}/migrations/versions/{{ version }}__$slug.sql" && \
+    @file="services/{{ service }}/migrations/versions/{{ version }}.sql" && \
+        if [ -e "$file" ]; then echo "✗ migration already exists: $file"; exit 1; fi && \
         printf '%s\n' '-- Write service-owned SQL migration here.' > "$file" && \
         echo "✓ $file"
 

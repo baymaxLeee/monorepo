@@ -63,6 +63,11 @@ export interface ConversationDocument {
   filename: string;
   mime_type: string;
   source_size: number;
+  source_mime_type?: string | null;
+  source_object_bucket?: string | null;
+  source_object_key?: string | null;
+  source_sha256?: string | null;
+  source_filename?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -95,6 +100,11 @@ export interface ConversationDocumentDetail {
   filename: string;
   mime_type: string;
   source_size: number;
+  source_mime_type?: string | null;
+  source_object_bucket?: string | null;
+  source_object_key?: string | null;
+  source_sha256?: string | null;
+  source_filename?: string | null;
   created_at: string;
   updated_at: string;
   content_md: string;
@@ -123,22 +133,6 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
-export interface MessageAttachmentContext {
-  /**
-     * @minLength 1
-     * @maxLength 255
-     */
-  filename: string;
-  /** @maxLength 120 */
-  mime_type?: string;
-  /**
-     * @minLength 1
-     * @maxLength 12500
-     */
-  markdown: string;
-  truncated?: boolean;
-}
-
 /**
  * Reasoning compute budget for thinking-enabled models.
  */
@@ -158,42 +152,14 @@ export interface RunAgentInput {
      */
   prompt: string;
   provider_id?: string | null;
+  /** Optional provider used by multimodal tools such as image analysis. */
+  multimodal_provider_id?: string | null;
   /** @maxItems 10 */
   document_ids?: string[];
   /** Enable chain-of-thought reasoning when the model supports it. */
   thinking?: boolean | null;
   /** Reasoning compute budget for thinking-enabled models. */
   reasoning_effort?: RunAgentInputReasoningEffort;
-}
-
-/**
- * Reasoning compute budget for thinking-enabled models.
- */
-export type SendMessageInputReasoningEffort = typeof SendMessageInputReasoningEffort[keyof typeof SendMessageInputReasoningEffort] | null;
-
-
-export const SendMessageInputReasoningEffort = {
-  low: 'low',
-  medium: 'medium',
-  high: 'high',
-} as const;
-
-export interface SendMessageInput {
-  /**
-     * @minLength 1
-     * @maxLength 24000
-     */
-  content: string;
-  /** @maxItems 5 */
-  attachments?: MessageAttachmentContext[];
-  /** @maxItems 10 */
-  document_ids?: string[];
-  /** Override the model provider for this message only. */
-  provider_id?: string | null;
-  /** Enable chain-of-thought reasoning when the model supports it. */
-  thinking?: boolean | null;
-  /** Reasoning compute budget for thinking-enabled models. */
-  reasoning_effort?: SendMessageInputReasoningEffort;
 }
 
 export interface UpdateConversationDocumentInput {
@@ -346,31 +312,6 @@ const deleteConversationConversationsConversationIdDelete = (
     }
 
 /**
- * Persist user message, stream assistant reply over SSE.
- *
- * The response is `text/event-stream`. Each event is `data: <text-chunk>\n\n`
- * where `<text-chunk>` is a JSON-encoded string (so client-side parsing is
- * trivial and binary-safe). A final `data: [DONE]\n\n` event signals end.
- *
- * We resolve the conversation row AND the model provider **before** the
- * response headers go out so 404 / `provider_not_configured` errors stay
- * on the normal exception-handler path (proper status code + JSON body)
- * instead of leaking as plaintext SSE chunks.
- * @summary Send Message
- */
-const sendMessageConversationsConversationIdMessagesPost = (
-    conversationId: string,
-    sendMessageInput: SendMessageInput,
- options?: SecondParameter<typeof apiMutator<unknown>>,) => {
-      return apiMutator<unknown>(
-      {url: `/conversations/${conversationId}/messages`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: sendMessageInput
-    },
-      options);
-    }
-
-/**
  * @summary List Documents
  */
 const listDocumentsConversationsConversationIdDocumentsGet = (
@@ -428,7 +369,7 @@ const updateDocumentConversationsConversationIdDocumentsDocumentIdPatch = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,streamAgentRunConversationsConversationIdAgentsRunStreamPost,resumeAgentRunConversationsConversationIdAgentsRunStreamGet,listConversationsConversationsGet,createConversationConversationsPost,getConversationConversationsConversationIdGet,updateConversationConversationsConversationIdPatch,deleteConversationConversationsConversationIdDelete,sendMessageConversationsConversationIdMessagesPost,listDocumentsConversationsConversationIdDocumentsGet,uploadDocumentConversationsConversationIdDocumentsPost,getDocumentConversationsConversationIdDocumentsDocumentIdGet,updateDocumentConversationsConversationIdDocumentsDocumentIdPatch}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,streamAgentRunConversationsConversationIdAgentsRunStreamPost,resumeAgentRunConversationsConversationIdAgentsRunStreamGet,listConversationsConversationsGet,createConversationConversationsPost,getConversationConversationsConversationIdGet,updateConversationConversationsConversationIdPatch,deleteConversationConversationsConversationIdDelete,listDocumentsConversationsConversationIdDocumentsGet,uploadDocumentConversationsConversationIdDocumentsPost,getDocumentConversationsConversationIdDocumentsDocumentIdGet,updateDocumentConversationsConversationIdDocumentsDocumentIdPatch}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -444,7 +385,6 @@ export type CreateConversationConversationsPostResult = NonNullable<Awaited<Retu
 export type GetConversationConversationsConversationIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationConversationsConversationIdGet']>>>
 export type UpdateConversationConversationsConversationIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['updateConversationConversationsConversationIdPatch']>>>
 export type DeleteConversationConversationsConversationIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['deleteConversationConversationsConversationIdDelete']>>>
-export type SendMessageConversationsConversationIdMessagesPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['sendMessageConversationsConversationIdMessagesPost']>>>
 export type ListDocumentsConversationsConversationIdDocumentsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['listDocumentsConversationsConversationIdDocumentsGet']>>>
 export type UploadDocumentConversationsConversationIdDocumentsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['uploadDocumentConversationsConversationIdDocumentsPost']>>>
 export type GetDocumentConversationsConversationIdDocumentsDocumentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getDocumentConversationsConversationIdDocumentsDocumentIdGet']>>>

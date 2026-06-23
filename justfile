@@ -43,6 +43,7 @@ dev-urls:
     @echo "  gateway:   http://localhost:8000"
     @echo "  telemetry: http://localhost:8008/healthz"
     @echo "  iam:      http://localhost:8002/healthz"
+    @echo "  storage:  http://localhost:8010/healthz"
     @echo "  svc-admin: http://localhost:8001/docs"
     @echo "  svc-chat:  http://localhost:8009/docs"
 

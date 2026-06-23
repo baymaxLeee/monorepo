@@ -5,4 +5,5 @@ toolchain go1.26.3
 use (
 	./services/gateway
 	./services/iam
+	./services/storage
 )

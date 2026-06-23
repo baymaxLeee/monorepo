@@ -17,7 +17,6 @@ dependencies = [
     "cachetools>=5.5",
     "python-multipart>=0.0.20",
     "markitdown[all]>=0.1.3",
-    "openai-agents>=0.6.0",
     "kernel",
 ]
 

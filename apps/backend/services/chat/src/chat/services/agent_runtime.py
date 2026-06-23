@@ -1,21 +1,15 @@
-"""OpenAI Agents SDK runtime for conversation documents."""
+"""OpenAI-compatible agent runtime for conversation documents."""
 
 from __future__ import annotations
 
 import asyncio
+import html as html_lib
+import re
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
-from agents import (
-    Agent,
-    ModelSettings,
-    OpenAIChatCompletionsModel,
-    Runner,
-    RunResultStreaming,
-    set_tracing_disabled,
-)
-from agents.stream_events import AgentUpdatedStreamEvent, RawResponsesStreamEvent, RunItemStreamEvent
 from kernel.errors import BaseError, RequestError
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,9 +20,9 @@ from chat.crud import messages as message_crud
 from chat.deps import AuthContext
 from chat.models.document import ConversationDocumentRow
 from chat.models.message import MessageRow
-from chat.schemas.conversation import ReasoningEffort
+from chat.schemas.agent import ReasoningEffort
 from chat.services.admin_client import ProviderSnapshot
-from chat.services.agent_tools import agent_runtime_tools
+from chat.services.agent_tools import agent_runtime_tool_specs, execute_agent_runtime_tool
 from chat.services.documents import (
     ConversationDocumentService,
     document_to_schema,
@@ -36,7 +30,8 @@ from chat.services.documents import (
 )
 from chat.services.model_limits import bounded_extra_body_and_max_tokens
 
-set_tracing_disabled(disabled=True)
+_ARTIFACT_BLOCK_RE = re.compile(r"(?is)<artifact\s+([^>]*)>(.*?)</artifact>")
+_ARTIFACT_ATTR_RE = re.compile(r"""(\w+)=(["'])(.*?)\2""")
 
 
 @dataclass
@@ -47,8 +42,8 @@ class ConversationAgentContext:
     documents: dict[str, ConversationDocumentRow]
     selected_documents: list[ConversationDocumentRow]
     messages: list[MessageRow]
+    multimodal_provider: ProviderSnapshot | None = None
     created_documents: list[ConversationDocumentRow] = field(default_factory=list)
-    tool_write_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     def get_document(self, document_id: str) -> ConversationDocumentRow:
         if document_id in self.documents:
@@ -76,10 +71,12 @@ class AgentRunService:
         session: AsyncSession,
         current_user: AuthContext,
         provider: ProviderSnapshot,
+        multimodal_provider: ProviderSnapshot | None = None,
     ) -> None:
         self._session = session
         self._current_user = current_user
         self._provider = provider
+        self._multimodal_provider = multimodal_provider
         self._settings = get_settings()
 
     async def stream_run(
@@ -96,75 +93,49 @@ class AgentRunService:
         context, selected_document_rows = await self._prepare_context(conversation_id, document_ids)
 
         steps: list[str] = []
+        emitted_card_document_ids: set[str] = set()
+        partial_message_parts: list[str] = []
 
-        step = "已接收任务 正在准备上下文"
-        steps.append(step)
-        yield self._step_event(step)
+        event = self._step_event("已接收任务 正在准备上下文")
+        steps.append(str(event["text"]))
+        yield event
         if context.messages:
-            step = f"已加载 {len(context.messages)} 条历史消息"
-            steps.append(step)
-            yield self._step_event(step)
+            event = self._step_event(f"已加载 {len(context.messages)} 条历史消息")
+            steps.append(str(event["text"]))
+            yield event
         if context.documents:
-            step = f"已加载 {len(context.documents)} 个会话文档"
-            steps.append(step)
-            yield self._step_event(step)
+            event = self._step_event(f"已加载 {len(context.documents)} 个会话文档")
+            steps.append(str(event["text"]))
+            yield event
 
         await self._persist_user_message(conversation_id, prompt, selected_document_rows)
 
-        step = "正在调用模型"
-        steps.append(step)
-        yield self._step_event(step)
-
-        result = None
-        client = None
-        summary_parts: list[str] = []
-        emitted_steps: set[str] = set()
-        emitted_card_document_ids: set[str] = set()
         try:
             async with asyncio.timeout(self._settings.agent_run_timeout_seconds):
-                result, client = await self._run_agent_streamed(
+                async for event in self._run_tool_loop(
+                    conversation_id=conversation_id,
                     prompt=prompt,
                     context=context,
                     thinking=thinking,
                     reasoning_effort=reasoning_effort,
-                )
-                async for event in result.stream_events():
-                    if isinstance(event, RawResponsesStreamEvent):
-                        delta = self._extract_text_delta(event)
-                        if delta:
-                            summary_parts.append(delta)
-                            yield self._message_event(delta=delta)
-                        continue
-
-                    step_event = self._stream_step_event(event)
-                    if step_event:
-                        step_key = self._step_key(step_event)
-                        if step_key and step_key in emitted_steps:
-                            continue
-                        if step_key:
-                            emitted_steps.add(step_key)
-                        step_text = str(step_event.get("text") or "")
+                ):
+                    if event.get("type") == "step":
+                        step_text = str(event.get("text") or "")
                         if step_text:
                             steps.append(step_text)
-                        yield step_event
-
-                    if isinstance(event, RunItemStreamEvent) and event.name == "tool_output":
-                        for row in context.created_documents:
-                            if row.id in emitted_card_document_ids:
-                                continue
-                            emitted_card_document_ids.add(row.id)
-                            yield self._artifact_card_event(row)
+                    elif event.get("type") == "message":
+                        delta = event.get("delta")
+                        if isinstance(delta, str):
+                            partial_message_parts.append(delta)
+                    yield event
         except TimeoutError as exc:
             await self._persist_failed_assistant_message(
                 conversation_id=conversation_id,
                 message="agent run timed out",
                 created_documents=context.created_documents,
                 steps=steps,
-                partial_summary="".join(summary_parts).strip(),
+                partial_summary="".join(partial_message_parts).strip(),
             )
-            if client is not None:
-                await self._session.rollback()
-                await client.close()
             raise AgentRuntimeError(
                 "agent run timed out",
                 details={
@@ -178,21 +149,20 @@ class AgentRunService:
                 message=str(exc),
                 created_documents=context.created_documents,
                 steps=steps,
-                partial_summary="".join(summary_parts).strip(),
+                partial_summary="".join(partial_message_parts).strip(),
             )
-            if client is not None:
-                await self._session.rollback()
-                await client.close()
             raise AgentRuntimeError(
                 "agent run failed",
                 details={"provider": self._provider.name, "reason": str(exc)},
             ) from exc
-        else:
-            if client is not None:
-                await client.close()
 
-        message = "" if result is None else str(result.final_output).strip()
-        final_summary = "".join(summary_parts).strip() or message
+        raw_message = "".join(partial_message_parts).strip()
+        final_summary = raw_message
+        final_summary = await self._materialize_artifact_blocks(
+            conversation_id=conversation_id,
+            context=context,
+            message=final_summary,
+        )
         await self._persist_assistant_message(
             conversation_id=conversation_id,
             message=final_summary,
@@ -208,7 +178,7 @@ class AgentRunService:
                 yield self._artifact_card_event(row)
 
         yield self._message_event(
-            text=message,
+            text=final_summary,
             status="completed",
         )
 
@@ -239,6 +209,7 @@ class AgentRunService:
             documents={row.id: row for row in all_document_rows},
             selected_documents=list(selected_document_rows),
             messages=message_rows,
+            multimodal_provider=self._multimodal_provider,
         )
 
         if conversation.provider_id != self._provider.id or conversation.model != self._provider.model:
@@ -313,64 +284,177 @@ class AgentRunService:
         except Exception:
             await self._session.rollback()
 
-    def _build_agent(
+    async def _run_tool_loop(
         self,
         *,
+        conversation_id: str,
+        prompt: str,
+        context: ConversationAgentContext,
         thinking: bool | None,
         reasoning_effort: ReasoningEffort | None,
-    ) -> tuple[Agent[ConversationAgentContext], AsyncOpenAI]:
+    ) -> AsyncIterator[AgentRunStreamEvent]:
         client = AsyncOpenAI(
             api_key=self._provider.api_key,
             base_url=self._provider.base_url,
             timeout=self._settings.llm_timeout_seconds,
         )
-        model = OpenAIChatCompletionsModel(
-            model=self._provider.model,
-            openai_client=client,
-        )
-        agent = Agent[ConversationAgentContext](
-            name="Conversation document agent",
-            model=model,
-            instructions=self._instructions(),
-            model_settings=self._model_settings(
-                thinking=thinking,
-                reasoning_effort=reasoning_effort,
-            ),
-            tools=self._tools(),
-            tool_use_behavior={"stop_at_tool_names": ["write_artifacts"]},
-        )
-        return agent, client
-
-    async def _run_agent_streamed(
-        self,
-        *,
-        prompt: str,
-        context: ConversationAgentContext,
-        thinking: bool | None,
-        reasoning_effort: ReasoningEffort | None,
-    ) -> tuple[RunResultStreaming, AsyncOpenAI]:
-        agent, client = self._build_agent(
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": self._instructions()},
+            {
+                "role": "user",
+                "content": self._build_input(
+                    prompt=prompt,
+                    messages=context.messages,
+                    documents=list(context.documents.values()),
+                    selected_documents=context.selected_documents,
+                ),
+            },
+        ]
+        extra_body, max_tokens = self._model_params(
             thinking=thinking,
             reasoning_effort=reasoning_effort,
         )
-        agent_input = self._build_input(
-            prompt=prompt,
-            messages=context.messages,
-            documents=list(context.documents.values()),
-            selected_documents=context.selected_documents,
-        )
+        tools = agent_runtime_tool_specs()
         try:
-            result = Runner.run_streamed(
-                agent,
-                input=agent_input,
-                context=context,
-                max_turns=self._settings.agent_max_turns,
-            )
-            return result, client
-        except Exception:
-            await self._session.rollback()
+            for turn_index in range(self._settings.agent_max_turns):
+                yield self._step_event("正在调用模型", status="running")
+                stream = await client.chat.completions.create(
+                    model=self._provider.model,
+                    messages=cast(Any, messages),
+                    tools=cast(Any, tools),
+                    tool_choice="auto",
+                    parallel_tool_calls=False,
+                    stream=True,
+                    max_tokens=max_tokens,
+                    extra_body=extra_body or None,
+                )
+
+                content_parts: list[str] = []
+                tool_calls = self._empty_tool_call_buffers()
+                async for chunk in stream:
+                    if not chunk.choices:
+                        continue
+                    delta = chunk.choices[0].delta
+                    content = delta.content
+                    if content:
+                        content_parts.append(content)
+                        yield self._message_event(delta=content)
+                    self._merge_tool_call_deltas(tool_calls, getattr(delta, "tool_calls", None))
+
+                yield self._step_event("模型响应完成")
+
+                assistant_content = "".join(content_parts)
+                ordered_tool_calls = self._ordered_tool_calls(tool_calls, turn_index=turn_index)
+                if not ordered_tool_calls:
+                    if not assistant_content.strip():
+                        raise AgentRuntimeError(
+                            "model returned no final content",
+                            details={"provider": self._provider.name, "conversation_id": conversation_id},
+                        )
+                    return
+
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": assistant_content or None,
+                        "tool_calls": ordered_tool_calls,
+                    }
+                )
+                for tool_call in ordered_tool_calls:
+                    function = tool_call["function"]
+                    tool_name = str(function["name"])
+                    raw_arguments = str(function.get("arguments") or "{}")
+                    yield self._step_event(
+                        f"正在调用工具: {tool_name}",
+                        status="running",
+                        tool_name=tool_name,
+                    )
+                    output = await execute_agent_runtime_tool(context, tool_name, raw_arguments)
+                    yield self._step_event(
+                        f"工具执行完成: {tool_name}",
+                        tool_name=tool_name,
+                        output_preview=output,
+                    )
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": str(tool_call["id"]),
+                            "content": output,
+                        }
+                    )
+        finally:
             await client.close()
-            raise
+        raise AgentRuntimeError(
+            "agent max turns exceeded",
+            details={
+                "provider": self._provider.name,
+                "conversation_id": conversation_id,
+                "max_turns": self._settings.agent_max_turns,
+            },
+        )
+
+    @staticmethod
+    def _empty_tool_call_buffers() -> dict[int, dict[str, Any]]:
+        return {}
+
+    @staticmethod
+    def _merge_tool_call_deltas(
+        tool_calls: dict[int, dict[str, Any]],
+        deltas: Any,
+    ) -> None:
+        if not deltas:
+            return
+        for delta in deltas:
+            index = int(getattr(delta, "index", 0) or 0)
+            entry = tool_calls.setdefault(
+                index,
+                {
+                    "id": "",
+                    "type": "function",
+                    "function": {"name": "", "arguments": ""},
+                },
+            )
+            call_id = getattr(delta, "id", None)
+            if call_id:
+                entry["id"] = call_id
+            call_type = getattr(delta, "type", None)
+            if call_type:
+                entry["type"] = call_type
+            function_delta = getattr(delta, "function", None)
+            if not function_delta:
+                continue
+            function = entry["function"]
+            name_part = getattr(function_delta, "name", None)
+            if name_part:
+                function["name"] += name_part
+            arguments_part = getattr(function_delta, "arguments", None)
+            if arguments_part:
+                function["arguments"] += arguments_part
+
+    @staticmethod
+    def _ordered_tool_calls(
+        tool_calls: dict[int, dict[str, Any]],
+        *,
+        turn_index: int,
+    ) -> list[dict[str, Any]]:
+        ordered: list[dict[str, Any]] = []
+        for index, tool_call in sorted(tool_calls.items()):
+            function = tool_call.get("function") or {}
+            name = str(function.get("name") or "").strip()
+            if not name:
+                continue
+            call_id = str(tool_call.get("id") or f"call_{turn_index}_{index}")
+            ordered.append(
+                {
+                    "id": call_id,
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "arguments": str(function.get("arguments") or "{}"),
+                    },
+                }
+            )
+        return ordered
 
     @staticmethod
     def _step_event(
@@ -420,67 +504,6 @@ class AgentRunService:
         }
 
     @staticmethod
-    def _extract_text_delta(event: RawResponsesStreamEvent) -> str | None:
-        data = event.data
-        event_type = getattr(data, "type", "")
-        if event_type in {"response.output_text.delta", "response.refusal.delta"}:
-            delta = getattr(data, "delta", None)
-            if isinstance(delta, str) and delta:
-                return delta
-
-        choices = getattr(data, "choices", None)
-        if not choices:
-            return None
-        delta = getattr(choices[0], "delta", None)
-        if delta is None:
-            return None
-        if getattr(delta, "tool_calls", None):
-            return None
-        content = getattr(delta, "content", None)
-        if isinstance(content, str) and content:
-            return content
-        return None
-
-    @staticmethod
-    def _stream_step_event(event: Any) -> AgentRunStreamEvent | None:
-        if isinstance(event, AgentUpdatedStreamEvent):
-            return AgentRunService._step_event(f"切换到 Agent: {event.new_agent.name}")
-        if not isinstance(event, RunItemStreamEvent):
-            return None
-        if event.name == "reasoning_item_created":
-            return AgentRunService._step_event("正在推理和规划下一步", status="running")
-        if event.name == "tool_called":
-            item_name = getattr(event.item, "name", None)
-            return AgentRunService._step_event(
-                f"正在调用工具{f': {item_name}' if item_name else ''}",
-                status="running",
-                tool_name=item_name,
-            )
-        if event.name == "tool_output":
-            item_name = getattr(event.item, "name", None)
-            output = getattr(event.item, "output", None)
-            return AgentRunService._step_event(
-                f"工具执行完成{f': {item_name}' if item_name else ''}",
-                status="completed",
-                tool_name=item_name,
-                output_preview=str(output) if output else None,
-            )
-        if event.name == "message_output_created":
-            return AgentRunService._step_event("正在整理最终回复", status="running")
-        if event.name == "handoff_requested":
-            return AgentRunService._step_event("正在请求任务交接", status="running")
-        if event.name == "handoff_occured":
-            return AgentRunService._step_event("任务交接完成")
-        return None
-
-    @staticmethod
-    def _step_key(event: AgentRunStreamEvent) -> str:
-        status = event.get("status", "")
-        tool_name = event.get("tool_name", "")
-        text = event.get("text", "")
-        return f"{status}:{tool_name}:{text}"
-
-    @staticmethod
     def _instructions() -> str:
         return "\n".join(
             [
@@ -489,28 +512,24 @@ class AgentRunService:
                 "Long history and documents may be represented as compact previews to fit the model context window.",
                 "Use the conversation history to resolve references such as previous requests, earlier answers, and generated files.",
                 "The user may reference Markdown documents converted by Microsoft MarkItDown.",
-                "Use search_conversation for retrieval across history and documents before asking the user to resend context.",
                 "Use list_conversation_documents and read_document_markdown to inspect conversation files when previews are insufficient; read_document_markdown returns bounded slices, so continue with the next start offset when needed. Do not claim access to the server filesystem.",
+                "Use analyze_image when the user asks about an uploaded image or visual details are required. The tool uses the configured multimodal provider and returns text for reasoning.",
                 "Use web_search for public web lookup or current information requests. Do not claim web access unless web_search succeeds.",
                 "Answer directly in the conversation for normal questions, analysis, summaries, edits, plans, and brainstorming.",
-                "Call write_artifacts when you decide the user needs reusable, downloadable, or editable file-like deliverables.",
-                "Use write_artifacts for both single-file and multi-file output; put every requested file in one call.",
-                "Keep artifact files concise enough for one tool call. If the user asks for an unlimited or very long document, create a useful first version instead of trying to exhaust the topic.",
-                "If you create an artifact, keep the final answer concise and mention it instead of pasting the full file content.",
-                "Artifacts are persisted in the conversation document table. For HTML artifacts, write the raw complete HTML string directly as content_markdown, without wrapping it in a fenced code block, and use a .html filename.",
+                "When the user asks for reusable, downloadable, or editable file-like deliverables, include artifact blocks in your final answer instead of using a tool call.",
+                "Artifact block format: <artifact title=\"Human title\" filename=\"file.md\">file content</artifact>.",
+                "For HTML artifacts, put the raw complete HTML inside an artifact block with a .html filename. Do not wrap artifact content in a JSON object.",
+                "Keep artifact files concise. If the user asks for an unlimited or very long document, create a useful first version instead of trying to exhaust the topic.",
+                "After artifact blocks, add a short human summary. The server will persist artifact blocks as conversation documents.",
             ]
         )
 
-    @staticmethod
-    def _tools() -> list[Any]:
-        return agent_runtime_tools()
-
-    def _model_settings(
+    def _model_params(
         self,
         *,
         thinking: bool | None,
         reasoning_effort: ReasoningEffort | None,
-    ) -> ModelSettings:
+    ) -> tuple[dict[str, Any], int]:
         extra_body, max_tokens = bounded_extra_body_and_max_tokens(
             self._provider.extra_body,
             default_max_tokens=self._settings.agent_max_output_tokens,
@@ -519,14 +538,7 @@ class AgentRunService:
             extra_body["thinking"] = {"type": "enabled" if thinking else "disabled"}
         if reasoning_effort is not None:
             extra_body["reasoning_effort"] = reasoning_effort
-        return ModelSettings(
-            # OpenAI-compatible providers vary in parallel tool-call support.
-            # Sequential tools are slower but much more reliable for artifact
-            # creation because each write becomes visible before the next turn.
-            parallel_tool_calls=False,
-            max_tokens=max_tokens,
-            extra_body=extra_body or None,
-        )
+        return extra_body, max_tokens
 
     @staticmethod
     def _build_input(
@@ -615,6 +627,8 @@ class AgentRunService:
                         f"Filename: {row.filename}",
                         f"Kind: {row.kind}",
                         f"MIME: {row.mime_type}",
+                        f"Source MIME: {row.source_mime_type or 'none'}",
+                        f"Has original image: {'yes' if row.source_object_key and (row.source_mime_type or '').startswith('image/') else 'no'}",
                         f"Full chars: {len(row.content_md)}",
                         "Preview:",
                         preview,
@@ -648,6 +662,92 @@ class AgentRunService:
         if len(text) <= max_chars:
             return text
         return text[:max_chars].rstrip() + f"\n...[truncated {len(text) - max_chars} chars; use tools for full content]"
+
+    async def _materialize_artifact_blocks(
+        self,
+        *,
+        conversation_id: str,
+        context: ConversationAgentContext,
+        message: str,
+    ) -> str:
+        matches = list(_ARTIFACT_BLOCK_RE.finditer(message))
+        if not matches:
+            return message
+
+        settings = self._settings
+        if len(matches) > settings.agent_artifact_max_files:
+            raise RequestError(
+                "too many artifact blocks",
+                details={"max_artifacts": settings.agent_artifact_max_files},
+            )
+
+        created: list[ConversationDocumentRow] = []
+        total_chars = 0
+        for match in matches:
+            attrs = self._artifact_attrs(match.group(1))
+            content = self._strip_artifact_fence(match.group(2).strip())
+            total_chars += len(content)
+            if len(content) > settings.agent_artifact_max_chars:
+                raise RequestError(
+                    "artifact content is too large",
+                    details={
+                        "filename": attrs.get("filename") or attrs.get("title") or "artifact.md",
+                        "max_chars": settings.agent_artifact_max_chars,
+                        "actual_chars": len(content),
+                    },
+                )
+            if total_chars > settings.agent_artifact_total_max_chars:
+                raise RequestError(
+                    "artifact batch is too large",
+                    details={
+                        "max_total_chars": settings.agent_artifact_total_max_chars,
+                        "actual_total_chars": total_chars,
+                    },
+                )
+
+            title = (attrs.get("title") or attrs.get("filename") or "Artifact").strip()
+            filename = self._safe_artifact_filename(attrs.get("filename") or title)
+            row = await ConversationDocumentService(self._session, self._current_user).create_artifact_row(
+                conversation_id=conversation_id,
+                kind="artifact",
+                title=title[:120],
+                filename=filename,
+                mime_type=self._artifact_mime_type(filename, content),
+                content_md=content,
+            )
+            created.append(row)
+
+        context.created_documents.extend(created)
+        stripped = _ARTIFACT_BLOCK_RE.sub("", message).strip()
+        if stripped:
+            return stripped
+        if len(created) == 1:
+            return f"已生成文档: {created[0].title}"
+        titles = "、".join(row.title for row in created)
+        return f"已生成 {len(created)} 个文档: {titles}"
+
+    @staticmethod
+    def _artifact_attrs(raw: str) -> dict[str, str]:
+        return {key: html_lib.unescape(value).strip() for key, _, value in _ARTIFACT_ATTR_RE.findall(raw)}
+
+    @staticmethod
+    def _strip_artifact_fence(content: str) -> str:
+        match = re.match(r"(?is)^```[\w+-]*\s*\n(.*?)\n```\s*$", content)
+        return match.group(1).strip() if match else content
+
+    @staticmethod
+    def _safe_artifact_filename(filename: str) -> str:
+        safe = Path(filename).name.strip() or "artifact.md"
+        if "." not in safe:
+            safe = f"{safe}.md"
+        return safe[:160]
+
+    @staticmethod
+    def _artifact_mime_type(filename: str, content: str) -> str:
+        lowered = filename.lower()
+        if lowered.endswith((".html", ".htm")) or content.lower().lstrip().startswith(("<!doctype html", "<html")):
+            return "text/html"
+        return "text/markdown"
 
     @staticmethod
     def _assistant_content(

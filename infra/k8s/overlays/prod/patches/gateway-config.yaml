@@ -9,4 +9,4 @@ data:
   # CORS allowlist: ONLY the production frontend origin(s). Wildcards / http://
   # / localhost are rejected by gateway's prod validator (see config.go).
   ALLOWED_FRONTEND_ORIGINS: "https://app.your-domain.com"
-  MAX_REQUEST_BODY_BYTES: "1048576"
+  MAX_REQUEST_BODY_BYTES: "10485760"

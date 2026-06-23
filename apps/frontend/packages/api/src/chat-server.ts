@@ -50,6 +50,11 @@ export interface ConversationDocument {
   filename: string;
   mime_type: string;
   source_size: number;
+  source_mime_type?: string | null;
+  source_object_bucket?: string | null;
+  source_object_key?: string | null;
+  source_sha256?: string | null;
+  source_filename?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -98,6 +103,7 @@ export type AgentRunStreamEvent =
 export interface RunConversationAgentInput {
   prompt: string;
   provider_id?: string | null;
+  multimodal_provider_id?: string | null;
   document_ids?: string[];
   thinking?: boolean | null;
   reasoning_effort?: ReasoningEffort | null;
@@ -284,6 +290,7 @@ export async function streamConversationAgent(
   const body = JSON.stringify({
     prompt: input.prompt,
     provider_id: input.provider_id ?? null,
+    multimodal_provider_id: input.multimodal_provider_id ?? null,
     document_ids: input.document_ids ?? [],
     thinking: input.thinking ?? null,
     reasoning_effort: input.reasoning_effort ?? null,

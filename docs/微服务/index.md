@@ -9,6 +9,7 @@
 | iam | Go | 8002 | 身份认证 / 会话 |
 | telemetry | Python | 8008 | 可观测 / RUM 上报 |
 | chat | Python | 8009 | 对话 / 大模型（SSE 流式） |
+| storage | Go | 8010 | 对象存储 / 文件原始 payload |
 
 ## 通用规则
 
@@ -21,8 +22,7 @@
 
 - 每个服务的 SQL migration 放在
   `apps/backend/services/<svc>/migrations/versions/`。
-- 文件名必须以 `vX.Y.Z` 开头,例如 `v1.0.0.sql` 或
-  `v1.1.0__add_index.sql`。
+- 文件名必须是纯版本号,例如 `v1.0.0.sql`。不要添加描述后缀。
 - 每个服务库必须有 `migration` 表,只保留 `id = 1` 一行,记录当前库
   schema 版本。
 - `just up` 会扫描所有服务的 migrations 并调用 `scripts/db-migrate.sh`。

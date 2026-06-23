@@ -6,6 +6,7 @@ resources:
   - ../../base/iam
   - ../../base/admin
   - ../../base/chat
+  - ../../base/storage
   - ../../base/telemetry
   - ../../base/web
   - ../../base/ingress.yaml
@@ -17,6 +18,8 @@ images:
   - name: ghcr.io/example/admin
     newTag: dev
   - name: ghcr.io/example/chat
+    newTag: dev
+  - name: ghcr.io/example/storage
     newTag: dev
   - name: ghcr.io/example/telemetry
     newTag: dev

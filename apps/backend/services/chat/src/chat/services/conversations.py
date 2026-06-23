@@ -84,7 +84,7 @@ class ConversationService:
         )
 
     async def create(self, payload: CreateConversationInput) -> Conversation:
-        # `model` is populated lazily on the first `send_message` call from
+        # `model` is populated lazily on the first agent runtime call from
         # the resolved provider snapshot — admin owns model strings, not
         # this service. `provider_id` is optionally pinned up front.
         row = await conversation_crud.create_conversation(

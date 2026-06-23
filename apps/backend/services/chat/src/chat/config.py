@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # credentials from `${admin_service_url}/internal/providers/...` using
     # the shared `internal_api_token`. Never expose either to the browser.
     admin_service_url: str = "http://localhost:8001"
+    storage_service_url: str = "http://localhost:8010"
     internal_api_token: str = _DEV_INTERNAL_API_TOKEN
 
     # Upstream LLM call timeout (seconds).
@@ -46,7 +47,7 @@ class Settings(BaseSettings):
     # large output caps (for example 65536), which can fail low-credit keys
     # before generation starts. Keep defaults conservative; admin provider
     # extra_body may lower these further but cannot raise them.
-    llm_max_output_tokens: int = 1024
+    llm_max_output_tokens: int = 512
     # MarkItDown demo upload guardrails. Keep the gateway body limit aligned
     # above this value so small docs can pass through while large files fail
     # before conversion work starts.
@@ -55,9 +56,9 @@ class Settings(BaseSettings):
     # MarkItDown image captions call chat.completions without max_tokens; some
     # gateways (e.g. OpenRouter) default to huge limits and reject low-credit keys.
     attachment_vision_max_tokens: int = 256
-    agent_max_turns: int = 8
-    agent_run_timeout_seconds: float = 120.0
-    agent_max_output_tokens: int = 1024
+    agent_max_turns: int = 120
+    agent_run_timeout_seconds: float = 3600.0
+    agent_max_output_tokens: int = 512
     agent_artifact_max_files: int = 3
     agent_artifact_max_chars: int = 20_000
     agent_artifact_total_max_chars: int = 40_000
@@ -66,7 +67,7 @@ class Settings(BaseSettings):
     agent_context_document_preview_chars: int = 1_200
     agent_context_selected_document_preview_chars: int = 4_000
     agent_context_max_chars: int = 12_000
-    agent_event_stream_ttl_seconds: int = 30 * 60
+    agent_event_stream_ttl_seconds: int = 2 * 60 * 60
     agent_event_stream_block_ms: int = 1000
     agent_event_stream_stale_seconds: int = 15
     # How long to cache a decrypted provider snapshot in-process. Five
@@ -106,6 +107,8 @@ class Settings(BaseSettings):
             missing.append("INTERNAL_API_TOKEN")
         if self.admin_service_url.startswith(("http://localhost", "http://127.")):
             missing.append("ADMIN_SERVICE_URL")
+        if self.storage_service_url.startswith(("http://localhost", "http://127.")):
+            missing.append("STORAGE_SERVICE_URL")
         if missing:
             raise ValueError("production environment requires explicit values for: " + ", ".join(missing))
         return self

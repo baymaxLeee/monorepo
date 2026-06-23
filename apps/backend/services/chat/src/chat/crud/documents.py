@@ -46,6 +46,11 @@ async def create_document(
     mime_type: str,
     content_md: str,
     source_size: int = 0,
+    source_mime_type: str | None = None,
+    source_object_bucket: str | None = None,
+    source_object_key: str | None = None,
+    source_sha256: str | None = None,
+    source_filename: str | None = None,
 ) -> ConversationDocumentRow:
     now = datetime.now(UTC)
     row = ConversationDocumentRow(
@@ -57,6 +62,11 @@ async def create_document(
         mime_type=mime_type,
         content_md=content_md,
         source_size=source_size,
+        source_mime_type=source_mime_type,
+        source_object_bucket=source_object_bucket,
+        source_object_key=source_object_key,
+        source_sha256=source_sha256,
+        source_filename=source_filename,
         created_at=now,
         updated_at=now,
     )

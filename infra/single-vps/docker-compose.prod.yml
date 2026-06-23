@@ -14,6 +14,7 @@
 #                                     ├─ iam:8002
 #                                     ├─ admin:8001
 #                                     ├─ chat:8009
+#                                     ├─ storage:8010
 #                                     └─ telemetry:8008
 #                                         ↓
 #                                    mysql + redis (internal)
@@ -139,6 +140,7 @@ services:
       ADMIN_SERVICE_URL: http://admin:8001
       CHAT_SERVICE_URL: http://chat:8009
       IAM_SERVICE_URL: http://iam:8002
+      STORAGE_SERVICE_URL: http://storage:8010
       TELEMETRY_SERVICE_URL: http://telemetry:8008
       # Same-origin behind nginx → browser never sends Origin for navigations.
       # Wildcard kept for occasional curl/tools with credentials.
@@ -189,8 +191,30 @@ services:
       REDIS_DB: "2"
       # admin owns LLM credentials; chat asks it for decrypted snapshots.
       ADMIN_SERVICE_URL: http://admin:8001
+      STORAGE_SERVICE_URL: http://storage:8010
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
       LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-60}
+    <<: *restart_policy
+
+  storage:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/storage:${IMAGE_TAG:-main}
+    container_name: monorepo-storage
+    depends_on:
+      mysql: { condition: service_healthy }
+      db-init: { condition: service_completed_successfully }
+    environment:
+      ENVIRONMENT: single-vps
+      PORT: "8010"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: ${MYSQL_USER:-app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      STORAGE_MYSQL_DATABASE: storage
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
+      STORAGE_DATA_DIR: /data/storage
+      STORAGE_MAX_OBJECT_BYTES: ${STORAGE_MAX_OBJECT_BYTES:-10485760}
+    volumes:
+      - storage_data:/data/storage
     <<: *restart_policy
 
   telemetry:
@@ -227,3 +251,4 @@ services:
 volumes:
   mysql_data:
   redis_data:
+  storage_data:

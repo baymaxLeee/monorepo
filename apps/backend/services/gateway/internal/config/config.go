@@ -35,6 +35,7 @@ type Config struct {
 	AdminServiceURL          string
 	ChatServiceURL           string
 	IAMServiceURL            string
+	StorageServiceURL        string
 	TelemetryServiceURL      string
 	AllowedOrigins           []string
 	DatabaseURL              string
@@ -82,6 +83,7 @@ func Load() (Config, error) {
 		AdminServiceURL:     envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
 		ChatServiceURL:      envOr("CHAT_SERVICE_URL", "http://localhost:8009"),
 		IAMServiceURL:       envOr("IAM_SERVICE_URL", "http://localhost:8002"),
+		StorageServiceURL:   envOr("STORAGE_SERVICE_URL", "http://localhost:8010"),
 		TelemetryServiceURL: envOr("TELEMETRY_SERVICE_URL", "http://localhost:8008"),
 		AllowedOrigins:      csvOr("ALLOWED_FRONTEND_ORIGINS", []string{"http://localhost:3000", "http://localhost:3001"}),
 		DatabaseURL: fmt.Sprintf(

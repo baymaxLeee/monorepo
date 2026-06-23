@@ -90,6 +90,10 @@ const REASONING_OPTIONS: { value: ReasoningEffort; label: string }[] = [
 const STORAGE_KEY = "chat.reasoning-prefs.v1";
 const MAX_ATTACHMENTS_PER_MESSAGE = 5;
 const DOCUMENT_REF_RE = /\[\[chat-document:([a-zA-Z0-9_-]+)\]\]/g;
+const MULTIMODAL_PROVIDER_HINT_RE =
+  /doubao|seed|vision|image|multimodal|video/i;
+const MULTIMODAL_PROVIDER_AUTO = "__auto";
+const MULTIMODAL_PROVIDER_NONE = "__none";
 
 type ReasoningPrefs = { thinking: boolean; effort: ReasoningEffort };
 const DEFAULT_PREFS: ReasoningPrefs = { thinking: false, effort: "medium" };
@@ -201,6 +205,8 @@ export function ChatRoomPage() {
   const [htmlPreviewUrl, setHtmlPreviewUrl] = useState<string | null>(null);
   const [loadingDocument, setLoadingDocument] = useState(false);
   const [savingDocument, setSavingDocument] = useState(false);
+  const [selectedMultimodalProviderId, setSelectedMultimodalProviderId] =
+    useState<string>(MULTIMODAL_PROVIDER_AUTO);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const promptInputRef = useRef<PromptInputRef | null>(null);
   const resumedConversationRef = useRef<string | null>(null);
@@ -234,6 +240,18 @@ export function ChatRoomPage() {
     enabledProviders.find((p) => p.is_default) ??
     enabledProviders[0] ??
     null;
+  const inferredMultimodalProvider =
+    enabledProviders.find((p) =>
+      MULTIMODAL_PROVIDER_HINT_RE.test(`${p.name} ${p.model} ${p.base_url}`),
+    ) ?? null;
+  const effectiveMultimodalProvider =
+    selectedMultimodalProviderId === MULTIMODAL_PROVIDER_NONE
+      ? null
+      : selectedMultimodalProviderId === MULTIMODAL_PROVIDER_AUTO
+        ? inferredMultimodalProvider
+        : (enabledProviders.find(
+            (p) => p.id === selectedMultimodalProviderId,
+          ) ?? null);
 
   const documents = detail?.documents ?? [];
   const documentMap = useMemo(() => {
@@ -564,6 +582,7 @@ export function ChatRoomPage() {
         {
           prompt: content,
           provider_id: effectiveProvider?.id ?? null,
+          multimodal_provider_id: effectiveMultimodalProvider?.id ?? null,
           document_ids: uploaded.map((document) => document.id),
           thinking: prefs.thinking ? true : null,
           reasoning_effort: prefs.thinking ? prefs.effort : null,
@@ -615,6 +634,11 @@ export function ChatRoomPage() {
             ) : detail?.model ? (
               <Badge variant="outline" className="font-mono text-xs">
                 {detail.model}
+              </Badge>
+            ) : null}
+            {effectiveMultimodalProvider ? (
+              <Badge variant="secondary" className="font-mono text-xs">
+                多模态 · {effectiveMultimodalProvider.name}
               </Badge>
             ) : null}
             <span>
@@ -712,6 +736,39 @@ export function ChatRoomPage() {
                           默认
                         </Badge>
                       )}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="chat-multimodal-provider"
+              className="text-muted-foreground"
+            >
+              多模态
+            </Label>
+            <Select
+              value={selectedMultimodalProviderId}
+              onValueChange={setSelectedMultimodalProviderId}
+              disabled={!hasProviders || sending}
+            >
+              <SelectTrigger id="chat-multimodal-provider" className="h-8 w-56">
+                <SelectValue placeholder="选择多模态 Provider" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={MULTIMODAL_PROVIDER_AUTO}>
+                  自动选择
+                </SelectItem>
+                <SelectItem value={MULTIMODAL_PROVIDER_NONE}>不使用</SelectItem>
+                {enabledProviders.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="flex items-center gap-2">
+                      <span>{p.name}</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {p.model}
+                      </span>
                     </span>
                   </SelectItem>
                 ))}
