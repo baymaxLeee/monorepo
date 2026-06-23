@@ -22,7 +22,11 @@ from chat.models.document import ConversationDocumentRow
 from chat.models.message import MessageRow
 from chat.schemas.agent import ReasoningEffort
 from chat.services.admin_client import ProviderSnapshot
-from chat.services.agent_tools import agent_runtime_tool_specs, execute_agent_runtime_tool
+from chat.services.agent_tools import (
+    agent_runtime_tool_specs,
+    execute_agent_runtime_tool,
+    is_successful_artifact_write,
+)
 from chat.services.documents import (
     ConversationDocumentService,
     document_to_schema,
@@ -44,6 +48,7 @@ class ConversationAgentContext:
     messages: list[MessageRow]
     multimodal_provider: ProviderSnapshot | None = None
     created_documents: list[ConversationDocumentRow] = field(default_factory=list)
+    pending_artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def get_document(self, document_id: str) -> ConversationDocumentRow:
         if document_id in self.documents:
@@ -127,6 +132,14 @@ class AgentRunService:
                         delta = event.get("delta")
                         if isinstance(delta, str):
                             partial_message_parts.append(delta)
+                    elif event.get("type") == "card":
+                        card = event.get("card")
+                        if isinstance(card, dict):
+                            document = card.get("document")
+                            if isinstance(document, dict):
+                                document_id = document.get("id")
+                                if isinstance(document_id, str) and document_id:
+                                    emitted_card_document_ids.add(document_id)
                     yield event
         except TimeoutError as exc:
             await self._persist_failed_assistant_message(
@@ -315,6 +328,7 @@ class AgentRunService:
             reasoning_effort=reasoning_effort,
         )
         tools = agent_runtime_tool_specs()
+        web_search_failures = 0
         try:
             for turn_index in range(self._settings.agent_max_turns):
                 yield self._step_event("正在调用模型", status="running")
@@ -369,7 +383,27 @@ class AgentRunService:
                         status="running",
                         tool_name=tool_name,
                     )
-                    output = await execute_agent_runtime_tool(context, tool_name, raw_arguments)
+                    if tool_name == "web_search" and web_search_failures >= 2:
+                        output = (
+                            "Tool error in web_search: web search is unavailable after repeated failures. "
+                            "Do not call web_search again; answer from existing knowledge."
+                        )
+                    else:
+                        created_documents_before = len(context.created_documents)
+                        output = await execute_agent_runtime_tool(context, tool_name, raw_arguments)
+                        if (
+                            tool_name in {"write_artifacts", "write_artifact", "finish_artifact"}
+                            and "invalid JSON arguments" in output
+                        ):
+                            recovered = await self._recover_artifacts_from_assistant_content(
+                                conversation_id=conversation_id,
+                                context=context,
+                                assistant_content=assistant_content,
+                            )
+                            if recovered is not None:
+                                output = recovered
+                        if tool_name == "web_search" and output.startswith("Tool error in web_search"):
+                            web_search_failures += 1
                     yield self._step_event(
                         f"工具执行完成: {tool_name}",
                         tool_name=tool_name,
@@ -382,6 +416,10 @@ class AgentRunService:
                             "content": output,
                         }
                     )
+                    if is_successful_artifact_write(tool_name, output):
+                        for row in context.created_documents[created_documents_before:]:
+                            yield self._artifact_card_event(row)
+                        return
         finally:
             await client.close()
         raise AgentRuntimeError(
@@ -514,13 +552,18 @@ class AgentRunService:
                 "The user may reference Markdown documents converted by Microsoft MarkItDown.",
                 "Use list_conversation_documents and read_document_markdown to inspect conversation files when previews are insufficient; read_document_markdown returns bounded slices, so continue with the next start offset when needed. Do not claim access to the server filesystem.",
                 "Use analyze_image when the user asks about an uploaded image or visual details are required. The tool uses the configured multimodal provider and returns text for reasoning.",
-                "Use web_search for public web lookup or current information requests. Do not claim web access unless web_search succeeds.",
+                "Use web_search at most once for public web lookup or current information requests.",
+                "If web_search returns a tool error or no usable results, do not call it again; answer from existing knowledge and state the limitation.",
+                "Do not claim live web access unless web_search returns actual result entries.",
                 "Answer directly in the conversation for normal questions, analysis, summaries, edits, plans, and brainstorming.",
-                "When the user asks for reusable, downloadable, or editable file-like deliverables, include artifact blocks in your final answer instead of using a tool call.",
-                "Artifact block format: <artifact title=\"Human title\" filename=\"file.md\">file content</artifact>.",
-                "For HTML artifacts, put the raw complete HTML inside an artifact block with a .html filename. Do not wrap artifact content in a JSON object.",
+                "When the user asks for reusable, downloadable, or editable file-like deliverables (.md, .html, etc.), save them with artifact tools.",
+                "For short Markdown only, you may use write_artifacts with plain content.",
+                "For .html or any large/complex content, use start_artifact, then append_artifact with content_base64 chunks, then finish_artifact.",
+                "Never put raw HTML in write_artifacts.content JSON strings; that breaks tool arguments.",
+                "After artifact files are saved, keep the final answer concise and mention the created filenames.",
+                "If artifact tools fail, you may fall back to artifact blocks in the final answer:",
+                "<artifact title=\"Human title\" filename=\"file.md\">file content</artifact>.",
                 "Keep artifact files concise. If the user asks for an unlimited or very long document, create a useful first version instead of trying to exhaust the topic.",
-                "After artifact blocks, add a short human summary. The server will persist artifact blocks as conversation documents.",
             ]
         )
 
@@ -662,6 +705,32 @@ class AgentRunService:
         if len(text) <= max_chars:
             return text
         return text[:max_chars].rstrip() + f"\n...[truncated {len(text) - max_chars} chars; use tools for full content]"
+
+    async def _recover_artifacts_from_assistant_content(
+        self,
+        *,
+        conversation_id: str,
+        context: ConversationAgentContext,
+        assistant_content: str,
+    ) -> str | None:
+        if not _ARTIFACT_BLOCK_RE.search(assistant_content):
+            return None
+        created_before = len(context.created_documents)
+        try:
+            await self._materialize_artifact_blocks(
+                conversation_id=conversation_id,
+                context=context,
+                message=assistant_content,
+            )
+        except RequestError:
+            return None
+        created = context.created_documents[created_before:]
+        if not created:
+            return None
+        return "\n".join(
+            f"Created artifact {row.id}: {row.title} ({row.filename}, {row.mime_type})"
+            for row in created
+        )
 
     async def _materialize_artifact_blocks(
         self,

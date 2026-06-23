@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     attachment_vision_max_tokens: int = 256
     agent_max_turns: int = 120
     agent_run_timeout_seconds: float = 3600.0
-    agent_max_output_tokens: int = 512
+    agent_max_output_tokens: int = 4096
     agent_artifact_max_files: int = 3
     agent_artifact_max_chars: int = 20_000
     agent_artifact_total_max_chars: int = 40_000
