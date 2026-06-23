@@ -2,13 +2,17 @@ export type ArtifactSlotSegment =
   | { type: "text"; text: string }
   | { type: "slot"; documentId: string };
 
-const ARTIFACT_SLOT_RE = /\[([a-f0-9]{16})\]/g;
+const ARTIFACT_SLOT_RE = /\[([a-f0-9]{16})\]/gi;
 const LEGACY_DOCUMENT_REF_RE = /\[\[chat-document:([a-zA-Z0-9_-]+)\]\]/g;
 
 const SLOT_PATTERN = new RegExp(
   `${ARTIFACT_SLOT_RE.source}|${LEGACY_DOCUMENT_REF_RE.source}`,
-  "g",
+  "gi",
 );
+
+function captureDocumentId(match: RegExpMatchArray): string | undefined {
+  return match[1] ?? match[2];
+}
 
 export function formatArtifactSlot(documentId: string): string {
   return `[${documentId}]`;
@@ -42,7 +46,7 @@ export function parseSlots(content: string): ArtifactSlotSegment[] {
         segments.push({ type: "text", text });
       }
     }
-    const documentId = match[1];
+    const documentId = captureDocumentId(match);
     if (documentId) {
       segments.push({ type: "slot", documentId });
     }

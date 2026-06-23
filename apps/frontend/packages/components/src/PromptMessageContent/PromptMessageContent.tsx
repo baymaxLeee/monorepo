@@ -27,7 +27,12 @@ export function PromptMessageContent({
   }
 
   return (
-    <span className={cn("inline whitespace-pre-wrap break-words leading-relaxed", className)}>
+    <span
+      className={cn(
+        "inline whitespace-pre-wrap break-words leading-relaxed",
+        className,
+      )}
+    >
       {segments.map((segment, index) => {
         if (segment.type === "text") {
           return <span key={`text-${index}`}>{segment.text}</span>;
@@ -49,4 +54,10 @@ export function PromptMessageContent({
       })}
     </span>
   );
+}
+
+export function extractSlotIdsFromContent(content: string): string[] {
+  return parseSlots(content)
+    .filter((segment) => segment.type === "slot")
+    .map((segment) => segment.documentId);
 }

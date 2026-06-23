@@ -52,7 +52,7 @@ import {
   type PromptInputToken,
   type PromptInputValue,
 } from "components/prompt-input";
-import { PromptMessageContent } from "components/prompt-message-content";
+import { PromptMessageContent, extractSlotIdsFromContent } from "components/prompt-message-content";
 import { extractSlotIds, parseSlots, serializeSlots, tokenIdByArtifactId } from "shared";
 import { DownloadIcon, FileTextIcon, SettingsIcon } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1063,6 +1063,56 @@ export function ChatRoomPage() {
   );
 }
 
+const streamdownClassName =
+  "prose prose-sm max-w-none break-words leading-relaxed dark:prose-invert prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-md prose-code:before:content-none prose-code:after:content-none";
+
+function AssistantSlotMessageContent({
+  content,
+  documents,
+  isAnimating = false,
+  onOpenDocument,
+}: {
+  content: string;
+  documents: Map<string, ConversationDocument>;
+  isAnimating?: boolean;
+  onOpenDocument: (documentId: string) => void;
+}) {
+  const segments = parseSlots(content);
+  const hasSlots = segments.some((segment) => segment.type === "slot");
+
+  if (!hasSlots) {
+    if (!content.trim()) return null;
+    return (
+      <Streamdown isAnimating={isAnimating} className={streamdownClassName}>
+        {content}
+      </Streamdown>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {segments.map((segment, index) =>
+        segment.type === "slot" ? (
+          <DocumentCard
+            key={`${segment.documentId}-${index}`}
+            document={documents.get(segment.documentId)}
+            documentId={segment.documentId}
+            onOpen={() => onOpenDocument(segment.documentId)}
+          />
+        ) : segment.text.trim() ? (
+          <Streamdown
+            key={`text-${index}`}
+            isAnimating={isAnimating}
+            className={streamdownClassName}
+          >
+            {segment.text}
+          </Streamdown>
+        ) : null,
+      )}
+    </div>
+  );
+}
+
 const MessageBubble = memo(function MessageBubble({
   message,
   documents,
@@ -1076,8 +1126,9 @@ const MessageBubble = memo(function MessageBubble({
   const isStreaming =
     Boolean(message.streaming) || message.status === "streaming";
   const progress = message.agentProgress;
-  const slotSegments = progress ? [] : parseSlots(message.content);
-  const hasInlineSlots = slotSegments.some((segment) => segment.type === "slot");
+  const messageBody = progress?.message ?? message.content;
+  const slotIdsInMessage = extractSlotIdsFromContent(messageBody);
+  const slotIdSet = new Set(slotIdsInMessage);
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -1128,71 +1179,63 @@ const MessageBubble = memo(function MessageBubble({
             ) : isStreaming ? (
               <div className="text-xs text-muted-foreground">准备中...</div>
             ) : null}
-            {progress.message ? (
-              <Streamdown
-                isAnimating={isStreaming}
-                className="prose prose-sm max-w-none break-words leading-relaxed dark:prose-invert prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-md prose-code:before:content-none prose-code:after:content-none"
-              >
-                {progress.message}
-              </Streamdown>
+            {messageBody ? (
+              isUser ? (
+                <PromptMessageContent
+                  content={messageBody}
+                  documents={documents}
+                  onOpenDocument={onOpenDocument}
+                />
+              ) : (
+                <AssistantSlotMessageContent
+                  content={messageBody}
+                  documents={documents}
+                  isAnimating={isStreaming}
+                  onOpenDocument={onOpenDocument}
+                />
+              )
             ) : null}
-            {progress.cards.length > 0 ? (
+            {progress && progress.cards.length > 0 ? (
               <div className="space-y-2">
-                {progress.cards.map((card) =>
-                  card.type === "artifact" && card.document ? (
-                    <DocumentCard
-                      key={card.document.id}
-                      document={card.document}
-                      documentId={card.document.id}
-                      onOpen={() => onOpenDocument(card.document!.id)}
-                    />
-                  ) : (
-                    <Card key={card.id} className="rounded-md">
-                      <CardHeader className="p-3">
-                        <CardTitle className="text-sm">{card.type}</CardTitle>
-                      </CardHeader>
-                    </Card>
-                  ),
-                )}
+                {progress.cards
+                  .filter(
+                    (card) =>
+                      !card.document?.id || !slotIdSet.has(card.document.id),
+                  )
+                  .map((card) =>
+                    card.type === "artifact" && card.document ? (
+                      <DocumentCard
+                        key={card.document.id}
+                        document={card.document}
+                        documentId={card.document.id}
+                        onOpen={() => onOpenDocument(card.document!.id)}
+                      />
+                    ) : (
+                      <Card key={card.id} className="rounded-md">
+                        <CardHeader className="p-3">
+                          <CardTitle className="text-sm">{card.type}</CardTitle>
+                        </CardHeader>
+                      </Card>
+                    ),
+                  )}
               </div>
             ) : null}
           </div>
-        ) : hasInlineSlots || isUser ? (
-          <div className="space-y-2">
-            {isUser ? (
-              <PromptMessageContent
-                content={message.content}
-                documents={documents}
-                onOpenDocument={onOpenDocument}
-              />
-            ) : (
-              slotSegments.map((segment, index) =>
-                segment.type === "slot" ? (
-                  <DocumentCard
-                    key={`${segment.documentId}-${index}`}
-                    document={documents.get(segment.documentId)}
-                    documentId={segment.documentId}
-                    onOpen={() => onOpenDocument(segment.documentId)}
-                  />
-                ) : segment.text.trim() ? (
-                  <Streamdown
-                    key={`text-${index}`}
-                    isAnimating={isStreaming}
-                    className="prose prose-sm max-w-none break-words leading-relaxed dark:prose-invert prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-md prose-code:before:content-none prose-code:after:content-none"
-                  >
-                    {segment.text}
-                  </Streamdown>
-                ) : null,
-              )
-            )}
-          </div>
         ) : message.content ? (
-          <Streamdown
-            isAnimating={isStreaming}
-            className="prose prose-sm max-w-none break-words leading-relaxed dark:prose-invert prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-md prose-code:before:content-none prose-code:after:content-none"
-          >
-            {message.content}
-          </Streamdown>
+          isUser ? (
+            <PromptMessageContent
+              content={message.content}
+              documents={documents}
+              onOpenDocument={onOpenDocument}
+            />
+          ) : (
+            <AssistantSlotMessageContent
+              content={message.content}
+              documents={documents}
+              isAnimating={isStreaming}
+              onOpenDocument={onOpenDocument}
+            />
+          )
         ) : (
           <div className="text-muted-foreground">...</div>
         )}

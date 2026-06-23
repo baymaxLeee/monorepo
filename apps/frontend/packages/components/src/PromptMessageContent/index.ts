@@ -1,2 +1,8 @@
-export { PromptMessageContent } from "./PromptMessageContent";
-export type { PromptMessageContentProps } from "./PromptMessageContent";
+export {
+  extractSlotIdsFromContent,
+  PromptMessageContent,
+} from "./PromptMessageContent";
+export type {
+  PromptMessageContentProps,
+  PromptMessageDocument,
+} from "./PromptMessageContent";
