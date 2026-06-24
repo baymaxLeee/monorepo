@@ -1,12 +1,13 @@
 set positional-arguments
 set shell := ["bash", "-cu"]
 
-# Service registry (Python services and their fixed dev ports)
-PY_SERVICES := "admin chat telemetry"
-GO_SERVICES := "gateway iam storage"
+# Service registry (Python / Node / Go services and their fixed dev ports)
+PY_SERVICES := "admin knowledge telemetry"
+NODE_SERVICES := "chat"
+GO_SERVICES := "gateway iam"
 
 # Fixed port allocation so multiple agents/dev servers don't collide
-PORTS := '{"admin":8001,"iam":8002,"scene":8003,"intention":8004,"permission":8005,"audit":8006,"notification":8007,"telemetry":8008,"chat":8009,"storage":8010,"gateway":8000}'
+PORTS := '{"admin":8001,"iam":8002,"scene":8003,"intention":8004,"permission":8005,"audit":8006,"notification":8007,"telemetry":8008,"chat":8009,"knowledge":8010,"gateway":8000}'
 
 default:
     @just --list
@@ -18,6 +19,9 @@ dev service:
         if [ -f "services/{{ service }}/go.mod" ]; then \
             echo "→ Go service {{ service }} on :$PORT" && \
             cd services/{{ service }} && PORT=$PORT go run ./cmd/server; \
+        elif [ -f "services/{{ service }}/package.json" ]; then \
+            echo "→ Node service {{ service }} on :$PORT" && \
+            cd services/{{ service }} && PORT=$PORT pnpm dev; \
         else \
             echo "→ Python service {{ service }} on :$PORT" && \
             cd services/{{ service }} && uv run uvicorn {{ service }}.main:app --reload --port $PORT; \
@@ -41,6 +45,7 @@ build target="":
         just build-go && just build-images; \
     elif [ -d "services/{{ target }}" ]; then \
         if [ -f "services/{{ target }}/go.mod" ]; then just build-go-svc {{ target }}; \
+        elif [ -f "services/{{ target }}/package.json" ]; then just build-node-svc {{ target }}; \
         else just build-py-svc {{ target }}; fi; \
     else echo "✗ Unknown service: {{ target }}"; exit 1; fi
 
@@ -63,6 +68,12 @@ build-py-svc service:
     just gen-openapi {{ service }}
     @echo "✓ {{ service }} ready (run as image via: just build-image {{ service }})"
 
+# "Build" a Node service = typecheck + OpenAPI export.
+build-node-svc service:
+    @echo "→ Pre-flighting Node service: {{ service }}"
+    cd services/{{ service }} && pnpm install && pnpm run build && pnpm run gen-openapi
+    @echo "✓ {{ service }} ready (run as image via: just build-image {{ service }})"
+
 # Build a single service's docker image. Usage:
 #   just build-image bot
 # just build-image gateway my-registry.io v1.2.3
@@ -72,6 +83,8 @@ build-image service registry="local" tag="latest":
     @echo "→ docker build {{ registry }}/{{ service }}:{{ tag }}"
     @if echo "{{ PY_SERVICES }}" | tr ' ' '\n' | grep -qx "{{ service }}"; then \
         docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile .; \
+    elif echo "{{ NODE_SERVICES }}" | tr ' ' '\n' | grep -qx "{{ service }}"; then \
+        docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile services/{{ service }}; \
     else \
         docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile services/{{ service }}; \
     fi
@@ -79,7 +92,7 @@ build-image service registry="local" tag="latest":
 
 # Build images for ALL services (Python + Go).
 build-images registry="local" tag="latest":
-    @for s in {{ PY_SERVICES }} {{ GO_SERVICES }}; do \
+    @for s in {{ PY_SERVICES }} {{ NODE_SERVICES }} {{ GO_SERVICES }}; do \
         just build-image $s {{ registry }} {{ tag }}; \
     done
     @echo "✓ All backend images built with tag {{ registry }}/<svc>:{{ tag }}"
@@ -92,10 +105,15 @@ fmt:
 
 lint scope="":
     @if [ -z "{{ scope }}" ]; then \
-        uv run ruff check . && uv run mypy services libs; \
+        uv run ruff check . && uv run mypy services libs && just lint-node; \
+    elif [ -f "services/{{ scope }}/package.json" ]; then \
+        cd services/{{ scope }} && pnpm run lint; \
     else \
         cd services/{{ scope }} && uv run ruff check . && uv run mypy .; \
     fi
+
+lint-node:
+    @for s in {{ NODE_SERVICES }}; do echo "=== $s ===" && (cd services/$s && pnpm run lint); done
 
 lint-go:
     @for s in {{ GO_SERVICES }}; do echo "=== $s ===" && (cd services/$s && go vet ./...); done
@@ -104,14 +122,18 @@ lint-go:
 gen-openapi service:
     @echo "→ Exporting OpenAPI for {{ service }}..."
     @out="{{ service }}-server"; \
-    cd services/{{ service }} && \
-        uv run python -m {{ service }}.gen_openapi \
-        > ../../../../schemas/openapi/$out.json
+    if [ -f "services/{{ service }}/package.json" ]; then \
+        cd services/{{ service }} && pnpm exec tsx src/gen-openapi.ts > ../../../../schemas/openapi/$out.json; \
+    else \
+        cd services/{{ service }} && \
+            uv run python -m {{ service }}.gen_openapi \
+            > ../../../../schemas/openapi/$out.json; \
+    fi
     @out="{{ service }}-server"; \
     echo "✓ schemas/openapi/$out.json"
 
 gen-openapi-all:
-    @for s in {{ PY_SERVICES }}; do just gen-openapi $s; done
+    @for s in {{ PY_SERVICES }} {{ NODE_SERVICES }}; do just gen-openapi $s; done
 
 gen-proto:
     cd ../../schemas && buf generate

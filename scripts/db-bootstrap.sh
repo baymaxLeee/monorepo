@@ -68,7 +68,9 @@ asyncio.run(main())
 PY
 echo "✓ admin demo data ready"
 
-if [ -f "$CHAT_DIR/.env" ]; then
+if [ -f "$CHAT_DIR/.env" ] && [ -f "$CHAT_DIR/package.json" ]; then
+  echo "→ chat is Node; skipping Python demo seed (create conversations via UI)"
+elif [ -f "$CHAT_DIR/.env" ]; then
   echo "→ Seeding chat demo data..."
   cd "$CHAT_DIR"
   uv run python - <<'PY'

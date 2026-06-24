@@ -1,0 +1,64 @@
+"""FastAPI dependencies."""
+
+from collections.abc import AsyncGenerator
+from dataclasses import dataclass
+from typing import Annotated
+
+from fastapi import Depends, Header
+from kernel.errors import UnauthorizedError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from knowledge.db import get_db_session
+
+ADMIN_USER_ID = "demo-super-admin"
+ADMIN_EMAIL = "admin@example.com"
+
+
+@dataclass(frozen=True)
+class AuthContext:
+    user_id: str
+    username: str
+    email: str
+
+    @property
+    def is_admin(self) -> bool:
+        return self.user_id == ADMIN_USER_ID or self.email == ADMIN_EMAIL
+
+
+async def db_session() -> AsyncGenerator[AsyncSession]:
+    async for session in get_db_session():
+        yield session
+
+
+def auth_user_id(
+    x_auth_user_id: Annotated[str | None, Header(alias="X-Auth-User-ID")] = None,
+) -> str:
+    if not x_auth_user_id:
+        raise UnauthorizedError("X-Auth-User-ID header is required")
+    return x_auth_user_id
+
+
+def auth_context(
+    user_id: Annotated[str, Depends(auth_user_id)],
+    x_auth_name: Annotated[str | None, Header(alias="X-Auth-Name")] = None,
+    x_auth_email: Annotated[str | None, Header(alias="X-Auth-Email")] = None,
+) -> AuthContext:
+    return AuthContext(
+        user_id=user_id,
+        username=x_auth_name or user_id,
+        email=x_auth_email or "",
+    )
+
+
+def require_internal_token(
+    x_internal_token: Annotated[str | None, Header(alias="X-Internal-Token")] = None,
+) -> None:
+    from knowledge.config import get_settings
+
+    if x_internal_token != get_settings().internal_api_token:
+        raise UnauthorizedError("invalid internal token")
+
+
+DbSession = Annotated[AsyncSession, Depends(db_session)]
+CurrentUser = Annotated[AuthContext, Depends(auth_context)]
+InternalAuth = Annotated[None, Depends(require_internal_token)]

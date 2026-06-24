@@ -1,0 +1,242 @@
+import { randomBytes } from "node:crypto";
+
+import { and, asc, desc, eq } from "drizzle-orm";
+
+import type { AuthContext } from "../middleware/auth.js";
+import { getDb } from "../db/index.js";
+import { conversations, messages } from "../db/schema.js";
+import { listDocuments, type KnowledgeDocument } from "../clients/knowledge.js";
+import { NotFoundError } from "../lib/errors.js";
+
+export interface Conversation {
+  id: string;
+  user_id: string;
+  title: string;
+  model: string;
+  provider_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  status: "ok" | "streaming" | "failed";
+  created_at: string;
+}
+
+function mapKnowledgeDocument(doc: KnowledgeDocument, conversationId: string) {
+  return {
+    id: doc.id,
+    conversation_id: doc.conversation_id ?? conversationId,
+    kind: doc.kind,
+    title: doc.title,
+    filename: doc.filename,
+    mime_type: doc.mime_type,
+    source_size: doc.source_size,
+    source_mime_type: doc.source_mime_type,
+    source_object_bucket: doc.object_bucket ?? null,
+    source_object_key: doc.object_key ?? null,
+    source_sha256: doc.object_sha256 ?? null,
+    source_filename: doc.source_filename ?? null,
+    ingest_status: doc.ingest_status,
+    ingest_progress: doc.ingest_progress,
+    ingest_error: doc.ingest_error ?? null,
+    created_at: doc.created_at,
+    updated_at: doc.updated_at,
+  };
+}
+
+export interface ConversationDocument {
+  id: string;
+  conversation_id: string;
+  kind: "source" | "artifact";
+  title: string;
+  filename: string;
+  mime_type: string;
+  source_size: number;
+  source_mime_type: string | null;
+  source_object_bucket: string | null;
+  source_object_key: string | null;
+  source_sha256: string | null;
+  source_filename: string | null;
+  ingest_status: string;
+  ingest_progress: number;
+  ingest_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationDetail extends Conversation {
+  messages: Message[];
+  documents: ConversationDocument[];
+}
+
+function iso(d: Date): string {
+  return d.toISOString().replace("+00:00", "Z");
+}
+
+function toConversation(row: typeof conversations.$inferSelect): Conversation {
+  return {
+    id: row.id,
+    user_id: row.userId,
+    title: row.title,
+    model: row.model,
+    provider_id: row.providerId,
+    created_at: iso(row.createdAt),
+    updated_at: iso(row.updatedAt),
+  };
+}
+
+function toMessage(row: typeof messages.$inferSelect): Message {
+  return {
+    id: row.id,
+    conversation_id: row.conversationId,
+    role: row.role as Message["role"],
+    content: row.content,
+    status: row.status as Message["status"],
+    created_at: iso(row.createdAt),
+  };
+}
+
+export async function listConversations(auth: AuthContext): Promise<Conversation[]> {
+  const db = getDb();
+  const rows = auth.isAdmin
+    ? await db.select().from(conversations).orderBy(desc(conversations.updatedAt))
+    : await db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.userId, auth.userId))
+        .orderBy(desc(conversations.updatedAt));
+  return rows.map(toConversation);
+}
+
+export async function getConversation(
+  auth: AuthContext,
+  conversationId: string,
+): Promise<ConversationDetail> {
+  const row = await getConversationRow(auth, conversationId);
+  const db = getDb();
+  const messageRows = await db
+    .select()
+    .from(messages)
+    .where(eq(messages.conversationId, conversationId))
+    .orderBy(asc(messages.createdAt), asc(messages.id));
+  let documentRows: KnowledgeDocument[] = [];
+  try {
+    documentRows = await listDocuments(auth.userId, conversationId);
+  } catch {
+    documentRows = [];
+  }
+  return {
+    ...toConversation(row),
+    messages: messageRows.map(toMessage),
+    documents: documentRows.map((d) => mapKnowledgeDocument(d, conversationId)),
+  };
+}
+
+export async function createConversation(
+  auth: AuthContext,
+  input: { title?: string; provider_id?: string | null },
+): Promise<Conversation> {
+  const db = getDb();
+  const now = new Date();
+  const id = randomBytes(6).toString("hex");
+  await db.insert(conversations).values({
+    id,
+    userId: auth.userId,
+    title: input.title ?? "新对话",
+    model: "",
+    providerId: input.provider_id ?? "",
+    createdAt: now,
+    updatedAt: now,
+  });
+  const [row] = await db.select().from(conversations).where(eq(conversations.id, id));
+  return toConversation(row!);
+}
+
+export async function updateConversation(
+  auth: AuthContext,
+  conversationId: string,
+  input: { title?: string },
+): Promise<Conversation> {
+  const row = await getConversationRow(auth, conversationId);
+  const db = getDb();
+  const values: Partial<typeof conversations.$inferInsert> = { updatedAt: new Date() };
+  if (input.title !== undefined) values.title = input.title;
+  await db.update(conversations).set(values).where(eq(conversations.id, row.id));
+  const [updated] = await db.select().from(conversations).where(eq(conversations.id, row.id));
+  return toConversation(updated!);
+}
+
+export async function deleteConversation(auth: AuthContext, conversationId: string): Promise<void> {
+  const row = await getConversationRow(auth, conversationId);
+  const db = getDb();
+  await db.delete(conversations).where(eq(conversations.id, row.id));
+}
+
+export async function touchConversation(conversationId: string): Promise<void> {
+  const db = getDb();
+  await db
+    .update(conversations)
+    .set({ updatedAt: new Date() })
+    .where(eq(conversations.id, conversationId));
+}
+
+export async function getConversationRow(
+  auth: AuthContext,
+  conversationId: string,
+): Promise<typeof conversations.$inferSelect> {
+  const db = getDb();
+  const condition = auth.isAdmin
+    ? eq(conversations.id, conversationId)
+    : and(eq(conversations.id, conversationId), eq(conversations.userId, auth.userId));
+  const [row] = await db.select().from(conversations).where(condition);
+  if (!row) throw new NotFoundError(`conversation ${conversationId} not found`);
+  return row;
+}
+
+export async function listMessages(conversationId: string): Promise<Message[]> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(messages)
+    .where(eq(messages.conversationId, conversationId))
+    .orderBy(asc(messages.createdAt), asc(messages.id));
+  return rows.map(toMessage);
+}
+
+export async function createMessage(input: {
+  conversationId: string;
+  role: string;
+  content: string;
+  status?: string;
+}): Promise<Message> {
+  const db = getDb();
+  const id = randomBytes(8).toString("hex");
+  const now = new Date();
+  await db.insert(messages).values({
+    id,
+    conversationId: input.conversationId,
+    role: input.role,
+    content: input.content,
+    status: input.status ?? "ok",
+    createdAt: now,
+  });
+  const [row] = await db.select().from(messages).where(eq(messages.id, id));
+  return toMessage(row!);
+}
+
+export async function updateConversationProvider(
+  conversationId: string,
+  providerId: string,
+  model: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(conversations)
+    .set({ providerId, model, updatedAt: new Date() })
+    .where(eq(conversations.id, conversationId));
+}

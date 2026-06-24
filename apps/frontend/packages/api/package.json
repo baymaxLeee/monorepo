@@ -16,6 +16,6 @@
     "observability": "workspace:*"
   },
   "devDependencies": {
-    "orval": "^8.8.0"
+    "orval": "8.13.0"
   }
 }

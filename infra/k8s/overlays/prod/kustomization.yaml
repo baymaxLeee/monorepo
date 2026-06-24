@@ -8,7 +8,7 @@ resources:
   - ../../base/iam
   - ../../base/admin
   - ../../base/chat
-  - ../../base/storage
+  - ../../base/knowledge
   - ../../base/telemetry
   - ../../base/web
   - ../../base/ingress.yaml
@@ -35,8 +35,8 @@ images:
   - name: ghcr.io/example/chat
     newName: registry.invalid/monorepo/chat
     newTag: placeholder
-  - name: ghcr.io/example/storage
-    newName: registry.invalid/monorepo/storage
+  - name: ghcr.io/example/knowledge
+    newName: registry.invalid/monorepo/knowledge
     newTag: placeholder
   - name: ghcr.io/example/telemetry
     newName: registry.invalid/monorepo/telemetry

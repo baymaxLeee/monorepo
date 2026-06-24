@@ -35,7 +35,7 @@ type Config struct {
 	AdminServiceURL          string
 	ChatServiceURL           string
 	IAMServiceURL            string
-	StorageServiceURL        string
+	KnowledgeServiceURL   string
 	TelemetryServiceURL      string
 	AllowedOrigins           []string
 	DatabaseURL              string
@@ -65,7 +65,7 @@ func (c Config) IsSingleVPS() bool { return c.Environment == EnvSingleVPS }
 // Load reads .env (if present) and environment variables, validating
 // production-required fields.
 func Load() (Config, error) {
-	_ = godotenv.Load()
+	_ = godotenv.Overload()
 
 	mysqlHost := envOr("MYSQL_HOST", "localhost")
 	mysqlPort := envOr("MYSQL_PORT", "3306")
@@ -83,7 +83,7 @@ func Load() (Config, error) {
 		AdminServiceURL:     envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
 		ChatServiceURL:      envOr("CHAT_SERVICE_URL", "http://localhost:8009"),
 		IAMServiceURL:       envOr("IAM_SERVICE_URL", "http://localhost:8002"),
-		StorageServiceURL:   envOr("STORAGE_SERVICE_URL", "http://localhost:8010"),
+		KnowledgeServiceURL: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
 		TelemetryServiceURL: envOr("TELEMETRY_SERVICE_URL", "http://localhost:8008"),
 		AllowedOrigins:      csvOr("ALLOWED_FRONTEND_ORIGINS", []string{"http://localhost:3000", "http://localhost:3001"}),
 		DatabaseURL: fmt.Sprintf(

@@ -65,10 +65,10 @@ func main() {
 		"chat-server",
 		"/api/chat-server",
 	))
-	r.Mount("/api/storage-server", handlers.NewServiceProxy(
-		cfg.StorageServiceURL,
-		"storage-server",
-		"/api/storage-server",
+	r.Mount("/api/knowledge-server", handlers.NewServiceProxy(
+		cfg.KnowledgeServiceURL,
+		"knowledge-server",
+		"/api/knowledge-server",
 	))
 	r.Mount("/api/telemetry-server", handlers.NewServiceProxy(
 		cfg.TelemetryServiceURL,
@@ -92,7 +92,7 @@ func main() {
 			"admin_upstream", cfg.AdminServiceURL,
 			"chat_upstream", cfg.ChatServiceURL,
 			"iam_upstream", cfg.IAMServiceURL,
-			"storage_upstream", cfg.StorageServiceURL,
+			"knowledge_upstream", cfg.KnowledgeServiceURL,
 			"telemetry_upstream", cfg.TelemetryServiceURL,
 			"mysql", "connected",
 			"redis", "connected",

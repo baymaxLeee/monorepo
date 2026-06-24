@@ -39,7 +39,7 @@ fi
 echo ""
 echo "── 5. Backend Go services ──"
 if command -v go >/dev/null 2>&1; then
-  for svc in gateway iam storage; do
+  for svc in gateway iam; do
     echo "  → $svc"
     (cd "apps/backend/services/$svc" && go mod download && go mod tidy)
   done
@@ -49,13 +49,27 @@ else
 fi
 
 echo ""
+echo "── 5b. Backend Node services ──"
+if command -v pnpm >/dev/null 2>&1; then
+  for svc in chat; do
+    if [ -f "apps/backend/services/$svc/package.json" ]; then
+      echo "  → $svc"
+      (cd "apps/backend/services/$svc" && CI=true pnpm install)
+    fi
+  done
+else
+  echo "  ✗ pnpm not found" >&2
+  exit 1
+fi
+
+echo ""
 echo "── 6. Local .env files (from .env.example if missing) ──"
 for pair in \
   "apps/backend/services/admin/.env.example:apps/backend/services/admin/.env" \
   "apps/backend/services/chat/.env.example:apps/backend/services/chat/.env" \
+  "apps/backend/services/knowledge/.env.example:apps/backend/services/knowledge/.env" \
   "apps/backend/services/gateway/.env.example:apps/backend/services/gateway/.env" \
-  "apps/backend/services/iam/.env.example:apps/backend/services/iam/.env" \
-  "apps/backend/services/storage/.env.example:apps/backend/services/storage/.env"; do
+  "apps/backend/services/iam/.env.example:apps/backend/services/iam/.env"; do
   src="${pair%%:*}"
   dst="${pair##*:}"
   if [ -f "$src" ] && [ ! -f "$dst" ]; then

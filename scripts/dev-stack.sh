@@ -10,17 +10,28 @@ DEV_PORTS=(8000 8001 8002 8008 8009 8010 3000 3001 3005)
 PIDS=()
 
 cleanup() {
+    # Run once: drop the EXIT trap (INT/TERM would otherwise re-trigger it) and
+    # ignore further INT/TERM so cleanup cannot be interrupted or recurse.
+    trap - EXIT
+    trap '' INT TERM
+    # 1) Graceful TERM to direct children (the backgrounded subshells).
     pkill -TERM -P $$ 2>/dev/null || true
+    # 2) Kill THIS repo's uvicorn --reload supervisors FIRST. They are
+    #    grandchildren that `pkill -P $$` cannot reach, and — critically — a
+    #    live reloader respawns its worker the instant we free the port, so it
+    #    must die before the port backstop runs. Scope to the repo venv so we
+    #    never touch a user's unrelated uvicorn processes.
+    pkill -KILL -f "$ROOT/apps/backend/.venv/bin/uvicorn" 2>/dev/null || true
+    sleep 1
+    # 3) Port backstop: KILL anything still listening on our dev ports. This
+    #    sweeps orphaned reload workers, `go run` binaries, and node dev servers
+    #    that are also grandchildren beyond pkill -P's reach.
     for port in "${DEV_PORTS[@]}"; do
-        pid=$(lsof -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
-        [ -n "$pid" ] && kill -TERM $pid 2>/dev/null || true
+        pids=$(lsof -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
+        [ -n "$pids" ] && kill -KILL $pids 2>/dev/null || true
     done
-    sleep 2
+    # 4) Final KILL for any remaining direct children (sed pipes, etc).
     pkill -KILL -P $$ 2>/dev/null || true
-    for port in "${DEV_PORTS[@]}"; do
-        pid=$(lsof -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
-        [ -n "$pid" ] && kill -KILL $pid 2>/dev/null || true
-    done
 }
 trap cleanup EXIT INT TERM
 
@@ -55,7 +66,12 @@ monitor_stack() {
 track_last_pid
 (
   cd apps/backend/services/chat
-  uv run uvicorn chat.main:app --reload --port 8009 2>&1 | sed 's/^/[svc-chat]  /'
+  PORT=8009 pnpm dev 2>&1 | sed 's/^/[svc-chat]  /'
+) &
+track_last_pid
+(
+  cd apps/backend/services/knowledge
+  uv run uvicorn knowledge.main:app --reload --port 8010 2>&1 | sed 's/^/[knowledge] /'
 ) &
 track_last_pid
 (
@@ -65,17 +81,12 @@ track_last_pid
 track_last_pid
 (
   cd apps/backend/services/iam
-  IAM_MYSQL_DATABASE=iam go run ./cmd/server 2>&1 | sed 's/^/[iam]  /'
-) &
-track_last_pid
-(
-  cd apps/backend/services/storage
-  go run ./cmd/server 2>&1 | sed 's/^/[storage]  /'
+  PORT=8002 IAM_MYSQL_DATABASE=iam go run ./cmd/server 2>&1 | sed 's/^/[iam]  /'
 ) &
 track_last_pid
 (
   cd apps/backend/services/gateway
-  go run ./cmd/server 2>&1 | sed 's/^/[gateway]   /'
+  PORT=8000 go run ./cmd/server 2>&1 | sed 's/^/[gateway]   /'
 ) &
 track_last_pid
 (

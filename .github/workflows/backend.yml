@@ -34,12 +34,26 @@ jobs:
             fi
           done
 
-  go:
+  node:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/backend/services/chat
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - run: pnpm install
+      - run: pnpm run lint
+      - run: pnpm run build
+
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        service: [gateway, iam, storage]
+        service: [gateway, iam]
     defaults:
       run:
         working-directory: apps/backend/services/${{ matrix.service }}

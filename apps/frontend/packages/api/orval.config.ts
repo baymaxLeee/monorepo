@@ -31,6 +31,20 @@ export default defineConfig({
       },
     },
   },
+  "knowledge-server": {
+    input: `${schemasRoot}/knowledge-server.json`,
+    output: {
+      mode: "single",
+      target: "generated/knowledge-server/index.ts",
+      client: "axios",
+      override: {
+        mutator: {
+          path: "./src/orval-mutator.ts",
+          name: "apiMutator",
+        },
+      },
+    },
+  },
   "telemetry-server": {
     input: `${schemasRoot}/telemetry-server.json`,
     output: {

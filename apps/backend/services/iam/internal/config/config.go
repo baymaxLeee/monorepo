@@ -58,7 +58,7 @@ func (c Config) IsProduction() bool { return c.Environment == EnvProduction }
 func (c Config) IsSingleVPS() bool { return c.Environment == EnvSingleVPS }
 
 func Load() (Config, error) {
-	_ = godotenv.Load()
+	_ = godotenv.Overload()
 
 	mysqlHost := envOr("MYSQL_HOST", "localhost")
 	mysqlPort := envOr("MYSQL_PORT", "3306")

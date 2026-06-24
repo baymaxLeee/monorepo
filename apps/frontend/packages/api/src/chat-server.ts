@@ -425,6 +425,7 @@ export async function resumeConversationAgent(
   await openEventStream<AgentRunStreamEvent>(url, { method: "GET" }, options);
 }
 
+/** @deprecated Upload via `streamKnowledgeIngest` from knowledge-server instead. */
 export async function streamConversationDocumentIngest(
   conversationId: string,
   files: Array<{ clientRef: string; file: File }>,

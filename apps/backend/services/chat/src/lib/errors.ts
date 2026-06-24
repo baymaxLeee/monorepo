@@ -1,0 +1,58 @@
+export class AppError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: number,
+    readonly code: string,
+    readonly details: Record<string, unknown> = {},
+  ) {
+    super(message);
+    this.name = "AppError";
+  }
+}
+
+export class NotFoundError extends AppError {
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super(message, 404, "not_found", details);
+  }
+}
+
+export class UnauthorizedError extends AppError {
+  constructor(message: string) {
+    super(message, 401, "unauthorized");
+  }
+}
+
+export class RequestError extends AppError {
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super(message, 400, "bad_request", details);
+  }
+}
+
+export class AgentRuntimeError extends AppError {
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super(message, 502, "agent_runtime_failed", details);
+  }
+}
+
+export class ProviderNotConfiguredError extends AppError {
+  constructor(message: string) {
+    super(message, 412, "provider_not_configured");
+  }
+}
+
+export class AdminUnavailableError extends AppError {
+  constructor(message: string) {
+    super(message, 502, "admin_unavailable");
+  }
+}
+
+export function problemJson(err: unknown): { body: object; status: number } {
+  if (err instanceof AppError) {
+    return {
+      status: err.statusCode,
+      body: { code: err.code, message: err.message, details: err.details },
+    };
+  }
+  const message = err instanceof Error ? err.message : String(err);
+  return { status: 500, body: { code: "internal_error", message } };
+}

@@ -5,15 +5,16 @@ import {
   type ConversationDocumentDetail,
   type DocumentIngestStreamEvent,
   fetchConversation,
-  fetchConversationDocument,
-  fetchConversationDocumentSource,
+  fetchKnowledgeDocument,
+  fetchKnowledgeDocumentSource,
   type Message,
   type ModelProvider,
   type ReasoningEffort,
   resumeConversationAgent,
   streamConversationAgent,
-  streamConversationDocumentIngest,
-  updateConversationDocument,
+  streamKnowledgeIngest,
+  toConversationDocument,
+  updateKnowledgeDocument,
 } from "api";
 import {
   Alert,
@@ -424,7 +425,7 @@ export function ChatRoomPage() {
 
     setSavingDocument(true);
     const timer = window.setTimeout(() => {
-      void updateConversationDocument(id, selectedDocument.id, {
+      void updateKnowledgeDocument(id, selectedDocument.id, {
         content_md: documentDraft,
       })
         .then((next) => {
@@ -573,11 +574,14 @@ export function ChatRoomPage() {
           },
         });
         setDetail((prev) =>
-          prev
+          prev && id
             ? {
                 ...prev,
                 documents: mergeDocumentsById(prev.documents, [
-                  event.document,
+                  toConversationDocument(
+                    event.document as unknown as Record<string, unknown>,
+                    id,
+                  ),
                 ]),
               }
             : prev,
@@ -596,7 +600,7 @@ export function ChatRoomPage() {
       default:
         break;
     }
-  }, []);
+  }, [id]);
 
   const flushIngestQueue = useCallback(async () => {
     if (!id || ingestQueueRef.current.length === 0) return;
@@ -609,7 +613,7 @@ export function ChatRoomPage() {
     ingestAbortRef.current = controller;
     setIngestInFlight(true);
     try {
-      await streamConversationDocumentIngest(
+      await streamKnowledgeIngest(
         id,
         batch.map((item) => ({
           clientRef: item.clientRef,
@@ -656,13 +660,13 @@ export function ChatRoomPage() {
     setMediaPreviewUrl(null);
     setHtmlPreviewUrl(null);
     try {
-      const next = await fetchConversationDocument(id, documentId);
+      const next = await fetchKnowledgeDocument(id, documentId);
       const mode = resolveDocumentPreviewMode(next);
       setSelectedDocument(next);
       setDocumentDraft(next.content_md);
       setDocumentPreviewMode(mode);
       if (mode === "image" || mode === "video" || mode === "audio") {
-        const blob = await fetchConversationDocumentSource(id, documentId);
+        const blob = await fetchKnowledgeDocumentSource(id, documentId);
         setMediaPreviewUrl(URL.createObjectURL(blob));
       }
     } catch (e) {
