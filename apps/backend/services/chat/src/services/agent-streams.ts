@@ -60,7 +60,8 @@ export class AgentStreamService {
     if (live) return { runId: live, started: false };
 
     const runId = crypto.randomUUID().replace(/-/g, "");
-    await r.del(streamKey(conversationId, runId));
+    const stream = streamKey(conversationId, runId);
+    await r.del(stream);
     await r.hset(active, {
       run_id: runId,
       status: "running",
@@ -68,6 +69,7 @@ export class AgentStreamService {
       last_event_at_ms: "",
     });
     await r.expire(active, this.settings.agentEventStreamTtlSeconds);
+    await r.expire(stream, this.settings.agentEventStreamTtlSeconds);
     return { runId, started: true };
   }
 
@@ -76,13 +78,28 @@ export class AgentStreamService {
     return this.liveRunId(conversationId);
   }
 
+  /** Fast path for high-frequency text deltas (resume replay only). */
+  async appendEventDelta(
+    conversationId: string,
+    runId: string,
+    event: Record<string, unknown>,
+  ): Promise<void> {
+    const r = getRedis();
+    await r.xadd(streamKey(conversationId, runId), "*", "event", JSON.stringify(event));
+  }
+
   async appendEvent(conversationId: string, runId: string, event: Record<string, unknown>): Promise<void> {
     const r = getRedis();
     const stream = streamKey(conversationId, runId);
-    await r.xadd(stream, "*", "event", JSON.stringify(event));
-    await r.hset(activeKey(conversationId), { last_event_at_ms: String(nowMs()) });
-    await r.expire(stream, this.settings.agentEventStreamTtlSeconds);
-    await r.expire(activeKey(conversationId), this.settings.agentEventStreamTtlSeconds);
+    const active = activeKey(conversationId);
+    const ts = String(nowMs());
+    await r
+      .pipeline()
+      .xadd(stream, "*", "event", JSON.stringify(event))
+      .hset(active, { last_event_at_ms: ts })
+      .expire(stream, this.settings.agentEventStreamTtlSeconds)
+      .expire(active, this.settings.agentEventStreamTtlSeconds)
+      .exec();
   }
 
   async finishRun(conversationId: string, runId: string): Promise<void> {

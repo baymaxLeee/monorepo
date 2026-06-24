@@ -43,6 +43,47 @@ function sseStream(events: AsyncGenerator<Record<string, unknown>>): Response {
   });
 }
 
+function isTextDelta(event: Record<string, unknown>): boolean {
+  return event.type === "message" && event.delta !== undefined;
+}
+
+async function* replayToRedis(
+  streamService: AgentStreamService,
+  conversationId: string,
+  runId: string,
+  events: AsyncGenerator<Record<string, unknown>>,
+): AsyncGenerator<Record<string, unknown>> {
+  let replayTail = Promise.resolve();
+
+  try {
+    for await (const event of events) {
+      yield event;
+      if (isTextDelta(event)) {
+        replayTail = replayTail.then(() =>
+          streamService.appendEventDelta(conversationId, runId, event),
+        );
+      } else {
+        await replayTail;
+        replayTail = Promise.resolve();
+        await streamService.appendEvent(conversationId, runId, event);
+      }
+    }
+    await replayTail;
+  } catch (err) {
+    const failEvent = {
+      type: "message",
+      role: "assistant",
+      status: "failed",
+      text: String(err),
+    };
+    yield failEvent;
+    await replayTail;
+    await streamService.appendEvent(conversationId, runId, failEvent);
+  } finally {
+    await streamService.finishRun(conversationId, runId);
+  }
+}
+
 agentsRoutes.post("/:conversationId/agents/run/stream", zValidator("json", runSchema), async (c) => {
   const auth = getAuth(c);
   const conversationId = c.req.param("conversationId");
@@ -50,44 +91,35 @@ agentsRoutes.post("/:conversationId/agents/run/stream", zValidator("json", runSc
   const streamService = new AgentStreamService(auth);
   const run = await streamService.startRun(conversationId);
 
-  if (run.started) {
-    void (async () => {
-      try {
-        const provider = await getProvider(auth.userId, payload.provider_id ?? null);
-        const documentIds = [...(payload.document_ids ?? [])];
-        for (const id of extractSlotIds(payload.prompt)) {
-          if (!documentIds.includes(id)) documentIds.push(id);
-        }
-        for await (const event of streamAgentRun(auth, conversationId, provider, {
+  async function* events(): AsyncGenerator<Record<string, unknown>> {
+    if (run.started) {
+      const provider = await getProvider(auth.userId, payload.provider_id ?? null);
+      const documentIds = [...(payload.document_ids ?? [])];
+      for (const id of extractSlotIds(payload.prompt)) {
+        if (!documentIds.includes(id)) documentIds.push(id);
+      }
+      yield* replayToRedis(
+        streamService,
+        conversationId,
+        run.runId,
+        streamAgentRun(auth, conversationId, provider, {
           prompt: payload.prompt,
           providerId: payload.provider_id,
           multimodalProviderId: payload.multimodal_provider_id,
           documentIds,
           thinking: payload.thinking,
           reasoningEffort: payload.reasoning_effort,
-        })) {
-          await streamService.appendEvent(conversationId, run.runId, event);
-        }
-      } catch (err) {
-        await streamService.appendEvent(conversationId, run.runId, {
-          type: "message",
-          role: "assistant",
-          status: "failed",
-          text: String(err),
-        });
-      } finally {
-        await streamService.finishRun(conversationId, run.runId);
-      }
-    })();
-  }
+        }),
+      );
+      return;
+    }
 
-  const events = (async function* () {
-    const svc = new AgentStreamService(auth);
-    for await (const event of svc.streamEvents(conversationId, run.runId)) {
+    for await (const event of streamService.streamEvents(conversationId, run.runId)) {
       yield event;
     }
-  })();
-  return sseStream(events);
+  }
+
+  return sseStream(events());
 });
 
 agentsRoutes.get("/:conversationId/agents/run/stream", async (c) => {

@@ -65,7 +65,7 @@ export function getSettings(): Settings {
     agentArtifactMaxChars: envInt("AGENT_ARTIFACT_MAX_CHARS", 20000),
     agentArtifactTotalMaxChars: envInt("AGENT_ARTIFACT_TOTAL_MAX_CHARS", 40000),
     agentEventStreamTtlSeconds: envInt("AGENT_EVENT_STREAM_TTL_SECONDS", 7200),
-    agentEventStreamBlockMs: envInt("AGENT_EVENT_STREAM_BLOCK_MS", 1000),
+    agentEventStreamBlockMs: envInt("AGENT_EVENT_STREAM_BLOCK_MS", 100),
     agentEventStreamStaleSeconds: envInt("AGENT_EVENT_STREAM_STALE_SECONDS", 15),
     providerCacheTtlSeconds: envInt("PROVIDER_CACHE_TTL_SECONDS", 300),
   };
