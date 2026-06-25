@@ -232,6 +232,7 @@ export function ChatRoomPage() {
   const ingestQueueRef = useRef<Array<{ clientRef: string; file: File }>>([]);
   const ingestTimerRef = useRef<number | null>(null);
   const ingestAbortRef = useRef<AbortController | null>(null);
+  const openDocumentRequestRef = useRef(0);
 
   const {
     sending,
@@ -396,13 +397,16 @@ export function ChatRoomPage() {
   );
 
   useEffect(() => {
-    if (!documentOpen || documentPreviewMode !== "html") {
+    if (
+      !documentOpen ||
+      documentPreviewMode !== "html" ||
+      loadingDocument ||
+      !selectedDocument
+    ) {
       setHtmlPreviewUrl(null);
       return;
     }
-    const html = selectedDocument
-      ? extractHtmlPreview(selectedDocument.content_md)
-      : null;
+    const html = extractHtmlPreview(selectedDocument.content_md);
     if (!html) {
       setHtmlPreviewUrl(null);
       return;
@@ -410,7 +414,13 @@ export function ChatRoomPage() {
     const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
     setHtmlPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
-  }, [documentOpen, documentPreviewMode, selectedDocument]);
+  }, [
+    documentOpen,
+    documentPreviewMode,
+    loadingDocument,
+    selectedDocument?.id,
+    selectedDocument?.content_md,
+  ]);
 
   useEffect(() => {
     if (!documentOpen || !mediaPreviewUrl) return;
@@ -655,25 +665,37 @@ export function ChatRoomPage() {
 
   async function openDocument(documentId: string) {
     if (!id) return;
+    const requestId = ++openDocumentRequestRef.current;
+
     setDocumentOpen(true);
     setLoadingDocument(true);
+    setSelectedDocument(null);
+    setDocumentDraft("");
+    setDocumentPreviewMode("markdown");
     setMediaPreviewUrl(null);
     setHtmlPreviewUrl(null);
+
     try {
       const next = await fetchKnowledgeDocument(id, documentId);
+      if (requestId !== openDocumentRequestRef.current) return;
+
       const mode = resolveDocumentPreviewMode(next);
       setSelectedDocument(next);
       setDocumentDraft(next.content_md);
       setDocumentPreviewMode(mode);
       if (mode === "image" || mode === "video" || mode === "audio") {
         const blob = await fetchKnowledgeDocumentSource(id, documentId);
+        if (requestId !== openDocumentRequestRef.current) return;
         setMediaPreviewUrl(URL.createObjectURL(blob));
       }
     } catch (e) {
+      if (requestId !== openDocumentRequestRef.current) return;
       toast.error(String(e));
       setDocumentOpen(false);
     } finally {
-      setLoadingDocument(false);
+      if (requestId === openDocumentRequestRef.current) {
+        setLoadingDocument(false);
+      }
     }
   }
 
@@ -1014,6 +1036,7 @@ export function ChatRoomPage() {
               documentPreviewMode === "image" && mediaPreviewUrl ? (
                 <div className="flex h-full min-h-0 items-center justify-center">
                   <img
+                    key={selectedDocument.id}
                     src={mediaPreviewUrl}
                     alt={selectedDocument.title}
                     className="max-h-full max-w-full rounded-md border object-contain"
@@ -1021,6 +1044,7 @@ export function ChatRoomPage() {
                 </div>
               ) : documentPreviewMode === "video" && mediaPreviewUrl ? (
                 <video
+                  key={selectedDocument.id}
                   src={mediaPreviewUrl}
                   controls
                   className="max-h-full w-full rounded-md border bg-black"
@@ -1028,6 +1052,7 @@ export function ChatRoomPage() {
               ) : documentPreviewMode === "audio" && mediaPreviewUrl ? (
                 <div className="flex h-full items-center justify-center">
                   <audio
+                    key={selectedDocument.id}
                     src={mediaPreviewUrl}
                     controls
                     className="w-full max-w-lg"
@@ -1042,6 +1067,7 @@ export function ChatRoomPage() {
                     </span>
                   </div>
                   <iframe
+                    key={selectedDocument.id}
                     title={selectedDocument.title}
                     src={htmlPreviewUrl}
                     sandbox="allow-scripts"
@@ -1051,6 +1077,7 @@ export function ChatRoomPage() {
               ) : (
                 <div className="h-full min-h-0 min-w-0 w-full overflow-hidden">
                   <MarkdownEditor
+                    key={selectedDocument.id}
                     value={documentDraft}
                     contentType="markdown"
                     editable={documentPreviewMode === "markdown"}
