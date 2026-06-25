@@ -62,22 +62,12 @@ function assistantText(message: AnyUIMessage, placeholders: Map<string, string>,
   return applyPlaceholderReplacements(textFromUiMessage(message), placeholders, created);
 }
 
-function hasPendingToolApproval(message: AnyUIMessage): boolean {
-  return message.parts.some((part) => {
-    return "state" in part && part.state === "approval-requested";
-  });
-}
-
 function hasPendingClientTool(message: AnyUIMessage): boolean {
   return message.parts.some((part) => {
     if (!part || typeof part !== "object" || !("state" in part)) return false;
     const state = part.state;
     return state === "input-available" || state === "input-streaming";
   });
-}
-
-function hasPendingHitl(message: AnyUIMessage): boolean {
-  return hasPendingToolApproval(message) || hasPendingClientTool(message);
 }
 
 function withProviderBody(
@@ -302,7 +292,6 @@ export async function createAgentRunResponse(
     stopWhen: stepCountIs(settings.agentMaxTurns),
     maxOutputTokens: settings.llmMaxOutputTokens,
     providerOptions,
-    experimental_toolApprovalSecret: settings.agentToolApprovalSecret,
     onStepFinish,
   } as any);
 
@@ -326,7 +315,7 @@ export async function createAgentRunResponse(
       return err instanceof Error ? err.message : String(err);
     },
     onFinish: async ({ responseMessage, isAborted }) => {
-      if (hasPendingHitl(responseMessage)) {
+      if (hasPendingClientTool(responseMessage)) {
         await finishAgentRun({
           runId,
           status: "awaiting_approval",

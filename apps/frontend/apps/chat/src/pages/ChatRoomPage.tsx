@@ -3,7 +3,6 @@ import {
   DefaultChatTransport,
   getToolName,
   isToolUIPart,
-  lastAssistantMessageIsCompleteWithApprovalResponses,
   lastAssistantMessageIsCompleteWithToolCalls,
   type UIMessage,
 } from "ai";
@@ -65,18 +64,19 @@ import {
 } from "components/prompt-input";
 import { PromptMessageContent } from "components/prompt-message-content";
 import {
-  CheckIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
   DownloadIcon,
   FileTextIcon,
   SettingsIcon,
-  XIcon,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   extractSlotIds,
   parseSlots,
   serializeSlots,
+  cn,
   tokenIdByArtifactId,
 } from "shared";
 import { Streamdown } from "streamdown";
@@ -97,9 +97,7 @@ function hasPendingHitl(messages: UIMessage[]): boolean {
     message.parts.some((part) => {
       if (!isToolUIPart(part)) return false;
       return (
-        part.state === "approval-requested" ||
-        part.state === "input-available" ||
-        part.state === "input-streaming"
+        part.state === "input-available" || part.state === "input-streaming"
       );
     }),
   );
@@ -113,6 +111,8 @@ function mergeUiMessagesFromDb(
   if (current.length > dbMessages.length) return current;
   return dbMessages.map(messageToUiMessage);
 }
+
+const SCROLL_NEAR_BOTTOM_PX = 96;
 
 const REASONING_OPTIONS: { value: ReasoningEffort; label: string }[] = [
   { value: "low", label: "低" },
@@ -279,6 +279,7 @@ export function ChatRoomPage() {
   const [selectedMultimodalProviderId, setSelectedMultimodalProviderId] =
     useState<string>(MULTIMODAL_PROVIDER_AUTO);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
   const promptInputRef = useRef<PromptInputRef | null>(null);
   const resumedConversationRef = useRef<string | null>(null);
   const ingestQueueRef = useRef<Array<{ clientRef: string; file: File }>>([]);
@@ -358,7 +359,6 @@ export function ChatRoomPage() {
     messages: uiMessages,
     setMessages: setUiMessages,
     sendMessage,
-    addToolApprovalResponse,
     addToolOutput,
     stop,
     resumeStream,
@@ -367,10 +367,7 @@ export function ChatRoomPage() {
     id: id ?? "chat",
     transport: chatTransport,
     resume: false,
-    experimental_throttle: 50,
-    sendAutomaticallyWhen: ({ messages }) =>
-      lastAssistantMessageIsCompleteWithApprovalResponses({ messages }) ||
-      lastAssistantMessageIsCompleteWithToolCalls({ messages }),
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onError: (err) => toast.error(err.message),
     onFinish: ({ messages }) => {
       if (!id) return;
@@ -527,16 +524,30 @@ export function ChatRoomPage() {
       });
   }, [agentBusy, id, loading, resumeStream, setUiMessages]);
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
-    });
+  const updateAutoScrollPreference = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom <= SCROLL_NEAR_BOTTOM_PX;
+  }, []);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    shouldAutoScrollRef.current = true;
+    el.scrollTo({ top: el.scrollHeight, behavior });
   }, []);
 
   useEffect(() => {
-    if (!scrollRef.current) return;
-    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    shouldAutoScrollRef.current = true;
+    scrollToBottom("auto");
+  }, [id, scrollToBottom]);
+
+  useEffect(() => {
+    if (!shouldAutoScrollRef.current) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
   }, [uiMessages]);
 
   const updatePrefs = useCallback((patch: Partial<ReasoningPrefs>) => {
@@ -756,25 +767,6 @@ export function ChatRoomPage() {
     void cancelConversationAgent(id).catch(() => undefined);
   }, [id, stop]);
 
-  const approveToolCall = useCallback(
-    async (approvalId: string, approved: boolean, reason?: string) => {
-      if (!id) return;
-      try {
-        await addToolApprovalResponse({
-          id: approvalId,
-          approved,
-          reason,
-          options: {
-            body: agentRequestBody(),
-          },
-        });
-      } catch (e) {
-        toast.error(String(e));
-      }
-    },
-    [addToolApprovalResponse, agentRequestBody, id],
-  );
-
   const answerClientTool = useCallback(
     async (toolName: string, toolCallId: string, output: unknown) => {
       if (!id) return;
@@ -811,12 +803,7 @@ export function ChatRoomPage() {
           body: agentRequestBody(displayContent),
         },
       ).catch((e) => toast.error(String(e)));
-      requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({
-          top: scrollRef.current.scrollHeight,
-          behavior: "smooth",
-        });
-      });
+      requestAnimationFrame(() => scrollToBottom("smooth"));
     } catch (e) {
       toast.error(String(e));
     }
@@ -880,6 +867,7 @@ export function ChatRoomPage() {
       <div className="flex h-[calc(100svh-12rem)] flex-col gap-3 rounded-lg border bg-card">
         <div
           ref={scrollRef}
+          onScroll={updateAutoScrollPreference}
           className="flex-1 space-y-4 overflow-y-auto p-4"
           aria-live="polite"
         >
@@ -900,9 +888,6 @@ export function ChatRoomPage() {
                 message={m}
                 documents={documentMap}
                 onOpenDocument={(documentId) => void openDocument(documentId)}
-                onApproveTool={(approvalId, approved, reason) =>
-                  void approveToolCall(approvalId, approved, reason)
-                }
                 onAnswerClientTool={(toolName, toolCallId, output) =>
                   void answerClientTool(toolName, toolCallId, output)
                 }
@@ -1216,18 +1201,12 @@ const MessageBubble = memo(function MessageBubble({
   message,
   documents,
   onOpenDocument,
-  onApproveTool,
   onAnswerClientTool,
   streaming,
 }: {
   message: UIMessage;
   documents: Map<string, ConversationDocument>;
   onOpenDocument: (documentId: string) => void;
-  onApproveTool: (
-    approvalId: string,
-    approved: boolean,
-    reason?: string,
-  ) => void;
   onAnswerClientTool: (
     toolName: string,
     toolCallId: string,
@@ -1269,7 +1248,6 @@ const MessageBubble = memo(function MessageBubble({
                 isAnimating={isStreaming}
                 documents={documents}
                 onOpenDocument={onOpenDocument}
-                onApproveTool={onApproveTool}
                 onAnswerClientTool={onAnswerClientTool}
               />
             ))}
@@ -1288,7 +1266,6 @@ function MessagePartView({
   isAnimating,
   documents,
   onOpenDocument,
-  onApproveTool,
   onAnswerClientTool,
 }: {
   part: UIMessage["parts"][number];
@@ -1296,11 +1273,6 @@ function MessagePartView({
   isAnimating: boolean;
   documents: Map<string, ConversationDocument>;
   onOpenDocument: (documentId: string) => void;
-  onApproveTool: (
-    approvalId: string,
-    approved: boolean,
-    reason?: string,
-  ) => void;
   onAnswerClientTool: (
     toolName: string,
     toolCallId: string,
@@ -1328,9 +1300,16 @@ function MessagePartView({
     return (
       <div className="rounded-md border bg-background/70 px-3 py-2 text-xs text-muted-foreground">
         <div className="mb-1 font-medium">Reasoning</div>
-        <Streamdown isAnimating={isAnimating} className={streamdownClassName}>
-          {part.text}
-        </Streamdown>
+        <CollapsiblePreview>
+          <pre
+            className={cn(
+              streamdownClassName,
+              "whitespace-pre-wrap font-sans text-xs leading-relaxed",
+            )}
+          >
+            {part.text}
+          </pre>
+        </CollapsiblePreview>
       </div>
     );
   }
@@ -1352,7 +1331,6 @@ function MessagePartView({
         part={part}
         documents={documents}
         onOpenDocument={onOpenDocument}
-        onApproveTool={onApproveTool}
         onAnswerClientTool={onAnswerClientTool}
       />
     );
@@ -1378,17 +1356,11 @@ function ToolPartCard({
   part,
   documents,
   onOpenDocument,
-  onApproveTool,
   onAnswerClientTool,
 }: {
   part: Extract<UIMessage["parts"][number], { toolCallId: string }>;
   documents: Map<string, ConversationDocument>;
   onOpenDocument: (documentId: string) => void;
-  onApproveTool: (
-    approvalId: string,
-    approved: boolean,
-    reason?: string,
-  ) => void;
   onAnswerClientTool: (
     toolName: string,
     toolCallId: string,
@@ -1400,11 +1372,6 @@ function ToolPartCard({
   const state = part.state ?? "unknown";
   const input = "input" in part ? part.input : undefined;
   const output = "output" in part ? part.output : undefined;
-  const approval = "approval" in part ? part.approval : undefined;
-  const approvalId =
-    approval && typeof approval === "object" && "id" in approval
-      ? String(approval.id)
-      : null;
   const artifactId = extractArtifactId(output);
   const askUserInput =
     toolName === "ask_user" ? parseAskUserInput(input) : null;
@@ -1421,10 +1388,10 @@ function ToolPartCard({
 
   return (
     <Card className="rounded-md bg-background/80 text-foreground">
-      <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 p-3">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-2">
         <div className="min-w-0">
-          <CardTitle className="truncate text-sm">{toolName}</CardTitle>
-          <div className="mt-1 text-xs text-muted-foreground">
+          <CardTitle className="truncate text-xs font-medium">{toolName}</CardTitle>
+          <div className="text-[11px] text-muted-foreground">
             {toolStateLabel(state)}
           </div>
         </div>
@@ -1436,12 +1403,13 @@ function ToolPartCard({
                 ? "secondary"
                 : "outline"
           }
+          className="h-5 shrink-0 text-[10px]"
         >
           tool
         </Badge>
       </CardHeader>
       {state === "input-available" && askUserInput ? (
-        <CardContent className="space-y-3 px-3 pt-0 pb-3">
+        <CardContent className="space-y-3 px-2 pt-0 pb-2">
           <div className="text-sm">{askUserInput.question}</div>
           {askUserInput.choices.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -1473,43 +1441,8 @@ function ToolPartCard({
           ) : null}
         </CardContent>
       ) : null}
-      {state === "approval-requested" && approvalId ? (
-        <CardContent className="space-y-3 px-3 pt-0 pb-3">
-          <ToolJsonPreview value={input} />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              className="h-8"
-              onClick={() => onApproveTool(approvalId, true)}
-            >
-              <CheckIcon className="mr-1 size-3" />
-              批准执行
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8"
-              onClick={() =>
-                onApproveTool(approvalId, false, "User denied tool execution")
-              }
-            >
-              <XIcon className="mr-1 size-3" />
-              拒绝
-            </Button>
-          </div>
-        </CardContent>
-      ) : null}
-      {state === "approval-responded" && approval ? (
-        <CardContent className="px-3 pt-0 pb-3 text-xs text-muted-foreground">
-          {"approved" in approval && approval.approved
-            ? "已批准，Agent 将继续执行。"
-            : "已拒绝，Agent 将基于拒绝结果继续。"}
-        </CardContent>
-      ) : null}
       {output !== undefined ? (
-        <CardContent className="px-3 pt-0 pb-3">
+        <CardContent className="px-2 pt-0 pb-2">
           <ToolJsonPreview value={output} />
         </CardContent>
       ) : null}
@@ -1523,10 +1456,6 @@ function toolStateLabel(state: string): string {
       return "参数生成中";
     case "input-available":
       return "等待执行";
-    case "approval-requested":
-      return "需要人工批准";
-    case "approval-responded":
-      return "审批已提交";
     case "output-available":
       return "执行完成";
     case "output-error":
@@ -1563,12 +1492,50 @@ function AskUserFreeform({ onSubmit }: { onSubmit: (answer: string) => void }) {
   );
 }
 
+function CollapsiblePreview({ children }: { children: ReactNode }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="space-y-1">
+      <div
+        className={cn(
+          expanded ? "max-h-60 overflow-auto" : "line-clamp-3 overflow-hidden",
+        )}
+      >
+        {children}
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground"
+        onClick={() => setExpanded((value) => !value)}
+      >
+        {expanded ? (
+          <>
+            <ChevronUpIcon aria-hidden="true" className="size-3" />
+            收起
+          </>
+        ) : (
+          <>
+            <ChevronDownIcon aria-hidden="true" className="size-3" />
+            展开
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
+
 function ToolJsonPreview({ value }: { value: unknown }) {
   if (value === undefined) return null;
+  const text = JSON.stringify(value, null, 2);
   return (
-    <pre className="max-h-36 overflow-auto whitespace-pre-wrap rounded bg-muted/60 p-2 text-[11px] leading-relaxed">
-      {JSON.stringify(value, null, 2)}
-    </pre>
+    <CollapsiblePreview>
+      <pre className="whitespace-pre-wrap rounded bg-muted/60 p-2 text-[11px] leading-relaxed">
+        {text}
+      </pre>
+    </CollapsiblePreview>
   );
 }
 

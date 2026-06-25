@@ -26,14 +26,24 @@ async function consumeReplayStream(
   stream: ReadableStream<string>,
 ): Promise<void> {
   const reader = stream.getReader();
+  const pending: Promise<void>[] = [];
   try {
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
-      if (value) await streamService.appendSseChunk(conversationId, runId, value);
+      if (value) {
+        // Do not await Redis per chunk — tee() backpressure on this branch
+        // would otherwise throttle the live client SSE stream.
+        pending.push(
+          streamService
+            .appendSseChunk(conversationId, runId, value)
+            .catch(() => undefined),
+        );
+      }
     }
   } finally {
     reader.releaseLock();
+    await Promise.allSettled(pending);
     await streamService.finishRun(conversationId, runId);
   }
 }
