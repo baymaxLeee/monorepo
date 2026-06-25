@@ -5,7 +5,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "../db/index.js";
 import { agentRuns, agentSteps, agentToolCalls, userMemories } from "../db/schema.js";
 
-export type AgentRunStatus = "running" | "completed" | "failed" | "cancelled";
+export type AgentRunStatus = "running" | "awaiting_approval" | "completed" | "failed" | "cancelled";
 export type AgentStepStatus = "running" | "completed" | "failed";
 export type MemoryCategory = "preference" | "profile" | "project" | "instruction";
 

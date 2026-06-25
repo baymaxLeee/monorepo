@@ -1,5 +1,12 @@
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type UIMessage } from "ai";
+import {
+  DefaultChatTransport,
+  getToolName,
+  isToolUIPart,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
+  lastAssistantMessageIsCompleteWithToolCalls,
+  type UIMessage,
+} from "ai";
 import {
   type ConversationDetail,
   type ConversationDocument,
@@ -56,11 +63,14 @@ import {
   type PromptInputToken,
   type PromptInputValue,
 } from "components/prompt-input";
+import { PromptMessageContent } from "components/prompt-message-content";
 import {
-  extractSlotIdsFromContent,
-  PromptMessageContent,
-} from "components/prompt-message-content";
-import { DownloadIcon, FileTextIcon, SettingsIcon } from "lucide-react";
+  CheckIcon,
+  DownloadIcon,
+  FileTextIcon,
+  SettingsIcon,
+  XIcon,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -74,17 +84,6 @@ import "streamdown/styles.css";
 import { useShallow } from "zustand/react/shallow";
 import { useChatStore } from "../store/useChatStore";
 
-type AgentProgress = {
-  steps: AgentProgressStep[];
-  message: string;
-  cards: AgentProgressCard[];
-};
-
-type StreamingMessage = Message & {
-  streaming?: boolean;
-  agentProgress?: AgentProgress;
-};
-
 function messageToUiMessage(message: Message): UIMessage {
   return {
     id: message.id,
@@ -93,72 +92,27 @@ function messageToUiMessage(message: Message): UIMessage {
   };
 }
 
-function uiMessageToStreamingMessage(
-  message: UIMessage,
-  conversationId: string,
-  status: "streaming" | "ok" | "failed",
-): StreamingMessage {
-  const text = message.parts
-    .filter((part) => part.type === "text")
-    .map((part) => part.text)
-    .join("");
-  const progress: AgentProgress | undefined =
-    message.role === "assistant"
-      ? {
-          steps: message.parts
-            .filter(
-              (part) =>
-                part.type === "step-start" || part.type.startsWith("tool-"),
-            )
-            .map((part, index) => ({
-              id: `${message.id}-${index}`,
-              text:
-                part.type === "step-start"
-                  ? "开始新一轮推理"
-                  : `工具调用: ${part.type.replace(/^tool-/, "")}`,
-              status:
-                part.type === "step-start" ||
-                !("state" in part) ||
-                part.state === "output-available"
-                  ? "completed"
-                  : "running",
-              toolName: part.type.startsWith("tool-")
-                ? part.type.replace(/^tool-/, "")
-                : undefined,
-              outputPreview:
-                "output" in part && part.output !== undefined
-                  ? JSON.stringify(part.output).slice(0, 500)
-                  : undefined,
-            })),
-          message: text,
-          cards: [],
-        }
-      : undefined;
-  return {
-    id: message.id,
-    conversation_id: conversationId,
-    role: message.role,
-    content: text,
-    status,
-    created_at: new Date().toISOString(),
-    streaming: status === "streaming",
-    agentProgress: progress,
-  };
+function hasPendingHitl(messages: UIMessage[]): boolean {
+  return messages.some((message) =>
+    message.parts.some((part) => {
+      if (!isToolUIPart(part)) return false;
+      return (
+        part.state === "approval-requested" ||
+        part.state === "input-available" ||
+        part.state === "input-streaming"
+      );
+    }),
+  );
 }
 
-type AgentProgressStep = {
-  id: string;
-  text: string;
-  status: "pending" | "running" | "completed" | "failed";
-  toolName?: string;
-  outputPreview?: string;
-};
-
-type AgentProgressCard = {
-  id: string;
-  type: "artifact" | "chart";
-  document?: ConversationDocument;
-};
+function mergeUiMessagesFromDb(
+  current: UIMessage[],
+  dbMessages: Message[],
+): UIMessage[] {
+  if (hasPendingHitl(current)) return current;
+  if (current.length > dbMessages.length) return current;
+  return dbMessages.map(messageToUiMessage);
+}
 
 const REASONING_OPTIONS: { value: ReasoningEffort; label: string }[] = [
   { value: "low", label: "低" },
@@ -307,7 +261,6 @@ function stableKey(value: string): string {
 export function ChatRoomPage() {
   const { id } = useParams<{ id: string }>();
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
-  const [messages, setMessages] = useState<StreamingMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<ReasoningPrefs>(() => loadPrefs());
@@ -332,10 +285,9 @@ export function ChatRoomPage() {
   const ingestTimerRef = useRef<number | null>(null);
   const ingestAbortRef = useRef<AbortController | null>(null);
   const openDocumentRequestRef = useRef(0);
+  const loadSeqRef = useRef(0);
 
   const {
-    sending,
-    setSending,
     providers,
     providersError,
     isLoadingProviders,
@@ -343,8 +295,6 @@ export function ChatRoomPage() {
     setSelectedProviderId,
   } = useChatStore(
     useShallow((state) => ({
-      sending: state.sendingConversationId === id,
-      setSending: state.setSendingConversationId,
       providers: state.providers,
       providersError: state.providersError,
       isLoadingProviders: state.isLoadingProviders,
@@ -408,6 +358,8 @@ export function ChatRoomPage() {
     messages: uiMessages,
     setMessages: setUiMessages,
     sendMessage,
+    addToolApprovalResponse,
+    addToolOutput,
     stop,
     resumeStream,
     status: chatStatus,
@@ -416,31 +368,38 @@ export function ChatRoomPage() {
     transport: chatTransport,
     resume: false,
     experimental_throttle: 50,
+    sendAutomaticallyWhen: ({ messages }) =>
+      lastAssistantMessageIsCompleteWithApprovalResponses({ messages }) ||
+      lastAssistantMessageIsCompleteWithToolCalls({ messages }),
     onError: (err) => toast.error(err.message),
-    onFinish: () => {
+    onFinish: ({ messages }) => {
       if (!id) return;
+      const preserveUi = hasPendingHitl(messages);
       void fetchConversation(id).then((next) => {
         setDetail(next);
-        setMessages(next.messages);
+        if (preserveUi) return;
         setUiMessages(next.messages.map(messageToUiMessage));
       });
     },
   });
+  const agentBusy =
+    chatStatus === "streaming" || chatStatus === "submitted";
 
-  const renderedMessages = useMemo(() => {
-    if (!id || uiMessages.length === 0) return messages;
-    const status =
-      chatStatus === "streaming" || chatStatus === "submitted"
-        ? "streaming"
-        : "ok";
-    return uiMessages.map((message) =>
-      uiMessageToStreamingMessage(
-        message,
-        id,
-        message.role === "assistant" ? status : "ok",
-      ),
-    );
-  }, [chatStatus, id, messages, uiMessages]);
+  const agentRequestBody = useCallback(
+    (displayContent?: string) => ({
+      provider_id: effectiveProvider?.id ?? null,
+      multimodal_provider_id: effectiveMultimodalProvider?.id ?? null,
+      document_ids: displayContent ? extractSlotIds(displayContent) : [],
+      thinking: prefs.thinking ? true : null,
+      reasoning_effort: prefs.thinking ? prefs.effort : null,
+    }),
+    [
+      effectiveMultimodalProvider?.id,
+      effectiveProvider?.id,
+      prefs.effort,
+      prefs.thinking,
+    ],
+  );
 
   const documents = detail?.documents ?? [];
   const documentMap = useMemo(() => {
@@ -526,17 +485,19 @@ export function ChatRoomPage() {
 
   const load = useCallback(async () => {
     if (!id) return;
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     setError(null);
     try {
       const next = await fetchConversation(id);
+      if (seq !== loadSeqRef.current) return;
       setDetail(next);
-      setMessages(next.messages);
-      setUiMessages(next.messages.map(messageToUiMessage));
+      setUiMessages((current) => mergeUiMessagesFromDb(current, next.messages));
     } catch (e) {
+      if (seq !== loadSeqRef.current) return;
       setError(String(e));
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
   }, [id, setUiMessages]);
 
@@ -549,7 +510,7 @@ export function ChatRoomPage() {
   }, [id]);
 
   useEffect(() => {
-    if (!id || loading || sending || resumedConversationRef.current === id) {
+    if (!id || loading || agentBusy || resumedConversationRef.current === id) {
       return;
     }
     resumedConversationRef.current = id;
@@ -557,13 +518,14 @@ export function ChatRoomPage() {
       .then(async () => {
         const next = await fetchConversation(id);
         setDetail(next);
-        setMessages(next.messages);
-        setUiMessages(next.messages.map(messageToUiMessage));
+        setUiMessages((current) => mergeUiMessagesFromDb(current, next.messages));
       })
       .catch((e) => {
-        toast.error(String(e));
+        const message = String(e);
+        if (/204|no active|not found/i.test(message)) return;
+        toast.error(message);
       });
-  }, [id, loading, resumeStream, sending, setUiMessages]);
+  }, [agentBusy, id, loading, resumeStream, setUiMessages]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -575,7 +537,7 @@ export function ChatRoomPage() {
   useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [renderedMessages]);
+  }, [uiMessages]);
 
   const updatePrefs = useCallback((patch: Partial<ReasoningPrefs>) => {
     setPrefs((prev) => {
@@ -794,56 +756,69 @@ export function ChatRoomPage() {
     void cancelConversationAgent(id).catch(() => undefined);
   }, [id, stop]);
 
+  const approveToolCall = useCallback(
+    async (approvalId: string, approved: boolean, reason?: string) => {
+      if (!id) return;
+      try {
+        await addToolApprovalResponse({
+          id: approvalId,
+          approved,
+          reason,
+          options: {
+            body: agentRequestBody(),
+          },
+        });
+      } catch (e) {
+        toast.error(String(e));
+      }
+    },
+    [addToolApprovalResponse, agentRequestBody, id],
+  );
+
+  const answerClientTool = useCallback(
+    async (toolName: string, toolCallId: string, output: unknown) => {
+      if (!id) return;
+      try {
+        await addToolOutput({
+          tool: toolName,
+          toolCallId,
+          output,
+          options: {
+            body: agentRequestBody(),
+          },
+        } as Parameters<typeof addToolOutput>[0]);
+      } catch (e) {
+        toast.error(String(e));
+      }
+    },
+    [addToolOutput, agentRequestBody, id],
+  );
+
   async function sendPrompt(value: PromptInputValue) {
-    if (!id || sending) return;
+    if (!id || agentBusy) return;
 
     const displayContent = buildPromptContent(value);
     if (!displayContent && value.tokens.length === 0) return;
 
     stop();
-    setSending(id);
     try {
       promptInputRef.current?.clear();
       setAttachmentCount(0);
 
-      await sendMessage(
+      void sendMessage(
         { text: displayContent },
         {
-          body: {
-            provider_id: effectiveProvider?.id ?? null,
-            multimodal_provider_id: effectiveMultimodalProvider?.id ?? null,
-            document_ids: extractSlotIds(displayContent),
-            thinking: prefs.thinking ? true : null,
-            reasoning_effort: prefs.thinking ? prefs.effort : null,
-          },
+          body: agentRequestBody(displayContent),
         },
-      );
-      const refreshed = await fetchConversation(id);
-      setDetail(refreshed);
-      setMessages(refreshed.messages);
-      setUiMessages(refreshed.messages.map(messageToUiMessage));
-    } catch (e) {
-      const message = String(e);
-      toast.error(message);
-      setMessages((prev) => {
-        const next = [...prev];
-        const last = next[next.length - 1];
-        if (last?.role === "assistant") {
-          next[next.length - 1] = {
-            ...last,
-            content:
-              !last.agentProgress?.message &&
-              last.agentProgress?.steps.length === 0
-                ? "[chat] 请求失败，请稍后重试或检查后端配置。"
-                : last.content,
-            status: "failed",
-            streaming: false,
-          };
-        }
-        return next;
+      ).catch((e) => toast.error(String(e)));
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollTo({
+          top: scrollRef.current.scrollHeight,
+          behavior: "smooth",
+        });
       });
-    } finally {
-      setSending(null);
+    } catch (e) {
+      toast.error(String(e));
     }
   }
 
@@ -870,7 +845,7 @@ export function ChatRoomPage() {
               </Badge>
             ) : null}
             <span>
-              共 {renderedMessages.length} 条消息，按 Cmd/Ctrl + Enter 也可发送
+              共 {uiMessages.length} 条消息，按 Cmd/Ctrl + Enter 也可发送
             </span>
           </PageDescription>
         </PageHeaderContent>
@@ -908,23 +883,34 @@ export function ChatRoomPage() {
           className="flex-1 space-y-4 overflow-y-auto p-4"
           aria-live="polite"
         >
-          {loading && renderedMessages.length === 0 ? (
+          {loading && uiMessages.length === 0 ? (
             <div className="space-y-2">
               <Skeleton className="h-12 w-2/3" />
               <Skeleton className="ml-auto h-16 w-3/4" />
               <Skeleton className="h-12 w-1/2" />
             </div>
-          ) : renderedMessages.length === 0 ? (
+          ) : uiMessages.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               开始你的第一条消息吧。
             </p>
           ) : (
-            renderedMessages.map((m) => (
+            uiMessages.map((m, index) => (
               <MessageBubble
                 key={m.id}
                 message={m}
                 documents={documentMap}
                 onOpenDocument={(documentId) => void openDocument(documentId)}
+                onApproveTool={(approvalId, approved, reason) =>
+                  void approveToolCall(approvalId, approved, reason)
+                }
+                onAnswerClientTool={(toolName, toolCallId, output) =>
+                  void answerClientTool(toolName, toolCallId, output)
+                }
+                streaming={
+                  (chatStatus === "streaming" || chatStatus === "submitted") &&
+                  m.role === "assistant" &&
+                  index === uiMessages.length - 1
+                }
               />
             ))
           )}
@@ -938,7 +924,7 @@ export function ChatRoomPage() {
             <Select
               value={effectiveProvider?.id ?? ""}
               onValueChange={(value) => setSelectedProviderId(value)}
-              disabled={!hasProviders || sending}
+              disabled={!hasProviders || agentBusy}
             >
               <SelectTrigger id="chat-provider" className="h-8 w-56">
                 <SelectValue
@@ -980,7 +966,7 @@ export function ChatRoomPage() {
             <Select
               value={selectedMultimodalProviderId}
               onValueChange={setSelectedMultimodalProviderId}
-              disabled={!hasProviders || sending}
+              disabled={!hasProviders || agentBusy}
             >
               <SelectTrigger id="chat-multimodal-provider" className="h-8 w-56">
                 <SelectValue placeholder="选择多模态 Provider" />
@@ -1008,7 +994,7 @@ export function ChatRoomPage() {
               id="chat-thinking"
               checked={prefs.thinking}
               onCheckedChange={(checked) => updatePrefs({ thinking: checked })}
-              disabled={sending}
+              disabled={agentBusy}
               aria-label="启用 thinking 推理"
             />
             <Label htmlFor="chat-thinking" className="cursor-pointer">
@@ -1024,7 +1010,7 @@ export function ChatRoomPage() {
               onValueChange={(value) =>
                 updatePrefs({ effort: value as ReasoningEffort })
               }
-              disabled={!prefs.thinking || sending}
+              disabled={!prefs.thinking || agentBusy}
             >
               <SelectTrigger id="chat-effort" className="h-8 w-24">
                 <SelectValue />
@@ -1039,7 +1025,7 @@ export function ChatRoomPage() {
             </Select>
           </div>
           <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-            {sending ? (
+            {agentBusy ? (
               <Button
                 type="button"
                 size="sm"
@@ -1058,8 +1044,8 @@ export function ChatRoomPage() {
           <PromptInput
             ref={promptInputRef}
             placeholder="发送消息，或拖入文件让 MarkItDown 转成可编辑 Markdown..."
-            disabled={sending || !hasProviders}
-            loading={sending || ingestInFlight}
+            disabled={agentBusy || !hasProviders}
+            loading={agentBusy || ingestInFlight}
             onChange={(value) => setAttachmentCount(value.tokens.length)}
             onFilesAdded={queueIngestFiles}
             footerRender={() => {
@@ -1179,7 +1165,7 @@ export function ChatRoomPage() {
 const streamdownClassName =
   "prose prose-sm max-w-none break-words leading-relaxed dark:prose-invert prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-md prose-code:before:content-none prose-code:after:content-none";
 
-function AssistantSlotMessageContent({
+function SlotTextContent({
   content,
   documents,
   isAnimating = false,
@@ -1230,18 +1216,27 @@ const MessageBubble = memo(function MessageBubble({
   message,
   documents,
   onOpenDocument,
+  onApproveTool,
+  onAnswerClientTool,
+  streaming,
 }: {
-  message: StreamingMessage;
+  message: UIMessage;
   documents: Map<string, ConversationDocument>;
   onOpenDocument: (documentId: string) => void;
+  onApproveTool: (
+    approvalId: string,
+    approved: boolean,
+    reason?: string,
+  ) => void;
+  onAnswerClientTool: (
+    toolName: string,
+    toolCallId: string,
+    output: unknown,
+  ) => void;
+  streaming: boolean;
 }) {
   const isUser = message.role === "user";
-  const isStreaming =
-    Boolean(message.streaming) || message.status === "streaming";
-  const progress = message.agentProgress;
-  const messageBody = progress?.message ?? message.content;
-  const slotIdsInMessage = extractSlotIdsFromContent(messageBody);
-  const slotIdSet = new Set(slotIdsInMessage);
+  const isStreaming = streaming && message.role === "assistant";
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -1254,101 +1249,31 @@ const MessageBubble = memo(function MessageBubble({
       >
         <div className="mb-1 flex items-center gap-2 text-xs opacity-70">
           <span>{isUser ? "你" : "助手"}</span>
-          {message.status === "failed" ? (
-            <Badge variant="destructive" className="h-4 px-1 text-[10px]">
-              失败
-            </Badge>
-          ) : isStreaming ? (
+          {isStreaming ? (
             <Badge variant="secondary" className="h-4 px-1 text-[10px]">
               输出中...
             </Badge>
           ) : null}
         </div>
-        {progress ? (
+        {message.parts.length > 0 ? (
           <div className="space-y-3">
-            {progress.steps.length > 0 ? (
-              <ul className="space-y-1 text-xs text-muted-foreground">
-                {progress.steps.map((step) => (
-                  <li key={step.id} className="space-y-0.5">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Badge variant="outline" className="h-5 text-[10px]">
-                        {step.status}
-                      </Badge>
-                      {step.toolName ? (
-                        <span className="font-mono text-[11px]">
-                          {step.toolName}
-                        </span>
-                      ) : null}
-                      <span>{step.text}</span>
-                    </div>
-                    {step.outputPreview ? (
-                      <div className="line-clamp-2 rounded bg-background/70 px-2 py-1 font-mono text-[11px]">
-                        {step.outputPreview}
-                      </div>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            ) : isStreaming ? (
-              <div className="text-xs text-muted-foreground">准备中...</div>
-            ) : null}
-            {messageBody ? (
-              isUser ? (
-                <PromptMessageContent
-                  content={messageBody}
-                  documents={documents}
-                  onOpenDocument={onOpenDocument}
-                />
-              ) : (
-                <AssistantSlotMessageContent
-                  content={messageBody}
-                  documents={documents}
-                  isAnimating={isStreaming}
-                  onOpenDocument={onOpenDocument}
-                />
-              )
-            ) : null}
-            {progress && progress.cards.length > 0 ? (
-              <div className="space-y-2">
-                {progress.cards
-                  .filter(
-                    (card) =>
-                      !card.document?.id || !slotIdSet.has(card.document.id),
-                  )
-                  .map((card) =>
-                    card.type === "artifact" && card.document ? (
-                      <DocumentCard
-                        key={card.document.id}
-                        document={card.document}
-                        documentId={card.document.id}
-                        onOpen={() => onOpenDocument(card.document!.id)}
-                      />
-                    ) : (
-                      <Card key={card.id} className="rounded-md">
-                        <CardHeader className="p-3">
-                          <CardTitle className="text-sm">{card.type}</CardTitle>
-                        </CardHeader>
-                      </Card>
-                    ),
-                  )}
-              </div>
-            ) : null}
+            {message.parts.map((part, partIndex) => (
+              <MessagePartView
+                key={
+                  isToolUIPart(part)
+                    ? `${message.id}-${part.toolCallId}`
+                    : `${message.id}-${part.type}-${partIndex}`
+                }
+                part={part}
+                isUser={isUser}
+                isAnimating={isStreaming}
+                documents={documents}
+                onOpenDocument={onOpenDocument}
+                onApproveTool={onApproveTool}
+                onAnswerClientTool={onAnswerClientTool}
+              />
+            ))}
           </div>
-        ) : message.content ? (
-          isUser ? (
-            <PromptMessageContent
-              content={message.content}
-              documents={documents}
-              onOpenDocument={onOpenDocument}
-            />
-          ) : (
-            <AssistantSlotMessageContent
-              content={message.content}
-              documents={documents}
-              isAnimating={isStreaming}
-              onOpenDocument={onOpenDocument}
-            />
-          )
         ) : (
           <div className="text-muted-foreground">...</div>
         )}
@@ -1356,6 +1281,342 @@ const MessageBubble = memo(function MessageBubble({
     </div>
   );
 });
+
+function MessagePartView({
+  part,
+  isUser,
+  isAnimating,
+  documents,
+  onOpenDocument,
+  onApproveTool,
+  onAnswerClientTool,
+}: {
+  part: UIMessage["parts"][number];
+  isUser: boolean;
+  isAnimating: boolean;
+  documents: Map<string, ConversationDocument>;
+  onOpenDocument: (documentId: string) => void;
+  onApproveTool: (
+    approvalId: string,
+    approved: boolean,
+    reason?: string,
+  ) => void;
+  onAnswerClientTool: (
+    toolName: string,
+    toolCallId: string,
+    output: unknown,
+  ) => void;
+}) {
+  if (part.type === "text") {
+    return isUser ? (
+      <PromptMessageContent
+        content={part.text}
+        documents={documents}
+        onOpenDocument={onOpenDocument}
+      />
+    ) : (
+      <SlotTextContent
+        content={part.text}
+        documents={documents}
+        isAnimating={isAnimating}
+        onOpenDocument={onOpenDocument}
+      />
+    );
+  }
+
+  if (part.type === "reasoning") {
+    return (
+      <div className="rounded-md border bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+        <div className="mb-1 font-medium">Reasoning</div>
+        <Streamdown isAnimating={isAnimating} className={streamdownClassName}>
+          {part.text}
+        </Streamdown>
+      </div>
+    );
+  }
+
+  if (part.type === "step-start") {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Badge variant="outline" className="h-5 text-[10px]">
+          step
+        </Badge>
+        <span>开始新一轮推理</span>
+      </div>
+    );
+  }
+
+  if (isToolUIPart(part)) {
+    return (
+      <ToolPartCard
+        part={part}
+        documents={documents}
+        onOpenDocument={onOpenDocument}
+        onApproveTool={onApproveTool}
+        onAnswerClientTool={onAnswerClientTool}
+      />
+    );
+  }
+
+  if (part.type === "source-url") {
+    return (
+      <a
+        href={part.url}
+        target="_blank"
+        rel="noreferrer"
+        className="block rounded-md border bg-background/70 px-3 py-2 text-xs text-primary hover:underline"
+      >
+        {part.title ?? part.url}
+      </a>
+    );
+  }
+
+  return null;
+}
+
+function ToolPartCard({
+  part,
+  documents,
+  onOpenDocument,
+  onApproveTool,
+  onAnswerClientTool,
+}: {
+  part: Extract<UIMessage["parts"][number], { toolCallId: string }>;
+  documents: Map<string, ConversationDocument>;
+  onOpenDocument: (documentId: string) => void;
+  onApproveTool: (
+    approvalId: string,
+    approved: boolean,
+    reason?: string,
+  ) => void;
+  onAnswerClientTool: (
+    toolName: string,
+    toolCallId: string,
+    output: unknown,
+  ) => void;
+}) {
+  const toolName = getToolName(part);
+  const toolCallId = part.toolCallId;
+  const state = part.state ?? "unknown";
+  const input = "input" in part ? part.input : undefined;
+  const output = "output" in part ? part.output : undefined;
+  const approval = "approval" in part ? part.approval : undefined;
+  const approvalId =
+    approval && typeof approval === "object" && "id" in approval
+      ? String(approval.id)
+      : null;
+  const artifactId = extractArtifactId(output);
+  const askUserInput =
+    toolName === "ask_user" ? parseAskUserInput(input) : null;
+
+  if (artifactId) {
+    return (
+      <DocumentCard
+        document={documents.get(artifactId)}
+        documentId={artifactId}
+        onOpen={() => onOpenDocument(artifactId)}
+      />
+    );
+  }
+
+  return (
+    <Card className="rounded-md bg-background/80 text-foreground">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 p-3">
+        <div className="min-w-0">
+          <CardTitle className="truncate text-sm">{toolName}</CardTitle>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {toolStateLabel(state)}
+          </div>
+        </div>
+        <Badge
+          variant={
+            state === "output-error"
+              ? "destructive"
+              : state === "output-available"
+                ? "secondary"
+                : "outline"
+          }
+        >
+          tool
+        </Badge>
+      </CardHeader>
+      {state === "input-available" && askUserInput ? (
+        <CardContent className="space-y-3 px-3 pt-0 pb-3">
+          <div className="text-sm">{askUserInput.question}</div>
+          {askUserInput.choices.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {askUserInput.choices.map((choice) => (
+                <Button
+                  key={choice.value}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  onClick={() =>
+                    onAnswerClientTool(toolName, toolCallId, {
+                      answer: choice.value,
+                      label: choice.label,
+                    })
+                  }
+                >
+                  {choice.label}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+          {askUserInput.allowFreeform ? (
+            <AskUserFreeform
+              onSubmit={(answer) =>
+                onAnswerClientTool(toolName, toolCallId, { answer })
+              }
+            />
+          ) : null}
+        </CardContent>
+      ) : null}
+      {state === "approval-requested" && approvalId ? (
+        <CardContent className="space-y-3 px-3 pt-0 pb-3">
+          <ToolJsonPreview value={input} />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              className="h-8"
+              onClick={() => onApproveTool(approvalId, true)}
+            >
+              <CheckIcon className="mr-1 size-3" />
+              批准执行
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={() =>
+                onApproveTool(approvalId, false, "User denied tool execution")
+              }
+            >
+              <XIcon className="mr-1 size-3" />
+              拒绝
+            </Button>
+          </div>
+        </CardContent>
+      ) : null}
+      {state === "approval-responded" && approval ? (
+        <CardContent className="px-3 pt-0 pb-3 text-xs text-muted-foreground">
+          {"approved" in approval && approval.approved
+            ? "已批准，Agent 将继续执行。"
+            : "已拒绝，Agent 将基于拒绝结果继续。"}
+        </CardContent>
+      ) : null}
+      {output !== undefined ? (
+        <CardContent className="px-3 pt-0 pb-3">
+          <ToolJsonPreview value={output} />
+        </CardContent>
+      ) : null}
+    </Card>
+  );
+}
+
+function toolStateLabel(state: string): string {
+  switch (state) {
+    case "input-streaming":
+      return "参数生成中";
+    case "input-available":
+      return "等待执行";
+    case "approval-requested":
+      return "需要人工批准";
+    case "approval-responded":
+      return "审批已提交";
+    case "output-available":
+      return "执行完成";
+    case "output-error":
+      return "执行失败";
+    default:
+      return state;
+  }
+}
+
+function AskUserFreeform({ onSubmit }: { onSubmit: (answer: string) => void }) {
+  const [answer, setAnswer] = useState("");
+
+  return (
+    <form
+      className="flex gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const trimmed = answer.trim();
+        if (!trimmed) return;
+        onSubmit(trimmed);
+        setAnswer("");
+      }}
+    >
+      <input
+        value={answer}
+        onChange={(event) => setAnswer(event.target.value)}
+        placeholder="输入你的回答..."
+        className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-sm"
+      />
+      <Button type="submit" size="sm" className="h-8">
+        提交
+      </Button>
+    </form>
+  );
+}
+
+function ToolJsonPreview({ value }: { value: unknown }) {
+  if (value === undefined) return null;
+  return (
+    <pre className="max-h-36 overflow-auto whitespace-pre-wrap rounded bg-muted/60 p-2 text-[11px] leading-relaxed">
+      {JSON.stringify(value, null, 2)}
+    </pre>
+  );
+}
+
+type AskUserInput = {
+  question: string;
+  choices: Array<{ label: string; value: string }>;
+  allowFreeform: boolean;
+};
+
+function parseAskUserInput(input: unknown): AskUserInput | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as {
+    question?: unknown;
+    choices?: unknown;
+    allow_freeform?: unknown;
+  };
+  if (typeof raw.question !== "string" || !raw.question.trim()) return null;
+  const choices = Array.isArray(raw.choices)
+    ? raw.choices
+        .map((item) => {
+          if (!item || typeof item !== "object") return null;
+          const choice = item as { label?: unknown; value?: unknown };
+          if (
+            typeof choice.label !== "string" ||
+            typeof choice.value !== "string"
+          ) {
+            return null;
+          }
+          return { label: choice.label, value: choice.value };
+        })
+        .filter(
+          (item): item is { label: string; value: string } => item != null,
+        )
+    : [];
+  return {
+    question: raw.question,
+    choices,
+    allowFreeform: raw.allow_freeform !== false,
+  };
+}
+
+function extractArtifactId(output: unknown): string | null {
+  if (!output || typeof output !== "object") return null;
+  const candidate = (output as { document_id?: unknown }).document_id;
+  return typeof candidate === "string" && /^[a-f0-9]{16}$/i.test(candidate)
+    ? candidate
+    : null;
+}
 
 function DocumentCard({
   document,

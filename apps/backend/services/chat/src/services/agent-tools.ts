@@ -196,6 +196,7 @@ export function buildAgentTools(ctx: AgentToolContext) {
     create_artifact: tool({
       description:
         "Create a persistent markdown or html artifact in the knowledge base in a single call. Returns a placeholder token to cite in the final answer. For content larger than the per-call limit, use append_artifact_chunk instead.",
+      needsApproval: true,
       inputSchema: z.object({
         title: z.string().min(1).max(120),
         filename: z.string().min(1).max(160),
@@ -234,6 +235,7 @@ export function buildAgentTools(ctx: AgentToolContext) {
     append_artifact_chunk: tool({
       description:
         "Build a large artifact incrementally across multiple calls. Call repeatedly with the same filename to append content, then call once with done=true to persist. Returns a placeholder token only on the final (done) call.",
+      needsApproval: (input) => input.done === true,
       inputSchema: z.object({
         title: z.string().min(1).max(120),
         filename: z.string().min(1).max(160),
@@ -352,9 +354,28 @@ export function buildAgentTools(ctx: AgentToolContext) {
       },
     }),
 
+    ask_user: tool({
+      description:
+        "Ask the user for missing information that is required to continue. Use this before web_search when the request is location-dependent (for example weather, local news, traffic, nearby services) and no location is present in the prompt or trusted memory.",
+      inputSchema: z.object({
+        question: z.string().min(1).max(240),
+        choices: z
+          .array(
+            z.object({
+              label: z.string().min(1).max(80),
+              value: z.string().min(1).max(160),
+            }),
+          )
+          .max(6)
+          .default([]),
+        allow_freeform: z.boolean().default(true),
+      }),
+    }),
+
     propose_memory: tool({
       description:
         "Propose a stable long-term user memory only for durable preferences, profile facts, project facts, or standing instructions. Do not store one-off task details.",
+      needsApproval: true,
       inputSchema: z.object({
         category: z.enum(["preference", "profile", "project", "instruction"]),
         content: z.string().min(5).max(500),

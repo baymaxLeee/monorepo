@@ -30,6 +30,7 @@ export interface Settings {
   agentToolTimeoutSeconds: number;
   agentContextMaxChars: number;
   agentMemoryMaxItems: number;
+  agentToolApprovalSecret: string;
   tavilyApiKey: string;
   providerCacheTtlSeconds: number;
 }
@@ -74,6 +75,7 @@ export function getSettings(): Settings {
     agentToolTimeoutSeconds: envInt("AGENT_TOOL_TIMEOUT_SECONDS", 30),
     agentContextMaxChars: envInt("AGENT_CONTEXT_MAX_CHARS", 24000),
     agentMemoryMaxItems: envInt("AGENT_MEMORY_MAX_ITEMS", 12),
+    agentToolApprovalSecret: envOr("AGENT_TOOL_APPROVAL_SECRET", envOr("INTERNAL_API_TOKEN", DEV_INTERNAL_TOKEN)),
     tavilyApiKey: envOr("TAVILY_API_KEY", ""),
     providerCacheTtlSeconds: envInt("PROVIDER_CACHE_TTL_SECONDS", 300),
   };
