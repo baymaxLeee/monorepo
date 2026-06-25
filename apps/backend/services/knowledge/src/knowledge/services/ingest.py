@@ -18,7 +18,7 @@ from knowledge.db import get_session_factory
 from knowledge.deps import AuthContext
 from knowledge.models.document import DocumentRow
 from knowledge.services.admin_client import get_admin_client
-from knowledge.services.convert import AttachmentTooLargeError, ConvertService
+from knowledge.services.convert import AttachmentConversionError, AttachmentTooLargeError, ConvertService
 from knowledge.services.documents import document_to_schema
 from knowledge.services.object_store import ObjectStore
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -151,17 +151,27 @@ async def stream_ingest_events(
                     )
 
                     provider = None
-                    if not item.mime_type.lower().startswith("image/"):
+                    if item.mime_type.lower().startswith(("image/", "audio/", "video/")) and provider_id:
                         provider = await get_admin_client().get_provider(
                             user_id=current_user.user_id,
                             provider_id=provider_id,
                         )
-                    markdown = await converter.convert(
-                        filename=item.filename,
-                        mime_type=item.mime_type,
-                        content=item.content,
-                        provider=provider,
-                    )
+                    convert_timeout = max(settings.llm_timeout_seconds * 2, 90)
+                    try:
+                        markdown = await asyncio.wait_for(
+                            converter.convert(
+                                filename=item.filename,
+                                mime_type=item.mime_type,
+                                content=item.content,
+                                provider=provider,
+                            ),
+                            timeout=convert_timeout,
+                        )
+                    except TimeoutError as exc:
+                        raise AttachmentConversionError(
+                            f"conversion timed out after {convert_timeout}s",
+                            details={"filename": item.filename},
+                        ) from exc
                     row = await document_crud.update_document(
                         worker_session,
                         row,

@@ -1,17 +1,20 @@
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import {
-  type AgentRunStreamEvent,
   type ConversationDetail,
   type ConversationDocument,
   type ConversationDocumentDetail,
+  cancelConversationAgent,
+  chatAuthHeaders,
+  conversationAgentStreamUrl,
   type DocumentIngestStreamEvent,
   fetchConversation,
   fetchKnowledgeDocument,
   fetchKnowledgeDocumentSource,
+  isMediaConversationDocument,
   type Message,
   type ModelProvider,
   type ReasoningEffort,
-  resumeConversationAgent,
-  streamConversationAgent,
   streamKnowledgeIngest,
   toConversationDocument,
   updateKnowledgeDocument,
@@ -53,11 +56,19 @@ import {
   type PromptInputToken,
   type PromptInputValue,
 } from "components/prompt-input";
-import { PromptMessageContent, extractSlotIdsFromContent } from "components/prompt-message-content";
-import { extractSlotIds, parseSlots, serializeSlots, tokenIdByArtifactId } from "shared";
+import {
+  extractSlotIdsFromContent,
+  PromptMessageContent,
+} from "components/prompt-message-content";
 import { DownloadIcon, FileTextIcon, SettingsIcon } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import {
+  extractSlotIds,
+  parseSlots,
+  serializeSlots,
+  tokenIdByArtifactId,
+} from "shared";
 import { Streamdown } from "streamdown";
 import "streamdown/styles.css";
 import { useShallow } from "zustand/react/shallow";
@@ -73,6 +84,67 @@ type StreamingMessage = Message & {
   streaming?: boolean;
   agentProgress?: AgentProgress;
 };
+
+function messageToUiMessage(message: Message): UIMessage {
+  return {
+    id: message.id,
+    role: message.role,
+    parts: message.content ? [{ type: "text", text: message.content }] : [],
+  };
+}
+
+function uiMessageToStreamingMessage(
+  message: UIMessage,
+  conversationId: string,
+  status: "streaming" | "ok" | "failed",
+): StreamingMessage {
+  const text = message.parts
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("");
+  const progress: AgentProgress | undefined =
+    message.role === "assistant"
+      ? {
+          steps: message.parts
+            .filter(
+              (part) =>
+                part.type === "step-start" || part.type.startsWith("tool-"),
+            )
+            .map((part, index) => ({
+              id: `${message.id}-${index}`,
+              text:
+                part.type === "step-start"
+                  ? "开始新一轮推理"
+                  : `工具调用: ${part.type.replace(/^tool-/, "")}`,
+              status:
+                part.type === "step-start" ||
+                !("state" in part) ||
+                part.state === "output-available"
+                  ? "completed"
+                  : "running",
+              toolName: part.type.startsWith("tool-")
+                ? part.type.replace(/^tool-/, "")
+                : undefined,
+              outputPreview:
+                "output" in part && part.output !== undefined
+                  ? JSON.stringify(part.output).slice(0, 500)
+                  : undefined,
+            })),
+          message: text,
+          cards: [],
+        }
+      : undefined;
+  return {
+    id: message.id,
+    conversation_id: conversationId,
+    role: message.role,
+    content: text,
+    status,
+    created_at: new Date().toISOString(),
+    streaming: status === "streaming",
+    agentProgress: progress,
+  };
+}
 
 type AgentProgressStep = {
   id: string;
@@ -96,7 +168,10 @@ const REASONING_OPTIONS: { value: ReasoningEffort; label: string }[] = [
 const STORAGE_KEY = "chat.reasoning-prefs.v1";
 const MAX_ATTACHMENTS_PER_MESSAGE = 5;
 const MULTIMODAL_PROVIDER_HINT_RE =
-  /doubao|seed|vision|image|multimodal|video/i;
+  /doubao|豆包|seed|vision|image|multimodal|vl/i;
+const MULTIMODAL_PROVIDER_EXCLUDE_RE =
+  /seedance|seededit|seedream|i2v|t2v|video-?gen/i;
+const MULTIMODAL_PROVIDER_PREFER_RE = /vision|vl|豆包/i;
 const MULTIMODAL_PROVIDER_AUTO = "__auto";
 const MULTIMODAL_PROVIDER_NONE = "__none";
 
@@ -130,20 +205,12 @@ function savePrefs(prefs: ReasoningPrefs) {
   }
 }
 
-function placeholderId(role: "user" | "assistant") {
-  return `local-${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
 function buildPromptContent(value: PromptInputValue): string {
   const serialized = serializeSlots(
     { segments: value.segments },
     tokenIdByArtifactId(value.tokens),
   );
   return serialized.trim() || "请阅读附件并总结要点";
-}
-
-function createEmptyAgentProgress(): AgentProgress {
-  return { steps: [], message: "", cards: [] };
 }
 
 function mergeDocumentsById(
@@ -180,6 +247,14 @@ function extractHtmlPreview(content: string): string | null {
 
 type DocumentPreviewMode = "markdown" | "html" | "image" | "video" | "audio";
 
+function previewModeFromMime(mime: string): DocumentPreviewMode | null {
+  const lowered = mime.toLowerCase();
+  if (lowered.startsWith("image/")) return "image";
+  if (lowered.startsWith("video/")) return "video";
+  if (lowered.startsWith("audio/")) return "audio";
+  return null;
+}
+
 function resolveDocumentPreviewMode(
   document: ConversationDocumentDetail,
 ): DocumentPreviewMode {
@@ -188,9 +263,8 @@ function resolveDocumentPreviewMode(
     document.mime_type ||
     ""
   ).toLowerCase();
-  if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("video/")) return "video";
-  if (mime.startsWith("audio/")) return "audio";
+  const mediaMode = previewModeFromMime(mime);
+  if (mediaMode) return mediaMode;
   if (extractHtmlPreview(document.content_md)) return "html";
   return "markdown";
 }
@@ -203,6 +277,31 @@ function downloadMarkdown(document: ConversationDocumentDetail) {
   link.download = document.filename || `${document.title}.md`;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function inferMultimodalProvider(
+  providers: ModelProvider[],
+): ModelProvider | null {
+  const candidates = providers.filter((p) => {
+    const blob = `${p.name} ${p.model} ${p.base_url}`;
+    if (MULTIMODAL_PROVIDER_EXCLUDE_RE.test(blob)) return false;
+    return MULTIMODAL_PROVIDER_HINT_RE.test(blob);
+  });
+  return (
+    candidates.find((p) =>
+      MULTIMODAL_PROVIDER_PREFER_RE.test(`${p.name} ${p.model}`),
+    ) ??
+    candidates[0] ??
+    null
+  );
+}
+
+function stableKey(value: string): string {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(36);
 }
 
 export function ChatRoomPage() {
@@ -263,10 +362,7 @@ export function ChatRoomPage() {
     enabledProviders.find((p) => p.is_default) ??
     enabledProviders[0] ??
     null;
-  const inferredMultimodalProvider =
-    enabledProviders.find((p) =>
-      MULTIMODAL_PROVIDER_HINT_RE.test(`${p.name} ${p.model} ${p.base_url}`),
-    ) ?? null;
+  const inferredMultimodalProvider = inferMultimodalProvider(enabledProviders);
   const effectiveMultimodalProvider =
     selectedMultimodalProviderId === MULTIMODAL_PROVIDER_NONE
       ? null
@@ -276,125 +372,82 @@ export function ChatRoomPage() {
             (p) => p.id === selectedMultimodalProviderId,
           ) ?? null);
 
+  const chatTransport = useMemo(
+    () =>
+      new DefaultChatTransport<UIMessage>({
+        api: id
+          ? conversationAgentStreamUrl(id)
+          : "/api/chat-server/conversations/missing/agents/run/stream",
+        credentials: "include",
+        headers: chatAuthHeaders,
+        prepareSendMessagesRequest: ({
+          messages,
+          body,
+          headers,
+          credentials,
+          api,
+        }) => ({
+          api,
+          credentials,
+          headers,
+          body: {
+            messages,
+            ...(body ?? {}),
+          },
+        }),
+        prepareReconnectToStreamRequest: ({ headers, credentials, api }) => ({
+          api,
+          credentials,
+          headers,
+        }),
+      }),
+    [id],
+  );
+
+  const {
+    messages: uiMessages,
+    setMessages: setUiMessages,
+    sendMessage,
+    stop,
+    resumeStream,
+    status: chatStatus,
+  } = useChat<UIMessage>({
+    id: id ?? "chat",
+    transport: chatTransport,
+    resume: false,
+    experimental_throttle: 50,
+    onError: (err) => toast.error(err.message),
+    onFinish: () => {
+      if (!id) return;
+      void fetchConversation(id).then((next) => {
+        setDetail(next);
+        setMessages(next.messages);
+        setUiMessages(next.messages.map(messageToUiMessage));
+      });
+    },
+  });
+
+  const renderedMessages = useMemo(() => {
+    if (!id || uiMessages.length === 0) return messages;
+    const status =
+      chatStatus === "streaming" || chatStatus === "submitted"
+        ? "streaming"
+        : "ok";
+    return uiMessages.map((message) =>
+      uiMessageToStreamingMessage(
+        message,
+        id,
+        message.role === "assistant" ? status : "ok",
+      ),
+    );
+  }, [chatStatus, id, messages, uiMessages]);
+
   const documents = detail?.documents ?? [];
   const documentMap = useMemo(() => {
     const map = new Map<string, ConversationDocument>();
     for (const document of documents) map.set(document.id, document);
     return map;
   }, [documents]);
-
-  const updateAgentProgress = useCallback(
-    (
-      updater: (progress: AgentProgress) => AgentProgress,
-      status: "streaming" | "ok" | "failed" = "streaming",
-    ) => {
-      if (!id) return;
-      setMessages((prev) => {
-        const next = [...prev];
-        let index = next.length - 1;
-        let current = next[index];
-        if (current?.role !== "assistant" || !current.agentProgress) {
-          current = {
-            id: placeholderId("assistant"),
-            conversation_id: id,
-            role: "assistant",
-            content: "",
-            status: "streaming",
-            created_at: new Date().toISOString(),
-            streaming: true,
-            agentProgress: createEmptyAgentProgress(),
-          };
-          next.push(current);
-          index = next.length - 1;
-        }
-
-        next[index] = {
-          ...current,
-          status,
-          streaming: status === "streaming",
-          agentProgress: updater(
-            current.agentProgress ?? createEmptyAgentProgress(),
-          ),
-        };
-        return next;
-      });
-    },
-    [id],
-  );
-
-  const applyAgentEvent = useCallback(
-    (event: AgentRunStreamEvent) => {
-      if (event.type === "step") {
-        updateAgentProgress((progress) => ({
-          ...progress,
-          steps: [
-            ...progress.steps,
-            {
-              text: event.text,
-              id: placeholderId("assistant"),
-              status: event.status ?? "completed",
-              toolName: event.tool_name,
-              outputPreview: event.output_preview,
-            },
-          ],
-        }));
-        return;
-      }
-      if (event.type === "message") {
-        if (event.status === "failed") {
-          updateAgentProgress(
-            (progress) => ({
-              ...progress,
-              message: event.text || progress.message || "agent runtime failed",
-            }),
-            "failed",
-          );
-          return;
-        }
-        updateAgentProgress(
-          (progress) => ({
-            ...progress,
-            message:
-              event.delta !== undefined
-                ? progress.message + event.delta
-                : event.text || progress.message,
-          }),
-          event.status === "completed" ? "ok" : "streaming",
-        );
-        return;
-      }
-      if (event.type === "card") {
-        const { card } = event;
-        const document = card.document;
-        if (document) {
-          setDetail((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  documents: mergeDocumentsById(prev.documents, [document]),
-                }
-              : prev,
-          );
-        }
-        updateAgentProgress((progress) => ({
-          ...progress,
-          cards: [
-            ...progress.cards,
-            {
-              id: document?.id ?? placeholderId("assistant"),
-              type: card.type,
-              document,
-            },
-          ],
-        }));
-        return;
-      }
-      if (event.type === "error") {
-        throw new Error(event.message);
-      }
-    },
-    [updateAgentProgress],
-  );
 
   useEffect(() => {
     if (
@@ -479,12 +532,13 @@ export function ChatRoomPage() {
       const next = await fetchConversation(id);
       setDetail(next);
       setMessages(next.messages);
+      setUiMessages(next.messages.map(messageToUiMessage));
     } catch (e) {
       setError(String(e));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, setUiMessages]);
 
   useEffect(() => {
     load();
@@ -499,29 +553,17 @@ export function ChatRoomPage() {
       return;
     }
     resumedConversationRef.current = id;
-    const controller = new AbortController();
-    let receivedEvents = false;
-
-    void resumeConversationAgent(id, {
-      signal: controller.signal,
-      onEvent: (event) => {
-        receivedEvents = true;
-        applyAgentEvent(event);
-      },
-    })
+    void resumeStream()
       .then(async () => {
-        if (!receivedEvents || controller.signal.aborted) return;
         const next = await fetchConversation(id);
         setDetail(next);
         setMessages(next.messages);
+        setUiMessages(next.messages.map(messageToUiMessage));
       })
       .catch((e) => {
-        if (controller.signal.aborted) return;
         toast.error(String(e));
       });
-
-    return () => controller.abort();
-  }, [applyAgentEvent, id, loading, sending]);
+  }, [id, loading, resumeStream, sending, setUiMessages]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -533,7 +575,7 @@ export function ChatRoomPage() {
   useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
+  }, [renderedMessages]);
 
   const updatePrefs = useCallback((patch: Partial<ReasoningPrefs>) => {
     setPrefs((prev) => {
@@ -543,81 +585,81 @@ export function ChatRoomPage() {
     });
   }, []);
 
-  const applyIngestEvent = useCallback((event: DocumentIngestStreamEvent) => {
-    const api = promptInputRef.current;
-    if (!api) return;
+  const applyIngestEvent = useCallback(
+    (event: DocumentIngestStreamEvent) => {
+      const api = promptInputRef.current;
+      if (!api) return;
 
-    const patchToken = (
-      clientRef: string,
-      patch: Partial<PromptInputToken>,
-    ) => {
-      api.updateToken(clientRef, patch);
-    };
+      const patchToken = (
+        clientRef: string,
+        patch: Partial<PromptInputToken>,
+      ) => {
+        api.updateToken(clientRef, patch);
+      };
 
-    switch (event.type) {
-      case "file_started":
-        patchToken(event.client_ref, {
-          meta: {
-            ingestStatus: "storing",
-            ingestProgress: 5,
-          },
-        });
-        break;
-      case "file_progress":
-        patchToken(event.client_ref, {
-          meta: {
-            artifactId: event.artifact_id,
-            ingestStatus: event.status,
-            ingestProgress: event.progress,
-          },
-        });
-        break;
-      case "file_ready":
-        patchToken(event.client_ref, {
-          id: event.artifact_id,
-          label: event.document.title || event.document.filename,
-          meta: {
-            clientRef: event.client_ref,
-            artifactId: event.artifact_id,
-            ingestStatus: "ready",
-            ingestProgress: 100,
-          },
-        });
-        setDetail((prev) =>
-          prev && id
-            ? {
-                ...prev,
-                documents: mergeDocumentsById(prev.documents, [
-                  toConversationDocument(
-                    event.document as unknown as Record<string, unknown>,
-                    id,
-                  ),
-                ]),
-              }
-            : prev,
-        );
-        break;
-      case "file_failed":
-        patchToken(event.client_ref, {
-          meta: {
-            ingestStatus: "failed",
-            ingestProgress: 0,
-            ingestError: event.error,
-          },
-        });
-        toast.error(event.error);
-        break;
-      default:
-        break;
-    }
-  }, [id]);
+      switch (event.type) {
+        case "file_started":
+          patchToken(event.client_ref, {
+            meta: {
+              ingestStatus: "storing",
+              ingestProgress: 5,
+            },
+          });
+          break;
+        case "file_progress":
+          patchToken(event.client_ref, {
+            meta: {
+              artifactId: event.artifact_id,
+              ingestStatus: event.status,
+              ingestProgress: event.progress,
+            },
+          });
+          break;
+        case "file_ready":
+          patchToken(event.client_ref, {
+            id: event.artifact_id,
+            label: event.document.title || event.document.filename,
+            meta: {
+              clientRef: event.client_ref,
+              artifactId: event.artifact_id,
+              ingestStatus: "ready",
+              ingestProgress: 100,
+            },
+          });
+          setDetail((prev) =>
+            prev && id
+              ? {
+                  ...prev,
+                  documents: mergeDocumentsById(prev.documents, [
+                    toConversationDocument(
+                      event.document as unknown as Record<string, unknown>,
+                      id,
+                    ),
+                  ]),
+                }
+              : prev,
+          );
+          break;
+        case "file_failed":
+          patchToken(event.client_ref, {
+            meta: {
+              ingestStatus: "failed",
+              ingestProgress: 0,
+              ingestError: event.error,
+            },
+          });
+          toast.error(event.error);
+          break;
+        default:
+          break;
+      }
+    },
+    [id],
+  );
 
   const flushIngestQueue = useCallback(async () => {
     if (!id || ingestQueueRef.current.length === 0) return;
-    const batch = ingestQueueRef.current.splice(
-      0,
-      MAX_ATTACHMENTS_PER_MESSAGE,
-    );
+    const batch = ingestQueueRef.current.splice(0, MAX_ATTACHMENTS_PER_MESSAGE);
     ingestAbortRef.current?.abort();
     const controller = new AbortController();
     ingestAbortRef.current = controller;
@@ -633,6 +675,9 @@ export function ChatRoomPage() {
           signal: controller.signal,
           onEvent: applyIngestEvent,
         },
+        {
+          providerId: effectiveMultimodalProvider?.id ?? null,
+        },
       );
     } catch (error) {
       if (controller.signal.aborted) return;
@@ -640,7 +685,7 @@ export function ChatRoomPage() {
     } finally {
       setIngestInFlight(false);
     }
-  }, [applyIngestEvent, id]);
+  }, [applyIngestEvent, effectiveMultimodalProvider?.id, id]);
 
   const queueIngestFiles = useCallback(
     (items: Array<{ token: PromptInputToken; file: File }>) => {
@@ -675,7 +720,50 @@ export function ChatRoomPage() {
     setMediaPreviewUrl(null);
     setHtmlPreviewUrl(null);
 
+    const cached = documentMap.get(documentId);
+    const cachedMediaMode =
+      cached && isMediaConversationDocument(cached)
+        ? resolveDocumentPreviewMode({ ...cached, content_md: "" })
+        : null;
+
     try {
+      if (cached && cachedMediaMode) {
+        setSelectedDocument({ ...cached, content_md: "" });
+        setDocumentPreviewMode(cachedMediaMode);
+        const blob = await fetchKnowledgeDocumentSource(id, documentId);
+        if (requestId !== openDocumentRequestRef.current) return;
+        setMediaPreviewUrl(URL.createObjectURL(blob));
+        return;
+      }
+
+      if (!cached) {
+        try {
+          const blob = await fetchKnowledgeDocumentSource(id, documentId);
+          const mediaMode = previewModeFromMime(blob.type);
+          if (mediaMode) {
+            if (requestId !== openDocumentRequestRef.current) return;
+            setSelectedDocument({
+              id: documentId,
+              conversation_id: id,
+              kind: "source",
+              title: documentId,
+              filename: documentId,
+              mime_type: blob.type,
+              source_mime_type: blob.type,
+              source_size: blob.size,
+              content_md: "",
+              created_at: "",
+              updated_at: "",
+            });
+            setDocumentPreviewMode(mediaMode);
+            setMediaPreviewUrl(URL.createObjectURL(blob));
+            return;
+          }
+        } catch {
+          // Not a binary source object — load markdown/html metadata below.
+        }
+      }
+
       const next = await fetchKnowledgeDocument(id, documentId);
       if (requestId !== openDocumentRequestRef.current) return;
 
@@ -683,6 +771,7 @@ export function ChatRoomPage() {
       setSelectedDocument(next);
       setDocumentDraft(next.content_md);
       setDocumentPreviewMode(mode);
+
       if (mode === "image" || mode === "video" || mode === "audio") {
         const blob = await fetchKnowledgeDocumentSource(id, documentId);
         if (requestId !== openDocumentRequestRef.current) return;
@@ -699,54 +788,40 @@ export function ChatRoomPage() {
     }
   }
 
+  const stopAgentRun = useCallback(() => {
+    if (!id) return;
+    stop();
+    void cancelConversationAgent(id).catch(() => undefined);
+  }, [id, stop]);
+
   async function sendPrompt(value: PromptInputValue) {
     if (!id || sending) return;
 
     const displayContent = buildPromptContent(value);
     if (!displayContent && value.tokens.length === 0) return;
 
+    stop();
     setSending(id);
     try {
-      const now = new Date().toISOString();
-      const userMsg: StreamingMessage = {
-        id: placeholderId("user"),
-        conversation_id: id,
-        role: "user",
-        content: displayContent,
-        status: "ok",
-        created_at: now,
-      };
-      const assistantMsg: StreamingMessage = {
-        id: placeholderId("assistant"),
-        conversation_id: id,
-        role: "assistant",
-        content: "",
-        status: "streaming",
-        created_at: now,
-        streaming: true,
-        agentProgress: createEmptyAgentProgress(),
-      };
-      setMessages((prev) => [...prev, userMsg, assistantMsg]);
       promptInputRef.current?.clear();
       setAttachmentCount(0);
 
-      await streamConversationAgent(
-        id,
+      await sendMessage(
+        { text: displayContent },
         {
-          prompt: displayContent,
-          provider_id: effectiveProvider?.id ?? null,
-          multimodal_provider_id: effectiveMultimodalProvider?.id ?? null,
-          document_ids: extractSlotIds(displayContent),
-          thinking: prefs.thinking ? true : null,
-          reasoning_effort: prefs.thinking ? prefs.effort : null,
-        },
-        {
-          onEvent: applyAgentEvent,
+          body: {
+            provider_id: effectiveProvider?.id ?? null,
+            multimodal_provider_id: effectiveMultimodalProvider?.id ?? null,
+            document_ids: extractSlotIds(displayContent),
+            thinking: prefs.thinking ? true : null,
+            reasoning_effort: prefs.thinking ? prefs.effort : null,
+          },
         },
       );
       const refreshed = await fetchConversation(id);
       setDetail(refreshed);
       setMessages(refreshed.messages);
+      setUiMessages(refreshed.messages.map(messageToUiMessage));
     } catch (e) {
       const message = String(e);
       toast.error(message);
@@ -795,7 +870,7 @@ export function ChatRoomPage() {
               </Badge>
             ) : null}
             <span>
-              共 {messages.length} 条消息，按 Cmd/Ctrl + Enter 也可发送
+              共 {renderedMessages.length} 条消息，按 Cmd/Ctrl + Enter 也可发送
             </span>
           </PageDescription>
         </PageHeaderContent>
@@ -833,18 +908,18 @@ export function ChatRoomPage() {
           className="flex-1 space-y-4 overflow-y-auto p-4"
           aria-live="polite"
         >
-          {loading && messages.length === 0 ? (
+          {loading && renderedMessages.length === 0 ? (
             <div className="space-y-2">
               <Skeleton className="h-12 w-2/3" />
               <Skeleton className="ml-auto h-16 w-3/4" />
               <Skeleton className="h-12 w-1/2" />
             </div>
-          ) : messages.length === 0 ? (
+          ) : renderedMessages.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               开始你的第一条消息吧。
             </p>
           ) : (
-            messages.map((m) => (
+            renderedMessages.map((m) => (
               <MessageBubble
                 key={m.id}
                 message={m}
@@ -963,7 +1038,18 @@ export function ChatRoomPage() {
               </SelectContent>
             </Select>
           </div>
-          <span className="ml-auto text-xs text-muted-foreground">
+          <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+            {sending ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                className="h-7"
+                onClick={stopAgentRun}
+              >
+                停止生成
+              </Button>
+            ) : null}
             附件会在输入时并行导入，全部就绪后才能发送。
           </span>
         </div>
@@ -1029,7 +1115,7 @@ export function ChatRoomPage() {
               ) : null}
             </div>
           </SheetHeader>
-          <div className="min-h-0 min-w-0 flex-1 overflow-hidden p-4">
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
             {loadingDocument ? (
               <Skeleton className="h-96 w-full" />
             ) : selectedDocument ? (
@@ -1043,6 +1129,7 @@ export function ChatRoomPage() {
                   />
                 </div>
               ) : documentPreviewMode === "video" && mediaPreviewUrl ? (
+                // biome-ignore lint/a11y/useMediaCaption: Uploaded preview media may not include captions.
                 <video
                   key={selectedDocument.id}
                   src={mediaPreviewUrl}
@@ -1051,6 +1138,7 @@ export function ChatRoomPage() {
                 />
               ) : documentPreviewMode === "audio" && mediaPreviewUrl ? (
                 <div className="flex h-full items-center justify-center">
+                  {/* biome-ignore lint/a11y/useMediaCaption: Uploaded preview media may not include captions. */}
                   <audio
                     key={selectedDocument.id}
                     src={mediaPreviewUrl}
@@ -1060,18 +1148,12 @@ export function ChatRoomPage() {
                 </div>
               ) : documentPreviewMode === "html" && htmlPreviewUrl ? (
                 <div className="flex h-full min-h-0 min-w-0 flex-col gap-2">
-                  <div className="flex shrink-0 items-center justify-between">
-                    <Badge variant="outline">HTML iframe 预览</Badge>
-                    <span className="text-xs text-muted-foreground">
-                      由当前文档源码生成临时 URL
-                    </span>
-                  </div>
                   <iframe
                     key={selectedDocument.id}
                     title={selectedDocument.title}
                     src={htmlPreviewUrl}
                     sandbox="allow-scripts"
-                    className="min-h-0 w-full flex-1 rounded-md border bg-white"
+                    className="min-h-0 w-full flex-1  bg-white"
                   />
                 </div>
               ) : (
@@ -1122,17 +1204,17 @@ function AssistantSlotMessageContent({
 
   return (
     <div className="space-y-2">
-      {segments.map((segment, index) =>
+      {segments.map((segment) =>
         segment.type === "slot" ? (
           <DocumentCard
-            key={`${segment.documentId}-${index}`}
+            key={`slot-${segment.documentId}-${stableKey(JSON.stringify(segment))}`}
             document={documents.get(segment.documentId)}
             documentId={segment.documentId}
             onOpen={() => onOpenDocument(segment.documentId)}
           />
         ) : segment.text.trim() ? (
           <Streamdown
-            key={`text-${index}`}
+            key={`text-${stableKey(segment.text)}`}
             isAnimating={isAnimating}
             className={streamdownClassName}
           >

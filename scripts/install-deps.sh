@@ -5,6 +5,17 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# pnpm treats CI=true as --frozen-lockfile (no lockfile updates). Local
+# `just install` should reconcile package.json → lockfile; CI must stay frozen.
+pnpm_install() {
+  local dir="$1"
+  if [ "${CI:-}" = "true" ] || [ -n "${GITHUB_ACTIONS:-}" ]; then
+    (cd "$dir" && pnpm install --frozen-lockfile)
+  else
+    (cd "$dir" && pnpm install)
+  fi
+}
+
 echo "── 1. Script permissions ──"
 chmod +x scripts/*.sh 2>/dev/null || true
 chmod +x apps/frontend/packages/api-client/scripts/*.sh 2>/dev/null || true
@@ -21,7 +32,7 @@ fi
 echo ""
 echo "── 3. Frontend (pnpm workspace) ──"
 if command -v pnpm >/dev/null 2>&1; then
-  (cd apps/frontend && CI=true pnpm install)
+  pnpm_install apps/frontend
 else
   echo "  ✗ pnpm not found; install via mise or brew" >&2
   exit 1
@@ -54,7 +65,7 @@ if command -v pnpm >/dev/null 2>&1; then
   for svc in chat; do
     if [ -f "apps/backend/services/$svc/package.json" ]; then
       echo "  → $svc"
-      (cd "apps/backend/services/$svc" && CI=true pnpm install)
+      pnpm_install "apps/backend/services/$svc"
     fi
   done
 else

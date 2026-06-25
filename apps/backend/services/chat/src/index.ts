@@ -1,5 +1,11 @@
 import { serve } from "@hono/node-server";
 
+try {
+  process.loadEnvFile();
+} catch {
+  // Local .env is optional; deployed environments inject process.env directly.
+}
+
 import { createApp } from "./app.js";
 import { getSettings } from "./config.js";
 import { closeDb } from "./db/index.js";

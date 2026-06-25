@@ -97,7 +97,8 @@ export async function getDocumentSource(
   );
   if (res.status === 404) throw new NotFoundError(`document ${documentId} source not found`);
   if (!res.ok) throw new Error(`knowledge source failed: ${res.status}`);
-  const mimeType = res.headers.get("content-type") ?? "application/octet-stream";
+  const rawMime = res.headers.get("content-type") ?? "application/octet-stream";
+  const mimeType = rawMime.split(";")[0]?.trim() || "application/octet-stream";
   const bytes = new Uint8Array(await res.arrayBuffer());
   return { bytes, mimeType };
 }

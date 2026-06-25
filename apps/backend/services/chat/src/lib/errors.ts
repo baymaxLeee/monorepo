@@ -46,6 +46,21 @@ export class AdminUnavailableError extends AppError {
   }
 }
 
+export class AgentRunCancelledError extends Error {
+  readonly code = "agent_run_cancelled";
+
+  constructor(message = "agent run cancelled") {
+    super(message);
+    this.name = "AgentRunCancelledError";
+  }
+}
+
+export function isAgentRunCancelled(err: unknown): boolean {
+  if (err instanceof AgentRunCancelledError) return true;
+  if (err instanceof Error && err.name === "AbortError") return true;
+  return err instanceof Error && /aborted|cancelled/i.test(err.message);
+}
+
 export function problemJson(err: unknown): { body: object; status: number } {
   if (err instanceof AppError) {
     return {

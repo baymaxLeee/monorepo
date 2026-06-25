@@ -53,3 +53,6 @@ pgdata/
 
 # Go
 vendor/
+
+# Knowledge service local object storage (runtime uploads)
+apps/backend/services/knowledge/data/

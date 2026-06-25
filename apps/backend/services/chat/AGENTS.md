@@ -7,7 +7,7 @@ documents and artifacts; owns only `conversations` and `messages`.
 - DB tables: `conversations`, `messages`
 - Agent runtime (Vercel AI SDK `streamText` + tools)
 - Redis-backed SSE replay for in-flight agent runs
-- HTTP API: `/conversations/*`, `/conversations/{id}/agents/run/stream`
+- HTTP API: `/conversations/*`, `/conversations/{id}/agents/run/stream`, `/agents/run/cancel`
 - Externally: gateway `/api/chat-server/*`
 
 ## Agent tools

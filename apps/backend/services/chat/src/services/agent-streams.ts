@@ -102,11 +102,86 @@ export class AgentStreamService {
       .exec();
   }
 
+  async appendSseChunk(conversationId: string, runId: string, chunk: string): Promise<void> {
+    const r = getRedis();
+    const stream = streamKey(conversationId, runId);
+    const active = activeKey(conversationId);
+    const ts = String(nowMs());
+    await r
+      .pipeline()
+      .xadd(stream, "*", "sse", chunk)
+      .hset(active, { last_event_at_ms: ts })
+      .expire(stream, this.settings.agentEventStreamTtlSeconds)
+      .expire(active, this.settings.agentEventStreamTtlSeconds)
+      .exec();
+  }
+
+  async *streamSseChunks(conversationId: string, runId: string): AsyncGenerator<string> {
+    const r = getRedis();
+    const stream = streamKey(conversationId, runId);
+    let lastId = "0-0";
+    const settings = this.settings;
+
+    while (true) {
+      const response = await (r as XReadRedis).xread(
+        "BLOCK",
+        settings.agentEventStreamBlockMs,
+        "COUNT",
+        50,
+        "STREAMS",
+        stream,
+        lastId,
+      );
+      if (!response) {
+        if (!(await this.isActive(conversationId, runId))) {
+          const tail = await (r as XReadRedis).xread("COUNT", 50, "STREAMS", stream, lastId);
+          if (!tail) break;
+          for (const [, entries] of tail) {
+            for (const [entryId, fields] of entries) {
+              lastId = entryId;
+              const raw = fields[1];
+              if (raw) yield raw;
+            }
+          }
+          break;
+        }
+        continue;
+      }
+
+      for (const [, entries] of response) {
+        for (const [entryId, fields] of entries) {
+          lastId = entryId;
+          const raw = fields[1];
+          if (raw) yield raw;
+          if (raw.includes("data: [DONE]")) return;
+        }
+      }
+    }
+  }
+
   async finishRun(conversationId: string, runId: string): Promise<void> {
     const r = getRedis();
     const active = activeKey(conversationId);
     const current = await r.hget(active, "run_id");
     if (current === runId) await r.del(active);
+  }
+
+  async requestCancel(conversationId: string): Promise<string | null> {
+    await this.ensureConversation(conversationId);
+    const r = getRedis();
+    const active = activeKey(conversationId);
+    const runId = await r.hget(active, "run_id");
+    if (!runId) return null;
+    await r.hset(active, { cancel_requested: "1" });
+    await r.expire(active, this.settings.agentEventStreamTtlSeconds);
+    return runId;
+  }
+
+  async isCancelRequested(conversationId: string, runId: string): Promise<boolean> {
+    const r = getRedis();
+    const active = activeKey(conversationId);
+    const data = await r.hgetall(active);
+    return data.run_id === runId && data.cancel_requested === "1";
   }
 
   async *streamEvents(conversationId: string, runId: string): AsyncGenerator<Record<string, unknown>> {
@@ -160,7 +235,7 @@ export class AgentStreamService {
   private shouldStop(event: Record<string, unknown>): boolean {
     if (event.type === "error") return true;
     if (event.type === "done") return true;
-    if (event.type === "message" && (event.status === "completed" || event.status === "failed")) {
+    if (event.type === "message" && (event.status === "completed" || event.status === "failed" || event.status === "cancelled")) {
       return true;
     }
     return false;

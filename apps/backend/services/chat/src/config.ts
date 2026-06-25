@@ -27,6 +27,10 @@ export interface Settings {
   agentEventStreamTtlSeconds: number;
   agentEventStreamBlockMs: number;
   agentEventStreamStaleSeconds: number;
+  agentToolTimeoutSeconds: number;
+  agentContextMaxChars: number;
+  agentMemoryMaxItems: number;
+  tavilyApiKey: string;
   providerCacheTtlSeconds: number;
 }
 
@@ -58,7 +62,7 @@ export function getSettings(): Settings {
     internalApiToken: envOr("INTERNAL_API_TOKEN", DEV_INTERNAL_TOKEN),
     llmTimeoutSeconds: envInt("LLM_TIMEOUT_SECONDS", 60),
     llmMaxOutputTokens: envInt("LLM_MAX_OUTPUT_TOKENS", 4096),
-    agentMaxTurns: envInt("AGENT_MAX_TURNS", 120),
+    agentMaxTurns: envInt("AGENT_MAX_TURNS", 20),
     agentRunTimeoutSeconds: envInt("AGENT_RUN_TIMEOUT_SECONDS", 3600),
     agentContextRecentMessages: envInt("AGENT_CONTEXT_RECENT_MESSAGES", 10),
     agentContextMessageMaxChars: envInt("AGENT_CONTEXT_MESSAGE_MAX_CHARS", 1000),
@@ -67,6 +71,10 @@ export function getSettings(): Settings {
     agentEventStreamTtlSeconds: envInt("AGENT_EVENT_STREAM_TTL_SECONDS", 7200),
     agentEventStreamBlockMs: envInt("AGENT_EVENT_STREAM_BLOCK_MS", 100),
     agentEventStreamStaleSeconds: envInt("AGENT_EVENT_STREAM_STALE_SECONDS", 15),
+    agentToolTimeoutSeconds: envInt("AGENT_TOOL_TIMEOUT_SECONDS", 30),
+    agentContextMaxChars: envInt("AGENT_CONTEXT_MAX_CHARS", 24000),
+    agentMemoryMaxItems: envInt("AGENT_MEMORY_MAX_ITEMS", 12),
+    tavilyApiKey: envOr("TAVILY_API_KEY", ""),
     providerCacheTtlSeconds: envInt("PROVIDER_CACHE_TTL_SECONDS", 300),
   };
 }

@@ -90,7 +90,7 @@ export interface AgentStepEvent {
 export interface AgentMessageEvent {
   type: "message";
   role?: "assistant";
-  status?: "streaming" | "completed" | "failed";
+  status?: "streaming" | "completed" | "failed" | "cancelled";
   delta?: string;
   text?: string;
 }
@@ -121,6 +121,17 @@ export interface RunConversationAgentInput {
 }
 
 const BASE = "/api/chat-server/conversations";
+
+export function conversationAgentStreamUrl(conversationId: string): string {
+  return `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/agents/run/stream`;
+}
+
+export function chatAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
 
 export function fetchConversations(): Promise<Conversation[]> {
   return request<Conversation[]>({ url: BASE, method: "GET" });
@@ -423,6 +434,15 @@ export async function resumeConversationAgent(
 ): Promise<void> {
   const url = `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/agents/run/stream`;
   await openEventStream<AgentRunStreamEvent>(url, { method: "GET" }, options);
+}
+
+export async function cancelConversationAgent(
+  conversationId: string,
+): Promise<{ cancelled: boolean; run_id: string | null }> {
+  return request<{ cancelled: boolean; run_id: string | null }>({
+    url: `${BASE}/${encodeURIComponent(conversationId)}/agents/run/cancel`,
+    method: "POST",
+  });
 }
 
 /** @deprecated Upload via `streamKnowledgeIngest` from knowledge-server instead. */

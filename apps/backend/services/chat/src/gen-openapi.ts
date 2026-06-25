@@ -38,6 +38,12 @@ const openapi = {
         responses: { "200": { description: "resume SSE agent run" } },
       },
     },
+    "/conversations/{conversation_id}/agents/run/cancel": {
+      post: {
+        parameters: [pathParam],
+        responses: { "200": { description: "cancel active agent run" } },
+      },
+    },
   },
 };
 

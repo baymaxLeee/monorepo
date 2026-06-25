@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import base64
 from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from knowledge.services.admin_client import ProviderSnapshot
 
 import anyio
 from kernel.errors import BaseError, RequestError
@@ -12,8 +16,11 @@ from knowledge.config import get_settings
 from markitdown import MarkItDown, StreamInfo
 from openai import OpenAI
 
-if TYPE_CHECKING:
-    from knowledge.services.admin_client import ProviderSnapshot
+IMAGE_INGEST_PROMPT = (
+    "You are indexing an uploaded image for search and chat. "
+    "Describe visible text, layout, charts, and key objects concisely in Markdown. "
+    "Only describe what is visible; do not invent details."
+)
 
 
 class AttachmentTooLargeError(BaseError):
@@ -80,14 +87,24 @@ class ConvertService:
             )
 
         vision_note: str | None = None
+        lowered_mime = mime_type.lower()
         try:
-            markdown = await anyio.to_thread.run_sync(
-                self._convert_sync, filename, mime_type, content, provider
-            )
+            if lowered_mime.startswith("image/"):
+                if provider is None:
+                    vision_note = "no vision provider configured for image ingest"
+                    markdown = ""
+                else:
+                    markdown = await anyio.to_thread.run_sync(
+                        self._convert_image_sync, filename, mime_type, content, provider
+                    )
+            else:
+                markdown = await anyio.to_thread.run_sync(
+                    self._convert_sync, filename, mime_type, content, provider
+                )
         except BaseError:
             raise
         except Exception as exc:
-            if mime_type.lower().startswith(("image/", "audio/", "video/")):
+            if lowered_mime.startswith(("image/", "audio/", "video/")):
                 vision_note = str(exc)[:240]
                 markdown = ""
             else:
@@ -120,7 +137,7 @@ class ConvertService:
             enable_plugins=False,
             llm_client=_VisionCaptionClient(client, max_tokens=settings.attachment_vision_max_tokens),
             llm_model=provider.model,
-            llm_prompt="Describe this image in detail for a document assistant.",
+            llm_prompt=IMAGE_INGEST_PROMPT,
         )
 
     def _convert_sync(
@@ -140,6 +157,58 @@ class ConvertService:
             ),
         )
         return result.text_content
+
+    def _convert_image_sync(
+        self,
+        _filename: str,
+        mime_type: str,
+        content: bytes,
+        provider: ProviderSnapshot,
+    ) -> str:
+        description = self._describe_image_sync(
+            content=content,
+            mime_type=mime_type,
+            provider=provider,
+        )
+        if description:
+            return f"# Description:\n{description}"
+        return ""
+
+    def _describe_image_sync(
+        self,
+        *,
+        content: bytes,
+        mime_type: str,
+        provider: ProviderSnapshot,
+    ) -> str:
+        settings = get_settings()
+        client = OpenAI(
+            api_key=provider.api_key,
+            base_url=provider.base_url,
+            timeout=settings.llm_timeout_seconds,
+        )
+        normalized_mime = (mime_type.split(";")[0] or "application/octet-stream").strip().lower()
+        data_uri = f"data:{normalized_mime};base64,{base64.b64encode(content).decode('utf-8')}"
+        messages: Any = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": IMAGE_INGEST_PROMPT},
+                    {"type": "image_url", "image_url": {"url": data_uri}},
+                ],
+            }
+        ]
+        request_kwargs: dict[str, Any] = {
+            **provider.extra_body,
+            "max_tokens": settings.attachment_vision_max_tokens,
+        }
+        response = client.chat.completions.create(
+            model=provider.model,
+            messages=messages,
+            **request_kwargs,
+        )
+        text = response.choices[0].message.content
+        return (text or "").strip()
 
     @staticmethod
     def _fallback_markdown(*, filename: str, mime_type: str, size: int, note: str | None) -> str:

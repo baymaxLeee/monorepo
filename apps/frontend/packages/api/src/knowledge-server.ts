@@ -1,4 +1,4 @@
-import { API_BASE_URL, request } from "./http";
+import { API_BASE_URL, apiHttp, request } from "./http";
 import type {
   ConversationDocument,
   ConversationDocumentDetail,
@@ -165,15 +165,28 @@ export async function updateKnowledgeDocument(
   };
 }
 
+export function knowledgeDocumentSourceUrl(documentId: string): string {
+  return `${API_BASE_URL}${BASE}/documents/${encodeURIComponent(documentId)}/source`;
+}
+
+export function isMediaConversationDocument(document: ConversationDocument): boolean {
+  const mime = (document.source_mime_type || document.mime_type || "").toLowerCase();
+  return (
+    mime.startsWith("image/") ||
+    mime.startsWith("video/") ||
+    mime.startsWith("audio/")
+  );
+}
+
 export async function fetchKnowledgeDocumentSource(
   _conversationId: string,
   documentId: string,
 ): Promise<Blob> {
-  const response = await fetch(`${API_BASE_URL}${BASE}/documents/${documentId}/source`, {
-    credentials: "include",
-  });
-  if (!response.ok) throw new Error(`source download failed: ${response.status}`);
-  return response.blob();
+  const response = await apiHttp.get<Blob>(
+    `${BASE}/documents/${encodeURIComponent(documentId)}/source`,
+    { responseType: "blob" },
+  );
+  return response.data;
 }
 
 export type { ConversationDocumentDetail };

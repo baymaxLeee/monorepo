@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     max_object_bytes: int = 10 * 1024 * 1024
     attachment_max_upload_bytes: int = 10 * 1024 * 1024
     attachment_markdown_max_chars: int = 12_000
-    attachment_vision_max_tokens: int = 256
+    attachment_vision_max_tokens: int = 1024
     ingest_max_parallel: int = 3
     llm_timeout_seconds: float = 60.0
     default_bucket: str = "knowledge"
