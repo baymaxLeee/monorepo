@@ -27,9 +27,11 @@ provider（`@ai-sdk/openai-compatible`）。
 
 ## Agent runtime
 
-- 工具：`list_documents`、`read_document`、`create_artifact`、`web_search`
-- `create_artifact` 先 POST knowledge 落库，占位符 `⟦artifact:N⟧` 在 turn 结束回填为 `[id]`
-- SSE 事件：`step` / `message` / `card` / `error`；Redis stream 断线重放
+- 工具：`list_documents`、`read_document`、`analyze_image`、`create_artifact`、`update_artifact`、`web_search`、`ask_user`、`propose_memory`
+- `create_artifact` 只接收 `{ title, filename, kind, brief }`；工具内部用独立 `streamText` 生成正文，不设置服务内 token / 时间 / 字符上限，以 preliminary 流式输出供前端实时预览，normalize 后 POST knowledge 落库；final tool output 带 `document_id` 供前端 DocumentCard；`onFinish` 将 `[id]` 写入 `messages.content`
+- `update_artifact` 只接收 `{ document_id, title?, filename?, kind?, brief }`；读取现有 artifact 全文后按 brief 生成完整修订版并 PATCH knowledge，同一个 `document_id` 的预览/下载指向最新内容
+- 主循环、上下文拼装与产物生成都不设置服务内 token / 时间 / turn / 字符上限；`experimental_repairToolCall` 修复 malformed tool-call JSON
+- SSE 事件：`step` / `message` / `card` / `error`；Redis stream 断线重放，不用 TTL / stale 秒数截断长任务
 
 ## 入口文件
 

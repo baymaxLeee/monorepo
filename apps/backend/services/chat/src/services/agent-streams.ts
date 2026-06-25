@@ -4,6 +4,8 @@ import { getSettings } from "../config.js";
 import { getConversationRow } from "./conversations.js";
 import type { AuthContext } from "../middleware/auth.js";
 
+const STREAM_BLOCK_MS = 100;
+
 type XReadRedis = Redis & {
   xread(...args: Array<string | number>): Promise<[string, [string, string[]][]][] | null>;
 };
@@ -43,10 +45,7 @@ export interface AgentStreamRun {
 }
 
 export class AgentStreamService {
-  constructor(
-    private readonly auth: AuthContext,
-    private readonly settings = getSettings(),
-  ) {}
+  constructor(private readonly auth: AuthContext) {}
 
   async ensureConversation(conversationId: string): Promise<void> {
     await getConversationRow(this.auth, conversationId);
@@ -68,8 +67,6 @@ export class AgentStreamService {
       started_at_ms: String(nowMs()),
       last_event_at_ms: "",
     });
-    await r.expire(active, this.settings.agentEventStreamTtlSeconds);
-    await r.expire(stream, this.settings.agentEventStreamTtlSeconds);
     return { runId, started: true };
   }
 
@@ -97,8 +94,6 @@ export class AgentStreamService {
       .pipeline()
       .xadd(stream, "*", "event", JSON.stringify(event))
       .hset(active, { last_event_at_ms: ts })
-      .expire(stream, this.settings.agentEventStreamTtlSeconds)
-      .expire(active, this.settings.agentEventStreamTtlSeconds)
       .exec();
   }
 
@@ -111,8 +106,6 @@ export class AgentStreamService {
       .pipeline()
       .xadd(stream, "*", "sse", chunk)
       .hset(active, { last_event_at_ms: ts })
-      .expire(stream, this.settings.agentEventStreamTtlSeconds)
-      .expire(active, this.settings.agentEventStreamTtlSeconds)
       .exec();
   }
 
@@ -120,12 +113,11 @@ export class AgentStreamService {
     const r = getRedis();
     const stream = streamKey(conversationId, runId);
     let lastId = "0-0";
-    const settings = this.settings;
 
     while (true) {
       const response = await (r as XReadRedis).xread(
         "BLOCK",
-        settings.agentEventStreamBlockMs,
+        STREAM_BLOCK_MS,
         "COUNT",
         50,
         "STREAMS",
@@ -173,7 +165,6 @@ export class AgentStreamService {
     const runId = await r.hget(active, "run_id");
     if (!runId) return null;
     await r.hset(active, { cancel_requested: "1" });
-    await r.expire(active, this.settings.agentEventStreamTtlSeconds);
     return runId;
   }
 
@@ -188,12 +179,11 @@ export class AgentStreamService {
     const r = getRedis();
     const stream = streamKey(conversationId, runId);
     let lastId = "0-0";
-    const settings = this.settings;
 
     while (true) {
       const response = await (r as XReadRedis).xread(
         "BLOCK",
-        settings.agentEventStreamBlockMs,
+        STREAM_BLOCK_MS,
         "COUNT",
         50,
         "STREAMS",
@@ -251,14 +241,6 @@ export class AgentStreamService {
     const data = await r.hgetall(active);
     const runId = data.run_id;
     if (!runId) return null;
-    const stream = streamKey(conversationId, runId);
-    const len = await r.xlen(stream);
-    if (len > 0) return runId;
-    const startedAt = Number(data.started_at_ms || 0);
-    if (!startedAt || nowMs() - startedAt > this.settings.agentEventStreamStaleSeconds * 1000) {
-      await r.del(active);
-      return null;
-    }
     return runId;
   }
 }

@@ -144,6 +144,29 @@ Admin invalidates cache on writes via `DEL` / pub/sub.
 This is why `admin` is the only Python service that talks to almost
 everything else — it is by design a hub, not a peer.
 
+### Industry practice before platform decisions
+For key platform decisions, agents MUST first check current industry practice
+before inventing local policy. This rule is as important as the AI-Native
+technology preference below.
+
+This applies especially to:
+- Single-agent and sub-agent architecture
+- Long-running task orchestration, cancellation, resume, and compaction
+- Tool calling, approval, artifact generation, and streaming UX
+- Harness design, evaluation loops, memory, and context management
+- Configuration policy, limits, timeouts, and operational guardrails
+- Coding-agent conventions, playbooks, and agent-facing repository rules
+
+Use relevant products, frameworks, and public docs as references, including
+but not limited to Codex, Claude Code, Cursor, Vercel AI SDK, LangChain,
+LlamaIndex, OpenAI / Anthropic SDKs, and established open-source agent
+frameworks. Favor primary sources and recent behavior over assumptions.
+
+If a proposed limit, config knob, orchestration rule, or harness convention is
+not supported by clear product requirements, operational necessity, or common
+industry practice, do not add it. If it already exists, remove it or justify it
+explicitly in code comments, docs, or an ADR, depending on the blast radius.
+
 ### AI-Native technology preference
 The project is positioned as **AI-Native**. When choosing a third-party
 library for an AI-adjacent surface (streaming chat, tool calling, structured

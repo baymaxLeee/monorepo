@@ -152,13 +152,12 @@ export interface UserMemory {
   confidence: number;
 }
 
-export async function listActiveMemories(userId: string, limit: number): Promise<UserMemory[]> {
+export async function listActiveMemories(userId: string): Promise<UserMemory[]> {
   const rows = await getDb()
     .select()
     .from(userMemories)
     .where(and(eq(userMemories.userId, userId), eq(userMemories.status, "active")))
-    .orderBy(asc(userMemories.createdAt))
-    .limit(limit);
+    .orderBy(asc(userMemories.createdAt));
   return rows.map((row) => ({
     id: row.id,
     category: row.category as MemoryCategory,

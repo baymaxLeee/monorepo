@@ -1,13 +1,15 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { generateText, tool } from "ai";
+import { generateText, streamText, tool, type StopCondition } from "ai";
 import { z } from "zod";
 
 import type { ProviderSnapshot } from "../clients/admin.js";
 import {
   createArtifact,
+  getDocument,
   getDocumentSlice,
   getDocumentSource,
   listDocuments,
+  updateArtifact,
   type KnowledgeDocument,
 } from "../clients/knowledge.js";
 import { getSettings } from "../config.js";
@@ -31,13 +33,6 @@ function withProviderBody(
   return merged;
 }
 
-interface ArtifactBuilder {
-  title: string;
-  filename: string;
-  parts: string[];
-  length: number;
-}
-
 interface TavilyResult {
   title?: string;
   url?: string;
@@ -47,8 +42,8 @@ interface TavilyResult {
   published_date?: string | null;
 }
 
-function toolTimeoutSignal(settings = getSettings()): AbortSignal {
-  return AbortSignal.timeout(settings.agentToolTimeoutSeconds * 1000);
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function sanitizeFilename(filename: string): string {
@@ -66,22 +61,204 @@ function inferArtifactMime(filename: string): string {
     : "text/markdown";
 }
 
+type ArtifactKind = "html" | "markdown";
+const ARTIFACT_STREAM_HEARTBEAT_MS = 1000;
+
 export interface AgentToolContext {
   auth: AuthContext;
   conversationId: string;
-  placeholderMap: Map<string, string>;
+  generateModel: any;
+  runAbortSignal?: AbortSignal;
   createdDocuments: KnowledgeDocument[];
-  placeholderCounter: number;
   multimodalProvider?: ProviderSnapshot | null;
-  artifactBuilders: Map<string, ArtifactBuilder>;
   artifactTotalChars: number;
 }
 
-function nextPlaceholder(ctx: AgentToolContext, documentId: string): string {
-  ctx.placeholderCounter += 1;
-  const placeholder = `⟦artifact:${ctx.placeholderCounter}⟧`;
-  ctx.placeholderMap.set(placeholder, documentId);
-  return placeholder;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value != null;
+}
+
+export function isArtifactPersistedOutput(output: unknown): boolean {
+  if (!isRecord(output) || output.ok !== true) return false;
+  return typeof output.document_id === "string";
+}
+
+export function artifactPersistedStopCondition(): StopCondition<Record<string, never>> {
+  return ({ steps }) => {
+    const last = steps.at(-1);
+    if (!last) return false;
+    return last.toolResults.some((result) => isArtifactPersistedOutput(result.output));
+  };
+}
+
+const TOOL_INPUT_AUDIT_MAX_CHARS = 400;
+
+export function sanitizeToolInputForAudit(toolName: string, input: unknown): unknown {
+  if (!isRecord(input)) return input;
+  if (toolName !== "create_artifact" && toolName !== "update_artifact") return input;
+  const content = input.brief;
+  if (typeof content !== "string" || content.length <= TOOL_INPUT_AUDIT_MAX_CHARS) return input;
+  return {
+    ...input,
+    brief: `${content.slice(0, TOOL_INPUT_AUDIT_MAX_CHARS).trimEnd()}\n...[truncated ${content.length} chars]`,
+  };
+}
+
+function decodeArtifactEscapes(raw: string): string {
+  let content = raw.trim();
+  if (
+    content.length >= 2 &&
+    content.startsWith('"') &&
+    content.endsWith('"')
+  ) {
+    try {
+      const parsed = JSON.parse(content) as unknown;
+      if (typeof parsed === "string") content = parsed;
+    } catch {
+      content = content.slice(1, -1);
+    }
+  }
+
+  const literalNewlines = (content.match(/\\n/g) ?? []).length;
+  const realNewlines = (content.match(/\n/g) ?? []).length;
+  if (literalNewlines >= 3 && literalNewlines > realNewlines) {
+    content = content
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "\t")
+      .replace(/\\r/g, "\r")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\");
+  }
+
+  return content.trim();
+}
+
+function stripMarkdownFences(content: string): string {
+  let text = content.trim();
+  const fullFence = text.match(/^```(?:html|htm|markdown|md)?\s*\n([\s\S]*?)\n```\s*$/i);
+  if (fullFence?.[1]?.trim()) return fullFence[1].trim();
+
+  const openFence = text.match(/^```(?:html|htm|markdown|md)?\s*\n([\s\S]*)$/i);
+  if (openFence?.[1]) text = openFence[1].trim();
+
+  return text.replace(/\n```\s*$/i, "").trim();
+}
+
+function extractPrimaryHtmlDocument(content: string): string {
+  const trimmed = content.trim();
+  const lowered = trimmed.toLowerCase();
+  if (lowered.startsWith("<!doctype html") || lowered.startsWith("<html")) {
+    return trimmed;
+  }
+
+  const withDoctype = trimmed.match(/<!doctype\s+html[\s\S]*<\/html>/i);
+  if (withDoctype?.[0]?.trim()) return withDoctype[0].trim();
+
+  const htmlOnly = trimmed.match(/<html[\s\S]*<\/html>/i);
+  if (htmlOnly?.[0]?.trim()) return htmlOnly[0].trim();
+
+  return trimmed;
+}
+
+function wrapHtmlShell(fragment: string): string {
+  return [
+    "<!doctype html>",
+    '<html lang="zh-CN">',
+    "<head>",
+    '  <meta charset="utf-8" />',
+    '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
+    "  <title>Artifact</title>",
+    "</head>",
+    "<body>",
+    fragment,
+    "</body>",
+    "</html>",
+  ].join("\n");
+}
+
+export function normalizeArtifactContent(kind: ArtifactKind, raw: string): string {
+  let content = decodeArtifactEscapes(raw);
+  content = stripMarkdownFences(content);
+
+  if (kind !== "html") return content;
+
+  content = extractPrimaryHtmlDocument(content);
+  const lowered = content.toLowerCase();
+  if (lowered.startsWith("<!doctype html") || lowered.startsWith("<html")) {
+    return content;
+  }
+  return wrapHtmlShell(content);
+}
+
+export interface ArtifactValidationResult {
+  ok: boolean;
+  error?: string;
+}
+
+export function validateArtifactContent(
+  kind: ArtifactKind,
+  content: string,
+): ArtifactValidationResult {
+  const trimmed = content.trim();
+  if (!trimmed) return { ok: false, error: "artifact content is empty" };
+  if (kind !== "html") return { ok: true };
+
+  if (trimmed.includes("```")) {
+    return { ok: false, error: "HTML still contains markdown code fences" };
+  }
+  if (!/<\/html>\s*$/i.test(trimmed)) {
+    return { ok: false, error: "HTML document is incomplete (missing closing </html>)" };
+  }
+  if ((trimmed.match(/<html\b/gi) ?? []).length > 1) {
+    return { ok: false, error: "HTML contains nested <html> documents" };
+  }
+  if ((trimmed.match(/<!doctype\s+html/gi) ?? []).length > 1) {
+    return { ok: false, error: "HTML contains multiple doctype declarations" };
+  }
+  if ((trimmed.match(/<body\b/gi) ?? []).length > 1) {
+    return { ok: false, error: "HTML contains nested <body> elements" };
+  }
+
+  return { ok: true };
+}
+
+function artifactSystemPrompt(kind: ArtifactKind): string {
+  const base = [
+    "You are a dedicated file generator.",
+    "Do not think, reason, plan, or analyze in the response.",
+    "Start immediately with the first byte of the file content.",
+    "Output only the raw file content.",
+    "Do not wrap the content in Markdown code fences.",
+    "Do not add explanations, comments about your process, or follow-up text.",
+  ];
+  if (kind === "html") {
+    base.push(
+      "Generate a complete, self-contained HTML5 document.",
+      "Start with <!doctype html> and end with </html>; close every tag.",
+      "Use real newlines — never emit literal backslash-n or other JSON escape sequences.",
+      "Keep CSS and markup compact; avoid verbose repetition.",
+      "Include inline CSS and JavaScript only when needed; do not reference unavailable local files.",
+    );
+  } else {
+    base.push("Generate clean Markdown suitable for direct persistence.");
+  }
+  return base.join("\n");
+}
+
+function artifactRevisionPrompt(kind: ArtifactKind, current: string, brief: string): string {
+  return [
+    "Revise the existing file according to the user's change request.",
+    "Return the full updated file content, not a diff or patch.",
+    "Keep unchanged sections unless the request requires changing them.",
+    "",
+    "<change_request>",
+    brief,
+    "</change_request>",
+    "",
+    "<current_file>",
+    current,
+    "</current_file>",
+  ].join("\n");
 }
 
 export function buildAgentTools(ctx: AgentToolContext) {
@@ -177,8 +354,7 @@ export function buildAgentTools(ctx: AgentToolContext) {
                 ],
               },
             ],
-            maxOutputTokens: Math.min(settings.llmMaxOutputTokens, 2048),
-            abortSignal: toolTimeoutSignal(settings),
+            abortSignal: ctx.runAbortSignal,
           });
           const text = result.text.trim();
           return {
@@ -195,108 +371,243 @@ export function buildAgentTools(ctx: AgentToolContext) {
 
     create_artifact: tool({
       description:
-        "Create a persistent markdown or html artifact in the knowledge base in a single call. Returns a placeholder token to cite in the final answer. For content larger than the per-call limit, use append_artifact_chunk instead.",
+        "Create a persistent markdown or html artifact in the knowledge base. Pass a compact brief describing what to generate; the tool generates, streams, and persists the file content internally. The persisted document_id can be referenced as a document slot in the assistant message.",
       inputSchema: z.object({
         title: z.string().min(1).max(120),
         filename: z.string().min(1).max(160),
-        content: z.string().min(1).max(settings.agentArtifactMaxChars),
+        kind: z.enum(["html", "markdown"]).default("markdown"),
+        brief: z.string().min(1),
       }),
-      execute: async ({ title, filename, content }) => {
-        if (ctx.artifactTotalChars + content.length > settings.agentArtifactTotalMaxChars) {
-          return {
-            ok: false,
-            error: `total artifact budget (${settings.agentArtifactTotalMaxChars} chars) exceeded for this run`,
-          };
-        }
+      execute: async function* ({ title, filename, kind, brief }) {
         const safeFilename = sanitizeFilename(filename);
-        const doc = await createArtifact({
-          userId: ctx.auth.userId,
-          conversationId: ctx.conversationId,
+        let content = "";
+        let lastYieldAt = 0;
+        let lastYieldLength = 0;
+        const abortSignal = ctx.runAbortSignal;
+
+        yield {
+          ok: true,
+          status: "generating",
+          phase: "starting",
           title,
           filename: safeFilename,
+          kind,
           content,
-          mimeType: inferArtifactMime(safeFilename),
-        });
-        ctx.createdDocuments.push(doc);
-        ctx.artifactTotalChars += content.length;
-        const placeholder = nextPlaceholder(ctx, doc.id);
-        return {
-          ok: true,
-          document_id: doc.id,
-          title: doc.title,
-          filename: doc.filename,
-          placeholder,
-          instruction: "Cite the placeholder exactly in the final answer.",
+          total_chars: content.length,
+          heartbeat: 0,
         };
+
+        try {
+          const result = streamText({
+            model: ctx.generateModel,
+            system: artifactSystemPrompt(kind),
+            prompt: brief,
+            abortSignal,
+          });
+
+          let heartbeat = 0;
+          const iterator = result.textStream[Symbol.asyncIterator]();
+          let pendingNext = iterator.next();
+
+          while (true) {
+            const next = await Promise.race([
+              pendingNext.then((value) => ({ type: "delta" as const, value })),
+              delay(ARTIFACT_STREAM_HEARTBEAT_MS).then(() => ({ type: "heartbeat" as const })),
+            ]);
+
+            if (next.type === "heartbeat") {
+              heartbeat += 1;
+              yield {
+                ok: true,
+                status: "generating",
+                phase: content ? "streaming" : "waiting_for_content",
+                title,
+                filename: safeFilename,
+                kind,
+                content,
+                total_chars: content.length,
+                heartbeat,
+              };
+              continue;
+            }
+
+            if (next.value.done) break;
+            pendingNext = iterator.next();
+            const delta = next.value.value;
+            content += delta;
+            const now = Date.now();
+            if (now - lastYieldAt < 50 && content.length - lastYieldLength < 512) {
+              continue;
+            }
+            lastYieldAt = now;
+            lastYieldLength = content.length;
+            yield {
+              ok: true,
+              status: "generating",
+              phase: "streaming",
+              title,
+              filename: safeFilename,
+              kind,
+              content,
+              total_chars: content.length,
+              heartbeat,
+            };
+          }
+
+          const finishReason = await result.finishReason;
+          const assembled = (await result.text).trim();
+          if (assembled) content = assembled;
+
+          const normalized = normalizeArtifactContent(kind, content);
+          const validation = validateArtifactContent(kind, normalized);
+          if (!validation.ok) {
+            yield { ok: false, error: validation.error ?? "artifact validation failed" };
+            return;
+          }
+          if (!normalized.trim()) {
+            yield { ok: false, error: "artifact generation returned empty content" };
+            return;
+          }
+          const doc = await createArtifact({
+            userId: ctx.auth.userId,
+            conversationId: ctx.conversationId,
+            title,
+            filename: safeFilename,
+            content: normalized,
+            mimeType: kind === "html" ? "text/html" : inferArtifactMime(safeFilename),
+          });
+          ctx.createdDocuments.push(doc);
+          ctx.artifactTotalChars += normalized.length;
+          yield {
+            ok: true,
+            status: "persisted",
+            document_id: doc.id,
+            title: doc.title,
+            filename: doc.filename,
+            total_chars: normalized.length,
+          };
+        } catch (err) {
+          yield { ok: false, error: String(err).slice(0, 500) };
+        }
       },
     }),
 
-    append_artifact_chunk: tool({
+    update_artifact: tool({
       description:
-        "Build a large artifact incrementally across multiple calls. Call repeatedly with the same filename to append content, then call once with done=true to persist. Returns a placeholder token only on the final (done) call.",
+        "Update an existing artifact in place. Use this when the user asks to modify a prior artifact/document. Pass the document_id and a compact brief describing the requested changes; the tool rewrites and persists the same artifact id.",
       inputSchema: z.object({
-        title: z.string().min(1).max(120),
-        filename: z.string().min(1).max(160),
-        content: z.string().max(settings.agentArtifactMaxChars),
-        done: z.boolean().default(false),
+        document_id: z.string().min(1).max(32),
+        title: z.string().min(1).max(120).optional(),
+        filename: z.string().min(1).max(160).optional(),
+        kind: z.enum(["html", "markdown"]).optional(),
+        brief: z.string().min(1),
       }),
-      execute: async ({ title, filename, content, done }) => {
-        let builder = ctx.artifactBuilders.get(filename);
-        if (!builder) {
-          builder = { title, filename, parts: [], length: 0 };
-          ctx.artifactBuilders.set(filename, builder);
+      execute: async function* ({ document_id, title, filename, kind, brief }) {
+        const current = await getDocument(ctx.auth.userId, document_id);
+        if (current.kind !== "artifact") {
+          yield { ok: false, error: `document ${document_id} is not an artifact` };
+          return;
         }
-        builder.title = title;
-        if (content) {
-          if (
-            builder.length + content.length > settings.agentArtifactMaxChars ||
-            ctx.artifactTotalChars + builder.length + content.length > settings.agentArtifactTotalMaxChars
-          ) {
-            ctx.artifactBuilders.delete(filename);
-            return {
-              ok: false,
-              error: `artifact "${filename}" exceeds size budget; persist smaller chunks`,
+        const currentContent = current.content_md ?? "";
+        const artifactKind: ArtifactKind =
+          kind ?? (current.mime_type === "text/html" || current.filename.toLowerCase().endsWith(".html") ? "html" : "markdown");
+        const safeFilename = filename ? sanitizeFilename(filename) : current.filename;
+        let content = "";
+
+        yield {
+          ok: true,
+          status: "generating",
+          phase: "starting",
+          document_id,
+          title: title ?? current.title,
+          filename: safeFilename,
+          kind: artifactKind,
+          content,
+          total_chars: 0,
+          heartbeat: 0,
+        };
+
+        try {
+          const result = streamText({
+            model: ctx.generateModel,
+            system: artifactSystemPrompt(artifactKind),
+            prompt: artifactRevisionPrompt(artifactKind, currentContent, brief),
+            abortSignal: ctx.runAbortSignal,
+          });
+
+          let heartbeat = 0;
+          const iterator = result.textStream[Symbol.asyncIterator]();
+          let pendingNext = iterator.next();
+
+          while (true) {
+            const next = await Promise.race([
+              pendingNext.then((value) => ({ type: "delta" as const, value })),
+              delay(ARTIFACT_STREAM_HEARTBEAT_MS).then(() => ({ type: "heartbeat" as const })),
+            ]);
+
+            if (next.type === "heartbeat") {
+              heartbeat += 1;
+              yield {
+                ok: true,
+                status: "generating",
+                phase: content ? "streaming" : "waiting_for_content",
+                document_id,
+                title: title ?? current.title,
+                filename: safeFilename,
+                kind: artifactKind,
+                content,
+                total_chars: content.length,
+                heartbeat,
+              };
+              continue;
+            }
+
+            if (next.value.done) break;
+            pendingNext = iterator.next();
+            content += next.value.value;
+            yield {
+              ok: true,
+              status: "generating",
+              phase: "streaming",
+              document_id,
+              title: title ?? current.title,
+              filename: safeFilename,
+              kind: artifactKind,
+              content,
+              total_chars: content.length,
+              heartbeat,
             };
           }
-          builder.parts.push(content);
-          builder.length += content.length;
-        }
-        if (!done) {
-          return {
+
+          const assembled = (await result.text).trim();
+          if (assembled) content = assembled;
+          const normalized = normalizeArtifactContent(artifactKind, content);
+          const validation = validateArtifactContent(artifactKind, normalized);
+          if (!validation.ok) {
+            yield { ok: false, error: validation.error ?? "artifact validation failed" };
+            return;
+          }
+
+          const doc = await updateArtifact({
+            userId: ctx.auth.userId,
+            documentId: document_id,
+            title,
+            filename: safeFilename,
+            content: normalized,
+            mimeType: artifactKind === "html" ? "text/html" : inferArtifactMime(safeFilename),
+          });
+          ctx.createdDocuments.push(doc);
+          yield {
             ok: true,
-            status: "buffered",
-            filename,
-            appended_chars: content.length,
-            total_chars: builder.length,
+            status: "persisted",
+            document_id: doc.id,
+            title: doc.title,
+            filename: doc.filename,
+            total_chars: normalized.length,
           };
+        } catch (err) {
+          yield { ok: false, error: String(err).slice(0, 500) };
         }
-        ctx.artifactBuilders.delete(filename);
-        const merged = builder.parts.join("");
-        if (!merged.trim()) {
-          return { ok: false, error: `no content accumulated for "${filename}"` };
-        }
-        const safeFilename = sanitizeFilename(filename);
-        const doc = await createArtifact({
-          userId: ctx.auth.userId,
-          conversationId: ctx.conversationId,
-          title: builder.title,
-          filename: safeFilename,
-          content: merged,
-          mimeType: inferArtifactMime(safeFilename),
-        });
-        ctx.createdDocuments.push(doc);
-        ctx.artifactTotalChars += merged.length;
-        const placeholder = nextPlaceholder(ctx, doc.id);
-        return {
-          ok: true,
-          status: "persisted",
-          document_id: doc.id,
-          title: doc.title,
-          filename: doc.filename,
-          total_chars: merged.length,
-          placeholder,
-          instruction: "Cite the placeholder exactly in the final answer.",
-        };
       },
     }),
 
@@ -328,7 +639,7 @@ export function buildAgentTools(ctx: AgentToolContext) {
               include_answer: false,
               include_raw_content: false,
             }),
-            signal: toolTimeoutSignal(settings),
+            signal: ctx.runAbortSignal,
           });
           if (!res.ok) {
             return { ok: false, error: `Tavily HTTP ${res.status}: ${(await res.text()).slice(0, 500)}` };
@@ -354,7 +665,7 @@ export function buildAgentTools(ctx: AgentToolContext) {
 
     ask_user: tool({
       description:
-        "Ask the user for missing information that is required to continue. Use this before web_search when the request is location-dependent (for example weather, local news, traffic, nearby services) and no location is present in the prompt or trusted memory.",
+        "Ask the user for missing information that is required to continue. Do not use this to confirm whether to create an artifact; infer reasonable artifact details and call create_artifact directly. Use this before web_search when the request is location-dependent (for example weather, local news, traffic, nearby services) and no location is present in the prompt or trusted memory.",
       inputSchema: z.object({
         question: z.string().min(1).max(240),
         choices: z
@@ -393,25 +704,43 @@ export function buildAgentTools(ctx: AgentToolContext) {
   };
 }
 
-export function applyPlaceholderReplacements(
-  text: string,
-  placeholderMap: Map<string, string>,
+export function finalizeAssistantMessage(
+  modelText: string,
   created: KnowledgeDocument[],
 ): string {
-  let out = text;
-  for (const [placeholder, id] of placeholderMap) {
-    out = out.split(placeholder).join(`[${id}]`);
+  const artifacts = [...new Map(created.map((doc) => [doc.id, doc])).values()];
+  let out = modelText.trim();
+  for (const doc of artifacts) {
+    out = out.replaceAll(`[${doc.id}]`, " ");
   }
-  const missing = [...placeholderMap.values()].filter((id) => !out.includes(`[${id}]`));
-  if (missing.length === 1) {
-    out = `${out.trim()}\n\n[${missing[0]}]`.trim();
-  } else if (missing.length > 1) {
-    out = `${out.trim()}\n\n${missing.map((id) => `[${id}]`).join(" ")}`.trim();
+  out = out
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  const artifactSummary = artifacts
+    .map((doc, index) => {
+      const type = doc.mime_type === "text/html" ? "HTML" : "Markdown";
+      const size = doc.content_md?.length ?? doc.source_size ?? 0;
+      return [
+        `${index + 1}. ${doc.title}`,
+        `文件: ${doc.filename}`,
+        `类型: ${type}`,
+        size > 0 ? `长度: ${size} chars` : null,
+        `[${doc.id}]`,
+      ]
+        .filter((line): line is string => line != null)
+        .join("\n");
+    })
+    .join("\n\n");
+
+  if (out) {
+    return `${out}\n\n产物已就绪:\n${artifactSummary}`.trim();
   }
-  if (!out.trim() && created.length === 1) {
-    return `已生成文档: ${created[0]!.title}\n\n[${created[0]!.id}]`;
+  if (artifacts.length > 0) {
+    return `已完成产物生成/更新:\n\n${artifactSummary}`;
   }
-  return out.trim() || "已完成。";
+  return "已完成。";
 }
 
 export function extractSlotIds(text: string): string[] {

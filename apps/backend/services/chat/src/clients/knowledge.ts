@@ -126,3 +126,27 @@ export async function createArtifact(input: {
   if (!res.ok) throw new Error(`knowledge create artifact failed: ${res.status}`);
   return (await res.json()) as KnowledgeDocument;
 }
+
+export async function updateArtifact(input: {
+  userId: string;
+  documentId: string;
+  title?: string;
+  filename?: string;
+  content?: string;
+  mimeType?: string;
+}): Promise<KnowledgeDocument> {
+  const res = await fetch(`${knowledgeBase()}/internal/documents/${input.documentId}`, {
+    method: "PATCH",
+    headers: { ...internalHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: input.userId,
+      title: input.title,
+      filename: input.filename,
+      content: input.content,
+      mime_type: input.mimeType,
+    }),
+  });
+  if (res.status === 404) throw new NotFoundError(`artifact ${input.documentId} not found`);
+  if (!res.ok) throw new Error(`knowledge update artifact failed: ${res.status}`);
+  return (await res.json()) as KnowledgeDocument;
+}

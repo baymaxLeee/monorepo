@@ -5,7 +5,7 @@ from fastapi.responses import Response
 from kernel.errors import NotFoundError
 from knowledge.crud import documents as document_crud
 from knowledge.deps import DbSession, require_internal_token
-from knowledge.schemas.document import CreateArtifactInput, Document, DocumentSlice
+from knowledge.schemas.document import CreateArtifactInput, Document, DocumentSlice, UpdateArtifactInput
 from knowledge.services.documents import document_to_schema
 from knowledge.services.object_store import ObjectStore
 
@@ -23,9 +23,7 @@ async def list_documents(
     conversation_id: str | None = Query(default=None),
     kind: str | None = Query(default=None),
 ) -> list[Document]:
-    rows = await document_crud.list_documents(
-        session, user_id=user_id, conversation_id=conversation_id, kind=kind
-    )
+    rows = await document_crud.list_documents(session, user_id=user_id, conversation_id=conversation_id, kind=kind)
     return [document_to_schema(row) for row in rows]
 
 
@@ -86,9 +84,7 @@ async def get_document_source(
 @router.post("/artifacts", response_model=Document, status_code=201)
 async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> Document:
     mime = payload.mime_type or (
-        "text/html"
-        if payload.filename.lower().endswith((".html", ".htm"))
-        else "text/markdown"
+        "text/html" if payload.filename.lower().endswith((".html", ".htm")) else "text/markdown"
     )
     row = await document_crud.create_document(
         session,
@@ -103,6 +99,25 @@ async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> D
         ingest_progress=100,
     )
     await session.commit()
+    return document_to_schema(row, include_content=True)
+
+
+@router.patch("/documents/{document_id}", response_model=Document)
+async def update_artifact(
+    document_id: str,
+    payload: UpdateArtifactInput,
+    session: DbSession,
+) -> Document:
+    row = await document_crud.get_document(session, document_id, payload.user_id)
+    if row is None or row.kind != "artifact":
+        raise NotFoundError(f"artifact {document_id} not found")
+    values = payload.model_dump(exclude_unset=True, exclude_none=True)
+    values.pop("user_id", None)
+    if "content" in values:
+        values["content_md"] = values.pop("content")
+    if values:
+        row = await document_crud.update_document(session, row, values)
+        await session.commit()
     return document_to_schema(row, include_content=True)
 
 

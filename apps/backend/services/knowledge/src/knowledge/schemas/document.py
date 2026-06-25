@@ -39,6 +39,14 @@ class CreateArtifactInput(BaseModel):
     mime_type: str | None = Field(default=None, max_length=120)
 
 
+class UpdateArtifactInput(BaseModel):
+    user_id: str = Field(min_length=1, max_length=26)
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    filename: str | None = Field(default=None, min_length=1, max_length=160)
+    content: str | None = Field(default=None, min_length=1)
+    mime_type: str | None = Field(default=None, max_length=120)
+
+
 class DocumentSlice(BaseModel):
     id: str
     title: str

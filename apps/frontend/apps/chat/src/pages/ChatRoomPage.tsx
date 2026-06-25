@@ -70,13 +70,21 @@ import {
   FileTextIcon,
   SettingsIcon,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  cn,
   extractSlotIds,
   parseSlots,
   serializeSlots,
-  cn,
   tokenIdByArtifactId,
 } from "shared";
 import { Streamdown } from "streamdown";
@@ -379,8 +387,7 @@ export function ChatRoomPage() {
       });
     },
   });
-  const agentBusy =
-    chatStatus === "streaming" || chatStatus === "submitted";
+  const agentBusy = chatStatus === "streaming" || chatStatus === "submitted";
 
   const agentRequestBody = useCallback(
     (displayContent?: string) => ({
@@ -515,7 +522,9 @@ export function ChatRoomPage() {
       .then(async () => {
         const next = await fetchConversation(id);
         setDetail(next);
-        setUiMessages((current) => mergeUiMessagesFromDb(current, next.messages));
+        setUiMessages((current) =>
+          mergeUiMessagesFromDb(current, next.messages),
+        );
       })
       .catch((e) => {
         const message = String(e);
@@ -1373,6 +1382,10 @@ function ToolPartCard({
   const input = "input" in part ? part.input : undefined;
   const output = "output" in part ? part.output : undefined;
   const artifactId = extractArtifactId(output);
+  const artifactStream =
+    toolName === "create_artifact" || toolName === "update_artifact"
+      ? parseArtifactStreamOutput(output)
+      : null;
   const askUserInput =
     toolName === "ask_user" ? parseAskUserInput(input) : null;
 
@@ -1386,11 +1399,17 @@ function ToolPartCard({
     );
   }
 
+  if (artifactStream) {
+    return <ArtifactStreamCard stream={artifactStream} state={state} />;
+  }
+
   return (
     <Card className="rounded-md bg-background/80 text-foreground">
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-2">
         <div className="min-w-0">
-          <CardTitle className="truncate text-xs font-medium">{toolName}</CardTitle>
+          <CardTitle className="truncate text-xs font-medium">
+            {toolName}
+          </CardTitle>
           <div className="text-[11px] text-muted-foreground">
             {toolStateLabel(state)}
           </div>
@@ -1446,6 +1465,99 @@ function ToolPartCard({
           <ToolJsonPreview value={output} />
         </CardContent>
       ) : null}
+    </Card>
+  );
+}
+
+type ArtifactStreamOutput = {
+  title: string;
+  filename: string;
+  kind: "html" | "markdown";
+  content: string;
+  phase: string;
+  totalChars: number;
+};
+
+function parseArtifactStreamOutput(
+  output: unknown,
+): ArtifactStreamOutput | null {
+  if (!output || typeof output !== "object") return null;
+  const raw = output as {
+    status?: unknown;
+    title?: unknown;
+    filename?: unknown;
+    kind?: unknown;
+    content?: unknown;
+    phase?: unknown;
+    total_chars?: unknown;
+  };
+  if (raw.status !== "generating" || typeof raw.content !== "string") {
+    return null;
+  }
+  const kind = raw.kind === "html" ? "html" : "markdown";
+  return {
+    title: typeof raw.title === "string" && raw.title ? raw.title : "Artifact",
+    filename:
+      typeof raw.filename === "string" && raw.filename
+        ? raw.filename
+        : kind === "html"
+          ? "artifact.html"
+          : "artifact.md",
+    kind,
+    content: raw.content,
+    phase: typeof raw.phase === "string" ? raw.phase : "generating",
+    totalChars:
+      typeof raw.total_chars === "number"
+        ? raw.total_chars
+        : raw.content.length,
+  };
+}
+
+function artifactPhaseLabel(stream: ArtifactStreamOutput): string {
+  if (stream.content) return `${stream.totalChars} chars`;
+  switch (stream.phase) {
+    case "starting":
+      return "启动生成...";
+    case "waiting_for_content":
+      return "等待模型输出正文...";
+    case "streaming":
+      return "写入中...";
+    default:
+      return "生成中...";
+  }
+}
+
+function ArtifactStreamCard({
+  stream,
+  state,
+}: {
+  stream: ArtifactStreamOutput;
+  state: string;
+}) {
+  return (
+    <Card className="rounded-md bg-background/80 text-foreground">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 p-3">
+        <div className="min-w-0">
+          <CardTitle className="truncate text-sm">{stream.title}</CardTitle>
+          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+            <Badge variant="outline" className="h-5 text-[10px]">
+              {stream.kind}
+            </Badge>
+            <span className="truncate">{stream.filename}</span>
+            <span className="shrink-0">{artifactPhaseLabel(stream)}</span>
+          </div>
+        </div>
+        <Badge variant="secondary" className="h-5 shrink-0 text-[10px]">
+          {toolStateLabel(state)}
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-3 px-3 pt-0 pb-3">
+        <CollapsiblePreview>
+          <pre className="whitespace-pre-wrap rounded bg-muted/60 p-2 text-[11px] leading-relaxed">
+            {stream.content || artifactPhaseLabel(stream)}
+          </pre>
+        </CollapsiblePreview>
+      </CardContent>
     </Card>
   );
 }

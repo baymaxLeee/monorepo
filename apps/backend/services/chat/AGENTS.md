@@ -5,7 +5,7 @@ documents and artifacts; owns only `conversations` and `messages`.
 
 ## Owns
 - DB tables: `conversations`, `messages`
-- Agent runtime (Vercel AI SDK `streamText` + tools)
+- Agent runtime (Vercel AI SDK `ToolLoopAgent` + tools)
 - Redis-backed SSE replay for in-flight agent runs
 - HTTP API: `/conversations/*`, `/conversations/{id}/agents/run/stream`, `/agents/run/cancel`
 - Externally: gateway `/api/chat-server/*`
@@ -15,13 +15,15 @@ documents and artifacts; owns only `conversations` and `messages`.
 - `analyze_image` — multimodal vision over an uploaded image (uses the
   run's `multimodal_provider_id`; fetches raw bytes from knowledge
   `/internal/documents/{id}/source`)
-- `create_artifact` — single-call markdown/html deliverable → knowledge
-- `append_artifact_chunk` — incremental builder for large deliverables
-  (same filename across calls, final `done=true` persists)
-- `web_search` — one public web lookup per run
+- `create_artifact` — brief-driven markdown/html deliverable; tool runs a dedicated
+  `streamText` generation (async generator preliminary output for live preview),
+  normalizes content, then persists to knowledge
+- `update_artifact` — brief-driven in-place artifact revision; rewrites an existing
+  knowledge artifact and keeps the same `document_id`
+- `web_search` — public web lookup via Tavily
 
-Artifacts persist to knowledge; the model cites a `⟦artifact:N⟧` placeholder
-that the runtime backfills to a `[16hex]` slot at turn end. `thinking` /
+Artifacts persist to knowledge; tool results expose `document_id` for the UI,
+and `onFinish` writes `[16hex]` slots into `messages.content` for reload. `thinking` /
 `reasoning_effort` map to openai-compatible `providerOptions.reasoningEffort`;
 provider `extra_body` is merged as defaults via `transformRequestBody` (runtime
 fields win).
