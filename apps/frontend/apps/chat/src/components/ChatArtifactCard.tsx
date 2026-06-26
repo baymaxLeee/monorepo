@@ -41,6 +41,37 @@ export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
   };
 }
 
+export type ArtifactStreamData = {
+  toolCallId: string;
+  status: "generating" | "persisted" | "error";
+  title: string;
+  filename: string;
+  kind: string;
+  content: string;
+  document_id?: string;
+};
+
+export function parseArtifactStreamData(
+  data: unknown,
+): ArtifactStreamData | null {
+  if (!data || typeof data !== "object") return null;
+  const raw = data as Record<string, unknown>;
+  const status = raw.status;
+  if (status !== "generating" && status !== "persisted" && status !== "error") {
+    return null;
+  }
+  return {
+    toolCallId: typeof raw.toolCallId === "string" ? raw.toolCallId : "",
+    status,
+    title: typeof raw.title === "string" ? raw.title : "Artifact",
+    filename: typeof raw.filename === "string" ? raw.filename : "artifact",
+    kind: typeof raw.kind === "string" ? raw.kind : "file",
+    content: typeof raw.content === "string" ? raw.content : "",
+    document_id:
+      typeof raw.document_id === "string" ? raw.document_id : undefined,
+  };
+}
+
 export function StreamingArtifactCard({
   artifact,
 }: {

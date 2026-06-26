@@ -93,6 +93,18 @@ const openapi = {
         responses: { "200": { description: "cancel active agent run" } },
       },
     },
+    "/conversations/{conversation_id}/agents/run/stream/{workflow_run_id}/resume": {
+      post: {
+        parameters: [pathParam, workflowRunPathParam],
+        responses: { "200": { description: "resume a suspended ask_user hook" } },
+      },
+    },
+    "/conversations/{conversation_id}/agents/run/stream/{workflow_run_id}/trace": {
+      get: {
+        parameters: [pathParam, workflowRunPathParam],
+        responses: { "200": { description: "agent run step/tool-call trace" } },
+      },
+    },
   },
 };
 

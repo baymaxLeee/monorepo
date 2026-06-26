@@ -17,6 +17,7 @@ import { useState } from "react";
 import {
   ArtifactDocumentCard,
   parseArtifactOutput,
+  parseArtifactStreamData,
   StreamingArtifactCard,
 } from "./ChatArtifactCard";
 
@@ -116,6 +117,27 @@ function MessagePartView({
     );
   }
 
+  if (part.type === "data-artifact") {
+    const streaming = parseArtifactStreamData(
+      "data" in part ? part.data : undefined,
+    );
+    if (streaming && streaming.status !== "persisted") {
+      return (
+        <StreamingArtifactCard
+          artifact={{
+            documentId: streaming.document_id ?? "",
+            status: streaming.status,
+            title: streaming.title,
+            filename: streaming.filename,
+            kind: streaming.kind,
+            content: streaming.content,
+          }}
+        />
+      );
+    }
+    return null;
+  }
+
   if (isToolUIPart(part)) {
     return (
       <ToolPartView
@@ -187,8 +209,12 @@ function ToolPartView({
             }
           />
         ) : null}
-        {input !== undefined ? <ToolJsonBlock value={input} /> : null}
-        {output !== undefined ? <ToolJsonBlock value={output} /> : null}
+        {askUserInput == null && input !== undefined ? (
+          <ToolJsonBlock value={input} />
+        ) : null}
+        {askUserInput == null && output !== undefined ? (
+          <ToolJsonBlock value={output} />
+        ) : null}
       </ToolContent>
     </Tool>
   );

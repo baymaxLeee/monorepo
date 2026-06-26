@@ -8,6 +8,8 @@ import {
   assertWorkflowRunVersion,
   cancelWorkflowRun,
   createAgentRunResponse,
+  getWorkflowRunTrace,
+  resolveAskUser,
   streamWorkflowRun,
 } from "../services/agent-runtime.js";
 
@@ -25,6 +27,11 @@ const runSchema = z.object({
 const cancelSchema = z.object({
   workflow_run_id: z.string().min(1).max(128),
   assistant_message: z.unknown().optional(),
+});
+
+const resumeSchema = z.object({
+  tool_call_id: z.string().min(1).max(128),
+  answer: z.unknown(),
 });
 
 agentsRoutes.post("/:conversationId/agents/run/stream", zValidator("json", runSchema), async (c) => {
@@ -68,5 +75,29 @@ agentsRoutes.post(
     const body = c.req.valid("json");
     await cancelWorkflowRun(auth, conversationId, body.workflow_run_id, body.assistant_message);
     return c.json({ cancelled: true, workflow_run_id: body.workflow_run_id });
+  },
+);
+
+agentsRoutes.post(
+  "/:conversationId/agents/run/stream/:workflowRunId/resume",
+  zValidator("json", resumeSchema),
+  async (c) => {
+    const auth = getAuth(c);
+    const conversationId = c.req.param("conversationId");
+    const workflowRunId = c.req.param("workflowRunId");
+    const body = c.req.valid("json");
+    await resolveAskUser(auth, conversationId, workflowRunId, body.tool_call_id, body.answer);
+    return c.json({ resumed: true, workflow_run_id: workflowRunId });
+  },
+);
+
+agentsRoutes.get(
+  "/:conversationId/agents/run/stream/:workflowRunId/trace",
+  async (c) => {
+    const auth = getAuth(c);
+    const conversationId = c.req.param("conversationId");
+    const workflowRunId = c.req.param("workflowRunId");
+    const trace = await getWorkflowRunTrace(auth, conversationId, workflowRunId);
+    return c.json(trace);
   },
 );

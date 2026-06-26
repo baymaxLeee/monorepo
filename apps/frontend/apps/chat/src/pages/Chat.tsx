@@ -1,9 +1,6 @@
 import { useChat } from "@ai-sdk/react";
 import { WorkflowChatTransport } from "@ai-sdk/workflow";
-import {
-  lastAssistantMessageIsCompleteWithToolCalls,
-  type UIMessage,
-} from "ai";
+import type { UIMessage } from "ai";
 import {
   type Message as ApiMessage,
   type ConversationDetail,
@@ -14,11 +11,13 @@ import {
   conversationAgentStreamUrl,
   fetchConversation,
   fetchConversationDocument,
+  resumeConversationAgentAskUser,
 } from "api";
 import {
   Badge,
   Button,
   Page,
+  PageActions,
   PageDescription,
   PageHeader,
   PageHeaderContent,
@@ -48,7 +47,11 @@ import {
 } from "components/ai-chat";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useShallow } from "zustand/react/shallow";
+import { ChatComposerControls } from "../components/ChatComposerControls";
 import { ChatMessageView } from "../components/ChatMessageView";
+import { ChatTracePanel } from "../components/ChatTracePanel";
+import { useChatStore } from "../store/useChatStore";
 
 function workflowRunStorageKey(conversationId: string): string {
   return `chat.workflowRunId.${conversationId}`;
@@ -100,13 +103,47 @@ export function Chat() {
   const [activeWorkflowRunId, setActiveWorkflowRunId] = useState<string | null>(
     id ? readStoredWorkflowRunId(id) : null,
   );
+  const [thinking, setThinking] = useState(false);
+  const [traceOpen, setTraceOpen] = useState(false);
+  const [lastWorkflowRunId, setLastWorkflowRunId] = useState<string | null>(
+    id ? readStoredWorkflowRunId(id) : null,
+  );
+  const [traceRefreshKey, setTraceRefreshKey] = useState(0);
+  const {
+    providers,
+    selectedProviderId,
+    setSelectedProviderId,
+    loadProviders,
+  } = useChatStore(
+    useShallow((s) => ({
+      providers: s.providers,
+      selectedProviderId: s.selectedProviderId,
+      setSelectedProviderId: s.setSelectedProviderId,
+      loadProviders: s.loadProviders,
+    })),
+  );
   const resumedConversationRef = useRef<string | null>(null);
   const pausedByUserRef = useRef(false);
+
+  const requestBody = useMemo(
+    () => ({
+      provider_id: selectedProviderId ?? detail?.provider_id ?? null,
+      document_ids: [] as string[],
+      thinking: thinking || null,
+      reasoning_effort: null,
+    }),
+    [selectedProviderId, detail?.provider_id, thinking],
+  );
+
+  useEffect(() => {
+    if (!providers) void loadProviders();
+  }, [providers, loadProviders]);
 
   function rememberWorkflowRunId(workflowRunId: string): void {
     if (!id) return;
     sessionStorage.setItem(workflowRunStorageKey(id), workflowRunId);
     setActiveWorkflowRunId(workflowRunId);
+    setLastWorkflowRunId(workflowRunId);
   }
 
   function clearWorkflowRunId(): void {
@@ -167,31 +204,23 @@ export function Chat() {
     [id],
   );
 
-  const {
-    messages,
-    setMessages,
-    sendMessage,
-    addToolOutput,
-    stop,
-    resumeStream,
-    status,
-  } = useChat<UIMessage>({
-    id: id ?? "chat",
-    transport,
-    resume: false,
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
-    onError: (error) => {
-      if (/abort|aborted/i.test(error.message)) return;
-      toast.error(error.message);
-    },
-    onFinish: () => {
-      if (!id) return;
-      void fetchConversation(id).then((next) => {
-        setDetail(next);
-        setMessages(next.messages.map(messageToUiMessage));
-      });
-    },
-  });
+  const { messages, setMessages, sendMessage, stop, resumeStream, status } =
+    useChat<UIMessage>({
+      id: id ?? "chat",
+      transport,
+      resume: false,
+      onError: (error) => {
+        if (/abort|aborted/i.test(error.message)) return;
+        toast.error(error.message);
+      },
+      onFinish: () => {
+        setTraceRefreshKey((key) => key + 1);
+        if (!id) return;
+        void fetchConversation(id).then((next) => {
+          setDetail(next);
+        });
+      },
+    });
 
   const busy = isRunning(status);
   const canResume = !busy && activeWorkflowRunId != null;
@@ -208,7 +237,9 @@ export function Chat() {
     setLoading(true);
     pausedByUserRef.current = false;
     resumedConversationRef.current = null;
-    setActiveWorkflowRunId(readStoredWorkflowRunId(id));
+    const storedRunId = readStoredWorkflowRunId(id);
+    setActiveWorkflowRunId(storedRunId);
+    setLastWorkflowRunId(storedRunId);
     fetchConversation(id)
       .then((next) => {
         if (!active) return;
@@ -258,14 +289,7 @@ export function Chat() {
     pausedByUserRef.current = false;
     void sendMessage(
       { text, files: message.files },
-      {
-        body: {
-          provider_id: detail?.provider_id ?? null,
-          document_ids: [],
-          thinking: null,
-          reasoning_effort: null,
-        },
-      },
+      { body: requestBody },
     ).catch((error) => toast.error(String(error)));
   }
 
@@ -275,23 +299,16 @@ export function Chat() {
   }
 
   async function answerClientTool(
-    toolName: string,
+    _toolName: string,
     toolCallId: string,
     output: unknown,
   ) {
-    await addToolOutput({
-      tool: toolName,
-      toolCallId,
-      output,
-      options: {
-        body: {
-          provider_id: detail?.provider_id ?? null,
-          document_ids: [],
-          thinking: null,
-          reasoning_effort: null,
-        },
-      },
-    } as Parameters<typeof addToolOutput>[0]);
+    if (!id) return;
+    const workflowRunId = readStoredWorkflowRunId(id);
+    if (!workflowRunId) throw new Error("no active workflow run");
+    pausedByUserRef.current = false;
+    await resumeConversationAgentAskUser(id, workflowRunId, toolCallId, output);
+    await resumeStream();
   }
 
   function latestAssistantMessage(): UIMessage | undefined {
@@ -351,6 +368,17 @@ export function Chat() {
             ) : null}
           </PageDescription>
         </PageHeaderContent>
+        <PageActions>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!lastWorkflowRunId}
+            onClick={() => setTraceOpen(true)}
+          >
+            执行轨迹
+          </Button>
+        </PageActions>
       </PageHeader>
 
       <div className="flex h-[calc(100svh-12rem)] min-h-0 flex-col rounded-lg border bg-card">
@@ -404,6 +432,14 @@ export function Chat() {
             <PromptInputToolbar>
               <PromptInputTools>
                 <PromptInputAttachmentButton disabled={busy || canResume} />
+                <ChatComposerControls
+                  providers={providers ?? []}
+                  selectedProviderId={selectedProviderId}
+                  onSelectProvider={setSelectedProviderId}
+                  thinking={thinking}
+                  onThinkingChange={setThinking}
+                  disabled={busy || canResume}
+                />
               </PromptInputTools>
               <PromptInputSubmit
                 status={status}
@@ -448,6 +484,33 @@ export function Chat() {
                 className="h-full rounded-none border-0 shadow-none"
               />
             ) : null}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={traceOpen} onOpenChange={setTraceOpen}>
+        <SheetContent
+          side="right"
+          className="w-full min-w-0 gap-0 overflow-hidden sm:max-w-xl"
+        >
+          <SheetHeader className="shrink-0 border-b">
+            <SheetTitle>执行轨迹</SheetTitle>
+            <SheetDescription>
+              WorkflowAgent 步骤与工具调用时间线
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-auto">
+            {id && lastWorkflowRunId ? (
+              <ChatTracePanel
+                conversationId={id}
+                workflowRunId={lastWorkflowRunId}
+                refreshKey={traceRefreshKey}
+              />
+            ) : (
+              <div className="p-4 text-xs text-muted-foreground">
+                暂无可展示的运行。
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>

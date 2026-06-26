@@ -25,6 +25,8 @@ import {
   createAgentRun,
   finishAgentRun,
   getAgentRunByWorkflowRunId,
+  getRunTrace,
+  type AgentRunTrace,
   listActiveMemories,
 } from "./agent-state.js";
 import { runChatAgent } from "./chat-agent.js";
@@ -98,12 +100,34 @@ function textFromPersistedContent(content: string): string {
   return content;
 }
 
+function partsFromPersistedContent(content: string): AnyUIMessage["parts"] | null {
+  try {
+    const payload = JSON.parse(content) as { parts?: AnyUIMessage["parts"] };
+    if (Array.isArray(payload.parts)) return payload.parts;
+  } catch {
+    // Older records can still be plain text.
+  }
+  return null;
+}
+
+function sanitizeHistoryParts(message: AnyUIMessage): AnyUIMessage {
+  const parts = message.parts.filter((part) => {
+    if (!part || typeof part !== "object" || !("toolCallId" in part)) return true;
+    const state = "state" in part ? part.state : "";
+    return state === "output-available" || state === "output-error";
+  });
+  return { ...message, parts } as AnyUIMessage;
+}
+
 function persistedMessageToUiMessage(message: Message): AnyUIMessage {
-  const text = textFromPersistedContent(message.content);
+  const parts = partsFromPersistedContent(message.content);
+  if (parts) {
+    return sanitizeHistoryParts({ id: message.id, role: message.role, parts } as AnyUIMessage);
+  }
   return {
     id: message.id,
     role: message.role,
-    parts: text ? [{ type: "text", text }] : [],
+    parts: message.content ? [{ type: "text", text: message.content }] : [],
   } as AnyUIMessage;
 }
 
@@ -140,7 +164,8 @@ async function buildInstructions(input: {
       "If the user's intent implies an artifact, start create_artifact directly. Do not ask for confirmation before generating it.",
       "Infer reasonable titles, filenames, kind, structure, and visual style when they are not specified; use ask_user only when a missing requirement would make the artifact materially wrong.",
       "When the user requests an HTML page, report, or static deliverable and no referenced attachments require reading, call create_artifact directly without web_search, list_documents, or read_document.",
-      "Always finish the run with one concise completion summary. When create_artifact or update_artifact succeeds, mention what was created or updated and any useful next action, without restating the full artifact body.",
+      "Always finish the run with one concise completion summary. When create_artifact or update_artifact succeeds, summarize the outcome and useful highlights only; the application renders the artifact card automatically after your text.",
+      "Never include artifact document IDs, raw filenames, left-sidebar/download instructions, or tool metadata in the final user-facing summary.",
       "Do not store long-term memory directly. If a stable preference or profile fact appears useful, mention it briefly in the final summary so the user can confirm it in a future approval flow.",
     ].join("\n"),
   ];
@@ -294,11 +319,53 @@ export async function streamWorkflowRun(
   const run = getRun(workflowRunId);
   const readable = run.getReadable({ startIndex });
   const tailIndex = await readable.getTailIndex();
+  const mainStream = readable.pipeThrough(createModelCallToUIChunkTransform());
+  let artifactStream: ReadableStream<unknown> | null = null;
+  try {
+    artifactStream = run.getReadable({ namespace: "artifact" });
+  } catch (err) {
+    console.error("[chat-agent] artifact stream unavailable", err);
+  }
   return createUIMessageStreamResponse({
-    stream: readable.pipeThrough(createModelCallToUIChunkTransform()),
+    stream: artifactStream
+      ? mergeUiMessageStreams(mainStream, artifactStream)
+      : mainStream,
     headers: {
       "x-workflow-run-id": workflowRunId,
       "x-workflow-stream-tail-index": String(tailIndex),
+    },
+  });
+}
+
+function mergeUiMessageStreams(
+  mainStream: ReadableStream<unknown>,
+  sideStream: ReadableStream<unknown>,
+): ReadableStream<any> {
+  return new ReadableStream({
+    start(controller) {
+      let closed = false;
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        void sideReader.cancel().catch(() => {});
+        controller.close();
+      };
+      const mainReader = mainStream.getReader();
+      const sideReader = sideStream.getReader();
+      const pumpMain = (): Promise<void> =>
+        mainReader.read().then(({ done, value }) => {
+          if (done) return close();
+          if (!closed) controller.enqueue(value);
+          return pumpMain();
+        });
+      const pumpSide = (): Promise<void> =>
+        sideReader.read().then(({ done, value }) => {
+          if (done || closed) return;
+          controller.enqueue(value);
+          return pumpSide();
+        });
+      void pumpMain().catch(() => close());
+      void pumpSide().catch(() => {});
     },
   });
 }
@@ -335,6 +402,35 @@ export async function assertWorkflowRunVersion(
   const businessRun = await getAgentRunByWorkflowRunId(workflowRunId);
   if (!businessRun) throw new NotFoundError("workflow run not found");
   assertRunAccess(auth, conversationId, businessRun);
+}
+
+export async function resolveAskUser(
+  auth: AuthContext,
+  conversationId: string,
+  workflowRunId: string,
+  toolCallId: string,
+  answer: unknown,
+): Promise<void> {
+  const businessRun = await getAgentRunByWorkflowRunId(workflowRunId);
+  if (!businessRun) throw new NotFoundError("workflow run not found");
+  assertRunAccess(auth, conversationId, businessRun);
+  const { askUserHook, askUserAnswerSchema } = await import("./agent-hooks.js");
+  const parsed = askUserAnswerSchema.safeParse(answer);
+  if (!parsed.success) throw new RequestError("invalid ask_user answer payload");
+  await askUserHook.resume(toolCallId, parsed.data);
+}
+
+export async function getWorkflowRunTrace(
+  auth: AuthContext,
+  conversationId: string,
+  workflowRunId: string,
+): Promise<AgentRunTrace> {
+  const businessRun = await getAgentRunByWorkflowRunId(workflowRunId);
+  if (!businessRun) throw new NotFoundError("workflow run not found");
+  assertRunAccess(auth, conversationId, businessRun);
+  const trace = await getRunTrace(businessRun.id);
+  if (!trace) throw new NotFoundError("workflow run trace not found");
+  return trace;
 }
 
 async function validateAssistantSnapshot(input: unknown): Promise<AnyUIMessage | null> {

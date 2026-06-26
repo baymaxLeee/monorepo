@@ -1,6 +1,11 @@
-import { WorkflowAgent, type ModelCallStreamPart } from "@ai-sdk/workflow";
+import {
+  WorkflowAgent,
+  type ModelCallStreamPart,
+  type WorkflowAgentStreamResult,
+} from "@ai-sdk/workflow";
 import { getWritable } from "workflow";
 import { z } from "zod";
+import { askUserHook } from "./agent-hooks.js";
 import {
   artifactRevisionPrompt,
   artifactSystemPrompt,
@@ -19,20 +24,6 @@ import {
 
 type WorkflowStreamOptions = Parameters<WorkflowAgent["stream"]>[0];
 type WorkflowModelMessage = NonNullable<WorkflowStreamOptions["messages"]>[number];
-
-interface ArtifactCompletion {
-  action: "created" | "updated";
-  documentId: string;
-  title: string;
-  filename: string;
-  kind: string;
-  totalChars?: number;
-}
-
-interface CompletionOutput {
-  text: string;
-  streamAppendText: string;
-}
 
 export interface ChatWorkflowInput {
   runId: string;
@@ -54,106 +45,83 @@ const toolContextSchema = z.object({
 
 type ToolContext = z.infer<typeof toolContextSchema>;
 
-function stopAtStepCount(stepCount: number) {
-  return ({ steps }: { steps: unknown[] }) => steps.length === stepCount;
+type AgentStep = WorkflowAgentStreamResult["steps"][number];
+type AgentContentPart = AgentStep["content"][number];
+type AssistantPart = Record<string, unknown>;
+
+const MAX_AGENT_STEPS = 12;
+
+function stepCountAtLeast(limit: number) {
+  return ({ steps }: { steps: readonly unknown[] }) => steps.length >= limit;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value != null && !Array.isArray(value);
+function contentPartToAssistantPart(
+  part: AgentContentPart,
+  results: ReadonlyMap<string, AgentContentPart>,
+  errors: ReadonlyMap<string, AgentContentPart>,
+): AssistantPart | null {
+  switch (part.type) {
+    case "text":
+      return part.text.trim() ? { type: "text", text: part.text } : null;
+    case "reasoning":
+      return part.text.trim() ? { type: "reasoning", text: part.text } : null;
+    case "source":
+      return part.sourceType === "url"
+        ? { type: "source-url", sourceId: part.id, url: part.url, title: part.title }
+        : null;
+    case "tool-call": {
+      const error = errors.get(part.toolCallId);
+      if (error && "error" in error) {
+        return {
+          type: `tool-${part.toolName}`,
+          toolCallId: part.toolCallId,
+          state: "output-error",
+          input: part.input,
+          errorText: String((error as { error: unknown }).error).slice(0, 2000),
+        };
+      }
+      const result = results.get(part.toolCallId);
+      if (result && "output" in result) {
+        return {
+          type: `tool-${part.toolName}`,
+          toolCallId: part.toolCallId,
+          state: "output-available",
+          input: part.input,
+          output: (result as { output: unknown }).output,
+        };
+      }
+      return {
+        type: `tool-${part.toolName}`,
+        toolCallId: part.toolCallId,
+        state: "input-available",
+        input: part.input,
+      };
+    }
+    default:
+      return null;
+  }
 }
 
-function artifactCompletionFromToolResult(result: unknown): ArtifactCompletion | null {
-  if (!isRecord(result)) return null;
-  const toolName = result.toolName;
-  if (toolName !== "create_artifact" && toolName !== "update_artifact") return null;
-
-  const output = result.output;
-  if (!isRecord(output) || output.ok !== true || output.status !== "persisted") return null;
-  if (typeof output.document_id !== "string") return null;
-
-  const title = typeof output.title === "string" && output.title.trim()
-    ? output.title.trim()
-    : "未命名 artifact";
-  const filename = typeof output.filename === "string" && output.filename.trim()
-    ? output.filename.trim()
-    : "artifact";
-  const kind = typeof output.kind === "string" && output.kind.trim()
-    ? output.kind.trim()
-    : "artifact";
-  const totalChars = typeof output.total_chars === "number" && Number.isFinite(output.total_chars)
-    ? output.total_chars
-    : undefined;
-
-  return {
-    action: toolName === "create_artifact" ? "created" : "updated",
-    documentId: output.document_id,
-    title,
-    filename,
-    kind,
-    totalChars,
-  };
-}
-
-function collectArtifactCompletions(steps: readonly unknown[]): ArtifactCompletion[] {
-  const byDocumentId = new Map<string, ArtifactCompletion>();
+function stepsToAssistantParts(steps: readonly AgentStep[]): AssistantPart[] {
+  const results = new Map<string, AgentContentPart>();
+  const errors = new Map<string, AgentContentPart>();
   for (const step of steps) {
-    if (!isRecord(step) || !Array.isArray(step.toolResults)) continue;
-    for (const result of step.toolResults) {
-      const artifact = artifactCompletionFromToolResult(result);
-      if (artifact) byDocumentId.set(artifact.documentId, artifact);
+    for (const part of step.content) {
+      if (part.type === "tool-result") results.set(part.toolCallId, part);
+      else if (part.type === "tool-error") errors.set(part.toolCallId, part);
     }
   }
-  return [...byDocumentId.values()];
-}
-
-function buildArtifactCompletionSummary(artifacts: ArtifactCompletion[]): string {
-  if (!artifacts.length) return "";
-  const lines = artifacts.map((artifact) => {
-    const verb = artifact.action === "created" ? "已创建" : "已更新";
-    const size = artifact.totalChars ? `，约 ${artifact.totalChars} 字符` : "";
-    return `- ${verb}「${artifact.title}」（${artifact.filename}，${artifact.kind}${size}）`;
-  });
-  return ["执行完成，Artifact 已保存：", ...lines].join("\n");
-}
-
-function buildCompletionOutput(modelText: string, artifacts: ArtifactCompletion[]): CompletionOutput {
-  const text = modelText.trim();
-  const artifactSummary = buildArtifactCompletionSummary(artifacts);
-  if (!artifactSummary) {
-    const fallback = text || "执行完成。";
-    return { text: fallback, streamAppendText: text ? "" : fallback };
+  const parts: AssistantPart[] = [];
+  for (const step of steps) {
+    for (const part of step.content) {
+      const mapped = contentPartToAssistantPart(part, results, errors);
+      if (mapped) parts.push(mapped);
+    }
   }
-  if (!text) return { text: artifactSummary, streamAppendText: artifactSummary };
-
-  const hasArtifactSummary = artifacts.every((artifact) => {
-    return text.includes(artifact.title) || text.includes(artifact.filename);
-  });
-  return hasArtifactSummary
-    ? { text, streamAppendText: "" }
-    : { text: `${text}\n\n${artifactSummary}`, streamAppendText: `\n\n${artifactSummary}` };
-}
-
-function buildAssistantParts(
-  text: string,
-  artifacts: ArtifactCompletion[],
-): Array<Record<string, unknown>> {
-  const parts: Array<Record<string, unknown>> = artifacts.map((artifact) => ({
-    type: `tool-${artifact.action === "created" ? "create_artifact" : "update_artifact"}`,
-    toolCallId: `artifact-${artifact.documentId}`,
-    state: "output-available",
-    input: {},
-    output: {
-      ok: true,
-      status: "persisted",
-      document_id: artifact.documentId,
-      title: artifact.title,
-      filename: artifact.filename,
-      kind: artifact.kind,
-      total_chars: artifact.totalChars,
-    },
-  }));
-  if (text.trim()) parts.push({ type: "text", text });
-  return parts.length ? parts : [{ type: "text", text: "执行完成。" }];
+  if (!parts.some((part) => part.type === "text")) {
+    parts.push({ type: "text", text: "执行完成。" });
+  }
+  return parts;
 }
 
 async function buildArtifactTextModel(userId: string, providerId: string) {
@@ -163,6 +131,59 @@ async function buildArtifactTextModel(userId: string, providerId: string) {
   ]);
   const provider = await getProvider(userId, providerId);
   return { model: createProviderModel(provider, { disableReasoning: true }), streamText };
+}
+
+const ARTIFACT_STREAM_NAMESPACE = "artifact";
+const ARTIFACT_STREAM_MIN_DELTA_CHARS = 240;
+
+type ArtifactStreamData = {
+  toolCallId: string;
+  status: "generating" | "persisted" | "error";
+  title: string;
+  filename: string;
+  kind: ArtifactKind;
+  content?: string;
+  document_id?: string;
+};
+
+async function streamArtifactContent(
+  toolCallId: string,
+  meta: { title: string; filename: string; kind: ArtifactKind },
+  result: { textStream: AsyncIterable<string> },
+): Promise<string> {
+  const writable = getWritable<{ type: string; id: string; data: ArtifactStreamData }>({
+    namespace: ARTIFACT_STREAM_NAMESPACE,
+  });
+  const writer = writable.getWriter();
+  let raw = "";
+  let lastSentLength = 0;
+
+  const writeSnapshot = async (status: ArtifactStreamData["status"]) => {
+    lastSentLength = raw.length;
+    await writer.write({
+      type: "data-artifact",
+      id: toolCallId,
+      data: { toolCallId, status, ...meta, content: raw },
+    });
+  };
+
+  try {
+    for await (const delta of result.textStream) {
+      raw += delta;
+      if (
+        lastSentLength === 0 ||
+        raw.length - lastSentLength >= ARTIFACT_STREAM_MIN_DELTA_CHARS
+      ) {
+        await writeSnapshot("generating");
+      }
+    }
+    if (raw.length !== lastSentLength) {
+      await writeSnapshot("generating");
+    }
+  } finally {
+    writer.releaseLock();
+  }
+  return raw;
 }
 
 async function listDocumentsTool(_input: {}, { context }: { context: ToolContext }) {
@@ -266,7 +287,7 @@ async function webSearchTool(
 
 async function createArtifactTool(
   input: { title: string; filename: string; kind: "html" | "markdown"; brief: string },
-  { context }: { context: ToolContext },
+  { context, toolCallId }: { context: ToolContext; toolCallId: string },
 ) {
   "use step";
   const [{ createArtifact }, { model, streamText }] = await Promise.all([
@@ -278,12 +299,18 @@ async function createArtifactTool(
     system: artifactSystemPrompt(input.kind),
     prompt: input.brief,
   });
-  const raw = (await result.text).trim();
+  const filename = safeFilename(input.filename);
+  const raw = (
+    await streamArtifactContent(
+      toolCallId,
+      { title: input.title, filename, kind: input.kind },
+      result,
+    )
+  ).trim();
   if (!raw) return { ok: false, error: "artifact generation returned empty content" };
   const content = normalizeArtifactContent(input.kind, raw);
   const validation = validateArtifactContent(input.kind, content);
   if (!validation.ok) return { ok: false, error: validation.error ?? "artifact validation failed" };
-  const filename = safeFilename(input.filename);
   const doc = await createArtifact({
     userId: context.userId,
     conversationId: context.conversationId,
@@ -311,7 +338,7 @@ async function updateArtifactTool(
     kind?: ArtifactKind;
     brief: string;
   },
-  { context }: { context: ToolContext },
+  { context, toolCallId }: { context: ToolContext; toolCallId: string },
 ) {
   "use step";
   const [{ getDocument, updateArtifact }, { model, streamText }] = await Promise.all([
@@ -330,7 +357,13 @@ async function updateArtifactTool(
       system: artifactSystemPrompt(artifactKind),
       prompt: artifactRevisionPrompt(artifactKind, current.content_md ?? "", input.brief),
     });
-    const raw = (await result.text).trim();
+    const raw = (
+      await streamArtifactContent(
+        toolCallId,
+        { title: input.title ?? current.title, filename, kind: artifactKind },
+        result,
+      )
+    ).trim();
     if (!raw) return { ok: false, error: "artifact revision returned empty content" };
     const content = normalizeArtifactContent(artifactKind, raw);
     const validation = validateArtifactContent(artifactKind, content);
@@ -405,6 +438,20 @@ async function analyzeImageTool(
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 500) };
   }
+}
+
+async function askUserTool(
+  _input: {
+    question: string;
+    choices: Array<{ label: string; value: string }>;
+    mode: "single" | "multiple";
+    allow_freeform: boolean;
+    freeform_label: string;
+  },
+  { toolCallId }: { toolCallId: string },
+) {
+  const answer = await askUserHook.create({ token: toolCallId });
+  return { ok: true, ...answer };
 }
 
 function buildWorkflowTools() {
@@ -482,6 +529,7 @@ function buildWorkflowTools() {
         allow_freeform: z.boolean().default(true),
         freeform_label: z.string().min(1).max(40).default("其他"),
       }),
+      execute: askUserTool,
     },
   };
 }
@@ -584,7 +632,6 @@ async function recordToolEnd(input: {
 async function persistWorkflowCompletion(input: {
   runId: string;
   conversationId: string;
-  text: string;
   parts: Array<Record<string, unknown>>;
   totalTokens?: number | null;
 }): Promise<void> {
@@ -611,19 +658,10 @@ async function persistWorkflowCompletion(input: {
   await touchConversation(input.conversationId);
 }
 
-async function finishWorkflowStream(
-  writable: WritableStream<any>,
-  appendText: string,
-): Promise<void> {
+async function finishWorkflowStream(writable: WritableStream<any>): Promise<void> {
   "use step";
   const writer = writable.getWriter();
   try {
-    if (appendText.length) {
-      const id = "completion-summary";
-      await writer.write({ type: "text-start", id });
-      await writer.write({ type: "text-delta", id, text: appendText });
-      await writer.write({ type: "text-end", id });
-    }
     await writer.write({ type: "finish" });
   } finally {
     writer.releaseLock();
@@ -656,10 +694,6 @@ export async function runChatAgent(input: ChatWorkflowInput): Promise<{ text: st
     providerId: provider.id,
     multimodalProviderId: input.multimodalProviderId ?? null,
   };
-  let finalText = "";
-  let finalStreamAppendText = "";
-  let finalArtifacts: ArtifactCompletion[] = [];
-  let finalTotalTokens: number | null = null;
   const writable = getWritable<ModelCallStreamPart>();
 
   const agent = new WorkflowAgent({
@@ -705,35 +739,33 @@ export async function runChatAgent(input: ChatWorkflowInput): Promise<{ text: st
         error: event.success ? undefined : event.error,
         durationMs: event.durationMs,
       }),
-    onEnd: (event) => {
-      const artifacts = collectArtifactCompletions(event.steps);
-      const completion = buildCompletionOutput(event.text, artifacts);
-      finalText = completion.text;
-      finalStreamAppendText = completion.streamAppendText;
-      finalArtifacts = artifacts;
-      finalTotalTokens = event.totalUsage?.totalTokens ?? null;
-    },
   });
 
   try {
-    await agent.stream({
+    const streamResult = await agent.stream({
       messages: input.modelMessages,
       writable,
-      stopWhen: stopAtStepCount(12),
+      stopWhen: stepCountAtLeast(MAX_AGENT_STEPS),
       sendFinish: false,
       preventClose: true,
       onError: (event) => {
         console.error("[chat-agent] WorkflowAgent stream error", event.error);
       },
     });
+    const parts = stepsToAssistantParts(streamResult.steps);
+    const lastStep = streamResult.steps.at(-1);
+    const finalText = lastStep?.text ?? "";
+    const totalTokens = streamResult.steps.reduce(
+      (sum, step) => sum + (step.usage?.totalTokens ?? 0),
+      0,
+    );
     await persistWorkflowCompletion({
       runId: input.runId,
       conversationId: input.conversationId,
-      text: finalText,
-      parts: buildAssistantParts(finalText, finalArtifacts),
-      totalTokens: finalTotalTokens,
+      parts,
+      totalTokens,
     });
-    await finishWorkflowStream(writable, finalStreamAppendText);
+    await finishWorkflowStream(writable);
     return { text: finalText };
   } catch (err) {
     console.error("[chat-agent] runChatAgent failed", err);

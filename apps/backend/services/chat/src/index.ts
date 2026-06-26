@@ -5,7 +5,9 @@ try {
 }
 
 import { createApp } from "./app.js";
+import { configureWorkflowWorld } from "./workflow-world.js";
 
+configureWorkflowWorld();
 const app = createApp();
 
 export default app;

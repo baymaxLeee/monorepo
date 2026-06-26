@@ -122,6 +122,77 @@ export async function finishAgentRun(input: {
     .where(eq(agentRuns.id, input.runId));
 }
 
+export interface AgentTraceStep {
+  id: string;
+  stepIndex: number;
+  kind: string;
+  status: AgentStepStatus;
+  summary: string | null;
+  createdAt: string;
+  finishedAt: string | null;
+}
+
+export interface AgentTraceToolCall {
+  id: string;
+  stepIndex: number | null;
+  toolName: string;
+  status: "running" | "completed" | "failed";
+  durationMs: number | null;
+  error: string | null;
+}
+
+export interface AgentRunTrace {
+  runId: string;
+  status: AgentRunStatus;
+  model: string;
+  totalTokens: number | null;
+  steps: AgentTraceStep[];
+  toolCalls: AgentTraceToolCall[];
+}
+
+function isoOrNull(d: Date | null): string | null {
+  return d ? d.toISOString().replace("+00:00", "Z") : null;
+}
+
+export async function getRunTrace(runId: string): Promise<AgentRunTrace | null> {
+  const db = getDb();
+  const [run] = await db.select().from(agentRuns).where(eq(agentRuns.id, runId));
+  if (!run) return null;
+  const steps = await db
+    .select()
+    .from(agentSteps)
+    .where(eq(agentSteps.runId, runId))
+    .orderBy(asc(agentSteps.stepIndex));
+  const toolCalls = await db
+    .select()
+    .from(agentToolCalls)
+    .where(eq(agentToolCalls.runId, runId))
+    .orderBy(asc(agentToolCalls.createdAt));
+  return {
+    runId: run.id,
+    status: run.status as AgentRunStatus,
+    model: run.model,
+    totalTokens: run.totalTokens ?? null,
+    steps: steps.map((s) => ({
+      id: s.id,
+      stepIndex: s.stepIndex,
+      kind: s.kind,
+      status: s.status as AgentStepStatus,
+      summary: s.summary,
+      createdAt: isoOrNull(s.createdAt) ?? "",
+      finishedAt: isoOrNull(s.finishedAt),
+    })),
+    toolCalls: toolCalls.map((t) => ({
+      id: t.id,
+      stepIndex: t.stepIndex,
+      toolName: t.toolName,
+      status: t.status as "running" | "completed" | "failed",
+      durationMs: t.durationMs,
+      error: t.error,
+    })),
+  };
+}
+
 export async function startAgentStep(input: {
   runId: string;
   stepIndex: number;

@@ -285,3 +285,54 @@ export async function cancelConversationAgent(
     },
   });
 }
+
+export async function resumeConversationAgentAskUser(
+  conversationId: string,
+  workflowRunId: string,
+  toolCallId: string,
+  answer: unknown,
+): Promise<{ resumed: boolean; workflow_run_id: string }> {
+  return request<{ resumed: boolean; workflow_run_id: string }>({
+    url: `${BASE}/${encodeURIComponent(conversationId)}/agents/run/stream/${encodeURIComponent(workflowRunId)}/resume`,
+    method: "POST",
+    data: { tool_call_id: toolCallId, answer },
+  });
+}
+
+export interface AgentTraceStep {
+  id: string;
+  stepIndex: number;
+  kind: string;
+  status: "running" | "completed" | "failed";
+  summary: string | null;
+  createdAt: string;
+  finishedAt: string | null;
+}
+
+export interface AgentTraceToolCall {
+  id: string;
+  stepIndex: number | null;
+  toolName: string;
+  status: "running" | "completed" | "failed";
+  durationMs: number | null;
+  error: string | null;
+}
+
+export interface AgentRunTrace {
+  runId: string;
+  status: "running" | "awaiting_approval" | "completed" | "failed" | "cancelled";
+  model: string;
+  totalTokens: number | null;
+  steps: AgentTraceStep[];
+  toolCalls: AgentTraceToolCall[];
+}
+
+export async function fetchConversationAgentTrace(
+  conversationId: string,
+  workflowRunId: string,
+): Promise<AgentRunTrace> {
+  return request<AgentRunTrace>({
+    url: `${BASE}/${encodeURIComponent(conversationId)}/agents/run/stream/${encodeURIComponent(workflowRunId)}/trace`,
+    method: "GET",
+  });
+}
