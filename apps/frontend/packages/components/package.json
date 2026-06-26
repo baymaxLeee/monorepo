@@ -15,7 +15,6 @@
     "./markdown-editor": "./src/MarkdownEditor/index.tsx",
     "./ai-chat": "./src/AiChat/index.tsx",
     "./prompt-input": "./src/PromptInput/index.tsx",
-    "./prompt-message-content": "./src/PromptMessageContent/index.ts",
     "./code-editor": "./src/CodeEditor/index.tsx",
     "./pdf-previewer": "./src/PdfPreviewer/index.tsx",
     "./xmind-previewer": "./src/XmindPreviewer/index.tsx",

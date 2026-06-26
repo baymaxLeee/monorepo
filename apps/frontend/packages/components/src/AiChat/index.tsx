@@ -67,6 +67,7 @@ export {
   type PromptInputButtonProps,
   type PromptInputError,
   type PromptInputFile,
+  PromptInputHeader,
   type PromptInputMessage,
   type PromptInputProps,
   PromptInputRemoveIcon,

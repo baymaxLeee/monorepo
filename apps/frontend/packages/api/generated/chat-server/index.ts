@@ -82,7 +82,46 @@ const getConversationsConversationIdAgentsRunStream = (
       options);
     }
 
-return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdAgentsRunStream}};
+const getConversationsConversationIdDocumentsDocumentId = (
+    conversationId: string,
+    documentId: string,
+ options?: SecondParameter<typeof apiMutator<void>>,) => {
+      return apiMutator<void>(
+      {url: `/conversations/${conversationId}/documents/${documentId}`, method: 'GET'
+    },
+      options);
+    }
+
+const patchConversationsConversationIdDocumentsDocumentId = (
+    conversationId: string,
+    documentId: string,
+ options?: SecondParameter<typeof apiMutator<void>>,) => {
+      return apiMutator<void>(
+      {url: `/conversations/${conversationId}/documents/${documentId}`, method: 'PATCH'
+    },
+      options);
+    }
+
+const getConversationsConversationIdDocumentsDocumentIdSource = (
+    conversationId: string,
+    documentId: string,
+ options?: SecondParameter<typeof apiMutator<void>>,) => {
+      return apiMutator<void>(
+      {url: `/conversations/${conversationId}/documents/${documentId}/source`, method: 'GET'
+    },
+      options);
+    }
+
+const postConversationsConversationIdAgentsRunCancel = (
+    conversationId: string,
+ options?: SecondParameter<typeof apiMutator<void>>,) => {
+      return apiMutator<void>(
+      {url: `/conversations/${conversationId}/agents/run/cancel`, method: 'POST'
+    },
+      options);
+    }
+
+return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,postConversationsConversationIdAgentsRunCancel}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -96,3 +135,7 @@ export type PatchConversationsConversationIdResult = NonNullable<Awaited<ReturnT
 export type DeleteConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['deleteConversationsConversationId']>>>
 export type PostConversationsConversationIdAgentsRunStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunStream']>>>
 export type GetConversationsConversationIdAgentsRunStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdAgentsRunStream']>>>
+export type GetConversationsConversationIdDocumentsDocumentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdDocumentsDocumentId']>>>
+export type PatchConversationsConversationIdDocumentsDocumentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchConversationsConversationIdDocumentsDocumentId']>>>
+export type GetConversationsConversationIdDocumentsDocumentIdSourceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdDocumentsDocumentIdSource']>>>
+export type PostConversationsConversationIdAgentsRunCancelResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunCancel']>>>

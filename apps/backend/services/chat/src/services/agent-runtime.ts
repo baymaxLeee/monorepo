@@ -14,7 +14,12 @@ import { getProvider, type ProviderSnapshot } from "../clients/admin.js";
 import { getDocument, listDocuments } from "../clients/knowledge.js";
 import { AgentRunCancelledError, isAgentRunCancelled, RequestError } from "../lib/errors.js";
 import type { AuthContext } from "../middleware/auth.js";
-import { artifactPersistedStopCondition, buildAgentTools, extractSlotIds, finalizeAssistantMessage, sanitizeToolInputForAudit, type AgentToolContext } from "./agent-tools.js";
+import {
+  artifactPersistedStopCondition,
+  buildAgentTools,
+  sanitizeToolInputForAudit,
+  type AgentToolContext,
+} from "./agent-tools.js";
 import {
   createMessage,
   listMessages,
@@ -53,11 +58,24 @@ function textFromUiMessage(message: AnyUIMessage): string {
     .trim();
 }
 
-function finalizeAssistantContent(
-  message: AnyUIMessage,
-  created: AgentToolContext["createdDocuments"],
-): string {
-  return finalizeAssistantMessage(textFromUiMessage(message), created);
+function serializeMessageContent(message: AnyUIMessage): string {
+  return JSON.stringify({ version: 1, parts: message.parts });
+}
+
+function textFromPersistedContent(content: string): string {
+  try {
+    const payload = JSON.parse(content) as { parts?: AnyUIMessage["parts"] };
+    if (Array.isArray(payload.parts)) {
+      return payload.parts
+        .filter((part) => part.type === "text")
+        .map((part) => part.text)
+        .join("")
+        .trim();
+    }
+  } catch {
+    // Plain text is not expected for new records, but keep context readable.
+  }
+  return content;
 }
 
 function hasPendingClientTool(message: AnyUIMessage): boolean {
@@ -123,7 +141,7 @@ function buildRepairToolCall(
 async function buildInstructions(
   auth: AuthContext,
   conversationId: string,
-  slotIds: string[],
+  documentIds: string[],
   options: { skipConversationSummary?: boolean } = {},
 ): Promise<string> {
   const sections: string[] = [
@@ -138,11 +156,11 @@ async function buildInstructions(
       "Use read_document for full document context when previews are insufficient.",
       "For images, use analyze_image when the markdown preview is insufficient.",
       "For reusable deliverables, call create_artifact with a compact brief that describes the desired file content, constraints, and style; do not put the generated document body in tool arguments.",
-      "When the user asks to modify an existing artifact/document slot, call update_artifact with that document_id instead of creating a new artifact.",
+      "When the user asks to modify an existing artifact/document, call update_artifact with that document_id instead of creating a new artifact.",
       "If the user's intent implies an artifact, start create_artifact directly. Do not ask for confirmation before generating it.",
       "Infer reasonable titles, filenames, kind, structure, and visual style when they are not specified; ask_user only when a missing requirement would make the artifact materially wrong.",
       "When the user requests an HTML page, report, or static deliverable and no referenced attachments require reading, call create_artifact directly without web_search, list_documents, read_document, or ask_user.",
-      "Treat persisted artifacts as document slots in the assistant message. If a concise summary helps, write it before calling create_artifact; after the artifact is persisted, do not continue with another assistant turn by default.",
+      "Persisted artifacts are shown to the user by tool result UI. If a summary is useful, write one concise textual summary before calling create_artifact or update_artifact, then do not repeat artifact metadata after the tool succeeds.",
       "Only call propose_memory for stable long-term facts or preferences after the user explicitly provides or confirms them, never for one-off task details or clarification choices.",
     ].join("\n"),
   ];
@@ -153,7 +171,7 @@ async function buildInstructions(
       ? Promise.resolve([])
       : listMessages(conversationId),
     (async () => {
-      const docIds = new Set(slotIds);
+      const docIds = new Set(documentIds);
       let rows = await listDocuments(auth.userId, conversationId);
       if (docIds.size) rows = rows.filter((d) => docIds.has(d.id));
       return rows;
@@ -175,7 +193,7 @@ async function buildInstructions(
       [
         "<conversation_summary_context>",
         ...recent.map((m, i) => {
-          return `### Message ${i + 1}\nRole: ${m.role}\nStatus: ${m.status}\n\n${m.content}`;
+          return `### Message ${i + 1}\nRole: ${m.role}\nStatus: ${m.status}\n\n${textFromPersistedContent(m.content)}`;
         }),
         "</conversation_summary_context>",
       ].join("\n\n"),
@@ -235,7 +253,7 @@ export async function createAgentRunResponse(
   const uiMessages = await validateUIMessages<AnyUIMessage>({ messages: uiMessagesInput });
   const latestUser = [...uiMessages].reverse().find((message) => message.role === "user");
   const latestPrompt = latestUser ? textFromUiMessage(latestUser) : "";
-  if (!latestPrompt.trim() && !extractSlotIds(latestPrompt).length) {
+  if (!latestPrompt.trim() && !(input.documentIds ?? []).length) {
     throw new RequestError("agent prompt is required");
   }
   const isContinuation = uiMessages.at(-1)?.role === "assistant";
@@ -249,7 +267,7 @@ export async function createAgentRunResponse(
       : await createMessage({
           conversationId,
           role: "user",
-          content: latestPrompt,
+          content: latestUser ? serializeMessageContent(latestUser) : latestPrompt,
           status: "ok",
         });
 
@@ -261,9 +279,7 @@ export async function createAgentRunResponse(
     inputMessageId: userMessage.id,
   });
 
-  const slotIds = [
-    ...new Set([...(input.documentIds ?? []), ...extractSlotIds(latestPrompt)]),
-  ];
+  const documentIds = [...new Set(input.documentIds ?? [])];
   const toolCtx: AgentToolContext = {
     auth,
     conversationId,
@@ -356,7 +372,7 @@ export async function createAgentRunResponse(
   const agent = new ToolLoopAgent({
     id: "chat-agent",
     model: mainModel,
-    instructions: await buildInstructions(auth, conversationId, slotIds, {
+    instructions: await buildInstructions(auth, conversationId, documentIds, {
       skipConversationSummary: uiMessages.length > 1,
     }),
     tools,
@@ -390,11 +406,10 @@ export async function createAgentRunResponse(
         await touchConversation(conversationId);
         return;
       }
-      const finalText = finalizeAssistantContent(responseMessage, toolCtx.createdDocuments);
       const assistant = await createMessage({
         conversationId,
         role: "assistant",
-        content: finalText,
+        content: serializeMessageContent(responseMessage),
         status: isAborted ? "failed" : "ok",
       });
       await finishAgentRun({

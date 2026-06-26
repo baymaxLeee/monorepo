@@ -101,6 +101,18 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
+export interface UpdateArtifactInput {
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  user_id: string;
+  title?: string | null;
+  filename?: string | null;
+  content?: string | null;
+  mime_type?: string | null;
+}
+
 export interface UpdateDocumentInput {
   title?: string | null;
   content_md?: string | null;
@@ -275,6 +287,21 @@ const getDocumentInternalDocumentsDocumentIdGet = (
     }
 
 /**
+ * @summary Update Artifact
+ */
+const updateArtifactInternalDocumentsDocumentIdPatch = (
+    documentId: string,
+    updateArtifactInput: UpdateArtifactInput,
+ options?: SecondParameter<typeof apiMutator<Document>>,) => {
+      return apiMutator<Document>(
+      {url: `/internal/documents/${documentId}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: updateArtifactInput
+    },
+      options);
+    }
+
+/**
  * @summary Delete Document
  */
 const deleteDocumentInternalDocumentsDocumentIdDelete = (
@@ -330,7 +357,7 @@ const createArtifactInternalArtifactsPost = (
       options);
     }
 
-return {healthzHealthzGet,ingestStreamIngestStreamPost,listMyDocumentsDocumentsGet,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost}};
+return {healthzHealthzGet,ingestStreamIngestStreamPost,listMyDocumentsDocumentsGet,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -345,6 +372,7 @@ export type DeleteMyDocumentDocumentsDocumentIdDeleteResult = NonNullable<Awaite
 export type GetMyDocumentSourceDocumentsDocumentIdSourceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getMyDocumentSourceDocumentsDocumentIdSourceGet']>>>
 export type ListDocumentsInternalDocumentsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['listDocumentsInternalDocumentsGet']>>>
 export type GetDocumentInternalDocumentsDocumentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getDocumentInternalDocumentsDocumentIdGet']>>>
+export type UpdateArtifactInternalDocumentsDocumentIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['updateArtifactInternalDocumentsDocumentIdPatch']>>>
 export type DeleteDocumentInternalDocumentsDocumentIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['deleteDocumentInternalDocumentsDocumentIdDelete']>>>
 export type GetDocumentSliceInternalDocumentsDocumentIdSliceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getDocumentSliceInternalDocumentsDocumentIdSliceGet']>>>
 export type GetDocumentSourceInternalDocumentsDocumentIdSourceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getDocumentSourceInternalDocumentsDocumentIdSourceGet']>>>

@@ -62,7 +62,6 @@ import {
   type PromptInputToken,
   type PromptInputValue,
 } from "components/prompt-input";
-import { PromptMessageContent } from "components/prompt-message-content";
 import {
   ChevronDownIcon,
   ChevronUpIcon,
@@ -80,19 +79,27 @@ import {
   useState,
 } from "react";
 import { Link, useParams } from "react-router-dom";
-import {
-  cn,
-  extractSlotIds,
-  parseSlots,
-  serializeSlots,
-  tokenIdByArtifactId,
-} from "shared";
+import { cn } from "shared";
 import { Streamdown } from "streamdown";
 import "streamdown/styles.css";
 import { useShallow } from "zustand/react/shallow";
 import { useChatStore } from "../store/useChatStore";
 
 function messageToUiMessage(message: Message): UIMessage {
+  try {
+    const payload = JSON.parse(message.content) as {
+      parts?: UIMessage["parts"];
+    };
+    if (Array.isArray(payload.parts)) {
+      return {
+        id: message.id,
+        role: message.role,
+        parts: payload.parts,
+      };
+    }
+  } catch {
+    // New chat messages persist UIMessage parts as JSON.
+  }
   return {
     id: message.id,
     role: message.role,
@@ -168,11 +175,22 @@ function savePrefs(prefs: ReasoningPrefs) {
 }
 
 function buildPromptContent(value: PromptInputValue): string {
-  const serialized = serializeSlots(
-    { segments: value.segments },
-    tokenIdByArtifactId(value.tokens),
-  );
-  return serialized.trim() || "请阅读附件并总结要点";
+  const text = value.segments
+    .filter((segment) => segment.type === "text")
+    .map((segment) => segment.text)
+    .join("")
+    .trim();
+  return text || "请阅读附件并总结要点";
+}
+
+function promptDocumentIds(value: PromptInputValue): string[] {
+  const ids = new Set<string>();
+  for (const token of value.tokens) {
+    const artifactId = token.meta?.artifactId;
+    if (typeof artifactId === "string" && artifactId) ids.add(artifactId);
+    else if (/^[a-f0-9]{16}$/i.test(token.id)) ids.add(token.id);
+  }
+  return [...ids];
 }
 
 function mergeDocumentsById(
@@ -256,14 +274,6 @@ function inferMultimodalProvider(
     candidates[0] ??
     null
   );
-}
-
-function stableKey(value: string): string {
-  let hash = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
-  }
-  return hash.toString(36);
 }
 
 export function ChatRoomPage() {
@@ -390,10 +400,9 @@ export function ChatRoomPage() {
   const agentBusy = chatStatus === "streaming" || chatStatus === "submitted";
 
   const agentRequestBody = useCallback(
-    (displayContent?: string) => ({
+    () => ({
       provider_id: effectiveProvider?.id ?? null,
       multimodal_provider_id: effectiveMultimodalProvider?.id ?? null,
-      document_ids: displayContent ? extractSlotIds(displayContent) : [],
       thinking: prefs.thinking ? true : null,
       reasoning_effort: prefs.thinking ? prefs.effort : null,
     }),
@@ -809,7 +818,10 @@ export function ChatRoomPage() {
       void sendMessage(
         { text: displayContent },
         {
-          body: agentRequestBody(displayContent),
+          body: {
+            ...agentRequestBody(),
+            document_ids: promptDocumentIds(value),
+          },
         },
       ).catch((e) => toast.error(String(e)));
       requestAnimationFrame(() => scrollToBottom("smooth"));
@@ -1159,50 +1171,18 @@ export function ChatRoomPage() {
 const streamdownClassName =
   "prose prose-sm max-w-none break-words leading-relaxed dark:prose-invert prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-md prose-code:before:content-none prose-code:after:content-none";
 
-function SlotTextContent({
+function TextContent({
   content,
-  documents,
   isAnimating = false,
-  onOpenDocument,
 }: {
   content: string;
-  documents: Map<string, ConversationDocument>;
   isAnimating?: boolean;
-  onOpenDocument: (documentId: string) => void;
 }) {
-  const segments = parseSlots(content);
-  const hasSlots = segments.some((segment) => segment.type === "slot");
-
-  if (!hasSlots) {
-    if (!content.trim()) return null;
-    return (
-      <Streamdown isAnimating={isAnimating} className={streamdownClassName}>
-        {content}
-      </Streamdown>
-    );
-  }
-
+  if (!content.trim()) return null;
   return (
-    <div className="space-y-2">
-      {segments.map((segment) =>
-        segment.type === "slot" ? (
-          <DocumentCard
-            key={`slot-${segment.documentId}-${stableKey(JSON.stringify(segment))}`}
-            document={documents.get(segment.documentId)}
-            documentId={segment.documentId}
-            onOpen={() => onOpenDocument(segment.documentId)}
-          />
-        ) : segment.text.trim() ? (
-          <Streamdown
-            key={`text-${stableKey(segment.text)}`}
-            isAnimating={isAnimating}
-            className={streamdownClassName}
-          >
-            {segment.text}
-          </Streamdown>
-        ) : null,
-      )}
-    </div>
+    <Streamdown isAnimating={isAnimating} className={streamdownClassName}>
+      {content}
+    </Streamdown>
   );
 }
 
@@ -1289,19 +1269,8 @@ function MessagePartView({
   ) => void;
 }) {
   if (part.type === "text") {
-    return isUser ? (
-      <PromptMessageContent
-        content={part.text}
-        documents={documents}
-        onOpenDocument={onOpenDocument}
-      />
-    ) : (
-      <SlotTextContent
-        content={part.text}
-        documents={documents}
-        isAnimating={isAnimating}
-        onOpenDocument={onOpenDocument}
-      />
+    return (
+      <TextContent content={part.text} isAnimating={!isUser && isAnimating} />
     );
   }
 

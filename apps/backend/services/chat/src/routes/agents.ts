@@ -6,7 +6,6 @@ import { getProvider } from "../clients/admin.js";
 import { getAuth } from "../middleware/auth.js";
 import { createAgentRunResponse } from "../services/agent-runtime.js";
 import { AgentStreamService } from "../services/agent-streams.js";
-import { extractSlotIds } from "../services/agent-tools.js";
 
 export const agentsRoutes = new Hono();
 
@@ -71,21 +70,6 @@ function replaySseResponse(chunks: AsyncGenerator<string>): Response {
   });
 }
 
-function latestPrompt(messages: unknown[]): string {
-  const last = [...messages]
-    .reverse()
-    .find((m): m is { role: string; parts?: Array<{ type: string; text?: string }> } => {
-      return typeof m === "object" && m != null && (m as { role?: unknown }).role === "user";
-    });
-  return (
-    last?.parts
-      ?.filter((part) => part.type === "text")
-      .map((part) => part.text ?? "")
-      .join("")
-      .trim() ?? ""
-  );
-}
-
 agentsRoutes.post("/:conversationId/agents/run/stream", zValidator("json", runSchema), async (c) => {
   const auth = getAuth(c);
   const conversationId = c.req.param("conversationId");
@@ -99,9 +83,6 @@ agentsRoutes.post("/:conversationId/agents/run/stream", zValidator("json", runSc
 
   const provider = await getProvider(auth.userId, payload.provider_id ?? null);
   const documentIds = [...(payload.document_ids ?? [])];
-  for (const id of extractSlotIds(latestPrompt(payload.messages))) {
-    if (!documentIds.includes(id)) documentIds.push(id);
-  }
 
   return createAgentRunResponse(
     auth,

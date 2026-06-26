@@ -37,6 +37,7 @@ import {
   ConversationScrollButton,
   PromptInput,
   PromptInputAttachmentButton,
+  PromptInputHeader,
   type PromptInputMessage,
   PromptInputSubmit,
   PromptInputTextarea,
@@ -48,6 +49,20 @@ import { useParams } from "react-router-dom";
 import { ChatMessageView } from "../components/ChatMessageView";
 
 function messageToUiMessage(message: ApiMessage): UIMessage {
+  try {
+    const payload = JSON.parse(message.content) as {
+      parts?: UIMessage["parts"];
+    };
+    if (Array.isArray(payload.parts)) {
+      return {
+        id: message.id,
+        role: message.role,
+        parts: payload.parts,
+      };
+    }
+  } catch {
+    // Plain text messages are not expected for new chat records.
+  }
   return {
     id: message.id,
     role: message.role,
@@ -231,9 +246,9 @@ export function Chat() {
             onError={(error) => toast.error(error.message)}
             onSubmit={submit}
           >
-            <div className="px-2 pt-2">
-              <Attachments removable />
-            </div>
+            <PromptInputHeader>
+              <Attachments removable variant="inline" />
+            </PromptInputHeader>
             <PromptInputTextarea
               disabled={busy}
               placeholder="输入消息，粘贴图片/文件，或拖入附件..."

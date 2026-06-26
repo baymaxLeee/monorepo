@@ -13,7 +13,6 @@ import {
   ToolHeader,
   ToolJsonBlock,
 } from "components/ai-chat";
-import { parseSlots } from "shared";
 import {
   ArtifactDocumentCard,
   parseArtifactOutput,
@@ -77,12 +76,7 @@ function MessagePartView({
 }) {
   if (part.type === "text") {
     return (
-      <SlotAwareMessageText
-        text={part.text}
-        streaming={streaming}
-        documents={documents}
-        onOpenArtifact={onOpenArtifact}
-      />
+      <MessageResponse isAnimating={streaming}>{part.text}</MessageResponse>
     );
   }
 
@@ -127,53 +121,6 @@ function MessagePartView({
   }
 
   return null;
-}
-
-function SlotAwareMessageText({
-  text,
-  streaming,
-  documents,
-  onOpenArtifact,
-}: {
-  text: string;
-  streaming: boolean;
-  documents: Map<string, ConversationDocument>;
-  onOpenArtifact: (documentId: string) => void;
-}) {
-  const segments = parseSlots(text);
-  const hasSlots = segments.some((segment) => segment.type === "slot");
-  if (!hasSlots) {
-    return <MessageResponse isAnimating={streaming}>{text}</MessageResponse>;
-  }
-  return (
-    <div className="space-y-3">
-      {segments.map((segment) =>
-        segment.type === "slot" ? (
-          <ArtifactDocumentCard
-            key={`slot-${segment.documentId}`}
-            document={documents.get(segment.documentId)}
-            documentId={segment.documentId}
-            onOpen={() => onOpenArtifact(segment.documentId)}
-          />
-        ) : segment.text.trim() ? (
-          <MessageResponse
-            key={`text-${stableKey(segment.text)}`}
-            isAnimating={streaming}
-          >
-            {segment.text}
-          </MessageResponse>
-        ) : null,
-      )}
-    </div>
-  );
-}
-
-function stableKey(value: string): string {
-  let hash = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
-  }
-  return `${value.length}-${hash.toString(36)}`;
 }
 
 function ToolPartView({

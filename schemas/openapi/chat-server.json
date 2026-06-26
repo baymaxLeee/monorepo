@@ -119,6 +119,104 @@
           }
         }
       }
+    },
+    "/conversations/{conversation_id}/documents/{document_id}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "conversation document detail"
+          }
+        }
+      },
+      "patch": {
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "update conversation artifact"
+          }
+        }
+      }
+    },
+    "/conversations/{conversation_id}/documents/{document_id}/source": {
+      "get": {
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "conversation document source bytes"
+          }
+        }
+      }
+    },
+    "/conversations/{conversation_id}/agents/run/cancel": {
+      "post": {
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "cancel active agent run"
+          }
+        }
+      }
     }
   }
 }

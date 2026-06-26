@@ -7,8 +7,11 @@ import {
   createConversation,
   deleteConversation,
   getConversation,
+  getConversationDocument,
+  getConversationDocumentSource,
   listConversations,
   updateConversation,
+  updateConversationDocument,
 } from "../services/conversations.js";
 
 export const conversationsRoutes = new Hono();
@@ -20,6 +23,11 @@ const createSchema = z.object({
 
 const updateSchema = z.object({
   title: z.string().min(1).max(200).optional(),
+});
+
+const updateDocumentSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  content_md: z.string().optional(),
 });
 
 conversationsRoutes.get("/", async (c) => {
@@ -39,11 +47,55 @@ conversationsRoutes.get("/:conversationId", async (c) => {
   return c.json(await getConversation(auth, c.req.param("conversationId")));
 });
 
+conversationsRoutes.get("/:conversationId/documents/:documentId", async (c) => {
+  const auth = getAuth(c);
+  return c.json(
+    await getConversationDocument(
+      auth,
+      c.req.param("conversationId"),
+      c.req.param("documentId"),
+    ),
+  );
+});
+
+conversationsRoutes.get("/:conversationId/documents/:documentId/source", async (c) => {
+  const auth = getAuth(c);
+  const source = await getConversationDocumentSource(
+    auth,
+    c.req.param("conversationId"),
+    c.req.param("documentId"),
+  );
+  const body = source.bytes.buffer.slice(
+    source.bytes.byteOffset,
+    source.bytes.byteOffset + source.bytes.byteLength,
+  ) as ArrayBuffer;
+  return new Response(body, {
+    headers: { "Content-Type": source.mimeType },
+  });
+});
+
 conversationsRoutes.patch("/:conversationId", zValidator("json", updateSchema), async (c) => {
   const auth = getAuth(c);
   const body = c.req.valid("json");
   return c.json(await updateConversation(auth, c.req.param("conversationId"), body));
 });
+
+conversationsRoutes.patch(
+  "/:conversationId/documents/:documentId",
+  zValidator("json", updateDocumentSchema),
+  async (c) => {
+    const auth = getAuth(c);
+    const body = c.req.valid("json");
+    return c.json(
+      await updateConversationDocument(
+        auth,
+        c.req.param("conversationId"),
+        c.req.param("documentId"),
+        body,
+      ),
+    );
+  },
+);
 
 conversationsRoutes.delete("/:conversationId", async (c) => {
   const auth = getAuth(c);

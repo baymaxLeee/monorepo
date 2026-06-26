@@ -371,7 +371,7 @@ export function buildAgentTools(ctx: AgentToolContext) {
 
     create_artifact: tool({
       description:
-        "Create a persistent markdown or html artifact in the knowledge base. Pass a compact brief describing what to generate; the tool generates, streams, and persists the file content internally. The persisted document_id can be referenced as a document slot in the assistant message.",
+        "Create a persistent markdown or html artifact in the knowledge base. Pass a compact brief describing what to generate; the tool generates, streams, and persists the file content internally. The artifact is shown to the user from this tool result; do not repeat artifact metadata in normal assistant text.",
       inputSchema: z.object({
         title: z.string().min(1).max(120),
         filename: z.string().min(1).max(160),
@@ -702,51 +702,4 @@ export function buildAgentTools(ctx: AgentToolContext) {
       },
     }),
   };
-}
-
-export function finalizeAssistantMessage(
-  modelText: string,
-  created: KnowledgeDocument[],
-): string {
-  const artifacts = [...new Map(created.map((doc) => [doc.id, doc])).values()];
-  let out = modelText.trim();
-  for (const doc of artifacts) {
-    out = out.replaceAll(`[${doc.id}]`, " ");
-  }
-  out = out
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
-  const artifactSummary = artifacts
-    .map((doc, index) => {
-      const type = doc.mime_type === "text/html" ? "HTML" : "Markdown";
-      const size = doc.content_md?.length ?? doc.source_size ?? 0;
-      return [
-        `${index + 1}. ${doc.title}`,
-        `文件: ${doc.filename}`,
-        `类型: ${type}`,
-        size > 0 ? `长度: ${size} chars` : null,
-        `[${doc.id}]`,
-      ]
-        .filter((line): line is string => line != null)
-        .join("\n");
-    })
-    .join("\n\n");
-
-  if (out) {
-    return `${out}\n\n产物已就绪:\n${artifactSummary}`.trim();
-  }
-  if (artifacts.length > 0) {
-    return `已完成产物生成/更新:\n\n${artifactSummary}`;
-  }
-  return "已完成。";
-}
-
-export function extractSlotIds(text: string): string[] {
-  const re = /\[([a-f0-9]{16})\]/gi;
-  const ids = new Set<string>();
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) ids.add(m[1]!);
-  return [...ids];
 }

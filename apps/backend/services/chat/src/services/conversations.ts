@@ -5,7 +5,13 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import type { AuthContext } from "../middleware/auth.js";
 import { getDb } from "../db/index.js";
 import { conversations, messages } from "../db/schema.js";
-import { listDocuments, type KnowledgeDocument } from "../clients/knowledge.js";
+import {
+  getDocument,
+  getDocumentSource,
+  listDocuments,
+  updateArtifact,
+  type KnowledgeDocument,
+} from "../clients/knowledge.js";
 import { NotFoundError } from "../lib/errors.js";
 
 export interface Conversation {
@@ -27,7 +33,7 @@ export interface Message {
   created_at: string;
 }
 
-function mapKnowledgeDocument(doc: KnowledgeDocument, conversationId: string) {
+export function mapKnowledgeDocument(doc: KnowledgeDocument, conversationId: string) {
   return {
     id: doc.id,
     conversation_id: doc.conversation_id ?? conversationId,
@@ -67,6 +73,10 @@ export interface ConversationDocument {
   ingest_error: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ConversationDocumentDetail extends ConversationDocument {
+  content_md: string;
 }
 
 export interface ConversationDetail extends Conversation {
@@ -175,6 +185,68 @@ export async function deleteConversation(auth: AuthContext, conversationId: stri
   const row = await getConversationRow(auth, conversationId);
   const db = getDb();
   await db.delete(conversations).where(eq(conversations.id, row.id));
+}
+
+function assertConversationDocument(
+  doc: KnowledgeDocument,
+  conversationId: string,
+): KnowledgeDocument {
+  if (doc.conversation_id !== conversationId) {
+    throw new NotFoundError(`document ${doc.id} not found in conversation ${conversationId}`);
+  }
+  return doc;
+}
+
+export async function getConversationDocument(
+  auth: AuthContext,
+  conversationId: string,
+  documentId: string,
+): Promise<ConversationDocumentDetail> {
+  const conversation = await getConversationRow(auth, conversationId);
+  const doc = assertConversationDocument(
+    await getDocument(conversation.userId, documentId),
+    conversationId,
+  );
+  return {
+    ...mapKnowledgeDocument(doc, conversationId),
+    content_md: doc.content_md ?? "",
+  };
+}
+
+export async function getConversationDocumentSource(
+  auth: AuthContext,
+  conversationId: string,
+  documentId: string,
+): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  const conversation = await getConversationRow(auth, conversationId);
+  const doc = assertConversationDocument(
+    await getDocument(conversation.userId, documentId),
+    conversationId,
+  );
+  return getDocumentSource(conversation.userId, doc.id);
+}
+
+export async function updateConversationDocument(
+  auth: AuthContext,
+  conversationId: string,
+  documentId: string,
+  input: { title?: string; content_md?: string },
+): Promise<ConversationDocumentDetail> {
+  const conversation = await getConversationRow(auth, conversationId);
+  const current = assertConversationDocument(
+    await getDocument(conversation.userId, documentId),
+    conversationId,
+  );
+  const updated = await updateArtifact({
+    userId: conversation.userId,
+    documentId: current.id,
+    title: input.title,
+    content: input.content_md,
+  });
+  return {
+    ...mapKnowledgeDocument(updated, conversationId),
+    content_md: updated.content_md ?? "",
+  };
 }
 
 export async function touchConversation(conversationId: string): Promise<void> {

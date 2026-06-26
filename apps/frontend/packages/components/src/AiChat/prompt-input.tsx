@@ -300,6 +300,13 @@ export function PromptInputTextarea({
   );
 }
 
+export function PromptInputHeader({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("px-2 pt-2 empty:hidden", className)} {...props} />;
+}
+
 export function PromptInputToolbar({
   className,
   ...props
