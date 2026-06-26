@@ -1,6 +1,6 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 
 import { getDb } from "../db/index.js";
 import { agentRuns, agentSteps, agentToolCalls, userMemories } from "../db/schema.js";
@@ -11,6 +11,13 @@ export type MemoryCategory = "preference" | "profile" | "project" | "instruction
 
 function id(bytes = 8): string {
   return randomBytes(bytes).toString("hex");
+}
+
+export function deterministicId(...parts: Array<string | number | null | undefined>): string {
+  return createHash("sha256")
+    .update(parts.map((part) => String(part ?? "")).join(":"))
+    .digest("hex")
+    .slice(0, 32);
 }
 
 function asJsonValue(value: unknown): unknown {
@@ -32,6 +39,8 @@ export async function createAgentRun(input: {
   providerId: string;
   model: string;
   inputMessageId?: string | null;
+  workflowName?: string | null;
+  workflowVersion?: string | null;
 }): Promise<string> {
   const now = new Date();
   const runId = id(16);
@@ -43,10 +52,54 @@ export async function createAgentRun(input: {
     model: input.model,
     status: "running",
     inputMessageId: input.inputMessageId ?? null,
+    workflowName: input.workflowName ?? null,
+    workflowVersion: input.workflowVersion ?? null,
     createdAt: now,
     startedAt: now,
   });
   return runId;
+}
+
+export async function bindWorkflowRun(input: {
+  runId: string;
+  workflowRunId: string;
+  workflowName: string;
+  workflowVersion: string;
+}): Promise<void> {
+  await getDb()
+    .update(agentRuns)
+    .set({
+      workflowRunId: input.workflowRunId,
+      workflowName: input.workflowName,
+      workflowVersion: input.workflowVersion,
+    })
+    .where(eq(agentRuns.id, input.runId));
+}
+
+export async function getAgentRunByWorkflowRunId(workflowRunId: string): Promise<
+  | {
+      id: string;
+      conversationId: string;
+      userId: string;
+      status: AgentRunStatus;
+      workflowName: string | null;
+      workflowVersion: string | null;
+    }
+  | null
+> {
+  const [row] = await getDb()
+    .select()
+    .from(agentRuns)
+    .where(eq(agentRuns.workflowRunId, workflowRunId));
+  if (!row) return null;
+  return {
+    id: row.id,
+    conversationId: row.conversationId,
+    userId: row.userId,
+    status: row.status as AgentRunStatus,
+    workflowName: row.workflowName,
+    workflowVersion: row.workflowVersion,
+  };
 }
 
 export async function finishAgentRun(input: {
@@ -56,13 +109,14 @@ export async function finishAgentRun(input: {
   outputMessageId?: string | null;
   totalTokens?: number | null;
 }): Promise<void> {
+  "use step";
   await getDb()
     .update(agentRuns)
     .set({
       status: input.status,
       error: input.error == null ? null : errorText(input.error).slice(0, 4000),
-      outputMessageId: input.outputMessageId ?? null,
-      totalTokens: input.totalTokens ?? null,
+      outputMessageId: input.outputMessageId ?? undefined,
+      totalTokens: input.totalTokens ?? undefined,
       finishedAt: new Date(),
     })
     .where(eq(agentRuns.id, input.runId));
@@ -74,8 +128,10 @@ export async function startAgentStep(input: {
   kind: string;
   summary?: string;
   metadata?: Record<string, unknown> | null;
+  stepId?: string;
 }): Promise<string> {
-  const stepId = id(16);
+  "use step";
+  const stepId = input.stepId ?? id(16);
   await getDb().insert(agentSteps).values({
     id: stepId,
     runId: input.runId,
@@ -85,6 +141,13 @@ export async function startAgentStep(input: {
     summary: input.summary ?? null,
     metadata: input.metadata ?? null,
     createdAt: new Date(),
+  }).onDuplicateKeyUpdate({
+    set: {
+      status: "running",
+      summary: input.summary ?? null,
+      metadata: input.metadata ?? null,
+      finishedAt: null,
+    },
   });
   return stepId;
 }
@@ -95,6 +158,7 @@ export async function finishAgentStep(input: {
   summary?: string | null;
   metadata?: Record<string, unknown> | null;
 }): Promise<void> {
+  "use step";
   await getDb()
     .update(agentSteps)
     .set({
@@ -113,6 +177,7 @@ export async function recordToolCallStart(input: {
   toolName: string;
   toolInput: unknown;
 }): Promise<void> {
+  "use step";
   await getDb()
     .insert(agentToolCalls)
     .values({
@@ -123,6 +188,19 @@ export async function recordToolCallStart(input: {
       status: "running",
       inputJson: asJsonValue(input.toolInput),
       createdAt: new Date(),
+    })
+    .onDuplicateKeyUpdate({
+      set: {
+        runId: input.runId,
+        stepIndex: input.stepIndex ?? null,
+        toolName: input.toolName,
+        status: "running",
+        inputJson: asJsonValue(input.toolInput),
+        error: null,
+        finishedAt: null,
+        durationMs: null,
+        outputJson: sql`NULL`,
+      },
     });
 }
 
@@ -133,6 +211,7 @@ export async function recordToolCallFinish(input: {
   error?: unknown;
   durationMs?: number | null;
 }): Promise<void> {
+  "use step";
   await getDb()
     .update(agentToolCalls)
     .set({

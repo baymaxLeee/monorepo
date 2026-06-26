@@ -250,6 +250,7 @@ export async function updateConversationDocument(
 }
 
 export async function touchConversation(conversationId: string): Promise<void> {
+  "use step";
   const db = getDb();
   await db
     .update(conversations)
@@ -286,6 +287,7 @@ export async function createMessage(input: {
   content: string;
   status?: string;
 }): Promise<Message> {
+  "use step";
   const db = getDb();
   const id = randomBytes(8).toString("hex");
   const now = new Date();

@@ -1,6 +1,6 @@
 import { useChat } from "@ai-sdk/react";
+import { WorkflowChatTransport } from "@ai-sdk/workflow";
 import {
-  DefaultChatTransport,
   lastAssistantMessageIsCompleteWithToolCalls,
   type UIMessage,
 } from "ai";
@@ -9,6 +9,7 @@ import {
   type ConversationDetail,
   type ConversationDocument,
   type ConversationDocumentDetail,
+  cancelConversationAgent,
   chatAuthHeaders,
   conversationAgentStreamUrl,
   fetchConversation,
@@ -16,6 +17,7 @@ import {
 } from "api";
 import {
   Badge,
+  Button,
   Page,
   PageDescription,
   PageHeader,
@@ -44,9 +46,21 @@ import {
   PromptInputToolbar,
   PromptInputTools,
 } from "components/ai-chat";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ChatMessageView } from "../components/ChatMessageView";
+
+function workflowRunStorageKey(conversationId: string): string {
+  return `chat.workflowRunId.${conversationId}`;
+}
+
+function readStoredWorkflowRunId(conversationId: string): string | null {
+  return sessionStorage.getItem(workflowRunStorageKey(conversationId));
+}
+
+function clearStoredWorkflowRunId(conversationId: string): void {
+  sessionStorage.removeItem(workflowRunStorageKey(conversationId));
+}
 
 function messageToUiMessage(message: ApiMessage): UIMessage {
   try {
@@ -83,15 +97,39 @@ export function Chat() {
     null,
   );
   const [artifactLoading, setArtifactLoading] = useState(false);
+  const [activeWorkflowRunId, setActiveWorkflowRunId] = useState<string | null>(
+    id ? readStoredWorkflowRunId(id) : null,
+  );
+  const resumedConversationRef = useRef<string | null>(null);
+  const pausedByUserRef = useRef(false);
+
+  function rememberWorkflowRunId(workflowRunId: string): void {
+    if (!id) return;
+    sessionStorage.setItem(workflowRunStorageKey(id), workflowRunId);
+    setActiveWorkflowRunId(workflowRunId);
+  }
+
+  function clearWorkflowRunId(): void {
+    if (!id) return;
+    clearStoredWorkflowRunId(id);
+    setActiveWorkflowRunId(null);
+  }
 
   const transport = useMemo(
     () =>
-      new DefaultChatTransport<UIMessage>({
+      new WorkflowChatTransport<UIMessage>({
         api: id
           ? conversationAgentStreamUrl(id)
           : "/api/chat-server/conversations/missing/agents/run/stream",
-        credentials: "include",
-        headers: chatAuthHeaders,
+        initialStartIndex: -50,
+        maxConsecutiveErrors: 3,
+        onChatSendMessage: (response) => {
+          const workflowRunId = response.headers.get("x-workflow-run-id");
+          if (workflowRunId) rememberWorkflowRunId(workflowRunId);
+        },
+        onChatEnd: () => {
+          clearWorkflowRunId();
+        },
         prepareSendMessagesRequest: ({
           messages,
           body,
@@ -100,39 +138,63 @@ export function Chat() {
           api,
         }) => ({
           api,
-          credentials,
-          headers,
+          credentials: credentials ?? "include",
+          headers: {
+            "Content-Type": "application/json",
+            ...chatAuthHeaders(),
+            ...(headers ?? {}),
+          },
           body: {
             messages,
             ...(body ?? {}),
           },
         }),
-        prepareReconnectToStreamRequest: ({ headers, credentials, api }) => ({
-          api,
-          credentials,
-          headers,
-        }),
+        prepareReconnectToStreamRequest: ({ headers, credentials }) => {
+          const workflowRunId = id ? readStoredWorkflowRunId(id) : null;
+          if (!workflowRunId) {
+            throw new Error("no active workflow run");
+          }
+          return {
+            api: `${conversationAgentStreamUrl(id!)}/${encodeURIComponent(workflowRunId)}/stream`,
+            credentials: credentials ?? "include",
+            headers: {
+              ...chatAuthHeaders(),
+              ...(headers ?? {}),
+            },
+          };
+        },
       }),
     [id],
   );
 
-  const { messages, setMessages, sendMessage, stop, resumeStream, status } =
-    useChat<UIMessage>({
-      id: id ?? "chat",
-      transport,
-      resume: false,
-      sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
-      onError: (error) => toast.error(error.message),
-      onFinish: () => {
-        if (!id) return;
-        void fetchConversation(id).then((next) => {
-          setDetail(next);
-          setMessages(next.messages.map(messageToUiMessage));
-        });
-      },
-    });
+  const {
+    messages,
+    setMessages,
+    sendMessage,
+    addToolOutput,
+    stop,
+    resumeStream,
+    status,
+  } = useChat<UIMessage>({
+    id: id ?? "chat",
+    transport,
+    resume: false,
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    onError: (error) => {
+      if (/abort|aborted/i.test(error.message)) return;
+      toast.error(error.message);
+    },
+    onFinish: () => {
+      if (!id) return;
+      void fetchConversation(id).then((next) => {
+        setDetail(next);
+        setMessages(next.messages.map(messageToUiMessage));
+      });
+    },
+  });
 
   const busy = isRunning(status);
+  const canResume = !busy && activeWorkflowRunId != null;
   const documents = useMemo(() => {
     const map = new Map<string, ConversationDocument>();
     for (const document of detail?.documents ?? [])
@@ -144,11 +206,18 @@ export function Chat() {
     if (!id) return;
     let active = true;
     setLoading(true);
+    pausedByUserRef.current = false;
+    resumedConversationRef.current = null;
+    setActiveWorkflowRunId(readStoredWorkflowRunId(id));
     fetchConversation(id)
       .then((next) => {
         if (!active) return;
         setDetail(next);
         setMessages(next.messages.map(messageToUiMessage));
+        const lastMessage = next.messages.at(-1);
+        if (lastMessage?.role === "assistant" && lastMessage.status === "ok") {
+          clearWorkflowRunId();
+        }
       })
       .catch((error) => toast.error(String(error)))
       .finally(() => {
@@ -160,17 +229,33 @@ export function Chat() {
   }, [id, setMessages]);
 
   useEffect(() => {
-    if (!id || loading || busy) return;
+    if (
+      !id ||
+      loading ||
+      busy ||
+      pausedByUserRef.current ||
+      resumedConversationRef.current === id
+    ) {
+      return;
+    }
+    if (!readStoredWorkflowRunId(id)) return;
+
+    resumedConversationRef.current = id;
     void resumeStream().catch((error) => {
       const message = String(error);
-      if (/204|no active|not found/i.test(message)) return;
+      if (/204|no active|not found|no active workflow run/i.test(message)) {
+        clearStoredWorkflowRunId(id);
+        setActiveWorkflowRunId(null);
+        return;
+      }
       toast.error(message);
     });
   }, [busy, id, loading, resumeStream]);
 
   function submit(message: PromptInputMessage) {
     const text = message.text.trim();
-    if (!text || busy) return;
+    if (!text || busy || canResume) return;
+    pausedByUserRef.current = false;
     void sendMessage(
       { text, files: message.files },
       {
@@ -182,6 +267,64 @@ export function Chat() {
         },
       },
     ).catch((error) => toast.error(String(error)));
+  }
+
+  function pauseRun() {
+    pausedByUserRef.current = true;
+    stop();
+  }
+
+  async function answerClientTool(
+    toolName: string,
+    toolCallId: string,
+    output: unknown,
+  ) {
+    await addToolOutput({
+      tool: toolName,
+      toolCallId,
+      output,
+      options: {
+        body: {
+          provider_id: detail?.provider_id ?? null,
+          document_ids: [],
+          thinking: null,
+          reasoning_effort: null,
+        },
+      },
+    } as Parameters<typeof addToolOutput>[0]);
+  }
+
+  function latestAssistantMessage(): UIMessage | undefined {
+    return [...messages]
+      .reverse()
+      .find((message) => message.role === "assistant");
+  }
+
+  function cancelRun() {
+    if (!id) return;
+    const workflowRunId = readStoredWorkflowRunId(id);
+    if (!workflowRunId) return;
+    pausedByUserRef.current = true;
+    stop();
+    void cancelConversationAgent(id, workflowRunId, latestAssistantMessage())
+      .then(() => {
+        clearWorkflowRunId();
+        return fetchConversation(id);
+      })
+      .then((next) => {
+        setDetail(next);
+        setMessages(next.messages.map(messageToUiMessage));
+      })
+      .catch((error) => toast.error(String(error)));
+  }
+
+  function resumeRun() {
+    if (!id) return;
+    const workflowRunId = readStoredWorkflowRunId(id);
+    if (!workflowRunId) return;
+    pausedByUserRef.current = false;
+    setActiveWorkflowRunId(workflowRunId);
+    void resumeStream().catch((error) => toast.error(String(error)));
   }
 
   function openArtifact(documentId: string) {
@@ -231,6 +374,11 @@ export function Chat() {
                   streaming={busy && message === messages.at(-1)}
                   documents={documents}
                   onOpenArtifact={openArtifact}
+                  onAnswerClientTool={(toolName, toolCallId, output) => {
+                    void answerClientTool(toolName, toolCallId, output).catch(
+                      (error) => toast.error(String(error)),
+                    );
+                  }}
                 />
               ))
             )}
@@ -250,16 +398,26 @@ export function Chat() {
               <Attachments removable variant="inline" />
             </PromptInputHeader>
             <PromptInputTextarea
-              disabled={busy}
+              disabled={busy || canResume}
               placeholder="输入消息，粘贴图片/文件，或拖入附件..."
             />
             <PromptInputToolbar>
               <PromptInputTools>
-                <PromptInputAttachmentButton disabled={busy} />
+                <PromptInputAttachmentButton disabled={busy || canResume} />
               </PromptInputTools>
-              <PromptInputSubmit status={status} onStop={stop}>
-                {busy ? "停止" : "发送"}
+              <PromptInputSubmit
+                status={status}
+                onStop={pauseRun}
+                type={canResume ? "button" : undefined}
+                onClick={canResume ? resumeRun : undefined}
+              >
+                {busy ? "暂停" : canResume ? "继续" : "发送"}
               </PromptInputSubmit>
+              {busy || canResume ? (
+                <Button type="button" variant="outline" onClick={cancelRun}>
+                  停止
+                </Button>
+              ) : null}
             </PromptInputToolbar>
           </PromptInput>
         </div>

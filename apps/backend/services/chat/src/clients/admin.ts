@@ -1,3 +1,4 @@
+import { AdminInternalClient, TransportError, type AdminProviderSnapshot } from "@backend/transport-ts";
 import { getSettings } from "../config.js";
 import { AdminUnavailableError, ProviderNotConfiguredError } from "../lib/errors.js";
 
@@ -15,6 +16,14 @@ export interface ProviderSnapshot {
 
 const cache = new Map<string, { at: number; value: ProviderSnapshot }>();
 
+function adminClient(): AdminInternalClient {
+  const settings = getSettings();
+  return new AdminInternalClient({
+    baseUrl: settings.adminServiceUrl,
+    internalToken: settings.internalApiToken,
+  });
+}
+
 export async function getProvider(
   userId: string,
   providerId?: string | null,
@@ -26,38 +35,29 @@ export async function getProvider(
     return cached.value;
   }
 
-  const base = settings.adminServiceUrl.replace(/\/$/, "");
-  const url = providerId
-    ? `${base}/internal/providers/${providerId}?user_id=${encodeURIComponent(userId)}`
-    : `${base}/internal/providers/default?user_id=${encodeURIComponent(userId)}`;
-
-  let response: Response;
+  let data: AdminProviderSnapshot;
   try {
-    response = await fetch(url, {
-      headers: { "X-Internal-Token": settings.internalApiToken },
-    });
+    const client = adminClient();
+    data = providerId
+      ? await client.getProvider(userId, providerId)
+      : await client.getDefaultProvider(userId);
   } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      throw new ProviderNotConfiguredError("no model provider configured");
+    }
     throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
   }
 
-  if (response.status === 404) {
-    throw new ProviderNotConfiguredError("no model provider configured");
-  }
-  if (!response.ok) {
-    throw new AdminUnavailableError(`admin refused: ${response.status}`);
-  }
-
-  const data = (await response.json()) as Record<string, unknown>;
   const snapshot: ProviderSnapshot = {
-    id: String(data.id),
-    userId: String(data.user_id),
-    name: String(data.name),
-    model: String(data.model),
-    baseUrl: String(data.base_url),
-    apiKey: String(data.api_key),
-    extraBody: (data.extra_body as Record<string, unknown>) ?? {},
-    isDefault: Boolean(data.is_default),
-    isEnabled: Boolean(data.is_enabled),
+    id: data.id,
+    userId: data.user_id,
+    name: data.name,
+    model: data.model,
+    baseUrl: data.base_url,
+    apiKey: data.api_key,
+    extraBody: data.extra_body ?? {},
+    isDefault: data.is_default,
+    isEnabled: data.is_enabled,
   };
   cache.set(key, { at: Date.now(), value: snapshot });
   if (!providerId) cache.set(`${userId}:${snapshot.id}`, { at: Date.now(), value: snapshot });

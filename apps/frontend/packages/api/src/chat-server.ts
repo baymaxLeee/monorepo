@@ -1,4 +1,4 @@
-import { API_BASE_URL, request, toApiError } from "./http";
+import { API_BASE_URL, request } from "./http";
 import { refreshSession } from "./session";
 import { getToken, isAccessTokenValid } from "./storage";
 
@@ -79,45 +79,9 @@ export interface UpdateConversationDocumentInput {
   content_md?: string;
 }
 
-export interface AgentStepEvent {
-  type: "step";
-  text: string;
-  status?: "pending" | "running" | "completed" | "failed";
-  tool_name?: string;
-  output_preview?: string;
-}
-
-export interface AgentMessageEvent {
-  type: "message";
-  role?: "assistant";
-  status?: "streaming" | "completed" | "failed" | "cancelled";
-  delta?: string;
-  text?: string;
-}
-
-export interface AgentCardEvent {
-  type: "card";
-  card: {
-    type: "artifact" | "chart";
-    document?: ConversationDocument;
-    title?: string;
-    payload?: unknown;
-  };
-}
-
-export type AgentRunStreamEvent =
-  | AgentMessageEvent
-  | AgentStepEvent
-  | AgentCardEvent
-  | { type: "error"; message: string };
-
-export interface RunConversationAgentInput {
-  prompt: string;
-  provider_id?: string | null;
-  multimodal_provider_id?: string | null;
-  document_ids?: string[];
-  thinking?: boolean | null;
-  reasoning_effort?: ReasoningEffort | null;
+export interface StreamEventOptions<T> {
+  signal?: AbortSignal;
+  onEvent: (event: T) => void;
 }
 
 const BASE = "/api/chat-server/conversations";
@@ -253,16 +217,6 @@ export function updateConversationDocument(
   });
 }
 
-export interface StreamConversationAgentOptions {
-  signal?: AbortSignal;
-  onEvent: (event: AgentRunStreamEvent) => void;
-}
-
-export interface StreamEventOptions<T> {
-  signal?: AbortSignal;
-  onEvent: (event: T) => void;
-}
-
 export interface DocumentIngestBatchStartedEvent {
   type: "batch_started";
   total: number;
@@ -317,151 +271,17 @@ export type DocumentIngestStreamEvent =
   | DocumentIngestFileFailedEvent
   | DocumentIngestBatchDoneEvent;
 
-async function openEventStream<T>(
-  url: string,
-  init: { method: "GET" } | { method: "POST"; body: string | FormData },
-  { onEvent, signal }: StreamEventOptions<T>,
-) {
-  if (!isAccessTokenValid()) {
-    await refreshSession();
-  }
-
-  let response = await sendStreamRequest(url, init, signal);
-
-  if (response.status === 401) {
-    const refreshed = await refreshSession();
-    if (refreshed) {
-      response = await sendStreamRequest(url, init, signal);
-    }
-  }
-
-  if (!response.ok || !response.body) {
-    let detail = `stream failed: ${response.status}`;
-    try {
-      const text = await response.text();
-      if (text) detail = text;
-    } catch {
-      // body already consumed or unreadable; keep the status detail
-    }
-    throw new Error(detail);
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      let separatorIndex = buffer.indexOf("\n\n");
-      while (separatorIndex !== -1) {
-        const frame = buffer.slice(0, separatorIndex);
-        buffer = buffer.slice(separatorIndex + 2);
-
-        const dataLines = frame
-          .split("\n")
-          .filter((line) => line.startsWith("data:"))
-          .map((line) => line.slice(5).trimStart());
-        if (dataLines.length > 0) {
-          const data = dataLines.join("\n");
-          if (data === "[DONE]") return;
-          onEvent(JSON.parse(data) as T);
-        }
-
-        separatorIndex = buffer.indexOf("\n\n");
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-}
-
-async function sendStreamRequest(
-  url: string,
-  init: { method: "GET" } | { method: "POST"; body: string | FormData },
-  signal?: AbortSignal,
-): Promise<Response> {
-  const headers: Record<string, string> = {
-    Accept: "text/event-stream",
-  };
-  if (init.method === "POST" && typeof init.body === "string") {
-    headers["Content-Type"] = "application/json";
-  }
-
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  try {
-    return await fetch(url, {
-      method: init.method,
-      credentials: "include",
-      headers,
-      body: init.method === "POST" ? init.body : undefined,
-      signal,
-    });
-  } catch (error) {
-    throw toApiError(error);
-  }
-}
-
-export async function streamConversationAgent(
-  conversationId: string,
-  input: RunConversationAgentInput,
-  options: StreamConversationAgentOptions,
-): Promise<void> {
-  const url = `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/agents/run/stream`;
-  const body = JSON.stringify({
-    prompt: input.prompt,
-    provider_id: input.provider_id ?? null,
-    multimodal_provider_id: input.multimodal_provider_id ?? null,
-    document_ids: input.document_ids ?? [],
-    thinking: input.thinking ?? null,
-    reasoning_effort: input.reasoning_effort ?? null,
-  });
-  await openEventStream<AgentRunStreamEvent>(
-    url,
-    { method: "POST", body },
-    options,
-  );
-}
-
-export async function resumeConversationAgent(
-  conversationId: string,
-  options: StreamConversationAgentOptions,
-): Promise<void> {
-  const url = `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/agents/run/stream`;
-  await openEventStream<AgentRunStreamEvent>(url, { method: "GET" }, options);
-}
-
 export async function cancelConversationAgent(
   conversationId: string,
-): Promise<{ cancelled: boolean; run_id: string | null }> {
-  return request<{ cancelled: boolean; run_id: string | null }>({
+  workflowRunId: string,
+  assistantMessage?: unknown,
+): Promise<{ cancelled: boolean; workflow_run_id: string }> {
+  return request<{ cancelled: boolean; workflow_run_id: string }>({
     url: `${BASE}/${encodeURIComponent(conversationId)}/agents/run/cancel`,
     method: "POST",
+    data: {
+      workflow_run_id: workflowRunId,
+      ...(assistantMessage ? { assistant_message: assistantMessage } : {}),
+    },
   });
-}
-
-/** @deprecated Upload via `streamKnowledgeIngest` from knowledge-server instead. */
-export async function streamConversationDocumentIngest(
-  conversationId: string,
-  files: Array<{ clientRef: string; file: File }>,
-  options: StreamEventOptions<DocumentIngestStreamEvent>,
-): Promise<void> {
-  const form = new FormData();
-  const clientRefs: string[] = [];
-  for (const item of files) {
-    form.append("files", item.file);
-    clientRefs.push(item.clientRef);
-  }
-  form.append("client_refs", JSON.stringify(clientRefs));
-  const url = `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/documents/ingest/stream`;
-  await openEventStream<DocumentIngestStreamEvent>(
-    url,
-    { method: "POST", body: form },
-    options,
-  );
 }

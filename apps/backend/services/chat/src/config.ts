@@ -19,6 +19,10 @@ export interface Settings {
   agentToolApprovalSecret: string;
   tavilyApiKey: string;
   providerCacheTtlSeconds: number;
+  // Workflow DevKit "World" (durable run/step state). Unset locally → Local
+  // World (.workflow-data/). Set in deploy to point at self-hosted Postgres.
+  workflowDatabaseUrl: string;
+  workflowTargetWorld: string;
 }
 
 function envOr(key: string, fallback: string): string {
@@ -50,6 +54,8 @@ export function getSettings(): Settings {
     agentToolApprovalSecret: envOr("AGENT_TOOL_APPROVAL_SECRET", envOr("INTERNAL_API_TOKEN", DEV_INTERNAL_TOKEN)),
     tavilyApiKey: envOr("TAVILY_API_KEY", ""),
     providerCacheTtlSeconds: envInt("PROVIDER_CACHE_TTL_SECONDS", 300),
+    workflowDatabaseUrl: envOr("DATABASE_URL", ""),
+    workflowTargetWorld: envOr("WORKFLOW_TARGET_WORLD", ""),
   };
 }
 

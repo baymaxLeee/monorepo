@@ -84,7 +84,7 @@ build-image service registry="local" tag="latest":
     @if echo "{{ PY_SERVICES }}" | tr ' ' '\n' | grep -qx "{{ service }}"; then \
         docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile .; \
     elif echo "{{ NODE_SERVICES }}" | tr ' ' '\n' | grep -qx "{{ service }}"; then \
-        docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile services/{{ service }}; \
+        docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile .; \
     else \
         docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile services/{{ service }}; \
     fi
@@ -134,6 +134,10 @@ gen-openapi service:
 
 gen-openapi-all:
     @for s in {{ PY_SERVICES }} {{ NODE_SERVICES }}; do just gen-openapi $s; done
+
+gen-transport-ts:
+    cd libs/transport-ts && pnpm install && pnpm run codegen
+    @echo "✓ backend transport-ts clients regenerated"
 
 gen-proto:
     cd ../../schemas && buf generate

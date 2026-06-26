@@ -377,15 +377,17 @@ export function PromptInputSubmit({
   status,
   onStop,
   children,
+  onClick,
+  type,
   ...props
 }: PromptInputSubmitProps) {
   const running = status === "submitted" || status === "streaming";
   return (
     <Button
-      aria-label={running ? "Stop" : "Submit"}
-      type={running && onStop ? "button" : "submit"}
-      onClick={running ? onStop : props.onClick}
       {...props}
+      aria-label={running ? "Stop" : "Submit"}
+      type={running && onStop ? "button" : (type ?? "submit")}
+      onClick={running ? onStop : onClick}
     >
       {children ??
         (running ? (

@@ -12,6 +12,20 @@ const documentPathParam = {
   schema: { type: "string" },
 };
 
+const workflowRunPathParam = {
+  name: "workflow_run_id",
+  in: "path",
+  required: true,
+  schema: { type: "string" },
+};
+
+const startIndexQueryParam = {
+  name: "startIndex",
+  in: "query",
+  required: false,
+  schema: { type: "integer" },
+};
+
 const openapi = {
   openapi: "3.1.0",
   info: { title: "Chat Service", version: "0.1.0", description: "对话 / Agent 微服务 (TypeScript)" },
@@ -38,11 +52,23 @@ const openapi = {
     "/conversations/{conversation_id}/agents/run/stream": {
       post: {
         parameters: [pathParam],
-        responses: { "200": { description: "SSE agent run" } },
+        responses: {
+          "200": {
+            description: "start WorkflowAgent run stream",
+            headers: {
+              "x-workflow-run-id": {
+                description: "Workflow run id used for stream resume/cancel",
+                schema: { type: "string" },
+              },
+            },
+          },
+        },
       },
+    },
+    "/conversations/{conversation_id}/agents/run/stream/{workflow_run_id}/stream": {
       get: {
-        parameters: [pathParam],
-        responses: { "200": { description: "resume SSE agent run" } },
+        parameters: [pathParam, workflowRunPathParam, startIndexQueryParam],
+        responses: { "200": { description: "resume WorkflowAgent run stream" } },
       },
     },
     "/conversations/{conversation_id}/documents/{document_id}": {

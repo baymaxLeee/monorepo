@@ -4,8 +4,12 @@ import { z } from "zod";
 
 import { getProvider } from "../clients/admin.js";
 import { getAuth } from "../middleware/auth.js";
-import { createAgentRunResponse } from "../services/agent-runtime.js";
-import { AgentStreamService } from "../services/agent-streams.js";
+import {
+  assertWorkflowRunVersion,
+  cancelWorkflowRun,
+  createAgentRunResponse,
+  streamWorkflowRun,
+} from "../services/agent-runtime.js";
 
 export const agentsRoutes = new Hono();
 
@@ -18,71 +22,16 @@ const runSchema = z.object({
   reasoning_effort: z.enum(["low", "medium", "high"]).optional().nullable(),
 });
 
-async function consumeReplayStream(
-  streamService: AgentStreamService,
-  conversationId: string,
-  runId: string,
-  stream: ReadableStream<string>,
-): Promise<void> {
-  const reader = stream.getReader();
-  const pending: Promise<void>[] = [];
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      if (value) {
-        // Do not await Redis per chunk — tee() backpressure on this branch
-        // would otherwise throttle the live client SSE stream.
-        pending.push(
-          streamService
-            .appendSseChunk(conversationId, runId, value)
-            .catch(() => undefined),
-        );
-      }
-    }
-  } finally {
-    reader.releaseLock();
-    await Promise.allSettled(pending);
-    await streamService.finishRun(conversationId, runId);
-  }
-}
-
-function replaySseResponse(chunks: AsyncGenerator<string>): Response {
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of chunks) {
-          controller.enqueue(encoder.encode(chunk));
-        }
-      } finally {
-        controller.close();
-      }
-    },
-  });
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-    },
-  });
-}
+const cancelSchema = z.object({
+  workflow_run_id: z.string().min(1).max(128),
+  assistant_message: z.unknown().optional(),
+});
 
 agentsRoutes.post("/:conversationId/agents/run/stream", zValidator("json", runSchema), async (c) => {
   const auth = getAuth(c);
   const conversationId = c.req.param("conversationId");
   const payload = c.req.valid("json");
-  const streamService = new AgentStreamService(auth);
-  const run = await streamService.startRun(conversationId);
-
-  if (!run.started) {
-    return replaySseResponse(streamService.streamSseChunks(conversationId, run.runId));
-  }
-
   const provider = await getProvider(auth.userId, payload.provider_id ?? null);
-  const documentIds = [...(payload.document_ids ?? [])];
 
   return createAgentRunResponse(
     auth,
@@ -92,32 +41,32 @@ agentsRoutes.post("/:conversationId/agents/run/stream", zValidator("json", runSc
     {
       providerId: payload.provider_id,
       multimodalProviderId: payload.multimodal_provider_id,
-      documentIds,
+      documentIds: [...(payload.document_ids ?? [])],
       thinking: payload.thinking,
       reasoningEffort: payload.reasoning_effort,
-      abortSignal: c.req.raw.signal,
-      isCancelled: () => streamService.isCancelRequested(conversationId, run.runId),
-    },
-    {
-      consumeSseStream: ({ stream }) =>
-        consumeReplayStream(streamService, conversationId, run.runId, stream),
     },
   );
 });
 
-agentsRoutes.post("/:conversationId/agents/run/cancel", async (c) => {
+agentsRoutes.get("/:conversationId/agents/run/stream/:workflowRunId/stream", async (c) => {
   const auth = getAuth(c);
   const conversationId = c.req.param("conversationId");
-  const streamService = new AgentStreamService(auth);
-  const runId = await streamService.requestCancel(conversationId);
-  return c.json({ cancelled: runId != null, run_id: runId });
+  const workflowRunId = c.req.param("workflowRunId");
+  await assertWorkflowRunVersion(auth, conversationId, workflowRunId);
+  const rawStartIndex = c.req.query("startIndex");
+  const startIndex =
+    rawStartIndex == null || rawStartIndex === "" ? undefined : Number.parseInt(rawStartIndex, 10);
+  return streamWorkflowRun(auth, conversationId, workflowRunId, Number.isNaN(startIndex) ? undefined : startIndex);
 });
 
-agentsRoutes.get("/:conversationId/agents/run/stream", async (c) => {
-  const auth = getAuth(c);
-  const conversationId = c.req.param("conversationId");
-  const streamService = new AgentStreamService(auth);
-  const runId = await streamService.activeRunId(conversationId);
-  if (!runId) return new Response(null, { status: 204 });
-  return replaySseResponse(streamService.streamSseChunks(conversationId, runId));
-});
+agentsRoutes.post(
+  "/:conversationId/agents/run/cancel",
+  zValidator("json", cancelSchema),
+  async (c) => {
+    const auth = getAuth(c);
+    const conversationId = c.req.param("conversationId");
+    const body = c.req.valid("json");
+    await cancelWorkflowRun(auth, conversationId, body.workflow_run_id, body.assistant_message);
+    return c.json({ cancelled: true, workflow_run_id: body.workflow_run_id });
+  },
+);

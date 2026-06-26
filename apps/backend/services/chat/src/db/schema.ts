@@ -1,4 +1,4 @@
-import { datetime, index, int, json, mysqlTable, text, varchar } from "drizzle-orm/mysql-core";
+import { datetime, index, int, json, mysqlTable, text, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 export const conversations = mysqlTable(
   "conversations",
@@ -39,6 +39,9 @@ export const agentRuns = mysqlTable(
     error: text("error"),
     inputMessageId: varchar("input_message_id", { length: 32 }),
     outputMessageId: varchar("output_message_id", { length: 32 }),
+    workflowRunId: varchar("workflow_run_id", { length: 128 }),
+    workflowName: varchar("workflow_name", { length: 80 }),
+    workflowVersion: varchar("workflow_version", { length: 80 }),
     totalTokens: int("total_tokens"),
     createdAt: datetime("created_at", { mode: "date", fsp: 6 }).notNull(),
     startedAt: datetime("started_at", { mode: "date", fsp: 6 }).notNull(),
@@ -47,6 +50,7 @@ export const agentRuns = mysqlTable(
   (t) => [
     index("ix_agent_runs_conversation_id").on(t.conversationId),
     index("ix_agent_runs_user_id").on(t.userId),
+    uniqueIndex("ux_agent_runs_workflow_run_id").on(t.workflowRunId),
   ],
 );
 

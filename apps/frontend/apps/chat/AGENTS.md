@@ -8,8 +8,8 @@ Manages the "对话" domain on the frontend. Backed by
 - Owns routes under `/platform/chat/*` when mounted by platform
 - `http://localhost:3005/` is not a supported page; this app only serves
   federation assets
-- API calls go through `api` ONLY (no raw fetch). Chat message submission
-  defaults to `streamConversationAgent()`; do not add a parallel ordinary
+- API calls go through `api` ONLY (no raw fetch). Chat message submission uses
+  AI SDK `useChat` with `WorkflowChatTransport`; do not add a parallel ordinary
   completion/SSE sending path.
 - NEVER import from `admin`, `mfe-scene`, or any other MFE
 - For cross-MFE coordination, use `runtime` event bus
@@ -29,8 +29,8 @@ Manages the "对话" domain on the frontend. Backed by
 - `src/router/index.tsx` — `ChatLayout` + nested routes
 - `src/pages/ChatLayout.tsx` — conversation rail (left) + outlet (right)
 - `src/pages/ConversationListPage.tsx` — empty-state landing
-- `src/pages/ChatRoomPage.tsx` — agent-runtime chat surface with documents
-  and artifacts
+- `src/pages/Chat.tsx` — active agent-runtime chat surface with documents,
+  Workflow stream resume, and artifacts
 - `src/store/useChatStore.ts` — local UI state (zustand, private store)
 
 ## When to extract a component

@@ -51,6 +51,12 @@ apps/backend/libs/transport/src/transport/clients/*/generated/
 # Local docker volumes
 pgdata/
 
+# Workflow DevKit Local World (durable run state written to disk in dev)
+.workflow-data/
+# Nitro build output
+.output/
+.nitro/
+
 # Go
 vendor/
 

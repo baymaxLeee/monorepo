@@ -1,0 +1,22 @@
+{
+  "name": "@backend/transport-ts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "codegen": "openapi-typescript ../../../../schemas/openapi/admin-server.json -o src/schema/admin.ts && openapi-typescript ../../../../schemas/openapi/knowledge-server.json -o src/schema/knowledge.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./admin": "./src/admin.ts",
+    "./knowledge": "./src/knowledge.ts"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.17.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0"
+  }
+}

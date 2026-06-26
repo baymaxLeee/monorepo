@@ -67,6 +67,7 @@ build-images registry="local" tag="latest":
 sync:
     cd apps/backend && just gen-openapi-all
     cd apps/frontend && just gen-client
+    cd apps/backend && just gen-transport-ts
     @echo "OK Schema synced"
 
 fmt:
