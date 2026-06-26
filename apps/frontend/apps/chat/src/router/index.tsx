@@ -1,6 +1,6 @@
 import { Navigate, type RouteObject } from "react-router-dom";
+import { Chat } from "../pages/Chat";
 import { ChatLayout } from "../pages/ChatLayout";
-import { ChatRoomPage } from "../pages/ChatRoomPage";
 import { ConversationListPage } from "../pages/ConversationListPage";
 
 /**
@@ -13,7 +13,7 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <Navigate to="conversations" replace /> },
       { path: "conversations", element: <ConversationListPage /> },
-      { path: "conversations/:id", element: <ChatRoomPage /> },
+      { path: "conversations/:id", element: <Chat /> },
     ],
   },
   { path: "*", element: <Navigate to="/404" replace /> },

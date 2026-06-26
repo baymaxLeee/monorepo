@@ -167,6 +167,20 @@ not supported by clear product requirements, operational necessity, or common
 industry practice, do not add it. If it already exists, remove it or justify it
 explicitly in code comments, docs, or an ADR, depending on the blast radius.
 
+### Future-first compatibility policy
+This project has no forward-compatibility obligations during the current demo
+phase. When an existing local convention conflicts with AI-native or Vercel AI
+SDK / AI Elements best practice, agents should prefer the best-practice shape
+and perform incompatible refactors directly instead of adding adapter layers,
+legacy branches, or compatibility shims.
+
+This applies especially to chat UI message parts, artifact rendering, prompt
+input, tool cards, streaming protocols, agent orchestration, and backend
+message persistence. Migrate toward native `UIMessage` parts, generated UI,
+artifact panels, and explicit tool/artifact outputs even if older slot-based
+message text must be replaced. Document the new convention briefly and remove
+obsolete code paths once the replacement works.
+
 ### AI-Native technology preference
 The project is positioned as **AI-Native**. When choosing a third-party
 library for an AI-adjacent surface (streaming chat, tool calling, structured
