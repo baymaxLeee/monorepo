@@ -14,4 +14,3 @@ data:
   # (kept in the Secret).
   ADMIN_SERVICE_URL: "http://admin.default.svc.cluster.local:8001"
   KNOWLEDGE_SERVICE_URL: "http://knowledge.default.svc.cluster.local:8010"
-  WORKFLOW_TARGET_WORLD: "@workflow/world-postgres"

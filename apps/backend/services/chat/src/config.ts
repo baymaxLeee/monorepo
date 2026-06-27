@@ -21,7 +21,6 @@ export interface Settings {
   // Workflow DevKit World (durable run/step/event/hook/stream state).
   // Local development and self-hosted deployments use the Postgres World.
   workflowPostgresUrl: string;
-  workflowTargetWorld: string;
 }
 
 function envOr(key: string, fallback: string): string {
@@ -53,7 +52,6 @@ export function getSettings(): Settings {
     tavilyApiKey: envOr("TAVILY_API_KEY", ""),
     providerCacheTtlSeconds: envInt("PROVIDER_CACHE_TTL_SECONDS", 300),
     workflowPostgresUrl: envOr("WORKFLOW_POSTGRES_URL", ""),
-    workflowTargetWorld: envOr("WORKFLOW_TARGET_WORLD", ""),
   };
 }
 

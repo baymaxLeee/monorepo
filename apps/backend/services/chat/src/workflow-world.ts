@@ -1,10 +1,7 @@
-import { createWorld, setWorld } from "workflow/runtime";
+import { createWorld as createPostgresWorld } from "@workflow/world-postgres";
+import { setWorld } from "workflow/runtime";
 
 import { getSettings } from "./config.js";
-
-type StreamFlushWorld = ReturnType<typeof createWorld> & {
-  streamFlushIntervalMs?: number;
-};
 
 let configured = false;
 
@@ -13,16 +10,13 @@ export function configureWorkflowWorld(): void {
   configured = true;
 
   const settings = getSettings();
-  if (
-    settings.workflowTargetWorld === "@workflow/world-postgres" &&
-    !settings.workflowPostgresUrl
-  ) {
-    throw new Error(
-      "WORKFLOW_POSTGRES_URL is required when WORKFLOW_TARGET_WORLD=@workflow/world-postgres",
-    );
+  if (!settings.workflowPostgresUrl) {
+    throw new Error("WORKFLOW_POSTGRES_URL is required");
   }
 
-  const world = createWorld() as StreamFlushWorld;
-  world.streamFlushIntervalMs = 0;
+  const world = createPostgresWorld({
+    connectionString: settings.workflowPostgresUrl,
+    streamFlushIntervalMs: 0,
+  });
   setWorld(world);
 }

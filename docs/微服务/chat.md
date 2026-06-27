@@ -43,7 +43,7 @@ OpenAI-compatible provider（`@ai-sdk/openai-compatible`）。
 - Stream resume：前端 `WorkflowChatTransport`，后端 Workflow readable stream。
 - Workflow World：本地与部署均使用 `@workflow/world-postgres`；本地由
   `just up` 执行官方 `workflow-postgres-setup`，运行时通过
-  `WORKFLOW_TARGET_WORLD` 和 `WORKFLOW_POSTGRES_URL` 选择并连接 World。
+  `WORKFLOW_POSTGRES_URL` 连接固定的 PostgreSQL World 实现。
 
 部署环境必须使用 `@workflow/world-postgres`。Compose 在 chat 前运行
 `workflow-db-init`，Kubernetes 使用同镜像的 `workflow-schema`
