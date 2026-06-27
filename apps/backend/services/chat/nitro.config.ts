@@ -9,9 +9,7 @@ export default defineConfig({
   //     (which otherwise stays external and is unresolvable at runtime).
   //   - @vercel/oidc resolves its entry at runtime so it can't be bundled;
   //     trace (copy) it into the output instead.
-  externals: {
-    inline: ["@backend/transport-ts", "openapi-fetch"],
-  },
+  noExternals: ["@backend/transport-ts", "openapi-fetch"],
   traceDeps: ["@vercel/oidc"],
   routes: {
     "/**": "./src/index.ts",
