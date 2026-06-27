@@ -6,7 +6,11 @@ COPY apps/backend/package.json apps/backend/pnpm-workspace.yaml apps/backend/pnp
 COPY apps/backend/libs/transport-ts/package.json ./apps/backend/libs/transport-ts/package.json
 COPY apps/backend/services/chat/package.json ./apps/backend/services/chat/package.json
 WORKDIR /app/apps/backend
-RUN pnpm install --filter chat --frozen-lockfile
+# Hoisted layout puts openapi-fetch (transitive dep of the source-only
+# @backend/transport-ts workspace pkg) at the top level so Nitro's bundler
+# can resolve and inline it; pnpm's default isolated layout hides it and the
+# dep ends up unresolvable at runtime.
+RUN pnpm install --filter chat --frozen-lockfile --config.node-linker=hoisted
 COPY apps/backend/libs/transport-ts ./libs/transport-ts
 COPY apps/backend/services/chat/tsconfig.json apps/backend/services/chat/nitro.config.ts ./services/chat/
 COPY apps/backend/services/chat/src ./services/chat/src
