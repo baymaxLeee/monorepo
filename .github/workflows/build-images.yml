@@ -118,8 +118,9 @@ jobs:
               echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
               ;;
             chat)
-              # Chat copies the root packageManager declaration so local and
-              # container builds use the same pnpm release.
+              # Root context so the build can COPY the monorepo root manifest
+              # plus the apps/backend workspace manifest, both pinning the same
+              # pnpm release for reproducible local/container installs.
               echo "context=." >> "$GITHUB_OUTPUT"
               echo "dockerfile=apps/backend/services/chat/Dockerfile" >> "$GITHUB_OUTPUT"
               ;;

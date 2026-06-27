@@ -1,3 +1,7 @@
 packages:
   - "libs/transport-ts"
   - "services/chat"
+allowBuilds:
+  '@swc/core': false
+  cbor-extract: false
+  esbuild: false

@@ -2,7 +2,7 @@ FROM node:22-slim AS builder
 WORKDIR /app
 RUN corepack enable
 COPY package.json ./package.json
-COPY apps/backend/pnpm-workspace.yaml apps/backend/pnpm-lock.yaml ./apps/backend/
+COPY apps/backend/package.json apps/backend/pnpm-workspace.yaml apps/backend/pnpm-lock.yaml ./apps/backend/
 COPY apps/backend/libs/transport-ts/package.json ./apps/backend/libs/transport-ts/package.json
 COPY apps/backend/services/chat/package.json ./apps/backend/services/chat/package.json
 WORKDIR /app/apps/backend

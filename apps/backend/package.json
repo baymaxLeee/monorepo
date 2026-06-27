@@ -1,0 +1,5 @@
+{
+  "name": "backend-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.34.4"
+}
