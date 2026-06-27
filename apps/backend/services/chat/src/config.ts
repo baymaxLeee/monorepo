@@ -16,12 +16,11 @@ export interface Settings {
   adminServiceUrl: string;
   knowledgeServiceUrl: string;
   internalApiToken: string;
-  agentToolApprovalSecret: string;
   tavilyApiKey: string;
   providerCacheTtlSeconds: number;
-  // Workflow DevKit "World" (durable run/step state). Unset locally → Local
-  // World (.workflow-data/). Set in deploy to point at self-hosted Postgres.
-  workflowDatabaseUrl: string;
+  // Workflow DevKit World (durable run/step/event/hook/stream state).
+  // Local development and self-hosted deployments use the Postgres World.
+  workflowPostgresUrl: string;
   workflowTargetWorld: string;
 }
 
@@ -51,10 +50,9 @@ export function getSettings(): Settings {
     adminServiceUrl: envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
     knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
     internalApiToken: envOr("INTERNAL_API_TOKEN", DEV_INTERNAL_TOKEN),
-    agentToolApprovalSecret: envOr("AGENT_TOOL_APPROVAL_SECRET", envOr("INTERNAL_API_TOKEN", DEV_INTERNAL_TOKEN)),
     tavilyApiKey: envOr("TAVILY_API_KEY", ""),
     providerCacheTtlSeconds: envInt("PROVIDER_CACHE_TTL_SECONDS", 300),
-    workflowDatabaseUrl: envOr("DATABASE_URL", ""),
+    workflowPostgresUrl: envOr("WORKFLOW_POSTGRES_URL", ""),
     workflowTargetWorld: envOr("WORKFLOW_TARGET_WORLD", ""),
   };
 }

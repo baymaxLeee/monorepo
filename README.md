@@ -37,7 +37,8 @@ just dev
 - 从 `.env.example` 复制缺失的 `.env`
 
 `just up` 帮你做了:
-- `docker compose up -d`(MySQL 8 + Redis)、建库、admin schema/种子数据
+- `docker compose up -d`(MySQL 8 + Redis + Workflow Postgres)
+- 初始化 Workflow DevKit 官方 PostgreSQL schema、业务建库和 admin schema/种子数据
 
 跑完之后浏览器打开 **http://localhost:3000**,就能看到完整跨栈链路:
 
@@ -94,7 +95,7 @@ just down    # 收工,关 docker
 | `just dev` | **起全套服务**,Ctrl+C 全停 ⭐ |
 | `just dev-shell` | 同上,但用纯 shell 模式(无 overmind 时的 fallback) |
 | `just dev-urls` | 列出所有服务的 URL |
-| `just up` / `just down` | 起 / 关 docker(MySQL + Redis) |
+| `just up` / `just down` | 起 / 关 docker(MySQL + Redis + Workflow Postgres) |
 | `just install` | 装所有依赖(前端 + 后端 Py + Go) |
 | `just build` | **全栈构建**(前端 dist + Go 二进制) |
 | `just build <target>` | 单目标构建:`shell` / `mfe-bot` / `gateway` / `frontend` / `backend` |

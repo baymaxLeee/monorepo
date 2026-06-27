@@ -8,6 +8,7 @@ import {
   ArtifactTitle,
 } from "components/ai-chat";
 import { FileTextIcon } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 export type ArtifactOutput = {
   documentId: string;
@@ -16,6 +17,7 @@ export type ArtifactOutput = {
   filename: string;
   kind: string;
   content: string;
+  totalChars?: number;
 };
 
 export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
@@ -27,6 +29,7 @@ export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
     filename?: unknown;
     kind?: unknown;
     content?: unknown;
+    total_chars?: unknown;
   };
   if (typeof raw.document_id !== "string" && raw.status !== "generating") {
     return null;
@@ -38,6 +41,8 @@ export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
     filename: typeof raw.filename === "string" ? raw.filename : "artifact",
     kind: typeof raw.kind === "string" ? raw.kind : "file",
     content: typeof raw.content === "string" ? raw.content : "",
+    totalChars:
+      typeof raw.total_chars === "number" ? raw.total_chars : undefined,
   };
 }
 
@@ -47,7 +52,8 @@ export type ArtifactStreamData = {
   title: string;
   filename: string;
   kind: string;
-  content: string;
+  preview: string;
+  generated_chars: number;
   document_id?: string;
 };
 
@@ -66,7 +72,9 @@ export function parseArtifactStreamData(
     title: typeof raw.title === "string" ? raw.title : "Artifact",
     filename: typeof raw.filename === "string" ? raw.filename : "artifact",
     kind: typeof raw.kind === "string" ? raw.kind : "file",
-    content: typeof raw.content === "string" ? raw.content : "",
+    preview: typeof raw.preview === "string" ? raw.preview : "",
+    generated_chars:
+      typeof raw.generated_chars === "number" ? raw.generated_chars : 0,
     document_id:
       typeof raw.document_id === "string" ? raw.document_id : undefined,
   };
@@ -84,15 +92,33 @@ export function StreamingArtifactCard({
           <ArtifactTitle className="truncate">{artifact.title}</ArtifactTitle>
           <ArtifactDescription className="truncate">
             {artifact.kind} · {artifact.filename} · {artifact.status}
+            {artifact.totalChars ? ` · ${artifact.totalChars} chars` : ""}
           </ArtifactDescription>
         </div>
       </ArtifactHeader>
       <ArtifactContent>
-        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-muted/60 p-2 text-[11px]">
-          {artifact.content || "artifact"}
-        </pre>
+        <ArtifactStreamPreview content={artifact.content || "artifact"} />
       </ArtifactContent>
     </Artifact>
+  );
+}
+
+function ArtifactStreamPreview({ content }: { content: string }) {
+  const previewRef = useRef<HTMLPreElement>(null);
+
+  useEffect(() => {
+    const node = previewRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+  }, [content]);
+
+  return (
+    <pre
+      ref={previewRef}
+      className="max-h-[6.25rem] overflow-hidden whitespace-pre-wrap rounded-md bg-muted/60 p-2 text-[11px] leading-5"
+    >
+      {content}
+    </pre>
   );
 }
 

@@ -95,6 +95,7 @@ export class KnowledgeInternalClient {
     filename: string;
     content: string;
     mimeType?: string;
+    idempotencyKey?: string;
   }): Promise<KnowledgeDocument> {
     return this.unwrap(
       this.client.POST("/internal/artifacts", {
@@ -105,6 +106,7 @@ export class KnowledgeInternalClient {
           filename: input.filename,
           content: input.content,
           mime_type: input.mimeType,
+          idempotency_key: input.idempotencyKey,
         },
       }),
       normalizeDocument,
@@ -118,6 +120,7 @@ export class KnowledgeInternalClient {
     filename?: string;
     content?: string;
     mimeType?: string;
+    expectedUpdatedAt?: string;
   }): Promise<KnowledgeDocument> {
     return this.unwrap(
       this.client.PATCH("/internal/documents/{document_id}", {
@@ -128,6 +131,7 @@ export class KnowledgeInternalClient {
           filename: input.filename,
           content: input.content,
           mime_type: input.mimeType,
+          expected_updated_at: input.expectedUpdatedAt,
         },
       }),
       normalizeDocument,

@@ -1,13 +1,17 @@
 """Internal document API for chat and other services."""
 
+from datetime import datetime
+from hashlib import sha256
+
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
-from kernel.errors import NotFoundError
+from kernel.errors import ConflictError, NotFoundError
 from knowledge.crud import documents as document_crud
 from knowledge.deps import DbSession, require_internal_token
 from knowledge.schemas.document import CreateArtifactInput, Document, DocumentSlice, UpdateArtifactInput
 from knowledge.services.documents import document_to_schema
 from knowledge.services.object_store import ObjectStore
+from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(
     prefix="/internal",
@@ -86,19 +90,37 @@ async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> D
     mime = payload.mime_type or (
         "text/html" if payload.filename.lower().endswith((".html", ".htm")) else "text/markdown"
     )
-    row = await document_crud.create_document(
-        session,
-        user_id=payload.user_id,
-        conversation_id=payload.conversation_id,
-        kind="artifact",
-        title=payload.title,
-        filename=payload.filename,
-        mime_type=mime,
-        content_md=payload.content,
-        ingest_status="ready",
-        ingest_progress=100,
-    )
-    await session.commit()
+    document_id = None
+    if payload.idempotency_key:
+        document_id = sha256(
+            f"{payload.user_id}:{payload.conversation_id or ''}:{payload.idempotency_key}".encode()
+        ).hexdigest()[:16]
+        existing = await document_crud.get_document(session, document_id, payload.user_id)
+        if existing is not None:
+            return document_to_schema(existing, include_content=True)
+    try:
+        row = await document_crud.create_document(
+            session,
+            user_id=payload.user_id,
+            conversation_id=payload.conversation_id,
+            kind="artifact",
+            title=payload.title,
+            filename=payload.filename,
+            mime_type=mime,
+            content_md=payload.content,
+            ingest_status="ready",
+            ingest_progress=100,
+            document_id=document_id,
+        )
+        await session.commit()
+    except IntegrityError:
+        if document_id is None:
+            raise
+        await session.rollback()
+        existing = await document_crud.get_document(session, document_id, payload.user_id)
+        if existing is None:
+            raise
+        return document_to_schema(existing, include_content=True)
     return document_to_schema(row, include_content=True)
 
 
@@ -113,10 +135,26 @@ async def update_artifact(
         raise NotFoundError(f"artifact {document_id} not found")
     values = payload.model_dump(exclude_unset=True, exclude_none=True)
     values.pop("user_id", None)
+    expected_updated_at_raw = values.pop("expected_updated_at", None)
     if "content" in values:
         values["content_md"] = values.pop("content")
     if values:
-        row = await document_crud.update_document(session, row, values)
+        if expected_updated_at_raw:
+            try:
+                expected_updated_at = datetime.fromisoformat(expected_updated_at_raw.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ConflictError("invalid artifact base version") from exc
+            updated = await document_crud.update_document_if_unchanged(
+                session,
+                row,
+                values,
+                expected_updated_at=expected_updated_at,
+            )
+            if updated is None:
+                raise ConflictError("artifact changed while the revision was being generated")
+            row = updated
+        else:
+            row = await document_crud.update_document(session, row, values)
         await session.commit()
     return document_to_schema(row, include_content=True)
 

@@ -2,10 +2,11 @@
 
 from datetime import UTC, datetime
 from secrets import token_hex
-from typing import Any
+from typing import Any, cast
 
 from knowledge.models.document import DocumentRow
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -32,10 +33,11 @@ async def create_document(
     ingest_status: str = "ready",
     ingest_progress: int = 100,
     ingest_error: str | None = None,
+    document_id: str | None = None,
 ) -> DocumentRow:
     now = datetime.now(UTC)
     row = DocumentRow(
-        id=new_document_id(),
+        id=document_id or new_document_id(),
         user_id=user_id,
         conversation_id=conversation_id,
         kind=kind,
@@ -88,6 +90,33 @@ async def update_document(session: AsyncSession, row: DocumentRow, values: dict[
         setattr(row, key, value)
     row.updated_at = datetime.now(UTC)
     await session.flush()
+    return row
+
+
+async def update_document_if_unchanged(
+    session: AsyncSession,
+    row: DocumentRow,
+    values: dict[str, Any],
+    *,
+    expected_updated_at: datetime,
+) -> DocumentRow | None:
+    """Atomically update a document only when the caller's base version is current."""
+    next_updated_at = datetime.now(UTC)
+    result = cast(
+        CursorResult[Any],
+        await session.execute(
+            update(DocumentRow)
+            .where(
+                DocumentRow.id == row.id,
+                DocumentRow.user_id == row.user_id,
+                DocumentRow.updated_at == expected_updated_at,
+            )
+            .values(**values, updated_at=next_updated_at)
+        ),
+    )
+    if result.rowcount != 1:
+        return None
+    await session.refresh(row)
     return row
 
 

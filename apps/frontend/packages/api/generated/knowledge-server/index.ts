@@ -33,6 +33,7 @@ export interface CreateArtifactInput {
   /** @minLength 1 */
   content: string;
   mime_type?: string | null;
+  idempotency_key?: string | null;
 }
 
 export type DocumentKind = typeof DocumentKind[keyof typeof DocumentKind];
@@ -111,6 +112,7 @@ export interface UpdateArtifactInput {
   filename?: string | null;
   content?: string | null;
   mime_type?: string | null;
+  expected_updated_at?: string | null;
 }
 
 export interface UpdateDocumentInput {

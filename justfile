@@ -10,8 +10,9 @@ default:
 up:
     docker compose up -d
     @./scripts/wait-for-mysql.sh
+    @./scripts/workflow-postgres-bootstrap.sh
     @./scripts/db-bootstrap.sh
-    @echo "OK Infra up - MySQL :3306, Redis :6379"
+    @echo "OK Infra up - MySQL :3306, Redis :6379, Workflow Postgres :5432"
 
 reset-demo-data:
     @./scripts/reset-demo-data.sh

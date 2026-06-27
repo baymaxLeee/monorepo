@@ -34,9 +34,12 @@ export type ReasoningProps = ComponentProps<"div"> & {
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   duration?: number;
+  autoOpenOnStream?: boolean;
+  autoCloseOnFinish?: boolean;
+  autoCloseDelay?: number;
 };
 
-const AUTO_CLOSE_DELAY = 1000;
+const DEFAULT_AUTO_CLOSE_DELAY = 1000;
 
 export const Reasoning = memo(function Reasoning({
   className,
@@ -45,14 +48,17 @@ export const Reasoning = memo(function Reasoning({
   defaultOpen,
   onOpenChange,
   duration: durationProp,
+  autoOpenOnStream = false,
+  autoCloseOnFinish = false,
+  autoCloseDelay = DEFAULT_AUTO_CLOSE_DELAY,
   children,
   ...props
 }: ReasoningProps) {
-  const [localOpen, setLocalOpen] = useState(defaultOpen ?? isStreaming);
+  const [localOpen, setLocalOpen] = useState(defaultOpen ?? false);
   const [duration, setDuration] = useState<number | undefined>(durationProp);
   const [hasAutoClosed, setHasAutoClosed] = useState(false);
   const startTimeRef = useRef<number | null>(null);
-  const hasEverStreamedRef = useRef(isStreaming);
+  const hasAutoOpenedRef = useRef(false);
   const isOpen = open ?? localOpen;
 
   const setIsOpen = (next: boolean) => {
@@ -66,26 +72,37 @@ export const Reasoning = memo(function Reasoning({
 
   useEffect(() => {
     if (isStreaming) {
-      hasEverStreamedRef.current = true;
       startTimeRef.current ??= Date.now();
-      if (defaultOpen !== false && !isOpen) setIsOpen(true);
+      setHasAutoClosed(false);
+      if (autoOpenOnStream && !isOpen) {
+        hasAutoOpenedRef.current = true;
+        setIsOpen(true);
+      }
       return;
     }
     if (startTimeRef.current !== null) {
       setDuration(Math.ceil((Date.now() - startTimeRef.current) / 1000));
       startTimeRef.current = null;
     }
-  }, [defaultOpen, isOpen, isStreaming]);
+  }, [autoOpenOnStream, isOpen, isStreaming]);
 
   useEffect(() => {
-    if (!hasEverStreamedRef.current || isStreaming || !isOpen || hasAutoClosed)
+    if (
+      !autoCloseOnFinish ||
+      !hasAutoOpenedRef.current ||
+      hasAutoClosed ||
+      isStreaming ||
+      !isOpen
+    ) {
       return;
+    }
     const timer = window.setTimeout(() => {
       setIsOpen(false);
       setHasAutoClosed(true);
-    }, AUTO_CLOSE_DELAY);
+      hasAutoOpenedRef.current = false;
+    }, autoCloseDelay);
     return () => window.clearTimeout(timer);
-  }, [hasAutoClosed, isOpen, isStreaming]);
+  }, [autoCloseDelay, autoCloseOnFinish, hasAutoClosed, isOpen, isStreaming]);
 
   const value = useMemo(
     () => ({ duration, isOpen, isStreaming, setIsOpen }),
@@ -154,10 +171,25 @@ export const ReasoningContent = memo(function ReasoningContent({
   ...props
 }: ReasoningContentProps) {
   const { isOpen } = useReasoning();
-  if (!isOpen) return null;
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = contentRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+  }, [children, isOpen]);
+
   return (
-    <div className={cn("text-sm text-muted-foreground", className)} {...props}>
-      <MessageResponse>{children}</MessageResponse>
+    <div
+      ref={contentRef}
+      className={cn(
+        "overflow-hidden text-sm leading-5 text-muted-foreground transition-[max-height]",
+        isOpen ? "max-h-[10rem]" : "max-h-[3.75rem]",
+        className,
+      )}
+      {...props}
+    >
+      <MessageResponse className="leading-5">{children}</MessageResponse>
     </div>
   );
 });

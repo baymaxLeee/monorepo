@@ -80,26 +80,6 @@ function serializeMessageContent(message: AnyUIMessage): string {
   return JSON.stringify({ version: 1, parts: message.parts });
 }
 
-function serializeAssistantParts(parts: AnyUIMessage["parts"]): string {
-  return JSON.stringify({ version: 1, parts });
-}
-
-function textFromPersistedContent(content: string): string {
-  try {
-    const payload = JSON.parse(content) as { parts?: AnyUIMessage["parts"] };
-    if (Array.isArray(payload.parts)) {
-      return payload.parts
-        .filter((part) => part.type === "text")
-        .map((part) => part.text)
-        .join("")
-        .trim();
-    }
-  } catch {
-    // Older records can still be plain text.
-  }
-  return content;
-}
-
 function partsFromPersistedContent(content: string): AnyUIMessage["parts"] | null {
   try {
     const payload = JSON.parse(content) as { parts?: AnyUIMessage["parts"] };
@@ -131,22 +111,10 @@ function persistedMessageToUiMessage(message: Message): AnyUIMessage {
   } as AnyUIMessage;
 }
 
-function hasClientToolContinuation(messages: AnyUIMessage[]): boolean {
-  const last = messages.at(-1);
-  if (!last || last.role !== "assistant") return false;
-  return last.parts.some((part) => {
-    if (!part || typeof part !== "object" || !("toolCallId" in part)) return false;
-    const type = "type" in part ? part.type : "";
-    const state = "state" in part ? part.state : "";
-    return type === "tool-ask_user" && (state === "output-available" || state === "output-error");
-  });
-}
-
 async function buildInstructions(input: {
   userId: string;
   conversationId: string;
   documentIds: string[];
-  recentMessages: Message[];
 }): Promise<string> {
   const sections: string[] = [
     [
@@ -195,18 +163,6 @@ async function buildInstructions(input: {
     );
   }
 
-  if (input.recentMessages.length) {
-    sections.push(
-      [
-        "<conversation_summary_context>",
-        ...input.recentMessages.map((m, i) => {
-          return `### Message ${i + 1}\nRole: ${m.role}\nStatus: ${m.status}\n\n${textFromPersistedContent(m.content)}`;
-        }),
-        "</conversation_summary_context>",
-      ].join("\n\n"),
-    );
-  }
-
   if (docs.length) {
     sections.push(
       [
@@ -237,38 +193,34 @@ export async function createAgentRunResponse(
 ): Promise<Response> {
   const conversation = await getConversationRow(auth, conversationId);
   const uiMessages = await validateUIMessages<AnyUIMessage>({ messages: uiMessagesInput });
-  const isClientToolContinuation = hasClientToolContinuation(uiMessages);
-  const latestUser = [...uiMessages].reverse().find((message) => message.role === "user");
+  const latestUser = uiMessages.at(-1);
+  if (!latestUser || latestUser.role !== "user") {
+    throw new RequestError("the last chat message must be a user message");
+  }
   const latestPrompt = latestUser ? textFromUiMessage(latestUser) : "";
-  if (!isClientToolContinuation && !latestPrompt.trim() && !(input.documentIds ?? []).length) {
+  if (!latestPrompt.trim() && !(input.documentIds ?? []).length) {
     throw new RequestError("agent prompt is required");
   }
 
   await updateConversationProvider(conversation.id, provider.id, provider.model);
   const persistedMessages = await listMessages(conversation.id);
-  const userMessage = isClientToolContinuation
-    ? null
-    : await createMessage({
-        conversationId: conversation.id,
-        role: "user",
-        content: latestUser ? serializeMessageContent(latestUser) : latestPrompt,
-        status: "ok",
-      });
+  const userMessage = await createMessage({
+    conversationId: conversation.id,
+    role: "user",
+    content: latestUser ? serializeMessageContent(latestUser) : latestPrompt,
+    status: "ok",
+  });
   const runId = await createAgentRun({
     conversationId: conversation.id,
     userId: conversation.userId,
     providerId: provider.id,
     model: provider.model,
-    inputMessageId: userMessage?.id ?? null,
+    inputMessageId: userMessage.id,
     workflowName: CHAT_WORKFLOW_NAME,
     workflowVersion: CHAT_WORKFLOW_VERSION,
   });
   const historyMessages = persistedMessages.map(persistedMessageToUiMessage);
-  const modelUiMessages = isClientToolContinuation
-    ? uiMessages
-    : latestUser
-      ? [...historyMessages, latestUser]
-      : historyMessages;
+  const modelUiMessages = latestUser ? [...historyMessages, latestUser] : historyMessages;
   const modelMessages = await convertToModelMessages(
     await validateUIMessages<AnyUIMessage>({ messages: modelUiMessages }),
   );
@@ -284,7 +236,6 @@ export async function createAgentRunResponse(
         userId: conversation.userId,
         conversationId: conversation.id,
         documentIds: [...new Set(input.documentIds ?? [])],
-        recentMessages: persistedMessages,
       }),
       reasoningEffort: input.reasoningEffort ?? (input.thinking ? "medium" : null),
     },

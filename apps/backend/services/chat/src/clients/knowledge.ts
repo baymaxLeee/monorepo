@@ -73,6 +73,7 @@ export async function createArtifact(input: {
   filename: string;
   content: string;
   mimeType?: string;
+  idempotencyKey?: string;
 }): Promise<KnowledgeDocument> {
   return knowledgeClient().createArtifact(input);
 }
@@ -84,6 +85,7 @@ export async function updateArtifact(input: {
   filename?: string;
   content?: string;
   mimeType?: string;
+  expectedUpdatedAt?: string;
 }): Promise<KnowledgeDocument> {
   try {
     return await knowledgeClient().updateArtifact(input);

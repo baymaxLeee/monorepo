@@ -31,6 +31,15 @@ if docker ps --format '{{.Names}}' 2>/dev/null | grep -q monorepo-redis; then
 else
   miss "redis NOT running (try: just up)"
 fi
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -q monorepo-workflow-postgres; then
+  if docker compose exec -T workflow-postgres pg_isready -U dev -d workflow >/dev/null 2>&1; then
+    ok "workflow postgres running and ready"
+  else
+    miss "workflow postgres running but not ready"
+  fi
+else
+  miss "workflow postgres NOT running (try: just up)"
+fi
 
 echo ""
 if [ "$fail" -eq 0 ]; then

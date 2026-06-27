@@ -19,6 +19,22 @@ if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^monorepo-redis$'; t
   exit 1
 fi
 
+if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^monorepo-workflow-postgres$'; then
+  echo "✗ Workflow Postgres not running. Run: just up" >&2
+  exit 1
+fi
+
+if ! docker compose exec -T workflow-postgres pg_isready -U dev -d workflow >/dev/null 2>&1; then
+  echo "✗ Workflow Postgres is not ready. Run: just up" >&2
+  exit 1
+fi
+
+if [ "$(docker compose exec -T workflow-postgres psql -U dev -d workflow -Atc \
+  "select to_regclass('workflow.workflow_runs') is not null" 2>/dev/null | tr -d '\r')" != "t" ]; then
+  echo "✗ Workflow Postgres schema is missing. Run: just up" >&2
+  exit 1
+fi
+
 if [ ! -d apps/frontend/node_modules/.pnpm ]; then
   echo "✗ Frontend deps missing. Run: just install" >&2
   exit 1

@@ -41,11 +41,26 @@ OpenAI-compatible provider（`@ai-sdk/openai-compatible`）。
 
 - Run 宿主：`@ai-sdk/workflow` `WorkflowAgent`，由 Nitro + `workflow/nitro` 构建。
 - Stream resume：前端 `WorkflowChatTransport`，后端 Workflow readable stream。
-- Workflow World：本地可用 Local World；部署使用 `@workflow/world-postgres`。
+- Workflow World：本地与部署均使用 `@workflow/world-postgres`；本地由
+  `just up` 执行官方 `workflow-postgres-setup`，运行时通过
+  `WORKFLOW_TARGET_WORLD` 和 `WORKFLOW_POSTGRES_URL` 选择并连接 World。
 - Version guard：`agent_runs.workflow_version` 与当前 `CHAT_WORKFLOW_VERSION` 不一致时拒绝 resume/cancel。
 - 工具：`list_documents`、`read_document`、`analyze_image`、`create_artifact`、`update_artifact`、`web_search`、`ask_user`、`propose_memory`
-- `create_artifact` 只接收 `{ title, filename, kind, brief }`；工具内部用独立 `streamText` 生成正文，normalize 后 POST knowledge 落库；final tool output 带 `document_id` 供前端 DocumentCard；Workflow 完成时服务端持久化 assistant 总结，若模型未产出最终文本则从成功的 artifact tool result 生成确定性总结。
-- `update_artifact` 只接收 `{ document_id, title?, filename?, kind?, brief }`；读取现有 artifact 全文后按 brief 生成完整修订版并 PATCH knowledge，同一个 `document_id` 的预览/下载指向最新内容
+- `create_artifact` 只接收 `{ title, filename, kind, brief }`；Markdown artifact
+  用独立 `streamText` 生成正文。HTML artifact 优先用
+  `generateText + Output.object` 生成 `{ title, style, body, script }`
+  结构化部件；若 provider 未返回可解析对象，则降级为 section envelope
+  解析。两条路径都由服务端确定性组装完整 HTML5 document，
+  normalize/validate 后 POST knowledge 落库；final tool output 带
+  `document_id` 供前端 DocumentCard；Workflow 完成时服务端持久化
+  assistant 总结，若模型未产出最终文本则从成功的 artifact tool result
+  生成确定性总结。
+- `update_artifact` 只接收 `{ document_id, title?, filename?, kind?, brief }`；读取现有 artifact 全文后按 brief 生成完整修订版并 PATCH knowledge，同一个 `document_id` 的预览/下载指向最新内容；HTML 修订同样走结构化部件/section envelope 生成和服务端 HTML shell 组装。
+- artifact 流仅发送固定上限的尾部预览与 `generated_chars`，完成后以
+  `document_id` 为准加载正文，避免大文件全文快照导致 O(n²) 流量。
+- `create_artifact` 以 `toolCallId` 幂等创建；`update_artifact` 携带读取时的
+  `updated_at` 做原子条件写。超过阈值的旧正文按有边界的片段修订，若生成期间
+  artifact 已变化则返回冲突，不覆盖并发更新。
 - 当前迁移阶段：durable model streaming / resume / cancel / server-side final persistence 已接入 Workflow；
   全部 workflow tools（含 `analyze_image`、`update_artifact`）已通过 `'use step'` 接入；
   artifact 生成过程中的逐 token 预览仍是后续 parity 工作。

@@ -56,6 +56,17 @@ Accepted — 2026-06
   (`list_documents`, `read_document`, `web_search`, `create_artifact`,
   `update_artifact`, `analyze_image`, `ask_user`, `propose_memory`).
   Token-by-token artifact preview during generation remains follow-up parity work.
+- HTML artifacts are generated as structured `{ title, style, body, script }`
+  parts and assembled by chat into a deterministic HTML5 document shell. The
+  model no longer owns closing `</html>` or document wrapper correctness.
+- Artifact progress streams carry a bounded tail preview and generated-size
+  metadata rather than repeated full-file snapshots. `toolCallId` is the
+  idempotency key for artifact creation.
+- Artifact updates use `updated_at` as an optimistic-concurrency base version.
+  Large artifacts are revised in bounded chunks before an atomic conditional
+  write; concurrent changes fail instead of being silently overwritten.
+- Conversation history remains in native model messages. Historical user text
+  is never copied into agent instructions.
 - Demo phase still skips new test scaffolding; verification is lint/build plus
   manual run/resume/crash/cancel scenarios.
 

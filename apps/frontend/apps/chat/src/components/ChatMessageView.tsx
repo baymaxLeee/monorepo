@@ -5,6 +5,7 @@ import {
   Message as AiMessage,
   MessageContent,
   MessageResponse,
+  mergeReasoningParts,
   Reasoning,
   ReasoningContent,
   ReasoningTrigger,
@@ -12,6 +13,7 @@ import {
   ToolContent,
   ToolHeader,
   ToolJsonBlock,
+  withoutReasoningParts,
 } from "components/ai-chat";
 import { useState } from "react";
 import {
@@ -40,6 +42,11 @@ export function ChatMessageView({
   onOpenArtifact,
   onAnswerClientTool,
 }: ChatMessageViewProps) {
+  const reasoning = mergeReasoningParts(message.parts, {
+    isMessageStreaming: streaming,
+  });
+  const visibleParts = withoutReasoningParts(message.parts);
+
   return (
     <AiMessage from={message.role}>
       <MessageContent>
@@ -47,7 +54,13 @@ export function ChatMessageView({
           {message.role === "user" ? "你" : "助手"}
         </div>
         <div className="space-y-3">
-          {message.parts.map((part, index) => (
+          {reasoning ? (
+            <Reasoning isStreaming={reasoning.isStreaming}>
+              <ReasoningTrigger />
+              <ReasoningContent>{reasoning.text}</ReasoningContent>
+            </Reasoning>
+          ) : null}
+          {visibleParts.map(({ part, index }) => (
             <MessagePartView
               key={partKey(message.id, part, index)}
               part={part}
@@ -96,12 +109,7 @@ function MessagePartView({
   }
 
   if (part.type === "reasoning") {
-    return (
-      <Reasoning isStreaming={streaming}>
-        <ReasoningTrigger />
-        <ReasoningContent>{part.text}</ReasoningContent>
-      </Reasoning>
-    );
+    return null;
   }
 
   if (part.type === "source-url") {
@@ -130,7 +138,8 @@ function MessagePartView({
             title: streaming.title,
             filename: streaming.filename,
             kind: streaming.kind,
-            content: streaming.content,
+            content: streaming.preview,
+            totalChars: streaming.generated_chars,
           }}
         />
       );

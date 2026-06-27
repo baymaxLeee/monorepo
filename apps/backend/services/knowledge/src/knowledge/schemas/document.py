@@ -37,6 +37,7 @@ class CreateArtifactInput(BaseModel):
     filename: str = Field(min_length=1, max_length=160)
     content: str = Field(min_length=1)
     mime_type: str | None = Field(default=None, max_length=120)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class UpdateArtifactInput(BaseModel):
@@ -45,6 +46,7 @@ class UpdateArtifactInput(BaseModel):
     filename: str | None = Field(default=None, min_length=1, max_length=160)
     content: str | None = Field(default=None, min_length=1)
     mime_type: str | None = Field(default=None, max_length=120)
+    expected_updated_at: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class DocumentSlice(BaseModel):

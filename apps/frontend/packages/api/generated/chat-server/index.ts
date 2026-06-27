@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import { apiMutator } from '../../src/orval-mutator';
+export type GetConversationsConversationIdAgentsRunStreamWorkflowRunIdStreamParams = {
+startIndex?: number;
+};
+
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
@@ -73,11 +77,14 @@ const postConversationsConversationIdAgentsRunStream = (
       options);
     }
 
-const getConversationsConversationIdAgentsRunStream = (
+const getConversationsConversationIdAgentsRunStreamWorkflowRunIdStream = (
     conversationId: string,
+    workflowRunId: string,
+    params?: GetConversationsConversationIdAgentsRunStreamWorkflowRunIdStreamParams,
  options?: SecondParameter<typeof apiMutator<void>>,) => {
       return apiMutator<void>(
-      {url: `/conversations/${conversationId}/agents/run/stream`, method: 'GET'
+      {url: `/conversations/${conversationId}/agents/run/stream/${workflowRunId}/stream`, method: 'GET',
+        params
     },
       options);
     }
@@ -121,7 +128,27 @@ const postConversationsConversationIdAgentsRunCancel = (
       options);
     }
 
-return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,postConversationsConversationIdAgentsRunCancel}};
+const postConversationsConversationIdAgentsRunStreamWorkflowRunIdResume = (
+    conversationId: string,
+    workflowRunId: string,
+ options?: SecondParameter<typeof apiMutator<void>>,) => {
+      return apiMutator<void>(
+      {url: `/conversations/${conversationId}/agents/run/stream/${workflowRunId}/resume`, method: 'POST'
+    },
+      options);
+    }
+
+const getConversationsConversationIdAgentsRunStreamWorkflowRunIdTrace = (
+    conversationId: string,
+    workflowRunId: string,
+ options?: SecondParameter<typeof apiMutator<void>>,) => {
+      return apiMutator<void>(
+      {url: `/conversations/${conversationId}/agents/run/stream/${workflowRunId}/trace`, method: 'GET'
+    },
+      options);
+    }
+
+return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdAgentsRunStreamWorkflowRunIdStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,postConversationsConversationIdAgentsRunCancel,postConversationsConversationIdAgentsRunStreamWorkflowRunIdResume,getConversationsConversationIdAgentsRunStreamWorkflowRunIdTrace}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -134,8 +161,10 @@ export type GetConversationsConversationIdResult = NonNullable<Awaited<ReturnTyp
 export type PatchConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchConversationsConversationId']>>>
 export type DeleteConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['deleteConversationsConversationId']>>>
 export type PostConversationsConversationIdAgentsRunStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunStream']>>>
-export type GetConversationsConversationIdAgentsRunStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdAgentsRunStream']>>>
+export type GetConversationsConversationIdAgentsRunStreamWorkflowRunIdStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdAgentsRunStreamWorkflowRunIdStream']>>>
 export type GetConversationsConversationIdDocumentsDocumentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdDocumentsDocumentId']>>>
 export type PatchConversationsConversationIdDocumentsDocumentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchConversationsConversationIdDocumentsDocumentId']>>>
 export type GetConversationsConversationIdDocumentsDocumentIdSourceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdDocumentsDocumentIdSource']>>>
 export type PostConversationsConversationIdAgentsRunCancelResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunCancel']>>>
+export type PostConversationsConversationIdAgentsRunStreamWorkflowRunIdResumeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunStreamWorkflowRunIdResume']>>>
+export type GetConversationsConversationIdAgentsRunStreamWorkflowRunIdTraceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdAgentsRunStreamWorkflowRunIdTrace']>>>

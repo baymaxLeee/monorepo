@@ -210,6 +210,8 @@ export interface components {
             content: string;
             /** Mime Type */
             mime_type?: string | null;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
         };
         /** Document */
         Document: {
@@ -307,6 +309,8 @@ export interface components {
             content?: string | null;
             /** Mime Type */
             mime_type?: string | null;
+            /** Expected Updated At */
+            expected_updated_at?: string | null;
         };
         /** UpdateDocumentInput */
         UpdateDocumentInput: {

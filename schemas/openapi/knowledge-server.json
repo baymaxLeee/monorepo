@@ -1173,6 +1173,19 @@
               }
             ],
             "title": "Mime Type"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
           }
         },
         "type": "object",
@@ -1464,6 +1477,19 @@
               }
             ],
             "title": "Mime Type"
+          },
+          "expected_updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Updated At"
           }
         },
         "type": "object",
