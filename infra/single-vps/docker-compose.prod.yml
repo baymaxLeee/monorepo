@@ -74,6 +74,32 @@ services:
       retries: 10
     <<: *restart_policy
 
+  workflow-postgres:
+    image: postgres:16-alpine
+    container_name: monorepo-workflow-postgres
+    environment:
+      POSTGRES_USER: workflow
+      POSTGRES_PASSWORD: ${WORKFLOW_POSTGRES_PASSWORD:?WORKFLOW_POSTGRES_PASSWORD is required}
+      POSTGRES_DB: workflow
+    volumes:
+      - workflow_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workflow -d workflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    <<: *restart_policy
+
+  workflow-db-init:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/chat:${IMAGE_TAG:-main}
+    container_name: monorepo-workflow-db-init
+    depends_on:
+      workflow-postgres: { condition: service_healthy }
+    environment:
+      WORKFLOW_POSTGRES_URL: postgres://workflow:${WORKFLOW_POSTGRES_PASSWORD:?WORKFLOW_POSTGRES_PASSWORD is required}@workflow-postgres:5432/workflow
+    command: ["node", "/app/workflow-setup/index.js"]
+    restart: "no"
+
   # Custom image (built by build-images.yml) bundles mysql-init.sh + all
   # services' migration SQL. Runs once per `docker compose up`; downstream
   # backend services gate on its `service_completed_successfully` state.
@@ -178,6 +204,7 @@ services:
       mysql: { condition: service_healthy }
       redis: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
+      workflow-db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8009"
@@ -193,7 +220,8 @@ services:
       ADMIN_SERVICE_URL: http://admin:8001
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
-      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-60}
+      WORKFLOW_TARGET_WORLD: "@workflow/world-postgres"
+      WORKFLOW_POSTGRES_URL: postgres://workflow:${WORKFLOW_POSTGRES_PASSWORD:?WORKFLOW_POSTGRES_PASSWORD is required}@workflow-postgres:5432/workflow
     <<: *restart_policy
 
   knowledge:
@@ -253,3 +281,4 @@ volumes:
   mysql_data:
   redis_data:
   knowledge_data:
+  workflow_pgdata:

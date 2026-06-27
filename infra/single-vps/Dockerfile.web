@@ -16,8 +16,7 @@
 
 FROM node:22-alpine AS builder
 
-# Enable corepack; the pnpm version is pinned by apps/frontend/package.json's
-# `packageManager` field (kept in lockstep with the repo root).
+# Corepack reads the repository root packageManager declaration.
 RUN corepack enable
 
 WORKDIR /app

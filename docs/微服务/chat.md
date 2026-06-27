@@ -44,6 +44,10 @@ OpenAI-compatible provider（`@ai-sdk/openai-compatible`）。
 - Workflow World：本地与部署均使用 `@workflow/world-postgres`；本地由
   `just up` 执行官方 `workflow-postgres-setup`，运行时通过
   `WORKFLOW_TARGET_WORLD` 和 `WORKFLOW_POSTGRES_URL` 选择并连接 World。
+
+部署环境必须使用 `@workflow/world-postgres`。Compose 在 chat 前运行
+`workflow-db-init`，Kubernetes 使用同镜像的 `workflow-schema`
+initContainer；二者都执行官方 schema setup，失败时禁止 chat 启动。
 - Version guard：`agent_runs.workflow_version` 与当前 `CHAT_WORKFLOW_VERSION` 不一致时拒绝 resume/cancel。
 - 工具：`list_documents`、`read_document`、`analyze_image`、`create_artifact`、`update_artifact`、`web_search`、`ask_user`、`propose_memory`
 - `create_artifact` 只接收 `{ title, filename, kind, brief }`；Markdown artifact

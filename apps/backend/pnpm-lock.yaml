@@ -66,6 +66,9 @@ importers:
       '@types/node':
         specifier: ^22.13.0
         version: 22.20.0
+      '@vercel/ncc':
+        specifier: ^0.38.4
+        version: 0.38.4
       nitro:
         specifier: ^3.0.260610-beta
         version: 3.0.260610-beta(@vercel/functions@3.7.3(@aws-sdk/credential-provider-web-identity@3.972.49))(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.44.7(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@22.20.0))(pg@8.20.0))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(mysql2@3.22.5(@types/node@22.20.0))(rollup@4.62.2)
@@ -1004,6 +1007,10 @@ packages:
         optional: true
       ws:
         optional: true
+
+  '@vercel/ncc@0.38.4':
+    resolution: {integrity: sha512-8LwjnlP39s08C08J5NstzriPvW1SP8Zfpp1BvC2sI35kPeZnHfxVkCwu4/+Wodgnd60UtT1n8K8zw+Mp7J9JmQ==}
+    hasBin: true
 
   '@vercel/oidc@3.2.0':
     resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
@@ -3958,6 +3965,8 @@ snapshots:
       '@vercel/oidc': 3.7.0
     optionalDependencies:
       '@aws-sdk/credential-provider-web-identity': 3.972.49
+
+  '@vercel/ncc@0.38.4': {}
 
   '@vercel/oidc@3.2.0': {}
 

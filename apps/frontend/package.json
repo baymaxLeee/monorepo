@@ -1,7 +1,6 @@
 {
   "name": "frontend-workspace",
   "private": true,
-  "packageManager": "pnpm@10.34.4",
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",

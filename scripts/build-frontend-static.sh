@@ -38,8 +38,7 @@ esac
 echo "→ building frontend app: ${APP}"
 cd "${ROOT}/apps/frontend"
 
-# pnpm is required. CI providers (Cloudflare Pages, GitHub Actions) all have
-# node + corepack; the repository root package.json selects the pnpm version.
+# Corepack uses the repository root packageManager declaration.
 if ! command -v pnpm >/dev/null 2>&1; then
   echo "→ pnpm not on PATH, enabling via corepack..."
   corepack enable

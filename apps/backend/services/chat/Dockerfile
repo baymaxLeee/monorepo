@@ -11,6 +11,12 @@ WORKDIR /app/apps/backend
 # can resolve and inline it; pnpm's default isolated layout hides it and the
 # dep ends up unresolvable at runtime.
 RUN pnpm install --filter chat --frozen-lockfile --config.node-linker=hoisted
+RUN pnpm exec ncc build node_modules/@workflow/world-postgres/bin/setup.js -o /app/workflow-setup --minify
+# The official setup CLI resolves Drizzle SQL files relative to its compiled
+# module. ncc bundles JavaScript only, so preserve the package's migration tree
+# at the location resolved by the bundle.
+RUN mkdir -p /app/src/drizzle && \
+    cp -R node_modules/@workflow/world-postgres/src/drizzle/migrations /app/src/drizzle/migrations
 COPY apps/backend/libs/transport-ts ./libs/transport-ts
 COPY apps/backend/services/chat/tsconfig.json apps/backend/services/chat/nitro.config.ts ./services/chat/
 COPY apps/backend/services/chat/src ./services/chat/src
@@ -21,5 +27,7 @@ FROM node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/apps/backend/services/chat/.output ./.output
+COPY --from=builder /app/workflow-setup ./workflow-setup
+COPY --from=builder /app/src ./src
 EXPOSE 8009
 CMD ["node", ".output/server/index.mjs"]

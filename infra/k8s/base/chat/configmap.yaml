@@ -4,7 +4,7 @@ metadata:
   name: chat-config
 data:
   PORT: "8009"
-  ENVIRONMENT: "development"
+  ENVIRONMENT: "production"
   MYSQL_PORT: "3306"
   MYSQL_DATABASE: "chat"
   REDIS_PORT: "6379"
@@ -14,7 +14,4 @@ data:
   # (kept in the Secret).
   ADMIN_SERVICE_URL: "http://admin.default.svc.cluster.local:8001"
   KNOWLEDGE_SERVICE_URL: "http://knowledge.default.svc.cluster.local:8010"
-  LLM_TIMEOUT_SECONDS: "60"
-  AGENT_MAX_TURNS: "120"
-  AGENT_RUN_TIMEOUT_SECONDS: "3600"
-  AGENT_EVENT_STREAM_TTL_SECONDS: "7200"
+  WORKFLOW_TARGET_WORLD: "@workflow/world-postgres"

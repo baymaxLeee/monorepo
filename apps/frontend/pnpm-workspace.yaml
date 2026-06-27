@@ -2,11 +2,7 @@ packages:
   - "apps/*"
   - "packages/*"
 
-# esbuild needs its platform-binary postinstall; MSW's notice script is optional.
-onlyBuiltDependencies:
-  - esbuild
-ignoredBuiltDependencies:
-  - msw
+# esbuild validates its platform binary; MSW's notice script is optional.
 allowBuilds:
-  esbuild: false
+  esbuild: true
   msw: false

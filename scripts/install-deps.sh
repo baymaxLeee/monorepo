@@ -29,6 +29,11 @@ else
   echo "  (mise not installed; skipping. https://mise.jdx.dev)"
 fi
 
+if ! command -v pnpm >/dev/null 2>&1 && command -v corepack >/dev/null 2>&1; then
+  echo "  → enabling pnpm through Corepack"
+  corepack enable
+fi
+
 echo ""
 echo "── 3. Frontend (pnpm workspace) ──"
 if command -v pnpm >/dev/null 2>&1; then

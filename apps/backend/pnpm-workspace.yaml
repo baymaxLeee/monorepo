@@ -1,7 +1,9 @@
 packages:
   - "libs/transport-ts"
   - "services/chat"
+
+# These packages ship usable prebuilt/JS fallbacks; no install scripts needed.
 allowBuilds:
-  '@swc/core': false
+  "@swc/core": false
   cbor-extract: false
   esbuild: false
