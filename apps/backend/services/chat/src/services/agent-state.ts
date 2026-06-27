@@ -295,6 +295,33 @@ export async function recordToolCallFinish(input: {
     .where(eq(agentToolCalls.id, input.toolCallId));
 }
 
+export interface PersistedToolCall {
+  id: string;
+  status: "running" | "completed" | "failed";
+  output: unknown;
+  error: string | null;
+}
+
+export async function listRunToolCalls(runId: string): Promise<PersistedToolCall[]> {
+  "use step";
+  const rows = await getDb()
+    .select({
+      id: agentToolCalls.id,
+      status: agentToolCalls.status,
+      output: agentToolCalls.outputJson,
+      error: agentToolCalls.error,
+    })
+    .from(agentToolCalls)
+    .where(eq(agentToolCalls.runId, runId))
+    .orderBy(asc(agentToolCalls.createdAt));
+  return rows.map((row) => ({
+    id: row.id,
+    status: row.status as PersistedToolCall["status"],
+    output: row.output,
+    error: row.error,
+  }));
+}
+
 export interface UserMemory {
   id: string;
   category: MemoryCategory;

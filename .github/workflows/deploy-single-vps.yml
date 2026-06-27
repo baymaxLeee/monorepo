@@ -126,6 +126,7 @@ jobs:
             MYSQL_ROOT_PASSWORD
             MYSQL_USER
             MYSQL_PASSWORD
+            WORKFLOW_POSTGRES_PASSWORD
             ACCESS_TOKEN_SECRET
             SUPER_ADMIN_ACCOUNT
             SUPER_ADMIN_EMAIL
@@ -150,6 +151,10 @@ jobs:
             echo "See infra/single-vps/.env.example for the template + how to generate each value."
             exit 1
           fi
+          docker compose \
+            --env-file infra/single-vps/.env \
+            -f infra/single-vps/docker-compose.prod.yml \
+            config --quiet
           echo "✓ all required keys present"
 
       - name: Deploy

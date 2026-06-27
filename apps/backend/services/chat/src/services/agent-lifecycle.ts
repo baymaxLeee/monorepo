@@ -4,6 +4,26 @@ type AgentStep = WorkflowAgentStreamResult["steps"][number];
 type AgentContentPart = AgentStep["content"][number];
 type AssistantPart = Record<string, unknown>;
 
+function hydrateToolParts(
+  parts: AssistantPart[],
+  toolCalls: Array<{ id: string; status: string; output: unknown; error: string | null }>,
+): AssistantPart[] {
+  const calls = new Map(toolCalls.map((call) => [call.id, call]));
+  return parts.map((part) => {
+    const toolCallId = typeof part.toolCallId === "string" ? part.toolCallId : null;
+    if (!toolCallId || !String(part.type ?? "").startsWith("tool-")) return part;
+    const call = calls.get(toolCallId);
+    if (!call) return part;
+    if (call.status === "completed" && call.output !== undefined && call.output !== null) {
+      return { ...part, state: "output-available", output: call.output };
+    }
+    if (call.status === "failed") {
+      return { ...part, state: "output-error", errorText: call.error ?? "tool execution failed" };
+    }
+    return part;
+  });
+}
+
 function contentPartToAssistantPart(
   part: AgentContentPart,
   results: ReadonlyMap<string, AgentContentPart>,
@@ -105,8 +125,9 @@ export async function recordToolEnd(input: { toolCallId: string; success: boolea
 
 export async function persistWorkflowCompletion(input: { runId: string; conversationId: string; parts: AssistantPart[]; totalTokens?: number | null }): Promise<void> {
   "use step";
-  const [{ createMessage, touchConversation }, { finishAgentRun }] = await Promise.all([import("./conversations.js"), import("./agent-state.js")]);
-  const assistant = await createMessage({ conversationId: input.conversationId, role: "assistant", content: JSON.stringify({ version: 1, parts: input.parts }), status: "ok" });
+  const [{ createMessage, touchConversation }, { finishAgentRun, listRunToolCalls }] = await Promise.all([import("./conversations.js"), import("./agent-state.js")]);
+  const parts = hydrateToolParts(input.parts, await listRunToolCalls(input.runId));
+  const assistant = await createMessage({ conversationId: input.conversationId, role: "assistant", content: JSON.stringify({ version: 1, parts }), status: "ok" });
   await finishAgentRun({ runId: input.runId, status: "completed", outputMessageId: assistant.id, totalTokens: input.totalTokens ?? null });
   await touchConversation(input.conversationId);
 }

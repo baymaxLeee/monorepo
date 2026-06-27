@@ -45,6 +45,7 @@ required_keys=(
     MYSQL_ROOT_PASSWORD
     MYSQL_USER
     MYSQL_PASSWORD
+    WORKFLOW_POSTGRES_PASSWORD
     ACCESS_TOKEN_SECRET
     SUPER_ADMIN_ACCOUNT
     SUPER_ADMIN_EMAIL
@@ -66,6 +67,14 @@ if [ "${#missing[@]}" -gt 0 ]; then
     echo "  generate each value (e.g. Fernet for ADMIN_SECRET_KEY)." >&2
     exit 1
 fi
+
+# Let Compose validate every required interpolation as the final source of
+# truth. The friendly list above explains common omissions; this prevents that
+# list from silently drifting when the Compose contract gains another key.
+docker compose \
+    --env-file "${ENV_FILE}" \
+    -f "${HERE}/docker-compose.prod.yml" \
+    config --quiet
 
 PUBLIC_PORT="$(grep -E '^PUBLIC_PORT=' "${ENV_FILE}" | tail -1 | cut -d= -f2 | tr -d '"' || true)"
 PUBLIC_PORT="${PUBLIC_PORT:-8080}"
