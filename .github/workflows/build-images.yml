@@ -118,7 +118,9 @@ jobs:
               echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
               ;;
             chat)
-              echo "context=apps/backend/services/chat" >> "$GITHUB_OUTPUT"
+              # Chat copies the root packageManager declaration so local and
+              # container builds use the same pnpm release.
+              echo "context=." >> "$GITHUB_OUTPUT"
               echo "dockerfile=apps/backend/services/chat/Dockerfile" >> "$GITHUB_OUTPUT"
               ;;
             admin|knowledge|telemetry)

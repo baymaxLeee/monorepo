@@ -39,8 +39,7 @@ echo "→ building frontend app: ${APP}"
 cd "${ROOT}/apps/frontend"
 
 # pnpm is required. CI providers (Cloudflare Pages, GitHub Actions) all have
-# node + corepack; we enable corepack to get the pnpm version pinned by
-# package.json's packageManager field.
+# node + corepack; the repository root package.json selects the pnpm version.
 if ! command -v pnpm >/dev/null 2>&1; then
   echo "→ pnpm not on PATH, enabling via corepack..."
   corepack enable

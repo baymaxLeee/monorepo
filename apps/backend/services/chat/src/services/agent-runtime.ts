@@ -5,6 +5,7 @@ import {
   createUIMessageStreamResponse,
   convertToModelMessages,
   type UIMessage,
+  type UIMessageChunk,
   validateUIMessages,
 } from "ai";
 import { getRun, start } from "workflow/api";
@@ -264,7 +265,24 @@ export async function streamWorkflowRun(
       businessRun.status === "failed" ||
       businessRun.status === "cancelled")
   ) {
-    return new Response(null, { status: 204 });
+    // WorkflowChatTransport keeps reconnecting until it receives a protocol
+    // `finish` chunk. A 204 is an OK empty stream, so the transport immediately
+    // reconnects forever without advancing startIndex.
+    return createUIMessageStreamResponse({
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          controller.enqueue({
+            type: "finish",
+            finishReason: businessRun.status === "completed" ? "stop" : "error",
+          });
+          controller.close();
+        },
+      }),
+      headers: {
+        "x-workflow-run-id": workflowRunId,
+        "x-workflow-run-status": businessRun.status,
+      },
+    });
   }
 
   const run = getRun(workflowRunId);

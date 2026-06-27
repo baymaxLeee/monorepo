@@ -2,7 +2,7 @@
   "name": "monorepo-root",
   "private": true,
   "description": "Meta-monorepo: micro-frontends + microservices",
-  "packageManager": "pnpm@9.0.0",
+  "packageManager": "pnpm@10.34.4",
   "scripts": {
     "sync": "just sync"
   },

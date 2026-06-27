@@ -62,12 +62,7 @@ fi
 echo ""
 echo "── 5b. Backend Node services ──"
 if command -v pnpm >/dev/null 2>&1; then
-  for svc in chat; do
-    if [ -f "apps/backend/services/$svc/package.json" ]; then
-      echo "  → $svc"
-      pnpm_install "apps/backend/services/$svc"
-    fi
-  done
+  pnpm_install apps/backend
 else
   echo "  ✗ pnpm not found" >&2
   exit 1

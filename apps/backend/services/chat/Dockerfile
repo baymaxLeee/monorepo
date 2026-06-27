@@ -1,19 +1,21 @@
 FROM node:22-slim AS builder
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
-COPY pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY libs/transport-ts/package.json ./libs/transport-ts/package.json
-COPY services/chat/package.json ./services/chat/package.json
+RUN corepack enable
+COPY package.json ./package.json
+COPY apps/backend/pnpm-workspace.yaml apps/backend/pnpm-lock.yaml ./apps/backend/
+COPY apps/backend/libs/transport-ts/package.json ./apps/backend/libs/transport-ts/package.json
+COPY apps/backend/services/chat/package.json ./apps/backend/services/chat/package.json
+WORKDIR /app/apps/backend
 RUN pnpm install --filter chat --frozen-lockfile
-COPY libs/transport-ts ./libs/transport-ts
-COPY services/chat/tsconfig.json services/chat/nitro.config.ts ./services/chat/
-COPY services/chat/src ./services/chat/src
-WORKDIR /app/services/chat
+COPY apps/backend/libs/transport-ts ./libs/transport-ts
+COPY apps/backend/services/chat/tsconfig.json apps/backend/services/chat/nitro.config.ts ./services/chat/
+COPY apps/backend/services/chat/src ./services/chat/src
+WORKDIR /app/apps/backend/services/chat
 RUN pnpm run build
 
 FROM node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=builder /app/services/chat/.output ./.output
+COPY --from=builder /app/apps/backend/services/chat/.output ./.output
 EXPOSE 8009
 CMD ["node", ".output/server/index.mjs"]
