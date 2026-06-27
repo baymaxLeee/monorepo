@@ -350,12 +350,32 @@ export async function saveUserMemory(input: {
   source?: string;
   confidence?: number;
 }): Promise<UserMemory> {
+  const content = input.content.trim().replace(/\s+/g, " ");
+  const [existing] = await getDb()
+    .select()
+    .from(userMemories)
+    .where(
+      and(
+        eq(userMemories.userId, input.userId),
+        eq(userMemories.category, input.category),
+        eq(userMemories.content, content),
+        eq(userMemories.status, "active"),
+      ),
+    );
+  if (existing) {
+    return {
+      id: existing.id,
+      category: existing.category as MemoryCategory,
+      content: existing.content,
+      confidence: existing.confidence,
+    };
+  }
   const now = new Date();
   const memory = {
     id: id(16),
     userId: input.userId,
     category: input.category,
-    content: input.content.trim(),
+    content,
     source: input.source ?? "agent",
     confidence: input.confidence ?? 80,
     status: "active",

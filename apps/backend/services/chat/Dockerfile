@@ -23,11 +23,25 @@ COPY apps/backend/services/chat/src ./services/chat/src
 WORKDIR /app/apps/backend/services/chat
 RUN pnpm run build
 
+FROM node:22-slim AS runtime-deps
+WORKDIR /app
+RUN corepack enable
+COPY package.json ./package.json
+COPY apps/backend/package.json apps/backend/pnpm-workspace.yaml apps/backend/pnpm-lock.yaml ./apps/backend/
+COPY apps/backend/libs/transport-ts/package.json ./apps/backend/libs/transport-ts/package.json
+COPY apps/backend/services/chat/package.json ./apps/backend/services/chat/package.json
+WORKDIR /app/apps/backend
+# Workflow loads the selected World by package name at runtime, so it cannot
+# be statically discovered by Nitro. Keep a production-only dependency tree
+# for that dynamic module boundary.
+RUN pnpm install --filter chat --prod --frozen-lockfile --config.node-linker=hoisted
+
 FROM node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/apps/backend/services/chat/.output ./.output
 COPY --from=builder /app/workflow-setup ./workflow-setup
 COPY --from=builder /app/src ./src
+COPY --from=runtime-deps /app/apps/backend/node_modules ./node_modules
 EXPOSE 8009
 CMD ["node", ".output/server/index.mjs"]

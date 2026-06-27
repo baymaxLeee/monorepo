@@ -135,7 +135,8 @@ async function buildInstructions(input: {
       "When the user requests an HTML page, report, or static deliverable and no referenced attachments require reading, call create_artifact directly without web_search, list_documents, or read_document.",
       "Always finish the run with one concise completion summary. When create_artifact or update_artifact succeeds, summarize the outcome and useful highlights only; the application renders the artifact card automatically after your text.",
       "Never include artifact document IDs, raw filenames, left-sidebar/download instructions, or tool metadata in the final user-facing summary.",
-      "Do not store long-term memory directly. If a stable preference or profile fact appears useful, mention it briefly in the final summary so the user can confirm it in a future approval flow.",
+      "Use remember only for stable preferences, profile facts, project facts, or standing instructions that would materially help future conversations. Never remember one-off task details, guesses, secrets, credentials, health data, or other sensitive data unless the user explicitly asks.",
+      "The remember tool has an explicit user approval gate. Do not claim a memory was saved until its result says stored=true, and do not retry when the user declines.",
     ].join("\n"),
   ];
 
@@ -192,6 +193,7 @@ export async function createAgentRunResponse(
   uiMessagesInput: unknown[],
   input: RunAgentInput,
 ): Promise<Response> {
+  const startedAt = performance.now();
   const conversation = await getConversationRow(auth, conversationId);
   const uiMessages = await validateUIMessages<AnyUIMessage>({ messages: uiMessagesInput });
   const latestUser = uiMessages.at(-1);
@@ -203,14 +205,21 @@ export async function createAgentRunResponse(
     throw new RequestError("agent prompt is required");
   }
 
-  await updateConversationProvider(conversation.id, provider.id, provider.model);
-  const persistedMessages = await listMessages(conversation.id);
-  const userMessage = await createMessage({
-    conversationId: conversation.id,
-    role: "user",
-    content: latestUser ? serializeMessageContent(latestUser) : latestPrompt,
-    status: "ok",
-  });
+  const [persistedMessages, userMessage, instructions] = await Promise.all([
+    listMessages(conversation.id),
+    createMessage({
+      conversationId: conversation.id,
+      role: "user",
+      content: latestUser ? serializeMessageContent(latestUser) : latestPrompt,
+      status: "ok",
+    }),
+    buildInstructions({
+      userId: conversation.userId,
+      conversationId: conversation.id,
+      documentIds: [...new Set(input.documentIds ?? [])],
+    }),
+    updateConversationProvider(conversation.id, provider.id, provider.model),
+  ]);
   const runId = await createAgentRun({
     conversationId: conversation.id,
     userId: conversation.userId,
@@ -233,11 +242,7 @@ export async function createAgentRunResponse(
       provider,
       multimodalProviderId: input.multimodalProviderId,
       modelMessages,
-      instructions: await buildInstructions({
-        userId: conversation.userId,
-        conversationId: conversation.id,
-        documentIds: [...new Set(input.documentIds ?? [])],
-      }),
+      instructions,
       reasoningEffort: input.reasoningEffort ?? (input.thinking ? "medium" : null),
     },
   ]);
@@ -246,6 +251,11 @@ export async function createAgentRunResponse(
     workflowRunId: run.runId,
     workflowName: CHAT_WORKFLOW_NAME,
     workflowVersion: CHAT_WORKFLOW_VERSION,
+  });
+  console.info("[chat-agent] run accepted", {
+    conversationId: conversation.id,
+    workflowRunId: run.runId,
+    setupMs: Math.round(performance.now() - startedAt),
   });
 
   return streamWorkflowRun(auth, conversation.id, run.runId);

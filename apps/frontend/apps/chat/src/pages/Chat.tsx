@@ -410,6 +410,20 @@ export function Chat() {
                 />
               ))
             )}
+            {status === "submitted" ? (
+              <div
+                className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground"
+                role="status"
+                aria-live="polite"
+              >
+                <span className="flex gap-1" aria-hidden="true">
+                  <span className="size-1.5 animate-pulse rounded-full bg-current" />
+                  <span className="size-1.5 animate-pulse rounded-full bg-current [animation-delay:150ms]" />
+                  <span className="size-1.5 animate-pulse rounded-full bg-current [animation-delay:300ms]" />
+                </span>
+                正在思考…
+              </div>
+            ) : null}
           </ConversationContent>
           <ConversationScrollButton />
         </Conversation>

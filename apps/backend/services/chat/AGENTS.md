@@ -25,6 +25,8 @@ observability tables.
 - `update_artifact` — brief-driven in-place artifact revision; rewrites an existing
   knowledge artifact and keeps the same `document_id`
 - `web_search` — public web lookup via Tavily
+- `remember` — proposes stable long-term memory and writes only after explicit
+  user approval through the durable hook flow
 
 Artifacts persist to knowledge; tool results expose `document_id` for the UI.
 Workflow completion writes assistant messages server-side so browser disconnects

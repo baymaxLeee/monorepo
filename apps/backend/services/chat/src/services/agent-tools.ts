@@ -115,6 +115,30 @@ async function askUserTool(
   return { ok: true, ...answer };
 }
 
+async function rememberTool(
+  input: {
+    category: "preference" | "profile" | "project" | "instruction";
+    content: string;
+    reason: string;
+  },
+  { context, toolCallId }: { context: ToolContext; toolCallId: string },
+) {
+  "use step";
+  const decision = await askUserHook.create({ token: toolCallId });
+  if (decision.answer !== "approve") {
+    return { ok: true, stored: false, reason: "user declined" };
+  }
+  const { saveUserMemory } = await import("./agent-state.js");
+  const memory = await saveUserMemory({
+    userId: context.userId,
+    category: input.category,
+    content: input.content,
+    confidence: 100,
+    source: "user-approved",
+  });
+  return { ok: true, stored: true, memory };
+}
+
 export function buildWorkflowTools() {
   return {
     list_documents: { description: "List knowledge-base documents for this user.", inputSchema: z.object({}), contextSchema: toolContextSchema, execute: listDocumentsTool },
@@ -158,6 +182,17 @@ export function buildWorkflowTools() {
         freeform_label: z.string().min(1).max(40).default("其他"),
       }),
       execute: askUserTool,
+    },
+    remember: {
+      description:
+        "Propose a durable user memory. The user must explicitly approve it before storage. Use only for stable preferences, profile facts, project facts, or standing instructions; never one-off task details or inferred sensitive data.",
+      inputSchema: z.object({
+        category: z.enum(["preference", "profile", "project", "instruction"]),
+        content: z.string().min(5).max(500),
+        reason: z.string().min(1).max(200),
+      }),
+      contextSchema: toolContextSchema,
+      execute: rememberTool,
     },
   };
 }

@@ -44,6 +44,7 @@ export async function runChatAgent(input: ChatWorkflowInput): Promise<{ text: st
       create_artifact: toolContext,
       update_artifact: toolContext,
       analyze_image: toolContext,
+      remember: toolContext,
     },
     experimental_onStepStart: (event) =>
       startModelStep({ runId: input.runId, stepNumber: event.stepNumber, model: provider.model }),
