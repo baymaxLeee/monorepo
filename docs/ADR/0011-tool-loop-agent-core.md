@@ -40,3 +40,11 @@ default execution model for interactive chat.
   source of truth.
 - A future background job must introduce Workflow/queue infrastructure at that
   job boundary, not wrap the core chat agent.
+- Nitro and `workflow/nitro` (the Workflow DevKit build/runtime host from
+  ADR-0005) are removed. chat is hosted by `@hono/node-server` and runs its
+  TypeScript source directly with `tsx`; `tsc --noEmit` is typecheck only.
+  There is no bundling/emit step because `@backend/transport-ts` is a
+  source-only workspace package (its entry is `src/index.ts`), so a tsc emit
+  would leave an unresolvable bare import. The image installs prod deps with
+  `--filter chat... --config.node-linker=hoisted` so the transitive
+  `openapi-fetch` resolves, then runs `pnpm start`.

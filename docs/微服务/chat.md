@@ -1,7 +1,9 @@
 # chat service
 
-TypeScript / Hono / Nitro / Vercel AI SDK v7 Agent Runtime。业务状态存于 MySQL；
-文档和 artifact 由 knowledge 持久化。
+TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 MySQL；
+文档和 artifact 由 knowledge 持久化。运行时由 `@hono/node-server` 托管；用 `tsx`
+直接运行 TypeScript 源码（`@backend/transport-ts` 是源码包，tsc 产物会留下无法
+解析的裸 import），`tsc --noEmit` 仅做类型检查。
 
 ## API
 

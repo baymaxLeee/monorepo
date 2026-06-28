@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nitro dev",
-    "build": "nitro build",
-    "start": "node .output/server/index.mjs",
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json --noEmit",
+    "start": "tsx src/index.ts",
     "lint": "tsc -p tsconfig.json --noEmit",
     "gen-openapi": "tsx src/gen-openapi.ts"
   },
@@ -14,19 +14,18 @@
     "@ai-sdk/openai-compatible": "^3.0.1",
     "@ai-sdk/provider": "^4.0.0",
     "@backend/transport-ts": "workspace:*",
+    "@hono/node-server": "^1.19.14",
     "@hono/zod-validator": "^0.4.0",
     "ai": "^7.0.4",
     "drizzle-orm": "^0.44.0",
     "hono": "^4.7.0",
     "ioredis": "^5.6.0",
     "mysql2": "^3.14.0",
+    "tsx": "^4.19.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",
-    "nitro": "^3.0.260610-beta",
-    "rollup": "^4.62.2",
-    "tsx": "^4.19.0",
     "typescript": "^5.8.0"
   }
 }
