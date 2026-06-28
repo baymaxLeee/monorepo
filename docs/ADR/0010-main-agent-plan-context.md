@@ -6,8 +6,8 @@ Accepted. Supersedes ADR 0009's dedicated artifact child workflow.
 
 ## Decision
 
-- Chat runs one durable `WorkflowAgent`. Domain tools may be durable steps, but
-  they do not start nested agent or artifact workflows.
+- Chat runs one `ToolLoopAgent`. Domain tools do not start nested agent or
+  artifact workflows.
 - Complex work is represented by `update_plan`. Its normalized tool output is
   the persisted plan snapshot; stable item IDs and revisions preserve completed
   work across runs.
@@ -24,9 +24,8 @@ Accepted. Supersedes ADR 0009's dedicated artifact child workflow.
 
 Mainstream coding agents expose plans as durable structured task state, not as
 hidden progress inside a domain workflow. AI SDK tool parts already cross the
-model, stream, and persistence boundaries, while `WorkflowAgent` supplies retry
-and resume semantics. A second workflow duplicated those guarantees, forced
-polling, and hid task state from the main agent.
+model, stream, and persistence boundaries. A second workflow forced polling
+and hid task state from the main agent.
 
 ## Consequences
 

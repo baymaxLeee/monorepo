@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Partially superseded by ADR-0011. The Workflow PostgreSQL decision no longer applies.
 
 ## Decision
 

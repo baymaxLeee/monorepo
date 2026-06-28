@@ -39,8 +39,6 @@ export async function createAgentRun(input: {
   providerId: string;
   model: string;
   inputMessageId?: string | null;
-  workflowName?: string | null;
-  workflowVersion?: string | null;
 }): Promise<string> {
   const now = new Date();
   const runId = id(16);
@@ -52,53 +50,31 @@ export async function createAgentRun(input: {
     model: input.model,
     status: "running",
     inputMessageId: input.inputMessageId ?? null,
-    workflowName: input.workflowName ?? null,
-    workflowVersion: input.workflowVersion ?? null,
     createdAt: now,
     startedAt: now,
   });
   return runId;
 }
 
-export async function bindWorkflowRun(input: {
-  runId: string;
-  workflowRunId: string;
-  workflowName: string;
-  workflowVersion: string;
-}): Promise<void> {
-  await getDb()
-    .update(agentRuns)
-    .set({
-      workflowRunId: input.workflowRunId,
-      workflowName: input.workflowName,
-      workflowVersion: input.workflowVersion,
-    })
-    .where(eq(agentRuns.id, input.runId));
-}
-
-export async function getAgentRunByWorkflowRunId(workflowRunId: string): Promise<
+export async function getAgentRunById(runId: string): Promise<
   | {
       id: string;
       conversationId: string;
       userId: string;
       status: AgentRunStatus;
-      workflowName: string | null;
-      workflowVersion: string | null;
     }
   | null
 > {
   const [row] = await getDb()
     .select()
     .from(agentRuns)
-    .where(eq(agentRuns.workflowRunId, workflowRunId));
+    .where(eq(agentRuns.id, runId));
   if (!row) return null;
   return {
     id: row.id,
     conversationId: row.conversationId,
     userId: row.userId,
     status: row.status as AgentRunStatus,
-    workflowName: row.workflowName,
-    workflowVersion: row.workflowVersion,
   };
 }
 
@@ -109,7 +85,6 @@ export async function finishAgentRun(input: {
   outputMessageId?: string | null;
   totalTokens?: number | null;
 }): Promise<void> {
-  "use step";
   await getDb()
     .update(agentRuns)
     .set({
@@ -201,7 +176,6 @@ export async function startAgentStep(input: {
   metadata?: Record<string, unknown> | null;
   stepId?: string;
 }): Promise<string> {
-  "use step";
   const stepId = input.stepId ?? id(16);
   await getDb().insert(agentSteps).values({
     id: stepId,
@@ -229,7 +203,6 @@ export async function finishAgentStep(input: {
   summary?: string | null;
   metadata?: Record<string, unknown> | null;
 }): Promise<void> {
-  "use step";
   await getDb()
     .update(agentSteps)
     .set({
@@ -248,7 +221,6 @@ export async function recordToolCallStart(input: {
   toolName: string;
   toolInput: unknown;
 }): Promise<void> {
-  "use step";
   await getDb()
     .insert(agentToolCalls)
     .values({
@@ -282,7 +254,6 @@ export async function recordToolCallFinish(input: {
   error?: unknown;
   durationMs?: number | null;
 }): Promise<void> {
-  "use step";
   await getDb()
     .update(agentToolCalls)
     .set({
@@ -303,7 +274,6 @@ export interface PersistedToolCall {
 }
 
 export async function listRunToolCalls(runId: string): Promise<PersistedToolCall[]> {
-  "use step";
   const rows = await getDb()
     .select({
       id: agentToolCalls.id,
@@ -326,7 +296,6 @@ export async function latestCompletedToolOutput(
   conversationId: string,
   toolName: string,
 ): Promise<unknown | null> {
-  "use step";
   const [row] = await getDb()
     .select({ output: agentToolCalls.outputJson })
     .from(agentToolCalls)
@@ -425,7 +394,6 @@ export async function createMemoryCandidate(input: {
   supersedesId?: string | null;
   source?: string;
 }): Promise<MemoryCandidate & { status: MemoryStatus }> {
-  "use step";
   const content = input.content.trim().replace(/\s+/g, " ");
   const [existing] = await getDb()
     .select()

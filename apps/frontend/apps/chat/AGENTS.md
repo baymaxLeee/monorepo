@@ -1,39 +1,24 @@
 # chat — Conversation Micro-frontend
 
-Manages the "对话" domain on the frontend. Backed by
-`apps/backend/services/chat`.
+Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 
 ## Boundaries
 
-- Owns routes under `/platform/chat/*` when mounted by platform
-- `http://localhost:3005/` is not a supported page; this app only serves
-  federation assets
-- API calls go through `api` ONLY (no raw fetch). Chat message submission uses
-  AI SDK `useChat` with `WorkflowChatTransport`; do not add a parallel ordinary
-  completion/SSE sending path.
-- NEVER import from `admin`, `mfe-scene`, or any other MFE
-- For cross-MFE coordination, use `runtime` event bus
-- Runtime-critical dependencies (`react`, `react-dom`, `react-router-dom`,
-  `zustand`, platform infra packages) are provided by platform via
-  Module Federation shared scope; chat must not bundle standalone fallbacks
-- `components` and `api` are normal workspace dependencies, not MF-shared
-  singletons; keep tree-shaking intact
-
-## Exposes (via Module Federation)
-
-- `./App` — main route component (mounted by platform)
+- Chat uses AI SDK `useChat` + `DefaultChatTransport` and native UIMessage
+  parts. Do not add a parallel SSE implementation.
+- The primary control is Send/Stop. Stop calls `useChat.stop()`; there is no
+  pause/resume/sessionStorage replay state.
+- Client tools answer with `addToolOutput` and
+  `lastAssistantMessageIsCompleteWithToolCalls`.
+- CRUD goes through `api`. The transport's custom fetch is only for the AI SDK
+  streaming request and response metadata.
+- Never import another MFE; cross-MFE coordination uses `runtime`.
+- Runtime singletons come from platform's Module Federation shared scope.
 
 ## Layout
 
-- `src/App.tsx` — `TooltipProvider` + `useRoutes(routes)`
-- `src/router/index.tsx` — `ChatLayout` + nested routes
-- `src/pages/ChatLayout.tsx` — conversation rail (left) + outlet (right)
-- `src/pages/ConversationListPage.tsx` — empty-state landing
-- `src/pages/Chat.tsx` — active agent-runtime chat surface with documents,
-  Workflow stream resume, and artifacts
-- `src/store/useChatStore.ts` — local UI state (zustand, private store)
-
-## When to extract a component
-
-- Single-use → keep in `src/components/`
-- Used by 2+ MFEs → promote to `components`
+- `src/pages/Chat.tsx` — chat, tool continuation, artifact panel
+- `src/components/ChatMessageView.tsx` — native message-part rendering
+- `src/components/ChatPlanCard.tsx` — persisted plan UI
+- `src/components/ChatTracePanel.tsx` — run observability
+- `src/store/useChatStore.ts` — private UI state

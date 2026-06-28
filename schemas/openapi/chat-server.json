@@ -98,50 +98,15 @@
         ],
         "responses": {
           "200": {
-            "description": "start WorkflowAgent run stream",
+            "description": "start ToolLoopAgent UI message stream",
             "headers": {
-              "x-workflow-run-id": {
-                "description": "Workflow run id used for stream resume/cancel",
+              "x-agent-run-id": {
+                "description": "Agent run id used for observability",
                 "schema": {
                   "type": "string"
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/conversations/{conversation_id}/agents/run/stream/{workflow_run_id}/stream": {
-      "get": {
-        "parameters": [
-          {
-            "name": "conversation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "workflow_run_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "startIndex",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "resume WorkflowAgent run stream"
           }
         }
       }
@@ -225,53 +190,7 @@
         }
       }
     },
-    "/conversations/{conversation_id}/agents/run/cancel": {
-      "post": {
-        "parameters": [
-          {
-            "name": "conversation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "cancel active agent run"
-          }
-        }
-      }
-    },
-    "/conversations/{conversation_id}/agents/run/stream/{workflow_run_id}/resume": {
-      "post": {
-        "parameters": [
-          {
-            "name": "conversation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "workflow_run_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "resume a suspended ask_user hook"
-          }
-        }
-      }
-    },
-    "/conversations/{conversation_id}/agents/run/stream/{workflow_run_id}/trace": {
+    "/conversations/{conversation_id}/agents/runs/{run_id}/trace": {
       "get": {
         "parameters": [
           {
@@ -283,7 +202,7 @@
             }
           },
           {
-            "name": "workflow_run_id",
+            "name": "run_id",
             "in": "path",
             "required": true,
             "schema": {

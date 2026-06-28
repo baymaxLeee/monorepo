@@ -18,9 +18,6 @@ export interface Settings {
   internalApiToken: string;
   tavilyApiKey: string;
   providerCacheTtlSeconds: number;
-  // Workflow DevKit World (durable run/step/event/hook/stream state).
-  // Local development and self-hosted deployments use the Postgres World.
-  workflowPostgresUrl: string;
 }
 
 function envOr(key: string, fallback: string): string {
@@ -51,7 +48,6 @@ export function getSettings(): Settings {
     internalApiToken: envOr("INTERNAL_API_TOKEN", DEV_INTERNAL_TOKEN),
     tavilyApiKey: envOr("TAVILY_API_KEY", ""),
     providerCacheTtlSeconds: envInt("PROVIDER_CACHE_TTL_SECONDS", 300),
-    workflowPostgresUrl: envOr("WORKFLOW_POSTGRES_URL", ""),
   };
 }
 

@@ -1,18 +1,15 @@
-import type { WorkflowAgent } from "@ai-sdk/workflow";
+import type { ModelMessage } from "ai";
 import { z } from "zod";
 
-import type { ChatWorkflowProvider, ReasoningEffort } from "./agent-provider.js";
+import type { ChatProvider, ReasoningEffort } from "./agent-provider.js";
 
-type WorkflowStreamOptions = Parameters<WorkflowAgent["stream"]>[0];
-export type WorkflowModelMessage = NonNullable<WorkflowStreamOptions["messages"]>[number];
-
-export interface ChatWorkflowInput {
+export interface ChatAgentInput {
   runId: string;
   userId: string;
   conversationId: string;
-  provider: ChatWorkflowProvider;
+  provider: ChatProvider;
   multimodalProviderId?: string | null;
-  modelMessages: WorkflowModelMessage[];
+  modelMessages: ModelMessage[];
   memorySourceText: string;
   instructions: string;
   reasoningEffort?: ReasoningEffort | null;

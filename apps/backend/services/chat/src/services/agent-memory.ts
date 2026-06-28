@@ -1,8 +1,15 @@
 import { z } from "zod";
+import { extractJsonMiddleware, generateText, Output, wrapLanguageModel } from "ai";
 
 import { MAX_MEMORY_CANDIDATES_PER_RUN } from "./agent-config.js";
 import { createProviderModel } from "./agent-provider.js";
-import type { ChatWorkflowProvider } from "./agent-provider.js";
+import type { ChatProvider } from "./agent-provider.js";
+import {
+  createMemoryCandidate,
+  listActiveMemories,
+  listMemoryDedupEntries,
+  listPendingCandidates,
+} from "./agent-state.js";
 
 const MEMORY_CATEGORIES = ["preference", "profile", "project", "instruction"] as const;
 
@@ -72,29 +79,23 @@ function buildExtractionPrompt(input: {
 export interface ExtractMemoryInput {
   userId: string;
   runId: string;
-  provider: ChatWorkflowProvider;
+  provider: ChatProvider;
   userText: string;
 }
 
 export async function extractMemoryCandidates(input: ExtractMemoryInput): Promise<{ created: number }> {
-  "use step";
   // Memory is grounded only in the latest user-authored text. Feeding the
   // assistant response or full history can turn model inferences into facts
   // and repeatedly re-extract stale turns.
   const conversationText = input.userText.trim().slice(-8_000);
   if (!hasMemorySignal(conversationText)) return { created: 0 };
 
-  const [{ generateText, Output, wrapLanguageModel, extractJsonMiddleware }, state] = await Promise.all([
-    import("ai"),
-    import("./agent-state.js"),
-  ]);
-
   // Pull existing active + pending so the model can judge "new vs changed" and
   // we can dedup; rejected is pulled to avoid re-proposing declined memories.
   const [active, pending, dedupEntries] = await Promise.all([
-    state.listActiveMemories(input.userId),
-    state.listPendingCandidates(input.userId),
-    state.listMemoryDedupEntries(input.userId),
+    listActiveMemories(input.userId),
+    listPendingCandidates(input.userId),
+    listMemoryDedupEntries(input.userId),
   ]);
   const existingForPrompt = [
     ...active.map((m) => ({ category: m.category, content: m.content })),
@@ -131,7 +132,7 @@ export async function extractMemoryCandidates(input: ExtractMemoryInput): Promis
     const supersedesId = candidate.supersedes_content
       ? active.find((m) => normalize(m.content) === normalize(candidate.supersedes_content ?? ""))?.id ?? null
       : null;
-    await state.createMemoryCandidate({
+    await createMemoryCandidate({
       userId: input.userId,
       category: candidate.category,
       content: candidate.content,

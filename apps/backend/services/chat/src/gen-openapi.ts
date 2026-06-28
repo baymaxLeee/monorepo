@@ -12,8 +12,8 @@ const documentPathParam = {
   schema: { type: "string" },
 };
 
-const workflowRunPathParam = {
-  name: "workflow_run_id",
+const runPathParam = {
+  name: "run_id",
   in: "path",
   required: true,
   schema: { type: "string" },
@@ -24,13 +24,6 @@ const memoryIdPathParam = {
   in: "path",
   required: true,
   schema: { type: "string" },
-};
-
-const startIndexQueryParam = {
-  name: "startIndex",
-  in: "query",
-  required: false,
-  schema: { type: "integer" },
 };
 
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
@@ -67,21 +60,15 @@ const openapi = {
         parameters: [pathParam],
         responses: {
           "200": {
-            description: "start WorkflowAgent run stream",
+            description: "start ToolLoopAgent UI message stream",
             headers: {
-              "x-workflow-run-id": {
-                description: "Workflow run id used for stream resume/cancel",
+              "x-agent-run-id": {
+                description: "Agent run id used for observability",
                 schema: { type: "string" },
               },
             },
           },
         },
-      },
-    },
-    "/conversations/{conversation_id}/agents/run/stream/{workflow_run_id}/stream": {
-      get: {
-        parameters: [pathParam, workflowRunPathParam, startIndexQueryParam],
-        responses: { "200": { description: "resume WorkflowAgent run stream" } },
       },
     },
     "/conversations/{conversation_id}/documents/{document_id}": {
@@ -100,21 +87,9 @@ const openapi = {
         responses: { "200": { description: "conversation document source bytes" } },
       },
     },
-    "/conversations/{conversation_id}/agents/run/cancel": {
-      post: {
-        parameters: [pathParam],
-        responses: { "200": { description: "cancel active agent run" } },
-      },
-    },
-    "/conversations/{conversation_id}/agents/run/stream/{workflow_run_id}/resume": {
-      post: {
-        parameters: [pathParam, workflowRunPathParam],
-        responses: { "200": { description: "resume a suspended ask_user hook" } },
-      },
-    },
-    "/conversations/{conversation_id}/agents/run/stream/{workflow_run_id}/trace": {
+    "/conversations/{conversation_id}/agents/runs/{run_id}/trace": {
       get: {
-        parameters: [pathParam, workflowRunPathParam],
+        parameters: [pathParam, runPathParam],
         responses: { "200": { description: "agent run step/tool-call trace" } },
       },
     },

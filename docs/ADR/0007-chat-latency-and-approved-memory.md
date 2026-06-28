@@ -11,7 +11,7 @@ Accepted.
 - Load independent request context and persist request metadata concurrently;
   log server setup time separately from provider time-to-first-token.
 - Keep long-term memory in chat-owned `user_memories`, outside semantic
-  messages and Workflow infrastructure state.
+  messages and orchestration/runtime state.
 - Background extraction and `propose_memory` may create idempotent pending
   candidates, but only an authenticated user action in the memory panel may
   activate one. Candidate creation never blocks the chat stream.

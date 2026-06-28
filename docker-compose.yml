@@ -26,24 +26,5 @@ services:
       timeout: 3s
       retries: 5
 
-  # Durable backend for the chat service's Workflow DevKit "World".
-  # Holds workflow run/step/event/hook state ONLY — business tables stay in MySQL.
-  workflow-postgres:
-    image: postgres:16-alpine
-    container_name: monorepo-workflow-postgres
-    environment:
-      POSTGRES_USER: dev
-      POSTGRES_PASSWORD: dev
-      POSTGRES_DB: workflow
-    ports: ["5432:5432"]
-    volumes:
-      - workflow_pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "dev", "-d", "workflow"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
 volumes:
   mysql_data:
-  workflow_pgdata:

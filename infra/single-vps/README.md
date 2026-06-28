@@ -44,7 +44,7 @@ browser
 │      ├─ admin:8001                                        │
 │      └─ telemetry:8008                                    │
 │                                                           │
-│  mysql:3306    redis:6379    workflow-postgres:5432       │
+│  mysql:3306    redis:6379                              │
 │  (volumes: /var/lib/docker/volumes/monorepo_*)            │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -263,8 +263,7 @@ docker exec monorepo-mysql sh -c 'exec mysqldump --all-databases -uroot -p"$MYSQ
 ```bash
 docker compose -f docker-compose.prod.yml stop
 tar czf /backup/monorepo-$(date +%F).tar.gz -C /var/lib/docker/volumes \
-    monorepo_mysql_data monorepo_redis_data \
-    monorepo_workflow_pgdata monorepo_knowledge_data
+    monorepo_mysql_data monorepo_redis_data monorepo_knowledge_data
 docker compose -f docker-compose.prod.yml start
 ```
 
@@ -277,7 +276,6 @@ docker compose -f docker-compose.prod.yml start
 | `connection refused` from your laptop | Cloud security group port not open | Open `PUBLIC_PORT` in the cloud console |
 | `502 Bad Gateway` from nginx | Backend pod still booting / crashed | `docker compose logs gateway` |
 | `db-init` stuck | MySQL still initializing | First boot can take 30–60 s; if longer, check `docker compose logs mysql` |
-| `workflow-db-init` failed | Workflow PostgreSQL is unavailable or schema setup failed | Check `docker compose logs workflow-postgres workflow-db-init`; chat intentionally stays stopped until setup succeeds |
 | 4 backend pods CrashLoopBackoff | Probably bad MYSQL_PASSWORD in `.env` | Re-edit `.env`, `docker compose up -d` |
 | Frontend loads but API returns 401 forever | `ACCESS_TOKEN_SECRET` differs between gateway and iam (impossible if `.env` is shared) | `docker compose exec gateway env \| grep ACCESS_TOKEN`, ditto for iam |
 | Pulling images is slow / fails | GHCR rate limit (free tier) | Sign in: `docker login ghcr.io -u <github-user>` (use a PAT with `read:packages`) |
@@ -287,14 +285,12 @@ docker compose -f docker-compose.prod.yml start
 
 ## Migrating off
 
-The persistent data is in four named Docker volumes:
+The persistent data is in three named Docker volumes:
 - `monorepo_mysql_data`
 - `monorepo_redis_data`
-- `monorepo_workflow_pgdata`
 - `monorepo_knowledge_data`
 
 Backup the volumes, copy to a bigger box / K8s cluster, restore. The 6 images are immutable so you can re-tag and push elsewhere without rebuilding.
 
 When you eventually move to `infra/k8s/`, the manifests there use the same
-images and environment contracts. Supply the managed PostgreSQL connection as
-`WORKFLOW_POSTGRES_URL` in `chat-secrets` before deploying chat.
+images and environment contracts.

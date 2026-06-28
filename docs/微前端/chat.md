@@ -1,54 +1,18 @@
 # chat MFE
 
-对话域的 micro-frontend，挂载在 platform 的 `/platform/chat/*`。后端是
-`apps/backend/services/chat`。
+对话域 micro-frontend，挂载于 `/platform/chat/*`，后端为 chat service。
 
-## 路由
+## 核心约定
 
-- `/platform/chat` → 重定向到 `/platform/chat/conversations`
-- `/platform/chat/conversations` — 欢迎页 / 引导新建会话
-- `/platform/chat/conversations/:id` — 聊天室；含消息时间线 + 输入框
-- 左侧 `ChatLayout` rail 渲染会话列表（新建 / 切换 / 删除）
+- 消息流使用 AI SDK v7 `useChat` + `DefaultChatTransport`，直接消费原生
+  UIMessage SSE parts。
+- 交互只有 Send/Stop：Stop 调用 `useChat.stop()` 并中断服务端 Agent 请求；不保存
+  可恢复 stream cursor，也不自动重连未完成会话。
+- `ask_user` 等 client tool 通过 `addToolOutput` 回填；所有 client tool 完成后由
+  `lastAssistantMessageIsCompleteWithToolCalls` 自动发起下一次 run。
+- 响应头 `x-agent-run-id` 仅用于执行轨迹查询，不参与流恢复。
+- plan 作为 `tool-update_plan` part 随消息持久化；后续 run 从服务端会话历史恢复。
+- HTML artifact 使用 sandbox iframe 和独立右侧面板；完整正文按需从 knowledge
+  加载，不进入聊天消息。
 
-## Module Federation
-
-- Remote 名：`mfe_chat`
-- 端口：`3005`
-- 暴露：`./App`（`src/App.tsx`）
-- Shared 依赖：`apps/frontend/mf-shared.mjs` 中的 host 单例
-  （react / react-dom / react-router-dom / zustand / runtime / shared / observability）
-- `components` 与 `api` 是普通 workspace 依赖，不进 MF shared scope
-
-## 与后端的衔接
-
-- 普通 CRUD 走 `api.fetchConversations` / `createConversation` /
-  `fetchConversation` / `deleteConversation`。
-- 聊天框附件走 knowledge ingest；文档以 `source` 归属当前会话。
-- 发送消息走 AI SDK `useChat` + `WorkflowChatTransport`，POST 启动后端
-  WorkflowAgent run，响应头 `x-workflow-run-id` 用于刷新后的 stream resume。
-  “暂停”只中断浏览器流，不取消 Workflow；恢复时删除未完成 assistant 内存快照并
-  从 index 0 重放 durable stream，让 UIMessage 的 text/tool start 与 delta 完整重建。
-  当有附件时，MFE 先上传生成会话文档，再把 `document_ids[]` 传给 agent run。
-- Agent 可读取当前会话历史和文档，并通过 tool result 暴露 knowledge
-  `artifact` 文档 id；artifact 详情仍按需从 knowledge 拉取。
-- 所有 `source` / `artifact` 文档 card 点击后都用现有
-  `components/markdown-editor` 打开，可预览、二次编辑；Markdown 编辑走防抖自动
-  保存回 chat-server，HTML artifact 以 sandbox iframe 占满剩余区域预览。右侧
-  Sheet 只显示外层统一标题栏，嵌入的 `ArtifactPreview` 不重复渲染标题。
-
-## 状态管理
-
-- 会话与消息列表是页面级 `useState`（请求结束后从服务端回填权威 id /
-  时间戳）。
-- 会话文档列表随 `ConversationDetail.documents` 一起回填；完整 Markdown 内容按需
-  通过 `fetchConversationDocument()` 懒加载，避免时间线一次性拉大。
-- 发送/续连状态由 AI SDK `useChat` 管理；当前 `workflowRunId` 保存在
-  sessionStorage，供 `WorkflowChatTransport.reconnectToStream` 使用。
-- 跨 MFE 通信走 `runtime` 事件总线（当前未启用，后续接入 admin 已发布的
-  bot 触发对话时再补）。
-
-## 注意事项
-
-- 严禁 `import` 任何其它 MFE。
-- 严禁绕开 `api` 直接 fetch；chat stream 由 `WorkflowChatTransport` 负责。
-- Tailwind/CSS 由 platform host 注入，remote 不打 CSS。
+普通 CRUD 使用 `api` package；禁止跨 MFE import，跨域通信使用 `runtime` 事件总线。

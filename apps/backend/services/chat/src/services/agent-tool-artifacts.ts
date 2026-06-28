@@ -1,4 +1,23 @@
 import { createHash } from "node:crypto";
+import {
+  extractJsonMiddleware,
+  generateText,
+  Output,
+  streamText,
+  wrapLanguageModel,
+} from "ai";
+
+import { getProvider } from "../clients/admin.js";
+import {
+  createArtifact,
+  getDocument,
+  listArtifactBlocks,
+  publishArtifactRevision,
+  reserveArtifactGeneration,
+  saveArtifactBlock,
+  saveArtifactPlan,
+  updateArtifact,
+} from "../clients/knowledge.js";
 
 import {
   artifactRevisionPrompt,
@@ -16,6 +35,7 @@ import {
 } from "./agent-config.js";
 import { createProviderModel } from "./agent-provider.js";
 import type { ToolContext } from "./agent-types.js";
+import { compileArtifactHtml, sanitizeArtifactPart } from "./artifact-compiler.js";
 
 type ArtifactPartInput = {
   planItemId: string;
@@ -35,8 +55,6 @@ export async function beginArtifactTool(
   },
   { context, toolCallId }: { context: ToolContext; toolCallId: string },
 ) {
-  "use step";
-  const { reserveArtifactGeneration, saveArtifactPlan } = await import("../clients/knowledge.js");
   const filename = safeFilename(input.filename);
   const generation = await reserveArtifactGeneration({
     userId: context.userId,
@@ -75,11 +93,6 @@ export async function writeArtifactPartTool(
   },
   { context }: { context: ToolContext },
 ) {
-  "use step";
-  const [{ saveArtifactBlock }, { sanitizeArtifactPart }] = await Promise.all([
-    import("../clients/knowledge.js"),
-    import("./artifact-compiler.js"),
-  ]);
   const html = sanitizeArtifactPart(input.content);
   if (!html) return { ok: false, error: "artifact part is empty", plan_item_id: input.planItemId };
   await saveArtifactBlock({
@@ -109,11 +122,6 @@ export async function publishArtifactTool(
   },
   { context }: { context: ToolContext },
 ) {
-  "use step";
-  const [{ listArtifactBlocks, publishArtifactRevision }, { compileArtifactHtml }] = await Promise.all([
-    import("../clients/knowledge.js"),
-    import("./artifact-compiler.js"),
-  ]);
   const stored = await listArtifactBlocks(context.userId, input.generationId);
   const compiled = compileArtifactHtml({
     title: input.title,
@@ -142,10 +150,6 @@ export async function publishArtifactTool(
 }
 
 export async function buildArtifactTextModel(userId: string, providerId: string) {
-  const [
-    { getProvider },
-    { extractJsonMiddleware, generateText, Output, streamText, wrapLanguageModel },
-  ] = await Promise.all([import("../clients/admin.js"), import("ai")]);
   const provider = await getProvider(userId, providerId);
   const model = createProviderModel(provider, { disableReasoning: true });
   return {
@@ -186,9 +190,13 @@ async function generateChunkedRevision(input: {
   toolCallId: string;
   meta: { title: string; filename: string; kind: ArtifactKind };
   tools: Awaited<ReturnType<typeof buildArtifactTextModel>>;
+  abortSignal?: AbortSignal;
 }): Promise<string> {
   const chunks = splitRevisionChunks(input.current);
-  const abortSignal = AbortSignal.timeout(ARTIFACT_GENERATION_TIMEOUT.totalMs);
+  const timeoutSignal = AbortSignal.timeout(ARTIFACT_GENERATION_TIMEOUT.totalMs);
+  const abortSignal = input.abortSignal
+    ? AbortSignal.any([input.abortSignal, timeoutSignal])
+    : timeoutSignal;
   let revised = "";
   for (const [index, chunk] of chunks.entries()) {
     const result = input.tools.streamText({
@@ -218,24 +226,21 @@ async function generateChunkedRevision(input: {
 
 export async function createArtifactTool(
   input: { title: string; filename: string; kind: ArtifactKind; mode?: "document" | "presentation" | "dashboard"; brief: string },
-  { context, toolCallId }: { context: ToolContext; toolCallId: string },
+  { context, toolCallId, abortSignal }: { context: ToolContext; toolCallId: string; abortSignal?: AbortSignal },
 ) {
-  "use step";
   const filename = safeFilename(input.filename);
   try {
     if (input.kind === "html") {
       return { ok: false, error: "HTML artifacts must use begin_artifact, write_artifact_part, and publish_artifact." };
     }
 
-    const [{ createArtifact }, artifactTools] = await Promise.all([
-      import("../clients/knowledge.js"),
-      buildArtifactTextModel(context.userId, context.providerId),
-    ]);
+    const artifactTools = await buildArtifactTextModel(context.userId, context.providerId);
     const result = artifactTools.streamText({
       model: artifactTools.model,
       instructions: artifactSystemPrompt(input.kind),
       prompt: input.brief,
       timeout: ARTIFACT_GENERATION_TIMEOUT,
+      abortSignal,
     });
     const raw = (await collectArtifactContent(result)).trim();
     if (!raw) return { ok: false, error: "artifact generation returned empty content" };
@@ -253,6 +258,7 @@ export async function createArtifactTool(
     });
     return { ok: true, status: "persisted", document_id: doc.id, title: doc.title, filename: doc.filename, kind: input.kind, total_chars: content.length };
   } catch (err) {
+    if (abortSignal?.aborted) throw err;
     console.error("[chat-agent] create artifact failed", {
       toolCallId,
       kind: input.kind,
@@ -264,14 +270,10 @@ export async function createArtifactTool(
 
 export async function updateArtifactTool(
   input: { document_id: string; title?: string; filename?: string; kind?: ArtifactKind; brief: string },
-  { context, toolCallId }: { context: ToolContext; toolCallId: string },
+  { context, toolCallId, abortSignal }: { context: ToolContext; toolCallId: string; abortSignal?: AbortSignal },
 ) {
-  "use step";
   try {
-    const [{ getDocument, updateArtifact }, artifactTools] = await Promise.all([
-      import("../clients/knowledge.js"),
-      buildArtifactTextModel(context.userId, context.providerId),
-    ]);
+    const artifactTools = await buildArtifactTextModel(context.userId, context.providerId);
     const current = await getDocument(context.userId, input.document_id);
     if (current.kind !== "artifact") return { ok: false, error: `document ${input.document_id} is not an artifact` };
     const artifactKind = resolveArtifactKind(current, input.kind);
@@ -286,6 +288,7 @@ export async function updateArtifactTool(
         toolCallId,
         meta: { title, filename, kind: artifactKind },
         tools: artifactTools,
+        abortSignal,
       });
       content = normalizeArtifactContent(artifactKind, content);
     } else {
@@ -294,6 +297,7 @@ export async function updateArtifactTool(
         instructions: artifactSystemPrompt(artifactKind),
         prompt: artifactRevisionPrompt(artifactKind, currentContent, input.brief),
         timeout: ARTIFACT_GENERATION_TIMEOUT,
+        abortSignal,
       });
       const raw = (await collectArtifactContent(result)).trim();
       if (!raw) return { ok: false, error: "artifact revision returned empty content" };
@@ -312,6 +316,7 @@ export async function updateArtifactTool(
     });
     return { ok: true, status: "persisted", document_id: doc.id, title: doc.title, filename: doc.filename, kind: artifactKind, total_chars: content.length };
   } catch (err) {
+    if (abortSignal?.aborted) throw err;
     console.error("[chat-agent] update artifact failed", {
       toolCallId,
       kind: input.kind,

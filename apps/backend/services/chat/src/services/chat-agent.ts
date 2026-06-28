@@ -1,25 +1,15 @@
-import { WorkflowAgent, type ModelCallStreamPart } from "@ai-sdk/workflow";
-import { getWritable } from "workflow";
+import { isStepCount, ToolLoopAgent } from "ai";
 
 import { MAX_AGENT_STEPS } from "./agent-config.js";
-import { extractMemoryCandidates } from "./agent-memory.js";
 import {
-  failWorkflowRun,
   finishModelStep,
-  finishWorkflowStream,
-  persistWorkflowCompletion,
   recordToolEnd,
   recordToolStart,
   startModelStep,
-  stepsToAssistantParts,
 } from "./agent-lifecycle.js";
 import { createProviderModel } from "./agent-provider.js";
-import { buildWorkflowTools } from "./agent-tools.js";
-import type { ChatWorkflowInput } from "./agent-types.js";
-
-function stepCountAtLeast(limit: number) {
-  return ({ steps }: { steps: readonly unknown[] }) => steps.length >= limit;
-}
+import { buildAgentTools } from "./agent-tools.js";
+import type { ChatAgentInput } from "./agent-types.js";
 
 function pruneArtifactWrites<T extends readonly unknown[]>(messages: T): T {
   const removableCalls = new Set<string>();
@@ -30,29 +20,49 @@ function pruneArtifactWrites<T extends readonly unknown[]>(messages: T): T {
     for (const part of content) {
       if (!part || typeof part !== "object") continue;
       const row = part as Record<string, unknown>;
-      if (row.type === "tool-call" && row.toolName === "write_artifact_part" && typeof row.toolCallId === "string") {
+      if (
+        row.type === "tool-call" &&
+        row.toolName === "write_artifact_part" &&
+        typeof row.toolCallId === "string"
+      ) {
         removableCalls.add(row.toolCallId);
       }
     }
   }
   return messages.map((message, index) => {
-    if (index >= messages.length - 2 || !message || typeof message !== "object" || !("content" in message)) return message;
+    if (
+      index >= messages.length - 2 ||
+      !message ||
+      typeof message !== "object" ||
+      !("content" in message)
+    ) {
+      return message;
+    }
     const content = (message as { content?: unknown }).content;
     if (!Array.isArray(content)) return message;
-    const compact = content.filter((part) => {
-      if (!part || typeof part !== "object") return true;
-      const row = part as Record<string, unknown>;
-      return !(typeof row.toolCallId === "string" && removableCalls.has(row.toolCallId));
-    });
-    return { ...message, content: compact };
+    return {
+      ...message,
+      content: content.filter((part) => {
+        if (!part || typeof part !== "object") return true;
+        const row = part as Record<string, unknown>;
+        return !(
+          typeof row.toolCallId === "string" && removableCalls.has(row.toolCallId)
+        );
+      }),
+    };
   }) as unknown as T;
 }
 
-export async function runChatAgent(input: ChatWorkflowInput): Promise<{ text: string }> {
-  "use workflow";
+function observe(label: string, operation: Promise<void>): Promise<void> {
+  return operation.catch((error) => {
+    // Trace persistence must never take down the user-facing generation.
+    console.error(`[chat-agent] ${label} failed`, error);
+  });
+}
 
+export function createChatAgent(input: ChatAgentInput) {
   const provider = input.provider;
-  const tools = buildWorkflowTools();
+  const tools = buildAgentTools();
   const toolContext = {
     runId: input.runId,
     userId: input.userId,
@@ -60,10 +70,13 @@ export async function runChatAgent(input: ChatWorkflowInput): Promise<{ text: st
     providerId: provider.id,
     multimodalProviderId: input.multimodalProviderId ?? null,
   };
-  const writable = getWritable<ModelCallStreamPart>();
-  const agent = new WorkflowAgent({
+  let currentStepNumber = 0;
+
+  return new ToolLoopAgent({
     id: "chat-agent",
-    model: createProviderModel(provider, { reasoningEffort: input.reasoningEffort }),
+    model: createProviderModel(provider, {
+      reasoningEffort: input.reasoningEffort,
+    }),
     instructions: input.instructions,
     tools,
     toolsContext: {
@@ -79,64 +92,54 @@ export async function runChatAgent(input: ChatWorkflowInput): Promise<{ text: st
       analyze_image: toolContext,
       propose_memory: toolContext,
     },
-    prepareStep: ({ messages }) => ({
-      messages: pruneArtifactWrites(messages),
-    }),
-    experimental_onStepStart: (event) =>
-      startModelStep({ runId: input.runId, stepNumber: event.stepNumber, model: provider.model }),
+    stopWhen: isStepCount(MAX_AGENT_STEPS),
+    prepareStep: ({ messages }) => ({ messages: pruneArtifactWrites(messages) }),
+    onStepStart: (event) => {
+      currentStepNumber = event.stepNumber;
+      return observe(
+        "start model step",
+        startModelStep({
+          runId: input.runId,
+          stepNumber: currentStepNumber,
+          model: provider.model,
+        }),
+      );
+    },
     onStepEnd: (event) =>
-      finishModelStep({
-        runId: input.runId,
-        stepNumber: event.stepNumber,
-        finishReason: event.finishReason,
-        usage: event.usage,
-        toolCallCount: event.toolCalls.length,
-        performance: "performance" in event ? event.performance : undefined,
-      }),
+      observe(
+        "finish model step",
+        finishModelStep({
+          runId: input.runId,
+          stepNumber: currentStepNumber,
+          finishReason: event.finishReason,
+          usage: event.usage,
+          toolCallCount: event.toolCalls.length,
+          performance: event.performance,
+        }),
+      ),
     onToolExecutionStart: (event) =>
-      recordToolStart({
-        runId: input.runId,
-        toolCallId: event.toolCall.toolCallId,
-        stepNumber: event.stepNumber,
-        toolName: event.toolCall.toolName,
-        toolInput: event.toolCall.input,
-      }),
-    onToolExecutionEnd: (event) =>
-      recordToolEnd({
-        toolCallId: event.toolCall.toolCallId,
-        success: event.success,
-        output: event.success ? event.output : undefined,
-        error: event.success ? undefined : event.error,
-        durationMs: event.durationMs,
-      }),
+      observe(
+        "start tool",
+        recordToolStart({
+          runId: input.runId,
+          toolCallId: event.toolCall.toolCallId,
+          stepNumber: currentStepNumber,
+          toolName: event.toolCall.toolName,
+          toolInput: event.toolCall.input,
+        }),
+      ),
+    onToolExecutionEnd: (event) => {
+      const success = event.toolOutput.type === "tool-result";
+      return observe(
+        "finish tool",
+        recordToolEnd({
+          toolCallId: event.toolCall.toolCallId,
+          success,
+          output: success ? event.toolOutput.output : undefined,
+          error: success ? undefined : event.toolOutput.error,
+          durationMs: event.toolExecutionMs,
+        }),
+      );
+    },
   });
-
-  try {
-    const result = await agent.stream({
-      messages: input.modelMessages,
-      writable,
-      stopWhen: stepCountAtLeast(MAX_AGENT_STEPS),
-      sendFinish: false,
-      preventClose: true,
-      onError: ({ error }) => console.error("[chat-agent] WorkflowAgent stream error", error),
-    });
-    const parts = stepsToAssistantParts(result.steps);
-    const totalTokens = result.steps.reduce((sum, step) => sum + (step.usage?.totalTokens ?? 0), 0);
-    await persistWorkflowCompletion({ runId: input.runId, conversationId: input.conversationId, parts, totalTokens });
-    await finishWorkflowStream(writable);
-    await extractMemoryCandidates({
-      userId: input.userId,
-      runId: input.runId,
-      provider,
-      userText: input.memorySourceText,
-    }).catch((err) => {
-      console.error("[chat-agent] memory extraction step failed (non-fatal)", err);
-      return { created: 0 };
-    });
-    return { text: result.steps.at(-1)?.text ?? "" };
-  } catch (err) {
-    console.error("[chat-agent] runChatAgent failed", err);
-    await failWorkflowRun({ runId: input.runId, error: err });
-    throw err;
-  }
 }

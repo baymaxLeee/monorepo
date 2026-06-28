@@ -283,34 +283,6 @@ export type DocumentIngestStreamEvent =
   | DocumentIngestFileFailedEvent
   | DocumentIngestBatchDoneEvent;
 
-export async function cancelConversationAgent(
-  conversationId: string,
-  workflowRunId: string,
-  assistantMessage?: unknown,
-): Promise<{ cancelled: boolean; workflow_run_id: string }> {
-  return request<{ cancelled: boolean; workflow_run_id: string }>({
-    url: `${BASE}/${encodeURIComponent(conversationId)}/agents/run/cancel`,
-    method: "POST",
-    data: {
-      workflow_run_id: workflowRunId,
-      ...(assistantMessage ? { assistant_message: assistantMessage } : {}),
-    },
-  });
-}
-
-export async function resumeConversationAgentAskUser(
-  conversationId: string,
-  workflowRunId: string,
-  toolCallId: string,
-  answer: unknown,
-): Promise<{ resumed: boolean; workflow_run_id: string }> {
-  return request<{ resumed: boolean; workflow_run_id: string }>({
-    url: `${BASE}/${encodeURIComponent(conversationId)}/agents/run/stream/${encodeURIComponent(workflowRunId)}/resume`,
-    method: "POST",
-    data: { tool_call_id: toolCallId, answer },
-  });
-}
-
 export interface AgentTraceStep {
   id: string;
   stepIndex: number;
@@ -346,10 +318,10 @@ export interface AgentRunTrace {
 
 export async function fetchConversationAgentTrace(
   conversationId: string,
-  workflowRunId: string,
+  runId: string,
 ): Promise<AgentRunTrace> {
   return request<AgentRunTrace>({
-    url: `${BASE}/${encodeURIComponent(conversationId)}/agents/run/stream/${encodeURIComponent(workflowRunId)}/trace`,
+    url: `${BASE}/${encodeURIComponent(conversationId)}/agents/runs/${encodeURIComponent(runId)}/trace`,
     method: "GET",
   });
 }

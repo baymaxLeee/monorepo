@@ -250,7 +250,6 @@ export async function updateConversationDocument(
 }
 
 export async function touchConversation(conversationId: string): Promise<void> {
-  "use step";
   const db = getDb();
   await db
     .update(conversations)
@@ -282,14 +281,14 @@ export async function listMessages(conversationId: string): Promise<Message[]> {
 }
 
 export async function createMessage(input: {
+  id?: string;
   conversationId: string;
   role: string;
   content: string;
   status?: string;
 }): Promise<Message> {
-  "use step";
   const db = getDb();
-  const id = randomBytes(8).toString("hex");
+  const id = input.id ?? randomBytes(8).toString("hex");
   const now = new Date();
   await db.insert(messages).values({
     id,
@@ -301,6 +300,18 @@ export async function createMessage(input: {
   });
   const [row] = await db.select().from(messages).where(eq(messages.id, id));
   return toMessage(row!);
+}
+
+export async function updateMessageContent(input: {
+  id: string;
+  conversationId: string;
+  content: string;
+  status?: string;
+}): Promise<void> {
+  await getDb()
+    .update(messages)
+    .set({ content: input.content, status: input.status ?? "ok" })
+    .where(and(eq(messages.id, input.id), eq(messages.conversationId, input.conversationId)));
 }
 
 export async function updateConversationProvider(

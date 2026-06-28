@@ -1,10 +1,9 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { JSONObject, JSONValue, LanguageModelV4, LanguageModelV4CallOptions } from "@ai-sdk/provider";
-import { WORKFLOW_DESERIALIZE, WORKFLOW_SERIALIZE } from "@workflow/serde";
 
 export type ReasoningEffort = "low" | "medium" | "high";
 
-export interface ChatWorkflowProvider {
+export interface ChatProvider {
   id: string;
   name: string;
   model: string;
@@ -66,7 +65,7 @@ function isJsonValue(value: unknown): value is JSONValue {
 }
 
 function providerBodyOptions(
-  provider: ChatWorkflowProvider,
+  provider: ChatProvider,
   options: { reasoningEffort?: ReasoningEffort | null; disableReasoning?: boolean },
 ): JSONObject {
   const body: JSONObject = {};
@@ -94,7 +93,7 @@ function providerBodyOptions(
 }
 
 interface AdminOpenAICompatibleModelSnapshot {
-  provider: ChatWorkflowProvider;
+  provider: ChatProvider;
   reasoningEffort?: ReasoningEffort | null;
   disableReasoning?: boolean;
 }
@@ -108,18 +107,6 @@ class AdminOpenAICompatibleModel implements LanguageModelV4 {
   constructor(private readonly snapshot: AdminOpenAICompatibleModelSnapshot) {
     this.provider = providerName(snapshot.provider.id);
     this.modelId = snapshot.provider.model;
-  }
-
-  static [WORKFLOW_SERIALIZE](
-    model: AdminOpenAICompatibleModel,
-  ): AdminOpenAICompatibleModelSnapshot {
-    return model.snapshot;
-  }
-
-  static [WORKFLOW_DESERIALIZE](
-    snapshot: AdminOpenAICompatibleModelSnapshot,
-  ): AdminOpenAICompatibleModel {
-    return new AdminOpenAICompatibleModel(snapshot);
   }
 
   doGenerate(options: LanguageModelV4CallOptions): ReturnType<LanguageModelV4["doGenerate"]> {
@@ -158,7 +145,7 @@ class AdminOpenAICompatibleModel implements LanguageModelV4 {
 }
 
 export function createProviderModel(
-  provider: ChatWorkflowProvider,
+  provider: ChatProvider,
   options: { reasoningEffort?: ReasoningEffort | null; disableReasoning?: boolean } = {},
 ): LanguageModelV4 {
   return new AdminOpenAICompatibleModel({

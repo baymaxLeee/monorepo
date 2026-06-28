@@ -22,14 +22,6 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels: { app: chat }
-      initContainers:
-        - name: workflow-schema
-          image: ghcr.io/example/chat:latest
-          imagePullPolicy: IfNotPresent
-          command: ["node", "/app/workflow-setup/index.js"]
-          envFrom:
-            - configMapRef: { name: chat-config }
-            - secretRef: { name: chat-secrets }
       containers:
         - name: chat
           image: ghcr.io/example/chat:latest

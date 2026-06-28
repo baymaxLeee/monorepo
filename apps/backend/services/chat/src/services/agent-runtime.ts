@@ -1,41 +1,37 @@
+import { randomBytes } from "node:crypto";
+
 import {
-  createModelCallToUIChunkTransform,
-} from "@ai-sdk/workflow";
-import {
-  createUIMessageStreamResponse,
   convertToModelMessages,
   type UIMessage,
-  type UIMessageChunk,
   validateUIMessages,
 } from "ai";
-import { getRun, start } from "workflow/api";
 
 import type { ProviderSnapshot } from "../clients/admin.js";
 import { listDocuments } from "../clients/knowledge.js";
-import { AppError, NotFoundError, RequestError } from "../lib/errors.js";
+import { NotFoundError, RequestError } from "../lib/errors.js";
 import type { AuthContext } from "../middleware/auth.js";
 import {
   createMessage,
   getConversationRow,
   listMessages,
+  touchConversation,
+  updateMessageContent,
   updateConversationProvider,
   type Message,
 } from "./conversations.js";
 import {
-  bindWorkflowRun,
   createAgentRun,
   finishAgentRun,
-  getAgentRunByWorkflowRunId,
+  getAgentRunById,
   getRunTrace,
   type AgentRunTrace,
   listActiveMemories,
 } from "./agent-state.js";
-import { runChatAgent } from "./chat-agent.js";
+import { createChatAgent } from "./chat-agent.js";
 import { MAX_INJECTED_MEMORIES, MAX_INJECTED_MEMORY_CHARS } from "./agent-config.js";
-import { activePlanContext, latestPlanFromParts, parsePlanSnapshot } from "./agent-plan.js";
-
-export const CHAT_WORKFLOW_NAME = "chat-agent";
-export const CHAT_WORKFLOW_VERSION = "chat-agent@2026-06-26-v1";
+import { activePlanContext, latestPlanFromParts } from "./agent-plan.js";
+import { extractMemoryCandidates } from "./agent-memory.js";
+import { failAgentRun } from "./agent-lifecycle.js";
 
 export interface RunAgentInput {
   providerId?: string | null;
@@ -53,21 +49,13 @@ function assertRunAccess(
   run: {
     conversationId: string;
     userId: string;
-    workflowVersion: string | null;
   },
 ): void {
   if (
     run.conversationId !== conversationId ||
     (!auth.isAdmin && run.userId !== auth.userId)
   ) {
-    throw new NotFoundError("workflow run not found");
-  }
-  if (run.workflowVersion !== CHAT_WORKFLOW_VERSION) {
-    throw new AppError("workflow version mismatch", 409, "WORKFLOW_VERSION_MISMATCH", {
-      workflow_run_id: "redacted",
-      expected_version: CHAT_WORKFLOW_VERSION,
-      actual_version: run.workflowVersion,
-    });
+    throw new NotFoundError("agent run not found");
   }
 }
 
@@ -136,7 +124,7 @@ async function buildInstructions(input: {
       "When the user asks to modify an existing artifact/document, call update_artifact with that document_id instead of creating a new artifact.",
       "If the user's intent implies an artifact, start create_artifact directly. Do not ask for confirmation before generating it.",
       "Infer reasonable titles, filenames, kind, structure, and visual style when they are not specified; use ask_user only when a missing requirement would make the artifact materially wrong.",
-      "When the user requests an HTML page, report, or static deliverable and no referenced attachments require reading, call create_artifact directly without web_search, list_documents, or read_document.",
+      "When the user requests an HTML page, report, or static deliverable and no referenced attachments require reading, start the begin_artifact/write_artifact_part/publish_artifact sequence directly without web_search, list_documents, or read_document.",
       "Always finish the run with one concise completion summary. When create_artifact or update_artifact succeeds, summarize the outcome and useful highlights only; the application renders the artifact card automatically after your text.",
       "Never include artifact document IDs, raw filenames, left-sidebar/download instructions, or tool metadata in the final user-facing summary.",
       "Use propose_memory only when the user explicitly asks you to remember a stable preference, profile fact, project fact, or standing instruction. It silently stages a proposal the user reviews later in their memory panel; it does not block the conversation and does not take effect immediately. Do not stage one-off task details, guesses, secrets, credentials, health data, or other sensitive data.",
@@ -200,27 +188,24 @@ export async function createAgentRunResponse(
   provider: ProviderSnapshot,
   uiMessagesInput: unknown[],
   input: RunAgentInput,
+  abortSignal?: AbortSignal,
 ): Promise<Response> {
   const startedAt = performance.now();
   const conversation = await getConversationRow(auth, conversationId);
   const uiMessages = await validateUIMessages<AnyUIMessage>({ messages: uiMessagesInput });
-  const latestUser = uiMessages.at(-1);
-  if (!latestUser || latestUser.role !== "user") {
-    throw new RequestError("the last chat message must be a user message");
+  const latestMessage = uiMessages.at(-1);
+  const latestUser = [...uiMessages].reverse().find((message) => message.role === "user");
+  if (!latestMessage || !latestUser) throw new RequestError("agent prompt is required");
+  if (latestMessage.role !== "user" && latestMessage.role !== "assistant") {
+    throw new RequestError("the last chat message must be a user message or completed client tool call");
   }
-  const latestPrompt = latestUser ? textFromUiMessage(latestUser) : "";
+  const latestPrompt = textFromUiMessage(latestUser);
   if (!latestPrompt.trim() && !(input.documentIds ?? []).length) {
     throw new RequestError("agent prompt is required");
   }
 
-  const [persistedMessages, userMessage, instructions] = await Promise.all([
+  const [persistedMessages, instructions] = await Promise.all([
     listMessages(conversation.id),
-    createMessage({
-      conversationId: conversation.id,
-      role: "user",
-      content: latestUser ? serializeMessageContent(latestUser) : latestPrompt,
-      status: "ok",
-    }),
     buildInstructions({
       userId: conversation.userId,
       conversationId: conversation.id,
@@ -228,17 +213,49 @@ export async function createAgentRunResponse(
     }),
     updateConversationProvider(conversation.id, provider.id, provider.model),
   ]);
+
+  let inputMessageId: string | null = null;
+  let modelUiMessages: AnyUIMessage[];
+  if (latestMessage.role === "user") {
+    const userMessage = await createMessage({
+      conversationId: conversation.id,
+      role: "user",
+      content: serializeMessageContent(latestMessage),
+      status: "ok",
+    });
+    inputMessageId = userMessage.id;
+    modelUiMessages = [
+      ...persistedMessages.map(persistedMessageToUiMessage),
+      latestMessage,
+    ];
+  } else {
+    // Client tools (for example ask_user) complete on the browser and trigger
+    // a fresh ToolLoopAgent request. Persist that completed tool output and
+    // use the validated UI message history as the continuation context.
+    const historyMessages = persistedMessages.map(persistedMessageToUiMessage);
+    const continuationIndex = historyMessages.findIndex(
+      (message) => message.id === latestMessage.id && message.role === "assistant",
+    );
+    if (continuationIndex < 0) {
+      throw new RequestError("client tool continuation message was not found");
+    }
+    await updateMessageContent({
+      id: latestMessage.id,
+      conversationId: conversation.id,
+      content: serializeMessageContent(latestMessage),
+      status: "ok",
+    });
+    modelUiMessages = [...historyMessages];
+    modelUiMessages[continuationIndex] = latestMessage;
+  }
+
   const runId = await createAgentRun({
     conversationId: conversation.id,
     userId: conversation.userId,
     providerId: provider.id,
     model: provider.model,
-    inputMessageId: userMessage.id,
-    workflowName: CHAT_WORKFLOW_NAME,
-    workflowVersion: CHAT_WORKFLOW_VERSION,
+    inputMessageId,
   });
-  const historyMessages = persistedMessages.map(persistedMessageToUiMessage);
-  const modelUiMessages = latestUser ? [...historyMessages, latestUser] : historyMessages;
   const activePlan = latestPlanFromParts(
     modelUiMessages.map((message) => ({
       role: message.role,
@@ -258,162 +275,124 @@ export async function createAgentRunResponse(
       },
     },
   );
-  const run = await start(runChatAgent, [
-    {
-      runId,
-      userId: conversation.userId,
-      conversationId: conversation.id,
-      provider,
-      multimodalProviderId: input.multimodalProviderId,
-      modelMessages,
-      memorySourceText: latestPrompt,
-      instructions: planContext ? `${instructions}\n\n${planContext}` : instructions,
-      reasoningEffort: input.reasoningEffort ?? (input.thinking ? "medium" : null),
-    },
-  ]);
-  await bindWorkflowRun({
+  const assistantMessageId = randomBytes(8).toString("hex");
+  const agent = createChatAgent({
     runId,
-    workflowRunId: run.runId,
-    workflowName: CHAT_WORKFLOW_NAME,
-    workflowVersion: CHAT_WORKFLOW_VERSION,
-  });
-  console.info("[chat-agent] run accepted", {
+    userId: conversation.userId,
     conversationId: conversation.id,
-    workflowRunId: run.runId,
-    setupMs: Math.round(performance.now() - startedAt),
+    provider,
+    multimodalProviderId: input.multimodalProviderId,
+    modelMessages,
+    memorySourceText: latestPrompt,
+    instructions: planContext ? `${instructions}\n\n${planContext}` : instructions,
+    reasoningEffort: input.reasoningEffort ?? (input.thinking ? "medium" : null),
   });
-
-  return streamWorkflowRun(auth, conversation.id, run.runId);
-}
-
-export async function streamWorkflowRun(
-  auth: AuthContext,
-  conversationId: string,
-  workflowRunId: string,
-  startIndex?: number,
-): Promise<Response> {
-  const businessRun = await getAgentRunByWorkflowRunId(workflowRunId);
-  if (!businessRun) throw new NotFoundError("workflow run not found");
-  assertRunAccess(auth, conversationId, businessRun);
-  if (
-    (businessRun.status === "completed" ||
-      businessRun.status === "failed" ||
-      businessRun.status === "cancelled")
-  ) {
-    // WorkflowChatTransport keeps reconnecting until it receives a protocol
-    // `finish` chunk. A 204 is an OK empty stream, so the transport immediately
-    // reconnects forever without advancing startIndex.
-    return createUIMessageStreamResponse({
-      stream: new ReadableStream<UIMessageChunk>({
-        start(controller) {
-          controller.enqueue({
-            type: "finish",
-            finishReason: businessRun.status === "completed" ? "stop" : "error",
+  try {
+    const result = await agent.stream({ messages: modelMessages, abortSignal });
+    console.info("[chat-agent] run accepted", {
+      conversationId: conversation.id,
+      runId,
+      setupMs: Math.round(performance.now() - startedAt),
+    });
+    return result.toUIMessageStreamResponse<AnyUIMessage>({
+      originalMessages: modelUiMessages,
+      generateMessageId: () => assistantMessageId,
+      sendSources: true,
+      headers: { "x-agent-run-id": runId },
+      onError: (error) => {
+        console.error("[chat-agent] stream failed", error);
+        return "生成失败，请重试。";
+      },
+      onEnd: async ({ responseMessage, isContinuation, isAborted, finishReason }) => {
+        const aborted = isAborted || abortSignal?.aborted === true;
+        const failed = finishReason === "error";
+        try {
+          const parts = sanitizePersistedParts(responseMessage.parts);
+          let outputMessageId: string | null = null;
+          if (parts.length > 0) {
+            const content = serializeMessageContent({ ...responseMessage, parts } as AnyUIMessage);
+            if (isContinuation) {
+              await updateMessageContent({
+                id: responseMessage.id,
+                conversationId: conversation.id,
+                content,
+                status: aborted || failed ? "failed" : "ok",
+              });
+              outputMessageId = responseMessage.id;
+            } else {
+              const assistant = await createMessage({
+                id: responseMessage.id,
+                conversationId: conversation.id,
+                role: "assistant",
+                content,
+                status: aborted || failed ? "failed" : "ok",
+              });
+              outputMessageId = assistant.id;
+            }
+          }
+          const usage = await Promise.resolve(result.totalUsage).catch(() => null);
+          await finishAgentRun({
+            runId,
+            status: aborted ? "cancelled" : failed ? "failed" : "completed",
+            outputMessageId,
+            totalTokens: usage?.totalTokens ?? null,
           });
-          controller.close();
-        },
-      }),
-      headers: {
-        "x-workflow-run-id": workflowRunId,
-        "x-workflow-run-status": businessRun.status,
+          await touchConversation(conversation.id);
+          if (!aborted && !failed) {
+            void extractMemoryCandidates({
+              userId: conversation.userId,
+              runId,
+              provider,
+              userText: latestPrompt,
+            }).catch((error) =>
+              console.error("[chat-agent] memory extraction failed (non-fatal)", error),
+            );
+          }
+        } catch (error) {
+          console.error("[chat-agent] stream completion persistence failed", error);
+          await failAgentRun({ runId, error }).catch((finishError) =>
+            console.error("[chat-agent] failed to mark run failed", finishError),
+          );
+        }
       },
     });
+  } catch (error) {
+    await failAgentRun({ runId, error });
+    throw error;
   }
-
-  const run = getRun(workflowRunId);
-  const readable = run.getReadable({ startIndex });
-  const tailIndex = await readable.getTailIndex();
-  const mainStream = readable.pipeThrough(createModelCallToUIChunkTransform());
-  return createUIMessageStreamResponse({
-    stream: mainStream,
-    headers: {
-      "x-workflow-run-id": workflowRunId,
-      "x-workflow-stream-tail-index": String(tailIndex),
-    },
-  });
 }
 
-export async function cancelWorkflowRun(
+export async function getAgentRunTrace(
   auth: AuthContext,
   conversationId: string,
-  workflowRunId: string,
-  assistantMessage?: unknown,
-): Promise<void> {
-  const businessRun = await getAgentRunByWorkflowRunId(workflowRunId);
-  if (!businessRun) throw new NotFoundError("workflow run not found");
-  assertRunAccess(auth, conversationId, businessRun);
-  let snapshot = await validateAssistantSnapshot(assistantMessage);
-  const latestPlan = parsePlanSnapshot(
-    await (await import("./agent-state.js")).latestCompletedToolOutput(conversationId, "update_plan"),
-  );
-  if (latestPlan?.status === "active") {
-    const planPart = {
-      type: "tool-update_plan",
-      toolCallId: `plan-${latestPlan.planId}-${latestPlan.revision}`,
-      state: "output-available",
-      input: { planId: latestPlan.planId, baseRevision: latestPlan.revision - 1 },
-      output: latestPlan,
-    };
-    snapshot = snapshot
-      ? ({ ...snapshot, parts: [...snapshot.parts.filter((part) => part.type !== "tool-update_plan"), planPart] } as AnyUIMessage)
-      : ({ id: `cancelled-${businessRun.id}`, role: "assistant", parts: [planPart] } as AnyUIMessage);
-  }
-  let outputMessageId: string | null = null;
-  if (snapshot) {
-    const message = await createMessage({
-      conversationId,
-      role: "assistant",
-      content: serializeMessageContent(snapshot),
-      status: "failed",
-    });
-    outputMessageId = message.id;
-  }
-  await getRun(workflowRunId).cancel();
-  await finishAgentRun({ runId: businessRun.id, status: "cancelled", outputMessageId });
-}
-
-export async function assertWorkflowRunVersion(
-  auth: AuthContext,
-  conversationId: string,
-  workflowRunId: string,
-): Promise<void> {
-  const businessRun = await getAgentRunByWorkflowRunId(workflowRunId);
-  if (!businessRun) throw new NotFoundError("workflow run not found");
-  assertRunAccess(auth, conversationId, businessRun);
-}
-
-export async function resolveAskUser(
-  auth: AuthContext,
-  conversationId: string,
-  workflowRunId: string,
-  toolCallId: string,
-  answer: unknown,
-): Promise<void> {
-  const businessRun = await getAgentRunByWorkflowRunId(workflowRunId);
-  if (!businessRun) throw new NotFoundError("workflow run not found");
-  assertRunAccess(auth, conversationId, businessRun);
-  const { askUserHook, askUserAnswerSchema } = await import("./agent-hooks.js");
-  const parsed = askUserAnswerSchema.safeParse(answer);
-  if (!parsed.success) throw new RequestError("invalid ask_user answer payload");
-  await askUserHook.resume(toolCallId, parsed.data);
-}
-
-export async function getWorkflowRunTrace(
-  auth: AuthContext,
-  conversationId: string,
-  workflowRunId: string,
+  runId: string,
 ): Promise<AgentRunTrace> {
-  const businessRun = await getAgentRunByWorkflowRunId(workflowRunId);
-  if (!businessRun) throw new NotFoundError("workflow run not found");
+  const businessRun = await getAgentRunById(runId);
+  if (!businessRun) throw new NotFoundError("agent run not found");
   assertRunAccess(auth, conversationId, businessRun);
   const trace = await getRunTrace(businessRun.id);
-  if (!trace) throw new NotFoundError("workflow run trace not found");
+  if (!trace) throw new NotFoundError("agent run trace not found");
   return trace;
 }
 
-async function validateAssistantSnapshot(input: unknown): Promise<AnyUIMessage | null> {
-  if (!input) return null;
-  const [message] = await validateUIMessages<AnyUIMessage>({ messages: [input] });
-  if (!message || message.role !== "assistant" || message.parts.length === 0) return null;
-  return message;
+function sanitizePersistedParts(parts: AnyUIMessage["parts"]): AnyUIMessage["parts"] {
+  return parts.map((part) => {
+    if (
+      part.type !== "tool-write_artifact_part" ||
+      !("input" in part) ||
+      !part.input ||
+      typeof part.input !== "object"
+    ) {
+      return part;
+    }
+    const input = part.input as Record<string, unknown>;
+    const content = typeof input.content === "string" ? input.content : "";
+    return {
+      ...part,
+      input: {
+        ...input,
+        content: `[persisted in knowledge: ${content.length} chars]`,
+      },
+    };
+  }) as AnyUIMessage["parts"];
 }

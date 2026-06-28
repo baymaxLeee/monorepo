@@ -1,16 +1,12 @@
-import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
+import { Hono } from "hono";
 import { z } from "zod";
 
 import { getProvider } from "../clients/admin.js";
 import { getAuth } from "../middleware/auth.js";
 import {
-  assertWorkflowRunVersion,
-  cancelWorkflowRun,
   createAgentRunResponse,
-  getWorkflowRunTrace,
-  resolveAskUser,
-  streamWorkflowRun,
+  getAgentRunTrace,
 } from "../services/agent-runtime.js";
 
 export const agentsRoutes = new Hono();
@@ -24,80 +20,41 @@ const runSchema = z.object({
   reasoning_effort: z.enum(["low", "medium", "high"]).optional().nullable(),
 });
 
-const cancelSchema = z.object({
-  workflow_run_id: z.string().min(1).max(128),
-  assistant_message: z.unknown().optional(),
-});
+agentsRoutes.post(
+  "/:conversationId/agents/run/stream",
+  zValidator("json", runSchema, (result) => {
+    if (!result.success) {
+      console.warn("[chat-agent] invalid run request", result.error.flatten());
+    }
+  }),
+  async (c) => {
+    const auth = getAuth(c);
+    const conversationId = c.req.param("conversationId");
+    const payload = c.req.valid("json");
+    const provider = await getProvider(auth.userId, payload.provider_id ?? null);
 
-const resumeSchema = z.object({
-  tool_call_id: z.string().min(1).max(128),
-  answer: z.unknown(),
-});
+    return createAgentRunResponse(
+      auth,
+      conversationId,
+      provider,
+      payload.messages,
+      {
+        providerId: payload.provider_id,
+        multimodalProviderId: payload.multimodal_provider_id,
+        documentIds: [...(payload.document_ids ?? [])],
+        thinking: payload.thinking,
+        reasoningEffort: payload.reasoning_effort,
+      },
+      c.req.raw.signal,
+    );
+  },
+);
 
-agentsRoutes.post("/:conversationId/agents/run/stream", zValidator("json", runSchema), async (c) => {
-  const auth = getAuth(c);
-  const conversationId = c.req.param("conversationId");
-  const payload = c.req.valid("json");
-  const provider = await getProvider(auth.userId, payload.provider_id ?? null);
-
-  return createAgentRunResponse(
-    auth,
-    conversationId,
-    provider,
-    payload.messages,
-    {
-      providerId: payload.provider_id,
-      multimodalProviderId: payload.multimodal_provider_id,
-      documentIds: [...(payload.document_ids ?? [])],
-      thinking: payload.thinking,
-      reasoningEffort: payload.reasoning_effort,
-    },
+agentsRoutes.get("/:conversationId/agents/runs/:runId/trace", async (c) => {
+  const trace = await getAgentRunTrace(
+    getAuth(c),
+    c.req.param("conversationId"),
+    c.req.param("runId"),
   );
+  return c.json(trace);
 });
-
-agentsRoutes.get("/:conversationId/agents/run/stream/:workflowRunId/stream", async (c) => {
-  const auth = getAuth(c);
-  const conversationId = c.req.param("conversationId");
-  const workflowRunId = c.req.param("workflowRunId");
-  await assertWorkflowRunVersion(auth, conversationId, workflowRunId);
-  const rawStartIndex = c.req.query("startIndex");
-  const startIndex =
-    rawStartIndex == null || rawStartIndex === "" ? undefined : Number.parseInt(rawStartIndex, 10);
-  return streamWorkflowRun(auth, conversationId, workflowRunId, Number.isNaN(startIndex) ? undefined : startIndex);
-});
-
-agentsRoutes.post(
-  "/:conversationId/agents/run/cancel",
-  zValidator("json", cancelSchema),
-  async (c) => {
-    const auth = getAuth(c);
-    const conversationId = c.req.param("conversationId");
-    const body = c.req.valid("json");
-    await cancelWorkflowRun(auth, conversationId, body.workflow_run_id, body.assistant_message);
-    return c.json({ cancelled: true, workflow_run_id: body.workflow_run_id });
-  },
-);
-
-agentsRoutes.post(
-  "/:conversationId/agents/run/stream/:workflowRunId/resume",
-  zValidator("json", resumeSchema),
-  async (c) => {
-    const auth = getAuth(c);
-    const conversationId = c.req.param("conversationId");
-    const workflowRunId = c.req.param("workflowRunId");
-    const body = c.req.valid("json");
-    await resolveAskUser(auth, conversationId, workflowRunId, body.tool_call_id, body.answer);
-    return c.json({ resumed: true, workflow_run_id: workflowRunId });
-  },
-);
-
-agentsRoutes.get(
-  "/:conversationId/agents/run/stream/:workflowRunId/trace",
-  async (c) => {
-    const auth = getAuth(c);
-    const conversationId = c.req.param("conversationId");
-    const workflowRunId = c.req.param("workflowRunId");
-    const trace = await getWorkflowRunTrace(auth, conversationId, workflowRunId);
-    return c.json(trace);
-  },
-);

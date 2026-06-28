@@ -67,10 +67,6 @@ export interface DeletedMemory {
   deleted: boolean;
 }
 
-export type GetConversationsConversationIdAgentsRunStreamWorkflowRunIdStreamParams = {
-startIndex?: number;
-};
-
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
@@ -138,18 +134,6 @@ const postConversationsConversationIdAgentsRunStream = (
       options);
     }
 
-const getConversationsConversationIdAgentsRunStreamWorkflowRunIdStream = (
-    conversationId: string,
-    workflowRunId: string,
-    params?: GetConversationsConversationIdAgentsRunStreamWorkflowRunIdStreamParams,
- options?: SecondParameter<typeof apiMutator<void>>,) => {
-      return apiMutator<void>(
-      {url: `/conversations/${conversationId}/agents/run/stream/${workflowRunId}/stream`, method: 'GET',
-        params
-    },
-      options);
-    }
-
 const getConversationsConversationIdDocumentsDocumentId = (
     conversationId: string,
     documentId: string,
@@ -180,31 +164,12 @@ const getConversationsConversationIdDocumentsDocumentIdSource = (
       options);
     }
 
-const postConversationsConversationIdAgentsRunCancel = (
+const getConversationsConversationIdAgentsRunsRunIdTrace = (
     conversationId: string,
+    runId: string,
  options?: SecondParameter<typeof apiMutator<void>>,) => {
       return apiMutator<void>(
-      {url: `/conversations/${conversationId}/agents/run/cancel`, method: 'POST'
-    },
-      options);
-    }
-
-const postConversationsConversationIdAgentsRunStreamWorkflowRunIdResume = (
-    conversationId: string,
-    workflowRunId: string,
- options?: SecondParameter<typeof apiMutator<void>>,) => {
-      return apiMutator<void>(
-      {url: `/conversations/${conversationId}/agents/run/stream/${workflowRunId}/resume`, method: 'POST'
-    },
-      options);
-    }
-
-const getConversationsConversationIdAgentsRunStreamWorkflowRunIdTrace = (
-    conversationId: string,
-    workflowRunId: string,
- options?: SecondParameter<typeof apiMutator<void>>,) => {
-      return apiMutator<void>(
-      {url: `/conversations/${conversationId}/agents/run/stream/${workflowRunId}/trace`, method: 'GET'
+      {url: `/conversations/${conversationId}/agents/runs/${runId}/trace`, method: 'GET'
     },
       options);
     }
@@ -266,7 +231,7 @@ const deleteMemoriesId = (
       options);
     }
 
-return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdAgentsRunStreamWorkflowRunIdStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,postConversationsConversationIdAgentsRunCancel,postConversationsConversationIdAgentsRunStreamWorkflowRunIdResume,getConversationsConversationIdAgentsRunStreamWorkflowRunIdTrace,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
+return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdAgentsRunsRunIdTrace,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -279,13 +244,10 @@ export type GetConversationsConversationIdResult = NonNullable<Awaited<ReturnTyp
 export type PatchConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchConversationsConversationId']>>>
 export type DeleteConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['deleteConversationsConversationId']>>>
 export type PostConversationsConversationIdAgentsRunStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunStream']>>>
-export type GetConversationsConversationIdAgentsRunStreamWorkflowRunIdStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdAgentsRunStreamWorkflowRunIdStream']>>>
 export type GetConversationsConversationIdDocumentsDocumentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdDocumentsDocumentId']>>>
 export type PatchConversationsConversationIdDocumentsDocumentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchConversationsConversationIdDocumentsDocumentId']>>>
 export type GetConversationsConversationIdDocumentsDocumentIdSourceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdDocumentsDocumentIdSource']>>>
-export type PostConversationsConversationIdAgentsRunCancelResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunCancel']>>>
-export type PostConversationsConversationIdAgentsRunStreamWorkflowRunIdResumeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunStreamWorkflowRunIdResume']>>>
-export type GetConversationsConversationIdAgentsRunStreamWorkflowRunIdTraceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdAgentsRunStreamWorkflowRunIdTrace']>>>
+export type GetConversationsConversationIdAgentsRunsRunIdTraceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdAgentsRunsRunIdTrace']>>>
 export type GetMemoriesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getMemories']>>>
 export type GetMemoriesCandidatesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getMemoriesCandidates']>>>
 export type PostMemoriesCandidatesIdApproveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postMemoriesCandidatesIdApprove']>>>

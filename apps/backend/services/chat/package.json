@@ -13,22 +13,17 @@
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.1",
     "@ai-sdk/provider": "^4.0.0",
-    "@ai-sdk/workflow": "^1.0.4",
     "@backend/transport-ts": "workspace:*",
     "@hono/zod-validator": "^0.4.0",
-    "@workflow/serde": "^4.1.2",
-    "@workflow/world-postgres": "^4.2.0",
     "ai": "^7.0.4",
     "drizzle-orm": "^0.44.0",
     "hono": "^4.7.0",
     "ioredis": "^5.6.0",
     "mysql2": "^3.14.0",
-    "workflow": "^4.5.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",
-    "@vercel/ncc": "^0.38.4",
     "nitro": "^3.0.260610-beta",
     "rollup": "^4.62.2",
     "tsx": "^4.19.0",

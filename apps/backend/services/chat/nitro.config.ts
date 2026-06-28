@@ -1,7 +1,6 @@
 import { defineConfig } from "nitro";
 
 export default defineConfig({
-  modules: ["workflow/nitro"],
   // The runtime image copies only `.output` (no node_modules), so production
   // deps must be self-contained. Two distinct cases:
   //   - @backend/transport-ts is a source-only workspace package; inlining it

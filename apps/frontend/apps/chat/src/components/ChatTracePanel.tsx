@@ -20,7 +20,7 @@ import { useEffect, useState } from "react";
 
 export interface ChatTracePanelProps {
   conversationId: string;
-  workflowRunId: string;
+  runId: string;
   refreshKey: number;
 }
 
@@ -42,7 +42,7 @@ function toWorkflowStatus(status: string): WorkflowStatus {
 
 export function ChatTracePanel({
   conversationId,
-  workflowRunId,
+  runId,
   refreshKey,
 }: ChatTracePanelProps) {
   const [trace, setTrace] = useState<AgentRunTrace | null>(null);
@@ -51,7 +51,7 @@ export function ChatTracePanel({
   useEffect(() => {
     let active = true;
     setLoading(true);
-    fetchConversationAgentTrace(conversationId, workflowRunId)
+    fetchConversationAgentTrace(conversationId, runId)
       .then((next) => {
         if (active) setTrace(next);
       })
@@ -62,7 +62,7 @@ export function ChatTracePanel({
     return () => {
       active = false;
     };
-  }, [conversationId, workflowRunId, refreshKey]);
+  }, [conversationId, runId, refreshKey]);
 
   const renderStep = (step: AgentTraceStep) => (
     <Task key={step.id} status={toWorkflowStatus(step.status)}>

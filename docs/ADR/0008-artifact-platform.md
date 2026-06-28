@@ -1,6 +1,6 @@
 # ADR 0008: Chat 内核中的 Durable Artifact Tool
 
-- 状态：Accepted
+- 状态：Superseded by ADR-0010 and ADR-0011
 - 日期：2026-06-28
 
 ## 背景
@@ -70,4 +70,3 @@ PPT、报告和传统办公文档。`chat` 是统一 Agent Server，能力通过
 - child workflow 增加一次 orchestration 层，但换来 block 级 durable retry 和明确
   的父子取消关系。
 - 这是 demo 阶段的不兼容演进，不为字符切片旧路径保留长期 adapter。
-

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { latestCompletedToolOutput } from "./agent-state.js";
 import type { ToolContext } from "./agent-types.js";
 
 const planResultSchema = z.object({
@@ -75,9 +76,7 @@ export async function updatePlanTool(
   input: UpdatePlanInput,
   { context, toolCallId }: { context: ToolContext; toolCallId: string },
 ): Promise<PlanSnapshot> {
-  "use step";
   assertPlan(input);
-  const { latestCompletedToolOutput } = await import("./agent-state.js");
   const current = parsePlanSnapshot(await latestCompletedToolOutput(context.conversationId, "update_plan"));
   if (input.planId && current?.planId === input.planId && input.baseRevision !== current.revision) {
     throw new Error(`plan revision conflict: expected ${current.revision}, received ${input.baseRevision ?? "none"}`);

@@ -1,85 +1,47 @@
 # chat service (TypeScript)
 
-Conversation + durable agent runtime microservice. Consumes the knowledge service
-for documents and artifacts; owns conversations/messages plus business run
-observability tables.
+Conversation + agent runtime service. It owns conversation/message/run
+observability in MySQL and consumes admin (providers) plus knowledge
+(documents/artifacts) through `@backend/transport-ts`.
 
-## Owns
-- DB tables: `conversations`, `messages`, `agent_runs`, `agent_steps`,
-  `agent_tool_calls`, `user_memories`
-- Agent runtime (`@ai-sdk/workflow` `WorkflowAgent` hosted by Workflow DevKit)
-- Workflow stream resume via `WorkflowChatTransport`; Redis is not the replay
-  source for agent streams
-- HTTP API: `/conversations/*`, `/conversations/{id}/agents/run/stream`,
-  `/conversations/{id}/agents/run/stream/{workflowRunId}/stream`,
-  `/agents/run/cancel`
-- Externally: gateway `/api/chat-server/*`
+## Runtime contract
 
-## Agent tools
-- `list_documents` / `read_document` — knowledge-base context (sliced reads)
-- `analyze_image` — multimodal vision over an uploaded image (uses the
-  run's `multimodal_provider_id`; fetches raw bytes from knowledge
-  `/internal/documents/{id}/source`)
-- `update_plan` — persists the user-visible plan. The latest active snapshot is
-  restored into the next run so completed work is not repeated after refresh,
-  cancellation, or context pruning.
-- Artifact tools — Markdown uses `create_artifact`. HTML stays inside the main
-  WorkflowAgent: `begin_artifact` reserves a manifest, the main model calls
-  `write_artifact_part`, and `publish_artifact` compiles it. Artifact tools must
-  not start child workflows or call another model.
-- `update_artifact` — brief-driven in-place artifact revision; rewrites an existing
-  knowledge artifact and keeps the same `document_id`
-- `web_search` — public web lookup via Tavily
-- `propose_memory` — stages stable long-term memory as a pending candidate;
-  activation requires explicit asynchronous user approval in the memory panel
+- The core agent is AI SDK v7 `ToolLoopAgent`; the POST request owns one run.
+- `useChat.stop()` aborts that request. Propagate its `AbortSignal` into model,
+  search, multimodal, and nested artifact model calls.
+- Do not add pause/resume/replay state to the core chat path. Plans and messages
+  are durable business context; a later user run continues from that context.
+- `ask_user` is a client tool without `execute`. The browser supplies
+  `addToolOutput`; AI SDK automatically starts the next request.
+- Trace persistence is observability and must never fail generation.
 
-Artifacts persist to knowledge; tool results expose `document_id` for the UI.
-Large HTML source blocks and compiled revisions persist through knowledge's
-existing ObjectStore; neither Workflow state nor tool output carries the full
-document. LLM requests use bounded async I/O concurrency, not worker threads.
-Workflow completion writes assistant messages server-side so browser disconnects
-do not own final persistence. Completion text must never be empty; if the
-model does not produce final text, `src/services/chat-agent.ts` derives a
-deterministic summary from successful artifact tool results. `thinking` /
-`reasoning_effort` map to
-openai-compatible `providerOptions.reasoningEffort`; provider `extra_body` is
-merged as provider options by the workflow-serializable admin provider model.
-Do not pass `@ai-sdk/openai-compatible` models directly across workflow step
-boundaries: their function-valued config is dropped during workflow
-serialization.
+## Tools and artifacts
 
-Current migration note: the durable WorkflowAgent host is active for model
-streaming/resume/cancel. All workflow tools (`list_documents`, `read_document`,
-`web_search`, `create_artifact`, `update_artifact`, `analyze_image`) run inside
-workflow-safe `'use step'` functions. `ask_user` is a client-side tool with no
-`execute` function; the frontend must render its tool card and resume the agent
-with `addToolOutput`. Token-by-token artifact preview during generation and
-approval tools remain follow-up parity work.
+- `update_plan` snapshots are persisted in native UIMessage tool parts.
+- Markdown uses `create_artifact`.
+- Large HTML uses `begin_artifact` → bounded `write_artifact_part` calls →
+  `publish_artifact`. Knowledge/ObjectStore owns full content; chat history and
+  traces redact HTML fragments.
+- Artifact tools do not start nested agents/workflows. The main ToolLoopAgent
+  waits for every server tool execution before its next step.
+- `web_search` uses Tavily. `propose_memory` stages a candidate; user approval
+  remains asynchronous in the memory panel.
 
-## Does NOT own
-- Document storage / MarkItDown conversion (→ knowledge service)
-- User identity (→ iam / gateway headers)
-- Model provider credentials (→ admin internal API)
+## Boundaries
 
-## Cross-service clients
-- Chat calls admin/knowledge through `@backend/transport-ts` from
-  `apps/backend/libs/transport-ts`; do not add raw service URL `fetch()` calls
-  in chat.
-- `src/clients/admin.ts` and `src/clients/knowledge.ts` are chat-local facades
-  for cache and error mapping only. The HTTP paths, internal token injection,
-  timeout handling, and DTO shapes live in the transport client SDK.
-- Workflow code may only call these clients from `'use step'` functions; the
-  workflow sandbox itself has no network/Node access.
+- No direct imports from another service.
+- Service URLs, internal auth, DTOs and timeouts live in transport-ts clients;
+  chat-local clients only add cache/error mapping.
+- User identity belongs to iam, provider configuration to admin, and document /
+  artifact storage to knowledge.
 
 ## Entry points
-- `src/index.ts` — Nitro-hosted Hono app export
-- `src/routes/*.ts` — HTTP handlers
-- `src/services/agent-runtime.ts` — route-facing Workflow run helpers
-- `src/services/chat-agent.ts` — WorkflowAgent workflow function; keep this
-  module free of Node-only static imports
-- `src/gen-openapi.ts` — OpenAPI export (`just gen-openapi chat`)
 
-## Commands (from `apps/backend/`)
-- `just dev chat` — `pnpm dev` on port 8009
-- `just lint chat` — `tsc --noEmit`
-- `just gen-openapi chat` — writes `schemas/openapi/chat-server.json`
+- `src/routes/agents.ts` — run stream and trace routes
+- `src/services/agent-runtime.ts` — request/context/persistence boundary
+- `src/services/chat-agent.ts` — ToolLoopAgent construction
+- `src/services/agent-tools.ts` — tool registry
+- `src/gen-openapi.ts` — OpenAPI export
+
+Run from `apps/backend`: `just lint chat`, `just build chat`,
+`just gen-openapi chat`.

@@ -1,6 +1,13 @@
+import { generateText } from "ai";
 import { z } from "zod";
 
-import { askUserHook } from "./agent-hooks.js";
+import { getProvider } from "../clients/admin.js";
+import {
+  getDocumentSlice,
+  getDocumentSource,
+  listDocuments,
+} from "../clients/knowledge.js";
+import { getSettings } from "../config.js";
 import { updatePlanInputSchema, updatePlanTool } from "./agent-plan.js";
 import {
   beginArtifactTool,
@@ -11,11 +18,10 @@ import {
 } from "./agent-tool-artifacts.js";
 import { imageDataUrl } from "./agent-artifacts.js";
 import { createProviderModel } from "./agent-provider.js";
+import { createMemoryCandidate } from "./agent-state.js";
 import { toolContextSchema, type ToolContext } from "./agent-types.js";
 
 async function listDocumentsTool(_input: {}, { context }: { context: ToolContext }) {
-  "use step";
-  const { listDocuments } = await import("../clients/knowledge.js");
   const rows = await listDocuments(context.userId, context.conversationId);
   return {
     ok: true,
@@ -34,8 +40,6 @@ async function readDocumentTool(
   input: { document_id: string; start: number; max_chars: number },
   { context }: { context: ToolContext },
 ) {
-  "use step";
-  const { getDocumentSlice } = await import("../clients/knowledge.js");
   try {
     const slice = await getDocumentSlice(context.userId, input.document_id, input.start, input.max_chars);
     return {
@@ -55,9 +59,10 @@ async function readDocumentTool(
   }
 }
 
-async function webSearchTool(input: { query: string; max_results: number }) {
-  "use step";
-  const { getSettings } = await import("../config.js");
+async function webSearchTool(
+  input: { query: string; max_results: number },
+  { abortSignal }: { abortSignal?: AbortSignal },
+) {
   const settings = getSettings();
   if (!settings.tavilyApiKey) return { ok: false, error: "TAVILY_API_KEY is not configured" };
   try {
@@ -65,7 +70,9 @@ async function webSearchTool(input: { query: string; max_results: number }) {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${settings.tavilyApiKey}` },
       body: JSON.stringify({ query: input.query, max_results: input.max_results, search_depth: "advanced", include_answer: false, include_raw_content: false }),
-      signal: AbortSignal.timeout(45_000),
+      signal: abortSignal
+        ? AbortSignal.any([abortSignal, AbortSignal.timeout(45_000)])
+        : AbortSignal.timeout(45_000),
     });
     if (!response.ok) return { ok: false, error: `Tavily HTTP ${response.status}: ${(await response.text()).slice(0, 500)}` };
     const data = (await response.json()) as {
@@ -84,21 +91,16 @@ async function webSearchTool(input: { query: string; max_results: number }) {
       })),
     };
   } catch (err) {
+    if (abortSignal?.aborted) throw err;
     return { ok: false, error: String(err).slice(0, 500) };
   }
 }
 
 async function analyzeImageTool(
   input: { document_id: string; question: string },
-  { context }: { context: ToolContext },
+  { context, abortSignal }: { context: ToolContext; abortSignal?: AbortSignal },
 ) {
-  "use step";
   if (!context.multimodalProviderId) return { ok: false, error: "no multimodal provider configured for this run" };
-  const [{ getProvider }, { getDocumentSource }, { generateText }] = await Promise.all([
-    import("../clients/admin.js"),
-    import("../clients/knowledge.js"),
-    import("ai"),
-  ]);
   try {
     const provider = await getProvider(context.userId, context.multimodalProviderId);
     const { bytes, mimeType } = await getDocumentSource(context.userId, input.document_id);
@@ -107,19 +109,13 @@ async function analyzeImageTool(
       model: createProviderModel(provider),
       messages: [{ role: "user", content: [{ type: "text", text: input.question }, { type: "image", image: imageDataUrl(bytes, mimeType) }] }],
       timeout: { totalMs: 3 * 60_000, stepMs: 3 * 60_000 },
+      abortSignal,
     });
     return { ok: true, document_id: input.document_id, mime_type: mimeType, analysis: result.text.trim() || "No analysis returned." };
   } catch (err) {
+    if (abortSignal?.aborted) throw err;
     return { ok: false, error: String(err).slice(0, 500) };
   }
-}
-
-async function askUserTool(
-  _input: { question: string; choices: Array<{ label: string; value: string }>; mode: "single" | "multiple"; allow_freeform: boolean; freeform_label: string },
-  { toolCallId }: { toolCallId: string },
-) {
-  const answer = await askUserHook.create({ token: toolCallId });
-  return { ok: true, ...answer };
 }
 
 async function proposeMemoryTool(
@@ -130,8 +126,6 @@ async function proposeMemoryTool(
   },
   { context }: { context: ToolContext },
 ) {
-  "use step";
-  const { createMemoryCandidate } = await import("./agent-state.js");
   const candidate = await createMemoryCandidate({
     userId: context.userId,
     category: input.category,
@@ -151,7 +145,7 @@ async function proposeMemoryTool(
   };
 }
 
-export function buildWorkflowTools() {
+export function buildAgentTools() {
   return {
     update_plan: {
       description: "Create or update the durable user-visible plan for a complex multi-step task. Use full snapshots and preserve completed items.",
@@ -222,7 +216,8 @@ export function buildWorkflowTools() {
         allow_freeform: z.boolean().default(true),
         freeform_label: z.string().min(1).max(40).default("其他"),
       }),
-      execute: askUserTool,
+      // No server execute: useChat renders this client tool and posts the
+      // answer as tool output, which starts the next ToolLoopAgent request.
     },
     propose_memory: {
       description:
