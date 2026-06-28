@@ -1,15 +1,9 @@
-import { getWritable } from "workflow";
+import { createHash } from "node:crypto";
 
 import {
   artifactRevisionPrompt,
   artifactSystemPrompt,
-  composeHtmlArtifact,
-  htmlArtifactPrompt,
-  htmlArtifactSchema,
-  htmlArtifactSectionPrompt,
-  htmlArtifactSectionSystemPrompt,
   normalizeArtifactContent,
-  parseHtmlArtifactSections,
   resolveArtifactKind,
   safeFilename,
   type ArtifactKind,
@@ -18,18 +12,139 @@ import {
 import {
   ARTIFACT_GENERATION_TIMEOUT,
   ARTIFACT_CHUNKED_REVISION_THRESHOLD,
-  ARTIFACT_PREVIEW_MAX_CHARS,
   ARTIFACT_REVISION_CHUNK_CHARS,
-  ARTIFACT_STREAM_MIN_DELTA_CHARS,
-  ARTIFACT_STREAM_NAMESPACE,
 } from "./agent-config.js";
 import { createProviderModel } from "./agent-provider.js";
-import type { ArtifactStreamData, ToolContext } from "./agent-types.js";
+import type { ToolContext } from "./agent-types.js";
 
-async function buildArtifactTextModel(userId: string, providerId: string) {
+type ArtifactPartInput = {
+  planItemId: string;
+  partId: string;
+  type: string;
+  title: string;
+};
+
+export async function beginArtifactTool(
+  input: {
+    planId: string;
+    title: string;
+    filename: string;
+    mode: "document" | "presentation" | "dashboard";
+    theme: { preset: string; accent: string };
+    parts: ArtifactPartInput[];
+  },
+  { context, toolCallId }: { context: ToolContext; toolCallId: string },
+) {
+  "use step";
+  const { reserveArtifactGeneration, saveArtifactPlan } = await import("../clients/knowledge.js");
+  const filename = safeFilename(input.filename);
+  const generation = await reserveArtifactGeneration({
+    userId: context.userId,
+    conversationId: context.conversationId,
+    title: input.title,
+    filename,
+    mode: input.mode,
+    brief: `Plan ${input.planId}`,
+    idempotencyKey: toolCallId,
+  });
+  await saveArtifactPlan({
+    userId: context.userId,
+    generationId: generation.id,
+    manifest: { schemaVersion: 1, planId: input.planId, mode: input.mode, theme: input.theme, parts: input.parts },
+    blocks: input.parts.map((part) => ({ id: part.partId, type: part.type, brief: part.title })),
+  });
+  return {
+    ok: true,
+    generation_id: generation.id,
+    document_id: generation.document_id,
+    title: input.title,
+    filename,
+    mode: input.mode,
+    parts_total: input.parts.length,
+  };
+}
+
+export async function writeArtifactPartTool(
+  input: {
+    generationId: string;
+    planItemId: string;
+    partId: string;
+    type: string;
+    title: string;
+    content: string;
+  },
+  { context }: { context: ToolContext },
+) {
+  "use step";
+  const [{ saveArtifactBlock }, { sanitizeArtifactPart }] = await Promise.all([
+    import("../clients/knowledge.js"),
+    import("./artifact-compiler.js"),
+  ]);
+  const html = sanitizeArtifactPart(input.content);
+  if (!html) return { ok: false, error: "artifact part is empty", plan_item_id: input.planItemId };
+  await saveArtifactBlock({
+    userId: context.userId,
+    generationId: input.generationId,
+    blockId: input.partId,
+    content: JSON.stringify({ title: input.title, html }),
+  });
+  return {
+    ok: true,
+    generation_id: input.generationId,
+    plan_item_id: input.planItemId,
+    part_id: input.partId,
+    chars: html.length,
+    sha256: createHash("sha256").update(html).digest("hex"),
+  };
+}
+
+export async function publishArtifactTool(
+  input: {
+    generationId: string;
+    title: string;
+    filename: string;
+    mode: "document" | "presentation" | "dashboard";
+    theme: { preset: string; accent: string };
+    parts: Array<{ id: string; type: string; title: string }>;
+  },
+  { context }: { context: ToolContext },
+) {
+  "use step";
+  const [{ listArtifactBlocks, publishArtifactRevision }, { compileArtifactHtml }] = await Promise.all([
+    import("../clients/knowledge.js"),
+    import("./artifact-compiler.js"),
+  ]);
+  const stored = await listArtifactBlocks(context.userId, input.generationId);
+  const compiled = compileArtifactHtml({
+    title: input.title,
+    mode: input.mode,
+    theme: input.theme,
+    parts: input.parts,
+    stored,
+  });
+  const published = await publishArtifactRevision({
+    userId: context.userId,
+    generationId: input.generationId,
+    compiledHtml: compiled.html,
+  });
+  return {
+    ok: true,
+    status: "persisted",
+    document_id: published.document_id,
+    revision_id: published.revision_id,
+    title: published.title,
+    filename: published.filename,
+    kind: "html" as const,
+    total_chars: published.total_chars,
+    parts_ok: compiled.partsOk,
+    parts_failed: compiled.partsFailed,
+  };
+}
+
+export async function buildArtifactTextModel(userId: string, providerId: string) {
   const [
     { getProvider },
-    { extractJsonMiddleware, generateText, NoObjectGeneratedError, Output, streamText, wrapLanguageModel },
+    { extractJsonMiddleware, generateText, Output, streamText, wrapLanguageModel },
   ] = await Promise.all([import("../clients/admin.js"), import("ai")]);
   const provider = await getProvider(userId, providerId);
   const model = createProviderModel(provider, { disableReasoning: true });
@@ -37,106 +152,17 @@ async function buildArtifactTextModel(userId: string, providerId: string) {
     model,
     structuredModel: wrapLanguageModel({ model, middleware: extractJsonMiddleware() }),
     generateText,
-    NoObjectGeneratedError,
     Output,
     streamText,
   };
 }
 
-function artifactPreview(content: string): string {
-  return content.slice(-ARTIFACT_PREVIEW_MAX_CHARS);
-}
-
-async function writeArtifactSnapshot(
-  toolCallId: string,
-  meta: { title: string; filename: string; kind: ArtifactKind },
-  status: ArtifactStreamData["status"],
-  content: string,
-  documentId?: string,
-) {
-  try {
-    const writable = getWritable<{ type: string; id: string; data: ArtifactStreamData }>({
-      namespace: ARTIFACT_STREAM_NAMESPACE,
-    });
-    const writer = writable.getWriter();
-    try {
-      await writer.write({
-        type: "data-artifact",
-        id: toolCallId,
-        data: {
-          toolCallId,
-          status,
-          ...meta,
-          preview: artifactPreview(content),
-          generated_chars: content.length,
-          document_id: documentId,
-        },
-      });
-    } finally {
-      writer.releaseLock();
-    }
-  } catch (err) {
-    console.error("[chat-agent] artifact stream write failed", err);
-  }
-}
-
-async function streamArtifactContent(
-  toolCallId: string,
-  meta: { title: string; filename: string; kind: ArtifactKind },
+async function collectArtifactContent(
   result: { textStream: AsyncIterable<string> },
 ): Promise<string> {
   let raw = "";
-  let lastSentLength = 0;
-  for await (const delta of result.textStream) {
-    raw += delta;
-    if (raw.length - lastSentLength >= ARTIFACT_STREAM_MIN_DELTA_CHARS) {
-      lastSentLength = raw.length;
-      await writeArtifactSnapshot(toolCallId, meta, "generating", raw);
-    }
-  }
-  if (raw.length !== lastSentLength) {
-    await writeArtifactSnapshot(toolCallId, meta, "generating", raw);
-  }
-  return raw;
-}
-
-async function generateHtmlArtifactContent(
-  input: { title: string; brief: string },
-  tools: Awaited<ReturnType<typeof buildArtifactTextModel>>,
-): Promise<string> {
-  try {
-    const result = await tools.generateText({
-      model: tools.structuredModel,
-      output: tools.Output.object({ schema: htmlArtifactSchema }),
-      prompt: htmlArtifactPrompt(input.brief),
-      maxOutputTokens: 20_000,
-      timeout: ARTIFACT_GENERATION_TIMEOUT,
-    });
-    return composeHtmlArtifact(result.output, input.title);
-  } catch (err) {
-    const parsed =
-      tools.NoObjectGeneratedError.isInstance(err) && err.text
-        ? parseHtmlArtifactSections(err.text, input.title)
-        : null;
-    if (parsed) return composeHtmlArtifact(parsed, input.title);
-    console.warn("[chat-agent] structured HTML artifact generation failed; using section fallback", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-
-  const result = tools.streamText({
-    model: tools.model,
-    instructions: htmlArtifactSectionSystemPrompt(),
-    prompt: htmlArtifactSectionPrompt(input.brief),
-    maxOutputTokens: 20_000,
-    timeout: ARTIFACT_GENERATION_TIMEOUT,
-  });
-  let raw = "";
   for await (const delta of result.textStream) raw += delta;
-  raw = raw.trim();
-  if (!raw) throw new Error("HTML artifact generation returned empty content");
-  const parsed = parseHtmlArtifactSections(raw, input.title);
-  return parsed ? composeHtmlArtifact(parsed, input.title) : normalizeArtifactContent("html", raw);
+  return raw;
 }
 
 function splitRevisionChunks(content: string): string[] {
@@ -186,37 +212,34 @@ async function generateChunkedRevision(input: {
     let next = "";
     for await (const delta of result.textStream) next += delta;
     revised += next || chunk;
-    await writeArtifactSnapshot(input.toolCallId, input.meta, "generating", revised);
   }
   return revised;
 }
 
 export async function createArtifactTool(
-  input: { title: string; filename: string; kind: ArtifactKind; brief: string },
+  input: { title: string; filename: string; kind: ArtifactKind; mode?: "document" | "presentation" | "dashboard"; brief: string },
   { context, toolCallId }: { context: ToolContext; toolCallId: string },
 ) {
   "use step";
   const filename = safeFilename(input.filename);
   try {
+    if (input.kind === "html") {
+      return { ok: false, error: "HTML artifacts must use begin_artifact, write_artifact_part, and publish_artifact." };
+    }
+
     const [{ createArtifact }, artifactTools] = await Promise.all([
       import("../clients/knowledge.js"),
       buildArtifactTextModel(context.userId, context.providerId),
     ]);
-    let content: string;
-    if (input.kind === "html") {
-      content = await generateHtmlArtifactContent(input, artifactTools);
-      await writeArtifactSnapshot(toolCallId, { title: input.title, filename, kind: input.kind }, "generating", content);
-    } else {
-      const result = artifactTools.streamText({
-        model: artifactTools.model,
-        instructions: artifactSystemPrompt(input.kind),
-        prompt: input.brief,
-        timeout: ARTIFACT_GENERATION_TIMEOUT,
-      });
-      const raw = (await streamArtifactContent(toolCallId, { title: input.title, filename, kind: input.kind }, result)).trim();
-      if (!raw) return { ok: false, error: "artifact generation returned empty content" };
-      content = normalizeArtifactContent(input.kind, raw);
-    }
+    const result = artifactTools.streamText({
+      model: artifactTools.model,
+      instructions: artifactSystemPrompt(input.kind),
+      prompt: input.brief,
+      timeout: ARTIFACT_GENERATION_TIMEOUT,
+    });
+    const raw = (await collectArtifactContent(result)).trim();
+    if (!raw) return { ok: false, error: "artifact generation returned empty content" };
+    const content = normalizeArtifactContent(input.kind, raw);
     const validation = validateArtifactContent(input.kind, content);
     if (!validation.ok) return { ok: false, error: validation.error ?? "artifact validation failed" };
     const doc = await createArtifact({
@@ -225,10 +248,9 @@ export async function createArtifactTool(
       title: input.title,
       filename,
       content,
-      mimeType: input.kind === "html" ? "text/html" : "text/markdown",
+      mimeType: "text/markdown",
       idempotencyKey: toolCallId,
     });
-    await writeArtifactSnapshot(toolCallId, { title: input.title, filename, kind: input.kind }, "persisted", content, doc.id);
     return { ok: true, status: "persisted", document_id: doc.id, title: doc.title, filename: doc.filename, kind: input.kind, total_chars: content.length };
   } catch (err) {
     console.error("[chat-agent] create artifact failed", {
@@ -236,7 +258,6 @@ export async function createArtifactTool(
       kind: input.kind,
       error: err instanceof Error ? err.message : String(err),
     });
-    await writeArtifactSnapshot(toolCallId, { title: input.title, filename, kind: input.kind }, "error", "");
     return { ok: false, error: String(err).slice(0, 500) };
   }
 }
@@ -267,12 +288,6 @@ export async function updateArtifactTool(
         tools: artifactTools,
       });
       content = normalizeArtifactContent(artifactKind, content);
-    } else if (artifactKind === "html") {
-      content = await generateHtmlArtifactContent(
-        { title, brief: artifactRevisionPrompt(artifactKind, currentContent, input.brief) },
-        artifactTools,
-      );
-      await writeArtifactSnapshot(toolCallId, { title, filename, kind: artifactKind }, "generating", content);
     } else {
       const result = artifactTools.streamText({
         model: artifactTools.model,
@@ -280,7 +295,7 @@ export async function updateArtifactTool(
         prompt: artifactRevisionPrompt(artifactKind, currentContent, input.brief),
         timeout: ARTIFACT_GENERATION_TIMEOUT,
       });
-      const raw = (await streamArtifactContent(toolCallId, { title, filename, kind: artifactKind }, result)).trim();
+      const raw = (await collectArtifactContent(result)).trim();
       if (!raw) return { ok: false, error: "artifact revision returned empty content" };
       content = normalizeArtifactContent(artifactKind, raw);
     }
@@ -295,7 +310,6 @@ export async function updateArtifactTool(
       mimeType: artifactKind === "html" ? "text/html" : "text/markdown",
       expectedUpdatedAt: current.updated_at,
     });
-    await writeArtifactSnapshot(toolCallId, { title, filename, kind: artifactKind }, "persisted", content, doc.id);
     return { ok: true, status: "persisted", document_id: doc.id, title: doc.title, filename: doc.filename, kind: artifactKind, total_chars: content.length };
   } catch (err) {
     console.error("[chat-agent] update artifact failed", {
@@ -304,7 +318,6 @@ export async function updateArtifactTool(
       documentId: input.document_id,
       error: err instanceof Error ? err.message : String(err),
     });
-    await writeArtifactSnapshot(toolCallId, { title: input.title ?? "Artifact", filename: input.filename ? safeFilename(input.filename) : "artifact", kind: input.kind ?? "html" }, "error", "");
     return { ok: false, error: String(err).slice(0, 500) };
   }
 }

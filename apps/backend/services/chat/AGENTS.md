@@ -20,8 +20,13 @@ observability tables.
 - `analyze_image` — multimodal vision over an uploaded image (uses the
   run's `multimodal_provider_id`; fetches raw bytes from knowledge
   `/internal/documents/{id}/source`)
-- `create_artifact` — brief-driven markdown/html deliverable; tool runs a dedicated
-  `streamText` generation, normalizes content, then persists to knowledge
+- `update_plan` — persists the user-visible plan. The latest active snapshot is
+  restored into the next run so completed work is not repeated after refresh,
+  cancellation, or context pruning.
+- Artifact tools — Markdown uses `create_artifact`. HTML stays inside the main
+  WorkflowAgent: `begin_artifact` reserves a manifest, the main model calls
+  `write_artifact_part`, and `publish_artifact` compiles it. Artifact tools must
+  not start child workflows or call another model.
 - `update_artifact` — brief-driven in-place artifact revision; rewrites an existing
   knowledge artifact and keeps the same `document_id`
 - `web_search` — public web lookup via Tavily
@@ -29,12 +34,9 @@ observability tables.
   activation requires explicit asynchronous user approval in the memory panel
 
 Artifacts persist to knowledge; tool results expose `document_id` for the UI.
-Generated HTML uses a deterministic sandbox runtime: charts reference the
-application-provided, version-pinned ECharts global, while CSP blocks arbitrary
-remote scripts and network requests. Chart hosts must declare a concrete height.
-Structured-output incompatibility falls back to a section-envelope generation;
-artifact-local JavaScript errors render inside the preview and do not discard the
-otherwise valid HTML deliverable.
+Large HTML source blocks and compiled revisions persist through knowledge's
+existing ObjectStore; neither Workflow state nor tool output carries the full
+document. LLM requests use bounded async I/O concurrency, not worker threads.
 Workflow completion writes assistant messages server-side so browser disconnects
 do not own final persistence. Completion text must never be empty; if the
 model does not produce final text, `src/services/chat-agent.ts` derives a

@@ -181,10 +181,140 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/artifact-generations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reserve Generation */
+        post: operations["reserve_generation_internal_artifact_generations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/artifact-generations/{generation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Generation */
+        get: operations["get_generation_internal_artifact_generations__generation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/artifact-generations/{generation_id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save Plan */
+        put: operations["save_plan_internal_artifact_generations__generation_id__plan_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/artifact-generations/{generation_id}/blocks/{block_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save Block */
+        put: operations["save_block_internal_artifact_generations__generation_id__blocks__block_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/artifact-generations/{generation_id}/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Ready Blocks */
+        get: operations["list_ready_blocks_internal_artifact_generations__generation_id__blocks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/artifact-generations/{generation_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish Revision */
+        post: operations["publish_revision_internal_artifact_generations__generation_id__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ArtifactBlockPlan */
+        ArtifactBlockPlan: {
+            /** Id */
+            id: string;
+            /** Type */
+            type: string;
+            /** Brief */
+            brief: string;
+        };
+        /** ArtifactGeneration */
+        ArtifactGeneration: {
+            /** Id */
+            id: string;
+            /** Document Id */
+            document_id: string;
+            /** Status */
+            status: string;
+            /** Phase */
+            phase: string;
+            /** Total Blocks */
+            total_blocks: number;
+            /** Completed Blocks */
+            completed_blocks: number;
+            /** Failed Blocks */
+            failed_blocks: number;
+            /** Error */
+            error: string | null;
+        };
         /** Body_ingest_stream_ingest_stream_post */
         Body_ingest_stream_ingest_stream_post: {
             /** Files */
@@ -296,6 +426,83 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** PublishArtifactRevisionInput */
+        PublishArtifactRevisionInput: {
+            /** User Id */
+            user_id: string;
+            /** Compiled Html */
+            compiled_html: string;
+        };
+        /** PublishedArtifactRevision */
+        PublishedArtifactRevision: {
+            /** Document Id */
+            document_id: string;
+            /** Revision Id */
+            revision_id: string;
+            /** Title */
+            title: string;
+            /** Filename */
+            filename: string;
+            /**
+             * Mime Type
+             * @default text/html
+             */
+            mime_type: string;
+            /** Total Chars */
+            total_chars: number;
+        };
+        /** ReserveArtifactGenerationInput */
+        ReserveArtifactGenerationInput: {
+            /** User Id */
+            user_id: string;
+            /** Conversation Id */
+            conversation_id?: string | null;
+            /** Title */
+            title: string;
+            /** Filename */
+            filename: string;
+            /**
+             * Mode
+             * @default document
+             * @enum {string}
+             */
+            mode: "document" | "presentation" | "dashboard";
+            /** Brief */
+            brief: string;
+            /** Idempotency Key */
+            idempotency_key: string;
+            /** Base Revision Id */
+            base_revision_id?: string | null;
+        };
+        /** SaveArtifactBlockInput */
+        SaveArtifactBlockInput: {
+            /** User Id */
+            user_id: string;
+            /** Content */
+            content: string;
+        };
+        /** SaveArtifactPlanInput */
+        SaveArtifactPlanInput: {
+            /** User Id */
+            user_id: string;
+            /** Manifest */
+            manifest: {
+                [key: string]: unknown;
+            };
+            /** Blocks */
+            blocks: components["schemas"]["ArtifactBlockPlan"][];
+        };
+        /** StoredArtifactBlock */
+        StoredArtifactBlock: {
+            /** Id */
+            id: string;
+            /** Type */
+            type: string;
+            /** Position */
+            position: number;
+            /** Content */
+            content: string;
         };
         /** UpdateArtifactInput */
         UpdateArtifactInput: {
@@ -811,6 +1018,223 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Document"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reserve_generation_internal_artifact_generations_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReserveArtifactGenerationInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactGeneration"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_generation_internal_artifact_generations__generation_id__get: {
+        parameters: {
+            query: {
+                user_id: string;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                generation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactGeneration"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_plan_internal_artifact_generations__generation_id__plan_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                generation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveArtifactPlanInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactGeneration"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_block_internal_artifact_generations__generation_id__blocks__block_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                generation_id: string;
+                block_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveArtifactBlockInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactGeneration"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_ready_blocks_internal_artifact_generations__generation_id__blocks_get: {
+        parameters: {
+            query: {
+                user_id: string;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                generation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredArtifactBlock"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_revision_internal_artifact_generations__generation_id__publish_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                generation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishArtifactRevisionInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishedArtifactRevision"];
                 };
             };
             /** @description Validation Error */

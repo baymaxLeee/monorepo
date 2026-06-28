@@ -19,9 +19,10 @@ import { useState } from "react";
 import {
   ArtifactDocumentCard,
   parseArtifactOutput,
-  parseArtifactStreamData,
   StreamingArtifactCard,
 } from "./ChatArtifactCard";
+import type { PlanSnapshot } from "./ChatPlanCard";
+import { ChatPlanCard, parsePlanSnapshot } from "./ChatPlanCard";
 
 export interface ChatMessageViewProps {
   message: UIMessage;
@@ -33,6 +34,8 @@ export interface ChatMessageViewProps {
     toolCallId: string,
     output: unknown,
   ) => void;
+  onEditPlan?: (plan: PlanSnapshot) => void;
+  latestPlanToolCallId?: string | null;
 }
 
 export function ChatMessageView({
@@ -41,11 +44,29 @@ export function ChatMessageView({
   documents,
   onOpenArtifact,
   onAnswerClientTool,
+  onEditPlan,
+  latestPlanToolCallId,
 }: ChatMessageViewProps) {
   const reasoning = mergeReasoningParts(message.parts, {
     isMessageStreaming: streaming,
   });
-  const visibleParts = withoutReasoningParts(message.parts);
+  const allVisibleParts = withoutReasoningParts(message.parts);
+  const latestPlanIndex = allVisibleParts.reduce(
+    (latest, entry) =>
+      entry.part.type === "tool-update_plan" &&
+      entry.part.state === "output-available"
+        ? entry.index
+        : latest,
+    -1,
+  );
+  const visibleParts = allVisibleParts.filter(
+    (entry) =>
+      entry.part.type !== "tool-update_plan" ||
+      (entry.index === latestPlanIndex &&
+        (!latestPlanToolCallId ||
+          ("toolCallId" in entry.part &&
+            entry.part.toolCallId === latestPlanToolCallId))),
+  );
 
   return (
     <AiMessage from={message.role}>
@@ -68,6 +89,7 @@ export function ChatMessageView({
               documents={documents}
               onOpenArtifact={onOpenArtifact}
               onAnswerClientTool={onAnswerClientTool}
+              onEditPlan={onEditPlan}
             />
           ))}
         </div>
@@ -91,6 +113,7 @@ function MessagePartView({
   documents,
   onOpenArtifact,
   onAnswerClientTool,
+  onEditPlan,
 }: {
   part: UIMessage["parts"][number];
   streaming: boolean;
@@ -101,6 +124,7 @@ function MessagePartView({
     toolCallId: string,
     output: unknown,
   ) => void;
+  onEditPlan?: (plan: PlanSnapshot) => void;
 }) {
   if (part.type === "text") {
     return (
@@ -125,29 +149,18 @@ function MessagePartView({
     );
   }
 
-  if (part.type === "data-artifact") {
-    const streaming = parseArtifactStreamData(
-      "data" in part ? part.data : undefined,
-    );
-    if (streaming && streaming.status !== "persisted") {
-      return (
-        <StreamingArtifactCard
-          artifact={{
-            documentId: streaming.document_id ?? "",
-            status: streaming.status,
-            title: streaming.title,
-            filename: streaming.filename,
-            kind: streaming.kind,
-            content: streaming.preview,
-            totalChars: streaming.generated_chars,
-          }}
-        />
-      );
-    }
-    return null;
-  }
-
   if (isToolUIPart(part)) {
+    if (
+      getToolName(part) === "update_plan" &&
+      part.state === "output-available"
+    ) {
+      const plan = parsePlanSnapshot(
+        "output" in part ? part.output : undefined,
+      );
+      return plan ? (
+        <ChatPlanCard plan={plan} editable onEdit={onEditPlan} />
+      ) : null;
+    }
     return (
       <ToolPartView
         part={part}

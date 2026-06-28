@@ -26,6 +26,8 @@
 - 聊天框附件走 knowledge ingest；文档以 `source` 归属当前会话。
 - 发送消息走 AI SDK `useChat` + `WorkflowChatTransport`，POST 启动后端
   WorkflowAgent run，响应头 `x-workflow-run-id` 用于刷新后的 stream resume。
+  “暂停”只中断浏览器流，不取消 Workflow；恢复时删除未完成 assistant 内存快照并
+  从 index 0 重放 durable stream，让 UIMessage 的 text/tool start 与 delta 完整重建。
   当有附件时，MFE 先上传生成会话文档，再把 `document_ids[]` 传给 agent run。
 - Agent 可读取当前会话历史和文档，并通过 tool result 暴露 knowledge
   `artifact` 文档 id；artifact 详情仍按需从 knowledge 拉取。

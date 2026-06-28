@@ -1,4 +1,3 @@
-import { API_BASE_URL, apiHttp, request } from "./http";
 import type {
   ConversationDocument,
   ConversationDocumentDetail,
@@ -6,6 +5,7 @@ import type {
   StreamEventOptions,
   UpdateConversationDocumentInput,
 } from "./chat-server";
+import { API_BASE_URL, apiHttp, request } from "./http";
 
 const BASE = "/api/knowledge-server";
 
@@ -106,7 +106,8 @@ export function toConversationDocument(
     source_object_key: (doc.object_key as string | null) ?? null,
     source_sha256: (doc.object_sha256 as string | null) ?? null,
     source_filename: (doc.source_filename as string | null) ?? null,
-    ingest_status: (doc.ingest_status as ConversationDocument["ingest_status"]) ?? "ready",
+    ingest_status:
+      (doc.ingest_status as ConversationDocument["ingest_status"]) ?? "ready",
     ingest_progress: Number(doc.ingest_progress ?? 100),
     ingest_error: (doc.ingest_error as string | null) ?? null,
     created_at: String(doc.created_at),
@@ -144,7 +145,10 @@ export async function fetchKnowledgeDocument(
     method: "GET",
   });
   return {
-    ...toConversationDocument(doc, String(doc.conversation_id ?? _conversationId)),
+    ...toConversationDocument(
+      doc,
+      String(doc.conversation_id ?? _conversationId),
+    ),
     content_md: String(doc.content_md ?? ""),
   };
 }
@@ -160,7 +164,10 @@ export async function updateKnowledgeDocument(
     data: input,
   });
   return {
-    ...toConversationDocument(doc, String(doc.conversation_id ?? _conversationId)),
+    ...toConversationDocument(
+      doc,
+      String(doc.conversation_id ?? _conversationId),
+    ),
     content_md: String(doc.content_md ?? ""),
   };
 }
@@ -169,8 +176,14 @@ export function knowledgeDocumentSourceUrl(documentId: string): string {
   return `${API_BASE_URL}${BASE}/documents/${encodeURIComponent(documentId)}/source`;
 }
 
-export function isMediaConversationDocument(document: ConversationDocument): boolean {
-  const mime = (document.source_mime_type || document.mime_type || "").toLowerCase();
+export function isMediaConversationDocument(
+  document: ConversationDocument,
+): boolean {
+  const mime = (
+    document.source_mime_type ||
+    document.mime_type ||
+    ""
+  ).toLowerCase();
   return (
     mime.startsWith("image/") ||
     mime.startsWith("video/") ||

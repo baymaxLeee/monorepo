@@ -155,6 +155,7 @@ export type ArtifactPreviewProps = HTMLAttributes<HTMLDivElement> & {
   title: string;
   filename?: string;
   content: string;
+  src?: string;
   kind?: ArtifactPreviewKind;
   mimeType?: string;
   actions?: ReactNode;
@@ -183,6 +184,7 @@ export function ArtifactPreview({
   title,
   filename,
   content,
+  src,
   kind,
   mimeType,
   actions,
@@ -210,7 +212,8 @@ export function ArtifactPreview({
           <iframe
             title={title}
             sandbox="allow-scripts"
-            srcDoc={content}
+            src={src}
+            srcDoc={src ? undefined : content}
             className="h-full min-h-[60svh] w-full bg-white"
           />
         ) : resolvedKind === "markdown" ? (

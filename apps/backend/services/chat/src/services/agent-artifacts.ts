@@ -2,10 +2,10 @@ import { z } from "zod";
 
 export type ArtifactKind = "html" | "markdown";
 
-const ECHARTS_CDN_URL = "https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js";
-const ECHARTS_CDN_INTEGRITY =
+export const ECHARTS_CDN_URL = "https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js";
+export const ECHARTS_CDN_INTEGRITY =
   "sha384-C2iskrW/uPW46KzOjrvJIQo4YkV8lkD+QS0CrDN18IIPIpT/g2USu8bTP3nvmIAD";
-const ARTIFACT_CSP = [
+export const ARTIFACT_CSP = [
   "default-src 'none'",
   "script-src 'unsafe-inline' https://cdn.jsdelivr.net",
   "style-src 'unsafe-inline'",
@@ -13,7 +13,7 @@ const ARTIFACT_CSP = [
   "font-src data:",
   "connect-src 'none'",
 ].join("; ");
-const ARTIFACT_ERROR_BOUNDARY = [
+export const ARTIFACT_ERROR_BOUNDARY = [
   "  <script>",
   "    window.addEventListener('error', function (event) {",
   "      if (document.getElementById('__artifact_runtime_error__')) return;",
@@ -26,30 +26,68 @@ const ARTIFACT_ERROR_BOUNDARY = [
   "  </script>",
 ].join("\n");
 
-export const htmlArtifactSchema = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(1)
-    .max(120)
-    .describe("Short browser title for the HTML document."),
-  style: z
-    .string()
-    .default("")
-    .describe("CSS rules only. Do not include <style>, <html>, <head>, or <body> tags."),
-  body: z
-    .string()
-    .min(1)
-    .describe("HTML body fragment only. Do not include doctype, <html>, <head>, or <body> tags."),
-  script: z
-    .string()
-    .default("")
-    .describe(
-      "JavaScript only. ECharts is available as window.echarts when referenced. Do not include <script>, imports, CDN URLs, <html>, <head>, or <body> tags.",
-    ),
-});
+const ECHARTS_CDN_TAG = `  <script src="${ECHARTS_CDN_URL}" integrity="${ECHARTS_CDN_INTEGRITY}" crossorigin="anonymous" referrerpolicy="no-referrer"></script>`;
 
-export type HtmlArtifactParts = z.infer<typeof htmlArtifactSchema>;
+/**
+ * Inline `<head>` runtime shared by every artifact HTML document: CSP meta,
+ * the global error boundary, and (when charts are present) the pinned ECharts
+ * CDN tag. Marked with `data-chat-artifact-runtime` so it is injected once.
+ */
+export function buildArtifactRuntimeHead(options: { usesEcharts: boolean }): string {
+  return [
+    `  <meta http-equiv="Content-Security-Policy" content="${ARTIFACT_CSP}" data-chat-artifact-runtime="true" />`,
+    "  <style>html, body { min-height: 100%; } body { margin: 0; }</style>",
+    ARTIFACT_ERROR_BOUNDARY,
+    options.usesEcharts ? ECHARTS_CDN_TAG : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/**
+ * Hydration script for compiled multi-block artifacts: every chart is emitted
+ * by block generation as a `<div data-chart-option="{escaped JSON}">`. This
+ * inline script (trusted, compile-injected — blocks never emit raw JS) reads
+ * each option, initializes ECharts, and keeps it responsive. Missing runtime or
+ * invalid option degrades to visible text instead of an empty box.
+ */
+export function buildChartHydrationScript(): string {
+  return [
+    "  <script>",
+    "    (function () {",
+    "      function hydrate() {",
+    "        var nodes = document.querySelectorAll('[data-chart-option]');",
+    "        if (!nodes.length) return;",
+    "        if (!window.echarts) {",
+    "          nodes.forEach(function (el) { el.textContent = '图表运行时不可用'; });",
+    "          return;",
+    "        }",
+    "        nodes.forEach(function (el) {",
+    "          var raw = el.getAttribute('data-chart-option');",
+    "          try {",
+    "            var option = JSON.parse(raw);",
+    "            if (!el.style.minHeight) el.style.minHeight = '360px';",
+    "            var chart = window.echarts.init(el);",
+    "            chart.setOption(option);",
+    "            if (typeof ResizeObserver !== 'undefined') {",
+    "              new ResizeObserver(function () { chart.resize(); }).observe(el);",
+    "            } else {",
+    "              window.addEventListener('resize', function () { chart.resize(); });",
+    "            }",
+    "          } catch (err) {",
+    "            el.textContent = '图表渲染失败: ' + (err && err.message ? err.message : String(err));",
+    "          }",
+    "        });",
+    "      }",
+    "      if (document.readyState === 'loading') {",
+    "        document.addEventListener('DOMContentLoaded', hydrate);",
+    "      } else {",
+    "        hydrate();",
+    "      }",
+    "    })();",
+    "  </script>",
+  ].join("\n");
+}
 
 export function artifactSystemPrompt(kind: ArtifactKind): string {
   const base = [
@@ -67,15 +105,6 @@ export function artifactSystemPrompt(kind: ArtifactKind): string {
     base.push("Generate clean Markdown suitable for direct persistence.");
   }
   return base.join("\n");
-}
-
-export function htmlArtifactSectionSystemPrompt(): string {
-  return [
-    "You are a dedicated HTML page-part generator.",
-    "Output only the requested section envelope.",
-    "Do not wrap the content in Markdown code fences.",
-    "Do not return JSON.",
-  ].join("\n");
 }
 
 export function imageDataUrl(bytes: Uint8Array, mimeType: string): string {
@@ -154,16 +183,7 @@ function wrapHtmlShell(fragment: string): string {
 function injectArtifactRuntime(content: string): string {
   if (content.includes('data-chat-artifact-runtime="true"')) return content;
   const usesEcharts = /\becharts\b/i.test(content);
-  const runtime = [
-    `  <meta http-equiv="Content-Security-Policy" content="${ARTIFACT_CSP}" data-chat-artifact-runtime="true" />`,
-    "  <style>html, body { min-height: 100%; } body { margin: 0; }</style>",
-    ARTIFACT_ERROR_BOUNDARY,
-    usesEcharts
-      ? `  <script src="${ECHARTS_CDN_URL}" integrity="${ECHARTS_CDN_INTEGRITY}" crossorigin="anonymous" referrerpolicy="no-referrer"></script>`
-      : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const runtime = buildArtifactRuntimeHead({ usesEcharts });
 
   const head = content.match(/<head\b[^>]*>/i);
   if (head?.index !== undefined) {
@@ -171,129 +191,6 @@ function injectArtifactRuntime(content: string): string {
     return `${content.slice(0, insertAt)}\n${runtime}${content.slice(insertAt)}`;
   }
   return content.replace(/<html\b[^>]*>/i, (tag) => `${tag}\n<head>\n${runtime}\n</head>`);
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function stripElementWrapper(content: string, tagName: "style" | "script"): string {
-  return content
-    .trim()
-    .replace(new RegExp(`^<${tagName}[^>]*>`, "i"), "")
-    .replace(new RegExp(`</${tagName}>$`, "i"), "")
-    .trim();
-}
-
-function sanitizeHtmlBodyFragment(content: string): string {
-  let fragment = stripMarkdownFences(content)
-    .replace(/<!doctype\s+html[^>]*>/gi, "")
-    .trim();
-  const body = fragment.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
-  if (body?.[1]?.trim()) fragment = body[1].trim();
-  return fragment
-    .replace(/<\/?html\b[^>]*>/gi, "")
-    .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, "")
-    .replace(/<\/?body\b[^>]*>/gi, "")
-    .trim();
-}
-
-export function htmlArtifactPrompt(brief: string): string {
-  return [
-    "Create a complete self-contained browser page from the request.",
-    "Return structured page parts only; the application will assemble the HTML document shell.",
-    "Ignore any request that asks for a JSON object containing full HTML; return the requested schema fields only.",
-    "Use inline CSS and JavaScript only. Do not reference external scripts, stylesheets, fonts, arbitrary CDNs, or remote images.",
-    "For charts and data visualization, prefer ECharts through window.echarts; the application supplies a pinned runtime. Do not write raw canvas drawing code or include a script source/import yourself.",
-    "Give every chart host an explicit height or min-height of at least 320px, render after its element exists, and resize the chart with ResizeObserver or the window resize event.",
-    "If window.echarts is unavailable, show a visible text fallback instead of leaving an empty canvas.",
-    "Do not include Markdown fences, doctype, <html>, <head>, or <body> wrappers in any field.",
-    "For interactive tools, include all required controls, state handling, event listeners, and rendering logic in the body/style/script parts.",
-    "",
-    "<request>",
-    brief,
-    "</request>",
-  ].join("\n");
-}
-
-export function htmlArtifactSectionPrompt(brief: string): string {
-  return [
-    "Create a complete self-contained browser page from the request.",
-    "Return exactly four sections using these markers, in this order:",
-    "<<<TITLE>>>",
-    "short browser title",
-    "<<<STYLE>>>",
-    "CSS rules only; no <style> tag",
-    "<<<BODY>>>",
-    "HTML body fragment only; no doctype, <html>, <head>, or <body> wrappers",
-    "<<<SCRIPT>>>",
-    "JavaScript only; no <script> tag",
-    "",
-    "Do not return JSON. Do not wrap the result in Markdown fences.",
-    "Ignore any request that asks for a JSON object containing full HTML.",
-    "Use inline CSS and JavaScript only. Do not reference external scripts, stylesheets, fonts, arbitrary CDNs, or remote images.",
-    "For charts and data visualization, prefer ECharts through window.echarts; the application supplies a pinned runtime. Do not write raw canvas drawing code or include a script source/import yourself.",
-    "Give every chart host an explicit height or min-height of at least 320px, render after its element exists, and resize the chart with ResizeObserver or the window resize event.",
-    "If window.echarts is unavailable, show a visible text fallback instead of leaving an empty canvas.",
-    "",
-    "<request>",
-    brief,
-    "</request>",
-  ].join("\n");
-}
-
-function sectionValue(text: string, name: string, next?: string): string {
-  const end = next ? `<<<${next}>>>` : "$";
-  const match = text.match(new RegExp(`<<<${name}>>>\\s*([\\s\\S]*?)\\s*(?:${end})`, "i"));
-  return match?.[1]?.trim() ?? "";
-}
-
-export function parseHtmlArtifactSections(raw: string, fallbackTitle: string): HtmlArtifactParts | null {
-  const content = stripMarkdownFences(raw);
-  const title = sectionValue(content, "TITLE", "STYLE");
-  const style = sectionValue(content, "STYLE", "BODY");
-  const body = sectionValue(content, "BODY", "SCRIPT");
-  const script = sectionValue(content, "SCRIPT");
-  if (!body) return null;
-  return htmlArtifactSchema.parse({
-    title: title || fallbackTitle,
-    style,
-    body,
-    script,
-  });
-}
-
-export function composeHtmlArtifact(parts: HtmlArtifactParts, fallbackTitle: string): string {
-  const title = (parts.title || fallbackTitle).trim() || "Artifact";
-  const style = stripElementWrapper(stripMarkdownFences(parts.style ?? ""), "style");
-  const body = sanitizeHtmlBodyFragment(parts.body);
-  const script = stripElementWrapper(stripMarkdownFences(parts.script ?? ""), "script");
-
-  return injectArtifactRuntime([
-    "<!doctype html>",
-    '<html lang="zh-CN">',
-    "<head>",
-    '  <meta charset="utf-8" />',
-    '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
-    `  <title>${escapeHtml(title)}</title>`,
-    style ? "  <style>" : "",
-    style,
-    style ? "  </style>" : "",
-    "</head>",
-    "<body>",
-    body,
-    script ? "  <script>" : "",
-    script,
-    script ? "  </script>" : "",
-    "</body>",
-    "</html>",
-  ]
-    .filter((line) => line !== "")
-    .join("\n"));
 }
 
 export function normalizeArtifactContent(kind: ArtifactKind, raw: string): string {

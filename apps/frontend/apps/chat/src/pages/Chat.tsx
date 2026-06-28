@@ -11,6 +11,7 @@ import {
   conversationAgentStreamUrl,
   fetchConversation,
   fetchConversationDocument,
+  fetchConversationDocumentSource,
   resumeConversationAgentAskUser,
 } from "api";
 import {
@@ -50,6 +51,10 @@ import { useParams } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 import { ChatComposerControls } from "../components/ChatComposerControls";
 import { ChatMessageView } from "../components/ChatMessageView";
+import {
+  type PlanSnapshot,
+  parsePlanSnapshot,
+} from "../components/ChatPlanCard";
 import { ChatTracePanel } from "../components/ChatTracePanel";
 import { MemoryPanel } from "../components/MemoryPanel";
 import { useChatStore } from "../store/useChatStore";
@@ -104,6 +109,9 @@ export function Chat() {
     null,
   );
   const [artifactLoading, setArtifactLoading] = useState(false);
+  const [artifactPreviewUrl, setArtifactPreviewUrl] = useState<string | null>(
+    null,
+  );
   const [activeWorkflowRunId, setActiveWorkflowRunId] = useState<string | null>(
     id ? readStoredWorkflowRunId(id) : null,
   );
@@ -151,6 +159,13 @@ export function Chat() {
     if (!providers) void loadProviders();
   }, [providers, loadProviders]);
 
+  useEffect(
+    () => () => {
+      if (artifactPreviewUrl) URL.revokeObjectURL(artifactPreviewUrl);
+    },
+    [artifactPreviewUrl],
+  );
+
   useEffect(() => {
     void refreshCandidates();
     const timer = window.setInterval(() => {
@@ -178,7 +193,9 @@ export function Chat() {
         api: id
           ? conversationAgentStreamUrl(id)
           : "/api/chat-server/conversations/missing/agents/run/stream",
-        initialStartIndex: -50,
+        // Manual resume must rebuild the unfinished UIMessage. A tail-only
+        // replay can start at a delta without its text/tool start chunk.
+        initialStartIndex: 0,
         maxConsecutiveErrors: 3,
         onChatSendMessage: (response) => {
           const workflowRunId = response.headers.get("x-workflow-run-id");
@@ -242,6 +259,22 @@ export function Chat() {
         });
       },
     });
+
+  const latestPlanToolCallId = useMemo(() => {
+    let latest: string | null = null;
+    for (const message of messages) {
+      for (const part of message.parts) {
+        if (
+          part.type !== "tool-update_plan" ||
+          part.state !== "output-available"
+        )
+          continue;
+        if (parsePlanSnapshot("output" in part ? part.output : undefined))
+          latest = part.toolCallId;
+      }
+    }
+    return latest;
+  }, [messages]);
 
   const busy = isRunning(status);
   const canResume = !busy && activeWorkflowRunId != null;
@@ -314,9 +347,50 @@ export function Chat() {
     ).catch((error) => toast.error(String(error)));
   }
 
+  async function editPlan(plan: PlanSnapshot) {
+    if (!id) return;
+    const workflowRunId = readStoredWorkflowRunId(id);
+    if (workflowRunId) {
+      pausedByUserRef.current = true;
+      stop();
+      await cancelConversationAgent(
+        id,
+        workflowRunId,
+        latestAssistantMessage(),
+      );
+      clearWorkflowRunId();
+      const next = await fetchConversation(id);
+      setDetail(next);
+      setMessages(next.messages.map(messageToUiMessage));
+    }
+    void sendMessage(
+      {
+        parts: [
+          { type: "text", text: "请按我编辑后的计划继续执行。" },
+          {
+            type: "data-plan-edit",
+            data: {
+              planId: plan.planId,
+              baseRevision: plan.revision,
+              goal: plan.goal,
+              items: plan.items,
+            },
+          },
+        ],
+      },
+      { body: requestBody },
+    ).catch((error) => toast.error(String(error)));
+  }
+
   function pauseRun() {
     pausedByUserRef.current = true;
     stop();
+  }
+
+  function resetUnfinishedAssistantForReplay() {
+    setMessages((current) =>
+      current.at(-1)?.role === "assistant" ? current.slice(0, -1) : current,
+    );
   }
 
   async function answerClientTool(
@@ -329,6 +403,7 @@ export function Chat() {
     if (!workflowRunId) throw new Error("no active workflow run");
     pausedByUserRef.current = false;
     await resumeConversationAgentAskUser(id, workflowRunId, toolCallId, output);
+    resetUnfinishedAssistantForReplay();
     await resumeStream();
   }
 
@@ -362,6 +437,10 @@ export function Chat() {
     if (!workflowRunId) return;
     pausedByUserRef.current = false;
     setActiveWorkflowRunId(workflowRunId);
+    // The transport does not expose the absolute cursor after a user abort.
+    // Remove only the unfinished assistant snapshot, then replay the durable
+    // stream from zero so AI SDK can rebuild all text/tool part state.
+    resetUnfinishedAssistantForReplay();
     void resumeStream().catch((error) => toast.error(String(error)));
   }
 
@@ -369,8 +448,16 @@ export function Chat() {
     if (!id) return;
     setArtifactOpen(true);
     setArtifactLoading(true);
+    if (artifactPreviewUrl) URL.revokeObjectURL(artifactPreviewUrl);
+    setArtifactPreviewUrl(null);
     fetchConversationDocument(id, documentId)
-      .then(setArtifact)
+      .then(async (document) => {
+        setArtifact(document);
+        if (document.mime_type === "text/html") {
+          const blob = await fetchConversationDocumentSource(id, documentId);
+          setArtifactPreviewUrl(URL.createObjectURL(blob));
+        }
+      })
       .catch((error) => toast.error(String(error)))
       .finally(() => setArtifactLoading(false));
   }
@@ -445,6 +532,12 @@ export function Chat() {
                       (error) => toast.error(String(error)),
                     );
                   }}
+                  onEditPlan={(plan) => {
+                    void editPlan(plan).catch((error) =>
+                      toast.error(String(error)),
+                    );
+                  }}
+                  latestPlanToolCallId={latestPlanToolCallId}
                 />
               ))
             )}
@@ -533,6 +626,7 @@ export function Chat() {
                 filename={artifact.filename}
                 mimeType={artifact.mime_type}
                 content={artifact.content_md}
+                src={artifactPreviewUrl ?? undefined}
                 showHeader={false}
                 className="h-full rounded-none border-0 shadow-none"
               />

@@ -15,6 +15,10 @@ export type KnowledgeDocument = Omit<
   source_mime_type: string | null;
 };
 export type DocumentSlice = components["schemas"]["DocumentSlice"];
+export type ArtifactGeneration = components["schemas"]["ArtifactGeneration"];
+export type ArtifactBlockPlan = components["schemas"]["ArtifactBlockPlan"];
+export type PublishedArtifactRevision = components["schemas"]["PublishedArtifactRevision"];
+export type StoredArtifactBlock = components["schemas"]["StoredArtifactBlock"];
 
 export interface KnowledgeClientOptions {
   baseUrl: string;
@@ -135,6 +139,101 @@ export class KnowledgeInternalClient {
         },
       }),
       normalizeDocument,
+    );
+  }
+
+  reserveArtifactGeneration(input: {
+    userId: string;
+    conversationId?: string;
+    title: string;
+    filename: string;
+    mode: "document" | "presentation" | "dashboard";
+    brief: string;
+    idempotencyKey: string;
+    baseRevisionId?: string;
+  }): Promise<ArtifactGeneration> {
+    return this.unwrap(
+      this.client.POST("/internal/artifact-generations", {
+        body: {
+          user_id: input.userId,
+          conversation_id: input.conversationId,
+          title: input.title,
+          filename: input.filename,
+          mode: input.mode,
+          brief: input.brief,
+          idempotency_key: input.idempotencyKey,
+          base_revision_id: input.baseRevisionId,
+        },
+      }),
+    );
+  }
+
+  getArtifactGeneration(input: {
+    userId: string;
+    generationId: string;
+  }): Promise<ArtifactGeneration> {
+    return this.unwrap(
+      this.client.GET("/internal/artifact-generations/{generation_id}", {
+        params: {
+          path: { generation_id: input.generationId },
+          query: { user_id: input.userId },
+        },
+      }),
+    );
+  }
+
+  saveArtifactPlan(input: {
+    userId: string;
+    generationId: string;
+    manifest: Record<string, unknown>;
+    blocks: ArtifactBlockPlan[];
+  }): Promise<ArtifactGeneration> {
+    return this.unwrap(
+      this.client.PUT("/internal/artifact-generations/{generation_id}/plan", {
+        params: { path: { generation_id: input.generationId } },
+        body: { user_id: input.userId, manifest: input.manifest, blocks: input.blocks },
+      }),
+    );
+  }
+
+  saveArtifactBlock(input: {
+    userId: string;
+    generationId: string;
+    blockId: string;
+    content: string;
+  }): Promise<ArtifactGeneration> {
+    return this.unwrap(
+      this.client.PUT("/internal/artifact-generations/{generation_id}/blocks/{block_id}", {
+        params: { path: { generation_id: input.generationId, block_id: input.blockId } },
+        body: { user_id: input.userId, content: input.content },
+      }),
+    );
+  }
+
+  listArtifactBlocks(input: {
+    userId: string;
+    generationId: string;
+  }): Promise<StoredArtifactBlock[]> {
+    return this.unwrap(
+      this.client.GET("/internal/artifact-generations/{generation_id}/blocks", {
+        params: {
+          path: { generation_id: input.generationId },
+          query: { user_id: input.userId },
+        },
+      }),
+    );
+  }
+
+  publishArtifactRevision(input: {
+    userId: string;
+    generationId: string;
+    compiledHtml: string;
+  }): Promise<PublishedArtifactRevision> {
+    return this.unwrap(
+      this.client.POST("/internal/artifact-generations/{generation_id}/publish", {
+        params: { path: { generation_id: input.generationId } },
+        body: { user_id: input.userId, compiled_html: input.compiledHtml },
+      }),
     );
   }
 

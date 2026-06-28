@@ -18,6 +18,8 @@ export type ArtifactOutput = {
   kind: string;
   content: string;
   totalChars?: number;
+  blocksTotal?: number;
+  blocksDone?: number;
 };
 
 export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
@@ -55,6 +57,8 @@ export type ArtifactStreamData = {
   preview: string;
   generated_chars: number;
   document_id?: string;
+  blocks_total?: number;
+  blocks_done?: number;
 };
 
 export function parseArtifactStreamData(
@@ -77,6 +81,10 @@ export function parseArtifactStreamData(
       typeof raw.generated_chars === "number" ? raw.generated_chars : 0,
     document_id:
       typeof raw.document_id === "string" ? raw.document_id : undefined,
+    blocks_total:
+      typeof raw.blocks_total === "number" ? raw.blocks_total : undefined,
+    blocks_done:
+      typeof raw.blocks_done === "number" ? raw.blocks_done : undefined,
   };
 }
 
@@ -85,6 +93,8 @@ export function StreamingArtifactCard({
 }: {
   artifact: ArtifactOutput;
 }) {
+  const hasBlockProgress =
+    typeof artifact.blocksTotal === "number" && artifact.blocksTotal > 0;
   return (
     <Artifact>
       <ArtifactHeader>
@@ -92,7 +102,11 @@ export function StreamingArtifactCard({
           <ArtifactTitle className="truncate">{artifact.title}</ArtifactTitle>
           <ArtifactDescription className="truncate">
             {artifact.kind} · {artifact.filename} · {artifact.status}
-            {artifact.totalChars ? ` · ${artifact.totalChars} chars` : ""}
+            {hasBlockProgress
+              ? ` · 已生成 ${artifact.blocksDone ?? 0}/${artifact.blocksTotal} 页`
+              : artifact.totalChars
+                ? ` · ${artifact.totalChars} chars`
+                : ""}
           </ArtifactDescription>
         </div>
       </ArtifactHeader>

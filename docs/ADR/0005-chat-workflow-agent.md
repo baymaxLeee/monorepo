@@ -75,6 +75,11 @@ Accepted — 2026-06
   write; concurrent changes fail instead of being silently overwritten.
 - Conversation history remains in native model messages. Historical user text
   is never copied into agent instructions.
+- A user pause aborts only the browser stream and leaves the Workflow run
+  active. Manual resume currently discards the unfinished in-memory assistant
+  snapshot and replays the durable stream from index zero. Tail-only replay is
+  invalid because UIMessage text/tool deltas cannot hydrate without their start
+  chunks, and the main/artifact namespaces do not yet share one cursor.
 - Demo phase still skips new test scaffolding; verification is lint/build plus
   manual run/resume/crash/cancel scenarios.
 

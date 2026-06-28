@@ -21,6 +21,33 @@ function stepCountAtLeast(limit: number) {
   return ({ steps }: { steps: readonly unknown[] }) => steps.length >= limit;
 }
 
+function pruneArtifactWrites<T extends readonly unknown[]>(messages: T): T {
+  const removableCalls = new Set<string>();
+  for (const message of messages.slice(0, -2)) {
+    if (!message || typeof message !== "object" || !("content" in message)) continue;
+    const content = (message as { content?: unknown }).content;
+    if (!Array.isArray(content)) continue;
+    for (const part of content) {
+      if (!part || typeof part !== "object") continue;
+      const row = part as Record<string, unknown>;
+      if (row.type === "tool-call" && row.toolName === "write_artifact_part" && typeof row.toolCallId === "string") {
+        removableCalls.add(row.toolCallId);
+      }
+    }
+  }
+  return messages.map((message, index) => {
+    if (index >= messages.length - 2 || !message || typeof message !== "object" || !("content" in message)) return message;
+    const content = (message as { content?: unknown }).content;
+    if (!Array.isArray(content)) return message;
+    const compact = content.filter((part) => {
+      if (!part || typeof part !== "object") return true;
+      const row = part as Record<string, unknown>;
+      return !(typeof row.toolCallId === "string" && removableCalls.has(row.toolCallId));
+    });
+    return { ...message, content: compact };
+  }) as unknown as T;
+}
+
 export async function runChatAgent(input: ChatWorkflowInput): Promise<{ text: string }> {
   "use workflow";
 
@@ -40,14 +67,21 @@ export async function runChatAgent(input: ChatWorkflowInput): Promise<{ text: st
     instructions: input.instructions,
     tools,
     toolsContext: {
+      update_plan: toolContext,
       list_documents: toolContext,
       read_document: toolContext,
       web_search: toolContext,
       create_artifact: toolContext,
+      begin_artifact: toolContext,
+      write_artifact_part: toolContext,
+      publish_artifact: toolContext,
       update_artifact: toolContext,
       analyze_image: toolContext,
       propose_memory: toolContext,
     },
+    prepareStep: ({ messages }) => ({
+      messages: pruneArtifactWrites(messages),
+    }),
     experimental_onStepStart: (event) =>
       startModelStep({ runId: input.runId, stepNumber: event.stepNumber, model: provider.model }),
     onStepEnd: (event) =>

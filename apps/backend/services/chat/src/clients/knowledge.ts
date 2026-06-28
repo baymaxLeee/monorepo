@@ -2,12 +2,17 @@ import {
   KnowledgeInternalClient,
   TransportError,
   type DocumentSlice,
+  type ArtifactBlockPlan,
+  type ArtifactGeneration,
   type KnowledgeDocument,
+  type PublishedArtifactRevision,
+  type StoredArtifactBlock,
 } from "@backend/transport-ts";
 import { getSettings } from "../config.js";
 import { NotFoundError } from "../lib/errors.js";
 
 export type { DocumentSlice, KnowledgeDocument } from "@backend/transport-ts";
+export type { ArtifactBlockPlan, ArtifactGeneration, PublishedArtifactRevision, StoredArtifactBlock } from "@backend/transport-ts";
 
 function knowledgeClient(): KnowledgeInternalClient {
   const s = getSettings();
@@ -95,4 +100,57 @@ export async function updateArtifact(input: {
     }
     throw err;
   }
+}
+
+export async function reserveArtifactGeneration(input: {
+  userId: string;
+  conversationId: string;
+  title: string;
+  filename: string;
+  mode: "document" | "presentation" | "dashboard";
+  brief: string;
+  idempotencyKey: string;
+  baseRevisionId?: string;
+}): Promise<ArtifactGeneration> {
+  return knowledgeClient().reserveArtifactGeneration(input);
+}
+
+export async function getArtifactGeneration(
+  userId: string,
+  generationId: string,
+): Promise<ArtifactGeneration> {
+  return knowledgeClient().getArtifactGeneration({ userId, generationId });
+}
+
+export async function saveArtifactPlan(input: {
+  userId: string;
+  generationId: string;
+  manifest: Record<string, unknown>;
+  blocks: ArtifactBlockPlan[];
+}): Promise<ArtifactGeneration> {
+  return knowledgeClient().saveArtifactPlan(input);
+}
+
+export async function saveArtifactBlock(input: {
+  userId: string;
+  generationId: string;
+  blockId: string;
+  content: string;
+}): Promise<ArtifactGeneration> {
+  return knowledgeClient().saveArtifactBlock(input);
+}
+
+export async function listArtifactBlocks(
+  userId: string,
+  generationId: string,
+): Promise<StoredArtifactBlock[]> {
+  return knowledgeClient().listArtifactBlocks({ userId, generationId });
+}
+
+export async function publishArtifactRevision(input: {
+  userId: string;
+  generationId: string;
+  compiledHtml: string;
+}): Promise<PublishedArtifactRevision> {
+  return knowledgeClient().publishArtifactRevision(input);
 }

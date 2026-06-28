@@ -322,6 +322,25 @@ export async function listRunToolCalls(runId: string): Promise<PersistedToolCall
   }));
 }
 
+export async function latestCompletedToolOutput(
+  conversationId: string,
+  toolName: string,
+): Promise<unknown | null> {
+  "use step";
+  const [row] = await getDb()
+    .select({ output: agentToolCalls.outputJson })
+    .from(agentToolCalls)
+    .innerJoin(agentRuns, eq(agentRuns.id, agentToolCalls.runId))
+    .where(and(
+      eq(agentRuns.conversationId, conversationId),
+      eq(agentToolCalls.toolName, toolName),
+      eq(agentToolCalls.status, "completed"),
+    ))
+    .orderBy(sql`${agentToolCalls.finishedAt} DESC`)
+    .limit(1);
+  return row?.output ?? null;
+}
+
 export type MemoryStatus = "pending" | "active" | "rejected" | "superseded";
 
 export interface UserMemory {

@@ -7,3 +7,10 @@ allowBuilds:
   "@swc/core": false
   cbor-extract: false
   esbuild: false
+
+minimumReleaseAgeExclude:
+  - '@ai-sdk/gateway@4.0.4'
+  - '@ai-sdk/openai-compatible@3.0.1'
+  - '@ai-sdk/provider-utils@5.0.1'
+  - '@ai-sdk/workflow@1.0.4'
+  - ai@7.0.4

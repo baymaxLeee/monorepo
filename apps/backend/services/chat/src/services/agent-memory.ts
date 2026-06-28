@@ -109,7 +109,7 @@ export async function extractMemoryCandidates(input: ExtractMemoryInput): Promis
     const result = await generateText({
       model: structuredModel,
       output: Output.object({ schema: extractionSchema }),
-      system: extractionInstructions(),
+      instructions: extractionInstructions(),
       prompt: buildExtractionPrompt({ conversationText, existingMemories: existingForPrompt }),
       maxOutputTokens: 1200,
       timeout: { totalMs: 60_000, stepMs: 60_000 },

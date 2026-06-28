@@ -39,19 +39,27 @@ function contentPartToAssistantPart(
         ? { type: "source-url", sourceId: part.id, url: part.url, title: part.title }
         : null;
     case "tool-call": {
+      const persistedInput = sanitizePersistedToolInput(part.toolName, part.input);
       const error = errors.get(part.toolCallId);
       if (error && "error" in error) {
-        return { type: `tool-${part.toolName}`, toolCallId: part.toolCallId, state: "output-error", input: part.input, errorText: String((error as { error: unknown }).error).slice(0, 2000) };
+        return { type: `tool-${part.toolName}`, toolCallId: part.toolCallId, state: "output-error", input: persistedInput, errorText: String((error as { error: unknown }).error).slice(0, 2000) };
       }
       const result = results.get(part.toolCallId);
       if (result && "output" in result) {
-        return { type: `tool-${part.toolName}`, toolCallId: part.toolCallId, state: "output-available", input: part.input, output: (result as { output: unknown }).output };
+        return { type: `tool-${part.toolName}`, toolCallId: part.toolCallId, state: "output-available", input: persistedInput, output: (result as { output: unknown }).output };
       }
-      return { type: `tool-${part.toolName}`, toolCallId: part.toolCallId, state: "input-available", input: part.input };
+      return { type: `tool-${part.toolName}`, toolCallId: part.toolCallId, state: "input-available", input: persistedInput };
     }
     default:
       return null;
   }
+}
+
+function sanitizePersistedToolInput(toolName: string, input: unknown): unknown {
+  if (toolName !== "write_artifact_part" || !input || typeof input !== "object") return input;
+  const row = input as Record<string, unknown>;
+  const content = typeof row.content === "string" ? row.content : "";
+  return { ...row, content: `[persisted in knowledge: ${content.length} chars]` };
 }
 
 export function stepsToAssistantParts(steps: readonly AgentStep[]): AssistantPart[] {
@@ -97,6 +105,11 @@ export async function finishModelStep(input: { runId: string; stepNumber: number
 }
 
 function sanitizeToolInput(toolName: string, input: unknown): unknown {
+  if (toolName === "write_artifact_part" && typeof input === "object" && input != null) {
+    const row = input as Record<string, unknown>;
+    const content = typeof row.content === "string" ? row.content : "";
+    return { ...row, content: `[redacted: ${content.length} chars]` };
+  }
   if ((toolName !== "create_artifact" && toolName !== "update_artifact") || typeof input !== "object" || input == null || !("brief" in input)) return input;
   const brief = (input as { brief?: unknown }).brief;
   if (typeof brief !== "string" || brief.length <= 400) return input;

@@ -27,14 +27,3 @@ export const toolContextSchema = z.object({
 });
 
 export type ToolContext = z.infer<typeof toolContextSchema>;
-
-export type ArtifactStreamData = {
-  toolCallId: string;
-  status: "generating" | "persisted" | "error";
-  title: string;
-  filename: string;
-  kind: "html" | "markdown";
-  preview?: string;
-  generated_chars?: number;
-  document_id?: string;
-};

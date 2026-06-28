@@ -21,14 +21,14 @@ importers:
   services/chat:
     dependencies:
       '@ai-sdk/openai-compatible':
-        specifier: 3.0.0
-        version: 3.0.0(zod@3.25.76)
+        specifier: ^3.0.1
+        version: 3.0.1(zod@3.25.76)
       '@ai-sdk/provider':
-        specifier: 4.0.0
+        specifier: ^4.0.0
         version: 4.0.0
       '@ai-sdk/workflow':
-        specifier: 1.0.2
-        version: 1.0.2(zod@3.25.76)
+        specifier: ^1.0.4
+        version: 1.0.4(zod@3.25.76)
       '@backend/transport-ts':
         specifier: workspace:*
         version: link:../../libs/transport-ts
@@ -36,14 +36,14 @@ importers:
         specifier: ^0.4.0
         version: 0.4.3(hono@4.12.27)(zod@3.25.76)
       '@workflow/serde':
-        specifier: ^4.1.0
+        specifier: ^4.1.2
         version: 4.1.2
       '@workflow/world-postgres':
         specifier: ^4.2.0
         version: 4.2.0(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@22.20.0))(typescript@5.9.3)
       ai:
-        specifier: 7.0.2
-        version: 7.0.2(zod@3.25.76)
+        specifier: ^7.0.4
+        version: 7.0.4(zod@3.25.76)
       drizzle-orm:
         specifier: ^0.44.0
         version: 0.44.7(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@22.20.0))(pg@8.20.0)
@@ -84,20 +84,20 @@ importers:
 
 packages:
 
-  '@ai-sdk/gateway@4.0.2':
-    resolution: {integrity: sha512-Jz1BiiTSvhDsCBJrkFRSqLHDRMVjFtYk9GdbSi3UOqY+/epza+oIESMDzfN4m+YHT/1IYmNEmxaMfjXOvxKDjQ==}
+  '@ai-sdk/gateway@4.0.4':
+    resolution: {integrity: sha512-xO0e9duft/uZlnDaIeBZmzTMjfdEz1kkDzWnhQNkJZZljsKWVi6IREZW9nAa+Dx6jYJssyxSUggaFYBAV1WZpw==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/openai-compatible@3.0.0':
-    resolution: {integrity: sha512-2Ln97FfBrIKTlV/F1uTfUl+Pwk76LqrfnT5+6vu2LnSNwvLdDhTP5uMfryIrxCaYvY2MZeL4ciM1UVd52k7wTQ==}
+  '@ai-sdk/openai-compatible@3.0.1':
+    resolution: {integrity: sha512-nUbQoGzdFZspb1cr6GUy+nR8Uvdi4/lCwTkdE9qKe+Qr2OVPsIKRIpyC9ewJ2uqUfl+1JlkWhPfR5l8bokNs4Q==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/provider-utils@5.0.0':
-    resolution: {integrity: sha512-zj66M02jc6ASYwIgWZowsooDUwaVngeNZQ3H10GwcPMZ+KR6gHMhcUuKl6tkai+JPXTKDyHY1pnszuxRtw2D4A==}
+  '@ai-sdk/provider-utils@5.0.1':
+    resolution: {integrity: sha512-p9Ra+dN4jjHrssXvklNf4nFvWbj1KePMfUOs7nue0NuoIMbYFBULhX4Vu0+6DWLnw3+UsLL9+RCKLtzzU43Qpg==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -106,8 +106,8 @@ packages:
     resolution: {integrity: sha512-fr9Gs89prDWiuox/T+kCA+i2cJkHpxU5S+tr4megjTzRC27ZsvFhwjU/+XrqqMbvBUlfmXxTOYWy8ng45dsjIg==}
     engines: {node: '>=22'}
 
-  '@ai-sdk/workflow@1.0.2':
-    resolution: {integrity: sha512-kxzKnNn98iKrwyBp3Io4RRsHi3Yzz5Qm9tJgvajGinkkX2K69TSGgmPnqQjDrz50MI0JR5ZqDGArxHeFOT/p9Q==}
+  '@ai-sdk/workflow@1.0.4':
+    resolution: {integrity: sha512-l0izlNPQqJ9//Y7+0loxuHE3pusz/Hvr1aT5YnaxYtjM3oCmjPpC23y7/yEu17s/ICHfD8S1w0iNrla7zejoHQ==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -1177,8 +1177,8 @@ packages:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
 
-  ai@7.0.2:
-    resolution: {integrity: sha512-VMU08jHIDJnnKDrbC9AFa5ZsPpOTfAPRLvTRHtJk4FGAoeldmJROMxvZ2ak5lCjEJ2GP2OLPQbMRyEK8w0+S4A==}
+  ai@7.0.4:
+    resolution: {integrity: sha512-mZub080RWRxpWg8OY56KVnI3AoMVniccSWG+dwVb3nH81+GiNMDYBIdP41RLUivLpmU49pB7ssD7tvfIUaSaCA==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -1246,8 +1246,8 @@ packages:
       react-native-b4a:
         optional: true
 
-  balanced-match@1.0.2:
-    resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
+  balanced-match@1.0.0:
+    resolution: {integrity: sha512-9Y0g0Q8rmSt+H33DfKv7FOc3v+iRI+o1lbzt8jGcIosYW37IIW/2XVYq5NPdmaD5NQ59Nk26Kl/vZbwW9Fr8vg==}
 
   balanced-match@4.0.4:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
@@ -1408,8 +1408,8 @@ packages:
   colorette@1.4.0:
     resolution: {integrity: sha512-Y2oEozpomLn7Q3HFP7dpww7AtMJplbM9lGZP6RDfHqmbeRjiwRg4n6VM6j4KLmRke85uWEI7JqF17f3pqdRA0g==}
 
-  commander@6.2.1:
-    resolution: {integrity: sha512-U7VdrJFnJgo4xjrHpTzu0yrHPGImdsmD95ZlgYSEajAn2JKzDhDTPG9kBTefmObL2w/ngeZnilk+OV9CG3d7UA==}
+  commander@6.0.0:
+    resolution: {integrity: sha512-s7EA+hDtTYNhuXkTlhqew4txMZVdszBmKWSPEMxGr8ru8JXR7bLUFIAtPhcSuFdJQ0ILMxnJi8GkQL0yvDy/YA==}
     engines: {node: '>= 6'}
 
   commander@8.3.0:
@@ -2212,8 +2212,8 @@ packages:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
 
-  jose@5.10.0:
-    resolution: {integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==}
+  jose@5.9.6:
+    resolution: {integrity: sha512-AMlnetc9+CV9asI19zHmrgS/WYsWUwCn2R7RzlbJWD7F9eWYUTGyBmU9o6PxngtLGOiDGPRu+Uc4fhKzbpteZQ==}
 
   js-levenshtein@1.1.6:
     resolution: {integrity: sha512-X2BB11YZtrRqY4EnQcLX5Rh373zbK4alC1FW7D7MBhL2gtcC17cTnr6DmfHZeS0s2rTHjUTMMHfG7gO8SSdw+g==}
@@ -2500,8 +2500,8 @@ packages:
     resolution: {integrity: sha512-wBowNApzd45EIKdO1LaU+LrMBwAcjfPaYtVzV3lmfM3gf8Z4CHZsiIqlM8TZZ8okYvh5A1cP6gTfCRQtwUpaUg==}
     engines: {node: '>=14.16'}
 
-  p-event@6.0.1:
-    resolution: {integrity: sha512-Q6Bekk5wpzW5qIyUP4gdMEujObYstZl6DMMOSenwBvV0BlE5LkDwkjs5yHbZmdCEq2o4RJx4tE1vwxFVf2FG1w==}
+  p-event@6.0.0:
+    resolution: {integrity: sha512-Xbfxd0CfZmHLGKXH32k1JKjQYX6Rkv0UtQdaFJ8OyNcf+c0oWCeXHc1C4CX/IESZLmcvfPa5aFIO/vCr5gqtag==}
     engines: {node: '>=16.17'}
 
   p-limit@4.0.0:
@@ -2947,8 +2947,16 @@ packages:
     resolution: {integrity: sha512-t0rzBq87m3fVcduHDUFhKmyyX+9eo6WQjZvf51Ea/M0Q7+T374Jp1aUiyUl0GKxp8M/OETVHSDvmkyPgvX+X2w==}
     engines: {node: '>=10'}
 
+  type-fest@4.26.1:
+    resolution: {integrity: sha512-yOGpmOAL7CkKe/91I5O3gPICmJNLJ1G4zFYVAsRHg7M64biSnPtRj0WNQt++bRkjYOqjWXrhnUw1utzmVErAdg==}
+    engines: {node: '>=16'}
+
   type-fest@4.41.0:
     resolution: {integrity: sha512-TeTSQ6H5YHvpqVwBRcnLDCBnDOHWYu7IvGbHT6N8AOymcr9PJGjc1GTtiWZTYg0NCgYwvnYWEkVChQAr9bjfwA==}
+    engines: {node: '>=16'}
+
+  type-fest@4.6.0:
+    resolution: {integrity: sha512-rLjWJzQFOq4xw7MgJrCZ6T1jIOvvYElXT12r+y0CC6u67hegDHaxcPqb2fZHOGlqxugGQPNB1EnTezjBetkwkw==}
     engines: {node: '>=16'}
 
   type-is@2.1.0:
@@ -3109,8 +3117,8 @@ packages:
   webpack-virtual-modules@0.6.2:
     resolution: {integrity: sha512-66/V2i5hQanC51vBQKPH4aI8NMAcBW59FVBs+rC7eGHupMyfn34q7rZIE+ETlJ+XTevqfUhVVBgSUNSW2flEUQ==}
 
-  which@2.0.2:
-    resolution: {integrity: sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==}
+  which@2.0.1:
+    resolution: {integrity: sha512-N7GBZOTswtB9lkQBZA4+zAXrjEIWAUOB93AvzUiudRzRxhUdLURQ7D/gAIMY1gatT/LTbmbcv8SiYazy3eYB7w==}
     engines: {node: '>= 8'}
     hasBin: true
 
@@ -3203,20 +3211,20 @@ packages:
 
 snapshots:
 
-  '@ai-sdk/gateway@4.0.2(zod@3.25.76)':
+  '@ai-sdk/gateway@4.0.4(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 4.0.0
-      '@ai-sdk/provider-utils': 5.0.0(zod@3.25.76)
+      '@ai-sdk/provider-utils': 5.0.1(zod@3.25.76)
       '@vercel/oidc': 3.2.0
       zod: 3.25.76
 
-  '@ai-sdk/openai-compatible@3.0.0(zod@3.25.76)':
+  '@ai-sdk/openai-compatible@3.0.1(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 4.0.0
-      '@ai-sdk/provider-utils': 5.0.0(zod@3.25.76)
+      '@ai-sdk/provider-utils': 5.0.1(zod@3.25.76)
       zod: 3.25.76
 
-  '@ai-sdk/provider-utils@5.0.0(zod@3.25.76)':
+  '@ai-sdk/provider-utils@5.0.1(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 4.0.0
       '@standard-schema/spec': 1.1.0
@@ -3228,11 +3236,11 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/workflow@1.0.2(zod@3.25.76)':
+  '@ai-sdk/workflow@1.0.4(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 4.0.0
-      '@ai-sdk/provider-utils': 5.0.0(zod@3.25.76)
-      ai: 7.0.2(zod@3.25.76)
+      '@ai-sdk/provider-utils': 5.0.1(zod@3.25.76)
+      ai: 7.0.4(zod@3.25.76)
       ajv: 8.20.0
       zod: 3.25.76
 
@@ -3974,7 +3982,7 @@ snapshots:
     dependencies:
       '@vercel/cli-config': 0.2.0
       '@vercel/cli-exec': 1.0.0
-      jose: 5.10.0
+      jose: 5.9.6
 
   '@vercel/queue@0.3.1':
     dependencies:
@@ -4377,11 +4385,11 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  ai@7.0.2(zod@3.25.76):
+  ai@7.0.4(zod@3.25.76):
     dependencies:
-      '@ai-sdk/gateway': 4.0.2(zod@3.25.76)
+      '@ai-sdk/gateway': 4.0.4(zod@3.25.76)
       '@ai-sdk/provider': 4.0.0
-      '@ai-sdk/provider-utils': 5.0.0(zod@3.25.76)
+      '@ai-sdk/provider-utils': 5.0.1(zod@3.25.76)
       zod: 3.25.76
 
   ajv@8.20.0:
@@ -4429,7 +4437,7 @@ snapshots:
 
   b4a@1.8.1: {}
 
-  balanced-match@1.0.2: {}
+  balanced-match@1.0.0: {}
 
   balanced-match@4.0.4: {}
 
@@ -4477,7 +4485,7 @@ snapshots:
 
   brace-expansion@2.1.1:
     dependencies:
-      balanced-match: 1.0.2
+      balanced-match: 1.0.0
 
   brace-expansion@5.0.6:
     dependencies:
@@ -4607,7 +4615,7 @@ snapshots:
 
   colorette@1.4.0: {}
 
-  commander@6.2.1: {}
+  commander@6.0.0: {}
 
   commander@8.3.0: {}
 
@@ -4644,7 +4652,7 @@ snapshots:
     dependencies:
       path-key: 3.1.1
       shebang-command: 2.0.0
-      which: 2.0.2
+      which: 2.0.1
 
   crossws@0.4.6(srvx@0.11.17):
     optionalDependencies:
@@ -5042,7 +5050,7 @@ snapshots:
       lowercase-keys: 3.0.0
       p-cancelable: 4.0.1
       responselike: 4.0.2
-      type-fest: 4.41.0
+      type-fest: 4.26.1
 
   graceful-fs@4.2.11: {}
 
@@ -5220,7 +5228,7 @@ snapshots:
 
   jiti@2.7.0: {}
 
-  jose@5.10.0: {}
+  jose@5.9.6: {}
 
   js-levenshtein@1.1.6: {}
 
@@ -5285,8 +5293,8 @@ snapshots:
 
   make-asynchronous@1.1.0:
     dependencies:
-      p-event: 6.0.1
-      type-fest: 4.41.0
+      p-event: 6.0.0
+      type-fest: 4.6.0
       web-worker: 1.5.0
 
   math-intrinsics@1.1.0: {}
@@ -5506,7 +5514,7 @@ snapshots:
 
   p-cancelable@4.0.1: {}
 
-  p-event@6.0.1:
+  p-event@6.0.0:
     dependencies:
       p-timeout: 6.1.4
 
@@ -5761,7 +5769,7 @@ snapshots:
 
   seek-bzip@2.0.0:
     dependencies:
-      commander: 6.2.1
+      commander: 6.0.0
 
   semver-regex@4.0.5: {}
 
@@ -5980,7 +5988,11 @@ snapshots:
 
   type-fest@0.21.3: {}
 
+  type-fest@4.26.1: {}
+
   type-fest@4.41.0: {}
+
+  type-fest@4.6.0: {}
 
   type-is@2.1.0:
     dependencies:
@@ -6069,7 +6081,7 @@ snapshots:
 
   webpack-virtual-modules@0.6.2: {}
 
-  which@2.0.2:
+  which@2.0.1:
     dependencies:
       isexe: 2.0.0
 

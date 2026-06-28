@@ -49,23 +49,16 @@ OpenAI-compatible provider（`@ai-sdk/openai-compatible`）。
 `workflow-db-init`，Kubernetes 使用同镜像的 `workflow-schema`
 initContainer；二者都执行官方 schema setup，失败时禁止 chat 启动。
 - Version guard：`agent_runs.workflow_version` 与当前 `CHAT_WORKFLOW_VERSION` 不一致时拒绝 resume/cancel。
-- 工具：`list_documents`、`read_document`、`analyze_image`、`create_artifact`、`update_artifact`、`web_search`、`ask_user`、`propose_memory`
-- `create_artifact` 只接收 `{ title, filename, kind, brief }`；Markdown artifact
-  用独立 `streamText` 生成正文。HTML artifact 优先用
-  `generateText + Output.object` 生成 `{ title, style, body, script }`
-  结构化部件；若 provider 未返回可解析对象，则降级为 section envelope
-  解析。两条路径都由服务端确定性组装完整 HTML5 document，
-  图表统一使用服务端按需注入、带 SRI 的固定版本 ECharts；模型只生成
-  `window.echarts` option/init/resize 逻辑，图表容器必须有明确高度。HTML shell
-  的 CSP 禁止任意远程脚本和出站请求；structured output 不兼容时降级到 section
-  envelope，artifact 自身 JavaScript 错误由 iframe 错误边界显示，不阻断正文落库。
-  normalize/validate 后 POST knowledge 落库；final tool output 带
-  `document_id` 供前端 DocumentCard；Workflow 完成时服务端持久化
-  assistant 总结，若模型未产出最终文本则从成功的 artifact tool result
-  生成确定性总结。
-- `update_artifact` 只接收 `{ document_id, title?, filename?, kind?, brief }`；读取现有 artifact 全文后按 brief 生成完整修订版并 PATCH knowledge，同一个 `document_id` 的预览/下载指向最新内容；HTML 修订同样走结构化部件/section envelope 生成和服务端 HTML shell 组装。
-- artifact 流仅发送固定上限的尾部预览与 `generated_chars`，完成后以
-  `document_id` 为准加载正文，避免大文件全文快照导致 O(n²) 流量。
+- 工具：`update_plan`、`list_documents`、`read_document`、`analyze_image`、`create_artifact`、`begin_artifact`、`write_artifact_part`、`publish_artifact`、`update_artifact`、`web_search`、`ask_user`、`propose_memory`
+- `update_plan` 的 tool output 随 assistant message 持久化。下一轮提取最新 active
+  snapshot 并注入主 Agent context，因此 completed todo 不会因刷新或裁剪丢失。
+- Markdown 使用 `create_artifact`。HTML 由主 WorkflowAgent 先创建 plan，再调用
+  `begin_artifact`、逐项 `write_artifact_part`，最后 `publish_artifact`。工具只负责
+  持久化和确定性编译，不启动 child workflow，也不在工具内部调用模型。
+- `update_artifact` 当前仍是旧全文 revision 路径；下一阶段切换到 block change set、
+  局部生成和 `base_revision_id` CAS 后删除字符切片实现。
+- HTML block 和 compiled revision 写入现有 ObjectStore；Workflow state、tool result
+  和 SSE 均不携带完整正文，避免大型文档反复序列化。
 - `create_artifact` 以 `toolCallId` 幂等创建；`update_artifact` 携带读取时的
   `updated_at` 做原子条件写。超过阈值的旧正文按有边界的片段修订，若生成期间
   artifact 已变化则返回冲突，不覆盖并发更新。
