@@ -19,12 +19,25 @@ const workflowRunPathParam = {
   schema: { type: "string" },
 };
 
+const memoryIdPathParam = {
+  name: "id",
+  in: "path",
+  required: true,
+  schema: { type: "string" },
+};
+
 const startIndexQueryParam = {
   name: "startIndex",
   in: "query",
   required: false,
   schema: { type: "integer" },
 };
+
+const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
+const jsonResponse = (description: string, schema: object) => ({
+  description,
+  content: { "application/json": { schema } },
+});
 
 const openapi = {
   openapi: "3.1.0",
@@ -103,6 +116,130 @@ const openapi = {
       get: {
         parameters: [pathParam, workflowRunPathParam],
         responses: { "200": { description: "agent run step/tool-call trace" } },
+      },
+    },
+    "/memories": {
+      get: {
+        responses: {
+          "200": jsonResponse("list active user memories", ref("UserMemoryList")),
+        },
+      },
+    },
+    "/memories/candidates": {
+      get: {
+        responses: {
+          "200": jsonResponse("list pending memory candidates", ref("MemoryCandidateList")),
+        },
+      },
+    },
+    "/memories/candidates/{id}/approve": {
+      post: {
+        parameters: [memoryIdPathParam],
+        responses: {
+          "200": jsonResponse(
+            "approve a memory candidate into active memory",
+            ref("ApprovedMemory"),
+          ),
+        },
+      },
+    },
+    "/memories/candidates/{id}/reject": {
+      post: {
+        parameters: [memoryIdPathParam],
+        responses: {
+          "200": jsonResponse("reject a memory candidate", ref("RejectedMemory")),
+        },
+      },
+    },
+    "/memories/candidates/{id}": {
+      patch: {
+        parameters: [memoryIdPathParam],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: ref("UpdateMemoryCandidate") } },
+        },
+        responses: {
+          "200": jsonResponse(
+            "edit a pending memory candidate before approval",
+            ref("UpdatedMemoryCandidate"),
+          ),
+        },
+      },
+    },
+    "/memories/{id}": {
+      delete: {
+        parameters: [memoryIdPathParam],
+        responses: {
+          "200": jsonResponse("delete (deactivate) a stored memory", ref("DeletedMemory")),
+        },
+      },
+    },
+  },
+  components: {
+    schemas: {
+      MemoryCategory: {
+        type: "string",
+        enum: ["preference", "profile", "project", "instruction"],
+      },
+      UserMemory: {
+        type: "object",
+        required: ["id", "category", "content", "confidence"],
+        properties: {
+          id: { type: "string" },
+          category: ref("MemoryCategory"),
+          content: { type: "string" },
+          confidence: { type: "integer" },
+        },
+      },
+      MemoryCandidate: {
+        type: "object",
+        required: ["id", "category", "content", "reason", "supersedesId", "createdAt"],
+        properties: {
+          id: { type: "string" },
+          category: ref("MemoryCategory"),
+          content: { type: "string" },
+          reason: { type: ["string", "null"] },
+          supersedesId: { type: ["string", "null"] },
+          createdAt: { type: "string", format: "date-time" },
+        },
+      },
+      UserMemoryList: {
+        type: "object",
+        required: ["memories"],
+        properties: { memories: { type: "array", items: ref("UserMemory") } },
+      },
+      MemoryCandidateList: {
+        type: "object",
+        required: ["candidates"],
+        properties: { candidates: { type: "array", items: ref("MemoryCandidate") } },
+      },
+      UpdateMemoryCandidate: {
+        type: "object",
+        minProperties: 1,
+        properties: {
+          category: ref("MemoryCategory"),
+          content: { type: "string", minLength: 5, maxLength: 500 },
+        },
+      },
+      ApprovedMemory: {
+        type: "object",
+        required: ["memory"],
+        properties: { memory: ref("UserMemory") },
+      },
+      UpdatedMemoryCandidate: {
+        type: "object",
+        required: ["candidate"],
+        properties: { candidate: ref("MemoryCandidate") },
+      },
+      RejectedMemory: {
+        type: "object",
+        required: ["rejected"],
+        properties: { rejected: { type: "boolean" } },
+      },
+      DeletedMemory: {
+        type: "object",
+        required: ["deleted"],
+        properties: { deleted: { type: "boolean" } },
       },
     },
   },

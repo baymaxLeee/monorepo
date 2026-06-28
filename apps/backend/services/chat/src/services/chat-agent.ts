@@ -2,6 +2,7 @@ import { WorkflowAgent, type ModelCallStreamPart } from "@ai-sdk/workflow";
 import { getWritable } from "workflow";
 
 import { MAX_AGENT_STEPS } from "./agent-config.js";
+import { extractMemoryCandidates } from "./agent-memory.js";
 import {
   failWorkflowRun,
   finishModelStep,
@@ -26,6 +27,7 @@ export async function runChatAgent(input: ChatWorkflowInput): Promise<{ text: st
   const provider = input.provider;
   const tools = buildWorkflowTools();
   const toolContext = {
+    runId: input.runId,
     userId: input.userId,
     conversationId: input.conversationId,
     providerId: provider.id,
@@ -44,7 +46,7 @@ export async function runChatAgent(input: ChatWorkflowInput): Promise<{ text: st
       create_artifact: toolContext,
       update_artifact: toolContext,
       analyze_image: toolContext,
-      remember: toolContext,
+      propose_memory: toolContext,
     },
     experimental_onStepStart: (event) =>
       startModelStep({ runId: input.runId, stepNumber: event.stepNumber, model: provider.model }),
@@ -88,6 +90,15 @@ export async function runChatAgent(input: ChatWorkflowInput): Promise<{ text: st
     const totalTokens = result.steps.reduce((sum, step) => sum + (step.usage?.totalTokens ?? 0), 0);
     await persistWorkflowCompletion({ runId: input.runId, conversationId: input.conversationId, parts, totalTokens });
     await finishWorkflowStream(writable);
+    await extractMemoryCandidates({
+      userId: input.userId,
+      runId: input.runId,
+      provider,
+      userText: input.memorySourceText,
+    }).catch((err) => {
+      console.error("[chat-agent] memory extraction step failed (non-fatal)", err);
+      return { created: 0 };
+    });
     return { text: result.steps.at(-1)?.text ?? "" };
   } catch (err) {
     console.error("[chat-agent] runChatAgent failed", err);

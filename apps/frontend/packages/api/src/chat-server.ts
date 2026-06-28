@@ -1,6 +1,18 @@
+import {
+  getChatService,
+  type MemoryCandidate,
+  type UpdateMemoryCandidate,
+  type UserMemory,
+} from "../generated/chat-server/index";
 import { API_BASE_URL, request } from "./http";
 import { refreshSession } from "./session";
 import { getToken, isAccessTokenValid } from "./storage";
+
+export type {
+  MemoryCandidate,
+  MemoryCategory,
+  UserMemory,
+} from "../generated/chat-server/index";
 
 export type MessageRole = "user" | "assistant" | "system";
 export type MessageStatus = "ok" | "streaming" | "failed";
@@ -320,7 +332,12 @@ export interface AgentTraceToolCall {
 
 export interface AgentRunTrace {
   runId: string;
-  status: "running" | "awaiting_approval" | "completed" | "failed" | "cancelled";
+  status:
+    | "running"
+    | "awaiting_approval"
+    | "completed"
+    | "failed"
+    | "cancelled";
   model: string;
   totalTokens: number | null;
   steps: AgentTraceStep[];
@@ -335,4 +352,42 @@ export async function fetchConversationAgentTrace(
     url: `${BASE}/${encodeURIComponent(conversationId)}/agents/run/stream/${encodeURIComponent(workflowRunId)}/trace`,
     method: "GET",
   });
+}
+
+export type UpdateMemoryCandidateInput = UpdateMemoryCandidate;
+
+const memoryClient = getChatService();
+const memoryClientOptions = { baseURL: `${API_BASE_URL}/api/chat-server` };
+
+export function fetchActiveMemories(): Promise<{ memories: UserMemory[] }> {
+  return memoryClient.getMemories(memoryClientOptions);
+}
+
+export function fetchMemoryCandidates(): Promise<{
+  candidates: MemoryCandidate[];
+}> {
+  return memoryClient.getMemoriesCandidates(memoryClientOptions);
+}
+
+export function approveMemoryCandidate(
+  id: string,
+): Promise<{ memory: UserMemory }> {
+  return memoryClient.postMemoriesCandidatesIdApprove(id, memoryClientOptions);
+}
+
+export function rejectMemoryCandidate(
+  id: string,
+): Promise<{ rejected: boolean }> {
+  return memoryClient.postMemoriesCandidatesIdReject(id, memoryClientOptions);
+}
+
+export function updateMemoryCandidate(
+  id: string,
+  input: UpdateMemoryCandidateInput,
+): Promise<{ candidate: MemoryCandidate }> {
+  return memoryClient.patchMemoriesCandidatesId(id, input, memoryClientOptions);
+}
+
+export function deleteMemory(id: string): Promise<{ deleted: boolean }> {
+  return memoryClient.deleteMemoriesId(id, memoryClientOptions);
 }

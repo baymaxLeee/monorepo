@@ -112,7 +112,15 @@ export function ToolHeader({
 export type ToolContentProps = ComponentProps<"div">;
 
 export function ToolContent({ className, ...props }: ToolContentProps) {
-  return <div className={cn("space-y-4 p-4 pt-0", className)} {...props} />;
+  return (
+    <div
+      className={cn(
+        "max-h-[min(24rem,60vh)] space-y-4 overflow-y-auto overscroll-contain p-4 pt-0",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 export type ToolJsonBlockProps = ComponentProps<"pre"> & {
@@ -127,7 +135,7 @@ export function ToolJsonBlock({
   return (
     <pre
       className={cn(
-        "overflow-x-auto whitespace-pre-wrap rounded-md bg-muted/60 p-2 text-[11px] leading-relaxed",
+        "overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-muted/60 p-2 text-[11px] leading-relaxed",
         className,
       )}
       {...props}

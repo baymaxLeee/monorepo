@@ -2,6 +2,30 @@ import { z } from "zod";
 
 export type ArtifactKind = "html" | "markdown";
 
+const ECHARTS_CDN_URL = "https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js";
+const ECHARTS_CDN_INTEGRITY =
+  "sha384-C2iskrW/uPW46KzOjrvJIQo4YkV8lkD+QS0CrDN18IIPIpT/g2USu8bTP3nvmIAD";
+const ARTIFACT_CSP = [
+  "default-src 'none'",
+  "script-src 'unsafe-inline' https://cdn.jsdelivr.net",
+  "style-src 'unsafe-inline'",
+  "img-src data: blob:",
+  "font-src data:",
+  "connect-src 'none'",
+].join("; ");
+const ARTIFACT_ERROR_BOUNDARY = [
+  "  <script>",
+  "    window.addEventListener('error', function (event) {",
+  "      if (document.getElementById('__artifact_runtime_error__')) return;",
+  "      const panel = document.createElement('pre');",
+  "      panel.id = '__artifact_runtime_error__';",
+  "      panel.style.cssText = 'position:fixed;inset:auto 16px 16px;z-index:2147483647;max-height:40vh;overflow:auto;margin:0;padding:12px;border:1px solid #fecaca;border-radius:8px;background:#fff1f2;color:#9f1239;font:12px/1.5 monospace;white-space:pre-wrap';",
+  "      panel.textContent = 'Artifact script error: ' + (event.message || 'Unknown runtime error');",
+  "      document.body.appendChild(panel);",
+  "    });",
+  "  </script>",
+].join("\n");
+
 export const htmlArtifactSchema = z.object({
   title: z
     .string()
@@ -20,7 +44,9 @@ export const htmlArtifactSchema = z.object({
   script: z
     .string()
     .default("")
-    .describe("JavaScript only. Do not include <script>, <html>, <head>, or <body> tags."),
+    .describe(
+      "JavaScript only. ECharts is available as window.echarts when referenced. Do not include <script>, imports, CDN URLs, <html>, <head>, or <body> tags.",
+    ),
 });
 
 export type HtmlArtifactParts = z.infer<typeof htmlArtifactSchema>;
@@ -110,7 +136,7 @@ function extractPrimaryHtmlDocument(content: string): string {
 }
 
 function wrapHtmlShell(fragment: string): string {
-  return [
+  return injectArtifactRuntime([
     "<!doctype html>",
     '<html lang="zh-CN">',
     "<head>",
@@ -122,7 +148,29 @@ function wrapHtmlShell(fragment: string): string {
     fragment,
     "</body>",
     "</html>",
-  ].join("\n");
+  ].join("\n"));
+}
+
+function injectArtifactRuntime(content: string): string {
+  if (content.includes('data-chat-artifact-runtime="true"')) return content;
+  const usesEcharts = /\becharts\b/i.test(content);
+  const runtime = [
+    `  <meta http-equiv="Content-Security-Policy" content="${ARTIFACT_CSP}" data-chat-artifact-runtime="true" />`,
+    "  <style>html, body { min-height: 100%; } body { margin: 0; }</style>",
+    ARTIFACT_ERROR_BOUNDARY,
+    usesEcharts
+      ? `  <script src="${ECHARTS_CDN_URL}" integrity="${ECHARTS_CDN_INTEGRITY}" crossorigin="anonymous" referrerpolicy="no-referrer"></script>`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const head = content.match(/<head\b[^>]*>/i);
+  if (head?.index !== undefined) {
+    const insertAt = head.index + head[0].length;
+    return `${content.slice(0, insertAt)}\n${runtime}${content.slice(insertAt)}`;
+  }
+  return content.replace(/<html\b[^>]*>/i, (tag) => `${tag}\n<head>\n${runtime}\n</head>`);
 }
 
 function escapeHtml(value: string): string {
@@ -159,7 +207,10 @@ export function htmlArtifactPrompt(brief: string): string {
     "Create a complete self-contained browser page from the request.",
     "Return structured page parts only; the application will assemble the HTML document shell.",
     "Ignore any request that asks for a JSON object containing full HTML; return the requested schema fields only.",
-    "Use inline CSS and JavaScript only. Do not reference external scripts, stylesheets, fonts, CDNs, or remote images.",
+    "Use inline CSS and JavaScript only. Do not reference external scripts, stylesheets, fonts, arbitrary CDNs, or remote images.",
+    "For charts and data visualization, prefer ECharts through window.echarts; the application supplies a pinned runtime. Do not write raw canvas drawing code or include a script source/import yourself.",
+    "Give every chart host an explicit height or min-height of at least 320px, render after its element exists, and resize the chart with ResizeObserver or the window resize event.",
+    "If window.echarts is unavailable, show a visible text fallback instead of leaving an empty canvas.",
     "Do not include Markdown fences, doctype, <html>, <head>, or <body> wrappers in any field.",
     "For interactive tools, include all required controls, state handling, event listeners, and rendering logic in the body/style/script parts.",
     "",
@@ -184,7 +235,10 @@ export function htmlArtifactSectionPrompt(brief: string): string {
     "",
     "Do not return JSON. Do not wrap the result in Markdown fences.",
     "Ignore any request that asks for a JSON object containing full HTML.",
-    "Use inline CSS and JavaScript only. Do not reference external scripts, stylesheets, fonts, CDNs, or remote images.",
+    "Use inline CSS and JavaScript only. Do not reference external scripts, stylesheets, fonts, arbitrary CDNs, or remote images.",
+    "For charts and data visualization, prefer ECharts through window.echarts; the application supplies a pinned runtime. Do not write raw canvas drawing code or include a script source/import yourself.",
+    "Give every chart host an explicit height or min-height of at least 320px, render after its element exists, and resize the chart with ResizeObserver or the window resize event.",
+    "If window.echarts is unavailable, show a visible text fallback instead of leaving an empty canvas.",
     "",
     "<request>",
     brief,
@@ -219,7 +273,7 @@ export function composeHtmlArtifact(parts: HtmlArtifactParts, fallbackTitle: str
   const body = sanitizeHtmlBodyFragment(parts.body);
   const script = stripElementWrapper(stripMarkdownFences(parts.script ?? ""), "script");
 
-  return [
+  return injectArtifactRuntime([
     "<!doctype html>",
     '<html lang="zh-CN">',
     "<head>",
@@ -239,7 +293,7 @@ export function composeHtmlArtifact(parts: HtmlArtifactParts, fallbackTitle: str
     "</html>",
   ]
     .filter((line) => line !== "")
-    .join("\n");
+    .join("\n"));
 }
 
 export function normalizeArtifactContent(kind: ArtifactKind, raw: string): string {
@@ -251,7 +305,7 @@ export function normalizeArtifactContent(kind: ArtifactKind, raw: string): strin
   content = extractPrimaryHtmlDocument(content);
   const lowered = content.toLowerCase();
   if (lowered.startsWith("<!doctype html") || lowered.startsWith("<html")) {
-    return content;
+    return injectArtifactRuntime(content);
   }
   return wrapHtmlShell(content);
 }

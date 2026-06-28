@@ -55,6 +55,10 @@ initContainer；二者都执行官方 schema setup，失败时禁止 chat 启动
   `generateText + Output.object` 生成 `{ title, style, body, script }`
   结构化部件；若 provider 未返回可解析对象，则降级为 section envelope
   解析。两条路径都由服务端确定性组装完整 HTML5 document，
+  图表统一使用服务端按需注入、带 SRI 的固定版本 ECharts；模型只生成
+  `window.echarts` option/init/resize 逻辑，图表容器必须有明确高度。HTML shell
+  的 CSP 禁止任意远程脚本和出站请求；structured output 不兼容时降级到 section
+  envelope，artifact 自身 JavaScript 错误由 iframe 错误边界显示，不阻断正文落库。
   normalize/validate 后 POST knowledge 落库；final tool output 带
   `document_id` 供前端 DocumentCard；Workflow 完成时服务端持久化
   assistant 总结，若模型未产出最终文本则从成功的 artifact tool result

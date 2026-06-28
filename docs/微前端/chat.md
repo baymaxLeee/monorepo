@@ -31,7 +31,8 @@
   `artifact` 文档 id；artifact 详情仍按需从 knowledge 拉取。
 - 所有 `source` / `artifact` 文档 card 点击后都用现有
   `components/markdown-editor` 打开，可预览、二次编辑；Markdown 编辑走防抖自动
-  保存回 chat-server，HTML artifact 以 iframe 占满剩余区域预览。
+  保存回 chat-server，HTML artifact 以 sandbox iframe 占满剩余区域预览。右侧
+  Sheet 只显示外层统一标题栏，嵌入的 `ArtifactPreview` 不重复渲染标题。
 
 ## 状态管理
 

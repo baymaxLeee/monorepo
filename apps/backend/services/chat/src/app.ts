@@ -4,6 +4,7 @@ import { problemJson } from "./lib/errors.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { agentsRoutes } from "./routes/agents.js";
 import { conversationsRoutes } from "./routes/conversations.js";
+import { memoriesRoutes } from "./routes/memories.js";
 
 export function createApp() {
   const app = new Hono();
@@ -21,6 +22,7 @@ export function createApp() {
   api.use("*", authMiddleware);
   api.route("/conversations", conversationsRoutes);
   api.route("/conversations", agentsRoutes);
+  api.route("/memories", memoriesRoutes);
   app.route("/", api);
 
   return app;

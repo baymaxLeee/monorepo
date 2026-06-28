@@ -25,10 +25,16 @@ observability tables.
 - `update_artifact` — brief-driven in-place artifact revision; rewrites an existing
   knowledge artifact and keeps the same `document_id`
 - `web_search` — public web lookup via Tavily
-- `remember` — proposes stable long-term memory and writes only after explicit
-  user approval through the durable hook flow
+- `propose_memory` — stages stable long-term memory as a pending candidate;
+  activation requires explicit asynchronous user approval in the memory panel
 
 Artifacts persist to knowledge; tool results expose `document_id` for the UI.
+Generated HTML uses a deterministic sandbox runtime: charts reference the
+application-provided, version-pinned ECharts global, while CSP blocks arbitrary
+remote scripts and network requests. Chart hosts must declare a concrete height.
+Structured-output incompatibility falls back to a section-envelope generation;
+artifact-local JavaScript errors render inside the preview and do not discard the
+otherwise valid HTML deliverable.
 Workflow completion writes assistant messages server-side so browser disconnects
 do not own final persistence. Completion text must never be empty; if the
 model does not produce final text, `src/services/chat-agent.ts` derives a

@@ -158,6 +158,7 @@ export type ArtifactPreviewProps = HTMLAttributes<HTMLDivElement> & {
   kind?: ArtifactPreviewKind;
   mimeType?: string;
   actions?: ReactNode;
+  showHeader?: boolean;
 };
 
 function resolveArtifactPreviewKind(
@@ -185,22 +186,25 @@ export function ArtifactPreview({
   kind,
   mimeType,
   actions,
+  showHeader = true,
   ...props
 }: ArtifactPreviewProps) {
   const resolvedKind = resolveArtifactPreviewKind(kind, mimeType, filename);
   return (
     <Artifact className={cn("h-full min-h-0", className)} {...props}>
-      <ArtifactHeader className="shrink-0">
-        <div className="min-w-0">
-          <ArtifactTitle className="truncate">{title}</ArtifactTitle>
-          {filename || mimeType ? (
-            <ArtifactDescription className="truncate">
-              {[resolvedKind, filename, mimeType].filter(Boolean).join(" · ")}
-            </ArtifactDescription>
-          ) : null}
-        </div>
-        {actions ? <ArtifactActions>{actions}</ArtifactActions> : null}
-      </ArtifactHeader>
+      {showHeader ? (
+        <ArtifactHeader className="shrink-0">
+          <div className="min-w-0">
+            <ArtifactTitle className="truncate">{title}</ArtifactTitle>
+            {filename || mimeType ? (
+              <ArtifactDescription className="truncate">
+                {[resolvedKind, filename, mimeType].filter(Boolean).join(" · ")}
+              </ArtifactDescription>
+            ) : null}
+          </div>
+          {actions ? <ArtifactActions>{actions}</ArtifactActions> : null}
+        </ArtifactHeader>
+      ) : null}
       <ArtifactContent className="min-h-0 p-0">
         {resolvedKind === "html" ? (
           <iframe

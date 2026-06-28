@@ -114,9 +114,14 @@ async function generateHtmlArtifactContent(
     });
     return composeHtmlArtifact(result.output, input.title);
   } catch (err) {
-    if (!tools.NoObjectGeneratedError.isInstance(err)) throw err;
-    const parsed = err.text ? parseHtmlArtifactSections(err.text, input.title) : null;
+    const parsed =
+      tools.NoObjectGeneratedError.isInstance(err) && err.text
+        ? parseHtmlArtifactSections(err.text, input.title)
+        : null;
     if (parsed) return composeHtmlArtifact(parsed, input.title);
+    console.warn("[chat-agent] structured HTML artifact generation failed; using section fallback", {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   const result = tools.streamText({
@@ -226,6 +231,11 @@ export async function createArtifactTool(
     await writeArtifactSnapshot(toolCallId, { title: input.title, filename, kind: input.kind }, "persisted", content, doc.id);
     return { ok: true, status: "persisted", document_id: doc.id, title: doc.title, filename: doc.filename, kind: input.kind, total_chars: content.length };
   } catch (err) {
+    console.error("[chat-agent] create artifact failed", {
+      toolCallId,
+      kind: input.kind,
+      error: err instanceof Error ? err.message : String(err),
+    });
     await writeArtifactSnapshot(toolCallId, { title: input.title, filename, kind: input.kind }, "error", "");
     return { ok: false, error: String(err).slice(0, 500) };
   }
@@ -288,6 +298,12 @@ export async function updateArtifactTool(
     await writeArtifactSnapshot(toolCallId, { title, filename, kind: artifactKind }, "persisted", content, doc.id);
     return { ok: true, status: "persisted", document_id: doc.id, title: doc.title, filename: doc.filename, kind: artifactKind, total_chars: content.length };
   } catch (err) {
+    console.error("[chat-agent] update artifact failed", {
+      toolCallId,
+      kind: input.kind,
+      documentId: input.document_id,
+      error: err instanceof Error ? err.message : String(err),
+    });
     await writeArtifactSnapshot(toolCallId, { title: input.title ?? "Artifact", filename: input.filename ? safeFilename(input.filename) : "artifact", kind: input.kind ?? "html" }, "error", "");
     return { ok: false, error: String(err).slice(0, 500) };
   }

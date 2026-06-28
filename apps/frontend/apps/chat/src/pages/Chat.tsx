@@ -51,11 +51,15 @@ import { useShallow } from "zustand/react/shallow";
 import { ChatComposerControls } from "../components/ChatComposerControls";
 import { ChatMessageView } from "../components/ChatMessageView";
 import { ChatTracePanel } from "../components/ChatTracePanel";
+import { MemoryPanel } from "../components/MemoryPanel";
 import { useChatStore } from "../store/useChatStore";
+import { useMemoryStore } from "../store/useMemoryStore";
 
 function workflowRunStorageKey(conversationId: string): string {
   return `chat.workflowRunId.${conversationId}`;
 }
+
+const MEMORY_CANDIDATE_POLL_MS = 10_000;
 
 function readStoredWorkflowRunId(conversationId: string): string | null {
   return sessionStorage.getItem(workflowRunStorageKey(conversationId));
@@ -105,6 +109,7 @@ export function Chat() {
   );
   const [thinking, setThinking] = useState(false);
   const [traceOpen, setTraceOpen] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
   const [lastWorkflowRunId, setLastWorkflowRunId] = useState<string | null>(
     id ? readStoredWorkflowRunId(id) : null,
   );
@@ -125,6 +130,13 @@ export function Chat() {
   const resumedConversationRef = useRef<string | null>(null);
   const pausedByUserRef = useRef(false);
 
+  const { pendingCount, refreshCandidates } = useMemoryStore(
+    useShallow((s) => ({
+      pendingCount: s.candidates.length,
+      refreshCandidates: s.refreshCandidates,
+    })),
+  );
+
   const requestBody = useMemo(
     () => ({
       provider_id: selectedProviderId ?? detail?.provider_id ?? null,
@@ -138,6 +150,14 @@ export function Chat() {
   useEffect(() => {
     if (!providers) void loadProviders();
   }, [providers, loadProviders]);
+
+  useEffect(() => {
+    void refreshCandidates();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refreshCandidates();
+    }, MEMORY_CANDIDATE_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [refreshCandidates]);
 
   function rememberWorkflowRunId(workflowRunId: string): void {
     if (!id) return;
@@ -215,6 +235,7 @@ export function Chat() {
       },
       onFinish: () => {
         setTraceRefreshKey((key) => key + 1);
+        void refreshCandidates();
         if (!id) return;
         void fetchConversation(id).then((next) => {
           setDetail(next);
@@ -373,6 +394,23 @@ export function Chat() {
             type="button"
             variant="outline"
             size="sm"
+            className="relative"
+            onClick={() => setMemoryOpen(true)}
+          >
+            记忆
+            {pendingCount > 0 ? (
+              <Badge
+                variant="secondary"
+                className="ml-1.5 h-4 min-w-4 justify-center px-1 text-[10px]"
+              >
+                {pendingCount}
+              </Badge>
+            ) : null}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             disabled={!lastWorkflowRunId}
             onClick={() => setTraceOpen(true)}
           >
@@ -495,9 +533,27 @@ export function Chat() {
                 filename={artifact.filename}
                 mimeType={artifact.mime_type}
                 content={artifact.content_md}
+                showHeader={false}
                 className="h-full rounded-none border-0 shadow-none"
               />
             ) : null}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={memoryOpen} onOpenChange={setMemoryOpen}>
+        <SheetContent
+          side="right"
+          className="w-full min-w-0 gap-0 overflow-hidden sm:max-w-md"
+        >
+          <SheetHeader className="shrink-0 border-b">
+            <SheetTitle>记忆</SheetTitle>
+            <SheetDescription>
+              对话后系统会整理候选记忆，确认后才会长期生效。
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-auto">
+            <MemoryPanel open={memoryOpen} />
           </div>
         </SheetContent>
       </Sheet>

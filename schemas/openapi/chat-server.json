@@ -297,6 +297,312 @@
           }
         }
       }
+    },
+    "/memories": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "list active user memories",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMemoryList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/memories/candidates": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "list pending memory candidates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryCandidateList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/memories/candidates/{id}/approve": {
+      "post": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "approve a memory candidate into active memory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovedMemory"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/memories/candidates/{id}/reject": {
+      "post": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "reject a memory candidate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RejectedMemory"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/memories/candidates/{id}": {
+      "patch": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemoryCandidate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "edit a pending memory candidate before approval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatedMemoryCandidate"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/memories/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "delete (deactivate) a stored memory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedMemory"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "MemoryCategory": {
+        "type": "string",
+        "enum": [
+          "preference",
+          "profile",
+          "project",
+          "instruction"
+        ]
+      },
+      "UserMemory": {
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "content",
+          "confidence"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/MemoryCategory"
+          },
+          "content": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "integer"
+          }
+        }
+      },
+      "MemoryCandidate": {
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "content",
+          "reason",
+          "supersedesId",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/MemoryCategory"
+          },
+          "content": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supersedesId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UserMemoryList": {
+        "type": "object",
+        "required": [
+          "memories"
+        ],
+        "properties": {
+          "memories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserMemory"
+            }
+          }
+        }
+      },
+      "MemoryCandidateList": {
+        "type": "object",
+        "required": [
+          "candidates"
+        ],
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryCandidate"
+            }
+          }
+        }
+      },
+      "UpdateMemoryCandidate": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/MemoryCategory"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 500
+          }
+        }
+      },
+      "ApprovedMemory": {
+        "type": "object",
+        "required": [
+          "memory"
+        ],
+        "properties": {
+          "memory": {
+            "$ref": "#/components/schemas/UserMemory"
+          }
+        }
+      },
+      "UpdatedMemoryCandidate": {
+        "type": "object",
+        "required": [
+          "candidate"
+        ],
+        "properties": {
+          "candidate": {
+            "$ref": "#/components/schemas/MemoryCandidate"
+          }
+        }
+      },
+      "RejectedMemory": {
+        "type": "object",
+        "required": [
+          "rejected"
+        ],
+        "properties": {
+          "rejected": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DeletedMemory": {
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          }
+        }
+      }
     }
   }
 }

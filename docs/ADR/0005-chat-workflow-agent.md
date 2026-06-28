@@ -58,7 +58,15 @@ Accepted — 2026-06
   Token-by-token artifact preview during generation remains follow-up parity work.
 - HTML artifacts are generated as structured `{ title, style, body, script }`
   parts and assembled by chat into a deterministic HTML5 document shell. The
-  model no longer owns closing `</html>` or document wrapper correctness.
+  model no longer owns closing `</html>` or document wrapper correctness. For
+  visualization, the shell conditionally supplies a version-pinned ECharts
+  runtime with SRI. The model emits chart configuration against `window.echarts`
+  instead of hand-written canvas code. A restrictive CSP allows that pinned
+  script plus inline artifact code, but blocks arbitrary remote scripts and
+  outbound connections. Structured-output failures fall back to section-envelope
+  generation. Artifact-local JavaScript errors are isolated by the iframe and
+  shown by its runtime error boundary instead of failing persistence or producing
+  an unexplained blank preview.
 - Artifact progress streams carry a bounded tail preview and generated-size
   metadata rather than repeated full-file snapshots. `toolCallId` is the
   idempotency key for artifact creation.

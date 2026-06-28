@@ -13,11 +13,13 @@ export interface ChatWorkflowInput {
   provider: ChatWorkflowProvider;
   multimodalProviderId?: string | null;
   modelMessages: WorkflowModelMessage[];
+  memorySourceText: string;
   instructions: string;
   reasoningEffort?: ReasoningEffort | null;
 }
 
 export const toolContextSchema = z.object({
+  runId: z.string(),
   userId: z.string(),
   conversationId: z.string(),
   providerId: z.string(),

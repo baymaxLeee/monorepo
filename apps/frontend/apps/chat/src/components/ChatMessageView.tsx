@@ -190,7 +190,6 @@ function ToolPartView({
   const artifact = parseArtifactOutput(output);
   const askUserInput =
     toolName === "ask_user" ? parseAskUserInput(input) : null;
-  const rememberInput = toolName === "remember" ? parseRememberInput(input) : null;
 
   if (artifact?.documentId) {
     return (
@@ -211,40 +210,23 @@ function ToolPartView({
     <Tool open={part.state !== "output-available"}>
       <ToolHeader title={toolName} state={part.state} />
       <ToolContent>
-        {part.state === "input-available" && (askUserInput || rememberInput) ? (
+        {part.state === "input-available" && askUserInput ? (
           <AskUserToolCard
-            input={askUserInput ?? rememberInput!}
+            input={askUserInput}
             onSubmit={(answer) =>
               onAnswerClientTool(toolName, part.toolCallId, answer)
             }
           />
         ) : null}
-        {askUserInput == null && rememberInput == null && input !== undefined ? (
+        {askUserInput == null && input !== undefined ? (
           <ToolJsonBlock value={input} />
         ) : null}
-        {askUserInput == null && rememberInput == null && output !== undefined ? (
+        {askUserInput == null && output !== undefined ? (
           <ToolJsonBlock value={output} />
         ) : null}
       </ToolContent>
     </Tool>
   );
-}
-
-function parseRememberInput(input: unknown): AskUserInput | null {
-  if (!input || typeof input !== "object") return null;
-  const raw = input as { content?: unknown; reason?: unknown };
-  if (typeof raw.content !== "string" || !raw.content.trim()) return null;
-  const reason = typeof raw.reason === "string" ? raw.reason.trim() : "";
-  return {
-    question: `是否记住：${raw.content.trim()}${reason ? `\n\n用途：${reason}` : ""}`,
-    choices: [
-      { label: "记住", value: "approve" },
-      { label: "不用", value: "decline" },
-    ],
-    mode: "single",
-    allowFreeform: false,
-    freeformLabel: "",
-  };
 }
 
 type AskUserInput = {

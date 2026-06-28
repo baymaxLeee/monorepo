@@ -31,6 +31,7 @@ import {
   listActiveMemories,
 } from "./agent-state.js";
 import { runChatAgent } from "./chat-agent.js";
+import { MAX_INJECTED_MEMORIES, MAX_INJECTED_MEMORY_CHARS } from "./agent-config.js";
 
 export const CHAT_WORKFLOW_NAME = "chat-agent";
 export const CHAT_WORKFLOW_VERSION = "chat-agent@2026-06-26-v1";
@@ -135,8 +136,8 @@ async function buildInstructions(input: {
       "When the user requests an HTML page, report, or static deliverable and no referenced attachments require reading, call create_artifact directly without web_search, list_documents, or read_document.",
       "Always finish the run with one concise completion summary. When create_artifact or update_artifact succeeds, summarize the outcome and useful highlights only; the application renders the artifact card automatically after your text.",
       "Never include artifact document IDs, raw filenames, left-sidebar/download instructions, or tool metadata in the final user-facing summary.",
-      "Use remember only for stable preferences, profile facts, project facts, or standing instructions that would materially help future conversations. Never remember one-off task details, guesses, secrets, credentials, health data, or other sensitive data unless the user explicitly asks.",
-      "The remember tool has an explicit user approval gate. Do not claim a memory was saved until its result says stored=true, and do not retry when the user declines.",
+      "Use propose_memory only when the user explicitly asks you to remember a stable preference, profile fact, project fact, or standing instruction. It silently stages a proposal the user reviews later in their memory panel; it does not block the conversation and does not take effect immediately. Do not stage one-off task details, guesses, secrets, credentials, health data, or other sensitive data.",
+      "Memory consolidation otherwise happens automatically in the background after the conversation, so you rarely need to call propose_memory. Never tell the user a memory was saved or active; at most note that you have proposed it for later review.",
     ].join("\n"),
   ];
 
@@ -156,13 +157,17 @@ async function buildInstructions(input: {
   ]);
 
   if (memories.length) {
-    sections.push(
-      [
-        "<trusted_user_memory>",
-        ...memories.map((m) => `- (${m.category}, confidence ${m.confidence}) ${m.content}`),
-        "</trusted_user_memory>",
-      ].join("\n"),
-    );
+    const lines: string[] = [];
+    let usedChars = 0;
+    for (const m of memories.slice(0, MAX_INJECTED_MEMORIES)) {
+      const line = `- (${m.category}, confidence ${m.confidence}) ${m.content}`;
+      if (usedChars + line.length > MAX_INJECTED_MEMORY_CHARS) break;
+      lines.push(line);
+      usedChars += line.length;
+    }
+    if (lines.length) {
+      sections.push(["<trusted_user_memory>", ...lines, "</trusted_user_memory>"].join("\n"));
+    }
   }
 
   if (docs.length) {
@@ -242,6 +247,7 @@ export async function createAgentRunResponse(
       provider,
       multimodalProviderId: input.multimodalProviderId,
       modelMessages,
+      memorySourceText: latestPrompt,
       instructions,
       reasoningEffort: input.reasoningEffort ?? (input.thinking ? "medium" : null),
     },

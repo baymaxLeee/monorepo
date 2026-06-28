@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import { getDb } from "../db/index.js";
 import { agentRuns, agentSteps, agentToolCalls, userMemories } from "../db/schema.js";
@@ -322,11 +322,26 @@ export async function listRunToolCalls(runId: string): Promise<PersistedToolCall
   }));
 }
 
+export type MemoryStatus = "pending" | "active" | "rejected" | "superseded";
+
 export interface UserMemory {
   id: string;
   category: MemoryCategory;
   content: string;
   confidence: number;
+}
+
+export interface MemoryCandidate {
+  id: string;
+  category: MemoryCategory;
+  content: string;
+  reason: string | null;
+  supersedesId: string | null;
+  createdAt: string;
+}
+
+function isoOrEmpty(d: Date | null): string {
+  return d ? d.toISOString().replace("+00:00", "Z") : "";
 }
 
 export async function listActiveMemories(userId: string): Promise<UserMemory[]> {
@@ -343,13 +358,55 @@ export async function listActiveMemories(userId: string): Promise<UserMemory[]> 
   }));
 }
 
-export async function saveUserMemory(input: {
+export async function listPendingCandidates(userId: string): Promise<MemoryCandidate[]> {
+  const rows = await getDb()
+    .select()
+    .from(userMemories)
+    .where(and(eq(userMemories.userId, userId), eq(userMemories.status, "pending")))
+    .orderBy(asc(userMemories.createdAt));
+  return rows.map((row) => ({
+    id: row.id,
+    category: row.category as MemoryCategory,
+    content: row.content,
+    reason: row.reason,
+    supersedesId: row.supersedesId,
+    createdAt: isoOrEmpty(row.createdAt),
+  }));
+}
+
+export async function listMemoryDedupEntries(
+  userId: string,
+): Promise<Array<{ category: MemoryCategory; content: string; status: MemoryStatus }>> {
+  const rows = await getDb()
+    .select({
+      category: userMemories.category,
+      content: userMemories.content,
+      status: userMemories.status,
+    })
+    .from(userMemories)
+    .where(
+      and(
+        eq(userMemories.userId, userId),
+        inArray(userMemories.status, ["active", "pending", "rejected"]),
+      ),
+    );
+  return rows.map((row) => ({
+    category: row.category as MemoryCategory,
+    content: row.content,
+    status: row.status as MemoryStatus,
+  }));
+}
+
+export async function createMemoryCandidate(input: {
   userId: string;
   category: MemoryCategory;
   content: string;
+  reason?: string | null;
+  originRunId?: string | null;
+  supersedesId?: string | null;
   source?: string;
-  confidence?: number;
-}): Promise<UserMemory> {
+}): Promise<MemoryCandidate & { status: MemoryStatus }> {
+  "use step";
   const content = input.content.trim().replace(/\s+/g, " ");
   const [existing] = await getDb()
     .select()
@@ -359,7 +416,7 @@ export async function saveUserMemory(input: {
         eq(userMemories.userId, input.userId),
         eq(userMemories.category, input.category),
         eq(userMemories.content, content),
-        eq(userMemories.status, "active"),
+        inArray(userMemories.status, ["active", "pending", "rejected"]),
       ),
     );
   if (existing) {
@@ -367,26 +424,148 @@ export async function saveUserMemory(input: {
       id: existing.id,
       category: existing.category as MemoryCategory,
       content: existing.content,
-      confidence: existing.confidence,
+      reason: existing.reason,
+      supersedesId: existing.supersedesId,
+      createdAt: isoOrEmpty(existing.createdAt),
+      status: existing.status as MemoryStatus,
     };
   }
   const now = new Date();
-  const memory = {
-    id: id(16),
+  const row = {
+    id: deterministicId("memory-candidate", input.userId, input.category, content.toLowerCase()),
     userId: input.userId,
     category: input.category,
     content,
-    source: input.source ?? "agent",
-    confidence: input.confidence ?? 80,
-    status: "active",
+    source: input.source ?? "agent-extracted",
+    confidence: 80,
+    status: "pending",
+    reason: input.reason ?? null,
+    originRunId: input.originRunId ?? null,
+    supersedesId: input.supersedesId ?? null,
     createdAt: now,
     updatedAt: now,
   };
-  await getDb().insert(userMemories).values(memory);
+  await getDb()
+    .insert(userMemories)
+    .values(row)
+    .onDuplicateKeyUpdate({
+      // A retry or repeated proposal must not demote an active/rejected row
+      // back to pending. The deterministic primary key makes this a no-op.
+      set: { id: row.id },
+    });
+  const [stored] = await getDb()
+    .select()
+    .from(userMemories)
+    .where(and(eq(userMemories.id, row.id), eq(userMemories.userId, input.userId)));
+  if (!stored) throw new Error("memory candidate insert did not persist");
   return {
-    id: memory.id,
-    category: memory.category,
-    content: memory.content,
-    confidence: memory.confidence,
+    id: stored.id,
+    category: stored.category as MemoryCategory,
+    content: stored.content,
+    reason: stored.reason,
+    supersedesId: stored.supersedesId,
+    createdAt: isoOrEmpty(stored.createdAt),
+    status: stored.status as MemoryStatus,
   };
+}
+
+async function getOwnedMemory(userId: string, memoryId: string) {
+  const [row] = await getDb()
+    .select()
+    .from(userMemories)
+    .where(and(eq(userMemories.id, memoryId), eq(userMemories.userId, userId)));
+  return row ?? null;
+}
+
+export async function approveCandidate(userId: string, candidateId: string): Promise<UserMemory | null> {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [candidate] = await tx
+      .select()
+      .from(userMemories)
+      .where(
+        and(
+          eq(userMemories.id, candidateId),
+          eq(userMemories.userId, userId),
+          eq(userMemories.status, "pending"),
+        ),
+      )
+      .for("update");
+    if (!candidate) return null;
+
+    const now = new Date();
+    if (candidate.supersedesId) {
+      await tx
+        .update(userMemories)
+        .set({ status: "superseded", updatedAt: now })
+        .where(
+          and(
+            eq(userMemories.id, candidate.supersedesId),
+            eq(userMemories.userId, userId),
+            eq(userMemories.status, "active"),
+          ),
+        );
+    }
+    await tx
+      .update(userMemories)
+      .set({ status: "active", source: "user-approved", confidence: 100, updatedAt: now })
+      .where(
+        and(
+          eq(userMemories.id, candidateId),
+          eq(userMemories.userId, userId),
+          eq(userMemories.status, "pending"),
+        ),
+      );
+    return {
+      id: candidate.id,
+      category: candidate.category as MemoryCategory,
+      content: candidate.content,
+      confidence: 100,
+    };
+  });
+}
+
+export async function rejectCandidate(userId: string, candidateId: string): Promise<boolean> {
+  const candidate = await getOwnedMemory(userId, candidateId);
+  if (!candidate || candidate.status !== "pending") return false;
+  await getDb()
+    .update(userMemories)
+    .set({ status: "rejected", updatedAt: new Date() })
+    .where(eq(userMemories.id, candidateId));
+  return true;
+}
+
+export async function updateCandidate(
+  userId: string,
+  candidateId: string,
+  patch: { category?: MemoryCategory; content?: string },
+): Promise<MemoryCandidate | null> {
+  const candidate = await getOwnedMemory(userId, candidateId);
+  if (!candidate || candidate.status !== "pending") return null;
+  const content = patch.content?.trim().replace(/\s+/g, " ");
+  await getDb()
+    .update(userMemories)
+    .set({
+      category: patch.category ?? undefined,
+      content: content ?? undefined,
+      updatedAt: new Date(),
+    })
+    .where(eq(userMemories.id, candidateId));
+  return {
+    id: candidate.id,
+    category: (patch.category ?? candidate.category) as MemoryCategory,
+    content: content ?? candidate.content,
+    reason: candidate.reason,
+    supersedesId: candidate.supersedesId,
+    createdAt: isoOrEmpty(candidate.createdAt),
+  };
+}
+
+export async function deleteMemory(userId: string, memoryId: string): Promise<boolean> {
+  const memory = await getOwnedMemory(userId, memoryId);
+  if (!memory) return false;
+  await getDb()
+    .delete(userMemories)
+    .where(and(eq(userMemories.id, memoryId), eq(userMemories.userId, userId)));
+  return true;
 }

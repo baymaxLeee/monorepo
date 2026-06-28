@@ -115,28 +115,33 @@ async function askUserTool(
   return { ok: true, ...answer };
 }
 
-async function rememberTool(
+async function proposeMemoryTool(
   input: {
     category: "preference" | "profile" | "project" | "instruction";
     content: string;
     reason: string;
   },
-  { context, toolCallId }: { context: ToolContext; toolCallId: string },
+  { context }: { context: ToolContext },
 ) {
   "use step";
-  const decision = await askUserHook.create({ token: toolCallId });
-  if (decision.answer !== "approve") {
-    return { ok: true, stored: false, reason: "user declined" };
-  }
-  const { saveUserMemory } = await import("./agent-state.js");
-  const memory = await saveUserMemory({
+  const { createMemoryCandidate } = await import("./agent-state.js");
+  const candidate = await createMemoryCandidate({
     userId: context.userId,
     category: input.category,
     content: input.content,
-    confidence: 100,
-    source: "user-approved",
+    reason: input.reason,
+    originRunId: context.runId,
+    source: "user-requested",
   });
-  return { ok: true, stored: true, memory };
+  const staged = candidate.status === "pending";
+  return {
+    ok: true,
+    staged,
+    candidate_id: candidate.id,
+    note: staged
+      ? "Queued for the user's review in the memory panel; it is not active yet."
+      : `An equivalent memory already exists with status=${candidate.status}; no new proposal was created.`,
+  };
 }
 
 export function buildWorkflowTools() {
@@ -183,16 +188,16 @@ export function buildWorkflowTools() {
       }),
       execute: askUserTool,
     },
-    remember: {
+    propose_memory: {
       description:
-        "Propose a durable user memory. The user must explicitly approve it before storage. Use only for stable preferences, profile facts, project facts, or standing instructions; never one-off task details or inferred sensitive data.",
+        "Stage a durable user memory for later review. The proposal is queued silently and the user confirms it in their memory panel afterward; it does not block the conversation and is not active immediately. Use only when the user explicitly asks you to remember something stable (a preference, profile fact, project fact, or standing instruction); background extraction handles the rest. Never stage one-off task details or inferred sensitive data.",
       inputSchema: z.object({
         category: z.enum(["preference", "profile", "project", "instruction"]),
         content: z.string().min(5).max(500),
         reason: z.string().min(1).max(200),
       }),
       contextSchema: toolContextSchema,
-      execute: rememberTool,
+      execute: proposeMemoryTool,
     },
   };
 }

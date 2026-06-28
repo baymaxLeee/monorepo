@@ -6,6 +6,67 @@
  * OpenAPI spec version: 0.1.0
  */
 import { apiMutator } from '../../src/orval-mutator';
+export type MemoryCategory = typeof MemoryCategory[keyof typeof MemoryCategory];
+
+
+export const MemoryCategory = {
+  preference: 'preference',
+  profile: 'profile',
+  project: 'project',
+  instruction: 'instruction',
+} as const;
+
+export interface UserMemory {
+  id: string;
+  category: MemoryCategory;
+  content: string;
+  confidence: number;
+}
+
+export interface MemoryCandidate {
+  id: string;
+  category: MemoryCategory;
+  content: string;
+  /** @nullable */
+  reason: string | null;
+  /** @nullable */
+  supersedesId: string | null;
+  createdAt: string;
+}
+
+export interface UserMemoryList {
+  memories: UserMemory[];
+}
+
+export interface MemoryCandidateList {
+  candidates: MemoryCandidate[];
+}
+
+export interface UpdateMemoryCandidate {
+  category?: MemoryCategory;
+  /**
+     * @minLength 5
+     * @maxLength 500
+     */
+  content?: string;
+}
+
+export interface ApprovedMemory {
+  memory: UserMemory;
+}
+
+export interface UpdatedMemoryCandidate {
+  candidate: MemoryCandidate;
+}
+
+export interface RejectedMemory {
+  rejected: boolean;
+}
+
+export interface DeletedMemory {
+  deleted: boolean;
+}
+
 export type GetConversationsConversationIdAgentsRunStreamWorkflowRunIdStreamParams = {
 startIndex?: number;
 };
@@ -148,7 +209,64 @@ const getConversationsConversationIdAgentsRunStreamWorkflowRunIdTrace = (
       options);
     }
 
-return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdAgentsRunStreamWorkflowRunIdStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,postConversationsConversationIdAgentsRunCancel,postConversationsConversationIdAgentsRunStreamWorkflowRunIdResume,getConversationsConversationIdAgentsRunStreamWorkflowRunIdTrace}};
+const getMemories = (
+
+ options?: SecondParameter<typeof apiMutator<UserMemoryList>>,) => {
+      return apiMutator<UserMemoryList>(
+      {url: `/memories`, method: 'GET'
+    },
+      options);
+    }
+
+const getMemoriesCandidates = (
+
+ options?: SecondParameter<typeof apiMutator<MemoryCandidateList>>,) => {
+      return apiMutator<MemoryCandidateList>(
+      {url: `/memories/candidates`, method: 'GET'
+    },
+      options);
+    }
+
+const postMemoriesCandidatesIdApprove = (
+    id: string,
+ options?: SecondParameter<typeof apiMutator<ApprovedMemory>>,) => {
+      return apiMutator<ApprovedMemory>(
+      {url: `/memories/candidates/${id}/approve`, method: 'POST'
+    },
+      options);
+    }
+
+const postMemoriesCandidatesIdReject = (
+    id: string,
+ options?: SecondParameter<typeof apiMutator<RejectedMemory>>,) => {
+      return apiMutator<RejectedMemory>(
+      {url: `/memories/candidates/${id}/reject`, method: 'POST'
+    },
+      options);
+    }
+
+const patchMemoriesCandidatesId = (
+    id: string,
+    updateMemoryCandidate: UpdateMemoryCandidate,
+ options?: SecondParameter<typeof apiMutator<UpdatedMemoryCandidate>>,) => {
+      return apiMutator<UpdatedMemoryCandidate>(
+      {url: `/memories/candidates/${id}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: updateMemoryCandidate
+    },
+      options);
+    }
+
+const deleteMemoriesId = (
+    id: string,
+ options?: SecondParameter<typeof apiMutator<DeletedMemory>>,) => {
+      return apiMutator<DeletedMemory>(
+      {url: `/memories/${id}`, method: 'DELETE'
+    },
+      options);
+    }
+
+return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdAgentsRunStreamWorkflowRunIdStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,postConversationsConversationIdAgentsRunCancel,postConversationsConversationIdAgentsRunStreamWorkflowRunIdResume,getConversationsConversationIdAgentsRunStreamWorkflowRunIdTrace,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -168,3 +286,9 @@ export type GetConversationsConversationIdDocumentsDocumentIdSourceResult = NonN
 export type PostConversationsConversationIdAgentsRunCancelResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunCancel']>>>
 export type PostConversationsConversationIdAgentsRunStreamWorkflowRunIdResumeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunStreamWorkflowRunIdResume']>>>
 export type GetConversationsConversationIdAgentsRunStreamWorkflowRunIdTraceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdAgentsRunStreamWorkflowRunIdTrace']>>>
+export type GetMemoriesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getMemories']>>>
+export type GetMemoriesCandidatesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getMemoriesCandidates']>>>
+export type PostMemoriesCandidatesIdApproveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postMemoriesCandidatesIdApprove']>>>
+export type PostMemoriesCandidatesIdRejectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postMemoriesCandidatesIdReject']>>>
+export type PatchMemoriesCandidatesIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchMemoriesCandidatesId']>>>
+export type DeleteMemoriesIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['deleteMemoriesId']>>>
