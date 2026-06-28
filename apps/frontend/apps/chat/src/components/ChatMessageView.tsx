@@ -1,6 +1,6 @@
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import type { ConversationDocument } from "api";
-import { Badge, Button, Checkbox, Input } from "components";
+import { Button, Checkbox, Input } from "components";
 import {
   Message as AiMessage,
   MessageContent,
@@ -168,14 +168,6 @@ function MessagePartView({
         onOpenArtifact={onOpenArtifact}
         onAnswerClientTool={onAnswerClientTool}
       />
-    );
-  }
-
-  if (part.type === "step-start") {
-    return (
-      <Badge variant="outline" className="w-fit text-[10px]">
-        step
-      </Badge>
     );
   }
 

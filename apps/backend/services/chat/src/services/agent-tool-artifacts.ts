@@ -225,15 +225,11 @@ async function generateChunkedRevision(input: {
 }
 
 export async function createArtifactTool(
-  input: { title: string; filename: string; kind: ArtifactKind; mode?: "document" | "presentation" | "dashboard"; brief: string },
+  input: { title: string; filename: string; kind: "markdown"; mode?: "document" | "presentation" | "dashboard"; brief: string },
   { context, toolCallId, abortSignal }: { context: ToolContext; toolCallId: string; abortSignal?: AbortSignal },
 ) {
   const filename = safeFilename(input.filename);
   try {
-    if (input.kind === "html") {
-      return { ok: false, error: "HTML artifacts must use begin_artifact, write_artifact_part, and publish_artifact." };
-    }
-
     const artifactTools = await buildArtifactTextModel(context.userId, context.providerId);
     const result = artifactTools.streamText({
       model: artifactTools.model,

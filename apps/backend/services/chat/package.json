@@ -13,6 +13,7 @@
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.1",
     "@ai-sdk/provider": "^4.0.0",
+    "@ai-sdk/provider-utils": "^5.0.1",
     "@backend/transport-ts": "workspace:*",
     "@hono/node-server": "^1.19.14",
     "@hono/zod-validator": "^0.4.0",

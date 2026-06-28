@@ -26,6 +26,9 @@ importers:
       '@ai-sdk/provider':
         specifier: ^4.0.0
         version: 4.0.0
+      '@ai-sdk/provider-utils':
+        specifier: ^5.0.1
+        version: 5.0.1(zod@3.25.76)
       '@backend/transport-ts':
         specifier: workspace:*
         version: link:../../libs/transport-ts

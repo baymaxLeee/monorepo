@@ -98,7 +98,7 @@ export function Chat() {
     null,
   );
   const [artifactLoading, setArtifactLoading] = useState(false);
-  const [artifactPreviewUrl, setArtifactPreviewUrl] = useState<string | null>(
+  const [artifactPreviewHtml, setArtifactPreviewHtml] = useState<string | null>(
     null,
   );
   const [thinking, setThinking] = useState(false);
@@ -140,13 +140,6 @@ export function Chat() {
   useEffect(() => {
     if (!providers) void loadProviders();
   }, [providers, loadProviders]);
-
-  useEffect(
-    () => () => {
-      if (artifactPreviewUrl) URL.revokeObjectURL(artifactPreviewUrl);
-    },
-    [artifactPreviewUrl],
-  );
 
   useEffect(() => {
     void refreshCandidates();
@@ -285,14 +278,13 @@ export function Chat() {
     if (!id) return;
     setArtifactOpen(true);
     setArtifactLoading(true);
-    if (artifactPreviewUrl) URL.revokeObjectURL(artifactPreviewUrl);
-    setArtifactPreviewUrl(null);
+    setArtifactPreviewHtml(null);
     fetchConversationDocument(id, documentId)
       .then(async (document) => {
         setArtifact(document);
         if (document.mime_type === "text/html") {
           const blob = await fetchConversationDocumentSource(id, documentId);
-          setArtifactPreviewUrl(URL.createObjectURL(blob));
+          setArtifactPreviewHtml(await blob.text());
         }
       })
       .catch((error) => toast.error(String(error)))
@@ -452,8 +444,7 @@ export function Chat() {
                 title={artifact.title}
                 filename={artifact.filename}
                 mimeType={artifact.mime_type}
-                content={artifact.content_md}
-                src={artifactPreviewUrl ?? undefined}
+                content={artifactPreviewHtml ?? artifact.content_md}
                 showHeader={false}
                 className="h-full rounded-none border-0 shadow-none"
               />

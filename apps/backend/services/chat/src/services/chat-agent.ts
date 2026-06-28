@@ -1,4 +1,5 @@
 import { isStepCount, ToolLoopAgent } from "ai";
+import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 
 import { MAX_AGENT_STEPS } from "./agent-config.js";
 import {
@@ -70,6 +71,14 @@ export function createChatAgent(input: ChatAgentInput) {
     providerId: provider.id,
     multimodalProviderId: input.multimodalProviderId ?? null,
   };
+  // Every server tool that declares a contextSchema receives the same run
+  // context; deriving the map from the tool set keeps it in sync as tools are
+  // added or removed (ask_user has no execute/context and is skipped).
+  const toolsContext = Object.fromEntries(
+    Object.entries(tools)
+      .filter(([, definition]) => "contextSchema" in definition && definition.contextSchema)
+      .map(([name]) => [name, toolContext]),
+  ) as InferToolSetContext<typeof tools>;
   let currentStepNumber = 0;
 
   return new ToolLoopAgent({
@@ -79,19 +88,7 @@ export function createChatAgent(input: ChatAgentInput) {
     }),
     instructions: input.instructions,
     tools,
-    toolsContext: {
-      update_plan: toolContext,
-      list_documents: toolContext,
-      read_document: toolContext,
-      web_search: toolContext,
-      create_artifact: toolContext,
-      begin_artifact: toolContext,
-      write_artifact_part: toolContext,
-      publish_artifact: toolContext,
-      update_artifact: toolContext,
-      analyze_image: toolContext,
-      propose_memory: toolContext,
-    },
+    toolsContext,
     stopWhen: isStepCount(MAX_AGENT_STEPS),
     prepareStep: ({ messages }) => ({ messages: pruneArtifactWrites(messages) }),
     onStepStart: (event) => {

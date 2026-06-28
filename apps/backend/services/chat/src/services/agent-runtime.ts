@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto";
 
 import {
   convertToModelMessages,
+  createUIMessageStreamResponse,
+  toUIMessageStream,
   type UIMessage,
   validateUIMessages,
 } from "ai";
@@ -121,6 +123,8 @@ async function buildInstructions(input: {
       "For images, use analyze_image when the markdown preview is insufficient.",
       "For reusable Markdown deliverables, call create_artifact with a compact brief.",
       "For HTML artifacts, first create/update a plan whose items represent independently verifiable parts, then call begin_artifact, generate each semantic HTML fragment yourself with write_artifact_part, and finally call publish_artifact. Never start a child workflow and never call another model inside an artifact tool.",
+      "Each write_artifact_part content is a body fragment only: no <html>/<head>/<body>/<style>/<script> tags and no inline JavaScript (they are stripped). Use inline style attributes for styling.",
+      "To render a chart, emit exactly one empty div whose data-chart-option attribute holds the ECharts option as escaped JSON, e.g. <div data-chart-option=\"{&quot;xAxis&quot;:{&quot;type&quot;:&quot;category&quot;,&quot;data&quot;:[&quot;2021&quot;,&quot;2022&quot;]},&quot;yAxis&quot;:{&quot;type&quot;:&quot;value&quot;},&quot;series&quot;:[{&quot;type&quot;:&quot;bar&quot;,&quot;data&quot;:[120,200]}]}\"></div>. The host injects ECharts and renders it. Do not write a chart as a <canvas>, an id div with a script, or any code that calls echarts yourself.",
       "When the user asks to modify an existing artifact/document, call update_artifact with that document_id instead of creating a new artifact.",
       "If the user's intent implies an artifact, start create_artifact directly. Do not ask for confirmation before generating it.",
       "Infer reasonable titles, filenames, kind, structure, and visual style when they are not specified; use ask_user only when a missing requirement would make the artifact materially wrong.",
@@ -294,11 +298,12 @@ export async function createAgentRunResponse(
       runId,
       setupMs: Math.round(performance.now() - startedAt),
     });
-    return result.toUIMessageStreamResponse<AnyUIMessage>({
+    const uiStream = toUIMessageStream({
+      stream: result.stream,
+      tools: agent.tools,
       originalMessages: modelUiMessages,
       generateMessageId: () => assistantMessageId,
       sendSources: true,
-      headers: { "x-agent-run-id": runId },
       onError: (error) => {
         console.error("[chat-agent] stream failed", error);
         return "生成失败，请重试。";
@@ -355,6 +360,10 @@ export async function createAgentRunResponse(
           );
         }
       },
+    });
+    return createUIMessageStreamResponse({
+      stream: uiStream,
+      headers: { "x-agent-run-id": runId },
     });
   } catch (error) {
     await failAgentRun({ runId, error });
