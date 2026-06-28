@@ -50,7 +50,9 @@ export function ChatMessageView({
   const reasoning = mergeReasoningParts(message.parts, {
     isMessageStreaming: streaming,
   });
-  const allVisibleParts = withoutReasoningParts(message.parts);
+  const allVisibleParts = removeRecoveredArtifactWriteNoise(
+    withoutReasoningParts(message.parts),
+  );
   const latestPlanIndex = allVisibleParts.reduce(
     (latest, entry) =>
       entry.part.type === "tool-update_plan" &&
@@ -96,6 +98,44 @@ export function ChatMessageView({
       </MessageContent>
     </AiMessage>
   );
+}
+
+function removeRecoveredArtifactWriteNoise(
+  parts: ReturnType<typeof withoutReasoningParts>,
+) {
+  const successfulPublishIndex = parts.findIndex(
+    ({ part }) =>
+      part.type === "tool-publish_artifact" &&
+      part.state === "output-available" &&
+      "output" in part &&
+      part.output &&
+      typeof part.output === "object" &&
+      (part.output as Record<string, unknown>).ok === true,
+  );
+  if (successfulPublishIndex < 0) return parts;
+
+  const dropPositions = new Set<number>();
+  for (const [position, { part }] of parts.entries()) {
+    if (
+      position >= successfulPublishIndex ||
+      part.type !== "tool-write_artifact_part" ||
+      part.state !== "output-error"
+    ) {
+      continue;
+    }
+    dropPositions.add(position);
+    const next = parts[position + 1]?.part;
+    if (next?.type === "text" && isShortRecoveredToolDebris(next.text)) {
+      dropPositions.add(position + 1);
+    }
+  }
+  if (!dropPositions.size) return parts;
+  return parts.filter((_, position) => !dropPositions.has(position));
+}
+
+function isShortRecoveredToolDebris(text: string) {
+  const value = text.trim();
+  return value.length > 0 && value.length <= 20 && !value.includes("\n");
 }
 
 function partKey(

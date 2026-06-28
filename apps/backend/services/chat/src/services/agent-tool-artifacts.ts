@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { TransportError } from "@backend/transport-ts";
 import {
   extractJsonMiddleware,
   generateText,
@@ -31,6 +32,7 @@ import {
 import {
   ARTIFACT_GENERATION_TIMEOUT,
   ARTIFACT_CHUNKED_REVISION_THRESHOLD,
+  ARTIFACT_MODEL_OUTPUT_TOKENS,
   ARTIFACT_REVISION_CHUNK_CHARS,
 } from "./agent-config.js";
 import { createProviderModel } from "./agent-provider.js";
@@ -95,12 +97,26 @@ export async function writeArtifactPartTool(
 ) {
   const html = sanitizeArtifactPart(input.content);
   if (!html) return { ok: false, error: "artifact part is empty", plan_item_id: input.planItemId };
-  await saveArtifactBlock({
-    userId: context.userId,
-    generationId: input.generationId,
-    blockId: input.partId,
-    content: JSON.stringify({ title: input.title, html }),
-  });
+  try {
+    await saveArtifactBlock({
+      userId: context.userId,
+      generationId: input.generationId,
+      blockId: input.partId,
+      content: JSON.stringify({ title: input.title, html }),
+    });
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      return {
+        ok: false,
+        retryable: true,
+        error: "artifact generation or part was not reserved; call begin_artifact first with matching parts, then retry write_artifact_part",
+        generation_id: input.generationId,
+        plan_item_id: input.planItemId,
+        part_id: input.partId,
+      };
+    }
+    throw err;
+  }
   return {
     ok: true,
     generation_id: input.generationId,
@@ -201,6 +217,7 @@ async function generateChunkedRevision(input: {
   for (const [index, chunk] of chunks.entries()) {
     const result = input.tools.streamText({
       model: input.tools.model,
+      maxOutputTokens: ARTIFACT_MODEL_OUTPUT_TOKENS,
       instructions: [
         "You revise one bounded fragment of a larger file.",
         "Apply the change request only when it affects this fragment.",
@@ -233,6 +250,7 @@ export async function createArtifactTool(
     const artifactTools = await buildArtifactTextModel(context.userId, context.providerId);
     const result = artifactTools.streamText({
       model: artifactTools.model,
+      maxOutputTokens: ARTIFACT_MODEL_OUTPUT_TOKENS,
       instructions: artifactSystemPrompt(input.kind),
       prompt: input.brief,
       timeout: ARTIFACT_GENERATION_TIMEOUT,
@@ -290,6 +308,7 @@ export async function updateArtifactTool(
     } else {
       const result = artifactTools.streamText({
         model: artifactTools.model,
+        maxOutputTokens: ARTIFACT_MODEL_OUTPUT_TOKENS,
         instructions: artifactSystemPrompt(artifactKind),
         prompt: artifactRevisionPrompt(artifactKind, currentContent, input.brief),
         timeout: ARTIFACT_GENERATION_TIMEOUT,

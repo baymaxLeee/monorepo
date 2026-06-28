@@ -28,10 +28,21 @@ import {
   getRunTrace,
   type AgentRunTrace,
   listActiveMemories,
+  recordToolCallFinish,
+  recordToolCallStart,
 } from "./agent-state.js";
 import { createChatAgent } from "./chat-agent.js";
-import { MAX_INJECTED_MEMORIES, MAX_INJECTED_MEMORY_CHARS } from "./agent-config.js";
-import { activePlanContext, latestPlanFromParts } from "./agent-plan.js";
+import {
+  ARTIFACT_PART_CONTENT_MAX_CHARS,
+  MAX_INJECTED_MEMORIES,
+  MAX_INJECTED_MEMORY_CHARS,
+} from "./agent-config.js";
+import {
+  activePlanContext,
+  latestPlanFromParts,
+  parsePlanSnapshot,
+  type PlanSnapshot,
+} from "./agent-plan.js";
 import { extractMemoryCandidates } from "./agent-memory.js";
 import { failAgentRun } from "./agent-lifecycle.js";
 
@@ -84,7 +95,8 @@ function partsFromPersistedContent(content: string): AnyUIMessage["parts"] | nul
 }
 
 function sanitizeHistoryParts(message: AnyUIMessage): AnyUIMessage {
-  const parts = message.parts.filter((part) => {
+  const cleaned = removeRecoveredArtifactWriteNoise(message.parts);
+  const parts = cleaned.filter((part) => {
     if (!part || typeof part !== "object" || !("toolCallId" in part)) return true;
     const state = "state" in part ? part.state : "";
     return state === "output-available" || state === "output-error";
@@ -123,7 +135,8 @@ async function buildInstructions(input: {
       "For images, use analyze_image when the markdown preview is insufficient.",
       "For reusable Markdown deliverables, call create_artifact with a compact brief.",
       "For HTML artifacts, first create/update a plan whose items represent independently verifiable parts, then call begin_artifact, generate each semantic HTML fragment yourself with write_artifact_part, and finally call publish_artifact. Never start a child workflow and never call another model inside an artifact tool.",
-      "Each write_artifact_part content is a body fragment only: no <html>/<head>/<body>/<style>/<script> tags and no inline JavaScript (they are stripped). Use inline style attributes for styling.",
+      `Each write_artifact_part content is a body fragment only. The runtime accepts up to ${ARTIFACT_PART_CONTENT_MAX_CHARS} chars per part; prefer coherent sections over tiny fragments.`,
+      "write_artifact_part content must contain no <html>/<head>/<body>/<style>/<script> tags and no inline JavaScript (they are stripped). Use inline style attributes for styling.",
       "To render a chart, emit exactly one empty div whose data-chart-option attribute holds the ECharts option as escaped JSON, e.g. <div data-chart-option=\"{&quot;xAxis&quot;:{&quot;type&quot;:&quot;category&quot;,&quot;data&quot;:[&quot;2021&quot;,&quot;2022&quot;]},&quot;yAxis&quot;:{&quot;type&quot;:&quot;value&quot;},&quot;series&quot;:[{&quot;type&quot;:&quot;bar&quot;,&quot;data&quot;:[120,200]}]}\"></div>. The host injects ECharts and renders it. Do not write a chart as a <canvas>, an id div with a script, or any code that calls echarts yourself.",
       "When the user asks to modify an existing artifact/document, call update_artifact with that document_id instead of creating a new artifact.",
       "If the user's intent implies an artifact, start create_artifact directly. Do not ask for confirmation before generating it.",
@@ -312,7 +325,14 @@ export async function createAgentRunResponse(
         const aborted = isAborted || abortSignal?.aborted === true;
         const failed = finishReason === "error";
         try {
-          const parts = sanitizePersistedParts(responseMessage.parts);
+          const sanitizedParts = sanitizePersistedParts(responseMessage.parts);
+          const autoPlan = aborted || failed
+            ? null
+            : buildPublishCompletionPlanPart(sanitizedParts, activePlan);
+          const parts = autoPlan ? [...sanitizedParts, autoPlan.part] : sanitizedParts;
+          if (autoPlan) {
+            await recordSyntheticPlanToolCall({ runId, autoPlan });
+          }
           let outputMessageId: string | null = null;
           if (parts.length > 0) {
             const content = serializeMessageContent({ ...responseMessage, parts } as AnyUIMessage);
@@ -385,7 +405,7 @@ export async function getAgentRunTrace(
 }
 
 function sanitizePersistedParts(parts: AnyUIMessage["parts"]): AnyUIMessage["parts"] {
-  return parts.map((part) => {
+  return removeRecoveredArtifactWriteNoise(parts).map((part) => {
     if (
       part.type !== "tool-write_artifact_part" ||
       !("input" in part) ||
@@ -404,4 +424,197 @@ function sanitizePersistedParts(parts: AnyUIMessage["parts"]): AnyUIMessage["par
       },
     };
   }) as AnyUIMessage["parts"];
+}
+
+function removeRecoveredArtifactWriteNoise(
+  parts: AnyUIMessage["parts"],
+): AnyUIMessage["parts"] {
+  const successfulPublishIndex = parts.findIndex(
+    (part) =>
+      part.type === "tool-publish_artifact" &&
+      part.state === "output-available" &&
+      "output" in part &&
+      part.output &&
+      typeof part.output === "object" &&
+      (part.output as Record<string, unknown>).ok === true,
+  );
+  if (successfulPublishIndex < 0) return parts;
+
+  const dropIndexes = new Set<number>();
+  for (const [index, part] of parts.entries()) {
+    if (
+      index >= successfulPublishIndex ||
+      part.type !== "tool-write_artifact_part" ||
+      part.state !== "output-error"
+    ) {
+      continue;
+    }
+    dropIndexes.add(index);
+    const next = parts[index + 1];
+    if (next?.type === "text" && isShortRecoveredToolDebris(next.text)) {
+      dropIndexes.add(index + 1);
+    }
+  }
+  if (!dropIndexes.size) return parts;
+  return parts.filter((_, index) => !dropIndexes.has(index)) as AnyUIMessage["parts"];
+}
+
+function isShortRecoveredToolDebris(text: string): boolean {
+  const value = text.trim();
+  return value.length > 0 && value.length <= 20 && !value.includes("\n");
+}
+
+type AutoCompletedPlan = {
+  toolCallId: string;
+  input: {
+    planId: string;
+    baseRevision: number;
+    goal: string;
+    status: "active" | "completed";
+    items: PlanSnapshot["items"];
+    explanation?: string;
+  };
+  output: PlanSnapshot;
+  part: AnyUIMessage["parts"][number];
+};
+
+function buildPublishCompletionPlanPart(
+  parts: AnyUIMessage["parts"],
+  fallbackPlan: PlanSnapshot | null,
+): AutoCompletedPlan | null {
+  let latestPlan = fallbackPlan;
+  let latestPlanIndex = fallbackPlan ? -1 : Number.NEGATIVE_INFINITY;
+  for (const [index, part] of parts.entries()) {
+    if (part.type !== "tool-update_plan" || part.state !== "output-available") continue;
+    const plan = parsePlanSnapshot("output" in part ? part.output : undefined);
+    if (!plan) continue;
+    latestPlan = plan;
+    latestPlanIndex = index;
+  }
+  if (!latestPlan || latestPlan.status !== "active") return null;
+
+  let published: { documentId: string; title: string; index: number } | null = null;
+  for (const [index, part] of parts.entries()) {
+    if (index <= latestPlanIndex) continue;
+    if (part.type !== "tool-publish_artifact" || part.state !== "output-available") continue;
+    const output = "output" in part && part.output && typeof part.output === "object"
+      ? part.output as Record<string, unknown>
+      : null;
+    if (
+      output?.ok !== true ||
+      output.status !== "persisted" ||
+      typeof output.document_id !== "string"
+    ) {
+      continue;
+    }
+    published = {
+      documentId: output.document_id,
+      title: typeof output.title === "string" ? output.title : "Artifact",
+      index,
+    };
+  }
+  if (!published) return null;
+
+  const completedItemIds = completedArtifactPartPlanItemIds(parts, latestPlanIndex);
+  const resultItemId = latestPlan.items.find((item) =>
+    (item.status === "pending" || item.status === "in_progress") &&
+    isArtifactPublishPlanItem(item.id, item.title)
+  )?.id;
+  if (!completedItemIds.size && !resultItemId) return null;
+  const items = latestPlan.items.map((item) => {
+    const shouldComplete =
+      (item.status === "pending" || item.status === "in_progress") &&
+      (completedItemIds.has(item.id) || item.id === resultItemId);
+    return {
+      ...item,
+      status: shouldComplete ? "completed" as const : item.status,
+      result: item.id === resultItemId
+        ? { kind: "artifact" as const, id: published.documentId, label: published.title }
+        : item.result,
+    };
+  });
+  const status: "active" | "completed" = items.every((item) => item.status === "completed" || item.status === "skipped")
+    ? "completed"
+    : "active";
+  const input = {
+    planId: latestPlan.planId,
+    baseRevision: latestPlan.revision,
+    goal: latestPlan.goal,
+    status,
+    items,
+    explanation: "Artifact published successfully; plan completion recorded by the runtime.",
+  };
+  const output: PlanSnapshot = {
+    schemaVersion: 1,
+    planId: latestPlan.planId,
+    revision: latestPlan.revision + 1,
+    goal: latestPlan.goal,
+    status,
+    items,
+    explanation: input.explanation,
+    updatedAt: new Date().toISOString(),
+  };
+  const toolCallId = `auto_plan_${published.documentId}_${output.revision}`.slice(0, 64);
+  return {
+    toolCallId,
+    input,
+    output,
+    part: {
+      type: "tool-update_plan",
+      toolCallId,
+      state: "output-available",
+      input,
+      output,
+    } as AnyUIMessage["parts"][number],
+  };
+}
+
+function isArtifactPublishPlanItem(id: string, title: string): boolean {
+  const text = `${id} ${title}`.toLowerCase();
+  return /publish|artifact|release|产物|发布|交付|输出/.test(text);
+}
+
+function completedArtifactPartPlanItemIds(
+  parts: AnyUIMessage["parts"],
+  afterIndex: number,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const [index, part] of parts.entries()) {
+    if (index <= afterIndex) continue;
+    if (part.type !== "tool-write_artifact_part" || part.state !== "output-available") {
+      continue;
+    }
+    const output = "output" in part && part.output && typeof part.output === "object"
+      ? part.output as Record<string, unknown>
+      : null;
+    const input = "input" in part && part.input && typeof part.input === "object"
+      ? part.input as Record<string, unknown>
+      : null;
+    const planItemId = typeof output?.plan_item_id === "string"
+      ? output.plan_item_id
+      : typeof input?.planItemId === "string"
+        ? input.planItemId
+        : null;
+    if (planItemId) ids.add(planItemId);
+  }
+  return ids;
+}
+
+async function recordSyntheticPlanToolCall(input: {
+  runId: string;
+  autoPlan: AutoCompletedPlan;
+}): Promise<void> {
+  await recordToolCallStart({
+    runId: input.runId,
+    toolCallId: input.autoPlan.toolCallId,
+    stepIndex: null,
+    toolName: "update_plan",
+    toolInput: input.autoPlan.input,
+  });
+  await recordToolCallFinish({
+    toolCallId: input.autoPlan.toolCallId,
+    status: "completed",
+    output: input.autoPlan.output,
+    durationMs: 0,
+  });
 }

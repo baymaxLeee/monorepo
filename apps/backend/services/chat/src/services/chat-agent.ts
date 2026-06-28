@@ -1,7 +1,7 @@
 import { isStepCount, ToolLoopAgent } from "ai";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 
-import { MAX_AGENT_STEPS } from "./agent-config.js";
+import { MAX_AGENT_OUTPUT_TOKENS, MAX_AGENT_STEPS } from "./agent-config.js";
 import {
   finishModelStep,
   recordToolEnd,
@@ -87,6 +87,7 @@ export function createChatAgent(input: ChatAgentInput) {
       reasoningEffort: input.reasoningEffort,
     }),
     instructions: input.instructions,
+    maxOutputTokens: MAX_AGENT_OUTPUT_TOKENS,
     tools,
     toolsContext,
     stopWhen: isStepCount(MAX_AGENT_STEPS),

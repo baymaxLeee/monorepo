@@ -182,6 +182,7 @@ export function Chat() {
         if (!id) return;
         void fetchConversation(id).then((next) => {
           setDetail(next);
+          setMessages(next.messages.map(messageToUiMessage));
         });
       },
     });
