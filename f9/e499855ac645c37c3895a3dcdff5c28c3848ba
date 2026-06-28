@@ -1,0 +1,26 @@
+apps/backend/services/chat/src/services/agent-types.ts
+  h_94bb04ae77a559 1,4,6,10,12
+apps/backend/services/chat/src/services/agent-runtime.ts
+  h_94bb04ae77a559 1-2,11,17-18,25,30,32-34,58,127,191,196-200,202,207,216-251,257,278-279,281,283-288,290-338,340-349,351-356,359-361,365,368,370-371,374,378-397
+apps/backend/services/chat/src/services/agent-state.ts
+  h_94bb04ae77a559 59,71
+apps/frontend/apps/chat/src/pages/Chat.tsx
+  h_94bb04ae77a559 161,165-166
+apps/frontend/packages/api/src/chat-server.ts
+  h_94bb04ae77a559 321,324
+apps/backend/services/chat/src/services/agent-tool-artifacts.ts
+  h_94bb04ae77a559 2-20,38,193,196-199,229,237,243,261,273,276,291,300,319
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f9e499855ac645c37c3895a3dcdff5c28c3848ba",
+  "prompts": {},
+  "humans": {
+    "h_94bb04ae77a559": {
+      "author": "baymaxlee.001 <baymaxlee.001@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
