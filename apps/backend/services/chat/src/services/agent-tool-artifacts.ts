@@ -28,7 +28,7 @@ import {
 } from "./agent-config.js";
 import { createProviderModel } from "./agent-provider.js";
 import type { ToolContext } from "./agent-types.js";
-import { compileArtifactHtml, sanitizeArtifactPart } from "./artifact-compiler.js";
+import { compileArtifactHtml, sanitizeArtifactPart, ARTIFACT_DESIGN_VOCABULARY, ARTIFACT_CHART_SPEC } from "./artifact-compiler.js";
 
 type ArtifactMode = "document" | "presentation" | "dashboard";
 type ArtifactTheme = { preset: string; accent: string };
@@ -112,14 +112,29 @@ function blockInstructions(input: {
   theme: ArtifactTheme;
   outline: ArtifactBlock[];
 }): string {
+  const layoutHint =
+    input.mode === "presentation"
+      ? "This is one slide: one clear focal point, large headline, few words, generous whitespace. Prefer grid-2/grid-3 of cards or kpi over dense paragraphs."
+      : input.mode === "dashboard"
+        ? "This is one dashboard panel: lead with kpi metrics and a chart; keep supporting text terse."
+        : "This is one document section: a clear heading, a short lead, then structured body content.";
   return [
     "Generate one semantic HTML body fragment for a larger compiled artifact.",
     "Return only the fragment: no markdown fence, doctype, html, head, body, style, or script tags.",
     "Never emit inline JavaScript or event-handler attributes.",
+    "The compiler ships a complete design system (tokens, typography, components). Compose layout ONLY from the class vocabulary below.",
+    "Do NOT write inline style attributes for layout, color, spacing, font, or borders — use the classes. Do NOT define your own CSS or hex colors; use the accent via the provided classes.",
+    "<design_system>",
+    ARTIFACT_DESIGN_VOCABULARY,
+    "</design_system>",
+    "Wrap the fragment's direct children in a `stack` or `stack-lg` container so spacing stays consistent. Reuse the same components other blocks use for the same kind of content so the whole document looks uniform.",
     "Internal navigation must use fragment links such as href=\"#chapter-id\"; the compiler gives every block that id.",
-    "Charts must be one empty div with data-chart-option containing escaped strict JSON. Never emit canvas or ECharts JavaScript.",
-    "Use accessible headings, tables, alt text, and restrained inline styles. The compiler owns page sizing and global CSS.",
-    `Mode: ${input.mode}. Theme preset: ${input.theme.preset}. Accent: ${input.theme.accent}.`,
+    "<chart_spec>",
+    ARTIFACT_CHART_SPEC,
+    "</chart_spec>",
+    "Use accessible headings, table headers, and image alt text.",
+    layoutHint,
+    `Mode: ${input.mode}. Theme preset: ${input.theme.preset}. Accent color is applied automatically via the design system.`,
     `Whole outline: ${input.outline.map((block) => `${block.id}:${block.title}`).join(" | ")}`,
   ].join("\n");
 }

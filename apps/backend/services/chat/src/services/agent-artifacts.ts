@@ -89,6 +89,42 @@ export function buildChartHydrationScript(): string {
   ].join("\n");
 }
 
+/**
+ * Trusted intra-document navigation for the sandboxed preview. The artifact is
+ * rendered in an `srcdoc` iframe with `allow-scripts` but WITHOUT
+ * `allow-same-origin`, so its base URL is `about:srcdoc` and a bare `#id` link
+ * resolves against the PARENT document — clicking a directory link tries to
+ * load the host app (localhost:3000) and is blocked (403/ERR_ABORTED). We keep
+ * the sandbox tight and instead intercept same-document fragment clicks here
+ * (compile-injected, trusted; blocks never emit JS) and scroll to the target.
+ */
+export function buildArtifactNavScript(): string {
+  return [
+    "  <script>",
+    "    (function () {",
+    "      function targetFor(hash) {",
+    "        if (!hash || hash.charAt(0) !== '#' || hash.length < 2) return null;",
+    "        var id = decodeURIComponent(hash.slice(1));",
+    "        return document.getElementById(id) || document.querySelector('[name=\"' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '\"]');",
+    "      }",
+    "      document.addEventListener('click', function (event) {",
+    "        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;",
+    "        var anchor = event.target && event.target.closest ? event.target.closest('a[href]') : null;",
+    "        if (!anchor) return;",
+    "        var href = anchor.getAttribute('href') || '';",
+    "        if (href.charAt(0) !== '#') return;",
+    "        var el = targetFor(href);",
+    "        event.preventDefault();",
+    "        if (el) {",
+    "          el.scrollIntoView({ behavior: 'smooth', block: 'start' });",
+    "          if (typeof el.focus === 'function') { el.setAttribute('tabindex', '-1'); el.focus({ preventScroll: true }); }",
+    "        }",
+    "      });",
+    "    })();",
+    "  </script>",
+  ].join("\n");
+}
+
 export function artifactSystemPrompt(kind: ArtifactKind): string {
   const base = [
     "You are a dedicated file generator.",
