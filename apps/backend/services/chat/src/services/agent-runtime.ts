@@ -56,6 +56,37 @@ export interface RunAgentInput {
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
+// The reason a tool/stream failed must reach both the model (next turn, via
+// convertToModelMessages) and the user. The AI SDK routes every thrown tool
+// error and stream error through this string, so we surface the real cause
+// instead of a generic placeholder. Aborts stay quiet; nothing else is hidden.
+function describeStreamError(error: unknown): string {
+  if (
+    (error instanceof Error && error.name === "AbortError") ||
+    (typeof error === "object" &&
+      error !== null &&
+      "name" in error &&
+      (error as { name?: unknown }).name === "AbortError")
+  ) {
+    return "已取消。";
+  }
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : (() => {
+            try {
+              return JSON.stringify(error);
+            } catch {
+              return String(error);
+            }
+          })();
+  const trimmed = message.trim();
+  if (!trimmed) return "工具调用失败，未返回具体原因。";
+  return `工具调用失败：${trimmed.slice(0, 600)}`;
+}
+
 function assertRunAccess(
   auth: AuthContext,
   conversationId: string,
@@ -138,6 +169,7 @@ async function buildInstructions(input: {
       `Each write_artifact_part content is a body fragment only. The runtime accepts up to ${ARTIFACT_PART_CONTENT_MAX_CHARS} chars per part; prefer coherent sections over tiny fragments.`,
       "write_artifact_part content must contain no <html>/<head>/<body>/<style>/<script> tags and no inline JavaScript (they are stripped). Use inline style attributes for styling.",
       "To render a chart, emit exactly one empty div whose data-chart-option attribute holds the ECharts option as escaped JSON, e.g. <div data-chart-option=\"{&quot;xAxis&quot;:{&quot;type&quot;:&quot;category&quot;,&quot;data&quot;:[&quot;2021&quot;,&quot;2022&quot;]},&quot;yAxis&quot;:{&quot;type&quot;:&quot;value&quot;},&quot;series&quot;:[{&quot;type&quot;:&quot;bar&quot;,&quot;data&quot;:[120,200]}]}\"></div>. The host injects ECharts and renders it. Do not write a chart as a <canvas>, an id div with a script, or any code that calls echarts yourself.",
+      "Chart options must be strict JSON: do not put JavaScript functions in data-chart-option. Use ECharts string formatter templates such as \"{c}\" instead of formatter:function(...) callbacks.",
       "When the user asks to modify an existing artifact/document, call update_artifact with that document_id instead of creating a new artifact.",
       "If the user's intent implies an artifact, start create_artifact directly. Do not ask for confirmation before generating it.",
       "Infer reasonable titles, filenames, kind, structure, and visual style when they are not specified; use ask_user only when a missing requirement would make the artifact materially wrong.",
@@ -319,7 +351,7 @@ export async function createAgentRunResponse(
       sendSources: true,
       onError: (error) => {
         console.error("[chat-agent] stream failed", error);
-        return "生成失败，请重试。";
+        return describeStreamError(error);
       },
       onEnd: async ({ responseMessage, isContinuation, isAborted, finishReason }) => {
         const aborted = isAborted || abortSignal?.aborted === true;
@@ -405,25 +437,78 @@ export async function getAgentRunTrace(
 }
 
 function sanitizePersistedParts(parts: AnyUIMessage["parts"]): AnyUIMessage["parts"] {
-  return removeRecoveredArtifactWriteNoise(parts).map((part) => {
-    if (
-      part.type !== "tool-write_artifact_part" ||
-      !("input" in part) ||
-      !part.input ||
-      typeof part.input !== "object"
-    ) {
-      return part;
-    }
-    const input = part.input as Record<string, unknown>;
-    const content = typeof input.content === "string" ? input.content : "";
+  return removeRecoveredArtifactWriteNoise(parts).map(sanitizePersistedPart) as AnyUIMessage["parts"];
+}
+
+function sanitizePersistedPart(part: AnyUIMessage["parts"][number]): AnyUIMessage["parts"][number] {
+  if (part.type === "reasoning" && part.text.length > 4_000) {
     return {
       ...part,
-      input: {
+      text: `${part.text.slice(0, 4_000).trimEnd()}\n[persisted reasoning truncated: ${part.text.length} chars]`,
+    };
+  }
+
+  if (part.type === "tool-web_search" && "output" in part && part.output) {
+    return {
+      ...part,
+      output: compactWebSearchOutput(part.output),
+    } as AnyUIMessage["parts"][number];
+  }
+
+  if (
+    part.type === "tool-write_artifact_part" &&
+    ("input" in part || "rawInput" in part)
+  ) {
+    const next = { ...part } as Record<string, unknown>;
+    if ("input" in part && part.input && typeof part.input === "object") {
+      const input = part.input as Record<string, unknown>;
+      const content = typeof input.content === "string" ? input.content : "";
+      next.input = {
         ...input,
         content: `[persisted in knowledge: ${content.length} chars]`,
-      },
-    };
-  }) as AnyUIMessage["parts"];
+      };
+    }
+    if ("rawInput" in part && typeof part.rawInput === "string") {
+      next.rawInput = redactArtifactRawInput(part.rawInput);
+    }
+    return next as AnyUIMessage["parts"][number];
+  }
+
+  return part;
+}
+
+function compactWebSearchOutput(output: unknown): unknown {
+  if (!output || typeof output !== "object") return output;
+  const row = output as Record<string, unknown>;
+  const results = Array.isArray(row.results)
+    ? row.results.map((item) => {
+        if (!item || typeof item !== "object") return item;
+        const result = item as Record<string, unknown>;
+        return {
+          ...result,
+          snippet: truncateString(result.snippet, 700),
+          content: truncateString(result.content, 700),
+          raw_content: truncateString(result.raw_content, 700),
+        };
+      })
+    : row.results;
+  return { ...row, results };
+}
+
+function truncateString(value: unknown, maxLength: number): unknown {
+  if (typeof value !== "string" || value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength).trimEnd()}...[truncated ${value.length} chars]`;
+}
+
+function redactArtifactRawInput(rawInput: string): string {
+  const contentMatch = rawInput.match(/"content"\s*:\s*"([\s\S]*)/);
+  if (!contentMatch?.[1]) {
+    return `[redacted malformed tool input: ${rawInput.length} chars]`;
+  }
+  return rawInput.replace(
+    /"content"\s*:\s*"[\s\S]*/m,
+    `"content":"[redacted malformed artifact content: ${contentMatch[1].length} chars]"`,
+  );
 }
 
 function removeRecoveredArtifactWriteNoise(

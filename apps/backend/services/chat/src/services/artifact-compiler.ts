@@ -61,9 +61,29 @@ function renderErrorSection(part: ArtifactPartPlan, reason: string): string {
 
 function validateChartOptions(html: string): string {
   return html.replace(/data-chart-option=(["'])([\s\S]*?)\1/gi, (match, _quote, raw) => {
-    const decoded = String(raw).replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
-    try { JSON.parse(decoded); return match; } catch { return 'data-chart-invalid="true"'; }
+    const decoded = decodeAttribute(String(raw));
+    const normalized = normalizeChartOptionJson(decoded);
+    try {
+      const option = JSON.parse(normalized) as unknown;
+      return `data-chart-option="${escapeAttribute(JSON.stringify(option))}"`;
+    } catch {
+      return 'data-chart-invalid="true"';
+    }
   });
+}
+
+function decodeAttribute(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function normalizeChartOptionJson(value: string): string {
+  return value.replace(
+    /"formatter"\s*:\s*function\s*\([^)]*\)\s*\{[^{}]*\}/g,
+    '"formatter":"{c}"',
+  );
 }
 
 function artifactModeStyles(mode: "document" | "presentation" | "dashboard", rawAccent: string): string {

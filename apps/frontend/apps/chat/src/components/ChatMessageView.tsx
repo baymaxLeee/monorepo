@@ -231,7 +231,14 @@ function ToolPartView({
 }) {
   const toolName = getToolName(part);
   const input = "input" in part ? part.input : undefined;
+  const rawInput =
+    "rawInput" in part ? compactRawInput(part.rawInput) : undefined;
   const output = "output" in part ? part.output : undefined;
+  const errorText =
+    "errorText" in part && typeof part.errorText === "string"
+      ? part.errorText
+      : undefined;
+  const outputErrorReason = parseToolOutputError(output);
   const artifact = parseArtifactOutput(output);
   const askUserInput =
     toolName === "ask_user" ? parseAskUserInput(input) : null;
@@ -251,9 +258,14 @@ function ToolPartView({
     return <StreamingArtifactCard artifact={artifact} />;
   }
 
+  const hasError = part.state === "output-error" || outputErrorReason != null;
+
   return (
-    <Tool open={part.state !== "output-available"}>
-      <ToolHeader title={toolName} state={part.state} />
+    <Tool open={part.state !== "output-available" || outputErrorReason != null}>
+      <ToolHeader
+        title={toolName}
+        state={hasError ? "output-error" : part.state}
+      />
       <ToolContent>
         {part.state === "input-available" && askUserInput ? (
           <AskUserToolCard
@@ -263,14 +275,45 @@ function ToolPartView({
             }
           />
         ) : null}
+        {hasError ? (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">
+            {errorText?.trim() ||
+              outputErrorReason ||
+              "工具调用失败，未返回错误详情。"}
+          </div>
+        ) : null}
         {askUserInput == null && input !== undefined ? (
           <ToolJsonBlock value={input} />
+        ) : null}
+        {askUserInput == null &&
+        input === undefined &&
+        rawInput !== undefined ? (
+          <ToolJsonBlock value={{ rawInput }} />
         ) : null}
         {askUserInput == null && output !== undefined ? (
           <ToolJsonBlock value={output} />
         ) : null}
       </ToolContent>
     </Tool>
+  );
+}
+
+function parseToolOutputError(output: unknown): string | null {
+  if (!output || typeof output !== "object") return null;
+  const row = output as { ok?: unknown; error?: unknown };
+  if (row.ok !== false) return null;
+  if (typeof row.error === "string" && row.error.trim())
+    return row.error.trim();
+  return "工具调用失败，未返回具体原因。";
+}
+
+function compactRawInput(rawInput: unknown) {
+  if (typeof rawInput !== "string") return rawInput;
+  const contentMatch = rawInput.match(/"content"\s*:\s*"([\s\S]*)/);
+  if (!contentMatch?.[1]) return rawInput;
+  return rawInput.replace(
+    /"content"\s*:\s*"[\s\S]*/m,
+    `"content":"[redacted malformed artifact content: ${contentMatch[1].length} chars]"`,
   );
 }
 

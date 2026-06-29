@@ -58,30 +58,34 @@ export async function beginArtifactTool(
   { context, toolCallId }: { context: ToolContext; toolCallId: string },
 ) {
   const filename = safeFilename(input.filename);
-  const generation = await reserveArtifactGeneration({
-    userId: context.userId,
-    conversationId: context.conversationId,
-    title: input.title,
-    filename,
-    mode: input.mode,
-    brief: `Plan ${input.planId}`,
-    idempotencyKey: toolCallId,
-  });
-  await saveArtifactPlan({
-    userId: context.userId,
-    generationId: generation.id,
-    manifest: { schemaVersion: 1, planId: input.planId, mode: input.mode, theme: input.theme, parts: input.parts },
-    blocks: input.parts.map((part) => ({ id: part.partId, type: part.type, brief: part.title })),
-  });
-  return {
-    ok: true,
-    generation_id: generation.id,
-    document_id: generation.document_id,
-    title: input.title,
-    filename,
-    mode: input.mode,
-    parts_total: input.parts.length,
-  };
+  try {
+    const generation = await reserveArtifactGeneration({
+      userId: context.userId,
+      conversationId: context.conversationId,
+      title: input.title,
+      filename,
+      mode: input.mode,
+      brief: `Plan ${input.planId}`,
+      idempotencyKey: toolCallId,
+    });
+    await saveArtifactPlan({
+      userId: context.userId,
+      generationId: generation.id,
+      manifest: { schemaVersion: 1, planId: input.planId, mode: input.mode, theme: input.theme, parts: input.parts },
+      blocks: input.parts.map((part) => ({ id: part.partId, type: part.type, brief: part.title })),
+    });
+    return {
+      ok: true,
+      generation_id: generation.id,
+      document_id: generation.document_id,
+      title: input.title,
+      filename,
+      mode: input.mode,
+      parts_total: input.parts.length,
+    };
+  } catch (err) {
+    return { ok: false, error: `failed to reserve artifact: ${String(err).slice(0, 500)}` };
+  }
 }
 
 export async function writeArtifactPartTool(
@@ -115,7 +119,13 @@ export async function writeArtifactPartTool(
         part_id: input.partId,
       };
     }
-    throw err;
+    return {
+      ok: false,
+      error: `failed to persist artifact part: ${String(err).slice(0, 500)}`,
+      generation_id: input.generationId,
+      plan_item_id: input.planItemId,
+      part_id: input.partId,
+    };
   }
   return {
     ok: true,
@@ -138,31 +148,39 @@ export async function publishArtifactTool(
   },
   { context }: { context: ToolContext },
 ) {
-  const stored = await listArtifactBlocks(context.userId, input.generationId);
-  const compiled = compileArtifactHtml({
-    title: input.title,
-    mode: input.mode,
-    theme: input.theme,
-    parts: input.parts,
-    stored,
-  });
-  const published = await publishArtifactRevision({
-    userId: context.userId,
-    generationId: input.generationId,
-    compiledHtml: compiled.html,
-  });
-  return {
-    ok: true,
-    status: "persisted",
-    document_id: published.document_id,
-    revision_id: published.revision_id,
-    title: published.title,
-    filename: published.filename,
-    kind: "html" as const,
-    total_chars: published.total_chars,
-    parts_ok: compiled.partsOk,
-    parts_failed: compiled.partsFailed,
-  };
+  try {
+    const stored = await listArtifactBlocks(context.userId, input.generationId);
+    const compiled = compileArtifactHtml({
+      title: input.title,
+      mode: input.mode,
+      theme: input.theme,
+      parts: input.parts,
+      stored,
+    });
+    const published = await publishArtifactRevision({
+      userId: context.userId,
+      generationId: input.generationId,
+      compiledHtml: compiled.html,
+    });
+    return {
+      ok: true,
+      status: "persisted",
+      document_id: published.document_id,
+      revision_id: published.revision_id,
+      title: published.title,
+      filename: published.filename,
+      kind: "html" as const,
+      total_chars: published.total_chars,
+      parts_ok: compiled.partsOk,
+      parts_failed: compiled.partsFailed,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `failed to publish artifact: ${String(err).slice(0, 500)}`,
+      generation_id: input.generationId,
+    };
+  }
 }
 
 export async function buildArtifactTextModel(userId: string, providerId: string) {
