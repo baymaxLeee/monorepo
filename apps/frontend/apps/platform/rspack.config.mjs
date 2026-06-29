@@ -110,6 +110,29 @@ export default defineConfig({
     compress: false,
     proxy: [
       {
+        context: (pathname) =>
+          /^\/api\/chat-server\/conversations\/[^/]+\/agents\/run\/stream$/.test(
+            pathname,
+          ),
+        target: API_TARGET,
+        changeOrigin: true,
+        secure: false,
+        ws: false,
+        selfHandleResponse: false,
+        timeout: 1_800_000,
+        proxyTimeout: 1_800_000,
+      },
+      {
+        context: ["/api/knowledge-server/ingest/stream"],
+        target: API_TARGET,
+        changeOrigin: true,
+        secure: false,
+        ws: false,
+        selfHandleResponse: false,
+        timeout: 1_800_000,
+        proxyTimeout: 1_800_000,
+      },
+      {
         context: ["/api"],
         target: API_TARGET,
         changeOrigin: true,

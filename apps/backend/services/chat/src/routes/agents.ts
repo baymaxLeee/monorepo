@@ -80,7 +80,6 @@ agentsRoutes.get("/:conversationId/artifact-jobs", async (c) => {
   const jobs = await listUnfinishedArtifactGenerations({
     userId: conversation.userId,
     conversationId: conversation.id,
-    includeTerminal: true,
     limit: 20,
   });
   return c.json(jobs);

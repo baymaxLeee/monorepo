@@ -38,11 +38,8 @@ function isActive(job: ArtifactJob): boolean {
 }
 
 export function ArtifactJobBar({ jobs }: { jobs: ArtifactJob[] }) {
-  if (!jobs.length) return null;
-  const visibleJobs = [
-    ...jobs.filter(isActive),
-    ...jobs.filter((job) => !isActive(job)).slice(0, 3),
-  ];
+  const visibleJobs = jobs.filter(isActive);
+  if (!visibleJobs.length) return null;
 
   return (
     <div className="mb-2 space-y-2">
