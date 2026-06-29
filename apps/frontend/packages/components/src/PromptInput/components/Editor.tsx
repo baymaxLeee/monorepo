@@ -64,6 +64,19 @@ const tokenMatchesRef = (token: PromptInputToken, tokenRef: string) => {
   return token.id === tokenRef || meta.clientRef === tokenRef;
 };
 
+const fileMatchesAccept = (file: File, accept?: string) => {
+  if (!accept?.trim()) return true;
+  const filename = file.name.toLowerCase();
+  const mime = file.type.toLowerCase();
+  return accept.split(",").some((raw) => {
+    const rule = raw.trim().toLowerCase();
+    if (!rule) return false;
+    if (rule.startsWith(".")) return filename.endsWith(rule);
+    if (rule.endsWith("/*")) return mime.startsWith(rule.slice(0, -1));
+    return mime === rule;
+  });
+};
+
 const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
   (props, ref) => {
     const {
@@ -180,6 +193,10 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
         onError?.(`最多可添加 ${maxFiles} 个文件。`);
       const added: Array<{ token: PromptInputToken; file: File }> = [];
       for (const file of files.slice(0, remaining)) {
+        if (!fileMatchesAccept(file, accept)) {
+          onError?.(`${file.name} 的文件类型不受支持。`);
+          continue;
+        }
         if (file.size > maxFileSize) {
           onError?.(
             `${file.name} 超过 ${Math.round(maxFileSize / 1024 / 1024)} MB 限制。`,
@@ -342,9 +359,12 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
             continue;
           }
           flushText();
-          const token = segment.token;
-          if (token.url && token.kind === "image") {
-            objectUrlsRef.current[token.id] = token.url;
+          let token = segment.token;
+          const file = filesRef.current[token.id];
+          if (token.kind === "image" && file) {
+            const url = URL.createObjectURL(file);
+            token = { ...token, url };
+            objectUrlsRef.current[token.id] = url;
           }
           paragraphs.push({
             type: "paragraph",

@@ -9,6 +9,9 @@ import { buildCompactionState, type CompactionState } from "./compaction-state.j
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
 const MAX_SUMMARY_CHARS = 12_000;
+const MAX_STATE_CHARS = 20_000;
+const MAX_PLAN_CHARS = 40_000;
+const CONTEXT_OVERHEAD_TOKENS = 4_000;
 
 function textParts(message: AnyUIMessage): string {
   return message.parts
@@ -40,6 +43,14 @@ function compactOlderMessages(messages: AnyUIMessage[]): string {
     .filter(Boolean)
     .join("\n\n")
     .slice(-MAX_SUMMARY_CHARS);
+}
+
+function estimatedMessageChars(message: AnyUIMessage): number {
+  try {
+    return JSON.stringify(message.parts).length + 200;
+  } catch {
+    return textParts(message).length + 400;
+  }
 }
 
 async function saveSnapshot(
@@ -96,22 +107,38 @@ export async function projectModelContext(input: {
   maxOutputTokens: number;
   messages: AnyUIMessage[];
 }): Promise<{ messages: ModelMessage[]; instructionContext: string[] }> {
-  const inputTokenBudget = Math.max(4_000, input.contextWindow - input.maxOutputTokens);
-  const charBudget = inputTokenBudget * 3;
+  const inputTokenBudget = Math.max(
+    512,
+    input.contextWindow - input.maxOutputTokens - CONTEXT_OVERHEAD_TOKENS,
+  );
+  const [stored] = await getDb()
+    .select()
+    .from(conversationContexts)
+    .where(eq(conversationContexts.conversationId, input.conversationId));
+  const storedState = stored?.stateJson && typeof stored.stateJson === "object"
+    ? stored.stateJson as Partial<CompactionState>
+    : null;
+  let state: Partial<CompactionState> | null = storedState;
+  const stateReserve = storedState
+    ? Math.min(MAX_STATE_CHARS, JSON.stringify(storedState).length)
+    : 0;
+  const planReserve = input.mode === "plan" && input.activePlanDocumentId
+    ? Math.min(MAX_PLAN_CHARS, Math.floor(inputTokenBudget * 1.5))
+    : 0;
+  const charBudget = Math.max(
+    1_500,
+    inputTokenBudget * 3 - MAX_SUMMARY_CHARS - stateReserve - planReserve,
+  );
   let recentChars = 0;
   let splitAt = input.messages.length;
   while (splitAt > 0) {
-    const next = textParts(input.messages[splitAt - 1]!).length + 200;
+    const next = estimatedMessageChars(input.messages[splitAt - 1]!);
     if (recentChars + next > charBudget && splitAt < input.messages.length) break;
     recentChars += next;
     splitAt -= 1;
   }
   const older = input.messages.slice(0, splitAt);
   const recent = input.messages.slice(splitAt);
-  const [stored] = await getDb()
-    .select()
-    .from(conversationContexts)
-    .where(eq(conversationContexts.conversationId, input.conversationId));
 
   // Incremental compaction: the stored snapshot already summarizes everything
   // up to coveredThroughMessageId. Only fold the messages that have sunk below
@@ -131,14 +158,11 @@ export async function projectModelContext(input: {
         ? `${stored.summary}\n\n${addition}`
         : addition
       ).slice(-MAX_SUMMARY_CHARS);
-      const previousState = stored?.stateJson && typeof stored.stateJson === "object"
-        ? stored.stateJson as Partial<CompactionState>
-        : null;
-      const state = buildCompactionState({
+      state = buildCompactionState({
         messages: newlyOlder,
         mode: input.mode,
         activePlanDocumentId: input.activePlanDocumentId,
-        previous: previousState,
+        previous: storedState,
       });
       void saveSnapshot(input.conversationId, older.at(-1)?.id ?? null, summary, state as unknown as Record<string, unknown>).catch((error) =>
         console.error("[chat-context] failed to persist snapshot", error),
@@ -150,13 +174,20 @@ export async function projectModelContext(input: {
   if (summary) {
     instructionContext.push(`<conversation_summary>\n${summary}\n</conversation_summary>`);
   }
+  if (state) {
+    const serializedState = JSON.stringify(state);
+    instructionContext.push(
+      `<conversation_state>\n${serializedState}\n</conversation_state>`,
+    );
+  }
 
   if (input.mode === "plan" && input.activePlanDocumentId) {
     try {
       const plan = await getDocument(input.userId, input.activePlanDocumentId);
       if (plan.conversation_id === input.conversationId && plan.mime_type === "text/markdown") {
+        const maxPlanChars = Math.min(MAX_PLAN_CHARS, Math.floor(inputTokenBudget * 1.5));
         instructionContext.push(
-          `<active_plan_artifact document_id="${plan.id}" revision_id="${plan.updated_at}">\n${(plan.content_md ?? "").slice(0, 40_000)}\n</active_plan_artifact>`,
+          `<active_plan_artifact document_id="${plan.id}" revision_id="${plan.updated_at}">\n${(plan.content_md ?? "").slice(0, maxPlanChars)}\n</active_plan_artifact>`,
         );
       }
     } catch (error) {

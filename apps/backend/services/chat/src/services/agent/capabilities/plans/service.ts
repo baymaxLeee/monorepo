@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { createArtifact, getDocument, updateArtifact } from "../../../clients/knowledge.js";
-import { setActivePlanDocument } from "../../conversations.js";
-import type { ToolContext } from "../types.js";
+import { createArtifact, getDocument, updateArtifact } from "../../../../clients/knowledge.js";
+import { setActivePlanDocument } from "../../../conversations.js";
+import type { ToolContext } from "../../contract.js";
 
 const PLAN_TEMPLATE_HEADINGS = ["# 目标", "## 背景与约束", "## 实施方案", "## 任务", "## 验收标准"];
 

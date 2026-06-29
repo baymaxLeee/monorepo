@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
+from typing import cast
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends
@@ -25,7 +26,8 @@ from knowledge.schemas.artifact import (
     StoredArtifactBlock,
 )
 from knowledge.services.object_store import ObjectStore
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
+from sqlalchemy.engine import CursorResult
 
 router = APIRouter(
     prefix="/internal/artifact-generations",
@@ -87,9 +89,11 @@ async def reserve_generation(payload: ReserveArtifactGenerationInput, session: D
         if resume.status not in {"cancelled", "failed", "interrupted"}:
             raise ConflictError("only a stopped artifact generation can be resumed")
 
-    document_id = resume.document_id if resume else sha256(
-        f"{payload.user_id}:{payload.idempotency_key}".encode()
-    ).hexdigest()[:16]
+    document_id = (
+        resume.document_id
+        if resume
+        else sha256(f"{payload.user_id}:{payload.idempotency_key}".encode()).hexdigest()[:16]
+    )
     base_revision_id = payload.base_revision_id
     if payload.document_id:
         document = await document_crud.get_document(session, payload.document_id, payload.user_id)
@@ -151,12 +155,22 @@ async def reserve_generation(payload: ReserveArtifactGenerationInput, session: D
         row.completed_blocks = len(ready_blocks)
         session.add_all(
             ArtifactBlockVersionRow(
-                id=_id(), document_id=row.document_id, generation_id=row.id,
-                block_id=block.block_id, block_type=block.block_type, position=block.position,
-                brief=block.brief, status="ready", object_bucket=block.object_bucket,
-                object_key=block.object_key, object_sha256=block.object_sha256,
-                content_size=block.content_size, error=None, attempt=block.attempt,
-                created_at=now, updated_at=now,
+                id=_id(),
+                document_id=row.document_id,
+                generation_id=row.id,
+                block_id=block.block_id,
+                block_type=block.block_type,
+                position=block.position,
+                brief=block.brief,
+                status="ready",
+                object_bucket=block.object_bucket,
+                object_key=block.object_key,
+                object_sha256=block.object_sha256,
+                content_size=block.content_size,
+                error=None,
+                attempt=block.attempt,
+                created_at=now,
+                updated_at=now,
             )
             for block in ready_blocks
         )
@@ -198,17 +212,22 @@ async def list_claimable_generations(session: DbSession, limit: int = 20) -> lis
 
 @router.get("/unfinished", response_model=list[ArtifactGeneration])
 async def list_unfinished_generations(
-    user_id: str, session: DbSession, conversation_id: str | None = None, run_id: str | None = None
+    user_id: str,
+    session: DbSession,
+    conversation_id: str | None = None,
+    run_id: str | None = None,
+    include_terminal: bool = False,
+    limit: int = 20,
 ) -> list[ArtifactGeneration]:
-    query = select(ArtifactGenerationRow).where(
-        ArtifactGenerationRow.user_id == user_id,
-        ArtifactGenerationRow.status.in_(["queued", "running", "cancel_requested"]),
-    )
+    query = select(ArtifactGenerationRow).where(ArtifactGenerationRow.user_id == user_id)
+    if not include_terminal:
+        query = query.where(ArtifactGenerationRow.status.in_(["queued", "running", "cancel_requested"]))
     if conversation_id:
         query = query.where(ArtifactGenerationRow.conversation_id == conversation_id)
     if run_id:
         query = query.where(ArtifactGenerationRow.run_id == run_id)
-    rows = (await session.scalars(query.order_by(ArtifactGenerationRow.created_at))).all()
+    order = ArtifactGenerationRow.created_at.desc() if include_terminal else ArtifactGenerationRow.created_at
+    rows = (await session.scalars(query.order_by(order).limit(max(1, min(limit, 100))))).all()
     return [_generation_schema(row) for row in rows]
 
 
@@ -226,26 +245,46 @@ async def get_generation(generation_id: str, user_id: str, session: DbSession) -
 
 
 @router.post("/{generation_id}/claim", response_model=ArtifactGeneration)
-async def claim_generation(
-    generation_id: str, payload: ArtifactLeaseInput, session: DbSession
-) -> ArtifactGeneration:
-    row = await _owned_generation(session, generation_id, payload.user_id)
+async def claim_generation(generation_id: str, payload: ArtifactLeaseInput, session: DbSession) -> ArtifactGeneration:
     now = datetime.now(UTC)
+    row = await _owned_generation(session, generation_id, payload.user_id)
     if row.status == "cancel_requested":
         row.status = "cancelled"
         row.finished_at = now
+        row.lease_owner = None
+        row.lease_expires_at = None
         await session.commit()
         return _generation_schema(row)
-    if row.status not in {"queued", "running"}:
-        raise ConflictError(f"artifact generation is {row.status}")
-    if row.lease_owner and row.lease_owner != payload.owner and row.lease_expires_at and row.lease_expires_at > now:
+
+    result = await session.execute(
+        update(ArtifactGenerationRow)
+        .where(
+            ArtifactGenerationRow.id == generation_id,
+            ArtifactGenerationRow.user_id == payload.user_id,
+            ArtifactGenerationRow.status.in_(["queued", "running"]),
+            or_(
+                ArtifactGenerationRow.lease_owner.is_(None),
+                ArtifactGenerationRow.lease_expires_at.is_(None),
+                ArtifactGenerationRow.lease_expires_at <= now,
+            ),
+        )
+        .values(
+            status="running",
+            lease_owner=payload.owner,
+            lease_expires_at=now + timedelta(seconds=payload.lease_seconds),
+            started_at=func.coalesce(ArtifactGenerationRow.started_at, now),
+            updated_at=now,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    if cast(CursorResult[object], result).rowcount != 1:
+        await session.rollback()
+        current = await _owned_generation(session, generation_id, payload.user_id)
+        if current.status not in {"queued", "running"}:
+            raise ConflictError(f"artifact generation is {current.status}")
         raise ConflictError("artifact generation is leased by another worker")
-    row.status = "running"
-    row.lease_owner = payload.owner
-    row.lease_expires_at = now + timedelta(seconds=payload.lease_seconds)
-    row.started_at = row.started_at or now
-    row.updated_at = now
     await session.commit()
+    await session.refresh(row)
     return _generation_schema(row)
 
 
@@ -264,9 +303,7 @@ async def update_generation_phase(
 
 
 @router.post("/{generation_id}/renew", response_model=ArtifactGeneration)
-async def renew_generation(
-    generation_id: str, payload: ArtifactLeaseInput, session: DbSession
-) -> ArtifactGeneration:
+async def renew_generation(generation_id: str, payload: ArtifactLeaseInput, session: DbSession) -> ArtifactGeneration:
     row = await _owned_generation(session, generation_id, payload.user_id)
     if row.status != "running" or row.lease_owner != payload.owner:
         raise ConflictError("artifact generation lease is not owned by this worker")
@@ -298,10 +335,16 @@ async def cancel_generation(
 
 
 @router.post("/{generation_id}/fail", response_model=ArtifactGeneration)
-async def fail_generation(
-    generation_id: str, payload: ArtifactMutationInput, session: DbSession
-) -> ArtifactGeneration:
+async def fail_generation(generation_id: str, payload: ArtifactMutationInput, session: DbSession) -> ArtifactGeneration:
     row = await _owned_generation(session, generation_id, payload.user_id)
+    if row.status in {"cancel_requested", "cancelled"}:
+        row.status = "cancelled"
+        row.lease_owner = None
+        row.lease_expires_at = None
+        row.finished_at = row.finished_at or datetime.now(UTC)
+        row.updated_at = datetime.now(UTC)
+        await session.commit()
+        return _generation_schema(row)
     if payload.owner and row.lease_owner not in {None, payload.owner}:
         raise ConflictError("artifact generation lease is not owned by this worker")
     now = datetime.now(UTC)
@@ -326,9 +369,7 @@ async def save_plan(generation_id: str, payload: SaveArtifactPlanInput, session:
     existing_ids = set(
         (
             await session.scalars(
-                select(ArtifactBlockVersionRow.block_id).where(
-                    ArtifactBlockVersionRow.generation_id == generation_id
-                )
+                select(ArtifactBlockVersionRow.block_id).where(ArtifactBlockVersionRow.generation_id == generation_id)
             )
         ).all()
     )
@@ -396,7 +437,9 @@ async def save_block(
     await session.flush()
     generation.completed_blocks = int(
         await session.scalar(
-            select(func.count()).select_from(ArtifactBlockVersionRow).where(
+            select(func.count())
+            .select_from(ArtifactBlockVersionRow)
+            .where(
                 ArtifactBlockVersionRow.generation_id == generation_id,
                 ArtifactBlockVersionRow.status == "ready",
             )
@@ -405,7 +448,9 @@ async def save_block(
     )
     generation.failed_blocks = int(
         await session.scalar(
-            select(func.count()).select_from(ArtifactBlockVersionRow).where(
+            select(func.count())
+            .select_from(ArtifactBlockVersionRow)
+            .where(
                 ArtifactBlockVersionRow.generation_id == generation_id,
                 ArtifactBlockVersionRow.error.is_not(None),
             )
@@ -444,9 +489,7 @@ async def list_ready_blocks(generation_id: str, user_id: str, session: DbSession
 
 
 @router.get("/documents/{document_id}/latest", response_model=ArtifactRevisionWorkspace)
-async def get_latest_workspace(
-    document_id: str, user_id: str, session: DbSession
-) -> ArtifactRevisionWorkspace:
+async def get_latest_workspace(document_id: str, user_id: str, session: DbSession) -> ArtifactRevisionWorkspace:
     document = await document_crud.get_document(session, document_id, user_id)
     if document is None or document.kind != "artifact":
         raise NotFoundError(f"artifact document {document_id} not found")

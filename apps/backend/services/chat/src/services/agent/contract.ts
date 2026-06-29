@@ -1,13 +1,15 @@
 import type { ModelMessage } from "ai";
 import { z } from "zod";
 
-import type { ChatProvider, ReasoningEffort } from "./provider.js";
+import type { ChatProvider, ReasoningEffort } from "./model/provider.js";
+
+export type AgentMode = "normal" | "plan";
 
 export interface ChatAgentInput {
   runId: string;
   userId: string;
   conversationId: string;
-  mode: "normal" | "plan";
+  mode: AgentMode;
   provider: ChatProvider;
   multimodalProviderId?: string | null;
   modelMessages: ModelMessage[];

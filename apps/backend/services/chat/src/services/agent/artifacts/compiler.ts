@@ -1,4 +1,4 @@
-import { buildArtifactNavScript, buildArtifactRuntimeHead, buildChartHydrationScript } from "./artifacts.js";
+import { buildArtifactNavScript, buildArtifactRuntimeHead, buildChartHydrationScript } from "./template.js";
 import sanitizeHtml from "sanitize-html";
 
 export type ArtifactPartPlan = { id: string; type: string; title: string };

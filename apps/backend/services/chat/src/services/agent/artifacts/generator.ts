@@ -15,12 +15,12 @@ import {
   normalizeArtifactContent,
   safeFilename,
   validateArtifactContent,
-} from "./artifacts.js";
+} from "./template.js";
 import {
   ARTIFACT_GENERATION_TIMEOUT,
-} from "../config.js";
-import { createProviderModel } from "../provider.js";
-import type { ToolContext } from "../types.js";
+} from "./config.js";
+import { createProviderModel } from "../model/provider.js";
+import type { ToolContext } from "../contract.js";
 import { sanitizeArtifactPart, ARTIFACT_DESIGN_VOCABULARY, ARTIFACT_CHART_SPEC } from "./compiler.js";
 
 import type { ArtifactMode, ArtifactTheme, ArtifactBlock } from "./types.js";
@@ -31,7 +31,7 @@ import {
   runArtifactGenerationInline,
   type BlockStrategy,
 } from "./generation-runner.js";
-import { useArtifactSyncGeneration } from "../config.js";
+import { useArtifactSyncGeneration } from "./config.js";
 
 const themeSchema = z.object({
   preset: z.string().min(1).max(40),

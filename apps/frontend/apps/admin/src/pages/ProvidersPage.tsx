@@ -57,37 +57,42 @@ import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-const providerSchema = z.object({
-  name: z.string().trim().min(1, "请输入名称").max(100),
-  model: z.string().trim().min(1, "请输入模型名").max(128),
-  base_url: z.string().trim().url("base_url 必须是合法 URL"),
-  // Optional in edit mode (leave empty to keep current key).
-  api_key: z.string().max(4096),
-  extra_body: z
-    .string()
-    .max(8000)
-    .refine(
-      (raw) => {
-        const trimmed = raw.trim();
-        if (!trimmed) return true;
-        try {
-          const parsed = JSON.parse(trimmed);
-          return (
-            parsed !== null &&
-            typeof parsed === "object" &&
-            !Array.isArray(parsed)
-          );
-        } catch {
-          return false;
-        }
-      },
-      { message: "extra_body 必须是合法 JSON 对象，留空等价于 {}" },
-    ),
-  context_window: z.number().int().min(1024).max(2_000_000),
-  max_output_tokens: z.number().int().min(256).max(1_000_000),
-  is_default: z.boolean(),
-  is_enabled: z.boolean(),
-});
+const providerSchema = z
+  .object({
+    name: z.string().trim().min(1, "请输入名称").max(100),
+    model: z.string().trim().min(1, "请输入模型名").max(128),
+    base_url: z.string().trim().url("base_url 必须是合法 URL"),
+    // Optional in edit mode (leave empty to keep current key).
+    api_key: z.string().max(4096),
+    extra_body: z
+      .string()
+      .max(8000)
+      .refine(
+        (raw) => {
+          const trimmed = raw.trim();
+          if (!trimmed) return true;
+          try {
+            const parsed = JSON.parse(trimmed);
+            return (
+              parsed !== null &&
+              typeof parsed === "object" &&
+              !Array.isArray(parsed)
+            );
+          } catch {
+            return false;
+          }
+        },
+        { message: "extra_body 必须是合法 JSON 对象，留空等价于 {}" },
+      ),
+    context_window: z.number().int().min(1024).max(2_000_000),
+    max_output_tokens: z.number().int().min(256).max(1_000_000),
+    is_default: z.boolean(),
+    is_enabled: z.boolean(),
+  })
+  .refine((value) => value.max_output_tokens < value.context_window, {
+    message: "最大输出必须小于上下文窗口",
+    path: ["max_output_tokens"],
+  });
 
 type ProviderValues = z.infer<typeof providerSchema>;
 

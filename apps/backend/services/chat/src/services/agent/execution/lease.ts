@@ -4,11 +4,13 @@ import { getDb } from "../../../db/index.js";
 import { conversationRunLeases } from "../../../db/schema.js";
 import { ConflictError } from "../../../lib/errors.js";
 import { cancelArtifactGeneration, listUnfinishedArtifactGenerations } from "../../../clients/knowledge.js";
-import { finishAgentRun, getAgentRunById, requestAgentRunCancellation } from "../state.js";
+import { finishAgentRun, getAgentRunById, requestAgentRunCancellation } from "../persistence/repository.js";
 
 const controllers = new Map<string, AbortController>();
 const heartbeats = new Map<string, ReturnType<typeof setInterval>>();
+const cancellationPolls = new Map<string, ReturnType<typeof setInterval>>();
 const LEASE_MS = 10 * 60_000;
+const CANCELLATION_POLL_MS = 1_000;
 
 export async function acquireRunLease(conversationId: string, runId: string): Promise<void> {
   const db = getDb();
@@ -56,6 +58,15 @@ export function registerRunController(runId: string, requestSignal?: AbortSignal
       console.error("[chat-agent] run lease heartbeat failed", error),
     );
   }, 60_000));
+  cancellationPolls.set(runId, setInterval(() => {
+    void getAgentRunById(runId)
+      .then((run) => {
+        if (run?.status === "cancel_requested") {
+          controller.abort(new DOMException("agent run cancelled", "AbortError"));
+        }
+      })
+      .catch((error) => console.error("[chat-agent] cancellation poll failed", error));
+  }, CANCELLATION_POLL_MS));
   if (requestSignal) {
     if (requestSignal.aborted) controller.abort(requestSignal.reason);
     else requestSignal.addEventListener("abort", () => controller.abort(requestSignal.reason), { once: true });
@@ -68,6 +79,9 @@ export async function releaseRun(runId: string): Promise<void> {
   const heartbeat = heartbeats.get(runId);
   if (heartbeat) clearInterval(heartbeat);
   heartbeats.delete(runId);
+  const cancellationPoll = cancellationPolls.get(runId);
+  if (cancellationPoll) clearInterval(cancellationPoll);
+  cancellationPolls.delete(runId);
   await getDb().delete(conversationRunLeases).where(eq(conversationRunLeases.runId, runId));
 }
 

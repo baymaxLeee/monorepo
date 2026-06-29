@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, cast
 
-from kernel.errors import ConflictError, NotFoundError
+from kernel.errors import ConflictError, NotFoundError, RequestError
 from openai import APIError, AsyncOpenAI, AuthenticationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -152,6 +152,12 @@ class ModelProviderService:
 
         if not values:
             return to_public_schema(row)
+        context_window = payload.context_window if payload.context_window is not None else row.context_window
+        max_output_tokens = (
+            payload.max_output_tokens if payload.max_output_tokens is not None else row.max_output_tokens
+        )
+        if max_output_tokens >= context_window:
+            raise RequestError("max_output_tokens must be less than context_window")
         return to_public_schema(await provider_crud.update_provider(self._session, row, values))
 
     async def delete(self, provider_id: str) -> None:

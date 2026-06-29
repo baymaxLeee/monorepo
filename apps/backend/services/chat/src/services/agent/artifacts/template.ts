@@ -1,3 +1,4 @@
+// Static artifact prompts and browser runtime templates live here.
 import { z } from "zod";
 
 export type ArtifactKind = "html" | "markdown";

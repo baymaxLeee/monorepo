@@ -1250,6 +1250,26 @@
             }
           },
           {
+            "name": "include_terminal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Terminal"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
             "name": "X-Internal-Token",
             "in": "header",
             "required": false,

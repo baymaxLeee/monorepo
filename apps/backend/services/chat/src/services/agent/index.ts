@@ -1,5 +1,12 @@
-export { createAgentRunResponse, getAgentRunTrace, type RunAgentInput } from "./runtime/index.js";
-export { cancelRun } from "./runtime/run-controller.js";
+export { createAgentRunResponse, getAgentRunTrace, type RunAgentInput } from "./execution/run.js";
+export { cancelRun } from "./execution/lease.js";
+export { registerMcpCapability } from "./capabilities/mcp/register.js";
+export { registerSkillCapability } from "./capabilities/skills/register.js";
+export type {
+  CapabilityContribution,
+  CapabilityProvider,
+  CapabilityResolutionContext,
+} from "./capabilities/types.js";
 export {
   approveCandidate,
   createMemoryCandidate,
@@ -8,4 +15,4 @@ export {
   listPendingCandidates,
   rejectCandidate,
   updateCandidate,
-} from "./state.js";
+} from "./persistence/repository.js";

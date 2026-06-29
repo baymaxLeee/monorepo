@@ -1,0 +1,3 @@
+export const MAX_INJECTED_MEMORIES = 24;
+export const MAX_INJECTED_MEMORY_CHARS = 4_000;
+

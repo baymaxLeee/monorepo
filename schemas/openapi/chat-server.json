@@ -294,7 +294,7 @@
         ],
         "responses": {
           "200": {
-            "description": "list unfinished artifact jobs",
+            "description": "list recent artifact jobs",
             "content": {
               "application/json": {
                 "schema": {

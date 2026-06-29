@@ -113,7 +113,7 @@ const openapi = {
       get: {
         parameters: [pathParam],
         responses: {
-          "200": jsonResponse("list unfinished artifact jobs", {
+          "200": jsonResponse("list recent artifact jobs", {
             type: "array",
             items: ref("ArtifactJob"),
           }),

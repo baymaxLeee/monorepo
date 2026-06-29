@@ -13,7 +13,7 @@ Two distinct views exist:
 
 from typing import Any
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 
 class ModelProvider(BaseModel):
@@ -60,6 +60,12 @@ class CreateModelProviderInput(BaseModel):
     max_output_tokens: int = Field(default=8_192, ge=256, le=1_000_000)
     is_default: bool = False
     is_enabled: bool = True
+
+    @model_validator(mode="after")
+    def validate_token_budget(self) -> CreateModelProviderInput:
+        if self.max_output_tokens >= self.context_window:
+            raise ValueError("max_output_tokens must be less than context_window")
+        return self
 
 
 class UpdateModelProviderInput(BaseModel):

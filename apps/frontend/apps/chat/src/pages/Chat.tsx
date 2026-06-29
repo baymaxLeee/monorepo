@@ -52,8 +52,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
-import { ChatComposerControls } from "../components/ChatComposerControls";
 import { ArtifactJobBar } from "../components/ArtifactJobBar";
+import { ChatComposerControls } from "../components/ChatComposerControls";
 import { ChatMessageView } from "../components/ChatMessageView";
 import { ChatTracePanel } from "../components/ChatTracePanel";
 import { MemoryPanel } from "../components/MemoryPanel";
@@ -324,12 +324,12 @@ export function Chat() {
   }
 
   async function stopRun() {
+    const cancelRequest =
+      id && lastAgentRunId
+        ? cancelConversationAgentRun(id, lastAgentRunId).catch(() => undefined)
+        : Promise.resolve(undefined);
     await stop();
-    if (id && lastAgentRunId) {
-      void cancelConversationAgentRun(id, lastAgentRunId).catch(
-        () => undefined,
-      );
-    }
+    await cancelRequest;
   }
 
   async function continuePlan(documentId: string) {

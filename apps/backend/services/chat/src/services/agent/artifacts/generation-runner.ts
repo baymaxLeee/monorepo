@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { hostname } from "node:os";
+
 import {
   cancelArtifactGeneration,
   claimArtifactGeneration,
@@ -17,9 +20,9 @@ import {
   ARTIFACT_GENERATION_CONCURRENCY,
   ARTIFACT_GENERATION_POLL_MS,
   ARTIFACT_GENERATION_TIMEOUT,
-} from "../config.js";
+} from "./config.js";
 import { compileArtifactHtml } from "./compiler.js";
-import { buildArtifactTextModel, generateBlock } from "./tool-artifacts.js";
+import { buildArtifactTextModel, generateBlock } from "./generator.js";
 import type { ArtifactBlock, ArtifactMode, ArtifactTheme } from "./types.js";
 
 export type BlockStrategy = {
@@ -40,9 +43,11 @@ export type GenerationManifest = {
 };
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
+const WORKER_INSTANCE_ID = `${hostname()}:${process.pid}:${randomUUID()}`;
+const CANCELLATION_POLL_MS = 1_000;
 
 export function workerOwner(): string {
-  return `worker:${process.pid}`;
+  return `worker:${WORKER_INSTANCE_ID}`;
 }
 
 function parseManifest(raw: Record<string, unknown> | null | undefined): GenerationManifest | null {
@@ -89,9 +94,12 @@ async function mapConcurrent<T, R>(
   return results;
 }
 
-function combinedSignal(abortSignal?: AbortSignal): AbortSignal {
+function combinedSignal(...signals: Array<AbortSignal | undefined>): AbortSignal {
   const timeout = AbortSignal.timeout(ARTIFACT_GENERATION_TIMEOUT.totalMs);
-  return abortSignal ? AbortSignal.any([abortSignal, timeout]) : timeout;
+  return AbortSignal.any([
+    timeout,
+    ...signals.filter((signal): signal is AbortSignal => signal != null),
+  ]);
 }
 
 export async function enqueueHtmlArtifactGeneration(input: {
@@ -190,7 +198,27 @@ export async function runArtifactGeneration(input: {
   abortSignal?: AbortSignal;
   sourceHtmlById?: Map<string, string>;
 }) {
-  const signal = combinedSignal(input.abortSignal);
+  const cancellationController = new AbortController();
+  const signal = combinedSignal(input.abortSignal, cancellationController.signal);
+  let checkingCancellation = false;
+  const cancellationPoll = setInterval(() => {
+    if (checkingCancellation || signal.aborted) return;
+    checkingCancellation = true;
+    void getArtifactGeneration(input.userId, input.generationId)
+      .then((generation) => {
+        if (["cancel_requested", "cancelled"].includes(generation.status)) {
+          cancellationController.abort(
+            new DOMException("artifact generation cancelled", "AbortError"),
+          );
+        }
+      })
+      .catch((error) => {
+        console.error("[artifact-worker] cancellation poll failed", error);
+      })
+      .finally(() => {
+        checkingCancellation = false;
+      });
+  }, CANCELLATION_POLL_MS);
   const heartbeat = setInterval(() => {
     void renewArtifactGeneration({
       userId: input.userId,
@@ -311,6 +339,7 @@ export async function runArtifactGeneration(input: {
     }
     throw error;
   } finally {
+    clearInterval(cancellationPoll);
     clearInterval(heartbeat);
   }
 }

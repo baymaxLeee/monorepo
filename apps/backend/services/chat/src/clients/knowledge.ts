@@ -151,7 +151,13 @@ export async function failArtifactGeneration(input: { userId: string; generation
   return knowledgeClient().failArtifactGeneration(input);
 }
 
-export async function listUnfinishedArtifactGenerations(input: { userId: string; conversationId?: string; runId?: string }) {
+export async function listUnfinishedArtifactGenerations(input: {
+  userId: string;
+  conversationId?: string;
+  runId?: string;
+  includeTerminal?: boolean;
+  limit?: number;
+}) {
   return knowledgeClient().listUnfinishedArtifactGenerations(input);
 }
 

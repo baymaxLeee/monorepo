@@ -1403,6 +1403,8 @@ export interface operations {
                 user_id: string;
                 conversation_id?: string | null;
                 run_id?: string | null;
+                include_terminal?: boolean;
+                limit?: number;
             };
             header?: {
                 "X-Internal-Token"?: string | null;

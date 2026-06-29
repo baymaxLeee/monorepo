@@ -1,7 +1,8 @@
 import { listClaimableArtifactGenerations } from "../../../clients/knowledge.js";
-import { ARTIFACT_WORKER_POOL_SIZE, ARTIFACT_WORKER_POLL_MS } from "../config.js";
+import { ARTIFACT_WORKER_POOL_SIZE, ARTIFACT_WORKER_POLL_MS } from "./config.js";
 import { processClaimableArtifactJob } from "./generation-runner.js";
 
+// The worker is infrastructure owned by the artifact capability.
 let started = false;
 const activeJobs = new Set<string>();
 

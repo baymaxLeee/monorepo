@@ -8,7 +8,7 @@ import { serve } from "@hono/node-server";
 
 import { createApp } from "./app.js";
 import { getSettings } from "./config.js";
-import { startArtifactWorkerPool } from "./services/agent/artifacts/worker-pool.js";
+import { startArtifactWorkerPool } from "./services/agent/artifacts/worker.js";
 
 const app = createApp();
 const { port } = getSettings();

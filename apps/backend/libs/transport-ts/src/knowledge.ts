@@ -183,6 +183,8 @@ export class KnowledgeInternalClient {
     userId: string;
     conversationId?: string;
     runId?: string;
+    includeTerminal?: boolean;
+    limit?: number;
   }): Promise<ArtifactGeneration[]> {
     return this.unwrap(
       this.client.GET("/internal/artifact-generations/unfinished", {
@@ -190,6 +192,8 @@ export class KnowledgeInternalClient {
           user_id: input.userId,
           conversation_id: input.conversationId,
           run_id: input.runId,
+          include_terminal: input.includeTerminal,
+          limit: input.limit,
         } },
       }),
     );

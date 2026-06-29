@@ -404,6 +404,8 @@ export type ListUnfinishedGenerationsInternalArtifactGenerationsUnfinishedGetPar
 user_id: string;
 conversation_id?: string | null;
 run_id?: string | null;
+include_terminal?: boolean;
+limit?: number;
 };
 
 export type GetGenerationInternalArtifactGenerationsGenerationIdGetParams = {

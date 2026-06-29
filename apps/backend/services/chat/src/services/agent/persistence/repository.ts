@@ -1,9 +1,10 @@
+// Persistence-only repository for agent runs, traces, and durable memories.
 import { createHash, randomBytes } from "node:crypto";
 
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
-import { getDb } from "../../db/index.js";
-import { agentRuns, agentSteps, agentToolCalls, userMemories } from "../../db/schema.js";
+import { getDb } from "../../../db/index.js";
+import { agentRuns, agentSteps, agentToolCalls, userMemories } from "../../../db/schema.js";
 
 export type AgentRunStatus = "running" | "cancel_requested" | "completed" | "failed" | "cancelled" | "interrupted";
 export type AgentStepStatus = "running" | "completed" | "failed";

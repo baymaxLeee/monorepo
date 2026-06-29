@@ -66,13 +66,16 @@ export function buildCompactionState(input: {
   activePlanDocumentId: string | null;
   previous?: Partial<CompactionState> | null;
 }): CompactionState {
-  const documentReferences = [...new Set(input.messages.flatMap((message) =>
-    message.parts.flatMap((part) => {
-      if (part.type !== "data-document-reference") return [];
-      const id = (part.data as { document_id?: unknown }).document_id;
-      return typeof id === "string" ? [id] : [];
-    }),
-  ))];
+  const documentReferences = [...new Set([
+    ...(input.previous?.documentReferences ?? []),
+    ...input.messages.flatMap((message) =>
+      message.parts.flatMap((part) => {
+        if (part.type !== "data-document-reference") return [];
+        const id = (part.data as { document_id?: unknown }).document_id;
+        return typeof id === "string" ? [id] : [];
+      }),
+    ),
+  ])].slice(-32);
 
   const goals: string[] = [];
   const constraints: string[] = [];

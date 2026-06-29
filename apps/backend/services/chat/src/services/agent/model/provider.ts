@@ -1,3 +1,4 @@
+// Provider adaptation stays independent from agent capabilities and execution.
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { JSONObject, JSONValue, LanguageModelV4, LanguageModelV4CallOptions } from "@ai-sdk/provider";
 

@@ -7,10 +7,10 @@ import {
   recordToolEnd,
   recordToolStart,
   startModelStep,
-} from "./lifecycle.js";
-import { createProviderModel } from "./provider.js";
-import { buildAgentTools } from "./tools/tools.js";
-import type { ChatAgentInput } from "./types.js";
+} from "./observability/lifecycle.js";
+import { createProviderModel } from "./model/provider.js";
+import { resolveAgentCapabilities } from "./capabilities/registry.js";
+import type { ChatAgentInput } from "./contract.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {
   return operation.catch((error) => {
@@ -19,9 +19,15 @@ function observe(label: string, operation: Promise<void>): Promise<void> {
   });
 }
 
-export function createChatAgent(input: ChatAgentInput) {
+export async function createChatAgent(input: ChatAgentInput) {
   const provider = input.provider;
-  const tools = buildAgentTools(input.mode);
+  const capabilities = await resolveAgentCapabilities({
+    mode: input.mode,
+    runId: input.runId,
+    userId: input.userId,
+    conversationId: input.conversationId,
+  });
+  const { tools } = capabilities;
   const toolContext = {
     runId: input.runId,
     userId: input.userId,
@@ -39,13 +45,13 @@ export function createChatAgent(input: ChatAgentInput) {
   ) as InferToolSetContext<typeof tools>;
   let currentStepNumber = 0;
 
-  return new ToolLoopAgent({
+  const agent = new ToolLoopAgent({
     id: "chat-agent",
     model: createProviderModel(provider, {
       reasoningEffort: input.reasoningEffort,
       parallelToolCalls: true,
     }),
-    instructions: input.instructions,
+    instructions: [input.instructions, ...capabilities.instructions].join("\n\n"),
     maxOutputTokens: provider.maxOutputTokens,
     tools,
     toolsContext,
@@ -98,4 +104,5 @@ export function createChatAgent(input: ChatAgentInput) {
       );
     },
   });
+  return { agent, dispose: capabilities.dispose };
 }

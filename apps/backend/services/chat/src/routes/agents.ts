@@ -68,10 +68,10 @@ agentsRoutes.post("/:conversationId/agents/runs/:runId/cancel", async (c) => {
   const conversationId = c.req.param("conversationId");
   const runId = c.req.param("runId");
   const run = await getAgentRunTrace(auth, conversationId, runId);
-  if (!["running", "cancel_requested"].includes(run.status)) {
-    return c.json({ cancelled: false, status: run.status });
-  }
-  return c.json({ cancelled: await cancelRun(conversationId, runId) });
+  return c.json({
+    cancelled: await cancelRun(conversationId, runId),
+    status: run.status,
+  });
 });
 
 agentsRoutes.get("/:conversationId/artifact-jobs", async (c) => {
@@ -80,6 +80,8 @@ agentsRoutes.get("/:conversationId/artifact-jobs", async (c) => {
   const jobs = await listUnfinishedArtifactGenerations({
     userId: conversation.userId,
     conversationId: conversation.id,
+    includeTerminal: true,
+    limit: 20,
   });
   return c.json(jobs);
 });

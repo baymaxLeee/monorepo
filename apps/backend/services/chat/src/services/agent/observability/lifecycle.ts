@@ -4,7 +4,7 @@ import {
   recordToolCallFinish,
   recordToolCallStart,
   startAgentStep,
-} from "./state.js";
+} from "../persistence/repository.js";
 
 function stepId(runId: string, stepNumber: number): string {
   const compact = runId.replace(/[^a-f0-9]/gi, "").padEnd(30, "0").slice(0, 30);
