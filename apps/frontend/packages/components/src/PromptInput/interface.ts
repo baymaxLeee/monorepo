@@ -39,12 +39,19 @@ export interface PromptInputProps {
   submitLabel?: ReactNode;
   autoFocus?: boolean;
   maxHeight?: number;
+  accept?: string;
+  maxFiles?: number;
+  maxFileSize?: number;
+  onError?: (message: string) => void;
   onChange?: (value: PromptInputValue) => void;
-  onFilesAdded?: (items: Array<{ token: PromptInputToken; file: File }>) => void;
+  onFilesAdded?: (
+    items: Array<{ token: PromptInputToken; file: File }>,
+  ) => void;
   onSubmit?: (
     value: PromptInputValue,
     event: FormEvent<HTMLFormElement>,
   ) => void;
+  onStop?: () => void;
   renderToken?: (
     token: PromptInputToken,
     context: PromptInputRenderContext,

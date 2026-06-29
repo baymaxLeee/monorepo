@@ -6,14 +6,20 @@ import {
 } from "ai";
 import {
   type Message as ApiMessage,
+  type ArtifactJob,
   type ConversationDetail,
   type ConversationDocument,
   type ConversationDocumentDetail,
+  cancelConversationAgentRun,
   chatAuthHeaders,
   conversationAgentStreamUrl,
+  type DocumentIngestStreamEvent,
   fetchConversation,
+  fetchConversationArtifactJobs,
   fetchConversationDocument,
   fetchConversationDocumentSource,
+  streamKnowledgeIngest,
+  updateConversationMode,
 } from "api";
 import {
   Badge,
@@ -33,29 +39,22 @@ import {
 } from "components";
 import {
   ArtifactPreview,
-  Attachments,
   Conversation,
   ConversationContent,
   ConversationEmptyState,
   ConversationScrollButton,
-  PromptInput,
-  PromptInputAttachmentButton,
-  PromptInputHeader,
-  type PromptInputMessage,
-  PromptInputSubmit,
-  PromptInputTextarea,
-  PromptInputToolbar,
-  PromptInputTools,
 } from "components/ai-chat";
-import { useEffect, useMemo, useState } from "react";
+import {
+  type PromptInputRef,
+  type PromptInputValue,
+  PromptInput as RichPromptInput,
+} from "components/prompt-input";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 import { ChatComposerControls } from "../components/ChatComposerControls";
+import { ArtifactJobBar } from "../components/ArtifactJobBar";
 import { ChatMessageView } from "../components/ChatMessageView";
-import {
-  type PlanSnapshot,
-  parsePlanSnapshot,
-} from "../components/ChatPlanCard";
 import { ChatTracePanel } from "../components/ChatTracePanel";
 import { MemoryPanel } from "../components/MemoryPanel";
 import { useChatStore } from "../store/useChatStore";
@@ -102,10 +101,13 @@ export function Chat() {
     null,
   );
   const [thinking, setThinking] = useState(false);
+  const [mode, setMode] = useState<"normal" | "plan">("normal");
   const [traceOpen, setTraceOpen] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [lastAgentRunId, setLastAgentRunId] = useState<string | null>(null);
   const [traceRefreshKey, setTraceRefreshKey] = useState(0);
+  const [artifactJobs, setArtifactJobs] = useState<ArtifactJob[]>([]);
+  const promptRef = useRef<PromptInputRef>(null);
   const {
     providers,
     selectedProviderId,
@@ -130,7 +132,6 @@ export function Chat() {
   const requestBody = useMemo(
     () => ({
       provider_id: selectedProviderId ?? detail?.provider_id ?? null,
-      document_ids: [] as string[],
       thinking: thinking || null,
       reasoning_effort: null,
     }),
@@ -194,23 +195,6 @@ export function Chat() {
       },
     });
 
-  const latestPlanToolCallId = useMemo(() => {
-    let latest: string | null = null;
-    for (const message of messages) {
-      for (const part of message.parts) {
-        if (
-          (part.type !== "tool-write_plan" &&
-            part.type !== "tool-update_plan") ||
-          part.state !== "output-available"
-        )
-          continue;
-        if (parsePlanSnapshot("output" in part ? part.output : undefined))
-          latest = part.toolCallId;
-      }
-    }
-    return latest;
-  }, [messages]);
-
   const busy = isRunning(status);
   const documents = useMemo(() => {
     const map = new Map<string, ConversationDocument>();
@@ -228,6 +212,7 @@ export function Chat() {
       .then((next) => {
         if (!active) return;
         setDetail(next);
+        setMode(next.agent_mode ?? "normal");
         setMessages(next.messages.map(messageToUiMessage));
       })
       .catch((error) => toast.error(String(error)))
@@ -239,35 +224,131 @@ export function Chat() {
     };
   }, [id, setMessages]);
 
-  function submit(message: PromptInputMessage) {
-    const text = message.text.trim();
-    if (!text || busy) return;
-    void sendMessage(
-      { text, files: message.files },
-      { body: requestBody },
-    ).catch((error) => toast.error(String(error)));
-  }
-
-  async function editPlan(plan: PlanSnapshot) {
+  useEffect(() => {
     if (!id) return;
-    if (busy) await stop();
-    void sendMessage(
-      {
-        parts: [
-          { type: "text", text: "请按我编辑后的计划继续执行。" },
+    let active = true;
+    const refresh = () => {
+      void fetchConversationArtifactJobs(id)
+        .then((jobs) => {
+          if (active) setArtifactJobs(jobs);
+        })
+        .catch(() => undefined);
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 1_500);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [id]);
+
+  async function submit(value: PromptInputValue) {
+    if (busy) return;
+    const documentIds = value.tokens.flatMap((token) => {
+      const id = token.meta?.artifactId;
+      return typeof id === "string" ? [id] : [];
+    });
+    const text =
+      value.text.trim() ||
+      (documentIds.length ? "请阅读并处理我附加的文件。" : "");
+    if (!text) return;
+    const parts: Array<Record<string, unknown>> = value.segments.flatMap(
+      (segment): Array<Record<string, unknown>> => {
+        if (segment.type === "text") {
+          return segment.text
+            ? [{ type: "text" as const, text: segment.text }]
+            : [];
+        }
+        const documentId = segment.token.meta?.artifactId;
+        if (typeof documentId !== "string") return [];
+        return [
           {
-            type: "data-plan-edit",
+            type: "data-document-reference" as const,
             data: {
-              planId: plan.planId,
-              baseRevision: plan.revision,
-              goal: plan.goal,
-              items: plan.items,
+              document_id: documentId,
+              filename: segment.token.label,
+              mime_type: segment.token.mime ?? "application/octet-stream",
             },
           },
-        ],
+        ];
       },
-      { body: requestBody },
-    ).catch((error) => toast.error(String(error)));
+    );
+    if (!parts.some((part) => part.type === "text")) {
+      parts.push({ type: "text", text });
+    }
+    await sendMessage(
+      { parts: parts as UIMessage["parts"] },
+      { body: { ...requestBody, document_ids: documentIds } },
+    );
+    promptRef.current?.clear();
+  }
+
+  function onIngestEvent(event: DocumentIngestStreamEvent) {
+    if (event.type === "file_progress") {
+      promptRef.current?.updateToken(event.client_ref, {
+        meta: {
+          artifactId: event.artifact_id,
+          ingestStatus: event.status,
+          ingestProgress: event.progress,
+        },
+      });
+    } else if (event.type === "file_ready") {
+      promptRef.current?.updateToken(event.client_ref, {
+        meta: {
+          artifactId: event.artifact_id,
+          ingestStatus: "ready",
+          ingestProgress: 100,
+        },
+      });
+    } else if (event.type === "file_failed") {
+      promptRef.current?.updateToken(event.client_ref, {
+        meta: {
+          artifactId: event.artifact_id ?? undefined,
+          ingestStatus: "failed",
+          ingestError: event.error,
+        },
+      });
+    }
+  }
+
+  async function changeMode(nextMode: "normal" | "plan") {
+    if (!id || busy || nextMode === mode) return;
+    const updated = await updateConversationMode(id, nextMode);
+    setMode(updated.agent_mode);
+    setDetail((current) => (current ? { ...current, ...updated } : current));
+  }
+
+  async function stopRun() {
+    await stop();
+    if (id && lastAgentRunId) {
+      void cancelConversationAgentRun(id, lastAgentRunId).catch(
+        () => undefined,
+      );
+    }
+  }
+
+  async function continuePlan(documentId: string) {
+    if (!id || busy) return;
+    const updated = await updateConversationMode(id, "plan", documentId);
+    setMode("plan");
+    setDetail((current) => (current ? { ...current, ...updated } : current));
+    promptRef.current?.focus();
+  }
+
+  async function executePlan(documentId: string) {
+    if (!id || busy) return;
+    const updated = await updateConversationMode(id, "normal", documentId);
+    setMode("normal");
+    setDetail((current) => (current ? { ...current, ...updated } : current));
+    await sendMessage(
+      {
+        parts: [
+          { type: "text", text: "请按照这个计划开始执行。" },
+          { type: "data-plan-execution", data: { document_id: documentId } },
+        ] as UIMessage["parts"],
+      },
+      { body: { ...requestBody, document_ids: [documentId] } },
+    );
   }
 
   async function answerClientTool(
@@ -370,12 +451,16 @@ export function Chat() {
                       (error) => toast.error(String(error)),
                     );
                   }}
-                  onEditPlan={(plan) => {
-                    void editPlan(plan).catch((error) =>
+                  onContinuePlan={(documentId) =>
+                    void continuePlan(documentId).catch((error) =>
                       toast.error(String(error)),
-                    );
-                  }}
-                  latestPlanToolCallId={latestPlanToolCallId}
+                    )
+                  }
+                  onExecutePlan={(documentId) =>
+                    void executePlan(documentId).catch((error) =>
+                      toast.error(String(error)),
+                    )
+                  }
                 />
               ))
             )}
@@ -398,37 +483,62 @@ export function Chat() {
         </Conversation>
 
         <div className="border-t p-3">
-          <PromptInput
+          <ArtifactJobBar jobs={artifactJobs} />
+          <RichPromptInput
+            ref={promptRef}
+            className="chat-rich-prompt"
+            disabled={false}
+            loading={busy}
+            placeholder={
+              mode === "plan"
+                ? "描述要规划的任务，/ 引用技能，@ 添加上下文"
+                : "输入要求，粘贴图片或拖入文件"
+            }
+            maxHeight={260}
             accept="image/*,text/plain,text/markdown,application/pdf"
-            multiple
             maxFiles={8}
-            onError={(error) => toast.error(error.message)}
-            onSubmit={submit}
-          >
-            <PromptInputHeader>
-              <Attachments removable variant="inline" />
-            </PromptInputHeader>
-            <PromptInputTextarea
-              disabled={busy}
-              placeholder="输入消息，粘贴图片/文件，或拖入附件..."
-            />
-            <PromptInputToolbar>
-              <PromptInputTools>
-                <PromptInputAttachmentButton disabled={busy} />
-                <ChatComposerControls
-                  providers={providers ?? []}
-                  selectedProviderId={selectedProviderId}
-                  onSelectProvider={setSelectedProviderId}
-                  thinking={thinking}
-                  onThinkingChange={setThinking}
-                  disabled={busy}
-                />
-              </PromptInputTools>
-              <PromptInputSubmit status={status} onStop={() => void stop()}>
-                {busy ? "停止" : "发送"}
-              </PromptInputSubmit>
-            </PromptInputToolbar>
-          </PromptInput>
+            maxFileSize={20 * 1024 * 1024}
+            onError={(message) => toast.error(message)}
+            onStop={() => void stopRun()}
+            onFilesAdded={(items) => {
+              if (!id) return;
+              void streamKnowledgeIngest(
+                id,
+                items.map(({ token, file }) => ({ clientRef: token.id, file })),
+                { onEvent: onIngestEvent },
+                { providerId: selectedProviderId },
+              ).catch((error) => {
+                for (const { token } of items) {
+                  promptRef.current?.updateToken(token.id, {
+                    meta: {
+                      ingestStatus: "failed",
+                      ingestError: String(error),
+                    },
+                  });
+                }
+                toast.error(String(error));
+              });
+            }}
+            onSubmit={(value) =>
+              void submit(value).catch((error) => toast.error(String(error)))
+            }
+            footerRender={() => (
+              <ChatComposerControls
+                providers={providers ?? []}
+                selectedProviderId={selectedProviderId}
+                onSelectProvider={setSelectedProviderId}
+                thinking={thinking}
+                onThinkingChange={setThinking}
+                mode={mode}
+                onModeChange={(next) =>
+                  void changeMode(next).catch((error) =>
+                    toast.error(String(error)),
+                  )
+                }
+                disabled={busy}
+              />
+            )}
+          />
         </div>
       </div>
 

@@ -151,11 +151,15 @@ export function ArtifactDocumentCard({
   documentId,
   fallback,
   onOpen,
+  onContinuePlan,
+  onExecutePlan,
 }: {
   document: ConversationDocument | undefined;
   documentId: string;
   fallback?: ArtifactOutput;
   onOpen: () => void;
+  onContinuePlan?: () => void;
+  onExecutePlan?: () => void;
 }) {
   return (
     <Artifact>
@@ -177,6 +181,21 @@ export function ArtifactDocumentCard({
         <Button type="button" size="sm" variant="outline" onClick={onOpen}>
           预览
         </Button>
+        {fallback?.kind === "plan" ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={onContinuePlan}
+            >
+              继续完善
+            </Button>
+            <Button type="button" size="sm" onClick={onExecutePlan}>
+              开始执行
+            </Button>
+          </>
+        ) : null}
       </ArtifactHeader>
       <ArtifactContent className="px-4 py-3 text-xs text-muted-foreground">
         <FileTextIcon className="mr-1 inline size-3" />

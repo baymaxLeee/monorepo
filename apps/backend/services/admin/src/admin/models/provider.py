@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, Text
+from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -18,6 +18,8 @@ class ModelProviderRow(Base):
     base_url: Mapped[str] = mapped_column(String(255), nullable=False)
     api_key_enc: Mapped[str] = mapped_column(Text, nullable=False)
     extra_body: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    context_window: Mapped[int] = mapped_column(Integer, nullable=False, default=128_000)
+    max_output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=8_192)
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

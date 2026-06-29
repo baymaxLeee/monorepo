@@ -17,6 +17,21 @@ class ReserveArtifactGenerationInput(BaseModel):
     idempotency_key: str = Field(min_length=1, max_length=128)
     base_revision_id: str | None = Field(default=None, max_length=32)
     document_id: str | None = Field(default=None, max_length=32)
+    run_id: str | None = Field(default=None, max_length=32)
+    tool_call_id: str | None = Field(default=None, max_length=64)
+    resume_generation_id: str | None = Field(default=None, max_length=32)
+
+
+class ArtifactLeaseInput(BaseModel):
+    user_id: str = Field(min_length=1, max_length=26)
+    owner: str = Field(min_length=1, max_length=128)
+    lease_seconds: int = Field(default=60, ge=15, le=300)
+
+
+class ArtifactMutationInput(BaseModel):
+    user_id: str = Field(min_length=1, max_length=26)
+    owner: str | None = Field(default=None, max_length=128)
+    error: str | None = Field(default=None, max_length=4000)
 
 
 class ArtifactBlockPlan(BaseModel):
@@ -34,11 +49,18 @@ class SaveArtifactPlanInput(BaseModel):
 class SaveArtifactBlockInput(BaseModel):
     user_id: str = Field(min_length=1, max_length=26)
     content: str = Field(min_length=1)
+    failed: bool = False
 
 
 class PublishArtifactRevisionInput(BaseModel):
     user_id: str = Field(min_length=1, max_length=26)
     compiled_html: str = Field(min_length=1)
+
+
+class ArtifactPhaseInput(BaseModel):
+    user_id: str = Field(min_length=1, max_length=26)
+    owner: str = Field(min_length=1, max_length=128)
+    phase: str = Field(min_length=1, max_length=32)
 
 
 class ArtifactGeneration(BaseModel):
@@ -50,6 +72,29 @@ class ArtifactGeneration(BaseModel):
     completed_blocks: int
     failed_blocks: int
     error: str | None
+    attempt: int
+    run_id: str | None
+    tool_call_id: str | None
+    lease_owner: str | None
+    lease_expires_at: str | None
+    started_at: str | None
+    finished_at: str | None
+    cancel_requested_at: str | None
+
+
+class ClaimableArtifactJob(ArtifactGeneration):
+    user_id: str
+    title: str
+    filename: str
+    brief: str
+
+
+class ArtifactGenerationDetail(ArtifactGeneration):
+    user_id: str
+    title: str
+    filename: str
+    brief: str
+    manifest: dict[str, Any] | None = None
 
 
 class PublishedArtifactRevision(BaseModel):

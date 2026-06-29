@@ -13,7 +13,15 @@ import { getSettings } from "../config.js";
 import { NotFoundError } from "../lib/errors.js";
 
 export type { DocumentSlice, KnowledgeDocument } from "@backend/transport-ts";
-export type { ArtifactBlockPlan, ArtifactGeneration, ArtifactRevisionWorkspace, PublishedArtifactRevision, StoredArtifactBlock } from "@backend/transport-ts";
+export type {
+  ArtifactBlockPlan,
+  ArtifactGeneration,
+  ArtifactGenerationDetail,
+  ArtifactRevisionWorkspace,
+  ClaimableArtifactJob,
+  PublishedArtifactRevision,
+  StoredArtifactBlock,
+} from "@backend/transport-ts";
 
 function knowledgeClient(): KnowledgeInternalClient {
   const s = getSettings();
@@ -113,6 +121,9 @@ export async function reserveArtifactGeneration(input: {
   idempotencyKey: string;
   baseRevisionId?: string;
   documentId?: string;
+  runId?: string;
+  toolCallId?: string;
+  resumeGenerationId?: string;
 }): Promise<ArtifactGeneration> {
   return knowledgeClient().reserveArtifactGeneration(input);
 }
@@ -124,10 +135,43 @@ export async function getLatestArtifactWorkspace(
   return knowledgeClient().getLatestArtifactWorkspace({ userId, documentId });
 }
 
+export async function claimArtifactGeneration(input: { userId: string; generationId: string; owner: string }) {
+  return knowledgeClient().claimArtifactGeneration(input);
+}
+
+export async function renewArtifactGeneration(input: { userId: string; generationId: string; owner: string }) {
+  return knowledgeClient().renewArtifactGeneration(input);
+}
+
+export async function cancelArtifactGeneration(input: { userId: string; generationId: string; owner?: string }) {
+  return knowledgeClient().cancelArtifactGeneration(input);
+}
+
+export async function failArtifactGeneration(input: { userId: string; generationId: string; owner?: string; error?: string }) {
+  return knowledgeClient().failArtifactGeneration(input);
+}
+
+export async function listUnfinishedArtifactGenerations(input: { userId: string; conversationId?: string; runId?: string }) {
+  return knowledgeClient().listUnfinishedArtifactGenerations(input);
+}
+
+export async function listClaimableArtifactGenerations(input: { limit?: number } = {}) {
+  return knowledgeClient().listClaimableArtifactGenerations(input);
+}
+
+export async function updateArtifactGenerationPhase(input: {
+  userId: string;
+  generationId: string;
+  owner: string;
+  phase: string;
+}) {
+  return knowledgeClient().updateArtifactGenerationPhase(input);
+}
+
 export async function getArtifactGeneration(
   userId: string,
   generationId: string,
-): Promise<ArtifactGeneration> {
+): Promise<import("@backend/transport-ts").ArtifactGenerationDetail> {
   return knowledgeClient().getArtifactGeneration({ userId, generationId });
 }
 
@@ -145,6 +189,7 @@ export async function saveArtifactBlock(input: {
   generationId: string;
   blockId: string;
   content: string;
+  failed?: boolean;
 }): Promise<ArtifactGeneration> {
   return knowledgeClient().saveArtifactBlock(input);
 }

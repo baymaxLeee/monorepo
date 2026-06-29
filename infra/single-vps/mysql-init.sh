@@ -3,9 +3,9 @@
 #
 # Runs inside a mysql:8.4 container (which gives us the `mysql` CLI).
 # Connects to the `mysql` service via Docker network DNS, creates each
-# service database, grants APP_USER, then applies all *.sql files under
-# /schema/<db>/ in lexicographic order. All SQL files in this repo use
-# IF NOT EXISTS, so re-running is a cheap no-op.
+# service database, grants APP_USER, then applies pending *.sql files under
+# /schema/<db>/ in lexicographic order. Each service records its applied
+# version in a `migration` table; files at or below that version are skipped.
 #
 # Env (passed by docker-compose):
 #   MYSQL_ROOT_PASSWORD  — root password to connect as
@@ -49,6 +49,32 @@ done
 
 mysql_root -e "FLUSH PRIVILEGES;"
 
+# Read the semver recorded by the service's migration runner. Returns v0.0.0
+# when the table does not exist yet (fresh database).
+db_version() {
+    _db="$1"
+    if ! mysql_root -N -e "
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = '${_db}' AND table_name = 'migration'
+        LIMIT 1
+    " >/dev/null 2>&1; then
+        echo "v0.0.0"
+        return
+    fi
+    _ver="$(mysql_root -N -e "SELECT version FROM \`${_db}\`.migration WHERE id = 1 LIMIT 1" 2>/dev/null || true)"
+    if [ -z "${_ver}" ]; then
+        echo "v0.0.0"
+    else
+        echo "${_ver}"
+    fi
+}
+
+# True when $1 is strictly newer than $2 (v1.3.1 > v1.3.0).
+version_gt() {
+    _newer="$(printf '%s\n%s\n' "$2" "$1" | sort -V | tail -1)"
+    [ "${_newer}" = "$1" ] && [ "$1" != "$2" ]
+}
+
 # Convention: /schema/<db>/*.sql, applied in alphabetical (== semver) order.
 # Files are mounted from infra/single-vps/schema/<db>/ in docker-compose.
 for db in ${DATABASES}; do
@@ -62,9 +88,16 @@ for db in ${DATABASES}; do
         echo "  (no .sql files in ${schema_dir}, skipping)"
         continue
     fi
+    applied="$(db_version "${db}")"
     for f in "${schema_dir}"/*.sql; do
+        file_ver="$(basename "${f}" .sql)"
+        if ! version_gt "${file_ver}" "${applied}"; then
+            echo "  → skipping $(basename "${f}") (\`${db}\` at ${applied})"
+            continue
+        fi
         echo "  → applying $(basename "${f}") to \`${db}\`"
         mysql_root "${db}" < "${f}"
+        applied="$(db_version "${db}")"
     done
 done
 

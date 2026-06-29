@@ -524,6 +524,16 @@ export interface components {
                 [key: string]: unknown;
             };
             /**
+             * Context Window
+             * @default 128000
+             */
+            context_window: number;
+            /**
+             * Max Output Tokens
+             * @default 8192
+             */
+            max_output_tokens: number;
+            /**
              * Is Default
              * @default false
              */
@@ -609,6 +619,10 @@ export interface components {
             extra_body: {
                 [key: string]: unknown;
             };
+            /** Context Window */
+            context_window: number;
+            /** Max Output Tokens */
+            max_output_tokens: number;
             /** Is Default */
             is_default: boolean;
             /** Is Enabled */
@@ -635,6 +649,10 @@ export interface components {
             extra_body: {
                 [key: string]: unknown;
             };
+            /** Context Window */
+            context_window: number;
+            /** Max Output Tokens */
+            max_output_tokens: number;
             /** Is Default */
             is_default: boolean;
             /** Is Enabled */
@@ -739,6 +757,10 @@ export interface components {
             extra_body?: {
                 [key: string]: unknown;
             } | null;
+            /** Context Window */
+            context_window?: number | null;
+            /** Max Output Tokens */
+            max_output_tokens?: number | null;
             /** Is Default */
             is_default?: boolean | null;
             /** Is Enabled */

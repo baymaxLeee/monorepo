@@ -1,4 +1,4 @@
-import { datetime, index, int, json, mysqlTable, text, varchar } from "drizzle-orm/mysql-core";
+import { datetime, index, int, json, mysqlTable, text, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 export const conversations = mysqlTable(
   "conversations",
@@ -8,10 +8,34 @@ export const conversations = mysqlTable(
     title: varchar("title", { length: 200 }).notNull().default("新对话"),
     model: varchar("model", { length: 120 }).notNull().default(""),
     providerId: varchar("provider_id", { length: 32 }).notNull().default(""),
+    agentMode: varchar("agent_mode", { length: 16 }).notNull().default("normal"),
+    activePlanDocumentId: varchar("active_plan_document_id", { length: 32 }),
     createdAt: datetime("created_at", { mode: "date", fsp: 6 }).notNull(),
     updatedAt: datetime("updated_at", { mode: "date", fsp: 6 }).notNull(),
   },
   (t) => [index("ix_conversations_user_id").on(t.userId)],
+);
+
+export const conversationContexts = mysqlTable("conversation_contexts", {
+  conversationId: varchar("conversation_id", { length: 32 }).primaryKey(),
+  revision: int("revision").notNull().default(1),
+  coveredThroughMessageId: varchar("covered_through_message_id", { length: 32 }),
+  summary: text("summary").notNull(),
+  stateJson: json("state_json").$type<Record<string, unknown>>().notNull(),
+  estimatedTokens: int("estimated_tokens").notNull().default(0),
+  createdAt: datetime("created_at", { mode: "date", fsp: 6 }).notNull(),
+  updatedAt: datetime("updated_at", { mode: "date", fsp: 6 }).notNull(),
+});
+
+export const conversationRunLeases = mysqlTable(
+  "conversation_run_leases",
+  {
+    conversationId: varchar("conversation_id", { length: 32 }).primaryKey(),
+    runId: varchar("run_id", { length: 32 }).notNull(),
+    heartbeatAt: datetime("heartbeat_at", { mode: "date", fsp: 6 }).notNull(),
+    expiresAt: datetime("expires_at", { mode: "date", fsp: 6 }).notNull(),
+  },
+  (t) => [uniqueIndex("ux_conversation_run_leases_run_id").on(t.runId)],
 );
 
 export const messages = mysqlTable(
@@ -60,6 +84,9 @@ export const agentSteps = mysqlTable(
     status: varchar("status", { length: 20 }).notNull(),
     summary: text("summary"),
     metadata: json("metadata").$type<Record<string, unknown> | null>(),
+    inputTokens: int("input_tokens"),
+    outputTokens: int("output_tokens"),
+    totalTokens: int("total_tokens"),
     createdAt: datetime("created_at", { mode: "date", fsp: 6 }).notNull(),
     finishedAt: datetime("finished_at", { mode: "date", fsp: 6 }),
   },

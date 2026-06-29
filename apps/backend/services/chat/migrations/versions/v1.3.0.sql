@@ -1,7 +1,7 @@
--- v1.3.0: retain original source-object metadata for storage-backed uploads.
+-- v1.3.0: retain original source-object metadata for knowledge-backed uploads.
 --
 -- The Markdown conversion remains the normal preview/edit surface. Original
--- binary payloads live in the storage service; chat stores only object
+-- binary payloads live in knowledge; chat stores only object
 -- metadata so DB rows stay small.
 
 SET @has_source_mime_type := (

@@ -20,6 +20,8 @@ export interface Conversation {
   title: string;
   model: string;
   provider_id: string;
+  agent_mode: "normal" | "plan";
+  active_plan_document_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -95,6 +97,8 @@ function toConversation(row: typeof conversations.$inferSelect): Conversation {
     title: row.title,
     model: row.model,
     provider_id: row.providerId,
+    agent_mode: row.agentMode as Conversation["agent_mode"],
+    active_plan_document_id: row.activePlanDocumentId,
     created_at: iso(row.createdAt),
     updated_at: iso(row.updatedAt),
   };
@@ -179,6 +183,46 @@ export async function updateConversation(
   await db.update(conversations).set(values).where(eq(conversations.id, row.id));
   const [updated] = await db.select().from(conversations).where(eq(conversations.id, row.id));
   return toConversation(updated!);
+}
+
+export async function updateConversationMode(
+  auth: AuthContext,
+  conversationId: string,
+  agentMode: "normal" | "plan",
+  activePlanDocumentId?: string | null,
+): Promise<Conversation> {
+  const row = await getConversationRow(auth, conversationId);
+  if (activePlanDocumentId) {
+    assertConversationDocument(
+      await getDocument(row.userId, activePlanDocumentId),
+      conversationId,
+    );
+  }
+  await getDb()
+    .update(conversations)
+    .set({
+      agentMode,
+      ...(activePlanDocumentId !== undefined
+        ? { activePlanDocumentId }
+        : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(conversations.id, row.id));
+  const [updated] = await getDb()
+    .select()
+    .from(conversations)
+    .where(eq(conversations.id, row.id));
+  return toConversation(updated!);
+}
+
+export async function setActivePlanDocument(
+  conversationId: string,
+  documentId: string,
+): Promise<void> {
+  await getDb()
+    .update(conversations)
+    .set({ activePlanDocumentId: documentId, updatedAt: new Date() })
+    .where(eq(conversations.id, conversationId));
 }
 
 export async function deleteConversation(auth: AuthContext, conversationId: string): Promise<void> {

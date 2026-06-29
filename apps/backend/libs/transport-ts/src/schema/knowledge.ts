@@ -198,6 +198,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/artifact-generations/claimable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Claimable Generations */
+        get: operations["list_claimable_generations_internal_artifact_generations_claimable_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/artifact-generations/unfinished": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Unfinished Generations */
+        get: operations["list_unfinished_generations_internal_artifact_generations_unfinished_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/artifact-generations/{generation_id}": {
         parameters: {
             query?: never;
@@ -209,6 +243,91 @@ export interface paths {
         get: operations["get_generation_internal_artifact_generations__generation_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/artifact-generations/{generation_id}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Claim Generation */
+        post: operations["claim_generation_internal_artifact_generations__generation_id__claim_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/artifact-generations/{generation_id}/phase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Update Generation Phase */
+        post: operations["update_generation_phase_internal_artifact_generations__generation_id__phase_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/artifact-generations/{generation_id}/renew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Renew Generation */
+        post: operations["renew_generation_internal_artifact_generations__generation_id__renew_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/artifact-generations/{generation_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Generation */
+        post: operations["cancel_generation_internal_artifact_generations__generation_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/artifact-generations/{generation_id}/fail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fail Generation */
+        post: operations["fail_generation_internal_artifact_generations__generation_id__fail_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -331,6 +450,99 @@ export interface components {
             failed_blocks: number;
             /** Error */
             error: string | null;
+            /** Attempt */
+            attempt: number;
+            /** Run Id */
+            run_id: string | null;
+            /** Tool Call Id */
+            tool_call_id: string | null;
+            /** Lease Owner */
+            lease_owner: string | null;
+            /** Lease Expires At */
+            lease_expires_at: string | null;
+            /** Started At */
+            started_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Cancel Requested At */
+            cancel_requested_at: string | null;
+        };
+        /** ArtifactGenerationDetail */
+        ArtifactGenerationDetail: {
+            /** Id */
+            id: string;
+            /** Document Id */
+            document_id: string;
+            /** Status */
+            status: string;
+            /** Phase */
+            phase: string;
+            /** Total Blocks */
+            total_blocks: number;
+            /** Completed Blocks */
+            completed_blocks: number;
+            /** Failed Blocks */
+            failed_blocks: number;
+            /** Error */
+            error: string | null;
+            /** Attempt */
+            attempt: number;
+            /** Run Id */
+            run_id: string | null;
+            /** Tool Call Id */
+            tool_call_id: string | null;
+            /** Lease Owner */
+            lease_owner: string | null;
+            /** Lease Expires At */
+            lease_expires_at: string | null;
+            /** Started At */
+            started_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Cancel Requested At */
+            cancel_requested_at: string | null;
+            /** User Id */
+            user_id: string;
+            /** Title */
+            title: string;
+            /** Filename */
+            filename: string;
+            /** Brief */
+            brief: string;
+            /** Manifest */
+            manifest?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** ArtifactLeaseInput */
+        ArtifactLeaseInput: {
+            /** User Id */
+            user_id: string;
+            /** Owner */
+            owner: string;
+            /**
+             * Lease Seconds
+             * @default 60
+             */
+            lease_seconds: number;
+        };
+        /** ArtifactMutationInput */
+        ArtifactMutationInput: {
+            /** User Id */
+            user_id: string;
+            /** Owner */
+            owner?: string | null;
+            /** Error */
+            error?: string | null;
+        };
+        /** ArtifactPhaseInput */
+        ArtifactPhaseInput: {
+            /** User Id */
+            user_id: string;
+            /** Owner */
+            owner: string;
+            /** Phase */
+            phase: string;
         };
         /** ArtifactRevisionWorkspace */
         ArtifactRevisionWorkspace: {
@@ -355,6 +567,49 @@ export interface components {
             conversation_id?: string | null;
             /** Provider Id */
             provider_id?: string | null;
+        };
+        /** ClaimableArtifactJob */
+        ClaimableArtifactJob: {
+            /** Id */
+            id: string;
+            /** Document Id */
+            document_id: string;
+            /** Status */
+            status: string;
+            /** Phase */
+            phase: string;
+            /** Total Blocks */
+            total_blocks: number;
+            /** Completed Blocks */
+            completed_blocks: number;
+            /** Failed Blocks */
+            failed_blocks: number;
+            /** Error */
+            error: string | null;
+            /** Attempt */
+            attempt: number;
+            /** Run Id */
+            run_id: string | null;
+            /** Tool Call Id */
+            tool_call_id: string | null;
+            /** Lease Owner */
+            lease_owner: string | null;
+            /** Lease Expires At */
+            lease_expires_at: string | null;
+            /** Started At */
+            started_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Cancel Requested At */
+            cancel_requested_at: string | null;
+            /** User Id */
+            user_id: string;
+            /** Title */
+            title: string;
+            /** Filename */
+            filename: string;
+            /** Brief */
+            brief: string;
         };
         /** CreateArtifactInput */
         CreateArtifactInput: {
@@ -506,6 +761,12 @@ export interface components {
             base_revision_id?: string | null;
             /** Document Id */
             document_id?: string | null;
+            /** Run Id */
+            run_id?: string | null;
+            /** Tool Call Id */
+            tool_call_id?: string | null;
+            /** Resume Generation Id */
+            resume_generation_id?: string | null;
         };
         /** SaveArtifactBlockInput */
         SaveArtifactBlockInput: {
@@ -513,6 +774,11 @@ export interface components {
             user_id: string;
             /** Content */
             content: string;
+            /**
+             * Failed
+             * @default false
+             */
+            failed: boolean;
         };
         /** SaveArtifactPlanInput */
         SaveArtifactPlanInput: {
@@ -1098,6 +1364,74 @@ export interface operations {
             };
         };
     };
+    list_claimable_generations_internal_artifact_generations_claimable_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaimableArtifactJob"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_unfinished_generations_internal_artifact_generations_unfinished_get: {
+        parameters: {
+            query: {
+                user_id: string;
+                conversation_id?: string | null;
+                run_id?: string | null;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactGeneration"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_generation_internal_artifact_generations__generation_id__get: {
         parameters: {
             query: {
@@ -1112,6 +1446,191 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactGenerationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claim_generation_internal_artifact_generations__generation_id__claim_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                generation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtifactLeaseInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactGeneration"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_generation_phase_internal_artifact_generations__generation_id__phase_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                generation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtifactPhaseInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactGeneration"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    renew_generation_internal_artifact_generations__generation_id__renew_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                generation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtifactLeaseInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactGeneration"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_generation_internal_artifact_generations__generation_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                generation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtifactMutationInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactGeneration"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fail_generation_internal_artifact_generations__generation_id__fail_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                generation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtifactMutationInput"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

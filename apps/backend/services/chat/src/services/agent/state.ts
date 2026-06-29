@@ -2,10 +2,10 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
-import { getDb } from "../db/index.js";
-import { agentRuns, agentSteps, agentToolCalls, userMemories } from "../db/schema.js";
+import { getDb } from "../../db/index.js";
+import { agentRuns, agentSteps, agentToolCalls, userMemories } from "../../db/schema.js";
 
-export type AgentRunStatus = "running" | "awaiting_approval" | "completed" | "failed" | "cancelled";
+export type AgentRunStatus = "running" | "cancel_requested" | "completed" | "failed" | "cancelled" | "interrupted";
 export type AgentStepStatus = "running" | "completed" | "failed";
 export type MemoryCategory = "preference" | "profile" | "project" | "instruction";
 
@@ -95,6 +95,13 @@ export async function finishAgentRun(input: {
       finishedAt: new Date(),
     })
     .where(eq(agentRuns.id, input.runId));
+}
+
+export async function requestAgentRunCancellation(runId: string): Promise<void> {
+  await getDb()
+    .update(agentRuns)
+    .set({ status: "cancel_requested" })
+    .where(and(eq(agentRuns.id, runId), inArray(agentRuns.status, ["running", "cancel_requested"])));
 }
 
 export interface AgentTraceStep {
@@ -202,6 +209,9 @@ export async function finishAgentStep(input: {
   status: AgentStepStatus;
   summary?: string | null;
   metadata?: Record<string, unknown> | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  totalTokens?: number | null;
 }): Promise<void> {
   await getDb()
     .update(agentSteps)
@@ -209,6 +219,9 @@ export async function finishAgentStep(input: {
       status: input.status,
       summary: input.summary ?? undefined,
       metadata: input.metadata ?? undefined,
+      inputTokens: input.inputTokens ?? undefined,
+      outputTokens: input.outputTokens ?? undefined,
+      totalTokens: input.totalTokens ?? undefined,
       finishedAt: new Date(),
     })
     .where(eq(agentSteps.id, input.stepId));

@@ -116,7 +116,7 @@ git push origin main
 # wait ~5 minutes — watch GitHub Actions → build-images go green
 ```
 
-You should see 6 images in your repo's **Packages** tab: `gateway`, `iam`, `admin`, `telemetry`, `web`, `db-init`.
+You should see 8 images in your registry: `gateway`, `iam`, `admin`, `chat`, `knowledge`, `telemetry`, `web`, `db-init`.
 
 ### 5. Deploy (run on your laptop)
 

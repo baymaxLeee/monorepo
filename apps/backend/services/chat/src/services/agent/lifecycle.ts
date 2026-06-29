@@ -1,3 +1,11 @@
+import {
+  finishAgentRun,
+  finishAgentStep,
+  recordToolCallFinish,
+  recordToolCallStart,
+  startAgentStep,
+} from "./state.js";
+
 function stepId(runId: string, stepNumber: number): string {
   const compact = runId.replace(/[^a-f0-9]/gi, "").padEnd(30, "0").slice(0, 30);
   return `${compact}${stepNumber.toString(16).padStart(2, "0").slice(-2)}`;
@@ -8,11 +16,18 @@ export async function startModelStep(input: { runId: string; stepNumber: number;
 }
 
 export async function finishModelStep(input: { runId: string; stepNumber: number; finishReason: string; usage: unknown; toolCallCount: number; performance?: unknown }): Promise<void> {
+  const usage = input.usage && typeof input.usage === "object"
+    ? input.usage as { inputTokens?: unknown; outputTokens?: unknown; totalTokens?: unknown }
+    : {};
+  const token = (value: unknown) => typeof value === "number" ? value : null;
   await finishAgentStep({
     stepId: stepId(input.runId, input.stepNumber),
     status: "completed",
     summary: `finish reason: ${input.finishReason}`,
     metadata: { usage: input.usage, tool_call_count: input.toolCallCount, performance: input.performance },
+    inputTokens: token(usage.inputTokens),
+    outputTokens: token(usage.outputTokens),
+    totalTokens: token(usage.totalTokens),
   });
 }
 
@@ -42,10 +57,3 @@ export async function recordToolEnd(input: { toolCallId: string; success: boolea
 export async function failAgentRun(input: { runId: string; error: unknown }): Promise<void> {
   await finishAgentRun({ runId: input.runId, status: "failed", error: input.error });
 }
-import {
-  finishAgentRun,
-  finishAgentStep,
-  recordToolCallFinish,
-  recordToolCallStart,
-  startAgentStep,
-} from "./agent-state.js";

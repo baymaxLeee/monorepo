@@ -3,11 +3,14 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { getProvider } from "../clients/admin.js";
+import { listUnfinishedArtifactGenerations } from "../clients/knowledge.js";
 import { getAuth } from "../middleware/auth.js";
 import {
   createAgentRunResponse,
   getAgentRunTrace,
-} from "../services/agent-runtime.js";
+  cancelRun,
+} from "../services/agent/index.js";
+import { getConversationRow } from "../services/conversations.js";
 
 export const agentsRoutes = new Hono();
 
@@ -58,4 +61,25 @@ agentsRoutes.get("/:conversationId/agents/runs/:runId/trace", async (c) => {
     c.req.param("runId"),
   );
   return c.json(trace);
+});
+
+agentsRoutes.post("/:conversationId/agents/runs/:runId/cancel", async (c) => {
+  const auth = getAuth(c);
+  const conversationId = c.req.param("conversationId");
+  const runId = c.req.param("runId");
+  const run = await getAgentRunTrace(auth, conversationId, runId);
+  if (!["running", "cancel_requested"].includes(run.status)) {
+    return c.json({ cancelled: false, status: run.status });
+  }
+  return c.json({ cancelled: await cancelRun(conversationId, runId) });
+});
+
+agentsRoutes.get("/:conversationId/artifact-jobs", async (c) => {
+  const auth = getAuth(c);
+  const conversation = await getConversationRow(auth, c.req.param("conversationId"));
+  const jobs = await listUnfinishedArtifactGenerations({
+    userId: conversation.userId,
+    conversationId: conversation.id,
+  });
+  return c.json(jobs);
 });

@@ -1,16 +1,16 @@
 import { isStepCount, ToolLoopAgent } from "ai";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 
-import { MAX_AGENT_OUTPUT_TOKENS, MAX_AGENT_STEPS } from "./agent-config.js";
+import { MAX_AGENT_STEPS } from "./config.js";
 import {
   finishModelStep,
   recordToolEnd,
   recordToolStart,
   startModelStep,
-} from "./agent-lifecycle.js";
-import { createProviderModel } from "./agent-provider.js";
-import { buildAgentTools } from "./agent-tools.js";
-import type { ChatAgentInput } from "./agent-types.js";
+} from "./lifecycle.js";
+import { createProviderModel } from "./provider.js";
+import { buildAgentTools } from "./tools/tools.js";
+import type { ChatAgentInput } from "./types.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {
   return operation.catch((error) => {
@@ -21,7 +21,7 @@ function observe(label: string, operation: Promise<void>): Promise<void> {
 
 export function createChatAgent(input: ChatAgentInput) {
   const provider = input.provider;
-  const tools = buildAgentTools();
+  const tools = buildAgentTools(input.mode);
   const toolContext = {
     runId: input.runId,
     userId: input.userId,
@@ -46,7 +46,7 @@ export function createChatAgent(input: ChatAgentInput) {
       parallelToolCalls: true,
     }),
     instructions: input.instructions,
-    maxOutputTokens: MAX_AGENT_OUTPUT_TOKENS,
+    maxOutputTokens: provider.maxOutputTokens,
     tools,
     toolsContext,
     stopWhen: isStepCount(MAX_AGENT_STEPS),

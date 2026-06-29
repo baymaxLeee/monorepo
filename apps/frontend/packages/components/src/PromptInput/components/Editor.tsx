@@ -1,7 +1,7 @@
 import type { Editor } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Paperclip, SendHorizontal } from "lucide-react";
+import { Paperclip, SendHorizontal, Square } from "lucide-react";
 import {
   type FormEvent,
   forwardRef,
@@ -76,15 +76,20 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
       submitLabel,
       autoFocus,
       maxHeight = 240,
+      accept,
+      maxFiles = 8,
+      maxFileSize = 20 * 1024 * 1024,
+      onError,
       onChange,
       onFilesAdded,
       onSubmit,
+      onStop,
       renderToken,
       toolbarRender,
       footerRender,
     } = props;
     const filesRef = useRef<Record<string, File>>({});
-    const objectUrlsRef = useRef<string[]>([]);
+    const objectUrlsRef = useRef<Record<string, string>>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
     const editorRef = useRef<Editor | null>(null);
     const onChangeRef = useRef(onChange);
@@ -111,19 +116,30 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
         createPromptTokenExtension({
           renderToken: (token, context) =>
             renderTokenRef.current?.(token, context),
+          retryToken: (token) => {
+            const file = filesRef.current[token.id];
+            if (file) onFilesAddedRef.current?.([{ token, file }]);
+          },
         }),
       ],
       [],
     );
 
     const emitChange = useCallback((currentEditor: Editor) => {
-      if (currentEditor.isDestroyed || !onChangeRef.current) return;
+      if (currentEditor.isDestroyed) return;
       const value = serializePromptInput(
         currentEditor.getJSON(),
         filesRef.current,
       );
       value.files = filterFiles(value, filesRef);
-      onChangeRef.current(value);
+      const activeIds = new Set(value.tokens.map((token) => token.id));
+      for (const [tokenId, url] of Object.entries(objectUrlsRef.current)) {
+        if (!activeIds.has(tokenId)) {
+          URL.revokeObjectURL(url);
+          delete objectUrlsRef.current[tokenId];
+        }
+      }
+      onChangeRef.current?.(value);
     }, []);
 
     const getValue = useCallback(() => {
@@ -139,26 +155,42 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
       return value;
     }, []);
 
-    const insertToken = useCallback((token: PromptInputToken, file?: File) => {
-      const currentEditor = editorRef.current;
-      if (!currentEditor || currentEditor.isDestroyed) return;
-      if (file) filesRef.current[token.id] = file;
-      currentEditor.chain().focus().insertPromptToken(token).run();
-      emitChange(currentEditor);
-    }, [emitChange]);
+    const insertToken = useCallback(
+      (token: PromptInputToken, file?: File) => {
+        const currentEditor = editorRef.current;
+        if (!currentEditor || currentEditor.isDestroyed) return;
+        if (file) filesRef.current[token.id] = file;
+        currentEditor.chain().focus().insertPromptToken(token).run();
+        emitChange(currentEditor);
+      },
+      [emitChange],
+    );
 
     const insertFilesRef = useRef<(files: File[]) => void>(() => {});
 
     insertFilesRef.current = (files: File[]) => {
       const currentEditor = editorRef.current;
       if (!currentEditor || currentEditor.isDestroyed) return;
+      const existingCount = serializePromptInput(
+        currentEditor.getJSON(),
+        filesRef.current,
+      ).tokens.length;
+      const remaining = Math.max(0, maxFiles - existingCount);
+      if (files.length > remaining)
+        onError?.(`最多可添加 ${maxFiles} 个文件。`);
       const added: Array<{ token: PromptInputToken; file: File }> = [];
-      for (const file of files) {
+      for (const file of files.slice(0, remaining)) {
+        if (file.size > maxFileSize) {
+          onError?.(
+            `${file.name} 超过 ${Math.round(maxFileSize / 1024 / 1024)} MB 限制。`,
+          );
+          continue;
+        }
         const url = file.type.startsWith("image/")
           ? URL.createObjectURL(file)
           : undefined;
-        if (url) objectUrlsRef.current.push(url);
         const token = fileToToken(file, url);
+        if (url) objectUrlsRef.current[token.id] = url;
         filesRef.current[token.id] = file;
         currentEditor.chain().focus().insertPromptToken(token).run();
         added.push({ token, file });
@@ -231,6 +263,16 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
             return true;
           },
           handleKeyDown: (view, event) => {
+            if (
+              event.key === "Enter" &&
+              !event.shiftKey &&
+              !event.isComposing &&
+              !(event.metaKey || event.ctrlKey)
+            ) {
+              event.preventDefault();
+              view.dom.closest("form")?.requestSubmit();
+              return true;
+            }
             if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
               event.preventDefault();
               view.dom.closest("form")?.requestSubmit();
@@ -259,8 +301,10 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
 
     useEffect(
       () => () => {
-        objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-        objectUrlsRef.current = [];
+        Object.values(objectUrlsRef.current).forEach((url) => {
+          URL.revokeObjectURL(url);
+        });
+        objectUrlsRef.current = {};
       },
       [],
     );
@@ -317,6 +361,7 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
               ref={fileInputRef}
               type="file"
               multiple
+              accept={accept}
               className="hidden"
               onChange={(event) => {
                 insertFilesRef.current(
@@ -338,12 +383,18 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
             {footerRender?.(api)}
           </div>
           <Button
-            type="submit"
+            type={loading && onStop ? "button" : "submit"}
             size="icon"
-            disabled={disabled || loading}
-            aria-label="Submit prompt"
+            disabled={disabled && !loading}
+            aria-label={loading ? "Stop" : "Submit prompt"}
+            onClick={loading ? onStop : undefined}
           >
-            {submitLabel ?? <SendHorizontal className="size-4" />}
+            {submitLabel ??
+              (loading ? (
+                <Square className="size-4" />
+              ) : (
+                <SendHorizontal className="size-4" />
+              ))}
           </Button>
         </div>
       </form>

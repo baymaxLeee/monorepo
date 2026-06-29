@@ -26,6 +26,8 @@ class ModelProvider(BaseModel):
     base_url: str
     api_key_masked: str
     extra_body: dict[str, Any]
+    context_window: int
+    max_output_tokens: int
     is_default: bool
     is_enabled: bool
     created_at: str
@@ -42,6 +44,8 @@ class InternalModelProvider(BaseModel):
     base_url: str
     api_key: str
     extra_body: dict[str, Any]
+    context_window: int
+    max_output_tokens: int
     is_default: bool
     is_enabled: bool
 
@@ -52,6 +56,8 @@ class CreateModelProviderInput(BaseModel):
     base_url: HttpUrl
     api_key: str = Field(min_length=1, max_length=4096)
     extra_body: dict[str, Any] = Field(default_factory=dict)
+    context_window: int = Field(default=128_000, ge=1024, le=2_000_000)
+    max_output_tokens: int = Field(default=8_192, ge=256, le=1_000_000)
     is_default: bool = False
     is_enabled: bool = True
 
@@ -64,6 +70,8 @@ class UpdateModelProviderInput(BaseModel):
     # it MUST be the new plaintext key — the admin re-encrypts on write.
     api_key: str | None = Field(default=None, min_length=1, max_length=4096)
     extra_body: dict[str, Any] | None = None
+    context_window: int | None = Field(default=None, ge=1024, le=2_000_000)
+    max_output_tokens: int | None = Field(default=None, ge=256, le=1_000_000)
     is_default: bool | None = None
     is_enabled: bool | None = None
 

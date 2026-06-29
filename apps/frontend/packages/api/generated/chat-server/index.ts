@@ -6,6 +6,38 @@
  * OpenAPI spec version: 0.1.0
  */
 import { apiMutator } from '../../src/orval-mutator';
+export type ConversationModeInputMode = typeof ConversationModeInputMode[keyof typeof ConversationModeInputMode];
+
+
+export const ConversationModeInputMode = {
+  normal: 'normal',
+  plan: 'plan',
+} as const;
+
+export interface ConversationModeInput {
+  mode: ConversationModeInputMode;
+  /** @nullable */
+  active_plan_document_id?: string | null;
+}
+
+export interface RunCancellation {
+  cancelled: boolean;
+  status?: string;
+}
+
+export interface ArtifactJob {
+  id: string;
+  document_id: string;
+  status: string;
+  phase: string;
+  total_blocks: number;
+  completed_blocks: number;
+  failed_blocks: number;
+  /** @nullable */
+  error?: string | null;
+  attempt: number;
+}
+
 export type MemoryCategory = typeof MemoryCategory[keyof typeof MemoryCategory];
 
 
@@ -134,6 +166,18 @@ const postConversationsConversationIdAgentsRunStream = (
       options);
     }
 
+const patchConversationsConversationIdMode = (
+    conversationId: string,
+    conversationModeInput: ConversationModeInput,
+ options?: SecondParameter<typeof apiMutator<void>>,) => {
+      return apiMutator<void>(
+      {url: `/conversations/${conversationId}/mode`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: conversationModeInput
+    },
+      options);
+    }
+
 const getConversationsConversationIdDocumentsDocumentId = (
     conversationId: string,
     documentId: string,
@@ -170,6 +214,25 @@ const getConversationsConversationIdAgentsRunsRunIdTrace = (
  options?: SecondParameter<typeof apiMutator<void>>,) => {
       return apiMutator<void>(
       {url: `/conversations/${conversationId}/agents/runs/${runId}/trace`, method: 'GET'
+    },
+      options);
+    }
+
+const postConversationsConversationIdAgentsRunsRunIdCancel = (
+    conversationId: string,
+    runId: string,
+ options?: SecondParameter<typeof apiMutator<RunCancellation>>,) => {
+      return apiMutator<RunCancellation>(
+      {url: `/conversations/${conversationId}/agents/runs/${runId}/cancel`, method: 'POST'
+    },
+      options);
+    }
+
+const getConversationsConversationIdArtifactJobs = (
+    conversationId: string,
+ options?: SecondParameter<typeof apiMutator<ArtifactJob[]>>,) => {
+      return apiMutator<ArtifactJob[]>(
+      {url: `/conversations/${conversationId}/artifact-jobs`, method: 'GET'
     },
       options);
     }
@@ -231,7 +294,7 @@ const deleteMemoriesId = (
       options);
     }
 
-return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdAgentsRunsRunIdTrace,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
+return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,postConversationsConversationIdAgentsRunStream,patchConversationsConversationIdMode,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdArtifactJobs,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -244,10 +307,13 @@ export type GetConversationsConversationIdResult = NonNullable<Awaited<ReturnTyp
 export type PatchConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchConversationsConversationId']>>>
 export type DeleteConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['deleteConversationsConversationId']>>>
 export type PostConversationsConversationIdAgentsRunStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunStream']>>>
+export type PatchConversationsConversationIdModeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchConversationsConversationIdMode']>>>
 export type GetConversationsConversationIdDocumentsDocumentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdDocumentsDocumentId']>>>
 export type PatchConversationsConversationIdDocumentsDocumentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchConversationsConversationIdDocumentsDocumentId']>>>
 export type GetConversationsConversationIdDocumentsDocumentIdSourceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdDocumentsDocumentIdSource']>>>
 export type GetConversationsConversationIdAgentsRunsRunIdTraceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdAgentsRunsRunIdTrace']>>>
+export type PostConversationsConversationIdAgentsRunsRunIdCancelResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunsRunIdCancel']>>>
+export type GetConversationsConversationIdArtifactJobsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdArtifactJobs']>>>
 export type GetMemoriesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getMemories']>>>
 export type GetMemoriesCandidatesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getMemoriesCandidates']>>>
 export type PostMemoriesCandidatesIdApproveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postMemoriesCandidatesIdApprove']>>>

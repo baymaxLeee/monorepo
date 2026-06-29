@@ -21,8 +21,6 @@ import {
   parseArtifactOutput,
   StreamingArtifactCard,
 } from "./ChatArtifactCard";
-import type { PlanSnapshot } from "./ChatPlanCard";
-import { ChatPlanCard, parsePlanSnapshot } from "./ChatPlanCard";
 
 export interface ChatMessageViewProps {
   message: UIMessage;
@@ -34,8 +32,8 @@ export interface ChatMessageViewProps {
     toolCallId: string,
     output: unknown,
   ) => void;
-  onEditPlan?: (plan: PlanSnapshot) => void;
-  latestPlanToolCallId?: string | null;
+  onContinuePlan: (documentId: string) => void;
+  onExecutePlan: (documentId: string) => void;
 }
 
 export function ChatMessageView({
@@ -44,31 +42,13 @@ export function ChatMessageView({
   documents,
   onOpenArtifact,
   onAnswerClientTool,
-  onEditPlan,
-  latestPlanToolCallId,
+  onContinuePlan,
+  onExecutePlan,
 }: ChatMessageViewProps) {
   const reasoning = mergeReasoningParts(message.parts, {
     isMessageStreaming: streaming,
   });
   const allVisibleParts = withoutReasoningParts(message.parts);
-  const latestPlanIndex = allVisibleParts.reduce(
-    (latest, entry) =>
-      (entry.part.type === "tool-write_plan" ||
-        entry.part.type === "tool-update_plan") &&
-      entry.part.state === "output-available"
-        ? entry.index
-        : latest,
-    -1,
-  );
-  const visibleParts = allVisibleParts.filter(
-    (entry) =>
-      (entry.part.type !== "tool-write_plan" &&
-        entry.part.type !== "tool-update_plan") ||
-      (entry.index === latestPlanIndex &&
-        (!latestPlanToolCallId ||
-          ("toolCallId" in entry.part &&
-            entry.part.toolCallId === latestPlanToolCallId))),
-  );
 
   return (
     <AiMessage from={message.role}>
@@ -83,7 +63,7 @@ export function ChatMessageView({
               <ReasoningContent>{reasoning.text}</ReasoningContent>
             </Reasoning>
           ) : null}
-          {visibleParts.map(({ part, index }) => (
+          {allVisibleParts.map(({ part, index }) => (
             <MessagePartView
               key={partKey(message.id, part, index)}
               part={part}
@@ -91,7 +71,8 @@ export function ChatMessageView({
               documents={documents}
               onOpenArtifact={onOpenArtifact}
               onAnswerClientTool={onAnswerClientTool}
-              onEditPlan={onEditPlan}
+              onContinuePlan={onContinuePlan}
+              onExecutePlan={onExecutePlan}
             />
           ))}
         </div>
@@ -115,7 +96,8 @@ function MessagePartView({
   documents,
   onOpenArtifact,
   onAnswerClientTool,
-  onEditPlan,
+  onContinuePlan,
+  onExecutePlan,
 }: {
   part: UIMessage["parts"][number];
   streaming: boolean;
@@ -126,7 +108,8 @@ function MessagePartView({
     toolCallId: string,
     output: unknown,
   ) => void;
-  onEditPlan?: (plan: PlanSnapshot) => void;
+  onContinuePlan: (documentId: string) => void;
+  onExecutePlan: (documentId: string) => void;
 }) {
   if (part.type === "text") {
     return (
@@ -152,24 +135,14 @@ function MessagePartView({
   }
 
   if (isToolUIPart(part)) {
-    if (
-      (getToolName(part) === "write_plan" ||
-        getToolName(part) === "update_plan") &&
-      part.state === "output-available"
-    ) {
-      const plan = parsePlanSnapshot(
-        "output" in part ? part.output : undefined,
-      );
-      return plan ? (
-        <ChatPlanCard plan={plan} editable onEdit={onEditPlan} />
-      ) : null;
-    }
     return (
       <ToolPartView
         part={part}
         documents={documents}
         onOpenArtifact={onOpenArtifact}
         onAnswerClientTool={onAnswerClientTool}
+        onContinuePlan={onContinuePlan}
+        onExecutePlan={onExecutePlan}
       />
     );
   }
@@ -182,6 +155,8 @@ function ToolPartView({
   documents,
   onOpenArtifact,
   onAnswerClientTool,
+  onContinuePlan,
+  onExecutePlan,
 }: {
   part: Extract<UIMessage["parts"][number], { toolCallId: string }>;
   documents: Map<string, ConversationDocument>;
@@ -191,6 +166,8 @@ function ToolPartView({
     toolCallId: string,
     output: unknown,
   ) => void;
+  onContinuePlan: (documentId: string) => void;
+  onExecutePlan: (documentId: string) => void;
 }) {
   const toolName = getToolName(part);
   const input = "input" in part ? part.input : undefined;
@@ -213,6 +190,8 @@ function ToolPartView({
         documentId={artifact.documentId}
         fallback={artifact}
         onOpen={() => onOpenArtifact(artifact.documentId)}
+        onContinuePlan={() => onContinuePlan(artifact.documentId)}
+        onExecutePlan={() => onExecutePlan(artifact.documentId)}
       />
     );
   }

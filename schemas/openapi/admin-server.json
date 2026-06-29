@@ -3069,6 +3069,20 @@
             "type": "object",
             "title": "Extra Body"
           },
+          "context_window": {
+            "type": "integer",
+            "maximum": 2000000.0,
+            "minimum": 1024.0,
+            "title": "Context Window",
+            "default": 128000
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 256.0,
+            "title": "Max Output Tokens",
+            "default": 8192
+          },
           "is_default": {
             "type": "boolean",
             "title": "Is Default",
@@ -3237,6 +3251,14 @@
             "type": "object",
             "title": "Extra Body"
           },
+          "context_window": {
+            "type": "integer",
+            "title": "Context Window"
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "title": "Max Output Tokens"
+          },
           "is_default": {
             "type": "boolean",
             "title": "Is Default"
@@ -3255,6 +3277,8 @@
           "base_url",
           "api_key",
           "extra_body",
+          "context_window",
+          "max_output_tokens",
           "is_default",
           "is_enabled"
         ],
@@ -3292,6 +3316,14 @@
             "type": "object",
             "title": "Extra Body"
           },
+          "context_window": {
+            "type": "integer",
+            "title": "Context Window"
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "title": "Max Output Tokens"
+          },
           "is_default": {
             "type": "boolean",
             "title": "Is Default"
@@ -3318,6 +3350,8 @@
           "base_url",
           "api_key_masked",
           "extra_body",
+          "context_window",
+          "max_output_tokens",
           "is_default",
           "is_enabled",
           "created_at",
@@ -3725,6 +3759,32 @@
               }
             ],
             "title": "Extra Body"
+          },
+          "context_window": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2000000.0,
+                "minimum": 1024.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Window"
+          },
+          "max_output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000000.0,
+                "minimum": 256.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Output Tokens"
           },
           "is_default": {
             "anyOf": [

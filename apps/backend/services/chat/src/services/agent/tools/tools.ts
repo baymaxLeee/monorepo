@@ -6,21 +6,21 @@ import {
   getDocumentSlice,
   getDocumentSource,
   listDocuments,
-} from "../clients/knowledge.js";
-import { getSettings } from "../config.js";
-import { editFileTool, writeFileTool } from "./agent-tool-artifacts.js";
-import { inspectArtifactHtml, validateArtifactHtml } from "./artifact-compiler.js";
+} from "../../../clients/knowledge.js";
+import { getSettings } from "../../../config.js";
+import { editFileTool, writeFileTool } from "../artifacts/tool-artifacts.js";
+import { inspectArtifactHtml, validateArtifactHtml } from "../artifacts/compiler.js";
 import {
   updatePlanInputSchema,
   updatePlanTool,
   writePlanInputSchema,
   writePlanTool,
-} from "./agent-plan.js";
+} from "../plans/plan.js";
 import {
   createMemoryCandidate,
   listActiveMemories,
-} from "./agent-state.js";
-import { toolContextSchema, type ToolContext } from "./agent-types.js";
+} from "../state.js";
+import { toolContextSchema, type ToolContext } from "../types.js";
 
 async function listFilesTool(_input: {}, { context }: { context: ToolContext }) {
   try {
@@ -219,8 +219,8 @@ const memorySchema = z.object({
   reason: z.string().min(1).max(200),
 });
 
-export function buildAgentTools() {
-  return {
+export function buildAgentTools(mode: "normal" | "plan") {
+  const shared = {
     list_files: tool({
       description: "List files attached to the current conversation, including generated artifacts.",
       inputSchema: z.object({}),
@@ -233,6 +233,37 @@ export function buildAgentTools() {
       contextSchema: toolContextSchema,
       execute: readFileTool,
     }),
+  };
+  const planning = {
+    web_search: tool({
+      description: "Search the public web for current information using Tavily.",
+      inputSchema: z.object({ query: z.string().min(1), max_results: z.number().int().min(1).max(8).default(5) }),
+      execute: webSearchTool,
+    }),
+    ask_user: tool({
+      description: "Ask the user for missing information that is required to finish the plan.",
+      inputSchema: z.object({
+        question: z.string().min(1).max(240),
+        choices: z.array(z.object({ label: z.string().min(1).max(80), value: z.string().min(1).max(160) })).max(8).default([]),
+        mode: z.enum(["single", "multiple"]).default("single"),
+        allow_freeform: z.boolean().default(true),
+        freeform_label: z.string().min(1).max(40).default("其他"),
+      }),
+    }),
+    write_plan: tool({
+      description: "Create the active Markdown plan artifact. The content must contain the required Chinese plan headings and the filename is normalized to *-plan.md.",
+      inputSchema: writePlanInputSchema,
+      contextSchema: toolContextSchema,
+      execute: writePlanTool,
+    }),
+    update_plan: tool({
+      description: "Replace the active Markdown plan using its document id and latest revision id.",
+      inputSchema: updatePlanInputSchema,
+      contextSchema: toolContextSchema,
+      execute: updatePlanTool,
+    }),
+  };
+  const normal = {
     write_file: tool({
       description: "Generate and persist a new Markdown or HTML file from a compact brief. HTML is planned and generated in bounded concurrent blocks inside this tool, so use it for artifacts of any supported size instead of emitting HTML yourself.",
       inputSchema: z.object({
@@ -242,6 +273,7 @@ export function buildAgentTools() {
         mode: z.enum(["document", "presentation", "dashboard"]).default("document"),
         brief: z.string().min(1).max(20_000),
         page_count: z.number().int().min(1).max(100).optional(),
+        resume_job_id: z.string().min(1).max(32).optional(),
       }),
       contextSchema: toolContextSchema,
       execute: writeFileTool,
@@ -274,18 +306,6 @@ export function buildAgentTools() {
         freeform_label: z.string().min(1).max(40).default("其他"),
       }),
     }),
-    write_plan: tool({
-      description: "Create a new durable user-visible plan for a complex task. Do not use this to revise an existing plan.",
-      inputSchema: writePlanInputSchema,
-      contextSchema: toolContextSchema,
-      execute: writePlanTool,
-    }),
-    update_plan: tool({
-      description: "Update an existing durable plan using its planId and baseRevision. A conflict is returned as tool output and never aborts the chat stream.",
-      inputSchema: updatePlanInputSchema,
-      contextSchema: toolContextSchema,
-      execute: updatePlanTool,
-    }),
     create_memory: tool({
       description: "Stage a new long-term memory for non-blocking user review. It is not active until the user approves it in the memory panel.",
       inputSchema: memorySchema,
@@ -299,4 +319,5 @@ export function buildAgentTools() {
       execute: updateMemoryTool,
     }),
   };
+  return mode === "plan" ? { ...shared, ...planning } : { ...shared, ...normal };
 }

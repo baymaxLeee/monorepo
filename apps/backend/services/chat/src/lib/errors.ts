@@ -28,6 +28,12 @@ export class RequestError extends AppError {
   }
 }
 
+export class ConflictError extends AppError {
+  constructor(message: string, code = "conflict", details: Record<string, unknown> = {}) {
+    super(message, 409, code, details);
+  }
+}
+
 export class AgentRuntimeError extends AppError {
   constructor(message: string, details: Record<string, unknown> = {}) {
     super(message, 502, "agent_runtime_failed", details);

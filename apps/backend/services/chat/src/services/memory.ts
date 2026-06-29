@@ -1,15 +1,15 @@
 import { z } from "zod";
 import { extractJsonMiddleware, generateText, Output, wrapLanguageModel } from "ai";
 
-import { MAX_MEMORY_CANDIDATES_PER_RUN } from "./agent-config.js";
-import { createProviderModel } from "./agent-provider.js";
-import type { ChatProvider } from "./agent-provider.js";
+import { MAX_MEMORY_CANDIDATES_PER_RUN } from "./agent/config.js";
+import { createProviderModel } from "./agent/provider.js";
+import type { ChatProvider } from "./agent/provider.js";
 import {
   createMemoryCandidate,
   listActiveMemories,
   listMemoryDedupEntries,
   listPendingCandidates,
-} from "./agent-state.js";
+} from "./agent/state.js";
 
 const MEMORY_CATEGORIES = ["preference", "profile", "project", "instruction"] as const;
 

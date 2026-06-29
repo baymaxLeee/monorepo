@@ -1,6 +1,4 @@
 export const MAX_AGENT_STEPS = 256;
-export const MAX_AGENT_OUTPUT_TOKENS = 65_536;
-
 export const MAX_MEMORY_CANDIDATES_PER_RUN = 5;
 
 export const MAX_INJECTED_MEMORIES = 24;
@@ -12,5 +10,12 @@ export const ARTIFACT_GENERATION_TIMEOUT = {
   chunkMs: 5 * 60_000,
 } as const;
 
-export const ARTIFACT_MODEL_OUTPUT_TOKENS = 65_536;
 export const ARTIFACT_GENERATION_CONCURRENCY = 4;
+
+export const ARTIFACT_WORKER_POOL_SIZE = 2;
+export const ARTIFACT_WORKER_POLL_MS = 3_000;
+export const ARTIFACT_GENERATION_POLL_MS = 2_000;
+
+export function useArtifactSyncGeneration(): boolean {
+  return process.env.ARTIFACT_SYNC_GENERATION === "true";
+}

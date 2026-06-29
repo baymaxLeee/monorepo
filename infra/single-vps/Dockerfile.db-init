@@ -1,6 +1,7 @@
 # A one-shot container that creates per-service MySQL databases and applies
-# their schema migrations. It runs once per `docker compose up`; all SQL
-# files in this repo use IF NOT EXISTS so re-runs are cheap no-ops.
+# their schema migrations. It runs once per `docker compose up`; downstream
+# services gate on `service_completed_successfully`. Re-deploys skip applied
+# migration versions (see mysql-init.sh).
 #
 # Build context: monorepo root (to COPY across service directories).
 # Build command in CI:

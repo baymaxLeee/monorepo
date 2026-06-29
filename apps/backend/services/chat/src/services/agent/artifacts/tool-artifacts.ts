@@ -1,38 +1,37 @@
 import { Output, extractJsonMiddleware, generateText, streamText, wrapLanguageModel } from "ai";
 import { z } from "zod";
 
-import { getProvider } from "../clients/admin.js";
+import { getProvider } from "../../../clients/admin.js";
 import {
   createArtifact,
   getDocument,
   getLatestArtifactWorkspace,
-  listArtifactBlocks,
-  publishArtifactRevision,
-  reserveArtifactGeneration,
-  saveArtifactBlock,
-  saveArtifactPlan,
   updateArtifact,
   type StoredArtifactBlock,
-} from "../clients/knowledge.js";
+} from "../../../clients/knowledge.js";
 import {
   artifactRevisionPrompt,
   artifactSystemPrompt,
   normalizeArtifactContent,
   safeFilename,
   validateArtifactContent,
-} from "./agent-artifacts.js";
+} from "./artifacts.js";
 import {
-  ARTIFACT_GENERATION_CONCURRENCY,
   ARTIFACT_GENERATION_TIMEOUT,
-  ARTIFACT_MODEL_OUTPUT_TOKENS,
-} from "./agent-config.js";
-import { createProviderModel } from "./agent-provider.js";
-import type { ToolContext } from "./agent-types.js";
-import { compileArtifactHtml, sanitizeArtifactPart, ARTIFACT_DESIGN_VOCABULARY, ARTIFACT_CHART_SPEC } from "./artifact-compiler.js";
+} from "../config.js";
+import { createProviderModel } from "../provider.js";
+import type { ToolContext } from "../types.js";
+import { sanitizeArtifactPart, ARTIFACT_DESIGN_VOCABULARY, ARTIFACT_CHART_SPEC } from "./compiler.js";
 
-type ArtifactMode = "document" | "presentation" | "dashboard";
-type ArtifactTheme = { preset: string; accent: string };
-type ArtifactBlock = { id: string; type: string; title: string; brief: string };
+import type { ArtifactMode, ArtifactTheme, ArtifactBlock } from "./types.js";
+export type { ArtifactMode, ArtifactTheme, ArtifactBlock } from "./types.js";
+
+import {
+  runArtifactGenerationDetached,
+  runArtifactGenerationInline,
+  type BlockStrategy,
+} from "./generation-runner.js";
+import { useArtifactSyncGeneration } from "../config.js";
 
 const themeSchema = z.object({
   preset: z.string().min(1).max(40),
@@ -51,6 +50,7 @@ export async function buildArtifactTextModel(userId: string, providerId: string)
   const model = createProviderModel(provider, { disableReasoning: true });
   return {
     model,
+    maxOutputTokens: provider.maxOutputTokens,
   };
 }
 
@@ -63,23 +63,6 @@ async function collectText(result: { textStream: AsyncIterable<string> }): Promi
 function combinedSignal(abortSignal?: AbortSignal): AbortSignal {
   const timeout = AbortSignal.timeout(ARTIFACT_GENERATION_TIMEOUT.totalMs);
   return abortSignal ? AbortSignal.any([abortSignal, timeout]) : timeout;
-}
-
-async function mapConcurrent<T, R>(
-  values: readonly T[],
-  concurrency: number,
-  worker: (value: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(values.length);
-  let cursor = 0;
-  async function run(): Promise<void> {
-    while (cursor < values.length) {
-      const index = cursor++;
-      results[index] = await worker(values[index]!, index);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, run));
-  return results;
 }
 
 const MAX_BLOCK_BRIEF = 4000;
@@ -224,7 +207,7 @@ function blockInstructions(input: {
   ].join("\n");
 }
 
-async function generateBlock(input: {
+export async function generateBlock(input: {
   block: ArtifactBlock;
   mode: ArtifactMode;
   theme: ArtifactTheme;
@@ -250,7 +233,7 @@ async function generateBlock(input: {
         ].join("\n");
     const result = streamText({
       model: input.tools.model,
-      maxOutputTokens: ARTIFACT_MODEL_OUTPUT_TOKENS,
+      maxOutputTokens: input.tools.maxOutputTokens,
       instructions: blockInstructions(input),
       prompt,
       timeout: ARTIFACT_GENERATION_TIMEOUT,
@@ -267,6 +250,7 @@ async function persistAndPublishHtml(input: {
   context: ToolContext;
   toolCallId: string;
   documentId?: string;
+  resumeJobId?: string;
   title: string;
   filename: string;
   mode: ArtifactMode;
@@ -274,85 +258,30 @@ async function persistAndPublishHtml(input: {
   theme: ArtifactTheme;
   blocks: ArtifactBlock[];
   abortSignal: AbortSignal;
-  blockContent: (block: ArtifactBlock, index: number) => Promise<string>;
+  blockStrategies?: BlockStrategy[];
+  sourceHtmlById?: Map<string, string>;
+  sourceDocumentId?: string;
 }) {
-  const generation = await reserveArtifactGeneration({
+  const runner = useArtifactSyncGeneration() ? runArtifactGenerationInline : runArtifactGenerationDetached;
+  return runner({
     userId: input.context.userId,
     conversationId: input.context.conversationId,
-    documentId: input.documentId,
+    runId: input.context.runId,
+    toolCallId: input.toolCallId,
+    providerId: input.context.providerId,
     title: input.title,
     filename: input.filename,
     mode: input.mode,
     brief: input.brief,
-    idempotencyKey: input.toolCallId,
-  });
-  await saveArtifactPlan({
-    userId: input.context.userId,
-    generationId: generation.id,
-    manifest: {
-      schemaVersion: 2,
-      mode: input.mode,
-      theme: input.theme,
-      blocks: input.blocks,
-    },
-    blocks: input.blocks.map((block) => ({ id: block.id, type: block.type, brief: block.brief })),
-  });
-  // Best-effort: a single block's model failure degrades to a visible error
-  // section (compileArtifactHtml renders it) instead of discarding the whole
-  // run. Only a real abort (user stop / timeout) is fatal and propagates,
-  // which also cancels the other in-flight model calls via the shared signal.
-  await mapConcurrent(input.blocks, ARTIFACT_GENERATION_CONCURRENCY, async (block, index) => {
-    let payload: string;
-    try {
-      const html = await input.blockContent(block, index);
-      payload = JSON.stringify({ title: block.title, html });
-    } catch (error) {
-      if (input.abortSignal.aborted) throw error;
-      console.error("[chat-agent] artifact block failed, degrading to error section", {
-        blockId: block.id,
-        error,
-      });
-      payload = JSON.stringify({ title: block.title, error: String(error).slice(0, 500) });
-    }
-    await saveArtifactBlock({
-      userId: input.context.userId,
-      generationId: generation.id,
-      blockId: block.id,
-      content: payload,
-    });
-  });
-  const stored = await listArtifactBlocks(input.context.userId, generation.id);
-  if (stored.length !== input.blocks.length) {
-    throw new Error(`artifact incomplete: expected ${input.blocks.length} blocks, found ${stored.length}`);
-  }
-  const compiled = compileArtifactHtml({
-    title: input.title,
-    mode: input.mode,
     theme: input.theme,
-    parts: input.blocks,
-    stored,
+    blocks: input.blocks,
+    documentId: input.documentId,
+    resumeJobId: input.resumeJobId,
+    blockStrategies: input.blockStrategies,
+    sourceHtmlById: input.sourceHtmlById,
+    sourceDocumentId: input.sourceDocumentId,
+    abortSignal: input.abortSignal,
   });
-  if (compiled.partsOk === 0) {
-    throw new Error(`artifact generation produced no usable blocks (${compiled.partsFailed} failed)`);
-  }
-  const published = await publishArtifactRevision({
-    userId: input.context.userId,
-    generationId: generation.id,
-    compiledHtml: compiled.html,
-  });
-  return {
-    ok: true,
-    status: "persisted",
-    document_id: published.document_id,
-    revision_id: published.revision_id,
-    title: published.title,
-    filename: published.filename,
-    kind: "html" as const,
-    total_chars: published.total_chars,
-    blocks_total: input.blocks.length,
-    blocks_done: compiled.partsOk,
-    blocks_failed: compiled.partsFailed,
-  };
 }
 
 export async function writeFileTool(
@@ -363,6 +292,7 @@ export async function writeFileTool(
     mode: ArtifactMode;
     brief: string;
     page_count?: number;
+    resume_job_id?: string;
   },
   { context, toolCallId, abortSignal }: { context: ToolContext; toolCallId: string; abortSignal?: AbortSignal },
 ) {
@@ -373,7 +303,7 @@ export async function writeFileTool(
     if (input.kind === "markdown") {
       const result = streamText({
         model: tools.model,
-        maxOutputTokens: ARTIFACT_MODEL_OUTPUT_TOKENS,
+        maxOutputTokens: tools.maxOutputTokens,
         instructions: artifactSystemPrompt("markdown"),
         prompt: input.brief,
         timeout: ARTIFACT_GENERATION_TIMEOUT,
@@ -412,7 +342,7 @@ export async function writeFileTool(
       theme: outline.theme,
       blocks: outline.blocks,
       abortSignal: signal,
-      blockContent: (block) => generateBlock({ block, mode: input.mode, theme: outline.theme, outline: outline.blocks, artifactBrief: input.brief, tools, abortSignal: signal }),
+      resumeJobId: input.resume_job_id,
     });
   } catch (error) {
     if (abortSignal?.aborted) throw error;
@@ -460,11 +390,11 @@ export async function editFileTool(
     const current = await getDocument(context.userId, input.document_id);
     if (current.kind !== "artifact") return { ok: false, error: `file ${input.document_id} is not editable` };
     const isHtml = current.mime_type === "text/html" || current.filename.toLowerCase().endsWith(".html");
-    const tools = await buildArtifactTextModel(context.userId, context.providerId);
     if (!isHtml) {
+      const tools = await buildArtifactTextModel(context.userId, context.providerId);
       const result = streamText({
         model: tools.model,
-        maxOutputTokens: ARTIFACT_MODEL_OUTPUT_TOKENS,
+        maxOutputTokens: tools.maxOutputTokens,
         instructions: artifactSystemPrompt("markdown"),
         prompt: artifactRevisionPrompt("markdown", current.content_md ?? "", input.brief),
         timeout: ARTIFACT_GENERATION_TIMEOUT,
@@ -518,7 +448,12 @@ export async function editFileTool(
       }
     }
     const blocks = edit.blocks.map(({ action: _action, sourceId: _sourceId, ...block }) => block);
-    const actions = new Map(edit.blocks.map((block) => [block.id, block]));
+    const sourceHtmlById = new Map(existing.map((block) => [block.id, block.html]));
+    const blockStrategies: BlockStrategy[] = edit.blocks.map((block) => ({
+      id: block.id,
+      action: block.action,
+      sourceId: block.sourceId,
+    }));
     return await persistAndPublishHtml({
       context,
       toolCallId,
@@ -530,39 +465,9 @@ export async function editFileTool(
       theme: edit.theme,
       blocks,
       abortSignal: signal,
-      blockContent: async (block) => {
-        const action = actions.get(block.id)!;
-        const source = action.sourceId ? byId.get(action.sourceId) : undefined;
-        if (action.action === "reuse") {
-          if (!source) throw new Error(`reuse block ${block.id} has no valid sourceId`);
-          return source.html;
-        }
-        try {
-          return await generateBlock({
-            block,
-            mode,
-            theme: edit.theme,
-            outline: blocks,
-            artifactBrief: input.brief,
-            tools,
-            abortSignal: signal,
-            currentHtml: action.action === "revise" ? source?.html : undefined,
-            changeBrief: input.brief,
-          });
-        } catch (error) {
-          // On edit, a failed revise keeps the original block instead of
-          // destroying good content; only abort is fatal.
-          if (signal.aborted) throw error;
-          if (action.action === "revise" && source) {
-            console.error("[chat-agent] artifact revise failed, keeping original block", {
-              blockId: block.id,
-              error,
-            });
-            return source.html;
-          }
-          throw error;
-        }
-      },
+      blockStrategies,
+      sourceHtmlById,
+      sourceDocumentId: current.id,
     });
   } catch (error) {
     if (abortSignal?.aborted) throw error;

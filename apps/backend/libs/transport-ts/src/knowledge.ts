@@ -16,6 +16,8 @@ export type KnowledgeDocument = Omit<
 };
 export type DocumentSlice = components["schemas"]["DocumentSlice"];
 export type ArtifactGeneration = components["schemas"]["ArtifactGeneration"];
+export type ArtifactGenerationDetail = components["schemas"]["ArtifactGenerationDetail"];
+export type ClaimableArtifactJob = components["schemas"]["ClaimableArtifactJob"];
 export type ArtifactBlockPlan = components["schemas"]["ArtifactBlockPlan"];
 export type PublishedArtifactRevision = components["schemas"]["PublishedArtifactRevision"];
 export type StoredArtifactBlock = components["schemas"]["StoredArtifactBlock"];
@@ -153,6 +155,9 @@ export class KnowledgeInternalClient {
     idempotencyKey: string;
     baseRevisionId?: string;
     documentId?: string;
+    runId?: string;
+    toolCallId?: string;
+    resumeGenerationId?: string;
   }): Promise<ArtifactGeneration> {
     return this.unwrap(
       this.client.POST("/internal/artifact-generations", {
@@ -166,9 +171,76 @@ export class KnowledgeInternalClient {
           idempotency_key: input.idempotencyKey,
           base_revision_id: input.baseRevisionId,
           document_id: input.documentId,
+          run_id: input.runId,
+          tool_call_id: input.toolCallId,
+          resume_generation_id: input.resumeGenerationId,
         },
       }),
     );
+  }
+
+  listUnfinishedArtifactGenerations(input: {
+    userId: string;
+    conversationId?: string;
+    runId?: string;
+  }): Promise<ArtifactGeneration[]> {
+    return this.unwrap(
+      this.client.GET("/internal/artifact-generations/unfinished", {
+        params: { query: {
+          user_id: input.userId,
+          conversation_id: input.conversationId,
+          run_id: input.runId,
+        } },
+      }),
+    );
+  }
+
+  listClaimableArtifactGenerations(input: { limit?: number } = {}): Promise<ClaimableArtifactJob[]> {
+    return this.unwrap(
+      this.client.GET("/internal/artifact-generations/claimable", {
+        params: { query: { limit: input.limit ?? 20 } },
+      }),
+    );
+  }
+
+  updateArtifactGenerationPhase(input: {
+    userId: string;
+    generationId: string;
+    owner: string;
+    phase: string;
+  }): Promise<ArtifactGeneration> {
+    return this.unwrap(this.client.POST("/internal/artifact-generations/{generation_id}/phase", {
+      params: { path: { generation_id: input.generationId } },
+      body: { user_id: input.userId, owner: input.owner, phase: input.phase },
+    }));
+  }
+
+  claimArtifactGeneration(input: { userId: string; generationId: string; owner: string; leaseSeconds?: number }): Promise<ArtifactGeneration> {
+    return this.unwrap(this.client.POST("/internal/artifact-generations/{generation_id}/claim", {
+      params: { path: { generation_id: input.generationId } },
+      body: { user_id: input.userId, owner: input.owner, lease_seconds: input.leaseSeconds ?? 60 },
+    }));
+  }
+
+  renewArtifactGeneration(input: { userId: string; generationId: string; owner: string; leaseSeconds?: number }): Promise<ArtifactGeneration> {
+    return this.unwrap(this.client.POST("/internal/artifact-generations/{generation_id}/renew", {
+      params: { path: { generation_id: input.generationId } },
+      body: { user_id: input.userId, owner: input.owner, lease_seconds: input.leaseSeconds ?? 60 },
+    }));
+  }
+
+  cancelArtifactGeneration(input: { userId: string; generationId: string; owner?: string }): Promise<ArtifactGeneration> {
+    return this.unwrap(this.client.POST("/internal/artifact-generations/{generation_id}/cancel", {
+      params: { path: { generation_id: input.generationId } },
+      body: { user_id: input.userId, owner: input.owner },
+    }));
+  }
+
+  failArtifactGeneration(input: { userId: string; generationId: string; owner?: string; error?: string }): Promise<ArtifactGeneration> {
+    return this.unwrap(this.client.POST("/internal/artifact-generations/{generation_id}/fail", {
+      params: { path: { generation_id: input.generationId } },
+      body: { user_id: input.userId, owner: input.owner, error: input.error },
+    }));
   }
 
   getLatestArtifactWorkspace(input: {
@@ -188,7 +260,7 @@ export class KnowledgeInternalClient {
   getArtifactGeneration(input: {
     userId: string;
     generationId: string;
-  }): Promise<ArtifactGeneration> {
+  }): Promise<ArtifactGenerationDetail> {
     return this.unwrap(
       this.client.GET("/internal/artifact-generations/{generation_id}", {
         params: {
@@ -218,11 +290,12 @@ export class KnowledgeInternalClient {
     generationId: string;
     blockId: string;
     content: string;
+    failed?: boolean;
   }): Promise<ArtifactGeneration> {
     return this.unwrap(
       this.client.PUT("/internal/artifact-generations/{generation_id}/blocks/{block_id}", {
         params: { path: { generation_id: input.generationId, block_id: input.blockId } },
-        body: { user_id: input.userId, content: input.content },
+        body: { user_id: input.userId, content: input.content, failed: input.failed ?? false },
       }),
     );
   }

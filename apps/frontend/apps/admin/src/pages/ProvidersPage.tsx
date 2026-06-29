@@ -83,6 +83,8 @@ const providerSchema = z.object({
       },
       { message: "extra_body 必须是合法 JSON 对象，留空等价于 {}" },
     ),
+  context_window: z.number().int().min(1024).max(2_000_000),
+  max_output_tokens: z.number().int().min(256).max(1_000_000),
   is_default: z.boolean(),
   is_enabled: z.boolean(),
 });
@@ -95,6 +97,8 @@ const defaults: ProviderValues = {
   base_url: "https://api.deepseek.com",
   api_key: "",
   extra_body: "",
+  context_window: 128_000,
+  max_output_tokens: 8_192,
   is_default: false,
   is_enabled: true,
 };
@@ -167,6 +171,8 @@ export function ProvidersPage() {
       // "keep the existing encrypted value".
       api_key: "",
       extra_body: stringifyExtraBody(provider.extra_body ?? {}),
+      context_window: provider.context_window,
+      max_output_tokens: provider.max_output_tokens,
       is_default: provider.is_default,
       is_enabled: provider.is_enabled,
     });
@@ -181,6 +187,8 @@ export function ProvidersPage() {
           model: values.model,
           base_url: values.base_url,
           extra_body,
+          context_window: values.context_window,
+          max_output_tokens: values.max_output_tokens,
           is_default: values.is_default,
           is_enabled: values.is_enabled,
         };
@@ -199,6 +207,8 @@ export function ProvidersPage() {
           base_url: values.base_url,
           api_key: values.api_key.trim(),
           extra_body,
+          context_window: values.context_window,
+          max_output_tokens: values.max_output_tokens,
           is_default: values.is_default,
           is_enabled: values.is_enabled,
         };
@@ -553,6 +563,54 @@ function ProviderFormDialog({
                   </Field>
                 )}
               />
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="context_window"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>Context window</FieldLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="number"
+                          min={1024}
+                          max={2_000_000}
+                          onChange={(event) =>
+                            field.onChange(event.currentTarget.valueAsNumber)
+                          }
+                        />
+                      </FormControl>
+                      <FieldError
+                        errors={[form.formState.errors.context_window]}
+                      />
+                    </Field>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="max_output_tokens"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>Max output tokens</FieldLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="number"
+                          min={256}
+                          max={1_000_000}
+                          onChange={(event) =>
+                            field.onChange(event.currentTarget.valueAsNumber)
+                          }
+                        />
+                      </FormControl>
+                      <FieldError
+                        errors={[form.formState.errors.max_output_tokens]}
+                      />
+                    </Field>
+                  )}
+                />
+              </div>
               <FormField
                 control={form.control}
                 name="is_default"

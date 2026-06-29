@@ -35,7 +35,7 @@ Accepted — 2026-06
 ## Consequences
 
 - 删会话不删用户知识库产物；悬空 `[id]` 引用在 `read_document` 时优雅降级。
-- 数据迁移：`scripts/migrate-storage-to-knowledge.py` 一次性 backfill（幂等）。
+- 数据迁移：storage → knowledge 已完成；`storage` 微服务与 `storage` 数据库已下线。
 - chat `conversation_documents` 表在 v1.5.0 迁移中删除。
 - CI：`build-images` chat 使用 Node context；matrix 中 storage → knowledge。
 - demo 阶段不新增测试脚手架（见根 `AGENTS.md`）。

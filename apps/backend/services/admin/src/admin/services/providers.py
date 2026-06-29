@@ -53,6 +53,8 @@ def to_public_schema(row: ModelProviderRow) -> ModelProvider:
         base_url=row.base_url,
         api_key_masked=mask(decrypt(row.api_key_enc)),
         extra_body=_parse_extra_body(row.extra_body),
+        context_window=row.context_window,
+        max_output_tokens=row.max_output_tokens,
         is_default=row.is_default,
         is_enabled=row.is_enabled,
         created_at=_iso(row.created_at),
@@ -69,6 +71,8 @@ def to_internal_schema(row: ModelProviderRow) -> InternalModelProvider:
         base_url=row.base_url,
         api_key=decrypt(row.api_key_enc),
         extra_body=_parse_extra_body(row.extra_body),
+        context_window=row.context_window,
+        max_output_tokens=row.max_output_tokens,
         is_default=row.is_default,
         is_enabled=row.is_enabled,
     )
@@ -107,6 +111,8 @@ class ModelProviderService:
             base_url=str(payload.base_url).rstrip("/"),
             api_key_enc=encrypt(payload.api_key),
             extra_body=json.dumps(payload.extra_body),
+            context_window=payload.context_window,
+            max_output_tokens=payload.max_output_tokens,
             is_default=payload.is_default,
             is_enabled=payload.is_enabled,
         )
@@ -130,6 +136,10 @@ class ModelProviderService:
             values["api_key_enc"] = encrypt(payload.api_key)
         if payload.extra_body is not None:
             values["extra_body"] = json.dumps(payload.extra_body)
+        if payload.context_window is not None:
+            values["context_window"] = payload.context_window
+        if payload.max_output_tokens is not None:
+            values["max_output_tokens"] = payload.max_output_tokens
         if payload.is_enabled is not None:
             values["is_enabled"] = payload.is_enabled
         if payload.is_default is not None:

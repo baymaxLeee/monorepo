@@ -71,6 +71,16 @@ const openapi = {
         },
       },
     },
+    "/conversations/{conversation_id}/mode": {
+      patch: {
+        parameters: [pathParam],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: ref("ConversationModeInput") } },
+        },
+        responses: { "200": { description: "update conversation agent mode" } },
+      },
+    },
     "/conversations/{conversation_id}/documents/{document_id}": {
       get: {
         parameters: [pathParam, documentPathParam],
@@ -91,6 +101,23 @@ const openapi = {
       get: {
         parameters: [pathParam, runPathParam],
         responses: { "200": { description: "agent run step/tool-call trace" } },
+      },
+    },
+    "/conversations/{conversation_id}/agents/runs/{run_id}/cancel": {
+      post: {
+        parameters: [pathParam, runPathParam],
+        responses: { "200": jsonResponse("request agent run cancellation", ref("RunCancellation")) },
+      },
+    },
+    "/conversations/{conversation_id}/artifact-jobs": {
+      get: {
+        parameters: [pathParam],
+        responses: {
+          "200": jsonResponse("list unfinished artifact jobs", {
+            type: "array",
+            items: ref("ArtifactJob"),
+          }),
+        },
       },
     },
     "/memories": {
@@ -152,6 +179,37 @@ const openapi = {
   },
   components: {
     schemas: {
+      ConversationModeInput: {
+        type: "object",
+        required: ["mode"],
+        properties: {
+          mode: { type: "string", enum: ["normal", "plan"] },
+          active_plan_document_id: { type: ["string", "null"] },
+        },
+      },
+      RunCancellation: {
+        type: "object",
+        required: ["cancelled"],
+        properties: {
+          cancelled: { type: "boolean" },
+          status: { type: "string" },
+        },
+      },
+      ArtifactJob: {
+        type: "object",
+        required: ["id", "document_id", "status", "phase", "total_blocks", "completed_blocks", "failed_blocks", "attempt"],
+        properties: {
+          id: { type: "string" },
+          document_id: { type: "string" },
+          status: { type: "string" },
+          phase: { type: "string" },
+          total_blocks: { type: "integer" },
+          completed_blocks: { type: "integer" },
+          failed_blocks: { type: "integer" },
+          error: { type: ["string", "null"] },
+          attempt: { type: "integer" },
+        },
+      },
       MemoryCategory: {
         type: "string",
         enum: ["preference", "profile", "project", "instruction"],

@@ -1,7 +1,7 @@
 import type { ModelProvider } from "api";
-import { Switch } from "components";
+import { Button, Switch } from "components";
 import { ModelSelector } from "components/ai-chat";
-import { BrainIcon } from "lucide-react";
+import { BrainIcon, InfinityIcon } from "lucide-react";
 
 export interface ChatComposerControlsProps {
   providers: ModelProvider[];
@@ -10,6 +10,8 @@ export interface ChatComposerControlsProps {
   thinking: boolean;
   onThinkingChange: (next: boolean) => void;
   disabled?: boolean;
+  mode: "normal" | "plan";
+  onModeChange: (mode: "normal" | "plan") => void;
 }
 
 export function ChatComposerControls({
@@ -19,6 +21,8 @@ export function ChatComposerControls({
   thinking,
   onThinkingChange,
   disabled,
+  mode,
+  onModeChange,
 }: ChatComposerControlsProps) {
   const options = providers
     .filter((provider) => provider.is_enabled)
@@ -31,6 +35,17 @@ export function ChatComposerControls({
 
   return (
     <>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className="h-8 rounded-full px-3 text-xs"
+        disabled={disabled}
+        onClick={() => onModeChange(mode === "plan" ? "normal" : "plan")}
+      >
+        <InfinityIcon className="size-3.5" />
+        {mode === "plan" ? "Plan" : "Agent"}
+      </Button>
       <ModelSelector
         value={selectedProviderId}
         options={options}

@@ -9,7 +9,7 @@ ROOT_USER="${MYSQL_ROOT_USER:-root}"
 ROOT_PASS="${MYSQL_ROOT_PASSWORD:-dev}"
 APP_USER="${MYSQL_USER:-dev}"
 
-RESET_DBS=(chat knowledge gateway telemetry storage)
+RESET_DBS=(chat knowledge gateway telemetry)
 
 echo "→ resetting databases (admin + iam are preserved): ${RESET_DBS[*]}"
 

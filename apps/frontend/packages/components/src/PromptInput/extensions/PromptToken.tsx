@@ -4,7 +4,14 @@ import {
   NodeViewWrapper,
   ReactNodeViewRenderer,
 } from "@tiptap/react";
-import { AlertCircle, Check, FileText, ImageIcon, X } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  FileText,
+  ImageIcon,
+  RotateCcw,
+  X,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "shared";
 import type { PromptInputRenderContext, PromptInputToken } from "../interface";
@@ -14,6 +21,7 @@ export interface PromptTokenOptions {
     token: PromptInputToken,
     context: PromptInputRenderContext,
   ) => ReactNode;
+  retryToken?: (token: PromptInputToken) => void;
 }
 
 declare module "@tiptap/core" {
@@ -136,7 +144,19 @@ const PromptTokenView = (props: NodeViewProps) => {
           )}
           <span className="prompt-input-token-label">{token.label}</span>
           {ingesting ? (
-            <span className="prompt-input-token-progress">{ingestProgress}%</span>
+            <span className="prompt-input-token-progress">
+              {ingestProgress}%
+            </span>
+          ) : null}
+          {failed ? (
+            <button
+              type="button"
+              className="prompt-input-token-remove"
+              onClick={() => options.retryToken?.(token)}
+              aria-label="Retry upload"
+            >
+              <RotateCcw className="size-3" />
+            </button>
           ) : null}
           <button
             type="button"

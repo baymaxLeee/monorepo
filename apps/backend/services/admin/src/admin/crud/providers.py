@@ -83,6 +83,8 @@ async def create_provider(
     base_url: str,
     api_key_enc: str,
     extra_body: str,
+    context_window: int,
+    max_output_tokens: int,
     is_default: bool,
     is_enabled: bool,
 ) -> ModelProviderRow:
@@ -95,6 +97,8 @@ async def create_provider(
         base_url=base_url,
         api_key_enc=api_key_enc,
         extra_body=extra_body,
+        context_window=context_window,
+        max_output_tokens=max_output_tokens,
         is_default=is_default,
         is_enabled=is_enabled,
         created_at=now,

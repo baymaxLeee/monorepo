@@ -1,5 +1,5 @@
 -- v1.3.1: repair deployments that already recorded v1.3.0 before
--- storage-backed document object metadata columns were added.
+-- knowledge-backed document object metadata columns were added.
 
 SET @has_source_object_bucket := (
   SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS

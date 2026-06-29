@@ -165,6 +165,16 @@ export interface CreateModelProviderInput {
      */
   api_key: string;
   extra_body?: CreateModelProviderInputExtraBody;
+  /**
+     * @minimum 1024
+     * @maximum 2000000
+     */
+  context_window?: number;
+  /**
+     * @minimum 256
+     * @maximum 1000000
+     */
+  max_output_tokens?: number;
   is_default?: boolean;
   is_enabled?: boolean;
 }
@@ -240,6 +250,8 @@ export interface InternalModelProvider {
   base_url: string;
   api_key: string;
   extra_body: InternalModelProviderExtraBody;
+  context_window: number;
+  max_output_tokens: number;
   is_default: boolean;
   is_enabled: boolean;
 }
@@ -257,6 +269,8 @@ export interface ModelProvider {
   base_url: string;
   api_key_masked: string;
   extra_body: ModelProviderExtraBody;
+  context_window: number;
+  max_output_tokens: number;
   is_default: boolean;
   is_enabled: boolean;
   created_at: string;
@@ -337,6 +351,8 @@ export interface UpdateModelProviderInput {
   base_url?: string | null;
   api_key?: string | null;
   extra_body?: UpdateModelProviderInputExtraBody;
+  context_window?: number | null;
+  max_output_tokens?: number | null;
   is_default?: boolean | null;
   is_enabled?: boolean | null;
 }

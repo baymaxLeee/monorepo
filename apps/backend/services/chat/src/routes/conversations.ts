@@ -11,6 +11,7 @@ import {
   getConversationDocumentSource,
   listConversations,
   updateConversation,
+  updateConversationMode,
   updateConversationDocument,
 } from "../services/conversations.js";
 
@@ -23,6 +24,11 @@ const createSchema = z.object({
 
 const updateSchema = z.object({
   title: z.string().min(1).max(200).optional(),
+});
+
+const updateModeSchema = z.object({
+  mode: z.enum(["normal", "plan"]),
+  active_plan_document_id: z.string().max(32).optional().nullable(),
 });
 
 const updateDocumentSchema = z.object({
@@ -79,6 +85,22 @@ conversationsRoutes.patch("/:conversationId", zValidator("json", updateSchema), 
   const body = c.req.valid("json");
   return c.json(await updateConversation(auth, c.req.param("conversationId"), body));
 });
+
+conversationsRoutes.patch(
+  "/:conversationId/mode",
+  zValidator("json", updateModeSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    return c.json(
+      await updateConversationMode(
+        getAuth(c),
+        c.req.param("conversationId"),
+        body.mode,
+        body.active_plan_document_id,
+      ),
+    );
+  },
+);
 
 conversationsRoutes.patch(
   "/:conversationId/documents/:documentId",

@@ -10,6 +10,8 @@ export interface ChatProvider {
   baseUrl: string;
   apiKey: string;
   extraBody: Record<string, unknown>;
+  contextWindow: number;
+  maxOutputTokens: number;
 }
 
 const PROVIDER_BODY_RESERVED_KEYS = new Set([

@@ -10,6 +10,8 @@ export interface ProviderSnapshot {
   baseUrl: string;
   apiKey: string;
   extraBody: Record<string, unknown>;
+  contextWindow: number;
+  maxOutputTokens: number;
   isDefault: boolean;
   isEnabled: boolean;
 }
@@ -56,6 +58,8 @@ export async function getProvider(
     baseUrl: data.base_url,
     apiKey: data.api_key,
     extraBody: data.extra_body ?? {},
+    contextWindow: data.context_window,
+    maxOutputTokens: data.max_output_tokens,
     isDefault: data.is_default,
     isEnabled: data.is_enabled,
   };
