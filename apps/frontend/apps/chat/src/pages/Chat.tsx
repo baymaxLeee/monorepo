@@ -276,11 +276,16 @@ export function Chat() {
     if (!parts.some((part) => part.type === "text")) {
       parts.push({ type: "text", text });
     }
-    await sendMessage(
-      { parts: parts as UIMessage["parts"] },
-      { body: { ...requestBody, document_ids: documentIds } },
-    );
     promptRef.current?.clear();
+    try {
+      await sendMessage(
+        { parts: parts as UIMessage["parts"] },
+        { body: { ...requestBody, document_ids: documentIds } },
+      );
+    } catch (error) {
+      promptRef.current?.setValue(value);
+      throw error;
+    }
   }
 
   function onIngestEvent(event: DocumentIngestStreamEvent) {

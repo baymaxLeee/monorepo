@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/core";
+import type { Editor, JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Paperclip, SendHorizontal, Square } from "lucide-react";
@@ -309,6 +309,59 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
       [],
     );
 
+    const setValue = useCallback(
+      (value: PromptInputValue) => {
+        const currentEditor = editorRef.current;
+        if (!currentEditor || currentEditor.isDestroyed) return;
+
+        for (const url of Object.values(objectUrlsRef.current)) {
+          URL.revokeObjectURL(url);
+        }
+        objectUrlsRef.current = {};
+        filesRef.current = { ...value.files };
+
+        const paragraphs: JSONContent[] = [];
+        let textBuffer = "";
+
+        const flushText = () => {
+          if (!textBuffer) return;
+          paragraphs.push({
+            type: "paragraph",
+            content: [{ type: "text", text: textBuffer }],
+          });
+          textBuffer = "";
+        };
+
+        for (const segment of value.segments) {
+          if (segment.type === "text") {
+            const lines = segment.text.split("\n");
+            for (let i = 0; i < lines.length; i++) {
+              if (i > 0) flushText();
+              textBuffer += lines[i] ?? "";
+            }
+            continue;
+          }
+          flushText();
+          const token = segment.token;
+          if (token.url && token.kind === "image") {
+            objectUrlsRef.current[token.id] = token.url;
+          }
+          paragraphs.push({
+            type: "paragraph",
+            content: [{ type: "promptToken", attrs: token }],
+          });
+        }
+        flushText();
+
+        currentEditor.commands.setContent({
+          type: "doc",
+          content: paragraphs.length ? paragraphs : [{ type: "paragraph" }],
+        });
+        emitChange(currentEditor);
+      },
+      [emitChange],
+    );
+
     const api = useMemo<PromptInputApi>(
       () => ({
         editor,
@@ -320,11 +373,12 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
           emitChange(editor);
         },
         getValue,
+        setValue,
         insertToken,
         insertFiles: (files) => insertFilesRef.current(files),
         updateToken,
       }),
-      [editor, emitChange, getValue, insertToken, updateToken],
+      [editor, emitChange, getValue, insertToken, setValue, updateToken],
     );
 
     useImperativeHandle(ref, () => api, [api]);

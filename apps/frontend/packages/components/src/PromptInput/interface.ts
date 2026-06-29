@@ -65,6 +65,7 @@ export interface PromptInputApi {
   focus: () => void;
   clear: () => void;
   getValue: () => PromptInputValue;
+  setValue: (value: PromptInputValue) => void;
   insertToken: (token: PromptInputToken, file?: File) => void;
   insertFiles: (files: File[]) => void;
   updateToken: (tokenId: string, patch: Partial<PromptInputToken>) => void;
