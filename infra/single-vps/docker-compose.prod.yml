@@ -145,6 +145,8 @@ services:
       # Same-origin behind nginx → browser never sends Origin for navigations.
       # Wildcard kept for occasional curl/tools with credentials.
       ALLOWED_FRONTEND_ORIGINS: "*"
+      # Ingest stream may upload multiple 10 MiB attachments in one multipart body.
+      MAX_REQUEST_BODY_BYTES: "104857600"
     <<: *restart_policy
 
   admin:
