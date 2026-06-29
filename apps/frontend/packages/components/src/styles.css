@@ -138,6 +138,19 @@
 }
 
 @layer components {
+  :where([data-streamdown="ordered-list"], [data-streamdown="unordered-list"]) {
+    list-style-position: outside;
+    padding-inline-start: 1.5em;
+  }
+  :where([data-streamdown="list-item"]) {
+    padding-inline-start: 0.25em;
+  }
+  :where([data-streamdown="list-item"]):has(> input[type="checkbox"]),
+  :where([data-streamdown="list-item"].task-list-item) {
+    list-style: none;
+    padding-inline-start: 0;
+  }
+
   .code-editor,
   .markdown-editor,
   .pdf-previewer,

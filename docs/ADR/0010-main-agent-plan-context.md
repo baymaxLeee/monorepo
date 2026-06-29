@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Supersedes ADR 0009's dedicated artifact child workflow.
+Superseded by ADR 0012. This file records the former low-level multipart tool design.
 
 ## Decision
 

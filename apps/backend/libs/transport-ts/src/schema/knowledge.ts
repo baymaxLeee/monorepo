@@ -266,6 +266,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/artifact-generations/documents/{document_id}/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Latest Workspace */
+        get: operations["get_latest_workspace_internal_artifact_generations_documents__document_id__latest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/artifact-generations/{generation_id}/publish": {
         parameters: {
             query?: never;
@@ -314,6 +331,19 @@ export interface components {
             failed_blocks: number;
             /** Error */
             error: string | null;
+        };
+        /** ArtifactRevisionWorkspace */
+        ArtifactRevisionWorkspace: {
+            /** Document Id */
+            document_id: string;
+            /** Revision Id */
+            revision_id: string;
+            /** Manifest */
+            manifest: {
+                [key: string]: unknown;
+            };
+            /** Blocks */
+            blocks: components["schemas"]["StoredArtifactBlock"][];
         };
         /** Body_ingest_stream_ingest_stream_post */
         Body_ingest_stream_ingest_stream_post: {
@@ -474,6 +504,8 @@ export interface components {
             idempotency_key: string;
             /** Base Revision Id */
             base_revision_id?: string | null;
+            /** Document Id */
+            document_id?: string | null;
         };
         /** SaveArtifactBlockInput */
         SaveArtifactBlockInput: {
@@ -1198,6 +1230,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StoredArtifactBlock"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_latest_workspace_internal_artifact_generations_documents__document_id__latest_get: {
+        parameters: {
+            query: {
+                user_id: string;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactRevisionWorkspace"];
                 };
             };
             /** @description Validation Error */

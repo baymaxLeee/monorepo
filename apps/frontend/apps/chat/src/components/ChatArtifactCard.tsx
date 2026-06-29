@@ -32,6 +32,8 @@ export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
     kind?: unknown;
     content?: unknown;
     total_chars?: unknown;
+    blocks_total?: unknown;
+    blocks_done?: unknown;
   };
   if (typeof raw.document_id !== "string" && raw.status !== "generating") {
     return null;
@@ -45,6 +47,10 @@ export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
     content: typeof raw.content === "string" ? raw.content : "",
     totalChars:
       typeof raw.total_chars === "number" ? raw.total_chars : undefined,
+    blocksTotal:
+      typeof raw.blocks_total === "number" ? raw.blocks_total : undefined,
+    blocksDone:
+      typeof raw.blocks_done === "number" ? raw.blocks_done : undefined,
   };
 }
 

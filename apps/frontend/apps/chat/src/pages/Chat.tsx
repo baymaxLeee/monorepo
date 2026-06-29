@@ -157,6 +157,13 @@ export function Chat() {
           : "/api/chat-server/conversations/missing/agents/run/stream",
         credentials: "include",
         headers: () => chatAuthHeaders(),
+        prepareSendMessagesRequest: ({ messages, id: chatId, body }) => ({
+          body: {
+            ...body,
+            id: chatId,
+            message: messages.at(-1),
+          },
+        }),
         fetch: async (request, init) => {
           const response = await fetch(request, init);
           const runId = response.headers.get("x-agent-run-id");
@@ -192,7 +199,8 @@ export function Chat() {
     for (const message of messages) {
       for (const part of message.parts) {
         if (
-          part.type !== "tool-update_plan" ||
+          (part.type !== "tool-write_plan" &&
+            part.type !== "tool-update_plan") ||
           part.state !== "output-available"
         )
           continue;

@@ -1,66 +1,137 @@
-import { generateText, tool } from "ai";
+import { tool } from "ai";
 import { z } from "zod";
 
-import { getProvider } from "../clients/admin.js";
 import {
+  getDocument,
   getDocumentSlice,
   getDocumentSource,
   listDocuments,
 } from "../clients/knowledge.js";
 import { getSettings } from "../config.js";
-import { ARTIFACT_PART_CONTENT_MAX_CHARS } from "./agent-config.js";
-import { updatePlanInputSchema, updatePlanTool } from "./agent-plan.js";
+import { editFileTool, writeFileTool } from "./agent-tool-artifacts.js";
 import {
-  beginArtifactTool,
-  createArtifactTool,
-  publishArtifactTool,
-  updateArtifactTool,
-  writeArtifactPartTool,
-} from "./agent-tool-artifacts.js";
-import { imageDataUrl } from "./agent-artifacts.js";
-import { createProviderModel } from "./agent-provider.js";
-import { createMemoryCandidate } from "./agent-state.js";
+  updatePlanInputSchema,
+  updatePlanTool,
+  writePlanInputSchema,
+  writePlanTool,
+} from "./agent-plan.js";
+import {
+  createMemoryCandidate,
+  listActiveMemories,
+} from "./agent-state.js";
 import { toolContextSchema, type ToolContext } from "./agent-types.js";
 
-async function listDocumentsTool(_input: {}, { context }: { context: ToolContext }) {
+async function listFilesTool(_input: {}, { context }: { context: ToolContext }) {
   try {
     const rows = await listDocuments(context.userId, context.conversationId);
     return {
       ok: true,
-      documents: rows.map((row) => ({
+      files: rows.map((row) => ({
         id: row.id,
         title: row.title,
-        kind: row.kind,
         filename: row.filename,
+        kind: row.kind,
         mime_type: row.mime_type,
-        ingest_status: row.ingest_status,
+        size: row.source_size,
+        status: row.ingest_status,
+        updated_at: row.updated_at,
       })),
     };
-  } catch (err) {
-    return { ok: false, error: `failed to list documents: ${String(err).slice(0, 500)}` };
+  } catch (error) {
+    return { ok: false, error: `failed to list files: ${String(error).slice(0, 500)}` };
   }
 }
 
-async function readDocumentTool(
-  input: { document_id: string; start: number; max_chars: number },
+async function readFileTool(
+  input: { file_id: string; offset: number; max_chars: number },
   { context }: { context: ToolContext },
 ) {
   try {
-    const slice = await getDocumentSlice(context.userId, input.document_id, input.start, input.max_chars);
+    const document = await getDocument(context.userId, input.file_id);
+    if (document.conversation_id !== context.conversationId) {
+      return { ok: false, error: `file ${input.file_id} is not attached to this conversation` };
+    }
+    let content: string;
+    if (document.content_md) {
+      const slice = await getDocumentSlice(
+        context.userId,
+        input.file_id,
+        input.offset,
+        input.max_chars,
+      );
+      content = slice.content;
+      return {
+        ok: true,
+        file_id: document.id,
+        title: document.title,
+        filename: document.filename,
+        mime_type: document.mime_type,
+        offset: slice.start,
+        total_chars: slice.total_chars,
+        next_offset: slice.next_start,
+        content,
+        untrusted: document.kind === "source",
+      };
+    }
+    const source = await getDocumentSource(context.userId, input.file_id);
+    const text = new TextDecoder().decode(source.bytes);
+    content = text.slice(input.offset, input.offset + input.max_chars);
+    const next = input.offset + content.length;
     return {
       ok: true,
-      document_id: slice.id,
-      title: slice.title,
-      filename: slice.filename,
-      mime_type: slice.mime_type,
-      start: slice.start,
-      total_chars: slice.total_chars,
-      next_start: slice.next_start,
-      content: slice.content,
-      untrusted: true,
+      file_id: document.id,
+      title: document.title,
+      filename: document.filename,
+      mime_type: source.mimeType,
+      offset: input.offset,
+      total_chars: text.length,
+      next_offset: next < text.length ? next : null,
+      content,
+      untrusted: document.kind === "source",
     };
-  } catch (err) {
-    return { ok: false, error: String(err).slice(0, 500) };
+  } catch (error) {
+    return { ok: false, error: String(error).slice(0, 500) };
+  }
+}
+
+async function runCommandTool(
+  input: { command: "validate_html" | "inspect_layout"; file_id: string },
+  { context }: { context: ToolContext },
+) {
+  try {
+    const document = await getDocument(context.userId, input.file_id);
+    if (document.conversation_id !== context.conversationId) {
+      return { ok: false, error: `file ${input.file_id} is not attached to this conversation` };
+    }
+    const source = await getDocumentSource(context.userId, input.file_id);
+    if (source.mimeType !== "text/html") {
+      return { ok: false, error: `${input.command} only supports HTML files` };
+    }
+    const html = new TextDecoder().decode(source.bytes);
+    const pages = (html.match(/\bclass="[^"]*artifact-block\b/g) ?? []).length;
+    const charts = (html.match(/\bdata-chart-option=/g) ?? []).length;
+    const internalLinks = [...html.matchAll(/href=["']#([^"']+)["']/g)].map((match) => match[1]);
+    const ids = new Set([...html.matchAll(/\bid=["']([^"']+)["']/g)].map((match) => match[1]));
+    const brokenLinks = internalLinks.filter((target) => !ids.has(target));
+    const structuralErrors = [
+      !/^\s*<!doctype html>/i.test(html) ? "missing doctype" : null,
+      !/<\/html>\s*$/i.test(html) ? "missing closing html tag" : null,
+      /\son[a-z]+\s*=/i.test(html) ? "inline event handler detected" : null,
+      /javascript\s*:/i.test(html) ? "javascript URL detected" : null,
+    ].filter((value): value is string => value != null);
+    return {
+      ok: structuralErrors.length === 0 && brokenLinks.length === 0,
+      command: input.command,
+      file_id: input.file_id,
+      pages,
+      charts,
+      internal_links: internalLinks.length,
+      broken_internal_links: brokenLinks,
+      structural_errors: structuralErrors,
+      total_chars: html.length,
+    };
+  } catch (error) {
+    return { ok: false, error: String(error).slice(0, 500) };
   }
 }
 
@@ -75,9 +146,7 @@ async function webSearchTool(
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${settings.tavilyApiKey}` },
       body: JSON.stringify({ query: input.query, max_results: input.max_results, search_depth: "advanced", include_answer: false, include_raw_content: false }),
-      signal: abortSignal
-        ? AbortSignal.any([abortSignal, AbortSignal.timeout(45_000)])
-        : AbortSignal.timeout(45_000),
+      signal: abortSignal ? AbortSignal.any([abortSignal, AbortSignal.timeout(45_000)]) : AbortSignal.timeout(45_000),
     });
     if (!response.ok) return { ok: false, error: `Tavily HTTP ${response.status}: ${(await response.text()).slice(0, 500)}` };
     const data = (await response.json()) as {
@@ -95,42 +164,19 @@ async function webSearchTool(
         score: row.score ?? null,
       })),
     };
-  } catch (err) {
-    if (abortSignal?.aborted) throw err;
-    return { ok: false, error: String(err).slice(0, 500) };
+  } catch (error) {
+    if (abortSignal?.aborted) throw error;
+    return { ok: false, error: String(error).slice(0, 500) };
   }
 }
 
-async function analyzeImageTool(
-  input: { document_id: string; question: string },
-  { context, abortSignal }: { context: ToolContext; abortSignal?: AbortSignal },
-) {
-  if (!context.multimodalProviderId) return { ok: false, error: "no multimodal provider configured for this run" };
-  try {
-    const provider = await getProvider(context.userId, context.multimodalProviderId);
-    const { bytes, mimeType } = await getDocumentSource(context.userId, input.document_id);
-    if (!mimeType.toLowerCase().startsWith("image/")) return { ok: false, error: `document ${input.document_id} is not an image (${mimeType})` };
-    const result = await generateText({
-      model: createProviderModel(provider),
-      messages: [{ role: "user", content: [{ type: "text", text: input.question }, { type: "image", image: imageDataUrl(bytes, mimeType) }] }],
-      timeout: { totalMs: 3 * 60_000, stepMs: 3 * 60_000 },
-      abortSignal,
-    });
-    return { ok: true, document_id: input.document_id, mime_type: mimeType, analysis: result.text.trim() || "No analysis returned." };
-  } catch (err) {
-    if (abortSignal?.aborted) throw err;
-    return { ok: false, error: String(err).slice(0, 500) };
-  }
-}
+type MemoryInput = {
+  category: "preference" | "profile" | "project" | "instruction";
+  content: string;
+  reason: string;
+};
 
-async function proposeMemoryTool(
-  input: {
-    category: "preference" | "profile" | "project" | "instruction";
-    content: string;
-    reason: string;
-  },
-  { context }: { context: ToolContext },
-) {
+async function createMemoryTool(input: MemoryInput, { context }: { context: ToolContext }) {
   try {
     const candidate = await createMemoryCandidate({
       userId: context.userId,
@@ -140,89 +186,86 @@ async function proposeMemoryTool(
       originRunId: context.runId,
       source: "user-requested",
     });
-    const staged = candidate.status === "pending";
-    return {
-      ok: true,
-      staged,
-      candidate_id: candidate.id,
-      note: staged
-        ? "Queued for the user's review in the memory panel; it is not active yet."
-        : `An equivalent memory already exists with status=${candidate.status}; no new proposal was created.`,
-    };
-  } catch (err) {
-    return { ok: false, error: `failed to propose memory: ${String(err).slice(0, 500)}` };
+    return { ok: true, staged: candidate.status === "pending", candidate_id: candidate.id, status: candidate.status };
+  } catch (error) {
+    return { ok: false, error: `failed to create memory proposal: ${String(error).slice(0, 500)}` };
   }
 }
 
+async function updateMemoryTool(
+  input: MemoryInput & { memory_id: string },
+  { context }: { context: ToolContext },
+) {
+  try {
+    const active = (await listActiveMemories(context.userId)).find((memory) => memory.id === input.memory_id);
+    if (!active) return { ok: false, error: `active memory ${input.memory_id} was not found` };
+    const candidate = await createMemoryCandidate({
+      userId: context.userId,
+      category: input.category,
+      content: input.content,
+      reason: input.reason,
+      originRunId: context.runId,
+      source: "user-requested-update",
+      supersedesId: active.id,
+    });
+    return { ok: true, staged: candidate.status === "pending", candidate_id: candidate.id, supersedes_id: active.id, status: candidate.status };
+  } catch (error) {
+    return { ok: false, error: `failed to update memory proposal: ${String(error).slice(0, 500)}` };
+  }
+}
+
+const memorySchema = z.object({
+  category: z.enum(["preference", "profile", "project", "instruction"]),
+  content: z.string().min(5).max(500),
+  reason: z.string().min(1).max(200),
+});
+
 export function buildAgentTools() {
   return {
-    update_plan: tool({
-      description: "Create or update the durable user-visible plan for a complex multi-step task. Use full snapshots and preserve completed items.",
-      inputSchema: updatePlanInputSchema,
-      contextSchema: toolContextSchema,
-      execute: updatePlanTool,
-    }),
-    list_documents: tool({
-      description: "List knowledge-base documents for this user.",
+    list_files: tool({
+      description: "List files attached to the current conversation, including generated artifacts.",
       inputSchema: z.object({}),
       contextSchema: toolContextSchema,
-      execute: listDocumentsTool,
+      execute: listFilesTool,
     }),
-    read_document: tool({
-      description: "Read a bounded slice of a document by document id.",
-      inputSchema: z.object({ document_id: z.string(), start: z.number().int().min(0).default(0), max_chars: z.number().int().min(1).max(8000).default(4000) }),
+    read_file: tool({
+      description: "Read a bounded slice of a conversation file. Continue with next_offset for large files.",
+      inputSchema: z.object({ file_id: z.string().min(1).max(32), offset: z.number().int().min(0).default(0), max_chars: z.number().int().min(1).max(20_000).default(8_000) }),
       contextSchema: toolContextSchema,
-      execute: readDocumentTool,
+      execute: readFileTool,
+    }),
+    write_file: tool({
+      description: "Generate and persist a new Markdown or HTML file from a compact brief. HTML is planned and generated in bounded concurrent blocks inside this tool, so use it for artifacts of any supported size instead of emitting HTML yourself.",
+      inputSchema: z.object({
+        title: z.string().min(1).max(120),
+        filename: z.string().min(1).max(160),
+        kind: z.enum(["html", "markdown"]),
+        mode: z.enum(["document", "presentation", "dashboard"]).default("document"),
+        brief: z.string().min(1).max(20_000),
+        page_count: z.number().int().min(1).max(100).optional(),
+      }),
+      contextSchema: toolContextSchema,
+      execute: writeFileTool,
+    }),
+    edit_file: tool({
+      description: "Edit an existing generated file from a change brief. Large HTML is revised by semantic blocks with optimistic immutable revisions; unchanged blocks are reused.",
+      inputSchema: z.object({ document_id: z.string().min(1).max(32), title: z.string().min(1).max(120).optional(), filename: z.string().min(1).max(160).optional(), brief: z.string().min(1).max(12_000), block_ids: z.array(z.string().regex(/^page-[1-9]\d*$/)).max(100).optional() }),
+      contextSchema: toolContextSchema,
+      execute: editFileTool,
+    }),
+    run_command: tool({
+      description: "Run a safe built-in inspection command against a stored HTML file. This is not host shell access.",
+      inputSchema: z.object({ command: z.enum(["validate_html", "inspect_layout"]), file_id: z.string().min(1).max(32) }),
+      contextSchema: toolContextSchema,
+      execute: runCommandTool,
     }),
     web_search: tool({
       description: "Search the public web for current information using Tavily.",
       inputSchema: z.object({ query: z.string().min(1), max_results: z.number().int().min(1).max(8).default(5) }),
-      contextSchema: toolContextSchema,
       execute: webSearchTool,
     }),
-    create_artifact: tool({
-      description: "Create a persistent markdown artifact from a compact brief. For HTML use begin_artifact, write_artifact_part, then publish_artifact.",
-      inputSchema: z.object({ title: z.string().min(1).max(120), filename: z.string().min(1).max(160), kind: z.literal("markdown").default("markdown"), mode: z.enum(["document", "presentation", "dashboard"]).default("document"), brief: z.string().min(1).max(20_000) }),
-      contextSchema: toolContextSchema,
-      execute: createArtifactTool,
-    }),
-    begin_artifact: tool({
-      description: `Reserve an HTML artifact and persist its part manifest. Call after update_plan and before writing parts. The runtime accepts large parts up to ${ARTIFACT_PART_CONTENT_MAX_CHARS} chars; use coherent sections that are easy to verify.`,
-      inputSchema: z.object({
-        planId: z.string().min(1).max(128), title: z.string().min(1).max(120), filename: z.string().min(1).max(160),
-        mode: z.enum(["document", "presentation", "dashboard"]),
-        theme: z.object({ preset: z.string().min(1).max(40), accent: z.string().min(1).max(40) }),
-        parts: z.array(z.object({ planItemId: z.string().min(1).max(80), partId: z.string().regex(/^[A-Za-z0-9_-]+$/).max(80), type: z.string().min(1).max(40), title: z.string().min(1).max(160) })).min(1).max(100),
-      }),
-      contextSchema: toolContextSchema,
-      execute: beginArtifactTool,
-    }),
-    write_artifact_part: tool({
-      description: `Persist one semantic HTML body fragment generated by the main agent. content may be large but must be <= ${ARTIFACT_PART_CONTENT_MAX_CHARS} chars. No html/head/body/style/script wrappers and no inline JavaScript. Render any chart as a single empty <div data-chart-option=\"{escaped ECharts option JSON}\"></div> — never a canvas or your own echarts script. Chart options must be strict JSON; use string formatter templates like "{c}", never formatter:function(...) callbacks.`,
-      inputSchema: z.object({ generationId: z.string().min(1).max(32), planItemId: z.string().min(1).max(80), partId: z.string().regex(/^[A-Za-z0-9_-]+$/).max(80), type: z.string().min(1).max(40), title: z.string().min(1).max(160), content: z.string().min(1).max(ARTIFACT_PART_CONTENT_MAX_CHARS) }),
-      contextSchema: toolContextSchema,
-      execute: writeArtifactPartTool,
-    }),
-    publish_artifact: tool({
-      description: "Compile and publish a reserved HTML artifact after all planned parts have been written.",
-      inputSchema: z.object({ generationId: z.string().min(1).max(32), title: z.string().min(1).max(120), filename: z.string().min(1).max(160), mode: z.enum(["document", "presentation", "dashboard"]), theme: z.object({ preset: z.string().min(1).max(40), accent: z.string().min(1).max(40) }), parts: z.array(z.object({ id: z.string().min(1).max(80), type: z.string().min(1).max(40), title: z.string().min(1).max(160) })).min(1).max(100) }),
-      contextSchema: toolContextSchema,
-      execute: publishArtifactTool,
-    }),
-    update_artifact: tool({
-      description: "Update an artifact in place from a compact change brief, with optimistic concurrency protection.",
-      inputSchema: z.object({ document_id: z.string().min(1).max(32), title: z.string().min(1).max(120).optional(), filename: z.string().min(1).max(160).optional(), kind: z.enum(["html", "markdown"]).optional(), brief: z.string().min(1).max(12_000) }),
-      contextSchema: toolContextSchema,
-      execute: updateArtifactTool,
-    }),
-    analyze_image: tool({
-      description: "Analyze an uploaded image document with a multimodal model.",
-      inputSchema: z.object({ document_id: z.string(), question: z.string().min(1).max(2000) }),
-      contextSchema: toolContextSchema,
-      execute: analyzeImageTool,
-    }),
     ask_user: tool({
-      description: "Ask the user for missing information required to continue.",
+      description: "Ask the user for missing information that is required to continue.",
       inputSchema: z.object({
         question: z.string().min(1).max(240),
         choices: z.array(z.object({ label: z.string().min(1).max(80), value: z.string().min(1).max(160) })).max(8).default([]),
@@ -230,19 +273,30 @@ export function buildAgentTools() {
         allow_freeform: z.boolean().default(true),
         freeform_label: z.string().min(1).max(40).default("其他"),
       }),
-      // No server execute: useChat renders this client tool and posts the
-      // answer as tool output, which starts the next ToolLoopAgent request.
     }),
-    propose_memory: tool({
-      description:
-        "Stage a durable user memory for later review. The proposal is queued silently and the user confirms it in their memory panel afterward; it does not block the conversation and is not active immediately. Use only when the user explicitly asks you to remember something stable (a preference, profile fact, project fact, or standing instruction); background extraction handles the rest. Never stage one-off task details or inferred sensitive data.",
-      inputSchema: z.object({
-        category: z.enum(["preference", "profile", "project", "instruction"]),
-        content: z.string().min(5).max(500),
-        reason: z.string().min(1).max(200),
-      }),
+    write_plan: tool({
+      description: "Create a new durable user-visible plan for a complex task. Do not use this to revise an existing plan.",
+      inputSchema: writePlanInputSchema,
       contextSchema: toolContextSchema,
-      execute: proposeMemoryTool,
+      execute: writePlanTool,
+    }),
+    update_plan: tool({
+      description: "Update an existing durable plan using its planId and baseRevision. A conflict is returned as tool output and never aborts the chat stream.",
+      inputSchema: updatePlanInputSchema,
+      contextSchema: toolContextSchema,
+      execute: updatePlanTool,
+    }),
+    create_memory: tool({
+      description: "Stage a new long-term memory for non-blocking user review. It is not active until the user approves it in the memory panel.",
+      inputSchema: memorySchema,
+      contextSchema: toolContextSchema,
+      execute: createMemoryTool,
+    }),
+    update_memory: tool({
+      description: "Stage a replacement for an active memory. The old memory remains active until the user approves the candidate.",
+      inputSchema: memorySchema.extend({ memory_id: z.string().min(1).max(32) }),
+      contextSchema: toolContextSchema,
+      execute: updateMemoryTool,
     }),
   };
 }

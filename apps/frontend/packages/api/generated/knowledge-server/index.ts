@@ -36,6 +36,22 @@ export interface ArtifactGeneration {
   error: string | null;
 }
 
+export type ArtifactRevisionWorkspaceManifest = { [key: string]: unknown };
+
+export interface StoredArtifactBlock {
+  id: string;
+  type: string;
+  position: number;
+  content: string;
+}
+
+export interface ArtifactRevisionWorkspace {
+  document_id: string;
+  revision_id: string;
+  manifest: ArtifactRevisionWorkspaceManifest;
+  blocks: StoredArtifactBlock[];
+}
+
 export interface BodyIngestStreamIngestStreamPost {
   files: Blob[];
   client_refs: string;
@@ -189,6 +205,7 @@ export interface ReserveArtifactGenerationInput {
      */
   idempotency_key: string;
   base_revision_id?: string | null;
+  document_id?: string | null;
 }
 
 export interface SaveArtifactBlockInput {
@@ -215,13 +232,6 @@ export interface SaveArtifactPlanInput {
      * @maxItems 200
      */
   blocks: ArtifactBlockPlan[];
-}
-
-export interface StoredArtifactBlock {
-  id: string;
-  type: string;
-  position: number;
-  content: string;
 }
 
 export interface UpdateArtifactInput {
@@ -284,6 +294,10 @@ user_id: string;
 };
 
 export type ListReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGetParams = {
+user_id: string;
+};
+
+export type GetLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGetParams = {
 user_id: string;
 };
 
@@ -563,6 +577,20 @@ const listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet = (
     }
 
 /**
+ * @summary Get Latest Workspace
+ */
+const getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet = (
+    documentId: string,
+    params: GetLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGetParams,
+ options?: SecondParameter<typeof apiMutator<ArtifactRevisionWorkspace>>,) => {
+      return apiMutator<ArtifactRevisionWorkspace>(
+      {url: `/internal/artifact-generations/documents/${documentId}/latest`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+/**
  * @summary Publish Revision
  */
 const publishRevisionInternalArtifactGenerationsGenerationIdPublishPost = (
@@ -577,7 +605,7 @@ const publishRevisionInternalArtifactGenerationsGenerationIdPublishPost = (
       options);
     }
 
-return {healthzHealthzGet,ingestStreamIngestStreamPost,listMyDocumentsDocumentsGet,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,reserveGenerationInternalArtifactGenerationsPost,getGenerationInternalArtifactGenerationsGenerationIdGet,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost}};
+return {healthzHealthzGet,ingestStreamIngestStreamPost,listMyDocumentsDocumentsGet,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,reserveGenerationInternalArtifactGenerationsPost,getGenerationInternalArtifactGenerationsGenerationIdGet,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -602,4 +630,5 @@ export type GetGenerationInternalArtifactGenerationsGenerationIdGetResult = NonN
 export type SavePlanInternalArtifactGenerationsGenerationIdPlanPutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['savePlanInternalArtifactGenerationsGenerationIdPlanPut']>>>
 export type SaveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut']>>>
 export type ListReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet']>>>
+export type GetLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet']>>>
 export type PublishRevisionInternalArtifactGenerationsGenerationIdPublishPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['publishRevisionInternalArtifactGenerationsGenerationIdPublishPost']>>>

@@ -1,9 +1,10 @@
 import { buildArtifactRuntimeHead, buildChartHydrationScript } from "./agent-artifacts.js";
+import sanitizeHtml from "sanitize-html";
 
 export type ArtifactPartPlan = { id: string; type: string; title: string };
 
 export function sanitizeArtifactPart(value: string): string {
-  return value
+  const fragment = value
     .trim()
     .replace(/^```(?:html)?\s*/i, "")
     .replace(/```\s*$/i, "")
@@ -12,6 +13,40 @@ export function sanitizeArtifactPart(value: string): string {
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
     .trim();
+  return sanitizeHtml(fragment, {
+    allowedTags: [
+      "a", "abbr", "article", "aside", "b", "blockquote", "br", "button",
+      "caption", "cite", "code", "col", "colgroup", "dd", "details", "div",
+      "dl", "dt", "em", "figcaption", "figure", "footer", "h1", "h2", "h3",
+      "h4", "h5", "h6", "header", "hr", "i", "img", "kbd", "li", "main",
+      "mark", "nav", "ol", "p", "pre", "q", "s", "section", "small", "span",
+      "strong", "sub", "summary", "sup", "table", "tbody", "td", "tfoot", "th",
+      "thead", "time", "tr", "u", "ul", "var",
+    ],
+    allowedAttributes: {
+      "*": ["class", "id", "style", "title", "role", "aria-*", "data-*"],
+      a: ["href", "target", "rel"],
+      button: ["type"],
+      col: ["span"],
+      img: ["src", "alt", "width", "height", "loading"],
+      td: ["colspan", "rowspan"],
+      th: ["colspan", "rowspan", "scope"],
+      time: ["datetime"],
+    },
+    allowedSchemes: ["http", "https", "data"],
+    allowedSchemesByTag: { img: ["data"] },
+    allowProtocolRelative: false,
+    transformTags: {
+      a: (_tagName, attributes) => {
+        const href = attributes.href ?? "";
+        if (href.startsWith("#")) return { tagName: "a", attribs: attributes };
+        return {
+          tagName: "a",
+          attribs: { ...attributes, target: "_blank", rel: "noopener noreferrer" },
+        };
+      },
+    },
+  }).trim();
 }
 
 export function compileArtifactHtml(input: {
@@ -42,7 +77,7 @@ export function compileArtifactHtml(input: {
       return renderErrorSection(planned, parsed.error ?? "part produced no HTML");
     }
     partsOk += 1;
-    return `<section class="artifact-block artifact-block--${escapeAttribute(planned.type)}" data-block-id="${escapeAttribute(planned.id)}"><div class="artifact-block__content">${validateChartOptions(parsed.html)}</div></section>`;
+    return `<section id="${escapeAttribute(planned.id)}" class="artifact-block artifact-block--${escapeAttribute(planned.type)}" data-block-id="${escapeAttribute(planned.id)}"><div class="artifact-block__content">${validateChartOptions(parsed.html)}</div></section>`;
   });
   const usesEcharts = input.mode === "dashboard" || sections.some((section) => section.includes("data-chart-option"));
   const html = [

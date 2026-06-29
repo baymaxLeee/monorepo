@@ -56,7 +56,7 @@ class ObjectStore:
                 details={"max_bytes": self._settings.max_object_bytes, "actual_bytes": len(content)},
             )
         bucket = self._settings.default_bucket
-        safe_name = Path(filename or "file").name or "file"
+        safe_name = self._safe_filename_segment(filename)
         key = self._safe_key(prefix, user_id, safe_name)
         if not _SAFE_SEGMENT.match(bucket) or not self._valid_key(key):
             raise RequestError("invalid bucket or object key")
@@ -86,6 +86,24 @@ class ObjectStore:
         path = self._root / bucket / key
         if path.is_file():
             path.unlink()
+
+    @staticmethod
+    def _safe_filename_segment(filename: str) -> str:
+        """Coerce any (possibly non-ASCII) filename into a storage-key-safe
+        segment. The human-facing filename is kept in document metadata; only
+        the on-disk object key must stay within the safe charset, so a Chinese
+        or otherwise non-ASCII title must never reject the write."""
+        base = Path(filename or "").name
+        stem, dot, ext = base.rpartition(".")
+        if not dot:
+            stem, ext = base, ""
+        safe_stem = re.sub(r"[^A-Za-z0-9_=-]+", "-", stem)
+        safe_stem = re.sub(r"-{2,}", "-", safe_stem).strip("-_=")
+        safe_ext = re.sub(r"[^A-Za-z0-9]+", "", ext)[:16]
+        if not safe_stem:
+            safe_stem = f"file-{hashlib.sha256(base.encode()).hexdigest()[:16]}"
+        safe_stem = safe_stem[:180]
+        return f"{safe_stem}.{safe_ext}" if safe_ext else safe_stem
 
     @staticmethod
     def _safe_key(prefix: str, user_id: str, filename: str) -> str:

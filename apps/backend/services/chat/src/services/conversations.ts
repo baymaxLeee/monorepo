@@ -297,8 +297,11 @@ export async function createMessage(input: {
     content: input.content,
     status: input.status ?? "ok",
     createdAt: now,
-  });
+  }).onDuplicateKeyUpdate({ set: { id } });
   const [row] = await db.select().from(messages).where(eq(messages.id, id));
+  if (!row || row.conversationId !== input.conversationId || row.role !== input.role) {
+    throw new Error(`message id ${id} already belongs to a different message`);
+  }
   return toMessage(row!);
 }
 

@@ -7,12 +7,13 @@ import {
   type KnowledgeDocument,
   type PublishedArtifactRevision,
   type StoredArtifactBlock,
+  type ArtifactRevisionWorkspace,
 } from "@backend/transport-ts";
 import { getSettings } from "../config.js";
 import { NotFoundError } from "../lib/errors.js";
 
 export type { DocumentSlice, KnowledgeDocument } from "@backend/transport-ts";
-export type { ArtifactBlockPlan, ArtifactGeneration, PublishedArtifactRevision, StoredArtifactBlock } from "@backend/transport-ts";
+export type { ArtifactBlockPlan, ArtifactGeneration, ArtifactRevisionWorkspace, PublishedArtifactRevision, StoredArtifactBlock } from "@backend/transport-ts";
 
 function knowledgeClient(): KnowledgeInternalClient {
   const s = getSettings();
@@ -111,8 +112,16 @@ export async function reserveArtifactGeneration(input: {
   brief: string;
   idempotencyKey: string;
   baseRevisionId?: string;
+  documentId?: string;
 }): Promise<ArtifactGeneration> {
   return knowledgeClient().reserveArtifactGeneration(input);
+}
+
+export async function getLatestArtifactWorkspace(
+  userId: string,
+  documentId: string,
+): Promise<ArtifactRevisionWorkspace> {
+  return knowledgeClient().getLatestArtifactWorkspace({ userId, documentId });
 }
 
 export async function getArtifactGeneration(

@@ -12,7 +12,8 @@ import {
 export const agentsRoutes = new Hono();
 
 const runSchema = z.object({
-  messages: z.array(z.unknown()).min(1),
+  id: z.string().optional(),
+  message: z.unknown(),
   provider_id: z.string().max(32).optional().nullable(),
   multimodal_provider_id: z.string().max(32).optional().nullable(),
   document_ids: z.array(z.string()).max(10).optional().default([]),
@@ -37,7 +38,7 @@ agentsRoutes.post(
       auth,
       conversationId,
       provider,
-      payload.messages,
+      [payload.message],
       {
         providerId: payload.provider_id,
         multimodalProviderId: payload.multimodal_provider_id,

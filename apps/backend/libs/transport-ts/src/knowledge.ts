@@ -19,6 +19,7 @@ export type ArtifactGeneration = components["schemas"]["ArtifactGeneration"];
 export type ArtifactBlockPlan = components["schemas"]["ArtifactBlockPlan"];
 export type PublishedArtifactRevision = components["schemas"]["PublishedArtifactRevision"];
 export type StoredArtifactBlock = components["schemas"]["StoredArtifactBlock"];
+export type ArtifactRevisionWorkspace = components["schemas"]["ArtifactRevisionWorkspace"];
 
 export interface KnowledgeClientOptions {
   baseUrl: string;
@@ -151,6 +152,7 @@ export class KnowledgeInternalClient {
     brief: string;
     idempotencyKey: string;
     baseRevisionId?: string;
+    documentId?: string;
   }): Promise<ArtifactGeneration> {
     return this.unwrap(
       this.client.POST("/internal/artifact-generations", {
@@ -163,6 +165,21 @@ export class KnowledgeInternalClient {
           brief: input.brief,
           idempotency_key: input.idempotencyKey,
           base_revision_id: input.baseRevisionId,
+          document_id: input.documentId,
+        },
+      }),
+    );
+  }
+
+  getLatestArtifactWorkspace(input: {
+    userId: string;
+    documentId: string;
+  }): Promise<ArtifactRevisionWorkspace> {
+    return this.unwrap(
+      this.client.GET("/internal/artifact-generations/documents/{document_id}/latest", {
+        params: {
+          path: { document_id: input.documentId },
+          query: { user_id: input.userId },
         },
       }),
     );

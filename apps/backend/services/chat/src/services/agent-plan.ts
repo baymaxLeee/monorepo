@@ -43,19 +43,25 @@ export const planSnapshotSchema = z.object({
   updatedAt: z.string(),
 });
 
-export const updatePlanInputSchema = z.object({
-  planId: z.string().min(1).max(128).optional(),
-  baseRevision: z.number().int().nonnegative().optional(),
+const planBodySchema = z.object({
   goal: z.string().min(1).max(500),
   status: z.enum(["active", "completed", "abandoned"]),
   items: z.array(planItemSchema).min(1).max(100),
   explanation: z.string().max(500).optional(),
 });
 
+export const writePlanInputSchema = planBodySchema;
+
+export const updatePlanInputSchema = planBodySchema.extend({
+  planId: z.string().min(1).max(128),
+  baseRevision: z.number().int().nonnegative().optional(),
+});
+
+export type WritePlanInput = z.infer<typeof writePlanInputSchema>;
 export type PlanSnapshot = z.infer<typeof planSnapshotSchema>;
 export type UpdatePlanInput = z.infer<typeof updatePlanInputSchema>;
 
-function assertPlan(input: UpdatePlanInput): void {
+function assertPlan(input: WritePlanInput): void {
   const ids = new Set(input.items.map((item) => item.id));
   if (ids.size !== input.items.length) throw new Error("plan item ids must be unique");
   for (const item of input.items) {
@@ -72,19 +78,57 @@ function assertPlan(input: UpdatePlanInput): void {
   }
 }
 
-export async function updatePlanTool(
-  input: UpdatePlanInput,
-  { context, toolCallId }: { context: ToolContext; toolCallId: string },
+export async function writePlanTool(
+  input: WritePlanInput,
+  { toolCallId }: { context: ToolContext; toolCallId: string },
 ): Promise<PlanSnapshot> {
   assertPlan(input);
-  const current = parsePlanSnapshot(await latestCompletedToolOutput(context.conversationId, "update_plan"));
-  if (input.planId && current?.planId === input.planId && input.baseRevision !== current.revision) {
-    throw new Error(`plan revision conflict: expected ${current.revision}, received ${input.baseRevision ?? "none"}`);
+  return {
+    schemaVersion: 1,
+    planId: toolCallId,
+    revision: 1,
+    goal: input.goal,
+    status: input.status,
+    items: input.items,
+    explanation: input.explanation,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function latestStoredPlan(conversationId: string): Promise<PlanSnapshot | null> {
+  const outputs = await Promise.all([
+    latestCompletedToolOutput(conversationId, "write_plan"),
+    latestCompletedToolOutput(conversationId, "update_plan"),
+  ]);
+  const plans = outputs.map(parsePlanSnapshot).filter((plan): plan is PlanSnapshot => plan != null);
+  return plans.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0] ?? null;
+}
+
+export async function updatePlanTool(
+  input: UpdatePlanInput,
+  { context }: { context: ToolContext; toolCallId: string },
+): Promise<PlanSnapshot | { ok: false; conflict: true; error: string; current?: PlanSnapshot }> {
+  try {
+    assertPlan(input);
+  } catch (error) {
+    return { ok: false, conflict: true, error: String(error) };
+  }
+  const current = await latestStoredPlan(context.conversationId);
+  if (!current || current.planId !== input.planId) {
+    return { ok: false, conflict: true, error: `plan ${input.planId} is not the active stored plan`, current: current ?? undefined };
+  }
+  if (input.baseRevision !== current.revision) {
+    return {
+      ok: false,
+      conflict: true,
+      error: `plan revision conflict: expected ${current.revision}, received ${input.baseRevision ?? "none"}`,
+      current,
+    };
   }
   return {
     schemaVersion: 1,
-    planId: input.planId ?? toolCallId,
-    revision: current && current.planId === input.planId ? current.revision + 1 : 1,
+    planId: current.planId,
+    revision: current.revision + 1,
     goal: input.goal,
     status: input.status,
     items: input.items,
@@ -105,7 +149,10 @@ export function latestPlanFromParts(
   for (const message of messages) {
     if (message.role !== "assistant") continue;
     for (const part of message.parts) {
-      if (part.type !== "tool-update_plan" || part.state !== "output-available") continue;
+      if (
+        (part.type !== "tool-write_plan" && part.type !== "tool-update_plan") ||
+        part.state !== "output-available"
+      ) continue;
       const plan = parsePlanSnapshot(part.output);
       if (!plan) continue;
       if (!latest || plan.revision > latest.revision || plan.planId !== latest.planId) latest = plan;
@@ -127,7 +174,7 @@ export function activePlanContext(plan: PlanSnapshot | null): string | null {
     "<items>",
     ...items,
     "</items>",
-    "Continue this plan when the new request is related. Never repeat completed items. If the user starts a clearly unrelated goal, abandon this plan with update_plan before creating a new one.",
+    "Continue this plan when the new request is related. Never repeat completed items. If the user starts a clearly unrelated goal, abandon this plan with update_plan before calling write_plan for a new one.",
     "</active_plan>",
   ].join("\n");
 }

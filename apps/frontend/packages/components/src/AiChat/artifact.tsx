@@ -211,7 +211,7 @@ export function ArtifactPreview({
         {resolvedKind === "html" ? (
           <iframe
             title={title}
-            sandbox="allow-scripts allow-same-origin"
+            sandbox="allow-scripts"
             src={src}
             srcDoc={src ? undefined : content}
             className="h-full min-h-[60svh] w-full bg-white"

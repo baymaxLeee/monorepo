@@ -1420,6 +1420,73 @@
         }
       }
     },
+    "/internal/artifact-generations/documents/{document_id}/latest": {
+      "get": {
+        "tags": [
+          "artifact-generations"
+        ],
+        "summary": "Get Latest Workspace",
+        "operationId": "get_latest_workspace_internal_artifact_generations_documents__document_id__latest_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactRevisionWorkspace"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/internal/artifact-generations/{generation_id}/publish": {
       "post": {
         "tags": [
@@ -1575,6 +1642,38 @@
           "error"
         ],
         "title": "ArtifactGeneration"
+      },
+      "ArtifactRevisionWorkspace": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "manifest": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Manifest"
+          },
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/StoredArtifactBlock"
+            },
+            "type": "array",
+            "title": "Blocks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "revision_id",
+          "manifest",
+          "blocks"
+        ],
+        "title": "ArtifactRevisionWorkspace"
       },
       "Body_ingest_stream_ingest_stream_post": {
         "properties": {
@@ -2039,6 +2138,18 @@
               }
             ],
             "title": "Base Revision Id"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
           }
         },
         "type": "object",

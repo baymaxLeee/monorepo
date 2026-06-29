@@ -51,7 +51,7 @@ function normalizeOpenAICompatibleBaseUrl(raw: string): string {
 }
 
 function providerName(providerId: string): string {
-  return `admin-provider-${providerId}`;
+  return `adminProvider-${providerId}`;
 }
 
 function isJsonValue(value: unknown): value is JSONValue {
@@ -66,7 +66,11 @@ function isJsonValue(value: unknown): value is JSONValue {
 
 function providerBodyOptions(
   provider: ChatProvider,
-  options: { reasoningEffort?: ReasoningEffort | null; disableReasoning?: boolean },
+  options: {
+    reasoningEffort?: ReasoningEffort | null;
+    disableReasoning?: boolean;
+    parallelToolCalls?: boolean | null;
+  },
 ): JSONObject {
   const body: JSONObject = {};
   for (const [key, value] of Object.entries(provider.extraBody)) {
@@ -89,6 +93,14 @@ function providerBodyOptions(
     body.reasoningEffort = options.reasoningEffort;
   }
 
+  // parallel_tool_calls is not in the adapter option schema nor our reserved
+  // keys, so an admin value in extraBody passes through verbatim and wins.
+  // Only fall back to our code default when the path opts in (the tool-using
+  // chat model) and the admin left it unset; tool-less paths never send it.
+  if (options.parallelToolCalls != null && body.parallel_tool_calls == null) {
+    body.parallel_tool_calls = options.parallelToolCalls;
+  }
+
   return body;
 }
 
@@ -96,6 +108,7 @@ interface AdminOpenAICompatibleModelSnapshot {
   provider: ChatProvider;
   reasoningEffort?: ReasoningEffort | null;
   disableReasoning?: boolean;
+  parallelToolCalls?: boolean | null;
 }
 
 class AdminOpenAICompatibleModel implements LanguageModelV4 {
@@ -146,11 +159,16 @@ class AdminOpenAICompatibleModel implements LanguageModelV4 {
 
 export function createProviderModel(
   provider: ChatProvider,
-  options: { reasoningEffort?: ReasoningEffort | null; disableReasoning?: boolean } = {},
+  options: {
+    reasoningEffort?: ReasoningEffort | null;
+    disableReasoning?: boolean;
+    parallelToolCalls?: boolean | null;
+  } = {},
 ): LanguageModelV4 {
   return new AdminOpenAICompatibleModel({
     provider,
     reasoningEffort: options.reasoningEffort ?? null,
     disableReasoning: options.disableReasoning ?? false,
+    parallelToolCalls: options.parallelToolCalls ?? null,
   });
 }

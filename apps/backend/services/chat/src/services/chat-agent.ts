@@ -12,48 +12,6 @@ import { createProviderModel } from "./agent-provider.js";
 import { buildAgentTools } from "./agent-tools.js";
 import type { ChatAgentInput } from "./agent-types.js";
 
-function pruneArtifactWrites<T extends readonly unknown[]>(messages: T): T {
-  const removableCalls = new Set<string>();
-  for (const message of messages.slice(0, -2)) {
-    if (!message || typeof message !== "object" || !("content" in message)) continue;
-    const content = (message as { content?: unknown }).content;
-    if (!Array.isArray(content)) continue;
-    for (const part of content) {
-      if (!part || typeof part !== "object") continue;
-      const row = part as Record<string, unknown>;
-      if (
-        row.type === "tool-call" &&
-        row.toolName === "write_artifact_part" &&
-        typeof row.toolCallId === "string"
-      ) {
-        removableCalls.add(row.toolCallId);
-      }
-    }
-  }
-  return messages.map((message, index) => {
-    if (
-      index >= messages.length - 2 ||
-      !message ||
-      typeof message !== "object" ||
-      !("content" in message)
-    ) {
-      return message;
-    }
-    const content = (message as { content?: unknown }).content;
-    if (!Array.isArray(content)) return message;
-    return {
-      ...message,
-      content: content.filter((part) => {
-        if (!part || typeof part !== "object") return true;
-        const row = part as Record<string, unknown>;
-        return !(
-          typeof row.toolCallId === "string" && removableCalls.has(row.toolCallId)
-        );
-      }),
-    };
-  }) as unknown as T;
-}
-
 function observe(label: string, operation: Promise<void>): Promise<void> {
   return operation.catch((error) => {
     // Trace persistence must never take down the user-facing generation.
@@ -85,13 +43,13 @@ export function createChatAgent(input: ChatAgentInput) {
     id: "chat-agent",
     model: createProviderModel(provider, {
       reasoningEffort: input.reasoningEffort,
+      parallelToolCalls: true,
     }),
     instructions: input.instructions,
     maxOutputTokens: MAX_AGENT_OUTPUT_TOKENS,
     tools,
     toolsContext,
     stopWhen: isStepCount(MAX_AGENT_STEPS),
-    prepareStep: ({ messages }) => ({ messages: pruneArtifactWrites(messages) }),
     onStepStart: (event) => {
       currentStepNumber = event.stepNumber;
       return observe(

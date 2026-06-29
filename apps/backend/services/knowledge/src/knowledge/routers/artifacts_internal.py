@@ -11,6 +11,7 @@ from knowledge.deps import DbSession, require_internal_token
 from knowledge.models.artifact import ArtifactBlockVersionRow, ArtifactGenerationRow, ArtifactRevisionRow
 from knowledge.schemas.artifact import (
     ArtifactGeneration,
+    ArtifactRevisionWorkspace,
     PublishArtifactRevisionInput,
     PublishedArtifactRevision,
     ReserveArtifactGenerationInput,
@@ -67,18 +68,34 @@ async def reserve_generation(payload: ReserveArtifactGenerationInput, session: D
             raise ConflictError("artifact idempotency key belongs to another user")
         return _generation_schema(existing)
 
+    document_id = sha256(f"{payload.user_id}:{payload.idempotency_key}".encode()).hexdigest()[:16]
+    base_revision_id = payload.base_revision_id
+    if payload.document_id:
+        document = await document_crud.get_document(session, payload.document_id, payload.user_id)
+        if document is None or document.kind != "artifact":
+            raise NotFoundError(f"artifact document {payload.document_id} not found")
+        latest_revision = await session.scalar(
+            select(ArtifactRevisionRow)
+            .where(ArtifactRevisionRow.document_id == payload.document_id)
+            .order_by(ArtifactRevisionRow.created_at.desc())
+        )
+        if latest_revision is None:
+            raise NotFoundError(f"artifact revision for document {payload.document_id} not found")
+        document_id = payload.document_id
+        base_revision_id = latest_revision.id
+
     now = datetime.now(UTC)
     row = ArtifactGenerationRow(
         id=_id(),
-        document_id=sha256(f"{payload.user_id}:{payload.idempotency_key}".encode()).hexdigest()[:16],
+        document_id=document_id,
         user_id=payload.user_id,
         conversation_id=payload.conversation_id,
-        kind="update" if payload.base_revision_id else "create",
+        kind="update" if payload.document_id or payload.base_revision_id else "create",
         title=payload.title,
         filename=payload.filename,
         brief=payload.brief,
         idempotency_key=payload.idempotency_key,
-        base_revision_id=payload.base_revision_id,
+        base_revision_id=base_revision_id,
         status="queued",
         phase="reserved",
         manifest_json={"schemaVersion": 1, "mode": payload.mode, "blocks": []},
@@ -203,6 +220,29 @@ async def list_ready_blocks(generation_id: str, user_id: str, session: DbSession
         for row in rows
         if row.object_bucket and row.object_key
     ]
+
+
+@router.get("/documents/{document_id}/latest", response_model=ArtifactRevisionWorkspace)
+async def get_latest_workspace(
+    document_id: str, user_id: str, session: DbSession
+) -> ArtifactRevisionWorkspace:
+    document = await document_crud.get_document(session, document_id, user_id)
+    if document is None or document.kind != "artifact":
+        raise NotFoundError(f"artifact document {document_id} not found")
+    revision = await session.scalar(
+        select(ArtifactRevisionRow)
+        .where(ArtifactRevisionRow.document_id == document_id)
+        .order_by(ArtifactRevisionRow.created_at.desc())
+    )
+    if revision is None:
+        raise NotFoundError(f"artifact revision for document {document_id} not found")
+    blocks = await list_ready_blocks(revision.generation_id, user_id, session)
+    return ArtifactRevisionWorkspace(
+        document_id=document_id,
+        revision_id=revision.id,
+        manifest=revision.manifest_json,
+        blocks=blocks,
+    )
 
 
 @router.post("/{generation_id}/publish", response_model=PublishedArtifactRevision)

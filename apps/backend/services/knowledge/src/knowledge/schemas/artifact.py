@@ -16,6 +16,7 @@ class ReserveArtifactGenerationInput(BaseModel):
     brief: str = Field(min_length=1, max_length=20_000)
     idempotency_key: str = Field(min_length=1, max_length=128)
     base_revision_id: str | None = Field(default=None, max_length=32)
+    document_id: str | None = Field(default=None, max_length=32)
 
 
 class ArtifactBlockPlan(BaseModel):
@@ -65,3 +66,10 @@ class StoredArtifactBlock(BaseModel):
     type: str
     position: int
     content: str
+
+
+class ArtifactRevisionWorkspace(BaseModel):
+    document_id: str
+    revision_id: str
+    manifest: dict[str, Any]
+    blocks: list[StoredArtifactBlock]
