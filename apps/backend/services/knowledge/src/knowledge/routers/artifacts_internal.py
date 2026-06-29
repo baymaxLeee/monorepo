@@ -330,5 +330,5 @@ async def publish_revision(
         revision_id=revision.id,
         title=generation.title,
         filename=generation.filename,
-        total_chars=len(payload.compiled_html),
+        total_chars=stored.size,
     )

@@ -20,6 +20,7 @@ export type ArtifactOutput = {
   totalChars?: number;
   blocksTotal?: number;
   blocksDone?: number;
+  blocksFailed?: number;
 };
 
 export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
@@ -34,6 +35,7 @@ export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
     total_chars?: unknown;
     blocks_total?: unknown;
     blocks_done?: unknown;
+    blocks_failed?: unknown;
   };
   if (typeof raw.document_id !== "string" && raw.status !== "generating") {
     return null;
@@ -51,6 +53,8 @@ export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
       typeof raw.blocks_total === "number" ? raw.blocks_total : undefined,
     blocksDone:
       typeof raw.blocks_done === "number" ? raw.blocks_done : undefined,
+    blocksFailed:
+      typeof raw.blocks_failed === "number" ? raw.blocks_failed : undefined,
   };
 }
 
@@ -177,6 +181,11 @@ export function ArtifactDocumentCard({
       <ArtifactContent className="px-4 py-3 text-xs text-muted-foreground">
         <FileTextIcon className="mr-1 inline size-3" />
         AI artifact
+        {fallback?.blocksFailed ? (
+          <span className="ml-2 text-destructive">
+            · {fallback.blocksFailed} 页生成失败，已在预览中标注
+          </span>
+        ) : null}
       </ArtifactContent>
     </Artifact>
   );

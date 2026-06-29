@@ -9,6 +9,7 @@ import {
 } from "../clients/knowledge.js";
 import { getSettings } from "../config.js";
 import { editFileTool, writeFileTool } from "./agent-tool-artifacts.js";
+import { inspectArtifactHtml, validateArtifactHtml } from "./artifact-compiler.js";
 import {
   updatePlanInputSchema,
   updatePlanTool,
@@ -108,27 +109,25 @@ async function runCommandTool(
       return { ok: false, error: `${input.command} only supports HTML files` };
     }
     const html = new TextDecoder().decode(source.bytes);
-    const pages = (html.match(/\bclass="[^"]*artifact-block\b/g) ?? []).length;
-    const charts = (html.match(/\bdata-chart-option=/g) ?? []).length;
-    const internalLinks = [...html.matchAll(/href=["']#([^"']+)["']/g)].map((match) => match[1]);
-    const ids = new Set([...html.matchAll(/\bid=["']([^"']+)["']/g)].map((match) => match[1]));
-    const brokenLinks = internalLinks.filter((target) => !ids.has(target));
-    const structuralErrors = [
-      !/^\s*<!doctype html>/i.test(html) ? "missing doctype" : null,
-      !/<\/html>\s*$/i.test(html) ? "missing closing html tag" : null,
-      /\son[a-z]+\s*=/i.test(html) ? "inline event handler detected" : null,
-      /javascript\s*:/i.test(html) ? "javascript URL detected" : null,
-    ].filter((value): value is string => value != null);
+    if (input.command === "validate_html") {
+      const validation = validateArtifactHtml(html);
+      return {
+        ok: validation.ok,
+        command: input.command,
+        file_id: input.file_id,
+        structural_errors: validation.structural_errors,
+        broken_internal_links: validation.broken_internal_links,
+      };
+    }
+    const report = inspectArtifactHtml(html);
+    // inspect_layout is a report, not a gate: it always returns ok:true and
+    // hands the model concrete signals (failed pages, invalid charts, dead
+    // links) so it can target a follow-up edit_file by block id.
     return {
-      ok: structuralErrors.length === 0 && brokenLinks.length === 0,
+      ok: true,
       command: input.command,
       file_id: input.file_id,
-      pages,
-      charts,
-      internal_links: internalLinks.length,
-      broken_internal_links: brokenLinks,
-      structural_errors: structuralErrors,
-      total_chars: html.length,
+      ...report,
     };
   } catch (error) {
     return { ok: false, error: String(error).slice(0, 500) };
@@ -254,7 +253,8 @@ export function buildAgentTools() {
       execute: editFileTool,
     }),
     run_command: tool({
-      description: "Run a safe built-in inspection command against a stored HTML file. This is not host shell access.",
+      description:
+        "Inspect a stored HTML artifact (not host shell access). validate_html is a correctness gate: ok:false with structural_errors/broken_internal_links when the document is malformed. inspect_layout is a report: pages, charts, invalid_charts, broken links, and failed_blocks (id + reason) so you can target a follow-up edit_file by block id.",
       inputSchema: z.object({ command: z.enum(["validate_html", "inspect_layout"]), file_id: z.string().min(1).max(32) }),
       contextSchema: toolContextSchema,
       execute: runCommandTool,

@@ -239,14 +239,19 @@ export async function createAgentRunResponse(
   const conversation = await getConversationRow(auth, conversationId);
   const uiMessages = await validateUIMessages<AnyUIMessage>({ messages: uiMessagesInput });
   const latestMessage = uiMessages.at(-1);
-  const latestUser = [...uiMessages].reverse().find((message) => message.role === "user");
-  if (!latestMessage || !latestUser) throw new RequestError("agent prompt is required");
+  if (!latestMessage) throw new RequestError("agent prompt is required");
   if (latestMessage.role !== "user" && latestMessage.role !== "assistant") {
     throw new RequestError("the last chat message must be a user message or completed client tool call");
   }
-  const latestPrompt = textFromUiMessage(latestUser);
-  if (!latestPrompt.trim() && !(input.documentIds ?? []).length) {
-    throw new RequestError("agent prompt is required");
+  // A user turn carries the prompt directly. An assistant continuation (a
+  // completed client tool such as ask_user) carries no user text in this
+  // single-message payload, so the prompt is recovered from history below.
+  const latestUser = [...uiMessages].reverse().find((message) => message.role === "user");
+  if (latestMessage.role === "user") {
+    const prompt = latestUser ? textFromUiMessage(latestUser) : "";
+    if (!prompt.trim() && !(input.documentIds ?? []).length) {
+      throw new RequestError("agent prompt is required");
+    }
   }
 
   const [persistedMessages, instructions] = await Promise.all([
@@ -296,6 +301,13 @@ export async function createAgentRunResponse(
     modelUiMessages[continuationIndex] = latestMessage;
   }
 
+  // Memory extraction needs the user's intent text. A user turn has it directly;
+  // a client-tool continuation recovers it from the most recent user message in
+  // the assembled context.
+  const memorySourceUser =
+    latestUser ?? [...modelUiMessages].reverse().find((message) => message.role === "user");
+  const memorySourceText = memorySourceUser ? textFromUiMessage(memorySourceUser) : "";
+
   const runId = await createAgentRun({
     conversationId: conversation.id,
     userId: conversation.userId,
@@ -330,7 +342,7 @@ export async function createAgentRunResponse(
     provider,
     multimodalProviderId: input.multimodalProviderId,
     modelMessages,
-    memorySourceText: latestPrompt,
+    memorySourceText: memorySourceText,
     instructions: planContext ? `${instructions}\n\n${planContext}` : instructions,
     reasoningEffort: input.reasoningEffort ?? (input.thinking ? "medium" : null),
   });
@@ -398,7 +410,7 @@ export async function createAgentRunResponse(
               userId: conversation.userId,
               runId,
               provider,
-              userText: latestPrompt,
+              userText: memorySourceText,
             }).catch((error) =>
               console.error("[chat-agent] memory extraction failed (non-fatal)", error),
             );

@@ -1,4 +1,4 @@
-import { streamText } from "ai";
+import { Output, extractJsonMiddleware, generateText, streamText, wrapLanguageModel } from "ai";
 import { z } from "zod";
 
 import { getProvider } from "../clients/admin.js";
@@ -82,29 +82,114 @@ async function mapConcurrent<T, R>(
   return results;
 }
 
+const MAX_BLOCK_BRIEF = 4000;
+
+const outlineSchema = z.object({
+  accent: z
+    .string()
+    .regex(/^#[0-9a-f]{6}$/i)
+    .optional(),
+  pages: z
+    .array(
+      z.object({
+        title: z.string().min(1).max(160),
+        brief: z.string().min(1).max(MAX_BLOCK_BRIEF),
+      }),
+    )
+    .min(1)
+    .max(100),
+});
+
+function resolvePageCount(input: { mode: ArtifactMode; brief: string; pageCount?: number }): number {
+  const requested = Number(input.brief.match(/(?:^|\D)(\d{1,3})\s*(?:页|pages?)/i)?.[1]);
+  return (
+    input.pageCount ??
+    (Number.isInteger(requested) && requested >= 1 && requested <= 100
+      ? requested
+      : input.mode === "presentation"
+        ? 10
+        : input.mode === "dashboard"
+          ? 4
+          : 8)
+  );
+}
+
+function deterministicOutline(input: {
+  title: string;
+  mode: ArtifactMode;
+  brief: string;
+  count: number;
+}): { theme: ArtifactTheme; blocks: ArtifactBlock[] } {
+  return {
+    theme: {
+      preset: input.mode === "presentation" ? "classroom" : "editorial",
+      accent: input.brief.match(/#[0-9a-f]{6}/i)?.[0] ?? "#2563eb",
+    },
+    blocks: Array.from({ length: input.count }, (_, index) => ({
+      id: `page-${index + 1}`,
+      type: input.mode === "presentation" ? "slide" : "section",
+      title: `${input.title} · ${index + 1}/${input.count}`,
+      brief: `Generate only ordered page/block ${index + 1} of ${input.count}. Derive its distinct content from the overall artifact brief and avoid repeating other pages.`,
+    })),
+  };
+}
+
+function outlineInstructions(input: { mode: ArtifactMode; count: number }): string {
+  return [
+    `Plan the outline for a ${input.count}-page ${input.mode} artifact.`,
+    "Return exactly one entry per page in reading order.",
+    "Each page needs a distinct, specific title and a brief that states what THIS page must cover so independently generated pages never overlap or leave gaps.",
+    "The brief is an instruction to a writer, not prose: name the concrete sections, data points, or visuals that belong on this page and nothing that belongs on another page.",
+    "Optionally pick one accent hex color that fits the topic.",
+    "Do not write any HTML; describe content only.",
+  ].join("\n");
+}
+
+// Outline-first: a single planning call assigns each page distinct content so
+// the parallel block generators receive isolated instructions instead of all
+// guessing from the same global brief (the cause of duplicated/missing pages).
+// Any failure degrades to the deterministic outline so generation still runs.
 async function planArtifact(input: {
   title: string;
   mode: ArtifactMode;
   brief: string;
   pageCount?: number;
+  model: Awaited<ReturnType<typeof buildArtifactTextModel>>["model"];
+  abortSignal: AbortSignal;
 }): Promise<{ theme: ArtifactTheme; blocks: ArtifactBlock[] }> {
-  const deterministic = (count: number) => ({
-    theme: {
-      preset: input.mode === "presentation" ? "classroom" : "editorial",
-      accent: input.brief.match(/#[0-9a-f]{6}/i)?.[0] ?? "#2563eb",
-    },
-    blocks: Array.from({ length: count }, (_, index) => ({
-      id: `page-${index + 1}`,
-      type: input.mode === "presentation" ? "slide" : "section",
-      title: `${input.title} · ${index + 1}/${count}`,
-      brief: `Generate only ordered page/block ${index + 1} of ${count}. Derive its distinct content from the overall artifact brief and avoid repeating other pages.`,
-    })),
-  });
-  const requested = Number(input.brief.match(/(?:^|\D)(\d{1,3})\s*(?:页|pages?)/i)?.[1]);
-  const count = input.pageCount ?? (Number.isInteger(requested) && requested >= 1 && requested <= 100
-    ? requested
-    : input.mode === "presentation" ? 10 : input.mode === "dashboard" ? 4 : 8);
-  return deterministic(count);
+  const count = resolvePageCount(input);
+  const fallback = deterministicOutline({ title: input.title, mode: input.mode, brief: input.brief, count });
+  try {
+    const structuredModel = wrapLanguageModel({ model: input.model, middleware: extractJsonMiddleware() });
+    const result = await generateText({
+      model: structuredModel,
+      output: Output.object({ schema: outlineSchema }),
+      instructions: outlineInstructions({ mode: input.mode, count }),
+      prompt: [
+        `<title>${input.title}</title>`,
+        `<page_count>${count}</page_count>`,
+        `<artifact_brief>${input.brief}</artifact_brief>`,
+      ].join("\n"),
+      maxOutputTokens: 4_000,
+      abortSignal: input.abortSignal,
+    });
+    const pages = result.output?.pages ?? [];
+    if (!pages.length) return fallback;
+    const accent = result.output?.accent?.match(/^#[0-9a-f]{6}$/i)?.[0] ?? fallback.theme.accent;
+    return {
+      theme: { preset: fallback.theme.preset, accent },
+      blocks: pages.map((page, index) => ({
+        id: `page-${index + 1}`,
+        type: input.mode === "presentation" ? "slide" : "section",
+        title: page.title.slice(0, 160),
+        brief: page.brief.slice(0, MAX_BLOCK_BRIEF),
+      })),
+    };
+  } catch (error) {
+    if (input.abortSignal.aborted) throw error;
+    console.error("[chat-agent] artifact outline planning failed, using deterministic outline", error);
+    return fallback;
+  }
 }
 
 function blockInstructions(input: {
@@ -188,6 +273,7 @@ async function persistAndPublishHtml(input: {
   brief: string;
   theme: ArtifactTheme;
   blocks: ArtifactBlock[];
+  abortSignal: AbortSignal;
   blockContent: (block: ArtifactBlock, index: number) => Promise<string>;
 }) {
   const generation = await reserveArtifactGeneration({
@@ -211,15 +297,29 @@ async function persistAndPublishHtml(input: {
     },
     blocks: input.blocks.map((block) => ({ id: block.id, type: block.type, brief: block.brief })),
   });
+  // Best-effort: a single block's model failure degrades to a visible error
+  // section (compileArtifactHtml renders it) instead of discarding the whole
+  // run. Only a real abort (user stop / timeout) is fatal and propagates,
+  // which also cancels the other in-flight model calls via the shared signal.
   await mapConcurrent(input.blocks, ARTIFACT_GENERATION_CONCURRENCY, async (block, index) => {
-    const html = await input.blockContent(block, index);
+    let payload: string;
+    try {
+      const html = await input.blockContent(block, index);
+      payload = JSON.stringify({ title: block.title, html });
+    } catch (error) {
+      if (input.abortSignal.aborted) throw error;
+      console.error("[chat-agent] artifact block failed, degrading to error section", {
+        blockId: block.id,
+        error,
+      });
+      payload = JSON.stringify({ title: block.title, error: String(error).slice(0, 500) });
+    }
     await saveArtifactBlock({
       userId: input.context.userId,
       generationId: generation.id,
       blockId: block.id,
-      content: JSON.stringify({ title: block.title, html }),
+      content: payload,
     });
-    return html.length;
   });
   const stored = await listArtifactBlocks(input.context.userId, generation.id);
   if (stored.length !== input.blocks.length) {
@@ -232,8 +332,8 @@ async function persistAndPublishHtml(input: {
     parts: input.blocks,
     stored,
   });
-  if (compiled.partsFailed > 0) {
-    throw new Error(`artifact compile rejected ${compiled.partsFailed} blocks`);
+  if (compiled.partsOk === 0) {
+    throw new Error(`artifact generation produced no usable blocks (${compiled.partsFailed} failed)`);
   }
   const published = await publishArtifactRevision({
     userId: input.context.userId,
@@ -250,7 +350,8 @@ async function persistAndPublishHtml(input: {
     kind: "html" as const,
     total_chars: published.total_chars,
     blocks_total: input.blocks.length,
-    blocks_done: input.blocks.length,
+    blocks_done: compiled.partsOk,
+    blocks_failed: compiled.partsFailed,
   };
 }
 
@@ -298,6 +399,8 @@ export async function writeFileTool(
       mode: input.mode,
       brief: input.brief,
       pageCount: input.page_count,
+      model: tools.model,
+      abortSignal: signal,
     });
     return await persistAndPublishHtml({
       context,
@@ -308,6 +411,7 @@ export async function writeFileTool(
       brief: input.brief,
       theme: outline.theme,
       blocks: outline.blocks,
+      abortSignal: signal,
       blockContent: (block) => generateBlock({ block, mode: input.mode, theme: outline.theme, outline: outline.blocks, artifactBrief: input.brief, tools, abortSignal: signal }),
     });
   } catch (error) {
@@ -425,6 +529,7 @@ export async function editFileTool(
       brief: input.brief,
       theme: edit.theme,
       blocks,
+      abortSignal: signal,
       blockContent: async (block) => {
         const action = actions.get(block.id)!;
         const source = action.sourceId ? byId.get(action.sourceId) : undefined;
@@ -432,17 +537,31 @@ export async function editFileTool(
           if (!source) throw new Error(`reuse block ${block.id} has no valid sourceId`);
           return source.html;
         }
-        return generateBlock({
-          block,
-          mode,
-          theme: edit.theme,
-          outline: blocks,
-          artifactBrief: input.brief,
-          tools,
-          abortSignal: signal,
-          currentHtml: action.action === "revise" ? source?.html : undefined,
-          changeBrief: input.brief,
-        });
+        try {
+          return await generateBlock({
+            block,
+            mode,
+            theme: edit.theme,
+            outline: blocks,
+            artifactBrief: input.brief,
+            tools,
+            abortSignal: signal,
+            currentHtml: action.action === "revise" ? source?.html : undefined,
+            changeBrief: input.brief,
+          });
+        } catch (error) {
+          // On edit, a failed revise keeps the original block instead of
+          // destroying good content; only abort is fatal.
+          if (signal.aborted) throw error;
+          if (action.action === "revise" && source) {
+            console.error("[chat-agent] artifact revise failed, keeping original block", {
+              blockId: block.id,
+              error,
+            });
+            return source.html;
+          }
+          throw error;
+        }
       },
     });
   } catch (error) {
