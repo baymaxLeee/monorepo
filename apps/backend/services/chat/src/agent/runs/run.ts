@@ -30,6 +30,7 @@ import {
 import { createAgent } from "../agents/factory.js";
 import { extractMemoryCandidates } from "../memory/extractor.js";
 import { failAgentRun } from "../observability/lifecycle.js";
+import { referencedDocumentIdsFromParts } from "../context/file-parts.js";
 import { projectModelContext } from "../context/projector.js";
 import { buildAgentInstructions } from "../context/instructions.js";
 import { acquireRunLease, registerRunController, releaseRun } from "./lease.js";
@@ -144,11 +145,7 @@ function textFromUiMessage(message: AnyUIMessage): string {
 }
 
 function referencedDocumentIds(message: AnyUIMessage): string[] {
-  return message.parts.flatMap((part) => {
-    if (part.type !== "data-document-reference") return [];
-    const id = (part.data as { document_id?: unknown }).document_id;
-    return typeof id === "string" ? [id] : [];
-  });
+  return referencedDocumentIdsFromParts(message.parts);
 }
 
 function serializeMessageContent(message: AnyUIMessage): string {

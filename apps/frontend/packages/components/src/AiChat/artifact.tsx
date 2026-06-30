@@ -1,7 +1,8 @@
+import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { XIcon } from "lucide-react";
-import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 import { cn } from "shared";
+import { MarkdownEditor } from "components/markdown-editor";
 import { Button } from "../Button";
 import {
   Tooltip,
@@ -149,7 +150,14 @@ export function ArtifactContent({ className, ...props }: ArtifactContentProps) {
   );
 }
 
-export type ArtifactPreviewKind = "html" | "markdown" | "text";
+export type ArtifactPreviewKind =
+  | "html"
+  | "markdown"
+  | "text"
+  | "image"
+  | "video"
+  | "audio"
+  | "pdf";
 
 export type ArtifactPreviewProps = HTMLAttributes<HTMLDivElement> & {
   title: string;
@@ -168,6 +176,10 @@ function resolveArtifactPreviewKind(
   filename?: string,
 ): ArtifactPreviewKind {
   if (kind) return kind;
+  if (mimeType?.startsWith("image/")) return "image";
+  if (mimeType?.startsWith("video/")) return "video";
+  if (mimeType?.startsWith("audio/")) return "audio";
+  if (mimeType?.includes("pdf") || filename?.endsWith(".pdf")) return "pdf";
   if (mimeType?.includes("html") || filename?.endsWith(".html")) return "html";
   if (
     mimeType?.includes("markdown") ||
@@ -208,7 +220,31 @@ export function ArtifactPreview({
         </ArtifactHeader>
       ) : null}
       <ArtifactContent className="min-h-0 p-0">
-        {resolvedKind === "html" ? (
+        {resolvedKind === "image" && src ? (
+          <div className="flex h-full min-h-[40svh] items-center justify-center bg-muted/20 p-4">
+            <img
+              src={src}
+              alt={title}
+              className="max-h-[70svh] max-w-full object-contain"
+            />
+          </div>
+        ) : resolvedKind === "video" && src ? (
+          <video
+            src={src}
+            controls
+            className="h-full min-h-[40svh] w-full bg-black"
+          />
+        ) : resolvedKind === "audio" && src ? (
+          <div className="flex min-h-[20svh] items-center justify-center p-6">
+            <audio src={src} controls className="w-full max-w-xl" />
+          </div>
+        ) : resolvedKind === "pdf" && src ? (
+          <iframe
+            title={title}
+            src={src}
+            className="h-full min-h-[60svh] w-full bg-white"
+          />
+        ) : resolvedKind === "html" ? (
           <iframe
             title={title}
             sandbox="allow-scripts"
@@ -218,7 +254,7 @@ export function ArtifactPreview({
           />
         ) : resolvedKind === "markdown" ? (
           <div className="p-4">
-            <MessageResponse>{content}</MessageResponse>
+            <MarkdownEditor contentType="markdown" defaultValue={content} />
           </div>
         ) : (
           <pre className="h-full min-h-[60svh] overflow-auto whitespace-pre-wrap p-4 text-sm">

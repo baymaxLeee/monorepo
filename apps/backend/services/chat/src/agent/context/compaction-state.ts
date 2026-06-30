@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import { documentIdFromFilePart } from "./file-parts.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
@@ -70,9 +71,11 @@ export function buildCompactionState(input: {
     ...(input.previous?.documentReferences ?? []),
     ...input.messages.flatMap((message) =>
       message.parts.flatMap((part) => {
-        if (part.type !== "data-document-reference") return [];
-        const id = (part.data as { document_id?: unknown }).document_id;
-        return typeof id === "string" ? [id] : [];
+        if (part.type === "file") {
+          const id = documentIdFromFilePart(part);
+          return id ? [id] : [];
+        }
+        return [];
       }),
     ),
   ])].slice(-32);

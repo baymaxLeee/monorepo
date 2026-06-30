@@ -5,6 +5,10 @@ import { getDocument, getDocumentSource } from "../../clients/knowledge.js";
 import { getDb } from "../../db/index.js";
 import { conversationContexts } from "../../db/schema.js";
 import { buildCompactionState, type CompactionState } from "./compaction-state.js";
+import {
+  documentIdFromFilePart,
+  isImageMediaType,
+} from "./file-parts.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
@@ -96,6 +100,70 @@ async function saveSnapshot(
     // Another run created the first snapshot. Its revision wins; the next run
     // will compact incrementally from that canonical state.
   }
+}
+
+async function transformUserFilePartsForModel(
+  messages: AnyUIMessage[],
+  userId: string,
+): Promise<AnyUIMessage[]> {
+  const imageDocIds = new Set<string>();
+  for (const message of messages) {
+    if (message.role !== "user") continue;
+    for (const part of message.parts) {
+      if (part.type !== "file") continue;
+      const docId = documentIdFromFilePart(part);
+      if (docId && isImageMediaType(String(part.mediaType ?? ""))) {
+        imageDocIds.add(docId);
+      }
+    }
+  }
+
+  const imageFiles = new Map<string, { data: Uint8Array; filename: string; mediaType: string }>();
+  await Promise.all([...imageDocIds].map(async (documentId) => {
+    try {
+      const source = await getDocumentSource(userId, documentId);
+      const part = messages
+        .flatMap((message) => (message.role === "user" ? message.parts : []))
+        .find((candidate) => candidate.type === "file" && documentIdFromFilePart(candidate) === documentId);
+      imageFiles.set(documentId, {
+        data: source.bytes,
+        filename:
+          (part?.type === "file" ? part.filename : undefined) || "image",
+        mediaType: source.mimeType || "application/octet-stream",
+      });
+    } catch (error) {
+      console.error("[chat-context] failed to load image attachment", error);
+    }
+  }));
+
+  return messages.map((message) => {
+    if (message.role !== "user") return message;
+    return {
+      ...message,
+      parts: message.parts.flatMap((part): AnyUIMessage["parts"] => {
+        if (part.type !== "file") return [part];
+        const docId = documentIdFromFilePart(part);
+        if (!docId) return [part];
+        const mediaType = String(part.mediaType ?? "application/octet-stream");
+        if (isImageMediaType(mediaType)) {
+          const image = imageFiles.get(docId);
+          if (image) {
+            const base64 = Buffer.from(image.data).toString("base64");
+            return [{
+              type: "file" as const,
+              mediaType: image.mediaType,
+              filename: image.filename,
+              url: `data:${image.mediaType};base64,${base64}`,
+            }];
+          }
+        }
+        return [{
+          type: "text" as const,
+          text: `<document_reference id="${docId}" filename="${String(part.filename ?? "")}" mime_type="${mediaType}" />`,
+        }];
+      }),
+    } as AnyUIMessage;
+  });
 }
 
 export async function projectModelContext(input: {
@@ -195,43 +263,11 @@ export async function projectModelContext(input: {
     }
   }
 
-  const currentUserMessage = [...recent].reverse().find((message) => message.role === "user");
-  const imageReferences = currentUserMessage?.parts.flatMap((part) => {
-    if (part.type !== "data-document-reference") return [];
-    const data = part.data as { document_id?: unknown; filename?: unknown; mime_type?: unknown };
-    return typeof data.document_id === "string" &&
-      typeof data.mime_type === "string" && data.mime_type.startsWith("image/")
-      ? [{ id: data.document_id, filename: String(data.filename ?? "image"), mediaType: data.mime_type }]
-      : [];
-  }) ?? [];
-  const imageFiles = new Map<string, { data: Uint8Array; filename: string; mediaType: string }>();
-  await Promise.all(imageReferences.map(async (reference) => {
-    try {
-      const source = await getDocumentSource(input.userId, reference.id);
-      imageFiles.set(reference.id, {
-        data: source.bytes,
-        filename: reference.filename,
-        mediaType: source.mimeType || reference.mediaType,
-      });
-    } catch (error) {
-      console.error("[chat-context] failed to load current image", error);
-    }
-  }));
-
-  const converted = await convertToModelMessages(recent, {
+  const modelReadyRecent = await transformUserFilePartsForModel(recent, input.userId);
+  const converted = await convertToModelMessages(modelReadyRecent, {
     convertDataPart: (part) => {
       if (part.type === "data-plan-execution") {
         return { type: "text", text: `<referenced_plan>${JSON.stringify(part.data)}</referenced_plan>` };
-      }
-      if (part.type === "data-document-reference") {
-        const data = part.data as { document_id?: unknown; filename?: unknown; mime_type?: unknown };
-        if (typeof data.document_id !== "string") return undefined;
-        const image = imageFiles.get(data.document_id);
-        if (image) return { type: "file", ...image };
-        return {
-          type: "text",
-          text: `<document_reference id="${data.document_id}" filename="${String(data.filename ?? "")}" mime_type="${String(data.mime_type ?? "")}" />`,
-        };
       }
       return undefined;
     },

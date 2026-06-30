@@ -2,7 +2,6 @@ import { useChat } from "@ai-sdk/react";
 import {
   DefaultChatTransport,
   lastAssistantMessageIsCompleteWithToolCalls,
-  type UIMessage,
 } from "ai";
 import {
   type Message as ApiMessage,
@@ -55,17 +54,20 @@ import { useShallow } from "zustand/react/shallow";
 import { ArtifactJobBar } from "../components/ArtifactJobBar";
 import { ChatComposerControls } from "../components/ChatComposerControls";
 import { ChatMessageView } from "../components/ChatMessageView";
+import { useDocumentPreviewSource } from "../components/ChatMessageFilePart";
 import { ChatTracePanel } from "../components/ChatTracePanel";
+import { buildUserFilePart } from "../lib/file-parts";
+import type { ChatUIMessage } from "../lib/chat-message";
 import { MemoryPanel } from "../components/MemoryPanel";
 import { useChatStore } from "../store/useChatStore";
 import { useMemoryStore } from "../store/useMemoryStore";
 
 const MEMORY_CANDIDATE_POLL_MS = 10_000;
 
-function messageToUiMessage(message: ApiMessage): UIMessage {
+function messageToUiMessage(message: ApiMessage): ChatUIMessage {
   try {
     const payload = JSON.parse(message.content) as {
-      parts?: UIMessage["parts"];
+      parts?: ChatUIMessage["parts"];
     };
     if (Array.isArray(payload.parts)) {
       return {
@@ -84,7 +86,7 @@ function messageToUiMessage(message: ApiMessage): UIMessage {
   };
 }
 
-function isRunning(status: ReturnType<typeof useChat<UIMessage>>["status"]) {
+function isRunning(status: ReturnType<typeof useChat<ChatUIMessage>>["status"]) {
   return status === "streaming" || status === "submitted";
 }
 
@@ -98,6 +100,9 @@ export function Chat() {
   );
   const [artifactLoading, setArtifactLoading] = useState(false);
   const [artifactPreviewHtml, setArtifactPreviewHtml] = useState<string | null>(
+    null,
+  );
+  const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(
     null,
   );
   const [thinking, setThinking] = useState(false);
@@ -153,7 +158,7 @@ export function Chat() {
 
   const transport = useMemo(
     () =>
-      new DefaultChatTransport<UIMessage>({
+      new DefaultChatTransport<ChatUIMessage>({
         api: id
           ? conversationAgentStreamUrl(id)
           : "/api/chat-server/conversations/missing/agents/run/stream",
@@ -189,7 +194,7 @@ export function Chat() {
     resumeStream,
     addToolOutput,
     status,
-  } = useChat<UIMessage>({
+  } = useChat<ChatUIMessage>({
     id: id ?? "chat",
     transport,
     resume: false,
@@ -216,6 +221,11 @@ export function Chat() {
       map.set(document.id, document);
     return map;
   }, [detail?.documents]);
+  const { blobUrl: artifactPreviewSrc } = useDocumentPreviewSource(
+    id,
+    previewDocumentId,
+    artifactOpen,
+  );
 
   useEffect(() => {
     if (!id) return;
@@ -285,43 +295,37 @@ export function Chat() {
   }, [id]);
 
   async function submit(value: PromptInputValue) {
-    if (busy) return;
+    if (busy || !id) return;
     const documentIds = value.tokens.flatMap((token) => {
-      const id = token.meta?.artifactId;
-      return typeof id === "string" ? [id] : [];
+      const tokenId = token.meta?.artifactId;
+      return typeof tokenId === "string" ? [tokenId] : [];
     });
     const text =
       value.text.trim() ||
       (documentIds.length ? "请阅读并处理我附加的文件。" : "");
     if (!text) return;
-    const parts: Array<Record<string, unknown>> = value.segments.flatMap(
-      (segment): Array<Record<string, unknown>> => {
-        if (segment.type === "text") {
-          return segment.text
-            ? [{ type: "text" as const, text: segment.text }]
-            : [];
-        }
-        const documentId = segment.token.meta?.artifactId;
-        if (typeof documentId !== "string") return [];
-        return [
-          {
-            type: "data-document-reference" as const,
-            data: {
-              document_id: documentId,
-              filename: segment.token.label,
-              mime_type: segment.token.mime ?? "application/octet-stream",
-            },
-          },
-        ];
-      },
-    );
+    const parts = value.segments.flatMap((segment): ChatUIMessage["parts"][number][] => {
+      if (segment.type === "text") {
+        return segment.text ? [{ type: "text" as const, text: segment.text }] : [];
+      }
+      const documentId = segment.token.meta?.artifactId;
+      if (typeof documentId !== "string" || !id) return [];
+      return [
+        buildUserFilePart({
+          conversationId: id,
+          documentId,
+          filename: segment.token.label,
+          mimeType: segment.token.mime ?? "application/octet-stream",
+        }),
+      ];
+    });
     if (!parts.some((part) => part.type === "text")) {
       parts.push({ type: "text", text });
     }
     promptRef.current?.clear();
     try {
       await sendMessage(
-        { parts: parts as UIMessage["parts"] },
+        { parts },
         { body: { ...requestBody, document_ids: documentIds } },
       );
     } catch (error) {
@@ -392,7 +396,7 @@ export function Chat() {
         parts: [
           { type: "text", text: "请按照这个计划开始执行。" },
           { type: "data-plan-execution", data: { document_id: documentId } },
-        ] as UIMessage["parts"],
+        ] as ChatUIMessage["parts"],
       },
       { body: { ...requestBody, document_ids: [documentId] } },
     );
@@ -413,6 +417,7 @@ export function Chat() {
 
   function openArtifact(documentId: string) {
     if (!id) return;
+    setPreviewDocumentId(documentId);
     setArtifactOpen(true);
     setArtifactLoading(true);
     setArtifactPreviewHtml(null);
@@ -490,6 +495,7 @@ export function Chat() {
                 <ChatMessageView
                   key={message.id}
                   message={message}
+                  conversationId={id ?? ""}
                   streaming={busy && message === messages.at(-1)}
                   documents={documents}
                   onOpenArtifact={openArtifact}
@@ -589,7 +595,13 @@ export function Chat() {
         </div>
       </div>
 
-      <Sheet open={artifactOpen} onOpenChange={setArtifactOpen}>
+      <Sheet
+        open={artifactOpen}
+        onOpenChange={(open) => {
+          setArtifactOpen(open);
+          if (!open) setPreviewDocumentId(null);
+        }}
+      >
         <SheetContent
           side="right"
           className="w-full min-w-0 gap-0 overflow-hidden sm:max-w-5xl"
@@ -611,6 +623,7 @@ export function Chat() {
                 filename={artifact.filename}
                 mimeType={artifact.mime_type}
                 content={artifactPreviewHtml ?? artifact.content_md}
+                src={artifactPreviewSrc ?? undefined}
                 showHeader={false}
                 className="h-full rounded-none border-0 shadow-none"
               />

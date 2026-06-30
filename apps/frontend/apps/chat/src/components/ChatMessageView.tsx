@@ -1,4 +1,4 @@
-import { getToolName, isToolUIPart, type UIMessage } from "ai";
+import { getToolName, isFileUIPart, isToolUIPart, type UIMessage } from "ai";
 import type { ConversationDocument } from "api";
 import { Button, Checkbox, Input } from "components";
 import {
@@ -21,9 +21,11 @@ import {
   parseArtifactOutput,
   StreamingArtifactCard,
 } from "./ChatArtifactCard";
+import { ChatMessageFilePart } from "./ChatMessageFilePart";
 
 export interface ChatMessageViewProps {
   message: UIMessage;
+  conversationId: string;
   streaming: boolean;
   documents: Map<string, ConversationDocument>;
   onOpenArtifact: (documentId: string) => void;
@@ -38,6 +40,7 @@ export interface ChatMessageViewProps {
 
 export function ChatMessageView({
   message,
+  conversationId,
   streaming,
   documents,
   onOpenArtifact,
@@ -49,33 +52,61 @@ export function ChatMessageView({
     isMessageStreaming: streaming,
   });
   const allVisibleParts = withoutReasoningParts(message.parts);
+  const isUser = message.role === "user";
 
   return (
     <AiMessage from={message.role}>
       <MessageContent>
-        <div className="mb-1 text-xs opacity-70">
-          {message.role === "user" ? "你" : "助手"}
-        </div>
-        <div className="space-y-3">
-          {reasoning ? (
-            <Reasoning isStreaming={reasoning.isStreaming}>
-              <ReasoningTrigger />
-              <ReasoningContent>{reasoning.text}</ReasoningContent>
-            </Reasoning>
-          ) : null}
-          {allVisibleParts.map(({ part, index }) => (
-            <MessagePartView
-              key={partKey(message.id, part, index)}
-              part={part}
-              streaming={streaming}
-              documents={documents}
-              onOpenArtifact={onOpenArtifact}
-              onAnswerClientTool={onAnswerClientTool}
-              onContinuePlan={onContinuePlan}
-              onExecutePlan={onExecutePlan}
-            />
-          ))}
-        </div>
+        {!isUser ? (
+          <div className="mb-1 text-xs text-muted-foreground">助手</div>
+        ) : null}
+        {isUser ? (
+          <div className="flex flex-wrap items-center gap-x-1 gap-y-2 leading-relaxed">
+            {reasoning ? (
+              <Reasoning isStreaming={reasoning.isStreaming}>
+                <ReasoningTrigger />
+                <ReasoningContent>{reasoning.text}</ReasoningContent>
+              </Reasoning>
+            ) : null}
+            {allVisibleParts.map(({ part, index }) => (
+              <MessagePartView
+                key={partKey(message.id, part, index)}
+                part={part}
+                conversationId={conversationId}
+                streaming={streaming}
+                variant="user"
+                documents={documents}
+                onOpenArtifact={onOpenArtifact}
+                onAnswerClientTool={onAnswerClientTool}
+                onContinuePlan={onContinuePlan}
+                onExecutePlan={onExecutePlan}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {reasoning ? (
+              <Reasoning isStreaming={reasoning.isStreaming}>
+                <ReasoningTrigger />
+                <ReasoningContent>{reasoning.text}</ReasoningContent>
+              </Reasoning>
+            ) : null}
+            {allVisibleParts.map(({ part, index }) => (
+              <MessagePartView
+                key={partKey(message.id, part, index)}
+                part={part}
+                conversationId={conversationId}
+                streaming={streaming}
+                variant="assistant"
+                documents={documents}
+                onOpenArtifact={onOpenArtifact}
+                onAnswerClientTool={onAnswerClientTool}
+                onContinuePlan={onContinuePlan}
+                onExecutePlan={onExecutePlan}
+              />
+            ))}
+          </div>
+        )}
       </MessageContent>
     </AiMessage>
   );
@@ -92,7 +123,9 @@ function partKey(
 
 function MessagePartView({
   part,
+  conversationId,
   streaming,
+  variant,
   documents,
   onOpenArtifact,
   onAnswerClientTool,
@@ -100,7 +133,9 @@ function MessagePartView({
   onExecutePlan,
 }: {
   part: UIMessage["parts"][number];
+  conversationId: string;
   streaming: boolean;
+  variant: "user" | "assistant";
   documents: Map<string, ConversationDocument>;
   onOpenArtifact: (documentId: string) => void;
   onAnswerClientTool: (
@@ -112,6 +147,11 @@ function MessagePartView({
   onExecutePlan: (documentId: string) => void;
 }) {
   if (part.type === "text") {
+    if (variant === "user") {
+      return (
+        <span className="whitespace-pre-wrap break-words">{part.text}</span>
+      );
+    }
     return (
       <MessageResponse isAnimating={streaming}>{part.text}</MessageResponse>
     );
@@ -131,6 +171,17 @@ function MessagePartView({
       >
         {part.title ?? part.url}
       </a>
+    );
+  }
+
+  if (isFileUIPart(part)) {
+    return (
+      <ChatMessageFilePart
+        conversationId={conversationId}
+        part={part}
+        variant={variant}
+        onOpen={onOpenArtifact}
+      />
     );
   }
 
