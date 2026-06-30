@@ -195,7 +195,7 @@ export function ChatLayout() {
 
         <div
           className={cn(
-            "relative z-10 col-start-3 min-w-0 overflow-visible bg-background",
+            "relative z-10 col-start-3 flex min-h-0 min-w-0 flex-col bg-background",
             artifactOpen ? "opacity-100" : "pointer-events-none opacity-0",
             shell.compact &&
               "absolute inset-y-0 right-0 z-30 shadow-xl max-[639px]:w-full",
@@ -219,7 +219,7 @@ export function ChatLayout() {
             onDragStart={() => shell.startResize("right-panel")}
             onDragEnd={() => shell.endResize("right-panel")}
           />
-          <div className="h-full min-w-0 overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-hidden">
             <ChatArtifactPanel onClose={shell.closeArtifact} />
           </div>
         </div>

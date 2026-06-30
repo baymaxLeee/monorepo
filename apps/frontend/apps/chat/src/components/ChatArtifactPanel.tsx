@@ -138,7 +138,7 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
           <XIcon className="size-4" />
         </Button>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden [&_iframe]:h-full [&_iframe]:min-h-0 [&_pre]:h-full [&_pre]:min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {previewLoading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             加载中…
@@ -155,7 +155,7 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
             content={previewHtml ?? artifact.content_md}
             src={previewSrc ?? undefined}
             showHeader={false}
-            className="h-full rounded-none border-0 bg-transparent shadow-none"
+            className="h-full min-h-0 overflow-hidden rounded-none border-0 bg-transparent shadow-none [&>div]:min-h-0 [&>div]:flex-1 [&>div]:overflow-y-auto [&>div]:overscroll-contain [&>div]:[scrollbar-width:none] [&>div]:[-ms-overflow-style:none] [&>div::-webkit-scrollbar]:hidden [&_iframe]:h-full [&_iframe]:min-h-0 [&_pre]:min-h-0 [&_pre]:overflow-visible"
           />
         ) : open ? (
           <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
