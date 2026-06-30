@@ -40,11 +40,11 @@ observability in MySQL and consumes admin (providers) plus knowledge
 ## Entry points
 
 - `src/routes/agents.ts` — run stream and trace routes
-- `src/services/agent/execution/run.ts` — request/stream/persistence orchestration
-- `src/services/agent/agent.ts` — ToolLoopAgent definition
-- `src/services/agent/capabilities/registry.ts` — built-in、Skill 与 MCP capability assembly
-- `src/services/agent/context/projector.ts` — bounded model context projection
-- `src/services/agent/README.md` — module boundaries and extension rules
+- `src/agent/runs/run.ts` — request/stream/persistence orchestration
+- `src/agent/agents/tool-loop.ts` — ToolLoopAgent implementation
+- `src/agent/tools/catalog.ts` — built-in tools and run-scoped extension assembly
+- `src/agent/context/projector.ts` — bounded model context projection
+- `src/agent/README.md` — module boundaries and extension rules
 - `src/gen-openapi.ts` — OpenAPI export
 
 Run from `apps/backend`: `just lint chat`, `just build chat`,

@@ -11,7 +11,7 @@ import {
   listPendingCandidates,
   rejectCandidate,
   updateCandidate,
-} from "../services/agent/index.js";
+} from "../agent/index.js";
 
 export const memoriesRoutes = new Hono();
 

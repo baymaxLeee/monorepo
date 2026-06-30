@@ -1,2 +1,0 @@
-export const MAX_MEMORY_CANDIDATES_PER_RUN = 5;
-

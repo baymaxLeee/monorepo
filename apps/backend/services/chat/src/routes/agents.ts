@@ -12,7 +12,7 @@ import {
   cancelRun,
   activeAgentStreamRunId,
   replayAgentSseStream,
-} from "../services/agent/index.js";
+} from "../agent/index.js";
 import { getConversationRow } from "../services/conversations.js";
 
 export const agentsRoutes = new Hono();

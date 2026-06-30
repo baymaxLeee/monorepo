@@ -1,0 +1,45 @@
+# Chat Agent
+
+本目录以 AI SDK 7 `Agent` interface 为稳定边界。Chat 只有一个通用主 Agent；执行机制由
+runtime 决定，业务行为由 profile、context、tools 和 policy 组合，不按用户语义复制 Agent。
+
+```text
+agent/
+├── agents/          # Agent factory、ToolLoop 实现及未来 Workflow/Harness adapters
+├── profiles/        # normal、plan 等行为配置；不是独立 Agent
+├── context/         # UIMessage → bounded ModelMessage、instructions、compaction
+├── tools/           # 薄 tool adapters、per-tool context、实例化 catalog
+├── integrations/    # MCP、Skills 等 instructions/tools 扩展
+├── runs/            # run 编排、lease/cancel、trace persistence
+├── streams/         # Redis-backed UIMessage SSE transport resume
+├── memory/          # durable memory 与 extraction
+├── artifacts/       # artifact generation/compiler/worker
+├── plans/           # plan domain service
+├── providers/       # provider/model adapter
+└── observability/   # product run/step/tool lifecycle
+```
+
+## Runtime policy
+
+- `ToolLoopAgent` 是当前默认且唯一启用的交互 runtime。
+- `WorkflowAgent` 只用于必须跨进程、部署、重试或长时间等待后恢复的 run。
+- `HarnessAgent` 只用于 Codex、Claude Code、Pi 等外部 harness session；其 API 仍属实验边界。
+- Runtime 在 run 开始前由 profile/policy 明确选择并持久化，模型不能自行切换 runtime。
+- Workflow 和 subagent 可以作为主 Agent 的 delegation tools，也可以通过统一 Agent API 独立运行。
+
+## Context and tools
+
+- AI SDK `runtimeContext` 保存 run/profile 级状态；视为 immutable，只能在 `prepareStep` 更新。
+- 每个 tool 通过自己的 `contextSchema` 获得最小权限数据，不共享万能 ToolContext。
+- `tools/` 只放模型调用边界；artifact、memory、plan 的业务实现属于各自 subsystem。
+- `ToolCatalog` 是可实例化对象。默认 catalog 只作为应用 composition root，禁止模块级数组泄漏租户状态。
+- Skills 可以贡献 instructions 和 tools；MCP 必须显式筛选工具/schema，不能直接暴露远端全集。
+- Subagent 通过 tool delegation 运行独立 context，并将压缩后的 `toModelOutput` 返回主模型。
+
+## Persistence boundaries
+
+- Thread/message persistence：恢复业务会话。
+- Redis UIMessage SSE：浏览器刷新、断网和切换会话后的 transport resume。
+- Workflow/Harness session：进程崩溃、部署或长期等待后的 execution resume。
+
+三者不能混为一种“断点续传”。浏览器断开只移除 subscriber；只有显式 cancel 才终止 run。
