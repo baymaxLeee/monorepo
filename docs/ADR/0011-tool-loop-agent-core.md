@@ -3,15 +3,17 @@
 ## Status
 
 Accepted. Supersedes ADR-0005 and the Workflow PostgreSQL clauses of ADR-0006.
+The stream transport lifecycle below is amended by ADR-0013.
 
 ## Decision
 
 - The core chat run uses AI SDK v7 `ToolLoopAgent` and a direct UIMessage SSE
   response. The browser uses `DefaultChatTransport`.
-- Run/Stop is the only execution lifecycle. Stop aborts the request and all
-  model/search/tool work that accepts an AbortSignal.
-- The main agent has no Workflow DevKit host, stream replay endpoint, hook
-  resume endpoint, Workflow PostgreSQL, or workflow version binding.
+- Run/Stop is the only execution lifecycle. Stop cancels the server run and all
+  model/search/tool work that accepts its AbortSignal; HTTP disconnect does not.
+- The main agent has no Workflow DevKit host, durable stack resume, Workflow
+  PostgreSQL, or workflow version binding. ADR-0013 adds native SSE replay at
+  the transport boundary without changing ToolLoopAgent state.
 - Continuation is a new run built from persisted UI messages, plan snapshots,
   memory and artifact state. It does not restore an in-memory execution stack.
 - Client tools follow AI SDK's native pattern: no server execute function,

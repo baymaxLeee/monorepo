@@ -46,7 +46,7 @@ export async function acquireRunLease(conversationId: string, runId: string): Pr
   }
 }
 
-export function registerRunController(runId: string, requestSignal?: AbortSignal): AbortSignal {
+export function registerRunController(runId: string): AbortSignal {
   const controller = new AbortController();
   controllers.set(runId, controller);
   heartbeats.set(runId, setInterval(() => {
@@ -67,10 +67,6 @@ export function registerRunController(runId: string, requestSignal?: AbortSignal
       })
       .catch((error) => console.error("[chat-agent] cancellation poll failed", error));
   }, CANCELLATION_POLL_MS));
-  if (requestSignal) {
-    if (requestSignal.aborted) controller.abort(requestSignal.reason);
-    else requestSignal.addEventListener("abort", () => controller.abort(requestSignal.reason), { once: true });
-  }
   return controller.signal;
 }
 

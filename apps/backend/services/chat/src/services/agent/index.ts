@@ -1,5 +1,6 @@
 export { createAgentRunResponse, getAgentRunTrace, type RunAgentInput } from "./execution/run.js";
 export { cancelRun } from "./execution/lease.js";
+export { activeAgentStreamRunId, replayAgentSseStream } from "./execution/stream.js";
 export { registerMcpCapability } from "./capabilities/mcp/register.js";
 export { registerSkillCapability } from "./capabilities/skills/register.js";
 export type {

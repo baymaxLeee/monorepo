@@ -8,15 +8,18 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 MySQL；
 ## API
 
 - `POST /conversations/{id}/agents/run/stream`：启动一次 ToolLoopAgent UI stream
+- `GET /conversations/{id}/agents/run/stream`：恢复当前活动 UI stream；无活动流返回 204
 - `GET /conversations/{id}/agents/runs/{runId}/trace`：读取步骤与 tool trace
 - 会话 CRUD 与文档 facade 路由保持不变
 
 ## Agent runtime
 
-- 主链使用 `ToolLoopAgent`。HTTP 请求的 AbortSignal 贯穿模型、web search、图片
-  分析和 artifact 内部模型调用；前端 Stop 后服务端不会继续生成。
-- 不提供 pause/resume/replay API。跨 run 的继续依靠持久化消息、plan snapshot 和
-  artifact 状态，而不是恢复进程栈。
+- 主链使用 `ToolLoopAgent`。服务端 run controller 的 AbortSignal 贯穿模型、web
+  search、图片分析和 artifact 内部模型调用；只有显式 Stop/cancel 才终止生成。
+- AI SDK 原生 UIMessage SSE 由 Redis 临时保存。刷新、网络断开或切换会话只断开
+  subscriber，GET 可从头重放活动 run；完成后清除 active 标记并由 MySQL 消息接管。
+- 该能力不恢复 ToolLoopAgent 的进程栈：服务进程丢失后仍依靠已持久化消息、plan
+  snapshot 和 artifact 状态创建新 run。
 - `ask_user` 没有服务端 execute；客户端 `addToolOutput` 后发起下一次 run。
 - assistant UIMessage 在 stream end（包括 abort 的部分输出）持久化；run trace 写入
   失败不能影响用户流。
@@ -34,4 +37,4 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 MySQL；
 - 主 Agent 等待高层 tool 完成，因此无需单独 server、child agent 或 workflow。
 
 跨服务调用必须经过 `@backend/transport-ts`；provider 配置归 admin，artifact 归
-knowledge。架构决策见 ADR-0011、ADR-0012。
+knowledge。架构决策见 ADR-0011、ADR-0012、ADR-0013。

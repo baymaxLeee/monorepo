@@ -73,13 +73,13 @@ Artifact Job
 
 - 同一 conversation 通过 DB lease 只允许一个 active run；冲突返回
   `409 active_run_exists`。完成、失败、取消释放 lease，过期 run 标为 interrupted。
-- 增加 `POST /conversations/:conversationId/agents/runs/:runId/cancel`。前端先
-  `useChat.stop()`，再 best-effort 取消服务端 run。
-- 服务端维护 `runId -> AbortController`，组合 request signal，并传播到模型、搜索、读取和
-  Artifact job。状态统一为 running、cancel_requested、cancelled、completed、failed、
-  interrupted；不提供 pause/resume/replay。
-- 页面刷新只读取持久化消息，不自动恢复旧 SSE。Abort 不弹错误 toast，已产生 parts 以
-  cancelled 状态保存。
+- 增加 `POST /conversations/:conversationId/agents/runs/:runId/cancel`。前端先发起
+  服务端 cancel，再用 `useChat.stop()` 断开本地 subscriber。
+- 服务端维护 `runId -> AbortController` 并传播到模型、搜索、读取和 Artifact job；浏览器
+  request signal 不再参与组合。状态统一为 running、cancel_requested、cancelled、
+  completed、failed、interrupted。
+- AI SDK 原生 UIMessage SSE tee 到 Redis Stream；页面刷新或切换会话通过同路径 GET
+  重放 active run。该重放不恢复进程栈，服务进程丢失仍由持久化上下文开启新 run。
 
 ## Artifact Job
 
@@ -111,7 +111,7 @@ Artifact Job
 - 100+ 轮会话、重复 file/search/tool 调用不再线性扩大模型上下文。
 - PromptInput 支持图/文件/文本原位混排、粘贴、拖放、上传进度、失败保留与重试；消息和
   MySQL 中无 base64。
-- 双标签发送只产生一个 run；Stop 真正终止模型和 Artifact；刷新不重复发 SSE。
+- 双标签发送只产生一个 run；Stop 真正终止模型和 Artifact；刷新恢复同一 run，不重复生成。
 - Artifact 进程崩溃后续跑，用户 Stop 后不后台继续但可复用 blocks；10/50/100 页 HTML
   可生成、更新、预览和内部跳转。
 - 执行 scoped lint/build、chat frontend build、knowledge lint 和 `just sync`；demo 阶段不

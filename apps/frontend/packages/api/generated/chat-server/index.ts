@@ -157,6 +157,15 @@ const deleteConversationsConversationId = (
       options);
     }
 
+const getConversationsConversationIdAgentsRunStream = (
+    conversationId: string,
+ options?: SecondParameter<typeof apiMutator<void>>,) => {
+      return apiMutator<void>(
+      {url: `/conversations/${conversationId}/agents/run/stream`, method: 'GET'
+    },
+      options);
+    }
+
 const postConversationsConversationIdAgentsRunStream = (
     conversationId: string,
  options?: SecondParameter<typeof apiMutator<void>>,) => {
@@ -294,7 +303,7 @@ const deleteMemoriesId = (
       options);
     }
 
-return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,postConversationsConversationIdAgentsRunStream,patchConversationsConversationIdMode,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdArtifactJobs,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
+return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,patchConversationsConversationIdMode,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdArtifactJobs,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -306,6 +315,7 @@ export type PostConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<
 export type GetConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationId']>>>
 export type PatchConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchConversationsConversationId']>>>
 export type DeleteConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['deleteConversationsConversationId']>>>
+export type GetConversationsConversationIdAgentsRunStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdAgentsRunStream']>>>
 export type PostConversationsConversationIdAgentsRunStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunStream']>>>
 export type PatchConversationsConversationIdModeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchConversationsConversationIdMode']>>>
 export type GetConversationsConversationIdDocumentsDocumentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdDocumentsDocumentId']>>>

@@ -56,6 +56,21 @@ const openapi = {
       },
     },
     "/conversations/{conversation_id}/agents/run/stream": {
+      get: {
+        parameters: [pathParam],
+        responses: {
+          "200": {
+            description: "resume the active ToolLoopAgent UI message stream",
+            headers: {
+              "x-agent-run-id": {
+                description: "Active agent run id",
+                schema: { type: "string" },
+              },
+            },
+          },
+          "204": { description: "no active stream" },
+        },
+      },
       post: {
         parameters: [pathParam],
         responses: {

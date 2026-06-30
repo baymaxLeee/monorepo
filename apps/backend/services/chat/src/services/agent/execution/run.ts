@@ -33,6 +33,11 @@ import { failAgentRun } from "../observability/lifecycle.js";
 import { projectModelContext } from "../context/projector.js";
 import { buildAgentInstructions } from "../instructions/builder.js";
 import { acquireRunLease, registerRunController, releaseRun } from "./lease.js";
+import {
+  activateAgentStream,
+  consumeAgentSseStream,
+  deactivateAgentStream,
+} from "./stream.js";
 
 export interface RunAgentInput {
   providerId?: string | null;
@@ -187,7 +192,6 @@ export async function createAgentRunResponse(
   provider: ProviderSnapshot,
   uiMessagesInput: unknown[],
   input: RunAgentInput,
-  abortSignal?: AbortSignal,
 ): Promise<Response> {
   const startedAt = performance.now();
   const conversation = await getConversationRow(auth, conversationId);
@@ -232,6 +236,16 @@ export async function createAgentRunResponse(
   } catch (error) {
     await finishAgentRun({ runId, status: "interrupted", error });
     throw error;
+  }
+
+  // Register before context/provider setup so a page refreshed before the POST
+  // response headers arrive can already attach and wait for the first chunk.
+  let resumable = false;
+  try {
+    await activateAgentStream(conversation.id, runId);
+    resumable = true;
+  } catch (error) {
+    console.error("[chat-agent] failed to activate resumable stream", error);
   }
 
   let disposeAgentResources: (() => Promise<void>) | null = null;
@@ -289,7 +303,9 @@ export async function createAgentRunResponse(
       latestUser ?? [...modelUiMessages].reverse().find((message) => message.role === "user");
     const memorySourceText = memorySourceUser ? textFromUiMessage(memorySourceUser) : "";
 
-    const runSignal = registerRunController(runId, abortSignal);
+    // Browser navigation only disconnects an SSE subscriber. Explicit Stop is
+    // propagated through the run cancellation endpoint and this controller.
+    const runSignal = registerRunController(runId);
     const mode = conversation.agentMode === "plan" ? "plan" : "normal";
     const projected = await projectModelContext({
       conversationId: conversation.id,
@@ -399,9 +415,17 @@ export async function createAgentRunResponse(
     return createUIMessageStreamResponse({
       stream: uiStream,
       headers: { "x-agent-run-id": runId },
+      consumeSseStream: resumable
+        ? ({ stream }) => consumeAgentSseStream(conversation.id, runId, stream)
+        : undefined,
     });
   } catch (error) {
     await disposeAgentResources?.();
+    if (resumable) {
+      await deactivateAgentStream(conversation.id, runId).catch((streamError) =>
+        console.error("[chat-agent] failed to clear resumable stream", streamError),
+      );
+    }
     await failAgentRun({ runId, error });
     await releaseRun(runId).catch(() => undefined);
     throw error;

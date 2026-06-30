@@ -1,6 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
+import { UI_MESSAGE_STREAM_HEADERS } from "ai";
 
 import { getProvider } from "../clients/admin.js";
 import { listUnfinishedArtifactGenerations } from "../clients/knowledge.js";
@@ -9,6 +10,8 @@ import {
   createAgentRunResponse,
   getAgentRunTrace,
   cancelRun,
+  activeAgentStreamRunId,
+  replayAgentSseStream,
 } from "../services/agent/index.js";
 import { getConversationRow } from "../services/conversations.js";
 
@@ -49,10 +52,43 @@ agentsRoutes.post(
         thinking: payload.thinking,
         reasoningEffort: payload.reasoning_effort,
       },
-      c.req.raw.signal,
     );
   },
 );
+
+agentsRoutes.get("/:conversationId/agents/run/stream", async (c) => {
+  const auth = getAuth(c);
+  const conversationId = c.req.param("conversationId");
+  await getConversationRow(auth, conversationId);
+  const runId = await activeAgentStreamRunId(conversationId);
+  if (!runId) return new Response(null, { status: 204 });
+
+  const encoder = new TextEncoder();
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const chunk of replayAgentSseStream(conversationId, runId)) {
+          if (cancelled) return;
+          controller.enqueue(encoder.encode(chunk));
+        }
+      } catch (error) {
+        if (!cancelled) controller.error(error);
+        return;
+      }
+      if (!cancelled) controller.close();
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  return new Response(body, {
+    headers: {
+      ...UI_MESSAGE_STREAM_HEADERS,
+      "x-agent-run-id": runId,
+    },
+  });
+});
 
 agentsRoutes.get("/:conversationId/agents/runs/:runId/trace", async (c) => {
   const trace = await getAgentRunTrace(

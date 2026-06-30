@@ -6,11 +6,13 @@ observability in MySQL and consumes admin (providers) plus knowledge
 
 ## Runtime contract
 
-- The core agent is AI SDK v7 `ToolLoopAgent`; the POST request owns one run.
-- `useChat.stop()` aborts that request. Propagate its `AbortSignal` into model,
-  search, multimodal, and nested artifact model calls.
-- Do not add pause/resume/replay state to the core chat path. Plans and messages
-  are durable business context; a later user run continues from that context.
+- The core agent is AI SDK v7 `ToolLoopAgent`; one POST creates one run.
+- Browser disconnect only drops an SSE subscriber. Redis retains the native
+  UIMessage SSE so `useChat.resumeStream()` can attach through the GET route.
+- Stop uses the run cancellation endpoint. Propagate the server-owned run
+  `AbortSignal` into model, search, multimodal, and nested artifact model calls.
+- Replay is a transport concern only: never model it as ToolLoopAgent state or
+  claim process-crash resume. Plans and messages remain durable business context.
 - `ask_user` is a client tool without `execute`. The browser supplies
   `addToolOutput`; AI SDK automatically starts the next request.
 - Trace persistence is observability and must never fail generation.

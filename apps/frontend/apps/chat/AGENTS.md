@@ -5,9 +5,11 @@ Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 ## Boundaries
 
 - Chat uses AI SDK `useChat` + `DefaultChatTransport` and native UIMessage
-  parts. Do not add a parallel SSE implementation.
-- The primary control is Send/Stop. Stop calls `useChat.stop()`; there is no
-  pause/resume/sessionStorage replay state.
+  parts. Reconnection replays that same protocol; do not add a parallel one.
+- After persisted messages load, call `resumeStream()` once per conversation.
+  Refresh and route changes disconnect only the subscriber. Stop calls both
+  `useChat.stop()` and the server run cancellation endpoint.
+- Do not add sessionStorage message/stream state; Redis is the replay buffer.
 - Client tools answer with `addToolOutput` and
   `lastAssistantMessageIsCompleteWithToolCalls`.
 - CRUD goes through `api`. The transport's custom fetch is only for the AI SDK

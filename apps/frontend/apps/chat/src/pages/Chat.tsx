@@ -108,6 +108,7 @@ export function Chat() {
   const [traceRefreshKey, setTraceRefreshKey] = useState(0);
   const [artifactJobs, setArtifactJobs] = useState<ArtifactJob[]>([]);
   const promptRef = useRef<PromptInputRef>(null);
+  const resumedConversationRef = useRef<string | null>(null);
   const {
     providers,
     selectedProviderId,
@@ -165,6 +166,11 @@ export function Chat() {
             message: messages.at(-1),
           },
         }),
+        prepareReconnectToStreamRequest: ({ api, credentials, headers }) => ({
+          api,
+          credentials,
+          headers,
+        }),
         fetch: async (request, init) => {
           const response = await fetch(request, init);
           const runId = response.headers.get("x-agent-run-id");
@@ -175,25 +181,33 @@ export function Chat() {
     [id],
   );
 
-  const { messages, setMessages, sendMessage, stop, addToolOutput, status } =
-    useChat<UIMessage>({
-      id: id ?? "chat",
-      transport,
-      sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
-      onError: (error) => {
-        if (/abort|aborted/i.test(error.message)) return;
-        toast.error(error.message);
-      },
-      onFinish: () => {
-        setTraceRefreshKey((key) => key + 1);
-        void refreshCandidates();
-        if (!id) return;
-        void fetchConversation(id).then((next) => {
-          setDetail(next);
-          setMessages(next.messages.map(messageToUiMessage));
-        });
-      },
-    });
+  const {
+    messages,
+    setMessages,
+    sendMessage,
+    stop,
+    resumeStream,
+    addToolOutput,
+    status,
+  } = useChat<UIMessage>({
+    id: id ?? "chat",
+    transport,
+    resume: false,
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    onError: (error) => {
+      if (/abort|aborted/i.test(error.message)) return;
+      toast.error(error.message);
+    },
+    onFinish: () => {
+      setTraceRefreshKey((key) => key + 1);
+      void refreshCandidates();
+      if (!id) return;
+      void fetchConversation(id).then((next) => {
+        setDetail(next);
+        setMessages(next.messages.map(messageToUiMessage));
+      });
+    },
+  });
 
   const busy = isRunning(status);
   const documents = useMemo(() => {
@@ -223,6 +237,34 @@ export function Chat() {
       active = false;
     };
   }, [id, setMessages]);
+
+  useEffect(() => {
+    resumedConversationRef.current = null;
+  }, [id]);
+
+  useEffect(() => {
+    if (
+      !id ||
+      loading ||
+      detail?.id !== id ||
+      busy ||
+      resumedConversationRef.current === id
+    ) {
+      return;
+    }
+    resumedConversationRef.current = id;
+    void resumeStream()
+      .then(async () => {
+        const next = await fetchConversation(id);
+        setDetail(next);
+        setMessages(next.messages.map(messageToUiMessage));
+      })
+      .catch((error) => {
+        const message = String(error);
+        if (/204|no active|not found/i.test(message)) return;
+        toast.error(message);
+      });
+  }, [busy, detail?.id, id, loading, resumeStream, setMessages]);
 
   useEffect(() => {
     if (!id) return;
