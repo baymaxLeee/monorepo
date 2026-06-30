@@ -1,12 +1,14 @@
 import { AdminInternalClient, TransportError, type AdminProviderSnapshot } from "@backend/transport-ts";
 import { getSettings } from "../config.js";
 import { AdminUnavailableError, ProviderNotConfiguredError } from "../lib/errors.js";
+import { assertPublicProviderUrl } from "./provider-url.js";
 
 export interface ProviderSnapshot {
   id: string;
   userId: string;
   name: string;
   model: string;
+  providerKind: string;
   baseUrl: string;
   apiKey: string;
   extraBody: Record<string, unknown>;
@@ -15,8 +17,6 @@ export interface ProviderSnapshot {
   isDefault: boolean;
   isEnabled: boolean;
 }
-
-const cache = new Map<string, { at: number; value: ProviderSnapshot }>();
 
 function adminClient(): AdminInternalClient {
   const settings = getSettings();
@@ -30,13 +30,6 @@ export async function getProvider(
   userId: string,
   providerId?: string | null,
 ): Promise<ProviderSnapshot> {
-  const settings = getSettings();
-  const key = `${userId}:${providerId ?? ""}`;
-  const cached = cache.get(key);
-  if (cached && Date.now() - cached.at < settings.providerCacheTtlSeconds * 1000) {
-    return cached.value;
-  }
-
   let data: AdminProviderSnapshot;
   try {
     const client = adminClient();
@@ -55,6 +48,7 @@ export async function getProvider(
     userId: data.user_id,
     name: data.name,
     model: data.model,
+    providerKind: data.provider_kind ?? "chat",
     baseUrl: data.base_url,
     apiKey: data.api_key,
     extraBody: data.extra_body ?? {},
@@ -63,7 +57,10 @@ export async function getProvider(
     isDefault: data.is_default,
     isEnabled: data.is_enabled,
   };
-  cache.set(key, { at: Date.now(), value: snapshot });
-  if (!providerId) cache.set(`${userId}:${snapshot.id}`, { at: Date.now(), value: snapshot });
+  try {
+    await assertPublicProviderUrl(snapshot.baseUrl);
+  } catch (error) {
+    throw new ProviderNotConfiguredError(`provider base URL is not allowed: ${String(error)}`);
+  }
   return snapshot;
 }

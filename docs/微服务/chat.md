@@ -31,6 +31,9 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 MySQL；
 - Markdown 与 HTML 统一由 `write_file` 创建、`edit_file` 更新。
 - 大型 HTML 在一次 tool execute 内完成 typed outline、4 路有界并发 block 生成、
   allowlist sanitize、compile 和完整发布；主 Agent 不传输 HTML 正文。
+- HTML block 自行生成 scoped CSS、主题、布局与图表 option；compiler 只提供安全壳、
+  CSP、网络型 CSS 清洗和 ECharts hydration，不按 document/presentation/dashboard
+  注入固定视觉模板。
 - `edit_file` 从 knowledge 读取最新 immutable revision，复用未改 block，只生成受影响
   block，并在同一个 document 下发布新 revision。
 - `run_command` 只提供 HTML 结构与内部链接检查，不执行宿主机 shell。

@@ -7,6 +7,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
 
+PROVIDER_KIND_CHAT = "chat"
+PROVIDER_KIND_IMAGE = "image"
+PROVIDER_KIND_VIDEO = "video"
+PROVIDER_KINDS = frozenset({PROVIDER_KIND_CHAT, PROVIDER_KIND_IMAGE, PROVIDER_KIND_VIDEO})
+
 
 class ModelProviderRow(Base):
     __tablename__ = "model_providers"
@@ -15,6 +20,7 @@ class ModelProviderRow(Base):
     user_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     model: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_kind: Mapped[str] = mapped_column(String(16), nullable=False, default=PROVIDER_KIND_CHAT)
     base_url: Mapped[str] = mapped_column(String(255), nullable=False)
     api_key_enc: Mapped[str] = mapped_column(Text, nullable=False)
     extra_body: Mapped[str] = mapped_column(Text, nullable=False, default="{}")

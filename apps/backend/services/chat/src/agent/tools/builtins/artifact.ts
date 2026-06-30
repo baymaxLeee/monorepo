@@ -45,14 +45,17 @@ export function createArtifactTools() {
   return {
     write_file: tool({
       description:
-        "Generate and persist a new Markdown or HTML file from a compact brief. HTML is planned and generated in bounded concurrent blocks inside this tool.",
+        "Generate and persist a new Markdown or HTML file from a compact brief. HTML is planned and generated in bounded concurrent blocks; the artifact model owns its theme and layout.",
       inputSchema: z.object({
-        title: z.string().min(1).max(120),
-        filename: z.string().min(1).max(160),
-        kind: z.enum(["html", "markdown"]),
-        mode: z.enum(["document", "presentation", "dashboard"]).default("document"),
-        brief: z.string().min(1).max(20_000),
-        page_count: z.number().int().min(1).max(100).optional(),
+        title: z.string().min(1).max(120).describe("Human-readable artifact title."),
+        filename: z.string().min(1).max(160).describe("Filename including .html or .md extension."),
+        kind: z.enum(["html", "markdown"]).describe("Output file format."),
+        mode: z
+          .enum(["document", "presentation", "dashboard"])
+          .default("document")
+          .describe("Content intent only. It affects outlining and default page count, never theme, color scheme, or layout."),
+        brief: z.string().min(1).max(20_000).describe("Content and visual requirements. Preserve explicit user design requests."),
+        page_count: z.number().int().min(1).max(100).optional().describe("Requested number of generated blocks or pages."),
         resume_job_id: z.string().min(1).max(32).optional(),
       }),
       contextSchema: artifactToolContextSchema,
@@ -60,7 +63,7 @@ export function createArtifactTools() {
     }),
     edit_file: tool({
       description:
-        "Edit an existing generated file from a change brief. Large HTML is revised by semantic blocks with optimistic immutable revisions.",
+        "Edit an existing generated file from a change brief. HTML block content, CSS, theme, layout, and charts may all be revised.",
       inputSchema: z.object({
         document_id: z.string().min(1).max(32),
         title: z.string().min(1).max(120).optional(),

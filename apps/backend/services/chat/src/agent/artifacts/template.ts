@@ -37,7 +37,6 @@ const ECHARTS_CDN_TAG = `  <script src="${ECHARTS_CDN_URL}" integrity="${ECHARTS
 export function buildArtifactRuntimeHead(options: { usesEcharts: boolean }): string {
   return [
     `  <meta http-equiv="Content-Security-Policy" content="${ARTIFACT_CSP}" data-chat-artifact-runtime="true" />`,
-    "  <style>html, body { min-height: 100%; } body { margin: 0; }</style>",
     ARTIFACT_ERROR_BOUNDARY,
     options.usesEcharts ? ECHARTS_CDN_TAG : "",
   ]

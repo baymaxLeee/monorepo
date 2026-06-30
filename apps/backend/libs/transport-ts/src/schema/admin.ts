@@ -513,6 +513,12 @@ export interface components {
             /** Model */
             model: string;
             /**
+             * Provider Kind
+             * @default chat
+             * @enum {string}
+             */
+            provider_kind: "chat" | "image" | "video";
+            /**
              * Base Url
              * Format: uri
              */
@@ -611,6 +617,11 @@ export interface components {
             name: string;
             /** Model */
             model: string;
+            /**
+             * Provider Kind
+             * @enum {string}
+             */
+            provider_kind: "chat" | "image" | "video";
             /** Base Url */
             base_url: string;
             /** Api Key */
@@ -641,6 +652,11 @@ export interface components {
             name: string;
             /** Model */
             model: string;
+            /**
+             * Provider Kind
+             * @enum {string}
+             */
+            provider_kind: "chat" | "image" | "video";
             /** Base Url */
             base_url: string;
             /** Api Key Masked */
@@ -749,6 +765,8 @@ export interface components {
             name?: string | null;
             /** Model */
             model?: string | null;
+            /** Provider Kind */
+            provider_kind?: ("chat" | "image" | "video") | null;
             /** Base Url */
             base_url?: string | null;
             /** Api Key */

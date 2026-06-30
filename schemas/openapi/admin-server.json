@@ -3051,6 +3051,16 @@
             "minLength": 1,
             "title": "Model"
           },
+          "provider_kind": {
+            "type": "string",
+            "enum": [
+              "chat",
+              "image",
+              "video"
+            ],
+            "title": "Provider Kind",
+            "default": "chat"
+          },
           "base_url": {
             "type": "string",
             "maxLength": 2083,
@@ -3238,6 +3248,15 @@
             "type": "string",
             "title": "Model"
           },
+          "provider_kind": {
+            "type": "string",
+            "enum": [
+              "chat",
+              "image",
+              "video"
+            ],
+            "title": "Provider Kind"
+          },
           "base_url": {
             "type": "string",
             "title": "Base Url"
@@ -3274,6 +3293,7 @@
           "user_id",
           "name",
           "model",
+          "provider_kind",
           "base_url",
           "api_key",
           "extra_body",
@@ -3302,6 +3322,15 @@
           "model": {
             "type": "string",
             "title": "Model"
+          },
+          "provider_kind": {
+            "type": "string",
+            "enum": [
+              "chat",
+              "image",
+              "video"
+            ],
+            "title": "Provider Kind"
           },
           "base_url": {
             "type": "string",
@@ -3347,6 +3376,7 @@
           "user_id",
           "name",
           "model",
+          "provider_kind",
           "base_url",
           "api_key_masked",
           "extra_body",
@@ -3720,6 +3750,22 @@
               }
             ],
             "title": "Model"
+          },
+          "provider_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "chat",
+                  "image",
+                  "video"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Kind"
           },
           "base_url": {
             "anyOf": [

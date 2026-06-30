@@ -141,6 +141,15 @@ export interface CreateIntentionInput {
   is_enabled?: boolean;
 }
 
+export type CreateModelProviderInputProviderKind = typeof CreateModelProviderInputProviderKind[keyof typeof CreateModelProviderInputProviderKind];
+
+
+export const CreateModelProviderInputProviderKind = {
+  chat: 'chat',
+  image: 'image',
+  video: 'video',
+} as const;
+
 export type CreateModelProviderInputExtraBody = { [key: string]: unknown };
 
 export interface CreateModelProviderInput {
@@ -154,6 +163,7 @@ export interface CreateModelProviderInput {
      * @maxLength 128
      */
   model: string;
+  provider_kind?: CreateModelProviderInputProviderKind;
   /**
      * @minLength 1
      * @maxLength 2083
@@ -237,6 +247,15 @@ export interface Intention {
   updated_at: string;
 }
 
+export type InternalModelProviderProviderKind = typeof InternalModelProviderProviderKind[keyof typeof InternalModelProviderProviderKind];
+
+
+export const InternalModelProviderProviderKind = {
+  chat: 'chat',
+  image: 'image',
+  video: 'video',
+} as const;
+
 export type InternalModelProviderExtraBody = { [key: string]: unknown };
 
 /**
@@ -247,6 +266,7 @@ export interface InternalModelProvider {
   user_id: string;
   name: string;
   model: string;
+  provider_kind: InternalModelProviderProviderKind;
   base_url: string;
   api_key: string;
   extra_body: InternalModelProviderExtraBody;
@@ -255,6 +275,15 @@ export interface InternalModelProvider {
   is_default: boolean;
   is_enabled: boolean;
 }
+
+export type ModelProviderProviderKind = typeof ModelProviderProviderKind[keyof typeof ModelProviderProviderKind];
+
+
+export const ModelProviderProviderKind = {
+  chat: 'chat',
+  image: 'image',
+  video: 'video',
+} as const;
 
 export type ModelProviderExtraBody = { [key: string]: unknown };
 
@@ -266,6 +295,7 @@ export interface ModelProvider {
   user_id: string;
   name: string;
   model: string;
+  provider_kind: ModelProviderProviderKind;
   base_url: string;
   api_key_masked: string;
   extra_body: ModelProviderExtraBody;
@@ -343,11 +373,21 @@ export interface UpdateIntentionInput {
   is_enabled?: boolean | null;
 }
 
+export type UpdateModelProviderInputProviderKind = typeof UpdateModelProviderInputProviderKind[keyof typeof UpdateModelProviderInputProviderKind] | null;
+
+
+export const UpdateModelProviderInputProviderKind = {
+  chat: 'chat',
+  image: 'image',
+  video: 'video',
+} as const;
+
 export type UpdateModelProviderInputExtraBody = { [key: string]: unknown } | null;
 
 export interface UpdateModelProviderInput {
   name?: string | null;
   model?: string | null;
+  provider_kind?: UpdateModelProviderInputProviderKind;
   base_url?: string | null;
   api_key?: string | null;
   extra_body?: UpdateModelProviderInputExtraBody;

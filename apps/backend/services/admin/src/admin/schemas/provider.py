@@ -11,9 +11,11 @@ Two distinct views exist:
                         public OpenAPI surface.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
+
+ProviderKind = Literal["chat", "image", "video"]
 
 
 class ModelProvider(BaseModel):
@@ -23,6 +25,7 @@ class ModelProvider(BaseModel):
     user_id: str
     name: str
     model: str
+    provider_kind: ProviderKind
     base_url: str
     api_key_masked: str
     extra_body: dict[str, Any]
@@ -41,6 +44,7 @@ class InternalModelProvider(BaseModel):
     user_id: str
     name: str
     model: str
+    provider_kind: ProviderKind
     base_url: str
     api_key: str
     extra_body: dict[str, Any]
@@ -53,6 +57,7 @@ class InternalModelProvider(BaseModel):
 class CreateModelProviderInput(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     model: str = Field(min_length=1, max_length=128)
+    provider_kind: ProviderKind = "chat"
     base_url: HttpUrl
     api_key: str = Field(min_length=1, max_length=4096)
     extra_body: dict[str, Any] = Field(default_factory=dict)
@@ -71,6 +76,7 @@ class CreateModelProviderInput(BaseModel):
 class UpdateModelProviderInput(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     model: str | None = Field(default=None, min_length=1, max_length=128)
+    provider_kind: ProviderKind | None = None
     base_url: HttpUrl | None = None
     # When omitted, the existing encrypted value is preserved. When provided,
     # it MUST be the new plaintext key — the admin re-encrypts on write.

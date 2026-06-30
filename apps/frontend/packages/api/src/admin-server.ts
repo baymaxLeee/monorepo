@@ -166,11 +166,14 @@ export function bulkDeleteIntentions(
   });
 }
 
+export type ProviderKind = "chat" | "image" | "video";
+
 export interface ModelProvider {
   id: string;
   user_id: string;
   name: string;
   model: string;
+  provider_kind: ProviderKind;
   base_url: string;
   api_key_masked: string;
   extra_body: Record<string, unknown>;
@@ -185,6 +188,7 @@ export interface ModelProvider {
 export interface CreateModelProviderInput {
   name: string;
   model: string;
+  provider_kind?: ProviderKind;
   base_url: string;
   api_key: string;
   extra_body?: Record<string, unknown>;
@@ -197,6 +201,7 @@ export interface CreateModelProviderInput {
 export interface UpdateModelProviderInput {
   name?: string;
   model?: string;
+  provider_kind?: ProviderKind;
   base_url?: string;
   // Omit to keep the previously stored key.
   api_key?: string;

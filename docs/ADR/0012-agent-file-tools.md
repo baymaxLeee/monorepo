@@ -17,8 +17,10 @@ Accepted. Supersedes the artifact protocol in ADR 0010 and ADR 0011.
 - `edit_file` reads the latest immutable knowledge revision. It revises all
   blocks by default or only explicit `block_ids`, reusing every other block
   byte-for-byte. Publishing creates a child revision on the same document.
-- Artifact blocks contain declarative HTML only. The compiler owns page CSS,
-  section IDs, CSP, ECharts hydration, and runtime error handling.
+- Artifact blocks own their semantic HTML, scoped CSS, theme, layout, and chart
+  options. The compiler owns only section IDs, CSS/network sanitization, CSP,
+  ECharts hydration, and runtime error handling; artifact mode expresses content
+  intent and must not select a fixed visual template or color scheme.
 - Preview HTML runs in an opaque-origin iframe with `sandbox="allow-scripts"`.
   Internal `#fragment` navigation remains available; same-origin access to the
   application is not.

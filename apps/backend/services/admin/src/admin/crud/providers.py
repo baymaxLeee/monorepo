@@ -8,7 +8,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from admin.models.provider import ModelProviderRow
+from admin.models.provider import PROVIDER_KIND_CHAT, ModelProviderRow
 
 
 async def list_providers(
@@ -58,6 +58,7 @@ async def get_default_provider(
             ModelProviderRow.user_id == user_id,
             ModelProviderRow.is_default.is_(True),
             ModelProviderRow.is_enabled.is_(True),
+            ModelProviderRow.provider_kind == PROVIDER_KIND_CHAT,
         )
         .order_by(ModelProviderRow.updated_at.desc())
         .limit(1)
@@ -80,6 +81,7 @@ async def create_provider(
     user_id: str,
     name: str,
     model: str,
+    provider_kind: str,
     base_url: str,
     api_key_enc: str,
     extra_body: str,
@@ -94,6 +96,7 @@ async def create_provider(
         user_id=user_id,
         name=name,
         model=model,
+        provider_kind=provider_kind,
         base_url=base_url,
         api_key_enc=api_key_enc,
         extra_body=extra_body,

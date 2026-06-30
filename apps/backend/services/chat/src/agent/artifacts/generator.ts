@@ -21,7 +21,7 @@ import {
 } from "./config.js";
 import { createProviderModel } from "../providers/model.js";
 import type { ArtifactToolContext } from "../tools/context.js";
-import { sanitizeArtifactPart, ARTIFACT_DESIGN_VOCABULARY, ARTIFACT_CHART_SPEC } from "./compiler.js";
+import { sanitizeArtifactPart, ARTIFACT_VISUAL_CAPABILITIES, ARTIFACT_CHART_SPEC } from "./compiler.js";
 
 import type { ArtifactMode, ArtifactTheme, ArtifactBlock } from "./types.js";
 export type { ArtifactMode, ArtifactTheme, ArtifactBlock } from "./types.js";
@@ -34,7 +34,7 @@ import {
 import { useArtifactSyncGeneration } from "./config.js";
 
 const themeSchema = z.object({
-  preset: z.string().min(1).max(40),
+  visualDirection: z.string().min(1).max(1200),
   accent: z.string().regex(/^#[0-9a-f]{6}$/i),
 });
 
@@ -68,6 +68,7 @@ function combinedSignal(abortSignal?: AbortSignal): AbortSignal {
 const MAX_BLOCK_BRIEF = 4000;
 
 const outlineSchema = z.object({
+  visual_direction: z.string().min(1).max(1200).optional(),
   accent: z
     .string()
     .regex(/^#[0-9a-f]{6}$/i)
@@ -105,7 +106,7 @@ function deterministicOutline(input: {
 }): { theme: ArtifactTheme; blocks: ArtifactBlock[] } {
   return {
     theme: {
-      preset: input.mode === "presentation" ? "classroom" : "editorial",
+      visualDirection: "Choose a coherent visual direction that fits the subject and the user's requested tone. The model owns theme and layout.",
       accent: input.brief.match(/#[0-9a-f]{6}/i)?.[0] ?? "#2563eb",
     },
     blocks: Array.from({ length: input.count }, (_, index) => ({
@@ -124,6 +125,7 @@ function outlineInstructions(input: { mode: ArtifactMode; count: number }): stri
     "Each page needs a distinct, specific title and a brief that states what THIS page must cover so independently generated pages never overlap or leave gaps.",
     "The brief is an instruction to a writer, not prose: name the concrete sections, data points, or visuals that belong on this page and nothing that belongs on another page.",
     "Optionally pick one accent hex color that fits the topic.",
+    "Describe one specific visual direction shared by every page: color scheme, typography, composition, density, motifs, and chart treatment. Do not fall back to a generic template.",
     "Do not write any HTML; describe content only.",
   ].join("\n");
 }
@@ -160,7 +162,10 @@ async function planArtifact(input: {
     if (!pages.length) return fallback;
     const accent = result.output?.accent?.match(/^#[0-9a-f]{6}$/i)?.[0] ?? fallback.theme.accent;
     return {
-      theme: { preset: fallback.theme.preset, accent },
+      theme: {
+        visualDirection: result.output?.visual_direction?.trim() || fallback.theme.visualDirection,
+        accent,
+      },
       blocks: pages.map((page, index) => ({
         id: `page-${index + 1}`,
         type: input.mode === "presentation" ? "slide" : "section",
@@ -176,33 +181,30 @@ async function planArtifact(input: {
 }
 
 function blockInstructions(input: {
+  block: ArtifactBlock;
   mode: ArtifactMode;
   theme: ArtifactTheme;
   outline: ArtifactBlock[];
 }): string {
-  const layoutHint =
-    input.mode === "presentation"
-      ? "This is one slide: one clear focal point, large headline, few words, generous whitespace. Prefer grid-2/grid-3 of cards or kpi over dense paragraphs."
-      : input.mode === "dashboard"
-        ? "This is one dashboard panel: lead with kpi metrics and a chart; keep supporting text terse."
-        : "This is one document section: a clear heading, a short lead, then structured body content.";
   return [
     "Generate one semantic HTML body fragment for a larger compiled artifact.",
-    "Return only the fragment: no markdown fence, doctype, html, head, body, style, or script tags.",
+    "Return only the fragment: no markdown fence, doctype, html, head, body, or script tags.",
     "Never emit inline JavaScript or event-handler attributes.",
-    "The compiler ships a complete design system (tokens, typography, components). Compose layout ONLY from the class vocabulary below.",
-    "Do NOT write inline style attributes for layout, color, spacing, font, or borders — use the classes. Do NOT define your own CSS or hex colors; use the accent via the provided classes.",
-    "<design_system>",
-    ARTIFACT_DESIGN_VOCABULARY,
-    "</design_system>",
-    "Wrap the fragment's direct children in a `stack` or `stack-lg` container so spacing stays consistent. Reuse the same components other blocks use for the same kind of content so the whole document looks uniform.",
+    "The runtime does not provide a visual template. You own the complete visual design and should make strong, topic-appropriate choices rather than producing generic unstyled HTML.",
+    "You may use arbitrary classes, inline styles, CSS variables, media queries, and one <style> element. Scope every selector under the current block id so it cannot affect other generated blocks.",
+    `Current block selector: #${input.block.id}. Do not target html, body, :root, or another block id.`,
+    "Do not use @import, CSS url(), external fonts, external stylesheets, or external images. The runtime removes them.",
+    "<visual_capabilities>",
+    ARTIFACT_VISUAL_CAPABILITIES,
+    "</visual_capabilities>",
+    `Shared visual direction: ${input.theme.visualDirection}`,
+    `Suggested accent: ${input.theme.accent}. Treat it as inspiration, not a required token.`,
     "Internal navigation must use fragment links such as href=\"#chapter-id\"; the compiler gives every block that id.",
     "<chart_spec>",
     ARTIFACT_CHART_SPEC,
     "</chart_spec>",
     "Use accessible headings, table headers, and image alt text.",
-    layoutHint,
-    `Mode: ${input.mode}. Theme preset: ${input.theme.preset}. Accent color is applied automatically via the design system.`,
+    `Mode is content intent only (${input.mode}); it does not prescribe colors, dimensions, density, or layout.`,
     `Whole outline: ${input.outline.map((block) => `${block.id}:${block.title}`).join(" | ")}`,
   ].join("\n");
 }
@@ -239,7 +241,7 @@ export async function generateBlock(input: {
       timeout: ARTIFACT_GENERATION_TIMEOUT,
       abortSignal: input.abortSignal,
     });
-    const html = sanitizeArtifactPart(await collectText(result));
+    const html = sanitizeArtifactPart(await collectText(result), input.block.id);
     if (html) return html;
     lastError = `block ${input.block.id} produced empty or unsafe HTML on attempt ${attempt}`;
   }
@@ -362,7 +364,12 @@ function parseStoredBlock(block: StoredArtifactBlock): { title: string; html: st
 
 function previousTheme(manifest: Record<string, unknown>): ArtifactTheme {
   const parsed = themeSchema.safeParse(manifest.theme);
-  return parsed.success ? parsed.data : { preset: "editorial", accent: "#2563eb" };
+  return parsed.success
+    ? parsed.data
+    : {
+        visualDirection: "Choose a coherent visual direction that fits the subject and the user's requested tone.",
+        accent: "#2563eb",
+      };
 }
 
 function planArtifactEdit(input: {

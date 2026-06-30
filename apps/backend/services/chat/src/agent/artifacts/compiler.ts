@@ -1,34 +1,104 @@
 import { buildArtifactNavScript, buildArtifactRuntimeHead, buildChartHydrationScript } from "./template.js";
 import sanitizeHtml from "sanitize-html";
+import postcss from "postcss";
+import selectorParser from "postcss-selector-parser";
 
 export type ArtifactPartPlan = { id: string; type: string; title: string };
 
-// The block generator must compose layout only from these compiler-owned
-// classes (defined in artifactModeStyles) instead of inventing inline styles,
-// which is what made independently generated blocks drift visually. Keep this
-// list in sync with artifactModeStyles.
-export const ARTIFACT_DESIGN_VOCABULARY = [
-  "Layout: stack, stack-sm, stack-lg (vertical), row, cluster, split (horizontal), grid-2, grid-3, grid-4 (responsive columns), center.",
-  "Surfaces: card, card--accent, callout (callout--info/success/warn).",
-  "Emphasis: eyebrow (small caps kicker), lead (intro paragraph), badge (pill tag), muted (secondary text), divider.",
-  "Data: kpi with kpi__value + kpi__label (big metric); table/thead/tbody for tabular data; timeline with timeline__item + timeline__time for chronologies.",
-  "Charts: emit ONE empty <div data-chart=\"...\"></div> whose attribute is a tiny escaped-JSON spec. NEVER write ECharts or Chart.js option objects, <script>, <canvas>, or functions — the compiler builds and themes the real chart from your spec.",
+// Visual design belongs to the block generator. The compiler only supplies a
+// safe document shell and runtime capabilities; it must not impose a theme,
+// layout system, page size, or component vocabulary on generated artifacts.
+export const ARTIFACT_VISUAL_CAPABILITIES = [
+  "Own the complete visual direction: color scheme, typography, spacing, density, composition, and responsive behavior.",
+  "Use semantic HTML plus arbitrary classes and CSS. A scoped <style> element is allowed inside the fragment.",
+  "Scope every CSS selector under the compiler-provided block id so independently generated blocks cannot restyle one another.",
+  "Do not target html, body, or :root. Do not load external CSS, fonts, images, or other resources from CSS.",
 ].join("\n");
 
-// The ONLY chart contract the model is taught. Kept tiny on purpose: the model
-// supplies intent + data, the compiler (expandChartSpec) owns every ECharts
-// structural and styling detail, so a malformed option is impossible.
+// The compact chart spec is convenient, while data-chart-option gives the
+// model full control over ECharts styling without allowing executable code.
 export const ARTIFACT_CHART_SPEC = [
+  "Charts are empty div elements hydrated by the compiler. Never emit <script>, <canvas>, or JavaScript functions.",
   "Chart spec fields: type (one of \"bar\" | \"line\" | \"area\" | \"pie\"), title (optional string), categories (string[] for bar/line/area; the x-axis labels), series (see below), optional stack:true, optional horizontal:true.",
   "series for bar/line/area: an array of {\"name\":string,\"data\":number[]} aligned with categories; for a single series you may pass a bare number[]: \"data\".",
   "series for pie: an array of {\"name\":string,\"value\":number}.",
   "Bar example: <div data-chart=\"{&quot;type&quot;:&quot;bar&quot;,&quot;title&quot;:&quot;销量&quot;,&quot;categories&quot;:[&quot;Q1&quot;,&quot;Q2&quot;],&quot;series&quot;:[{&quot;name&quot;:&quot;华东&quot;,&quot;data&quot;:[120,200]}]}\"></div>",
   "Pie example: <div data-chart=\"{&quot;type&quot;:&quot;pie&quot;,&quot;series&quot;:[{&quot;name&quot;:&quot;A&quot;,&quot;value&quot;:40},{&quot;name&quot;:&quot;B&quot;,&quot;value&quot;:60}]}\"></div>",
+  "For full visual control, use data-chart-option with an escaped JSON ECharts option object containing a non-empty series. Set its color, backgroundColor, textStyle, title, legend, axes, grid, labels, and tooltip to match your design.",
   "Use only numbers in data/value (no units, no strings). Escape every double quote inside the attribute as &quot;.",
 ].join("\n");
 
+function stripUnsafeCss(value: string): string {
+  return value
+    .replace(/@import\s+[^;]+;?/gi, "")
+    .replace(/url\s*\([^)]*\)/gi, "none")
+    .replace(/expression\s*\([^)]*\)/gi, "")
+    .replace(/(?:behavior|-moz-binding)\s*:[^;}]*/gi, "")
+    .replace(/javascript\s*:/gi, "");
+}
 
-export function sanitizeArtifactPart(value: string): string {
+function sanitizeArtifactCss(value: string, scopeId: string): string {
+  const cleaned = stripUnsafeCss(value);
+  try {
+    const root = postcss.parse(cleaned);
+    const keyframes = new Map<string, string>();
+    root.walkAtRules((rule) => {
+      if (["import", "namespace", "page", "font-face"].includes(rule.name.toLowerCase())) {
+        rule.remove();
+      } else if (/keyframes$/i.test(rule.name)) {
+        const name = rule.params.trim();
+        if (!/^[A-Za-z_][\w-]*$/.test(name)) {
+          rule.remove();
+        } else {
+          const scopedName = `${scopeId}-${name}`;
+          keyframes.set(name, scopedName);
+          rule.params = scopedName;
+        }
+      }
+    });
+    root.walkDecls((declaration) => {
+      if (!["animation", "animation-name"].includes(declaration.prop.toLowerCase())) return;
+      for (const [name, scopedName] of keyframes) {
+        declaration.value = declaration.value.replace(
+          new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "g"),
+          scopedName,
+        );
+      }
+    });
+    root.walkRules((rule) => {
+      if (rule.parent?.type === "atrule" && /keyframes$/i.test(rule.parent.name)) return;
+      try {
+        const parsed = selectorParser().astSync(rule.selector);
+        let unsafe = false;
+        parsed.walkTags((tag) => {
+          if (["html", "body"].includes(tag.value.toLowerCase())) unsafe = true;
+        });
+        parsed.walkPseudos((pseudo) => {
+          if (pseudo.value.toLowerCase() === ":root") unsafe = true;
+        });
+        if (unsafe) {
+          rule.remove();
+          return;
+        }
+        rule.selector = parsed.nodes
+          .map((selector) => {
+            const first = selector.nodes[0];
+            return first?.type === "id" && first.value === scopeId
+              ? selector.toString()
+              : `#${scopeId} ${selector.toString()}`;
+          })
+          .join(",");
+      } catch {
+        rule.remove();
+      }
+    });
+    return root.toString();
+  } catch {
+    return "";
+  }
+}
+
+export function sanitizeArtifactPart(value: string, scopeId: string): string {
   const fragment = value
     .trim()
     .replace(/^```(?:html)?\s*/i, "")
@@ -36,15 +106,23 @@ export function sanitizeArtifactPart(value: string): string {
     .replace(/<!doctype[^>]*>/gi, "")
     .replace(/<\/?(?:html|head|body)[^>]*>/gi, "")
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
     .trim();
-  return sanitizeHtml(fragment, {
+  const sanitizedCss = fragment
+    .replace(
+      /<style\b[^>]*>([\s\S]*?)<\/style>/gi,
+      (_match, css) => `<style>${sanitizeArtifactCss(String(css), scopeId)}</style>`,
+    )
+    .replace(
+      /\sstyle=(["'])([\s\S]*?)\1/gi,
+      (_match, quote, css) => ` style=${quote}${stripUnsafeCss(String(css))}${quote}`,
+    );
+  return sanitizeHtml(sanitizedCss, {
     allowedTags: [
       "a", "abbr", "article", "aside", "b", "blockquote", "br", "button",
       "caption", "cite", "code", "col", "colgroup", "dd", "details", "div",
       "dl", "dt", "em", "figcaption", "figure", "footer", "h1", "h2", "h3",
       "h4", "h5", "h6", "header", "hr", "i", "img", "kbd", "li", "main",
-      "mark", "nav", "ol", "p", "pre", "q", "s", "section", "small", "span",
+      "mark", "nav", "ol", "p", "pre", "q", "s", "section", "small", "span", "style",
       "strong", "sub", "summary", "sup", "table", "tbody", "td", "tfoot", "th",
       "thead", "time", "tr", "u", "ul", "var",
     ],
@@ -61,6 +139,7 @@ export function sanitizeArtifactPart(value: string): string {
     allowedSchemes: ["http", "https", "data"],
     allowedSchemesByTag: { img: ["data"] },
     allowProtocolRelative: false,
+    allowVulnerableTags: true,
     transformTags: {
       a: (_tagName, attributes) => {
         const href = attributes.href ?? "";
@@ -77,7 +156,7 @@ export function sanitizeArtifactPart(value: string): string {
 export function compileArtifactHtml(input: {
   title: string;
   mode: "document" | "presentation" | "dashboard";
-  theme: { preset: string; accent: string };
+  theme: { visualDirection: string; accent: string };
   parts: ArtifactPartPlan[];
   stored: Array<{ id: string; content: string }>;
 }): { html: string; partsOk: number; partsFailed: number } {
@@ -105,12 +184,12 @@ export function compileArtifactHtml(input: {
     partsOk += 1;
     return `<section id="${escapeAttribute(planned.id)}" class="artifact-block artifact-block--${escapeAttribute(planned.type)}" data-block-id="${escapeAttribute(planned.id)}"><div class="artifact-block__content">${compileCharts(parsed.html, accent)}</div></section>`;
   });
-  const usesEcharts = input.mode === "dashboard" || sections.some((section) => section.includes("data-chart-option"));
+  const usesEcharts = sections.some((section) => section.includes("data-chart-option"));
   const html = [
     "<!doctype html>", '<html lang="zh-CN">', "<head>", '  <meta charset="utf-8" />',
     '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
     `  <title>${escapeHtml(input.title)}</title>`, buildArtifactRuntimeHead({ usesEcharts }),
-    `  <style>${artifactModeStyles(input.mode, input.theme.accent)}</style>`, "</head>", "<body>",
+    `  <style>${artifactRuntimeStyles()}</style>`, "</head>", "<body>",
     ...sections, buildChartHydrationScript(), buildArtifactNavScript(), "</body>", "</html>",
   ].join("\n");
   return { html, partsOk, partsFailed };
@@ -120,12 +199,9 @@ function renderErrorSection(part: ArtifactPartPlan, reason: string): string {
   return `<section class="artifact-block artifact-block--${escapeAttribute(part.type)} artifact-block--error" data-block-id="${escapeAttribute(part.id)}"><div class="artifact-block__content"><h2>${escapeHtml(part.title)}</h2><p class="artifact-block__error">本节生成失败：${escapeHtml(reason)}</p></div></section>`;
 }
 
-// Charts are compile-owned. The block author only declares intent via
-// `data-chart` (type + categories + numeric series); the compiler expands that
-// into a canonical, theme-colored ECharts option. The model never hand-writes
-// ECharts/Chart.js structure, so it cannot emit a broken option. A legacy
-// `data-chart-option` path is kept only as a strict safety net for older
-// content and is validated/coerced before it can reach the runtime.
+// A compact data-chart spec gets safe defaults, while data-chart-option lets
+// the model own the complete visual treatment. Both paths remain JSON-only and
+// require a usable series before reaching the browser runtime.
 function compileCharts(html: string, accent: string): string {
   const withSpecs = html.replace(/data-chart=(["'])([\s\S]*?)\1/gi, (_match, _quote, raw) => {
     const decoded = decodeAttribute(String(raw));
@@ -267,6 +343,7 @@ function normalizePieData(raw: unknown, categories: unknown): Array<{ name: stri
 function validateChartOptions(html: string, accent: string): string {
   return html.replace(/data-chart-option=(["'])([\s\S]*?)\1/gi, (match, _quote, raw) => {
     const decoded = decodeAttribute(String(raw));
+    if (decoded.length > 100_000) return 'data-chart-invalid="true"';
     const normalized = normalizeChartOptionJson(decoded);
     let parsed: unknown;
     try {
@@ -279,10 +356,34 @@ function validateChartOptions(html: string, accent: string): string {
     // Coerce common Chart.js output, then require a usable series so a malformed
     // chart degrades to visible text instead of crashing hydration at view time.
     const option = coerceEChartsOption(parsed);
-    if (!option) return 'data-chart-invalid="true"';
+    if (!option || !isBoundedChartOption(option)) return 'data-chart-invalid="true"';
     if (!("color" in option)) option.color = chartPalette(accent);
     return `data-chart-option="${escapeAttribute(JSON.stringify(option))}"`;
   });
+}
+
+function isBoundedChartOption(option: Record<string, unknown>): boolean {
+  const state = { nodes: 0, points: 0 };
+  const visit = (value: unknown, depth: number, key = ""): boolean => {
+    state.nodes += 1;
+    if (state.nodes > 12_000 || depth > 16) return false;
+    if (typeof value === "string") return value.length <= 10_000;
+    if (value == null || typeof value === "number" || typeof value === "boolean") return true;
+    if (Array.isArray(value)) {
+      if (value.length > 5_000) return false;
+      if (key === "data" || key === "source") {
+        state.points += value.length;
+        if (state.points > 10_000) return false;
+      }
+      return value.every((item) => visit(item, depth + 1));
+    }
+    if (typeof value !== "object") return false;
+    return Object.entries(value as Record<string, unknown>).every(
+      ([childKey, child]) => visit(child, depth + 1, childKey),
+    );
+  };
+  const series = Array.isArray(option.series) ? option.series : [option.series];
+  return series.length <= 20 && visit(option, 0);
 }
 
 function coerceEChartsOption(parsed: unknown): Record<string, unknown> | null {
@@ -345,58 +446,19 @@ function normalizeChartOptionJson(value: string): string {
   );
 }
 
-function artifactModeStyles(mode: "document" | "presentation" | "dashboard", rawAccent: string): string {
-  const accent = /^#[0-9a-f]{3,8}$/i.test(rawAccent) ? rawAccent : "#2563eb";
-  const base = [
-    // Design tokens: one source of truth for color, spacing, type, radius so
-    // every independently generated block resolves to the same visual system.
-    `:root{color-scheme:light;--accent:${accent};--accent-weak:color-mix(in srgb,var(--accent) 16%,transparent);--bg:#eef1f5;--surface:#fff;--surface-2:#f1f5f9;--text:#0f172a;--text-muted:#64748b;--border:#e2e8f0;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;--space-7:48px;--radius:14px;--radius-sm:8px;--shadow:0 8px 30px rgba(15,23,42,.08);--maxw:1120px;--font-sans:Inter,"Segoe UI",ui-sans-serif,system-ui,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;font-family:var(--font-sans);}`,
-    `*{box-sizing:border-box;}body{margin:0;background:var(--bg);color:var(--text);}`,
-    // Typography + automatic vertical rhythm: even classless semantic markup
-    // gets consistent spacing via the owl selector, so blocks never drift.
-    `.artifact-block__content{font-size:16px;line-height:1.7;color:var(--text);overflow-wrap:anywhere;}`,
-    `.artifact-block__content>*+*{margin-top:var(--space-4);}`,
-    `h1,h2,h3,h4,h5,h6{margin:0;font-weight:700;line-height:1.2;letter-spacing:-.01em;text-wrap:pretty;}`,
-    `h1{font-size:2.2rem;font-weight:800;letter-spacing:-.02em;}h2{font-size:1.6rem;}h3{font-size:1.25rem;}h4{font-size:1.05rem;}`,
-    `p{margin:0;}a{color:var(--accent);text-underline-offset:2px;}strong{font-weight:700;}small,.muted{color:var(--text-muted);}small{font-size:.85em;}`,
-    `ul,ol{margin:0;padding-left:1.4em;}li+li{margin-top:var(--space-2);}`,
-    `blockquote{margin:0;padding:var(--space-3) var(--space-5);border-left:3px solid var(--accent);background:var(--surface-2);border-radius:0 var(--radius-sm) var(--radius-sm) 0;}`,
-    `code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--surface-2);padding:.1em .35em;border-radius:6px;font-size:.9em;}`,
-    `hr,.divider{border:none;border-top:1px solid var(--border);margin:var(--space-5) 0;}`,
-    `table{width:100%;border-collapse:collapse;font-size:.95rem;}thead th{background:var(--surface-2);text-align:left;}th,td{padding:10px 12px;border:1px solid var(--border);}tbody tr:nth-child(even){background:var(--surface-2);}`,
-    `img,svg,canvas{max-width:100%;height:auto;border-radius:var(--radius-sm);}figure{margin:0;}figcaption{font-size:.85rem;color:var(--text-muted);margin-top:var(--space-2);text-align:center;}`,
-    // Utility + component kit: the only layout vocabulary blocks may compose.
-    `.eyebrow{font-size:.8rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);}`,
-    `.lead{font-size:1.15rem;line-height:1.6;color:var(--text-muted);}.center{text-align:center;}`,
-    `.stack{display:flex;flex-direction:column;gap:var(--space-4);}.stack-sm{display:flex;flex-direction:column;gap:var(--space-2);}.stack-lg{display:flex;flex-direction:column;gap:var(--space-6);}`,
-    `.row{display:flex;gap:var(--space-4);flex-wrap:wrap;}.cluster{display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center;}.split{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);flex-wrap:wrap;}`,
-    `.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:var(--space-4);}.grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--space-4);}.grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--space-4);}`,
-    `.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-5);}.card>*+*{margin-top:var(--space-3);}.card--accent{border-top:3px solid var(--accent);}`,
-    `.kpi{display:flex;flex-direction:column;gap:var(--space-1);}.kpi__value{font-size:2.2rem;font-weight:800;line-height:1;color:var(--accent);letter-spacing:-.02em;}.kpi__label{font-size:.9rem;color:var(--text-muted);}`,
-    `.badge{display:inline-flex;align-items:center;gap:.35em;padding:.25em .7em;border-radius:999px;background:var(--accent-weak);color:var(--accent);font-size:.8rem;font-weight:600;}`,
-    `.callout{padding:var(--space-4);border-radius:var(--radius-sm);background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--accent);}.callout>*+*{margin-top:var(--space-2);}.callout--info{border-left-color:#0ea5e9;}.callout--success{border-left-color:#16a34a;}.callout--warn{border-left-color:#d97706;}`,
-    `.timeline{display:flex;flex-direction:column;gap:var(--space-4);padding-left:var(--space-5);border-left:2px solid var(--border);}.timeline__item{position:relative;}.timeline__item::before{content:"";position:absolute;left:calc(-1*var(--space-5) - 1px);top:.45em;width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-weak);}.timeline__time{font-weight:700;color:var(--accent);}`,
-    `[data-chart-option]{min-height:360px;width:100%;}[data-chart-invalid]{min-height:auto;}`,
-    `.artifact-block--error{border:1px solid #fecaca;}.artifact-block__error{color:#b91c1c;font-weight:600;}`,
-    `@media print{body{background:#fff;}.artifact-block{width:100%;margin:0;border-radius:0;box-shadow:none;min-height:auto;}}`,
-  ];
-  if (mode === "presentation") {
-    // Slides grow with content (min-height, not fixed/aspect-ratio) so tall
-    // blocks never clip; short blocks still center like a slide.
-    base.push(`.artifact-block{width:min(1280px,calc(100% - 32px));min-height:min(88vh,720px);margin:24px auto;padding:var(--space-7);background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);break-after:page;display:flex;flex-direction:column;gap:var(--space-5);justify-content:center;}`);
-  } else if (mode === "dashboard") {
-    base.push(
-      `:root{--bg:#0b1120;--surface:#111827;--surface-2:#0f1a2e;--text:#e5e7eb;--text-muted:#94a3b8;--border:#1f2937;--shadow:0 8px 30px rgba(0,0,0,.4);}`,
-      `.artifact-block{width:min(1280px,calc(100% - 32px));margin:16px auto;padding:var(--space-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);}`,
-    );
-  } else {
-    base.push(
-      `.artifact-block{width:min(var(--maxw),calc(100% - 32px));min-height:640px;margin:24px auto;padding:var(--space-7);background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);break-after:page;}`,
-      // Cards on a white document page use the tint surface so they read as panels.
-      `.artifact-block .card{background:var(--surface-2);}`,
-    );
-  }
-  return base.join("\n");
+function artifactRuntimeStyles(): string {
+  return [
+    "*{box-sizing:border-box;}",
+    "html,body{margin:0;min-height:100%;}",
+    ".artifact-block{position:relative;}",
+    ".artifact-block__content{min-width:0;overflow-wrap:anywhere;}",
+    "img,svg,canvas{max-width:100%;height:auto;}",
+    "[data-chart-option]{min-height:360px;width:100%;}",
+    "[data-chart-invalid]{min-height:auto;}",
+    ".artifact-block--error{padding:24px;border:1px solid #fecaca;background:#fef2f2;}",
+    ".artifact-block__error{color:#b91c1c;font-weight:600;}",
+    "@media print{.artifact-block{break-after:page;}}",
+  ].join("\n");
 }
 
 function escapeHtml(value: string): string {

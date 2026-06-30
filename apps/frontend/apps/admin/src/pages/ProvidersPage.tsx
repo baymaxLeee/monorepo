@@ -5,6 +5,7 @@ import {
   deleteModelProvider,
   fetchModelProviders,
   type ModelProvider,
+  type ProviderKind,
   setDefaultModelProvider,
   type TestModelProviderResult,
   testModelProvider,
@@ -42,6 +43,11 @@ import {
   PageHeader,
   PageHeaderContent,
   PageTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
   Switch,
   Table,
@@ -60,6 +66,7 @@ import { z } from "zod";
 const providerSchema = z
   .object({
     name: z.string().trim().min(1, "请输入名称").max(100),
+    provider_kind: z.enum(["chat", "image", "video"]),
     model: z.string().trim().min(1, "请输入模型名").max(128),
     base_url: z.string().trim().url("base_url 必须是合法 URL"),
     // Optional in edit mode (leave empty to keep current key).
@@ -96,12 +103,45 @@ const providerSchema = z
 
 type ProviderValues = z.infer<typeof providerSchema>;
 
+const ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
+
+const kindPresets: Record<
+  ProviderKind,
+  Pick<ProviderValues, "base_url" | "model" | "extra_body">
+> = {
+  chat: {
+    base_url: "https://api.deepseek.com",
+    model: "deepseek-v4-pro",
+    extra_body:
+      '{\n  "thinking": {"type": "enabled"},\n  "reasoning_effort": "high"\n}',
+  },
+  image: {
+    base_url: ARK_BASE_URL,
+    model: "doubao-seedream-5-0-260128",
+    extra_body:
+      '{\n  "size": "2K",\n  "response_format": "url",\n  "watermark": true\n}',
+  },
+  video: {
+    base_url: ARK_BASE_URL,
+    model: "doubao-seedance-2-0-260128",
+    extra_body:
+      '{\n  "generate_audio": false,\n  "ratio": "16:9",\n  "duration": 4,\n  "watermark": true\n}',
+  },
+};
+
+const kindLabels: Record<ProviderKind, string> = {
+  chat: "对话",
+  image: "图片生成",
+  video: "视频生成",
+};
+
 const defaults: ProviderValues = {
   name: "",
-  model: "",
-  base_url: "https://api.deepseek.com",
+  provider_kind: "chat",
+  model: kindPresets.chat.model,
+  base_url: kindPresets.chat.base_url,
   api_key: "",
-  extra_body: "",
+  extra_body: kindPresets.chat.extra_body,
   context_window: 128_000,
   max_output_tokens: 8_192,
   is_default: false,
@@ -170,6 +210,7 @@ export function ProvidersPage() {
     setEditing(provider);
     form.reset({
       name: provider.name,
+      provider_kind: provider.provider_kind ?? "chat",
       model: provider.model,
       base_url: provider.base_url,
       // Never echo the stored key back — even masked. Empty here means
@@ -189,6 +230,7 @@ export function ProvidersPage() {
       if (editing) {
         const patch: Parameters<typeof updateModelProvider>[1] = {
           name: values.name,
+          provider_kind: values.provider_kind,
           model: values.model,
           base_url: values.base_url,
           extra_body,
@@ -208,6 +250,7 @@ export function ProvidersPage() {
         }
         const payload: CreateModelProviderInput = {
           name: values.name,
+          provider_kind: values.provider_kind,
           model: values.model,
           base_url: values.base_url,
           api_key: values.api_key.trim(),
@@ -269,9 +312,9 @@ export function ProvidersPage() {
         <PageHeaderContent>
           <PageTitle>模型管理</PageTitle>
           <PageDescription>
-            配置 OpenAI 兼容的模型 Provider（DeepSeek / OpenAI /
-            自建网关等），API Key 在 admin 服务内加密存储，仅在调用时由 consumer
-            服务（如 chat）通过内部接口取回。
+            配置 OpenAI 兼容 Provider：对话（DeepSeek / OpenAI）、图片（火山
+            Seedream）、视频（火山 Seedance）。API Key 在 admin 内加密存储；
+            仅「对话」类型可作 chat 默认模型。
           </PageDescription>
         </PageHeaderContent>
         <PageActions>
@@ -311,6 +354,7 @@ export function ProvidersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>名称</TableHead>
+                  <TableHead>类型</TableHead>
                   <TableHead>模型</TableHead>
                   <TableHead>Base URL</TableHead>
                   <TableHead>API Key</TableHead>
@@ -324,6 +368,11 @@ export function ProvidersPage() {
                   <TableRow key={provider.id}>
                     <TableCell className="font-medium">
                       {provider.name}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {kindLabels[provider.provider_kind ?? "chat"]}
+                      </Badge>
                     </TableCell>
                     <TableCell className="font-mono text-xs">
                       {provider.model}
@@ -347,15 +396,17 @@ export function ProvidersPage() {
                       >
                         {testingId === provider.id ? "测试中…" : "测试"}
                       </Button>
-                      {!provider.is_default && provider.is_enabled && (
-                        <Button
-                          variant="link"
-                          size="sm"
-                          onClick={() => markDefault(provider)}
-                        >
-                          设默认
-                        </Button>
-                      )}
+                      {!provider.is_default &&
+                        provider.is_enabled &&
+                        (provider.provider_kind ?? "chat") === "chat" && (
+                          <Button
+                            variant="link"
+                            size="sm"
+                            onClick={() => markDefault(provider)}
+                          >
+                            设默认
+                          </Button>
+                        )}
                       <Button
                         variant="link"
                         size="sm"
@@ -429,10 +480,28 @@ export function ProvidersPage() {
                   </p>
                   {testResult.result.sample && (
                     <p>
-                      首条回复：
-                      <code className="rounded bg-muted px-1 py-0.5">
-                        {testResult.result.sample}
-                      </code>
+                      {(testResult.provider.provider_kind ?? "chat") === "chat"
+                        ? "首条回复："
+                        : (testResult.provider.provider_kind ?? "chat") ===
+                            "image"
+                          ? "结果 URL："
+                          : "验证结果："}
+                      {(testResult.provider.provider_kind ?? "chat") !==
+                        "chat" &&
+                      /^https?:\/\//.test(testResult.result.sample) ? (
+                        <a
+                          href={testResult.result.sample}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="ml-1 font-mono text-xs text-primary underline"
+                        >
+                          {testResult.result.sample}
+                        </a>
+                      ) : (
+                        <code className="rounded bg-muted px-1 py-0.5">
+                          {testResult.result.sample}
+                        </code>
+                      )}
                     </p>
                   )}
                 </>
@@ -464,19 +533,69 @@ function ProviderFormDialog({
   open: boolean;
   title: string;
 }) {
+  const providerKind = form.watch("provider_kind");
+
+  function applyKindPreset(kind: ProviderKind) {
+    const preset = kindPresets[kind];
+    form.setValue("base_url", preset.base_url);
+    form.setValue("model", preset.model);
+    form.setValue("extra_body", preset.extra_body);
+    if (kind !== "chat") {
+      form.setValue("is_default", false);
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            配置 OpenAI 兼容端点。base_url 不带末尾斜杠；api_key
-            提交后将被加密存储，列表中仅显示前后 4 位掩码。
+            base_url 为 API 前缀（火山 Ark：
+            https://ark.cn-beijing.volces.com/api/v3）。图片测试会实际生成图片并可能计费；
+            视频测试只验证 Ark API 鉴权，不创建生成任务。
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FieldGroup>
+              <FormField
+                control={form.control}
+                name="provider_kind"
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel>类型</FieldLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value: ProviderKind) => {
+                        field.onChange(value);
+                        if (value !== "chat") {
+                          form.setValue("is_default", false);
+                        }
+                        if (!isEditing) applyKindPreset(value);
+                      }}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="选择 Provider 类型" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="chat">对话 (chat)</SelectItem>
+                        <SelectItem value="image">
+                          图片生成 (Seedream)
+                        </SelectItem>
+                        <SelectItem value="video">
+                          视频生成 (Seedance)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FieldError
+                      errors={[form.formState.errors.provider_kind]}
+                    />
+                  </Field>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="name"
@@ -502,7 +621,13 @@ function ProviderFormDialog({
                     <FormControl>
                       <Input
                         {...field}
-                        placeholder="例如：deepseek-chat / deepseek-v4-pro / gpt-4o"
+                        placeholder={
+                          providerKind === "image"
+                            ? "doubao-seedream-5-0-260128"
+                            : providerKind === "video"
+                              ? "doubao-seedance-2-0-260128"
+                              : "deepseek-chat / deepseek-v4-pro / gpt-4o"
+                        }
                       />
                     </FormControl>
                     <FieldError errors={[form.formState.errors.model]} />
@@ -518,7 +643,11 @@ function ProviderFormDialog({
                     <FormControl>
                       <Input
                         {...field}
-                        placeholder="https://api.deepseek.com"
+                        placeholder={
+                          providerKind === "chat"
+                            ? "https://api.deepseek.com"
+                            : ARK_BASE_URL
+                        }
                       />
                     </FormControl>
                     <FieldError errors={[form.formState.errors.base_url]} />
@@ -559,9 +688,9 @@ function ProviderFormDialog({
                     <FormControl>
                       <Textarea
                         {...field}
-                        rows={4}
+                        rows={providerKind === "video" ? 8 : 4}
                         className="font-mono text-xs"
-                        placeholder={`{\n  "thinking": {"type": "enabled"}\n}`}
+                        placeholder={kindPresets[providerKind].extra_body}
                       />
                     </FormControl>
                     <FieldError errors={[form.formState.errors.extra_body]} />
@@ -625,8 +754,14 @@ function ProviderFormDialog({
                       <Switch
                         checked={field.value}
                         onCheckedChange={field.onChange}
+                        disabled={providerKind !== "chat"}
                       />
                       设为默认
+                      {providerKind !== "chat" && (
+                        <span className="text-xs font-normal text-muted-foreground">
+                          （仅对话类型可设为 chat 默认）
+                        </span>
+                      )}
                     </FieldLabel>
                   </Field>
                 )}

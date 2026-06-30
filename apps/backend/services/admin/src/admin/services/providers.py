@@ -3,27 +3,28 @@
 from __future__ import annotations
 
 import json
-import time
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, cast
 
 from kernel.errors import ConflictError, NotFoundError, RequestError
-from openai import APIError, AsyncOpenAI, AuthenticationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from admin.crud import providers as provider_crud
 from admin.deps import AuthContext
-from admin.models.provider import ModelProviderRow
+from admin.models.provider import PROVIDER_KIND_CHAT, ModelProviderRow
 from admin.schemas.provider import (
     CreateModelProviderInput,
     InternalModelProvider,
     ModelProvider,
+    ProviderKind,
     TestModelProviderInput,
     TestModelProviderResult,
     UpdateModelProviderInput,
 )
 from admin.services.encryption import decrypt, encrypt, mask
+from admin.services.provider_tests import test_provider_by_kind
+from admin.services.provider_urls import validate_provider_base_url
 
 
 def _iso(dt: datetime) -> str:
@@ -50,6 +51,7 @@ def to_public_schema(row: ModelProviderRow) -> ModelProvider:
         user_id=row.user_id,
         name=row.name,
         model=row.model,
+        provider_kind=cast(ProviderKind, row.provider_kind),
         base_url=row.base_url,
         api_key_masked=mask(decrypt(row.api_key_enc)),
         extra_body=_parse_extra_body(row.extra_body),
@@ -68,6 +70,7 @@ def to_internal_schema(row: ModelProviderRow) -> InternalModelProvider:
         user_id=row.user_id,
         name=row.name,
         model=row.model,
+        provider_kind=cast(ProviderKind, row.provider_kind),
         base_url=row.base_url,
         api_key=decrypt(row.api_key_enc),
         extra_body=_parse_extra_body(row.extra_body),
@@ -95,6 +98,9 @@ class ModelProviderService:
         return to_public_schema(await self._get_row(provider_id))
 
     async def create(self, payload: CreateModelProviderInput) -> ModelProvider:
+        if payload.is_default and payload.provider_kind != PROVIDER_KIND_CHAT:
+            raise RequestError("only chat providers can be set as default")
+
         # Only one default per user; toggling a new one as default demotes
         # the existing default in the same transaction.
         if payload.is_default:
@@ -103,12 +109,14 @@ class ModelProviderService:
                 self._current_user.user_id,
             )
 
+        base_url = await validate_provider_base_url(str(payload.base_url))
         row = await provider_crud.create_provider(
             self._session,
             user_id=self._current_user.user_id,
             name=payload.name,
             model=payload.model,
-            base_url=str(payload.base_url).rstrip("/"),
+            provider_kind=payload.provider_kind,
+            base_url=base_url,
             api_key_enc=encrypt(payload.api_key),
             extra_body=json.dumps(payload.extra_body),
             context_window=payload.context_window,
@@ -130,8 +138,10 @@ class ModelProviderService:
             values["name"] = payload.name
         if payload.model is not None:
             values["model"] = payload.model
+        if payload.provider_kind is not None:
+            values["provider_kind"] = payload.provider_kind
         if payload.base_url is not None:
-            values["base_url"] = str(payload.base_url).rstrip("/")
+            values["base_url"] = await validate_provider_base_url(str(payload.base_url))
         if payload.api_key is not None:
             values["api_key_enc"] = encrypt(payload.api_key)
         if payload.extra_body is not None:
@@ -142,7 +152,14 @@ class ModelProviderService:
             values["max_output_tokens"] = payload.max_output_tokens
         if payload.is_enabled is not None:
             values["is_enabled"] = payload.is_enabled
-        if payload.is_default is not None:
+        next_kind = payload.provider_kind if payload.provider_kind is not None else row.provider_kind
+        if next_kind != PROVIDER_KIND_CHAT:
+            if payload.is_default:
+                raise RequestError("only chat providers can be set as default")
+            # Keep the invariant even for partial API updates that change only
+            # provider_kind and omit is_default.
+            values["is_default"] = False
+        elif payload.is_default is not None:
             if payload.is_default and not row.is_default:
                 await provider_crud.clear_default_flag(
                     self._session,
@@ -173,6 +190,8 @@ class ModelProviderService:
 
     async def set_default(self, provider_id: str) -> ModelProvider:
         row = await self._get_row(provider_id)
+        if row.provider_kind != PROVIDER_KIND_CHAT:
+            raise RequestError("only chat providers can be set as default")
         if not row.is_enabled:
             raise ConflictError("cannot mark a disabled provider as default")
         if row.is_default:
@@ -195,39 +214,18 @@ class ModelProviderService:
         payload: TestModelProviderInput,
     ) -> TestModelProviderResult:
         row = await self._get_row(provider_id)
-        base_url = str(payload.base_url).rstrip("/") if payload.base_url is not None else row.base_url
+        base_url = await validate_provider_base_url(
+            str(payload.base_url) if payload.base_url is not None else row.base_url
+        )
         model = payload.model or row.model
         api_key = payload.api_key if payload.api_key is not None else decrypt(row.api_key_enc)
-
-        client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=15.0)
-        start = time.perf_counter()
-        try:
-            resp = await client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": "ping"},
-                ],
-                max_tokens=16,
-                stream=False,
-            )
-        except AuthenticationError as exc:
-            return TestModelProviderResult(ok=False, error=f"authentication: {exc}")
-        except APIError as exc:
-            return TestModelProviderResult(ok=False, error=f"api: {exc}")
-        except Exception as exc:
-            return TestModelProviderResult(ok=False, error=f"unexpected: {exc}")
-        finally:
-            await client.close()
-
-        latency_ms = int((time.perf_counter() - start) * 1000)
-        sample = ""
-        if resp.choices:
-            sample = (resp.choices[0].message.content or "").strip()
-        return TestModelProviderResult(
-            ok=True,
-            latency_ms=latency_ms,
-            sample=sample[:200] if sample else None,
+        extra_body = _parse_extra_body(row.extra_body)
+        return await test_provider_by_kind(
+            provider_kind=row.provider_kind,
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            extra_body=extra_body,
         )
 
     # --- internal API surface (consumer services only) ---

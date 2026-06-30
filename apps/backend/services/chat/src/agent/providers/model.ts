@@ -1,6 +1,7 @@
 // Provider adaptation stays independent from agent tools and execution.
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { JSONObject, JSONValue, LanguageModelV4, LanguageModelV4CallOptions } from "@ai-sdk/provider";
+import { secureProviderFetch } from "../../clients/provider-url.js";
 
 export type ReasoningEffort = "low" | "medium" | "high";
 
@@ -140,6 +141,7 @@ class AdminOpenAICompatibleModel implements LanguageModelV4 {
       baseURL: normalizeOpenAICompatibleBaseUrl(provider.baseUrl),
       apiKey: provider.apiKey,
       includeUsage: true,
+      fetch: secureProviderFetch,
     });
     return openai(provider.model);
   }

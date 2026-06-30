@@ -193,6 +193,10 @@ export async function createAgentRunResponse(
   uiMessagesInput: unknown[],
   input: RunAgentInput,
 ): Promise<Response> {
+  if ((provider.providerKind ?? "chat") !== "chat") {
+    throw new RequestError("selected provider is not a chat model provider");
+  }
+
   const startedAt = performance.now();
   const conversation = await getConversationRow(auth, conversationId);
   const uiMessages = await validateUIMessages<AnyUIMessage>({ messages: uiMessagesInput });
