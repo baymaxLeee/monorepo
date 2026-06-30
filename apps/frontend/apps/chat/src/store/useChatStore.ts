@@ -2,6 +2,12 @@ import { fetchModelProviders, type ModelProvider } from "api";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+export type ArtifactPreviewState = {
+  open: boolean;
+  conversationId: string | null;
+  documentId: string | null;
+};
+
 export type ChatUIState = {
   sendingConversationId: string | null;
   setSendingConversationId: (id: string | null) => void;
@@ -11,9 +17,29 @@ export type ChatUIState = {
   loadProviders: () => Promise<void>;
   selectedProviderId: string | null;
   setSelectedProviderId: (id: string | null) => void;
+  memoryPanelOpen: boolean;
+  setMemoryPanelOpen: (open: boolean) => void;
+  tracePanelOpen: boolean;
+  traceConversationId: string | null;
+  traceRunId: string | null;
+  traceRefreshKey: number;
+  setTraceRun: (conversationId: string, runId: string) => void;
+  clearTraceRun: () => void;
+  openTracePanel: (conversationId: string) => void;
+  setTracePanelOpen: (open: boolean) => void;
+  bumpTraceRefresh: () => void;
+  artifactPreview: ArtifactPreviewState;
+  openArtifactPreview: (conversationId: string, documentId: string) => void;
+  closeArtifactPreview: () => void;
 };
 
 type Persisted = Pick<ChatUIState, "selectedProviderId">;
+
+const CLOSED_ARTIFACT_PREVIEW: ArtifactPreviewState = {
+  open: false,
+  conversationId: null,
+  documentId: null,
+};
 
 export const useChatStore = create<ChatUIState>()(
   persist(
@@ -53,6 +79,66 @@ export const useChatStore = create<ChatUIState>()(
       selectedProviderId: null,
       setSelectedProviderId: (selectedProviderId) =>
         set({ selectedProviderId }),
+
+      memoryPanelOpen: false,
+      setMemoryPanelOpen: (memoryPanelOpen) =>
+        set({
+          memoryPanelOpen,
+          ...(memoryPanelOpen
+            ? {
+                tracePanelOpen: false,
+                artifactPreview: CLOSED_ARTIFACT_PREVIEW,
+              }
+            : {}),
+        }),
+
+      tracePanelOpen: false,
+      traceConversationId: null,
+      traceRunId: null,
+      traceRefreshKey: 0,
+      setTraceRun: (conversationId, runId) =>
+        set({ traceConversationId: conversationId, traceRunId: runId }),
+      clearTraceRun: () => set({ traceRunId: null }),
+      openTracePanel: (conversationId) =>
+        set((state) => ({
+          tracePanelOpen: true,
+          memoryPanelOpen: false,
+          artifactPreview: CLOSED_ARTIFACT_PREVIEW,
+          traceConversationId: conversationId,
+          traceRunId:
+            state.traceConversationId === conversationId
+              ? state.traceRunId
+              : null,
+        })),
+      setTracePanelOpen: (tracePanelOpen) =>
+        set((state) => ({
+          tracePanelOpen,
+          ...(tracePanelOpen
+            ? {
+                memoryPanelOpen: false,
+                artifactPreview: CLOSED_ARTIFACT_PREVIEW,
+              }
+            : {}),
+          traceConversationId: tracePanelOpen
+            ? state.traceConversationId
+            : null,
+        })),
+      bumpTraceRefresh: () =>
+        set((state) => ({ traceRefreshKey: state.traceRefreshKey + 1 })),
+
+      artifactPreview: {
+        ...CLOSED_ARTIFACT_PREVIEW,
+      },
+      openArtifactPreview: (conversationId, documentId) =>
+        set({
+          memoryPanelOpen: false,
+          tracePanelOpen: false,
+          artifactPreview: { open: true, conversationId, documentId },
+        }),
+      closeArtifactPreview: () =>
+        set({
+          artifactPreview: CLOSED_ARTIFACT_PREVIEW,
+        }),
     }),
     {
       name: "chat.store",

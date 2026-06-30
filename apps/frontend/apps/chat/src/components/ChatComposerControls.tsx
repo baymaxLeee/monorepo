@@ -37,9 +37,9 @@ export function ChatComposerControls({
     <>
       <Button
         type="button"
-        variant="secondary"
+        variant="ghost"
         size="sm"
-        className="h-8 rounded-full px-3 text-xs"
+        className="h-8 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground"
         disabled={disabled}
         onClick={() => onModeChange(mode === "plan" ? "normal" : "plan")}
       >
@@ -53,7 +53,7 @@ export function ChatComposerControls({
         placeholder="选择模型"
         disabled={disabled || options.length === 0}
       />
-      <span className="flex items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground">
+      <span className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
         <BrainIcon className="size-3.5" />
         <span>思考</span>
         <Switch

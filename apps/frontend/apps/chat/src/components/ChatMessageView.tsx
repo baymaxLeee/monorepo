@@ -16,6 +16,7 @@ import {
   withoutReasoningParts,
 } from "components/ai-chat";
 import { useState } from "react";
+import { cn } from "shared";
 import {
   ArtifactDocumentCard,
   parseArtifactOutput,
@@ -53,60 +54,42 @@ export function ChatMessageView({
   });
   const allVisibleParts = withoutReasoningParts(message.parts);
   const isUser = message.role === "user";
+  const variant = isUser ? "user" : "assistant";
 
   return (
-    <AiMessage from={message.role}>
-      <MessageContent>
-        {!isUser ? (
-          <div className="mb-1 text-xs text-muted-foreground">助手</div>
-        ) : null}
-        {isUser ? (
-          <div className="flex flex-wrap items-center gap-x-1 gap-y-2 leading-relaxed">
-            {reasoning ? (
-              <Reasoning isStreaming={reasoning.isStreaming}>
-                <ReasoningTrigger />
-                <ReasoningContent>{reasoning.text}</ReasoningContent>
-              </Reasoning>
-            ) : null}
-            {allVisibleParts.map(({ part, index }) => (
-              <MessagePartView
-                key={partKey(message.id, part, index)}
-                part={part}
-                conversationId={conversationId}
-                streaming={streaming}
-                variant="user"
-                documents={documents}
-                onOpenArtifact={onOpenArtifact}
-                onAnswerClientTool={onAnswerClientTool}
-                onContinuePlan={onContinuePlan}
-                onExecutePlan={onExecutePlan}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {reasoning ? (
-              <Reasoning isStreaming={reasoning.isStreaming}>
-                <ReasoningTrigger />
-                <ReasoningContent>{reasoning.text}</ReasoningContent>
-              </Reasoning>
-            ) : null}
-            {allVisibleParts.map(({ part, index }) => (
-              <MessagePartView
-                key={partKey(message.id, part, index)}
-                part={part}
-                conversationId={conversationId}
-                streaming={streaming}
-                variant="assistant"
-                documents={documents}
-                onOpenArtifact={onOpenArtifact}
-                onAnswerClientTool={onAnswerClientTool}
-                onContinuePlan={onContinuePlan}
-                onExecutePlan={onExecutePlan}
-              />
-            ))}
-          </div>
-        )}
+    <AiMessage
+      from={message.role}
+      className={cn(!isUser && "max-w-full items-stretch")}
+    >
+      <MessageContent className={cn(!isUser && "w-full")}>
+        <div
+          className={cn(
+            isUser
+              ? "flex flex-wrap items-center gap-x-1 gap-y-2 leading-relaxed"
+              : "space-y-3",
+          )}
+        >
+          {reasoning ? (
+            <Reasoning isStreaming={reasoning.isStreaming}>
+              <ReasoningTrigger />
+              <ReasoningContent>{reasoning.text}</ReasoningContent>
+            </Reasoning>
+          ) : null}
+          {allVisibleParts.map(({ part, index }) => (
+            <MessagePartView
+              key={partKey(message.id, part, index)}
+              part={part}
+              conversationId={conversationId}
+              streaming={streaming}
+              variant={variant}
+              documents={documents}
+              onOpenArtifact={onOpenArtifact}
+              onAnswerClientTool={onAnswerClientTool}
+              onContinuePlan={onContinuePlan}
+              onExecutePlan={onExecutePlan}
+            />
+          ))}
+        </div>
       </MessageContent>
     </AiMessage>
   );

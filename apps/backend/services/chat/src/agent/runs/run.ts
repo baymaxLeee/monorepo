@@ -30,7 +30,10 @@ import {
 import { createAgent } from "../agents/factory.js";
 import { extractMemoryCandidates } from "../memory/extractor.js";
 import { failAgentRun } from "../observability/lifecycle.js";
-import { referencedDocumentIdsFromParts } from "../context/file-parts.js";
+import {
+  hasUntrustedFilePart,
+  referencedDocumentIdsFromParts,
+} from "../context/file-parts.js";
 import { projectModelContext } from "../context/projector.js";
 import { buildAgentInstructions } from "../context/instructions.js";
 import { acquireRunLease, registerRunController, releaseRun } from "./lease.js";
@@ -206,6 +209,9 @@ export async function createAgentRunResponse(
   // completed client tool such as ask_user) carries no user text in this
   // single-message payload, so the prompt is recovered from history below.
   const latestUser = [...uiMessages].reverse().find((message) => message.role === "user");
+  if (latestUser && hasUntrustedFilePart(latestUser.parts)) {
+    throw new RequestError("file attachments must reference a conversation document");
+  }
   const messageDocumentIds = latestUser ? referencedDocumentIds(latestUser) : [];
   const requestedDocumentIds = [...new Set([...(input.documentIds ?? []), ...messageDocumentIds])];
   if (latestMessage.role === "user") {

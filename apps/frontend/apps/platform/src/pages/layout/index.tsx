@@ -15,14 +15,26 @@ import {
   Layout as LayoutFrame,
   Main,
 } from "components";
-import { ActivityIcon, BoxesIcon, LogOutIcon, UserIcon } from "lucide-react";
+import {
+  ActivityIcon,
+  BoxesIcon,
+  BrainIcon,
+  LogOutIcon,
+  UserIcon,
+} from "lucide-react";
 import {
   clearUser as clearObservabilityUser,
   recordPageView,
   setUser as setObservabilityUser,
 } from "observability";
 import { useEffect } from "react";
-import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
+import {
+  Link,
+  Navigate,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
 import { resetApps, useAppsStore } from "../../store/apps";
@@ -33,6 +45,7 @@ function getUserInitials(name: string) {
 
 export function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, setUser } = usePlatformStore(
     useShallow((state) => ({
       user: state.user,
@@ -129,6 +142,24 @@ export function Layout() {
                   <UserIcon aria-hidden="true" className="mr-2 size-4" />
                   修改个人资料
                 </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  const inChat = location.pathname.startsWith("/platform/chat");
+                  const params = new URLSearchParams(
+                    inChat ? location.search : undefined,
+                  );
+                  params.set("panel", "memory");
+                  navigate({
+                    pathname: inChat
+                      ? location.pathname
+                      : "/platform/chat/conversations",
+                    search: params.toString(),
+                  });
+                }}
+              >
+                <BrainIcon aria-hidden="true" className="mr-2 size-4" />
+                记忆
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link to="/platform/observability">

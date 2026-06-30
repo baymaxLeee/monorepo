@@ -143,7 +143,10 @@ async function transformUserFilePartsForModel(
       parts: message.parts.flatMap((part): AnyUIMessage["parts"] => {
         if (part.type !== "file") return [part];
         const docId = documentIdFromFilePart(part);
-        if (!docId) return [part];
+        // Never forward client-provided URLs, provider references, or provider
+        // options. Only files resolved through the authenticated knowledge
+        // service may enter a model request.
+        if (!docId) return [];
         const mediaType = String(part.mediaType ?? "application/octet-stream");
         if (isImageMediaType(mediaType)) {
           const image = imageFiles.get(docId);
@@ -157,9 +160,14 @@ async function transformUserFilePartsForModel(
             }];
           }
         }
+        const reference = JSON.stringify({
+          documentId: docId,
+          filename: String(part.filename ?? ""),
+          mediaType,
+        }).replaceAll("<", "\\u003c").replaceAll(">", "\\u003e");
         return [{
           type: "text" as const,
-          text: `<document_reference id="${docId}" filename="${String(part.filename ?? "")}" mime_type="${mediaType}" />`,
+          text: `<document_reference>${reference}</document_reference>`,
         }];
       }),
     } as AnyUIMessage;

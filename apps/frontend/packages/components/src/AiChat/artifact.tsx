@@ -1,8 +1,7 @@
-import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { XIcon } from "lucide-react";
+import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 import { cn } from "shared";
-import { MarkdownEditor } from "components/markdown-editor";
 import { Button } from "../Button";
 import {
   Tooltip,
@@ -159,6 +158,20 @@ export type ArtifactPreviewKind =
   | "audio"
   | "pdf";
 
+const HTML_PREVIEW_CSP = [
+  "default-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "img-src data: blob:",
+  "media-src data: blob:",
+  "font-src data: blob:",
+  "style-src 'unsafe-inline'",
+].join("; ");
+
+function sandboxedHtml(content: string) {
+  return `<meta http-equiv="Content-Security-Policy" content="${HTML_PREVIEW_CSP}">${content}`;
+}
+
 export type ArtifactPreviewProps = HTMLAttributes<HTMLDivElement> & {
   title: string;
   filename?: string;
@@ -229,6 +242,7 @@ export function ArtifactPreview({
             />
           </div>
         ) : resolvedKind === "video" && src ? (
+          // biome-ignore lint/a11y/useMediaCaption: uploaded media has no separate caption track
           <video
             src={src}
             controls
@@ -236,6 +250,7 @@ export function ArtifactPreview({
           />
         ) : resolvedKind === "audio" && src ? (
           <div className="flex min-h-[20svh] items-center justify-center p-6">
+            {/* biome-ignore lint/a11y/useMediaCaption: uploaded media has no separate caption track */}
             <audio src={src} controls className="w-full max-w-xl" />
           </div>
         ) : resolvedKind === "pdf" && src ? (
@@ -247,14 +262,15 @@ export function ArtifactPreview({
         ) : resolvedKind === "html" ? (
           <iframe
             title={title}
-            sandbox="allow-scripts"
+            sandbox=""
+            referrerPolicy="no-referrer"
             src={src}
-            srcDoc={src ? undefined : content}
+            srcDoc={src ? undefined : sandboxedHtml(content)}
             className="h-full min-h-[60svh] w-full bg-white"
           />
         ) : resolvedKind === "markdown" ? (
           <div className="p-4">
-            <MarkdownEditor contentType="markdown" defaultValue={content} />
+            <MessageResponse>{content}</MessageResponse>
           </div>
         ) : (
           <pre className="h-full min-h-[60svh] overflow-auto whitespace-pre-wrap p-4 text-sm">

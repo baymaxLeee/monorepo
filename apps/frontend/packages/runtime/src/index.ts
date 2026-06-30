@@ -14,7 +14,9 @@ type Handler<T = unknown> = (payload: T) => void;
 const handlers = new Map<string, Set<Handler>>();
 
 export function emit<T = unknown>(event: string, payload: T): void {
-  handlers.get(event)?.forEach((h) => h(payload));
+  handlers.get(event)?.forEach((handler) => {
+    handler(payload);
+  });
 }
 
 export function on<T = unknown>(

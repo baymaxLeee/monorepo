@@ -8,36 +8,17 @@ import {
   type ArtifactJob,
   type ConversationDetail,
   type ConversationDocument,
-  type ConversationDocumentDetail,
   cancelConversationAgentRun,
   chatAuthHeaders,
   conversationAgentStreamUrl,
   type DocumentIngestStreamEvent,
   fetchConversation,
   fetchConversationArtifactJobs,
-  fetchConversationDocument,
-  fetchConversationDocumentSource,
   streamKnowledgeIngest,
   updateConversationMode,
 } from "api";
+import { toast } from "components";
 import {
-  Badge,
-  Button,
-  Page,
-  PageActions,
-  PageDescription,
-  PageHeader,
-  PageHeaderContent,
-  PageTitle,
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  toast,
-} from "components";
-import {
-  ArtifactPreview,
   Conversation,
   ConversationContent,
   ConversationEmptyState,
@@ -54,15 +35,9 @@ import { useShallow } from "zustand/react/shallow";
 import { ArtifactJobBar } from "../components/ArtifactJobBar";
 import { ChatComposerControls } from "../components/ChatComposerControls";
 import { ChatMessageView } from "../components/ChatMessageView";
-import { useDocumentPreviewSource } from "../components/ChatMessageFilePart";
-import { ChatTracePanel } from "../components/ChatTracePanel";
-import { buildUserFilePart } from "../lib/file-parts";
 import type { ChatUIMessage } from "../lib/chat-message";
-import { MemoryPanel } from "../components/MemoryPanel";
+import { buildUserFilePart } from "../lib/file-parts";
 import { useChatStore } from "../store/useChatStore";
-import { useMemoryStore } from "../store/useMemoryStore";
-
-const MEMORY_CANDIDATE_POLL_MS = 10_000;
 
 function messageToUiMessage(message: ApiMessage): ChatUIMessage {
   try {
@@ -86,7 +61,9 @@ function messageToUiMessage(message: ApiMessage): ChatUIMessage {
   };
 }
 
-function isRunning(status: ReturnType<typeof useChat<ChatUIMessage>>["status"]) {
+function isRunning(
+  status: ReturnType<typeof useChat<ChatUIMessage>>["status"],
+) {
   return status === "streaming" || status === "submitted";
 }
 
@@ -94,23 +71,8 @@ export function Chat() {
   const { id } = useParams<{ id: string }>();
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [artifactOpen, setArtifactOpen] = useState(false);
-  const [artifact, setArtifact] = useState<ConversationDocumentDetail | null>(
-    null,
-  );
-  const [artifactLoading, setArtifactLoading] = useState(false);
-  const [artifactPreviewHtml, setArtifactPreviewHtml] = useState<string | null>(
-    null,
-  );
-  const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(
-    null,
-  );
   const [thinking, setThinking] = useState(false);
   const [mode, setMode] = useState<"normal" | "plan">("normal");
-  const [traceOpen, setTraceOpen] = useState(false);
-  const [memoryOpen, setMemoryOpen] = useState(false);
-  const [lastAgentRunId, setLastAgentRunId] = useState<string | null>(null);
-  const [traceRefreshKey, setTraceRefreshKey] = useState(0);
   const [artifactJobs, setArtifactJobs] = useState<ArtifactJob[]>([]);
   const promptRef = useRef<PromptInputRef>(null);
   const resumedConversationRef = useRef<string | null>(null);
@@ -119,19 +81,22 @@ export function Chat() {
     selectedProviderId,
     setSelectedProviderId,
     loadProviders,
+    setTraceRun,
+    clearTraceRun,
+    bumpTraceRefresh,
+    openArtifactPreview,
+    closeArtifactPreview,
   } = useChatStore(
     useShallow((s) => ({
       providers: s.providers,
       selectedProviderId: s.selectedProviderId,
       setSelectedProviderId: s.setSelectedProviderId,
       loadProviders: s.loadProviders,
-    })),
-  );
-
-  const { pendingCount, refreshCandidates } = useMemoryStore(
-    useShallow((s) => ({
-      pendingCount: s.candidates.length,
-      refreshCandidates: s.refreshCandidates,
+      setTraceRun: s.setTraceRun,
+      clearTraceRun: s.clearTraceRun,
+      bumpTraceRefresh: s.bumpTraceRefresh,
+      openArtifactPreview: s.openArtifactPreview,
+      closeArtifactPreview: s.closeArtifactPreview,
     })),
   );
 
@@ -147,14 +112,6 @@ export function Chat() {
   useEffect(() => {
     if (!providers) void loadProviders();
   }, [providers, loadProviders]);
-
-  useEffect(() => {
-    void refreshCandidates();
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void refreshCandidates();
-    }, MEMORY_CANDIDATE_POLL_MS);
-    return () => window.clearInterval(timer);
-  }, [refreshCandidates]);
 
   const transport = useMemo(
     () =>
@@ -179,11 +136,11 @@ export function Chat() {
         fetch: async (request, init) => {
           const response = await fetch(request, init);
           const runId = response.headers.get("x-agent-run-id");
-          if (runId) setLastAgentRunId(runId);
+          if (runId && id) setTraceRun(id, runId);
           return response;
         },
       }),
-    [id],
+    [id, setTraceRun],
   );
 
   const {
@@ -204,8 +161,7 @@ export function Chat() {
       toast.error(error.message);
     },
     onFinish: () => {
-      setTraceRefreshKey((key) => key + 1);
-      void refreshCandidates();
+      bumpTraceRefresh();
       if (!id) return;
       void fetchConversation(id).then((next) => {
         setDetail(next);
@@ -221,17 +177,16 @@ export function Chat() {
       map.set(document.id, document);
     return map;
   }, [detail?.documents]);
-  const { blobUrl: artifactPreviewSrc } = useDocumentPreviewSource(
-    id,
-    previewDocumentId,
-    artifactOpen,
-  );
+
+  useEffect(() => {
+    closeArtifactPreview();
+  }, [id, closeArtifactPreview]);
 
   useEffect(() => {
     if (!id) return;
     let active = true;
     setLoading(true);
-    setLastAgentRunId(null);
+    clearTraceRun();
     fetchConversation(id)
       .then((next) => {
         if (!active) return;
@@ -246,7 +201,7 @@ export function Chat() {
     return () => {
       active = false;
     };
-  }, [id, setMessages]);
+  }, [id, setMessages, clearTraceRun]);
 
   useEffect(() => {
     resumedConversationRef.current = null;
@@ -304,21 +259,25 @@ export function Chat() {
       value.text.trim() ||
       (documentIds.length ? "请阅读并处理我附加的文件。" : "");
     if (!text) return;
-    const parts = value.segments.flatMap((segment): ChatUIMessage["parts"][number][] => {
-      if (segment.type === "text") {
-        return segment.text ? [{ type: "text" as const, text: segment.text }] : [];
-      }
-      const documentId = segment.token.meta?.artifactId;
-      if (typeof documentId !== "string" || !id) return [];
-      return [
-        buildUserFilePart({
-          conversationId: id,
-          documentId,
-          filename: segment.token.label,
-          mimeType: segment.token.mime ?? "application/octet-stream",
-        }),
-      ];
-    });
+    const parts = value.segments.flatMap(
+      (segment): ChatUIMessage["parts"][number][] => {
+        if (segment.type === "text") {
+          return segment.text
+            ? [{ type: "text" as const, text: segment.text }]
+            : [];
+        }
+        const documentId = segment.token.meta?.artifactId;
+        if (typeof documentId !== "string" || !id) return [];
+        return [
+          buildUserFilePart({
+            conversationId: id,
+            documentId,
+            filename: segment.token.label,
+            mimeType: segment.token.mime ?? "application/octet-stream",
+          }),
+        ];
+      },
+    );
     if (!parts.some((part) => part.type === "text")) {
       parts.push({ type: "text", text });
     }
@@ -370,9 +329,10 @@ export function Chat() {
   }
 
   async function stopRun() {
+    const traceRunId = useChatStore.getState().traceRunId;
     const cancelRequest =
-      id && lastAgentRunId
-        ? cancelConversationAgentRun(id, lastAgentRunId).catch(() => undefined)
+      id && traceRunId
+        ? cancelConversationAgentRun(id, traceRunId).catch(() => undefined)
         : Promise.resolve(undefined);
     await stop();
     await cancelRequest;
@@ -417,69 +377,20 @@ export function Chat() {
 
   function openArtifact(documentId: string) {
     if (!id) return;
-    setPreviewDocumentId(documentId);
-    setArtifactOpen(true);
-    setArtifactLoading(true);
-    setArtifactPreviewHtml(null);
-    fetchConversationDocument(id, documentId)
-      .then(async (document) => {
-        setArtifact(document);
-        if (document.mime_type === "text/html") {
-          const blob = await fetchConversationDocumentSource(id, documentId);
-          setArtifactPreviewHtml(await blob.text());
-        }
-      })
-      .catch((error) => toast.error(String(error)))
-      .finally(() => setArtifactLoading(false));
+    openArtifactPreview(id, documentId);
   }
 
   return (
-    <Page>
-      <PageHeader>
-        <PageHeaderContent>
-          <PageTitle>{detail?.title ?? "对话"}</PageTitle>
-          <PageDescription className="flex items-center gap-2">
-            <Badge variant="outline">Vercel AI SDK useChat</Badge>
-            {detail?.model ? (
-              <Badge variant="secondary" className="font-mono">
-                {detail.model}
-              </Badge>
-            ) : null}
-          </PageDescription>
-        </PageHeaderContent>
-        <PageActions>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="relative"
-            onClick={() => setMemoryOpen(true)}
-          >
-            记忆
-            {pendingCount > 0 ? (
-              <Badge
-                variant="secondary"
-                className="ml-1.5 h-4 min-w-4 justify-center px-1 text-[10px]"
-              >
-                {pendingCount}
-              </Badge>
-            ) : null}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!lastAgentRunId}
-            onClick={() => setTraceOpen(true)}
-          >
-            执行轨迹
-          </Button>
-        </PageActions>
-      </PageHeader>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <header className="flex h-11 shrink-0 items-center justify-center px-4">
+        <h1 className="max-w-full truncate text-sm font-medium text-foreground">
+          {detail?.title ?? "新对话"}
+        </h1>
+      </header>
 
-      <div className="flex h-[calc(100svh-12rem)] min-h-0 flex-col rounded-lg border bg-card">
-        <Conversation>
-          <ConversationContent>
+      <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 basis-0 flex-col overflow-hidden px-4 pb-4">
+        <Conversation className="min-h-0 flex-1 basis-0">
+          <ConversationContent className="gap-6 px-0 py-2">
             {loading && messages.length === 0 ? (
               <ConversationEmptyState
                 title="加载中"
@@ -488,7 +399,7 @@ export function Chat() {
             ) : messages.length === 0 ? (
               <ConversationEmptyState
                 title="开始对话"
-                description="这页使用 Vercel AI SDK useChat 与 AI Elements 风格组件渲染。"
+                description="输入你的问题，或粘贴、拖入文件开始。"
               />
             ) : (
               messages.map((message) => (
@@ -519,7 +430,7 @@ export function Chat() {
             )}
             {status === "submitted" ? (
               <div
-                className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground"
+                className="flex items-center gap-2 py-2 text-sm text-muted-foreground"
                 role="status"
                 aria-live="polite"
               >
@@ -535,17 +446,17 @@ export function Chat() {
           <ConversationScrollButton />
         </Conversation>
 
-        <div className="border-t p-3">
+        <div className="shrink-0 pt-2">
           <ArtifactJobBar jobs={artifactJobs} />
           <RichPromptInput
             ref={promptRef}
-            className="chat-rich-prompt"
+            className="[&_.prompt-input-footer]:border-t-0 [&_.prompt-input-footer]:bg-transparent"
             disabled={false}
             loading={busy}
             placeholder={
               mode === "plan"
                 ? "描述要规划的任务，/ 引用技能，@ 添加上下文"
-                : "输入要求，粘贴图片或拖入文件"
+                : "要求后续变更"
             }
             maxHeight={260}
             accept="image/*,text/plain,text/markdown,application/pdf"
@@ -557,7 +468,10 @@ export function Chat() {
               if (!id) return;
               void streamKnowledgeIngest(
                 id,
-                items.map(({ token, file }) => ({ clientRef: token.id, file })),
+                items.map(({ token, file }) => ({
+                  clientRef: token.id,
+                  file,
+                })),
                 { onEvent: onIngestEvent },
                 { providerId: selectedProviderId },
               ).catch((error) => {
@@ -594,87 +508,6 @@ export function Chat() {
           />
         </div>
       </div>
-
-      <Sheet
-        open={artifactOpen}
-        onOpenChange={(open) => {
-          setArtifactOpen(open);
-          if (!open) setPreviewDocumentId(null);
-        }}
-      >
-        <SheetContent
-          side="right"
-          className="w-full min-w-0 gap-0 overflow-hidden sm:max-w-5xl"
-        >
-          <SheetHeader className="shrink-0 border-b">
-            <SheetTitle>{artifact?.title ?? "Artifact"}</SheetTitle>
-            <SheetDescription>
-              {artifactLoading
-                ? "加载中..."
-                : artifact
-                  ? `${artifact.filename} · ${artifact.mime_type}`
-                  : "未选择 artifact"}
-            </SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-hidden">
-            {artifact ? (
-              <ArtifactPreview
-                title={artifact.title}
-                filename={artifact.filename}
-                mimeType={artifact.mime_type}
-                content={artifactPreviewHtml ?? artifact.content_md}
-                src={artifactPreviewSrc ?? undefined}
-                showHeader={false}
-                className="h-full rounded-none border-0 shadow-none"
-              />
-            ) : null}
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={memoryOpen} onOpenChange={setMemoryOpen}>
-        <SheetContent
-          side="right"
-          className="w-full min-w-0 gap-0 overflow-hidden sm:max-w-md"
-        >
-          <SheetHeader className="shrink-0 border-b">
-            <SheetTitle>记忆</SheetTitle>
-            <SheetDescription>
-              对话后系统会整理候选记忆，确认后才会长期生效。
-            </SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-auto">
-            <MemoryPanel open={memoryOpen} />
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={traceOpen} onOpenChange={setTraceOpen}>
-        <SheetContent
-          side="right"
-          className="w-full min-w-0 gap-0 overflow-hidden sm:max-w-xl"
-        >
-          <SheetHeader className="shrink-0 border-b">
-            <SheetTitle>执行轨迹</SheetTitle>
-            <SheetDescription>
-              ToolLoopAgent 步骤与工具调用时间线
-            </SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-auto">
-            {id && lastAgentRunId ? (
-              <ChatTracePanel
-                conversationId={id}
-                runId={lastAgentRunId}
-                refreshKey={traceRefreshKey}
-              />
-            ) : (
-              <div className="p-4 text-xs text-muted-foreground">
-                暂无可展示的运行。
-              </div>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
-    </Page>
+    </div>
   );
 }

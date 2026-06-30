@@ -4,19 +4,16 @@ import {
   deleteConversation,
   fetchConversations,
 } from "api";
-import {
-  Aside,
-  Button,
-  Layout,
-  Main,
-  Section,
-  Skeleton,
-  toast,
-} from "components";
-import { MessageSquareIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { Layout, toast } from "components";
 import { useCallback, useEffect, useState } from "react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { cn } from "shared";
 import { useShallow } from "zustand/react/shallow";
+import { ChatArtifactPanel } from "../components/ChatArtifactPanel";
+import { ChatAuxiliaryPanels } from "../components/ChatAuxiliaryPanels";
+import { ChatConversationSidebar } from "../components/ChatConversationSidebar";
+import { ChatPanelResizeHandle } from "../components/ChatPanelResizeHandle";
+import { useChatShellLayout } from "../hooks/useChatShellLayout";
 import { useChatStore } from "../store/useChatStore";
 
 export function ChatLayout() {
@@ -26,16 +23,70 @@ export function ChatLayout() {
     null,
   );
   const [creating, setCreating] = useState(false);
-  const { loadProviders, selectedProviderId } = useChatStore(
+  const {
+    loadProviders,
+    selectedProviderId,
+    memoryPanelOpen,
+    setMemoryPanelOpen,
+    tracePanelOpen,
+    traceConversationId,
+    traceRunId,
+    traceRefreshKey,
+    openTracePanel,
+    setTracePanelOpen,
+    artifactPreview,
+  } = useChatStore(
     useShallow((s) => ({
       loadProviders: s.loadProviders,
       selectedProviderId: s.selectedProviderId,
+      memoryPanelOpen: s.memoryPanelOpen,
+      setMemoryPanelOpen: s.setMemoryPanelOpen,
+      tracePanelOpen: s.tracePanelOpen,
+      traceConversationId: s.traceConversationId,
+      traceRunId: s.traceRunId,
+      traceRefreshKey: s.traceRefreshKey,
+      openTracePanel: s.openTracePanel,
+      setTracePanelOpen: s.setTracePanelOpen,
+      artifactPreview: s.artifactPreview,
     })),
   );
+
+  const artifactOpen = artifactPreview.open;
+  const closeArtifactPreview = useChatStore((s) => s.closeArtifactPreview);
+  const shell = useChatShellLayout(artifactOpen, closeArtifactPreview);
+  const sidebarOpen = shell.leftOpen && !(shell.compact && artifactOpen);
 
   useEffect(() => {
     loadProviders();
   }, [loadProviders]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("panel") !== "memory") return;
+    setMemoryPanelOpen(true);
+    params.delete("panel");
+    navigate(
+      { pathname: location.pathname, search: params.toString() },
+      { replace: true },
+    );
+  }, [location.pathname, location.search, navigate, setMemoryPanelOpen]);
+
+  useEffect(() => {
+    if (!shell.compact) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (artifactOpen) closeArtifactPreview();
+      else if (shell.leftOpen) shell.toggleLeft();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    artifactOpen,
+    closeArtifactPreview,
+    shell.compact,
+    shell.leftOpen,
+    shell.toggleLeft,
+  ]);
 
   const load = useCallback(async () => {
     try {
@@ -57,9 +108,6 @@ export function ChatLayout() {
     if (creating) return;
     setCreating(true);
     try {
-      // Pin the new conversation to the currently selected provider so the
-      // first reply uses what the sidebar shows. Backend still falls back
-      // to the user's default provider when this is null.
       const conv = await createConversation({
         provider_id: selectedProviderId ?? undefined,
       });
@@ -90,80 +138,102 @@ export function ChatLayout() {
     }
   }
 
-  return (
-    <Layout className="min-h-[calc(100svh-3.5rem)] flex-row">
-      <Aside className="w-64 shrink-0 gap-3 p-3">
-        <div className="flex items-center justify-between px-2">
-          <span className="text-xs font-medium text-muted-foreground">
-            会话
-          </span>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={handleCreate}
-            disabled={creating}
-            aria-label="新建会话"
-            className="h-7 gap-1 px-2 text-xs"
-          >
-            <PlusIcon aria-hidden="true" className="size-3.5" />
-            新建
-          </Button>
-        </div>
+  function handleOpenTrace(conversationId: string) {
+    openTracePanel(conversationId);
+    if (!location.pathname.endsWith(`/${conversationId}`)) {
+      navigate(`/platform/chat/conversations/${conversationId}`);
+    }
+  }
 
-        <Section className="gap-1">
-          {conversations === null ? (
-            <div className="space-y-2 px-1">
-              <Skeleton className="h-9 w-full" />
-              <Skeleton className="h-9 w-full" />
-              <Skeleton className="h-9 w-3/4" />
-            </div>
-          ) : conversations.length === 0 ? (
-            <p className="px-2 text-xs text-muted-foreground">
-              暂无会话，点击右上「新建」开始对话。
-            </p>
-          ) : (
-            <nav className="grid gap-1" aria-label="会话列表">
-              {conversations.map((c) => {
-                const active = location.pathname.endsWith(`/${c.id}`);
-                return (
-                  <div key={c.id} className="group flex items-center gap-1">
-                    <Button
-                      asChild
-                      variant={active ? "secondary" : "ghost"}
-                      className="h-auto flex-1 justify-start gap-2 px-2 py-1.5 text-left"
-                    >
-                      <Link to={`/platform/chat/conversations/${c.id}`}>
-                        <MessageSquareIcon
-                          aria-hidden="true"
-                          className="size-4 shrink-0"
-                        />
-                        <span className="truncate text-sm">{c.title}</span>
-                      </Link>
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      aria-label={`删除 ${c.title}`}
-                      onClick={() => handleDelete(c.id)}
-                      className="h-7 w-7 p-0 opacity-0 transition-opacity group-hover:opacity-100"
-                    >
-                      <Trash2Icon
-                        aria-hidden="true"
-                        className="size-3.5 text-muted-foreground"
-                      />
-                    </Button>
-                  </div>
-                );
-              })}
-            </nav>
+  return (
+    <Layout className="relative flex h-[calc(100svh-3.5rem)] min-h-0 flex-col scrollbar-hide [&_*]:[scrollbar-width:none] [&_*]:[-ms-overflow-style:none] [&_*::-webkit-scrollbar]:hidden">
+      <div
+        ref={shell.containerRef}
+        className={cn(
+          "relative grid min-h-0 flex-1",
+          "transition-[grid-template-columns] duration-300 ease-out motion-reduce:transition-none",
+          shell.isDragging && "transition-none",
+        )}
+        style={{
+          gridTemplateColumns: shell.compact
+            ? "0 minmax(0, 1fr) 0"
+            : `${shell.leftWidth}px minmax(0, 1fr) ${shell.rightWidth}px`,
+        }}
+      >
+        {shell.compact && (sidebarOpen || artifactOpen) ? (
+          <button
+            type="button"
+            className="absolute inset-0 z-20 bg-black/20"
+            aria-label="关闭侧栏"
+            onClick={artifactOpen ? closeArtifactPreview : shell.toggleLeft}
+          />
+        ) : null}
+        <ChatConversationSidebar
+          conversations={conversations}
+          activePath={location.pathname}
+          creating={creating}
+          open={sidebarOpen}
+          width={shell.panelLeftWidth}
+          compact={shell.compact}
+          showToggle={!(shell.compact && artifactOpen)}
+          onCreate={() => void handleCreate()}
+          onDelete={(id) => void handleDelete(id)}
+          onOpenTrace={handleOpenTrace}
+          onToggle={shell.toggleLeft}
+          onResize={shell.resizeLeft}
+          onResizeStart={() => shell.startResize("left-panel")}
+          onResizeEnd={() => shell.endResize("left-panel")}
+          resizeMin={shell.leftResizeMin}
+          resizeMax={shell.leftResizeMax}
+        />
+
+        <main className="relative isolate z-[1] col-start-2 flex min-h-0 min-w-0 flex-col overflow-hidden">
+          <div className="flex h-full min-h-0 w-full flex-col">
+            <Outlet />
+          </div>
+        </main>
+
+        <div
+          className={cn(
+            "relative z-10 col-start-3 min-w-0 overflow-visible bg-background",
+            artifactOpen ? "opacity-100" : "pointer-events-none opacity-0",
+            shell.compact &&
+              "absolute inset-y-0 right-0 z-30 shadow-xl max-[639px]:w-full",
           )}
-        </Section>
-      </Aside>
-      <Main className="overflow-auto">
-        <Outlet />
-      </Main>
+          style={
+            shell.compact && artifactOpen
+              ? {
+                  width: `min(${shell.panelRightWidth}px, calc(100% - 3rem))`,
+                }
+              : undefined
+          }
+          aria-hidden={!artifactOpen}
+        >
+          <ChatPanelResizeHandle
+            edge="right-panel"
+            value={shell.panelRightWidth}
+            minValue={shell.rightResizeMin}
+            maxValue={shell.rightResizeMax}
+            disabled={!artifactOpen}
+            onDrag={shell.resizeRight}
+            onDragStart={() => shell.startResize("right-panel")}
+            onDragEnd={() => shell.endResize("right-panel")}
+          />
+          <div className="h-full min-w-0 overflow-hidden">
+            <ChatArtifactPanel onClose={shell.closeArtifact} />
+          </div>
+        </div>
+      </div>
+
+      <ChatAuxiliaryPanels
+        memoryOpen={memoryPanelOpen}
+        traceOpen={tracePanelOpen}
+        traceConversationId={traceConversationId}
+        traceRunId={traceRunId}
+        traceRefreshKey={traceRefreshKey}
+        onMemoryOpenChange={setMemoryPanelOpen}
+        onTraceOpenChange={setTracePanelOpen}
+      />
     </Layout>
   );
 }

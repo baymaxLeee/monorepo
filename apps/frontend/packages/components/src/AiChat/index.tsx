@@ -21,10 +21,19 @@ export {
 } from "./artifact";
 export {
   Attachment,
+  type AttachmentCategory,
+  AttachmentInfo,
+  type AttachmentInfoProps,
   type AttachmentItem,
+  AttachmentPreview,
+  type AttachmentPreviewProps,
   type AttachmentProps,
+  AttachmentRemove,
+  type AttachmentRemoveProps,
   Attachments,
   type AttachmentsProps,
+  getAttachmentLabel,
+  getMediaCategory,
 } from "./attachments";
 export {
   Conversation,
