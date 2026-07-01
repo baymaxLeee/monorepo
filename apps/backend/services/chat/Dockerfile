@@ -27,4 +27,8 @@ WORKDIR /app/apps/backend/services/chat
 # would leave an unresolvable bare import. tsx resolves the workspace dep at
 # runtime, matching `pnpm dev`/`pnpm start`.
 EXPOSE 8009
-CMD ["pnpm", "start"]
+# Do not invoke pnpm at runtime: the image was installed with a hoisted
+# node_modules layout, while pnpm's default runtime config is isolated. A
+# `pnpm start` dependency check would therefore try to reinstall production
+# dependencies and fail on the workspace-only nf3 patch.
+CMD ["node", "--import", "tsx", "src/index.ts"]
