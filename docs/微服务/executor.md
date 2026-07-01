@@ -35,25 +35,31 @@ session）的替换点——只需要新增一种执行引擎实现，Task API �
 
 - 业务真相（谁起的任务、什么类型、完没完成）在 executor 自己的 MySQL `tasks`
   表——和 chat 的 `agent_runs` 是同一种"业务表 vs 执行态"划分。
-- 执行/重放真相（run、step、重试、event log）在 Workflow World：本地开发默认
-  文件系统 Local World；每个部署环境用自建 Postgres World
-  (`@workflow/world-postgres`，独立的 `workflow-postgres` docker 服务，和
-  MySQL 分开)。
+- 执行/重放真相（run、step、重试、event log）在 Workflow World：**本地和每个
+  部署环境都用自建 Postgres World**（`@workflow/world-postgres`，独立的
+  `workflow-postgres` docker 服务，和 MySQL 分开）——本地/生产一致是明确的
+  产品决策，不默认退化成文件系统 Local World（仍然可以通过注释掉 `.env` 里的
+  `WORKFLOW_TARGET_WORLD`/`WORKFLOW_POSTGRES_URL` 手动切回 Local World，比如
+  离线开发）。`just up` 会起这个容器并跑一次 schema 初始化
+  （`scripts/workflow-postgres-bootstrap.sh`，幂等，可重复跑）。**只设置
+  `WORKFLOW_TARGET_WORLD`/`WORKFLOW_POSTGRES_URL` 不够**——graphile-worker
+  队列要显式调用 `getWorld().start()` 才会真正开始轮询，`src/index.ts` 里已经
+  这样做了（见 AGENTS.md 已知运维事项第 3 条）；这条最初就是因为本地默认用
+  Local World、从没在本地真正跑过 Postgres World 才被隐藏了一整个阶段，直到
+  改成本地/生产一致后才在开发过程中自然暴露出来——这也是"本地要和部署环境
+  一致"这条原则本身最有说服力的例证。
 - `reconcilePendingTasks()` 在进程启动时重新挂载所有 `running` 状态任务的完成
   监听——对 Workflow 的 durable run 重新 `await` 是安全的，不会重新执行任何
   已完成的 step。
 
 ## 已知运维事项
 
-Nitro v3（当前 beta）撞到两个与本仓库代码无关的上游 tracer bug，均已修复，
-详见 `apps/backend/services/executor/AGENTS.md`：
+Nitro v3（当前 beta）/ Workflow World 撞到几个坑，均已修复，详见
+`apps/backend/services/executor/AGENTS.md`"已知运维事项"完整列表（`nf3`
+ESM 互操作 bug、`nf3` 路径深度计算错误、Postgres World 启动缺失
+`getWorld().start()`、`nitro dev` 与内置 server 对 `.env` 加载行为不同）。
 
-1. `nf3`/`@vercel/nft` ESM 互操作 bug → `pnpm patch`
-   （`apps/backend/patches/nf3@0.3.18.patch`）。
-2. `nf3` 复制 `@vercel/oidc` 时路径深度计算错误 → `postbuild` 脚本
-   （`scripts/fix-oidc-trace.mjs`，`pnpm run build` 自动跑）。
-
-升级 `nitro`/`workflow`/`ai` 时请重新验证这两个修复是否还需要。
+升级 `nitro`/`workflow`/`ai` 时请重新验证这些修复是否还需要。
 
 跨服务调用必须经过 `@backend/transport-ts`；executor 不拥有 conversation、
 message、document 等领域概念，只知道 task、type 和 payload。

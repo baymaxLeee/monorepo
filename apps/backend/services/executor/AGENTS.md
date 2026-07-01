@@ -11,10 +11,16 @@ for the full rationale.
 
 - One `POST /tasks` starts exactly one durable `workflow` run and returns
   immediately (`status: "queued"` or `"running"`). Callers never block an
-  HTTP request on task completion; they poll `GET /tasks/:id`. There is no
-  `GET /tasks/:id/stream` — it was cut as speculative (no real caller ever
-  used it); add a real streaming endpoint only once a concrete consumer
-  needs sub-poll-interval progress, with a defined chunk shape from day one.
+  HTTP request on task completion. `GET /tasks/:id` is the durable read
+  (snapshot incl. `progress`). There is deliberately **no** streaming endpoint
+  on executor — instead executor *pushes* events to the owning service (see
+  "Outbound task notifications"); the owner, not executor, decides how to
+  surface them to a browser. Keep it that way: a task's business shape stays a
+  plain snapshot here, streaming/replay stays the owner's concern.
+- Progress: a task's `progress` column is a `{ done, total }` counter the
+  workflow reports per completed unit of work (see `reportTaskProgress` in
+  `src/tasks/notify.ts`, called from `reportProgressStep` in the workflow). It
+  is best-effort UI sugar, never a correctness signal.
 - `owner_service` + `owner_ref` is the idempotency key. Retrying a start
   request with the same pair returns the existing task, never starts a
   second workflow run.
@@ -24,9 +30,15 @@ for the full rationale.
   it replays against the durable run rather than re-executing anything.
 - Business truth (who started what, for what, is it done) lives in this
   service's own MySQL `tasks` table. Execution truth (steps, retries, replay)
-  lives in the Workflow World (self-hosted Postgres in every deployed
-  environment via `@workflow/world-postgres`; local dev defaults to the
-  filesystem-backed Local World when `WORKFLOW_TARGET_WORLD` is unset).
+  lives in the Workflow World (self-hosted Postgres via
+  `@workflow/world-postgres`). **Dev/prod parity is an explicit product
+  decision here**: local dev runs the same `workflow-postgres` container as
+  every deployed environment (`docker-compose.yml`'s `workflow-postgres`
+  service, started by `just up`) rather than defaulting to the
+  filesystem-backed Local World — see "Known operational notes" #3, which
+  this parity choice is what actually surfaced. Local World still exists as
+  a fallback (comment out `WORKFLOW_TARGET_WORLD`/`WORKFLOW_POSTGRES_URL` in
+  `.env` to use it, e.g. to work offline from Docker) but is not the default.
 
 ## TaskType registry
 
@@ -53,25 +65,48 @@ for the full rationale.
 - This service owns no chat/artifact domain concepts (conversation, message,
   document). It only knows about tasks, types, and payloads.
 
+## Outbound task notifications
+
+- On every progress update and on the terminal transition, executor fires a
+  fire-and-forget `POST /internal/tasks/notify` at the owning service
+  (`ChatInternalClient.notifyTaskEvent` via `@backend/transport-ts`, base URL
+  `CHAT_SERVICE_URL`). This is the reverse of chat's `EXECUTOR_SERVICE_URL`.
+- It is **best-effort by contract**: a failed/dropped notification is logged
+  and swallowed, never fails or slows a task. The durable truth is always
+  `GET /tasks/:id`; the notification only saves the owner a poll. Today the
+  only owner is `chat` (routed by `conversationId` on the task payload); a
+  task with no known owner/route is simply not notified.
+- Routing keys ride on the task payload (chat puts `conversationId` there).
+  Executor does not model owner-specific concepts beyond reading that key.
+
 ## Entry points
 
 - `nitro.config.ts` — Nitro + `workflow/nitro` build config; routes `/**` to
   `src/index.ts`.
 - `src/index.ts` — Nitro-mounted Hono app entry + boot-time task reconciler.
 - `src/app.ts` — route wiring, auth, error mapping.
-- `src/routes/tasks.ts` — Task API (start/get/cancel/stream).
+- `src/routes/tasks.ts` — Task API (start/get/cancel).
 - `src/tasks/service.ts` — task lifecycle, idempotency, completion watching.
+- `src/tasks/notify.ts` — progress recording + outbound owner notifications.
+- `src/clients/chat.ts` — `notifyTaskEvent` wrapper over `ChatInternalClient`.
 - `src/tasks/registry.ts` — TaskType registry.
 - `workflows/*.ts` — one file per TaskType's actual `"use workflow"`/`"use step"`
   implementation.
 
-## Known operational notes (Nitro v3 beta tracer bugs)
+## Known operational notes (Nitro v3 beta / Workflow World gotchas)
 
-Both fixed, both re-check-worthy whenever `nitro`/`workflow`/`ai` are bumped:
+All fixed, all re-check-worthy whenever `nitro`/`workflow`/`ai` are bumped:
 
 1. **`nf3`/`@vercel/nft` ESM interop bug** breaks `nitro build`'s production
    server bundling (`Named export 'nodeFileTrace' not found`). Fixed via
-   `apps/backend/patches/nf3@0.3.18.patch` (`pnpm patch`).
+   `apps/backend/patches/nf3@0.3.18.patch` (`pnpm patch`). This patch is
+   registered in `apps/backend/pnpm-workspace.yaml`'s `patchedDependencies`,
+   which is workspace-wide: **any** backend service's `Dockerfile` running
+   `pnpm install` there must `COPY apps/backend/patches ./apps/backend/patches`
+   before it, even if that service never depends on `nf3` — otherwise pnpm
+   fails with `ENOENT ... patches/nf3@0.3.18.patch` while hashing the
+   lockfile, regardless of `--filter`. Bit `chat`'s Dockerfile once (fixed
+   by adding the same `COPY` there); re-check this for every new service.
 2. **`nf3` path-depth bug**: `ai`/`@ai-sdk/gateway` pull in `@vercel/oidc`
    (never actually called — this service only uses `createOpenAICompatible`
    directly), and nf3 miscalculates the number of `../` segments when
@@ -79,10 +114,47 @@ Both fixed, both re-check-worthy whenever `nitro`/`workflow`/`ai` are bumped:
    monorepo, crashing at boot with `MODULE_NOT_FOUND`. Fixed via
    `scripts/fix-oidc-trace.mjs`, wired as the `postbuild` step of
    `pnpm run build` — always runs automatically, no manual step needed.
+3. **`nitro/~internal/runtime/plugin` isn't exported** by
+   `nitro@3.0.260610-beta` (checked: it's absent from the package's own
+   `exports` map), so the Postgres World doc's official "Starting the World"
+   Nitro-plugin example cannot be used as written. Worked around by calling
+   `getWorld().start()` directly at module scope in `src/index.ts` instead —
+   this is the same mechanism a Nitro plugin would trigger, it just doesn't
+   go through Nitro's plugin system. This one matters more than the other
+   two: without it, a deployment on the Postgres World would create workflow
+   runs whose steps never advance (the docs are explicit that setting
+   `WORKFLOW_TARGET_WORLD` alone does not start the graphile-worker queue
+   that processes them) — silently, since `POST /tasks` still returns
+   `"running"` immediately either way. Empirically verified end to end
+   against a real `workflow-postgres` container (`workflow.workflow_runs`
+   gained a row, `.workflow-data/` was never created, task reached
+   `completed`) — this had never actually been tested before, only assumed
+   from reading the docs.
 
-Validated end to end (Phase 2 of the plan): a real `html-artifact` task ran
-through `planStep` → `generateBlockStep` × N → `compileAndPublishStep` against
-a real provider and produced a real published document.
+4. **`nitro dev` auto-loads `.env`; the built server does not.** `pnpm dev`
+   (`nitro dev`) picks up `WORKFLOW_TARGET_WORLD` etc. from `.env`
+   automatically — verified by dispatching a real task and confirming no
+   `.workflow-data/` appeared. Running `node .output/server/index.mjs`
+   directly does **not** load `.env` at all (also verified: same task,
+   `.workflow-data/` did appear, meaning it silently fell back to Local
+   World even with `.env` correctly configured). `package.json`'s `start`
+   script is `node --env-file=.env .output/server/index.mjs` specifically
+   to close this gap for anyone running the production build locally
+   (`pnpm run build && pnpm run start`). This doesn't affect real
+   deployments — `docker-compose.prod.yml`/k8s inject env vars directly,
+   never through a `.env` file — but it matters for local testing: don't
+   assume `.env` "just works" for every way of running this service.
+
+Calling `getWorld().start()` is gated on `WORKFLOW_TARGET_WORLD` being set:
+under the default Local World it throws `Invalid version string: "bundled"`
+(caught, logged, harmless, but pointless noise on every local boot) —
+empirically confirmed, not a documentation assumption.
+
+Validated end to end (Phase 2 of the plan, and again for bugs 3-4 above): a
+real `html-artifact` task ran through `planStep` → `generateBlockStep` × N →
+`compileAndPublishStep` against a real provider and produced a real published
+document, on both Local World and Postgres World, under `nitro dev`, plain
+`node`, and `node --env-file`.
 
 ## Cancellation
 

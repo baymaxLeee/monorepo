@@ -15,6 +15,7 @@ export const tasks = mysqlTable(
     workflowRunId: varchar("workflow_run_id", { length: 64 }),
     payload: json("payload").$type<unknown>().notNull(),
     result: json("result").$type<unknown>(),
+    progress: json("progress").$type<{ done: number; total: number } | null>(),
     error: text("error"),
     createdAt: datetime("created_at", { mode: "date", fsp: 6 }).notNull(),
     updatedAt: datetime("updated_at", { mode: "date", fsp: 6 }).notNull(),

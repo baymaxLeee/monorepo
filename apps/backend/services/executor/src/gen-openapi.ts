@@ -23,6 +23,15 @@ const taskSchema = {
     ownerService: { type: "string" },
     ownerRef: { type: "string" },
     result: {},
+    progress: {
+      type: "object",
+      nullable: true,
+      properties: {
+        done: { type: "integer" },
+        total: { type: "integer" },
+      },
+      required: ["done", "total"],
+    },
     error: { type: "string", nullable: true },
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },
@@ -35,6 +44,7 @@ const taskSchema = {
     "ownerService",
     "ownerRef",
     "result",
+    "progress",
     "error",
     "createdAt",
     "updatedAt",

@@ -6,14 +6,12 @@
   "scripts": {
     "dev": "nitro dev",
     "build": "nitro build && node scripts/fix-oidc-trace.mjs",
-    "start": "node .output/server/index.mjs",
+    "start": "node --env-file=.env .output/server/index.mjs",
     "lint": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "gen-openapi": "tsx src/gen-openapi.ts"
   },
   "dependencies": {
-    "@ai-sdk/provider-utils": "^5.0.1",
-    "@ai-sdk/workflow": "^1.0.2",
     "@backend/transport-ts": "workspace:*",
     "@hono/zod-validator": "^0.4.0",
     "@workflow/world-postgres": "^4.2.0",

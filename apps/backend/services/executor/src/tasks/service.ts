@@ -1,12 +1,12 @@
 import { randomBytes } from "node:crypto";
-
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { getRun, start } from "workflow/api";
 import { WorkflowRunCancelledError } from "workflow/errors";
 
 import { getDb } from "../db/index.js";
 import { tasks } from "../db/schema.js";
 import { ConflictError, NotFoundError, RequestError } from "../lib/errors.js";
+import { notifyOwnerById } from "./notify.js";
 import { getTaskType } from "./registry.js";
 import type { TaskSnapshot } from "./types.js";
 
@@ -31,6 +31,7 @@ function toSnapshot(row: TaskRow): TaskSnapshot {
     ownerService: row.ownerService,
     ownerRef: row.ownerRef,
     result: row.result ?? null,
+    progress: row.progress ?? null,
     error: row.error,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -65,6 +66,7 @@ function watchCompletion(taskId: string, workflowRunId: string): void {
         .update(tasks)
         .set({ status: "completed", result, updatedAt: new Date(), finishedAt: new Date() })
         .where(eq(tasks.id, taskId));
+      await notifyOwnerById(taskId);
     })
     .catch(async (error: unknown) => {
       // Empirically verified (see agent_task_执行时服务 plan): Workflow
@@ -82,6 +84,7 @@ function watchCompletion(taskId: string, workflowRunId: string): void {
           finishedAt: new Date(),
         })
         .where(eq(tasks.id, taskId));
+      await notifyOwnerById(taskId);
     });
 }
 
@@ -151,9 +154,32 @@ export async function cancelTask(id: string): Promise<TaskSnapshot> {
 // Restores watchers for tasks whose owning process crashed/restarted before
 // their workflow finished. Safe to call on every boot: `run.returnValue`
 // replays against the durable run, it does not re-execute anything.
+//
+// Also rescues the narrow crash window inside createTask() between the `queued`
+// insert and start() assigning a workflowRunId: such a task has no durable run
+// to resume, and re-starting one risks a duplicate run, so fail it
+// deterministically instead of leaving the poller stuck on `queued` forever.
 export async function reconcilePendingTasks(): Promise<void> {
-  const rows = await getDb().select().from(tasks).where(eq(tasks.status, "running"));
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(tasks)
+    .where(inArray(tasks.status, ["queued", "running"]));
+  const now = new Date();
   for (const row of rows) {
-    if (row.workflowRunId) watchCompletion(row.id, row.workflowRunId);
+    if (row.workflowRunId) {
+      watchCompletion(row.id, row.workflowRunId);
+    } else {
+      await db
+        .update(tasks)
+        .set({
+          status: "failed",
+          error: "orphaned before workflow start (process restarted mid-create)",
+          updatedAt: now,
+          finishedAt: now,
+        })
+        .where(and(eq(tasks.id, row.id), isNull(tasks.workflowRunId)));
+      await notifyOwnerById(row.id);
+    }
   }
 }

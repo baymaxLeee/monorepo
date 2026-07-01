@@ -364,14 +364,16 @@ export interface Task {
   ownerService: string;
   ownerRef: string;
   result: unknown;
+  progress: { done: number; total: number } | null;
   error: string | null;
   createdAt: string;
   updatedAt: string;
   finishedAt: string | null;
 }
 
-// Proxied to the executor service. write_file/edit_file's tool output
-// carries the task_id to poll here (see ChatArtifactCard/ArtifactJobBar).
+// Durable snapshot read (proxied to executor). The card no longer polls this —
+// it opens the SSE stream below — but it stays as a plain REST read for
+// cold-start/debug callers.
 export function fetchConversationTask(
   conversationId: string,
   taskId: string,
@@ -380,6 +382,44 @@ export function fetchConversationTask(
     url: `${BASE}/${encodeURIComponent(conversationId)}/tasks/${encodeURIComponent(taskId)}`,
     method: "GET",
   });
+}
+
+export function conversationTaskStreamUrl(
+  conversationId: string,
+  taskId: string,
+): string {
+  return `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/tasks/${encodeURIComponent(taskId)}/stream`;
+}
+
+// Opens the task's live progress stream (native AI SDK UIMessage SSE). Handles
+// bearer auth + a single 401 refresh-and-retry, then hands the raw Response to
+// the caller, which parses it with the AI SDK reader (kept in the app package
+// that already depends on `ai`). Replaces the old polling loop.
+export async function openConversationTaskStream(
+  conversationId: string,
+  taskId: string,
+  signal?: AbortSignal,
+): Promise<Response> {
+  if (!isAccessTokenValid()) {
+    await refreshSession();
+  }
+  const url = conversationTaskStreamUrl(conversationId, taskId);
+  const run = () =>
+    fetch(url, {
+      credentials: "include",
+      headers: { ...chatAuthHeaders() },
+      signal,
+    });
+
+  let response = await run();
+  if (response.status === 401) {
+    const refreshed = await refreshSession();
+    if (refreshed) response = await run();
+  }
+  if (!response.ok || !response.body) {
+    throw new Error(`task stream failed: ${response.status}`);
+  }
+  return response;
 }
 
 export type UpdateMemoryCandidateInput = UpdateMemoryCandidate;

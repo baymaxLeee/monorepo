@@ -14,3 +14,6 @@ data:
   WORKFLOW_TARGET_WORLD: "@workflow/world-postgres"
   ADMIN_SERVICE_URL: "http://admin.default.svc.cluster.local:8001"
   KNOWLEDGE_SERVICE_URL: "http://knowledge.default.svc.cluster.local:8010"
+  # Reverse channel: executor pushes task progress/terminal events to chat's
+  # /internal/tasks/notify (owner of write_file/edit_file tasks).
+  CHAT_SERVICE_URL: "http://chat.default.svc.cluster.local:8009"

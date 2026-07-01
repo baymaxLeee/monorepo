@@ -12,6 +12,10 @@ import {
   cancelRun,
   activeAgentStreamRunId,
   replayAgentSseStream,
+  markTaskStreamActive,
+  replayTaskSseStream,
+  taskSeedFrames,
+  SSE_DONE_FRAME,
 } from "../agent/index.js";
 import { getConversationRow } from "../services/conversations.js";
 
@@ -109,11 +113,60 @@ agentsRoutes.post("/:conversationId/agents/runs/:runId/cancel", async (c) => {
   return c.json({ cancelled, status: run.status });
 });
 
-// Thin proxy to executor: write_file/edit_file's tool output carries a
-// task_id (see ChatArtifactCard on the frontend), which polls this endpoint
-// for progress instead of the old "list all unfinished jobs for this
-// conversation" endpoint. One task at a time, looked up by id, matches the
-// non-blocking dispatch model (agent_task_执行时服务 plan Phase 2).
+// Live progress for one background task, as a native AI SDK UIMessage SSE
+// stream. Replaces the old ArtifactTaskCard polling: on connect we seed the
+// current snapshot from executor (durable truth), then replay executor's pushed
+// progress/terminal events over the same resumable-stream transport as agent
+// runs. The browser consumes this with readUIMessageStream (no bespoke parser).
+agentsRoutes.get("/:conversationId/tasks/:taskId/stream", async (c) => {
+  const auth = getAuth(c);
+  const conversationId = c.req.param("conversationId");
+  const taskId = c.req.param("taskId");
+  await getConversationRow(auth, conversationId);
+  const task = await getTask(taskId);
+
+  const seed = taskSeedFrames({
+    taskId: task.id,
+    status: task.status,
+    progress: task.progress ?? null,
+    result: task.result,
+    error: task.error,
+  });
+
+  const encoder = new TextEncoder();
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for (const frame of seed.frames) {
+          controller.enqueue(encoder.encode(frame));
+        }
+        if (seed.terminal) {
+          controller.enqueue(encoder.encode(SSE_DONE_FRAME));
+          controller.close();
+          return;
+        }
+        await markTaskStreamActive(taskId);
+        for await (const frame of replayTaskSseStream(taskId)) {
+          if (cancelled) return;
+          controller.enqueue(encoder.encode(frame));
+        }
+      } catch (error) {
+        if (!cancelled) controller.error(error);
+        return;
+      }
+      if (!cancelled) controller.close();
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  return new Response(body, { headers: { ...UI_MESSAGE_STREAM_HEADERS } });
+});
+
+// Thin JSON read of one task (durable snapshot, proxied to executor). Kept as a
+// plain REST read for cold-start/debug; the card no longer polls it — it opens
+// the /stream endpoint above instead.
 agentsRoutes.get("/:conversationId/tasks/:taskId", async (c) => {
   const auth = getAuth(c);
   await getConversationRow(auth, c.req.param("conversationId"));

@@ -94,15 +94,31 @@ just chat), which makes this gap the priority rather than a deferred nicety.
   gain `executor` + a `workflow-postgres` service (self-hosted Workflow
   World), reversing the removal from ADR-0011/0006 — but scoped to
   `executor` only, not the main chat loop those ADRs were actually about.
-  The shared local-dev `docker-compose.yml` deliberately does **not** run
-  Postgres for this: local dev defaults to Workflow DevKit's filesystem
-  Local World, which every test in this ADR actually ran against — adding an
-  unused Postgres container to every contributor's `just up` was reviewed
-  out as complexity with no local payoff. `WORKFLOW_POSTGRES_PASSWORD` was
-  already a required key in `deploy-single-vps.yml`'s env-completeness
-  check before this ADR (a leftover from ADR-0006 that had become dead
-  weight after ADR-0011); it is now genuinely consumed again instead of
-  being vestigial.
+  `WORKFLOW_POSTGRES_PASSWORD` was already a required key in
+  `deploy-single-vps.yml`'s env-completeness check before this ADR (a
+  leftover from ADR-0006 that had become dead weight after ADR-0011); it is
+  now genuinely consumed again instead of being vestigial.
+  The shared local-dev `docker-compose.yml` also runs the same
+  `workflow-postgres` service, for dev/prod parity — an initial version of
+  this ADR excluded it from local dev (defaulting to Workflow DevKit's
+  filesystem Local World there) to keep `just up` lighter, but that was
+  reverted: a real bug (executor never called `getWorld().start()`, so the
+  Postgres World's job queue would never have actually processed a step in
+  production — see `executor/AGENTS.md` "Known operational notes" #3) went
+  undetected for an entire build-out phase specifically because local dev
+  never exercised that code path. Parity surfaced it on the next normal
+  local run instead of requiring a dedicated investigation.
+- The `nf3` patch above is registered in `apps/backend/pnpm-workspace.yaml`'s
+  `patchedDependencies`, which applies workspace-wide regardless of
+  `--filter`. This broke `chat`'s Docker build (`ENOENT ...
+  patches/nf3@0.3.18.patch`) even though `chat` never depends on `nf3` —
+  pnpm hashes every referenced patch file against the lockfile before the
+  filter narrows anything. Fixed by adding the same
+  `COPY apps/backend/patches ./apps/backend/patches` that `executor`'s
+  Dockerfile already had to `chat`'s Dockerfile too; verified with a real
+  `docker build` of the `chat` image. Same regression risk applies to any
+  future backend service Dockerfile — noted in root `AGENTS.md`'s
+  "Common silent-breakers" and the new-microservice playbook's 反模式.
 - Validated end to end: a real `html-artifact` task ran through
   `planStep` → `generateBlockStep` × N → `compileAndPublishStep` against a
   real provider (Volcano Engine DeepSeek) and produced a real published

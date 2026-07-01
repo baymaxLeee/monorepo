@@ -37,11 +37,11 @@ just dev
 - 从 `.env.example` 复制缺失的 `.env`
 
 `just up` 帮你做了:
-- `docker compose up -d`(MySQL 8 + Redis)
-- 业务建库和 admin schema/种子数据。`executor` 本地默认用文件系统 Local World
-  跑 Workflow DevKit,不需要额外的数据库容器;只有部署环境(single-vps /
-  k8s)才配一个专用的 `@workflow/world-postgres`,因为多副本/重启需要真正的
-  共享持久化,见 `docs/微服务/executor.md`。
+- `docker compose up -d`(MySQL 8 + Redis + workflow-postgres)
+- 业务建库和 admin schema/种子数据,以及 `executor` 用的 Workflow World
+  （`@workflow/world-postgres`）schema——本地和每个部署环境(single-vps /
+  k8s)跑同一个 Postgres World,不默认退化成文件系统 Local World,保持
+  本地/生产行为一致,见 `docs/微服务/executor.md`。
 
 跑完之后浏览器打开 **http://localhost:3000**,就能看到完整跨栈链路:
 
@@ -98,7 +98,7 @@ just down    # 收工,关 docker
 | `just dev` | **起全套服务**,Ctrl+C 全停 ⭐ |
 | `just dev-shell` | 同上,但用纯 shell 模式(无 overmind 时的 fallback) |
 | `just dev-urls` | 列出所有服务的 URL |
-| `just up` / `just down` | 起 / 关 docker(MySQL + Redis) |
+| `just up` / `just down` | 起 / 关 docker(MySQL + Redis + workflow-postgres) |
 | `just install` | 装所有依赖(前端 + 后端 Py + Go) |
 | `just build` | **全栈构建**(前端 dist + Go 二进制) |
 | `just build <target>` | 单目标构建:`shell` / `mfe-bot` / `gateway` / `frontend` / `backend` |

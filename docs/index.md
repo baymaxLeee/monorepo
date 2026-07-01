@@ -23,6 +23,7 @@ Welcome. This index is the entry point for ALL documentation.
 | `领域模型/` | Domain glossary |
 | `开发规范/` | Style, error, audit, permission conventions |
 | `多agent协作/` | AI agent collaboration patterns |
+| `plans/` | Full narrative implementation plans (phase-by-phase detail); ADRs stay decision-focused, plans keep the how-we-got-there record |
 
 ## Adding new documentation
 

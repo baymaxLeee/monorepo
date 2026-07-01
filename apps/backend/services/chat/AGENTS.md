@@ -26,9 +26,14 @@ observability in MySQL and consumes admin (providers), knowledge
   needed). **HTML dispatches to the `executor` service as a non-blocking
   background task** (`agent_task_执行时服务` plan, Phase 2) — the tool call
   returns immediately with `{ status, task_id }`; the ToolLoopAgent does not
-  wait for generation to finish. The frontend polls
-  `GET /conversations/:id/tasks/:taskId` (proxied to executor) and renders the
-  artifact card once the task completes. Knowledge/ObjectStore owns full
+  wait for generation to finish. The frontend subscribes to
+  `GET /conversations/:id/tasks/:taskId/stream` — a native AI SDK UIMessage SSE
+  stream (data part `data-artifact-progress`) carried over the same resumable
+  Redis Streams transport as agent runs. Executor pushes live progress and the
+  terminal result to chat's `/internal/tasks/notify`; chat fans it onto that
+  stream and re-seeds the current snapshot from executor on connect, so reloads
+  after completion still render without polling. `GET .../tasks/:taskId` stays
+  as a plain JSON read for cold-start/debug. Knowledge/ObjectStore owns full
   content; chat history and traces never carry HTML fragments.
 - `run_command` (`validate_html`/`inspect_layout`) inspects an already
   *published* HTML artifact; it stays local to chat since it needs no LLM

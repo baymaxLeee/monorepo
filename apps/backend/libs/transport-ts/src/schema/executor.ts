@@ -83,6 +83,10 @@ export interface paths {
                             ownerService: string;
                             ownerRef: string;
                             result: unknown;
+                            progress: {
+                                done: number;
+                                total: number;
+                            } | null;
                             error: string | null;
                             /** Format: date-time */
                             createdAt: string;
@@ -140,6 +144,10 @@ export interface paths {
                             ownerService: string;
                             ownerRef: string;
                             result: unknown;
+                            progress: {
+                                done: number;
+                                total: number;
+                            } | null;
                             error: string | null;
                             /** Format: date-time */
                             createdAt: string;
@@ -201,6 +209,10 @@ export interface paths {
                             ownerService: string;
                             ownerRef: string;
                             result: unknown;
+                            progress: {
+                                done: number;
+                                total: number;
+                            } | null;
                             error: string | null;
                             /** Format: date-time */
                             createdAt: string;
@@ -238,6 +250,10 @@ export interface components {
             ownerService: string;
             ownerRef: string;
             result: unknown;
+            progress: {
+                done: number;
+                total: number;
+            } | null;
             error: string | null;
             /** Format: date-time */
             createdAt: string;

@@ -77,8 +77,8 @@ services:
   # Self-hosted Workflow World for `executor` (@workflow/world-postgres).
   # Separate from the business `mysql` container by design: run/step/event log
   # state is Workflow DevKit's own bookkeeping, not application business data.
-  # Local dev deliberately has no equivalent container — it uses the
-  # filesystem-backed Local World instead (see docs/微服务/executor.md).
+  # Local dev runs the same container (root docker-compose.yml) for dev/prod
+  # parity — see docs/微服务/executor.md.
   workflow-postgres:
     image: postgres:16-alpine
     container_name: monorepo-workflow-postgres
@@ -247,6 +247,8 @@ services:
       # Provider calls (SSRF-guarded); knowledge owns the published document.
       ADMIN_SERVICE_URL: http://admin:8001
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
+      # Reverse channel: push task progress/terminal events to chat.
+      CHAT_SERVICE_URL: http://chat:8009
     <<: *restart_policy
 
   knowledge:

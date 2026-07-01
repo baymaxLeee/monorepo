@@ -51,7 +51,7 @@ MUST keep them working — see "Migration safety" rule below.
 | Command | What it does |
 |---|---|
 | `just install` | Install ALL deps (mise + pnpm + uv + go; copies `.env` from examples) |
-| `just up` | Docker (MySQL 8, Redis) + DB/workflow schema bootstrap |
+| `just up` | Docker (MySQL 8, Redis, workflow-postgres) + DB/workflow schema bootstrap |
 | `just down` | Stop local infra |
 | `just dev` | Start full demo stack (gateway + iam + admin svc + platform + admin MFE) |
 | `just build [target]` | Build frontend / backend / specific service (target optional) |
@@ -111,6 +111,14 @@ Common silent-breakers to watch:
 - Moving `scripts/*.sh` → update root `justfile` recipes that call them
 - Changing `apps/backend/services/` or `apps/frontend/apps/` layout → update
   `go.work`, `pnpm-workspace.yaml`, `tsconfig.base.json` paths
+- Adding a `patchedDependencies` entry to `apps/backend/pnpm-workspace.yaml`
+  → every backend service `Dockerfile` that runs `pnpm install` in that
+  workspace must `COPY apps/backend/patches ./apps/backend/patches` first,
+  even services that don't depend on the patched package themselves: pnpm
+  hashes every patch file referenced in the workspace config against the
+  lockfile before `--filter` narrows anything, so a missing `patches/` dir
+  is an `ENOENT` that breaks *every* service's image build, not just the
+  one that needed the patch
 
 Quick self-check after any structural change: run at minimum
 `just install && just up && just dev` once; if any of them break, the

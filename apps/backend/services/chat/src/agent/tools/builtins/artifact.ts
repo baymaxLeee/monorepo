@@ -136,8 +136,9 @@ export async function writeFileTool(
     }
 
     // HTML: hand off to executor as a durable, non-blocking background task.
-    // This tool call returns immediately; the artifact card appears once the
-    // task completes (see ArtifactJobBar / ChatArtifactCard on the frontend).
+    // This tool call returns immediately; ChatArtifactCard then subscribes to
+    // the task's progress stream (GET /tasks/:taskId/stream) and renders live
+    // progress + the final artifact — no polling.
     const task = await startTask({
       type: "html-artifact",
       ownerRef: toolCallId,
@@ -150,6 +151,7 @@ export async function writeFileTool(
         mode: input.mode,
         brief: input.brief,
         pageCount: input.page_count,
+        idempotencyKey: toolCallId,
       },
     });
     return {
@@ -212,6 +214,7 @@ export async function editFileTool(
         brief: input.brief,
         documentId: current.id,
         blockIds: input.block_ids,
+        idempotencyKey: toolCallId,
       },
     });
     return {

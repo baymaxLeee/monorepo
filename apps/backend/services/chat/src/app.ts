@@ -4,6 +4,7 @@ import { problemJson } from "./lib/errors.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { agentsRoutes } from "./routes/agents.js";
 import { conversationsRoutes } from "./routes/conversations.js";
+import { internalRoutes } from "./routes/internal.js";
 import { memoriesRoutes } from "./routes/memories.js";
 
 export function createApp() {
@@ -17,6 +18,11 @@ export function createApp() {
     const { status, body } = problemJson(err);
     return c.json(body, status as 400);
   });
+
+  // Service-to-service endpoints (X-Internal-Token). Mounted before the browser
+  // API and with its own auth so executor's task notifications never touch the
+  // per-user gateway auth path.
+  app.route("/internal", internalRoutes);
 
   const api = new Hono();
   api.use("*", authMiddleware);

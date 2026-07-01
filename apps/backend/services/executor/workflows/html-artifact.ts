@@ -5,14 +5,16 @@
 // durable execution — there is deliberately no claim/heartbeat/cancellation-
 // poll code here; one workflow run is the one and only owner of this task.
 //
-// Known gap vs. the original chat implementation: cancellation does not yet
-// forward an AbortSignal into in-flight generateText/streamText calls (the
-// original combined the caller's AbortSignal with a timeout). A cancelled
-// task currently lets any already-started block finish before the workflow
-// stops scheduling new ones. Acceptable for this migration pass; revisit if
-// mid-generation cancellation latency matters.
+// Cancellation (measured — see ADR-0016, do not re-document as a "known gap"):
+// Workflow DevKit's run.cancel() interrupts an in-flight step within seconds,
+// it does NOT wait for the current block to finish, so no custom AbortSignal
+// forwarding is needed here. The only cancellation subtlety lives in the
+// caller: run.returnValue rejects with WorkflowRunCancelledError (classified
+// in tasks/service.ts), not a generic AbortError.
+import { getWorkflowMetadata } from "workflow";
 import { z } from "zod";
 
+import { reportTaskProgress } from "../src/tasks/notify.js";
 import {
   failArtifactGeneration,
   listArtifactBlocks,
@@ -44,6 +46,11 @@ export const htmlArtifactInputSchema = z.object({
   pageCount: z.number().int().min(1).max(100).optional(),
   documentId: z.string().max(32).optional(),
   blockIds: z.array(z.string()).max(100).optional(),
+  // Stable per-dispatch key (chat passes the tool call id, == the task's
+  // owner_ref). Ties this run to exactly one knowledge-side generation record.
+  // Falls back to title+filename for older callers that don't send it, but that
+  // fallback can collide across distinct tool calls with the same title/file.
+  idempotencyKey: z.string().min(1).max(120).optional(),
 });
 export type HtmlArtifactInput = z.infer<typeof htmlArtifactInputSchema>;
 
@@ -230,6 +237,21 @@ async function compileAndPublishStep(input: {
   };
 }
 
+// Best-effort progress ping. Runs as its own durable step so the "use workflow"
+// orchestrator stays deterministic (no direct DB/network there), but it never
+// throws: a failed progress update must not fail — or retry-storm — the artifact
+// generation it merely annotates. getWorkflowMetadata() gives us this run's id,
+// which executor's tasks table already indexes back to the business task.
+async function reportProgressStep(done: number, total: number): Promise<void> {
+  "use step";
+  try {
+    const { workflowRunId } = getWorkflowMetadata();
+    await reportTaskProgress(workflowRunId, { done, total });
+  } catch (error) {
+    console.error("[executor] progress report failed (non-fatal)", { done, total, error });
+  }
+}
+
 async function failStep(input: { userId: string; generationId: string; error: string }) {
   "use step";
   await failArtifactGeneration({
@@ -263,12 +285,19 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
   const plan = await planStep(input);
   // idempotencyKey ties this workflow run to exactly one knowledge-side
   // generation record even if the step retries.
-  const generationId = await reserveStep(input, plan, `wf-${input.title}-${input.filename}`);
+  const generationId = await reserveStep(
+    input,
+    plan,
+    input.idempotencyKey ?? `wf-${input.title}-${input.filename}`,
+  );
 
   try {
     const strategiesById = new Map((plan.blockStrategies ?? []).map((s) => [s.id, s]));
-    await mapConcurrent(plan.blocks, BLOCK_CONCURRENCY, (block) =>
-      generateBlockStep({
+    const total = plan.blocks.length;
+    let done = 0;
+    await reportProgressStep(done, total);
+    await mapConcurrent(plan.blocks, BLOCK_CONCURRENCY, async (block) => {
+      const result = await generateBlockStep({
         userId: input.userId,
         providerId: input.providerId,
         generationId,
@@ -279,8 +308,11 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
         artifactBrief: input.brief,
         strategy: strategiesById.get(block.id),
         sourceHtml: plan.sourceHtmlById?.[block.id],
-      }),
-    );
+      });
+      done += 1;
+      await reportProgressStep(done, total);
+      return result;
+    });
 
     const published = await compileAndPublishStep({
       userId: input.userId,

@@ -1,4 +1,15 @@
-import { fetchConversationTask, type ConversationDocument, type Task } from "api";
+import {
+  parseJsonEventStream,
+  readUIMessageStream,
+  type UIMessage,
+  type UIMessageChunk,
+  uiMessageChunkSchema,
+} from "ai";
+import {
+  type ConversationDocument,
+  openConversationTaskStream,
+  type TaskStatus,
+} from "api";
 import { Button } from "components";
 import {
   Artifact,
@@ -32,7 +43,8 @@ export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
     title: typeof raw.title === "string" ? raw.title : "Artifact",
     filename: typeof raw.filename === "string" ? raw.filename : "artifact",
     kind: typeof raw.kind === "string" ? raw.kind : "file",
-    totalChars: typeof raw.total_chars === "number" ? raw.total_chars : undefined,
+    totalChars:
+      typeof raw.total_chars === "number" ? raw.total_chars : undefined,
   };
 }
 
@@ -47,7 +59,9 @@ export type ArtifactTaskOutput = {
   kind: string;
 };
 
-export function parseArtifactTaskOutput(output: unknown): ArtifactTaskOutput | null {
+export function parseArtifactTaskOutput(
+  output: unknown,
+): ArtifactTaskOutput | null {
   if (!output || typeof output !== "object") return null;
   const raw = output as Record<string, unknown>;
   if (typeof raw.task_id !== "string") return null;
@@ -59,34 +73,37 @@ export function parseArtifactTaskOutput(output: unknown): ArtifactTaskOutput | n
   };
 }
 
-type HtmlArtifactTaskResult = {
-  documentId?: string;
-  totalChars?: number;
-  blocksTotal?: number;
-  blocksDone?: number;
-  blocksFailed?: number;
+// Live snapshot pushed over the task stream (chat's data-artifact-progress
+// part). Mirrors the executor-side ArtifactProgressData shape.
+type ProgressSnapshot = {
+  status: TaskStatus;
+  progress: { done: number; total: number } | null;
+  documentId: string | null;
+  totalChars: number | null;
+  blocksTotal: number | null;
+  blocksDone: number | null;
+  blocksFailed: number | null;
+  error: string | null;
 };
 
-function parseTaskResult(result: unknown): HtmlArtifactTaskResult {
-  if (!result || typeof result !== "object") return {};
-  const raw = result as Record<string, unknown>;
-  return {
-    documentId: typeof raw.documentId === "string" ? raw.documentId : undefined,
-    totalChars: typeof raw.totalChars === "number" ? raw.totalChars : undefined,
-    blocksTotal: typeof raw.blocksTotal === "number" ? raw.blocksTotal : undefined,
-    blocksDone: typeof raw.blocksDone === "number" ? raw.blocksDone : undefined,
-    blocksFailed: typeof raw.blocksFailed === "number" ? raw.blocksFailed : undefined,
-  };
+// A parseJsonEventStream result, typed structurally so we don't depend on the
+// AI SDK's internal ParseResult export.
+type JsonEventResult<T> = { success: true; value: T } | { success: false };
+
+function latestProgress(message: UIMessage): ProgressSnapshot | null {
+  for (let i = message.parts.length - 1; i >= 0; i -= 1) {
+    const part = message.parts[i];
+    if (part && part.type === "data-artifact-progress" && "data" in part) {
+      return part.data as ProgressSnapshot;
+    }
+  }
+  return null;
 }
 
-const POLL_MS = 2_000;
-
-// Owns the full lifecycle of one background html-artifact task: polls
-// chat's task proxy (-> executor) until the task leaves queued/running, then
-// renders either the finished ArtifactDocumentCard or an error state. This
-// replaces the old conversation-wide ArtifactJobBar poll — each card tracks
-// only the one task it cares about, matching the non-blocking dispatch model
-// (agent_task_执行时服务 plan Phase 2).
+// Owns the full lifecycle of one background html-artifact task. Instead of
+// polling, it opens the task's native UIMessage SSE stream once and lets chat
+// push progress + the terminal result. On connect chat re-seeds the current
+// snapshot, so this also covers page reloads long after the task finished.
 export function ArtifactTaskCard({
   task,
   conversationId,
@@ -98,48 +115,61 @@ export function ArtifactTaskCard({
   documents: Map<string, ConversationDocument>;
   onOpen: (documentId: string) => void;
 }) {
-  const [snapshot, setSnapshot] = useState<Task | null>(null);
+  const [snapshot, setSnapshot] = useState<ProgressSnapshot | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
     let active = true;
-    let timer: number | undefined;
-    async function poll() {
+    (async () => {
       try {
-        const next = await fetchConversationTask(conversationId, task.taskId);
-        if (!active) return;
-        setSnapshot(next);
-        if (next.status === "queued" || next.status === "running") {
-          timer = window.setTimeout(poll, POLL_MS);
+        const response = await openConversationTaskStream(
+          conversationId,
+          task.taskId,
+          controller.signal,
+        );
+        const chunks = parseJsonEventStream({
+          stream: response.body!,
+          schema: uiMessageChunkSchema,
+        }).pipeThrough(
+          new TransformStream<JsonEventResult<UIMessageChunk>, UIMessageChunk>({
+            transform(part, ctrl) {
+              if (part.success) ctrl.enqueue(part.value);
+            },
+          }),
+        );
+        for await (const message of readUIMessageStream({ stream: chunks })) {
+          if (!active) break;
+          const data = latestProgress(message);
+          if (data) setSnapshot(data);
         }
       } catch {
-        if (active) timer = window.setTimeout(poll, POLL_MS * 2);
+        // Aborted on unmount, or a transient stream failure. The last snapshot
+        // stays on screen; a reload re-seeds from the durable task record.
       }
-    }
-    void poll();
+    })();
     return () => {
       active = false;
-      if (timer) window.clearTimeout(timer);
+      controller.abort();
     };
   }, [conversationId, task.taskId]);
 
   const status = snapshot?.status ?? "queued";
-  const result = parseTaskResult(snapshot?.result);
 
-  if (status === "completed" && result.documentId) {
+  if (status === "completed" && snapshot?.documentId) {
     return (
       <ArtifactDocumentCard
-        document={documents.get(result.documentId)}
-        documentId={result.documentId}
+        document={documents.get(snapshot.documentId)}
+        documentId={snapshot.documentId}
         fallback={{
-          documentId: result.documentId,
+          documentId: snapshot.documentId,
           status: "persisted",
           title: task.title,
           filename: task.filename,
           kind: task.kind,
-          totalChars: result.totalChars,
+          totalChars: snapshot.totalChars ?? undefined,
         }}
-        blocksFailed={result.blocksFailed}
-        onOpen={() => onOpen(result.documentId!)}
+        blocksFailed={snapshot.blocksFailed ?? undefined}
+        onOpen={() => onOpen(snapshot.documentId!)}
       />
     );
   }
@@ -165,7 +195,9 @@ export function ArtifactTaskCard({
     );
   }
 
-  const hasBlockProgress = typeof result.blocksTotal === "number" && result.blocksTotal > 0;
+  const done = snapshot?.progress?.done ?? snapshot?.blocksDone ?? 0;
+  const total = snapshot?.progress?.total ?? snapshot?.blocksTotal ?? 0;
+  const hasBlockProgress = total > 0;
   return (
     <Artifact>
       <ArtifactHeader>
@@ -173,7 +205,7 @@ export function ArtifactTaskCard({
           <ArtifactTitle className="truncate">{task.title}</ArtifactTitle>
           <ArtifactDescription className="truncate">
             {task.kind} · {task.filename} · 后台生成中
-            {hasBlockProgress ? ` · 已生成 ${result.blocksDone ?? 0}/${result.blocksTotal} 页` : ""}
+            {hasBlockProgress ? ` · 已生成 ${done}/${total} 页` : ""}
           </ArtifactDescription>
         </div>
         <Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground" />

@@ -1,16 +1,19 @@
 ---
 name: nitro-workflow-devkit
 description: >-
-  Diagnoses and fixes known Nitro v3 (beta) build/runtime bugs and pnpm
-  monorepo dependency-version conflicts that surface when hosting Vercel
-  Workflow DevKit ("use workflow"/"use step") on Nitro inside this repo's
-  backend workspace. Use when adding or debugging a Node.js backend service
-  built with `nitro build`/`nitro dev` and the `workflow` package, when
-  `nitro build` fails with a named-export/interop error, when a built Nitro
-  server crashes at boot with MODULE_NOT_FOUND for a package that was never
-  called directly, or when TypeScript reports TS2742 ("inferred type cannot
-  be named") across two sibling packages that both depend on an `@ai-sdk/*`
-  package.
+  Diagnoses and fixes known Nitro v3 (beta) build/runtime bugs, Workflow
+  DevKit World configuration pitfalls, and pnpm monorepo dependency-version
+  conflicts that surface when hosting Vercel Workflow DevKit ("use
+  workflow"/"use step") on Nitro inside this repo's backend workspace. Use
+  when adding or debugging a Node.js backend service built with
+  `nitro build`/`nitro dev` and the `workflow` package, when `nitro build`
+  fails with a named-export/interop error, when a built Nitro server crashes
+  at boot with MODULE_NOT_FOUND for a package that was never called
+  directly, when TypeScript reports TS2742 ("inferred type cannot be named")
+  across two sibling packages that both depend on an `@ai-sdk/*` package, or
+  when configuring `@workflow/world-postgres` and tasks silently never leave
+  the "running" state, or when an env var from `.env` works under `nitro dev`
+  but not when running the built server directly.
 ---
 
 # Nitro + Workflow DevKit in this monorepo
@@ -121,13 +124,88 @@ The one real gotcha: the *caller* awaiting `run.returnValue` sees a
 `WorkflowRunCancelledError.is(error)`), not a generic `AbortError`. Classify
 on that, not `error.name === "AbortError"`.
 
-## Local dev vs. deployed Workflow World
+## Local dev vs. deployed Workflow World: prefer parity, don't assume it's overkill
 
-Local dev should default to Workflow DevKit's filesystem-backed Local World
-(leave `WORKFLOW_TARGET_WORLD`/`WORKFLOW_POSTGRES_URL` unset) — it is
-sufficient for everything short of multi-replica/crash-recovery testing.
-Only wire a real `@workflow/world-postgres` into deployed environments
-(`infra/single-vps/docker-compose.prod.yml`, `infra/k8s/base/<svc>/`), never
-into the shared root `docker-compose.yml`. See
-`.agents/playbooks/new-microservice.md` section G for the general version of
-this rule.
+This repo's first instinct was "Local World locally, Postgres World only in
+deployed environments" (less container weight for local dev). That was
+reverted: local dev now runs the same `workflow-postgres` container as every
+deployed environment (`docker-compose.yml`, started by `just up`, schema
+bootstrapped by `scripts/workflow-postgres-bootstrap.sh`), and Local World is
+only a manual fallback (comment out `WORKFLOW_TARGET_WORLD`/
+`WORKFLOW_POSTGRES_URL` in `.env`).
+
+**Why parity won here**: bug 3 below (the missing `getWorld().start()` call)
+existed for an entire build-out phase without being noticed, specifically
+*because* local dev defaulted to Local World and never exercised the
+Postgres World code path at all. The moment local dev matched production,
+the bug surfaced on the next normal development cycle instead of needing a
+dedicated investigation. Weigh this against the extra container/memory cost
+before defaulting a new service to Local World "for a lighter `just up`" —
+that lightness has a real cost in coverage.
+
+## Known bug 3: Postgres World's queue never starts on this Nitro version
+
+**Symptom**: `WORKFLOW_TARGET_WORLD=@workflow/world-postgres` +
+`WORKFLOW_POSTGRES_URL` are set correctly, `npx workflow-postgres-setup` ran
+without error, and `POST /tasks`-equivalent calls still return
+`"running"` — but tasks never reach a terminal state. No error anywhere.
+
+**Cause**: per Workflow DevKit's own docs (`docs/deploying/world/postgres-world.mdx`
+"Starting the World"), setting the env vars alone does **not** start
+anything — the graphile-worker queue that actually processes steps only
+begins polling once something calls `getWorld().start()`. The docs' Nitro
+example wires this via a plugin importing `defineNitroPlugin` from
+`"nitro/~internal/runtime/plugin"` — but that subpath is not in
+`nitro@3.0.260610-beta`'s own `exports` map (confirm with
+`node -e "console.log(Object.keys(require('nitro/package.json').exports))"`),
+so the official example fails to resolve at build time.
+
+**Fix**: skip Nitro's plugin system and call `getWorld().start()` directly at
+module scope in your Nitro-mounted entry file (the same file that already
+does anything else at boot, e.g. `reconcilePendingTasks()` in this repo's
+`executor/src/index.ts`):
+
+```ts
+import { getWorld } from "workflow/runtime";
+
+if (process.env.WORKFLOW_TARGET_WORLD) {
+  void getWorld().start?.().catch((error) => {
+    console.error("failed to start workflow world", error);
+  });
+}
+```
+
+Gate it on `WORKFLOW_TARGET_WORLD` being set — calling `start()` against the
+default Local World throws `Invalid version string: "bundled"` (harmless if
+caught, but pure noise on every local boot; empirically confirmed, the docs
+don't mention this).
+
+**Verify it actually worked**, don't just assume the docs are right: run a
+real task against a real `@workflow/world-postgres` container end to end and
+confirm a row lands in that Postgres database's `workflow_runs` table (e.g.
+`psql -c "select count(*) from workflow_runs"`), and that `.workflow-data/`
+(the Local World's on-disk marker) is never created. This exact configuration
+had previously only been assumed correct from reading documentation, never
+tested — it silently would not have worked in production.
+
+## Known bug 4: `nitro dev` loads `.env`, the built server doesn't
+
+**Symptom**: env vars set in `.env` (e.g. `WORKFLOW_TARGET_WORLD`) work under
+`pnpm dev` (`nitro dev`) but silently don't take effect when running
+`node .output/server/index.mjs` directly — it falls back to whatever the
+code's own defaults are, with no error.
+
+**Cause**: `nitro dev` has built-in `.env` loading; the production server
+bundle Nitro builds does not carry that behavior over.
+
+**Fix**: use Node's native `--env-file` flag for any script that runs the
+built server directly:
+
+```json
+"start": "node --env-file=.env .output/server/index.mjs"
+```
+
+This doesn't matter for real deployments (`docker-compose.prod.yml`/k8s set
+env vars directly, never through a `.env` file), but it matters for anyone
+locally testing the production build (`pnpm run build && pnpm run start`) —
+without it, that path silently diverges from `nitro dev`'s behavior.

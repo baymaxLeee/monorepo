@@ -16,6 +16,11 @@ export interface TaskTypeDefinition<TInput = unknown, TOutput = unknown> {
 
 export type TaskStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 
+export interface TaskProgress {
+  done: number;
+  total: number;
+}
+
 export interface TaskSnapshot {
   id: string;
   type: string;
@@ -23,6 +28,7 @@ export interface TaskSnapshot {
   ownerService: string;
   ownerRef: string;
   result: unknown;
+  progress: TaskProgress | null;
   error: string | null;
   createdAt: string;
   updatedAt: string;

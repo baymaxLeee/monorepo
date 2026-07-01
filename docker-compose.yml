@@ -26,14 +26,29 @@ services:
       timeout: 3s
       retries: 5
 
-  # No workflow-postgres here: `executor`'s Workflow World defaults to the
-  # filesystem-backed Local World when WORKFLOW_TARGET_WORLD is unset, which
-  # is what every local-dev / test run against this stack actually uses.
-  # Deployed environments (infra/single-vps/docker-compose.prod.yml,
-  # infra/k8s/*) provision @workflow/world-postgres for real durability
-  # across replicas/restarts — that's a deployment concern, not a local-dev
-  # one. Don't add it back here "just in case"; it was reviewed out once
-  # already for adding container weight with zero local payoff.
+  # Dev/prod parity (explicit product decision — see docs/微服务/executor.md):
+  # every deployed environment runs executor against the self-hosted Postgres
+  # World, so local dev runs the same container rather than defaulting to the
+  # filesystem-backed Local World. This is also how the missing
+  # `getWorld().start()` call (see executor/AGENTS.md "Known operational
+  # notes" #3) was caught in the first place — Local World would have hidden
+  # it in every local run.
+  workflow-postgres:
+    image: postgres:16-alpine
+    container_name: monorepo-workflow-postgres
+    environment:
+      POSTGRES_USER: workflow
+      POSTGRES_PASSWORD: workflow
+      POSTGRES_DB: workflow
+    ports: ["5432:5432"]
+    volumes:
+      - workflow_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 volumes:
   mysql_data:
+  workflow_postgres_data:

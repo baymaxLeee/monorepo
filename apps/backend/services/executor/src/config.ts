@@ -13,6 +13,7 @@ export interface Settings {
   internalApiToken: string;
   adminServiceUrl: string;
   knowledgeServiceUrl: string;
+  chatServiceUrl: string;
 }
 
 function envOr(key: string, fallback: string): string {
@@ -45,5 +46,10 @@ export function getSettings(): Settings {
     internalApiToken,
     adminServiceUrl: envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
     knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
+    // Outbound task-event notifications (progress + terminal) are pushed to the
+    // owning service. Only chat is an owner today; this is the reverse of chat's
+    // EXECUTOR_SERVICE_URL and lets executor reach chat's /internal endpoints
+    // directly (not via the gateway), authed by the shared internal token.
+    chatServiceUrl: envOr("CHAT_SERVICE_URL", "http://localhost:8009"),
   };
 }

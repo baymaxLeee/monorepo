@@ -186,3 +186,119 @@ function fieldValue(fields: string[], name: string): string | null {
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Task-scoped streams (executor -> chat -> browser)
+//
+// The same Redis Streams transport as agent runs, keyed by taskId instead of
+// runId. A background executor task pushes native UIMessage SSE frames here via
+// /internal/tasks/notify; the browser's ArtifactTaskCard replays them through
+// AI SDK's readUIMessageStream. This is deliberately NOT a second streaming
+// stack — it reuses the exact XADD/XREAD replay shape so the future migration
+// to ai-resumable-stream (ADR-0013 Phase 2) moves both at once.
+// ---------------------------------------------------------------------------
+
+export const SSE_DONE_FRAME = "data: [DONE]\n\n";
+
+export function encodeSseData(value: unknown): string {
+  return `data: ${JSON.stringify(value)}\n\n`;
+}
+
+function taskStreamKey(taskId: string): string {
+  return `chat:task-streams:${taskId}:sse`;
+}
+
+function taskActiveKey(taskId: string): string {
+  return `chat:task-streams:${taskId}:active`;
+}
+
+// Marks the writer as alive so replay does not exit early during quiet gaps
+// between progress events. Terminal events clear it (see closeTaskSseStream).
+export async function markTaskStreamActive(taskId: string): Promise<void> {
+  await getRedis()
+    .pipeline()
+    .set(taskActiveKey(taskId), "1")
+    .expire(taskActiveKey(taskId), STREAM_TTL_SECONDS)
+    .exec();
+}
+
+export async function appendTaskSseFrame(taskId: string, frame: string): Promise<void> {
+  const client = getRedis();
+  await client
+    .pipeline()
+    .xadd(taskStreamKey(taskId), "*", "sse", frame)
+    .expire(taskStreamKey(taskId), STREAM_TTL_SECONDS)
+    .set(taskActiveKey(taskId), "1")
+    .expire(taskActiveKey(taskId), STREAM_TTL_SECONDS)
+    .exec();
+}
+
+// Appends the terminal sentinel and clears the active flag so any replay loop
+// blocked on XREAD returns promptly.
+export async function closeTaskSseStream(taskId: string): Promise<void> {
+  const client = getRedis();
+  await client
+    .pipeline()
+    .xadd(taskStreamKey(taskId), "*", "sse", SSE_DONE_FRAME)
+    .expire(taskStreamKey(taskId), STREAM_TTL_SECONDS)
+    .del(taskActiveKey(taskId))
+    .exec();
+}
+
+async function taskStreamActive(taskId: string): Promise<boolean> {
+  return (await getRedis().exists(taskActiveKey(taskId))) === 1;
+}
+
+export async function* replayTaskSseStream(taskId: string): AsyncGenerator<string> {
+  const reader = getRedis().duplicate();
+  const key = taskStreamKey(taskId);
+  let lastId = "0-0";
+  try {
+    while (true) {
+      const response = await (reader as XReadRedis).xread(
+        "BLOCK",
+        STREAM_READ_BLOCK_MS,
+        "COUNT",
+        50,
+        "STREAMS",
+        key,
+        lastId,
+      );
+      if (response) {
+        for (const [, entries] of response) {
+          for (const [entryId, fields] of entries) {
+            lastId = entryId;
+            const chunk = fieldValue(fields, "sse");
+            if (!chunk) continue;
+            yield chunk;
+            if (chunk.includes("[DONE]")) return;
+          }
+        }
+        continue;
+      }
+
+      if (await taskStreamActive(taskId)) continue;
+
+      const tail = await (reader as XReadRedis).xread(
+        "COUNT",
+        50,
+        "STREAMS",
+        key,
+        lastId,
+      );
+      if (!tail) return;
+      for (const [, entries] of tail) {
+        for (const [entryId, fields] of entries) {
+          lastId = entryId;
+          const chunk = fieldValue(fields, "sse");
+          if (!chunk) continue;
+          yield chunk;
+          if (chunk.includes("[DONE]")) return;
+        }
+      }
+      return;
+    }
+  } finally {
+    await reader.quit().catch(() => reader.disconnect());
+  }
+}

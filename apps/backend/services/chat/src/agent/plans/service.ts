@@ -1,5 +1,4 @@
 import { z } from "zod";
-
 import { createArtifact, getDocument, updateArtifact } from "../../clients/knowledge.js";
 import { setActivePlanDocument } from "../../services/conversations.js";
 import type { PlanToolContext } from "../tools/context.js";
