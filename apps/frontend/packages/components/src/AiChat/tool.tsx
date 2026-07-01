@@ -115,7 +115,7 @@ export function ToolContent({ className, ...props }: ToolContentProps) {
   return (
     <div
       className={cn(
-        "max-h-[min(24rem,60vh)] space-y-4 overflow-y-auto overscroll-contain p-4 pt-0",
+        "max-h-[min(24rem,60vh)] space-y-4 overflow-y-auto p-4 pt-0",
         className,
       )}
       {...props}

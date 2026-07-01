@@ -4,7 +4,7 @@ import { and, asc, desc, eq } from "drizzle-orm";
 
 import type { AuthContext } from "../middleware/auth.js";
 import { getDb } from "../db/index.js";
-import { conversations, messages } from "../db/schema.js";
+import { conversations, messages, type PersistedMessageContent } from "../db/schema.js";
 import {
   getDocument,
   getDocumentSource,
@@ -30,7 +30,7 @@ export interface Message {
   id: string;
   conversation_id: string;
   role: "user" | "assistant" | "system";
-  content: string;
+  content: PersistedMessageContent;
   status: "ok" | "streaming" | "failed";
   created_at: string;
 }
@@ -84,6 +84,11 @@ export interface ConversationDocumentDetail extends ConversationDocument {
 export interface ConversationDetail extends Conversation {
   messages: Message[];
   documents: ConversationDocument[];
+  // Best-effort "is there a resumable run right now" hint. The service leaves it
+  // null (run liveness is a route-layer concern); the GET-detail route fills it
+  // from the resumable-stream registry so the client can skip a reconnect probe
+  // when nothing is live. The reconnect endpoint stays authoritative.
+  active_run_id: string | null;
 }
 
 function iso(d: Date): string {
@@ -148,6 +153,7 @@ export async function getConversation(
     ...toConversation(row),
     messages: messageRows.map(toMessage),
     documents: documentRows.map((d) => mapKnowledgeDocument(d, conversationId)),
+    active_run_id: null,
   };
 }
 
@@ -328,7 +334,7 @@ export async function createMessage(input: {
   id?: string;
   conversationId: string;
   role: string;
-  content: string;
+  content: PersistedMessageContent;
   status?: string;
 }): Promise<Message> {
   const db = getDb();
@@ -352,7 +358,7 @@ export async function createMessage(input: {
 export async function updateMessageContent(input: {
   id: string;
   conversationId: string;
-  content: string;
+  content: PersistedMessageContent;
   status?: string;
 }): Promise<void> {
   await getDb()

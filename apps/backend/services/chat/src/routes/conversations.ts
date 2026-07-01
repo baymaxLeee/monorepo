@@ -3,6 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 
 import { getAuth } from "../middleware/auth.js";
+import { activeAgentStreamRunId } from "../agent/streams/service.js";
 import {
   createConversation,
   deleteConversation,
@@ -50,7 +51,13 @@ conversationsRoutes.post("/", zValidator("json", createSchema), async (c) => {
 
 conversationsRoutes.get("/:conversationId", async (c) => {
   const auth = getAuth(c);
-  return c.json(await getConversation(auth, c.req.param("conversationId")));
+  const conversationId = c.req.param("conversationId");
+  // getConversation authorizes the caller; the resumable-run lookup is a single
+  // Redis HGET on the same chat-owned registry the reconnect endpoint uses, so
+  // the client can gate its reconnect probe without an extra round-trip.
+  const detail = await getConversation(auth, conversationId);
+  const activeRunId = await activeAgentStreamRunId(conversationId);
+  return c.json({ ...detail, active_run_id: activeRunId });
 });
 
 conversationsRoutes.get("/:conversationId/documents/:documentId", async (c) => {

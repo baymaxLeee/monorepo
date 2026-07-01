@@ -151,6 +151,38 @@
     padding-inline-start: 0;
   }
 
+  /* Streamdown draws table dividers with utility classes that only appear inside
+     node_modules, so Tailwind (which does not scan node_modules) purges them and
+     tables render frameless. Restore the look via the data-streamdown hooks
+     (same approach as the list rules above): keep the internal row/column
+     dividers only, and drop the outer container frame + panel background. */
+  :where([data-streamdown="table-wrapper"]) {
+    @apply border-0 bg-transparent p-0;
+  }
+  :where([data-streamdown="table-wrapper"]) > div {
+    @apply border-0;
+  }
+  :where([data-streamdown="table"]) {
+    @apply w-full border-collapse;
+  }
+  :where([data-streamdown="table-header"]) {
+    @apply border-b border-border bg-muted/60;
+  }
+  :where([data-streamdown="table-body"])
+    :where([data-streamdown="table-row"])
+    + :where([data-streamdown="table-row"]) {
+    @apply border-t border-border;
+  }
+  :where([data-streamdown="table-header-cell"])
+    + :where([data-streamdown="table-header-cell"]),
+  :where([data-streamdown="table-cell"]) + :where([data-streamdown="table-cell"]) {
+    @apply border-l border-border;
+  }
+  :where([data-streamdown="table-header-cell"]),
+  :where([data-streamdown="table-cell"]) {
+    @apply px-4 py-2 text-left;
+  }
+
   .code-editor,
   .markdown-editor,
   .pdf-previewer,

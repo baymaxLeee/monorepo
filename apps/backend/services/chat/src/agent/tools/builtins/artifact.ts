@@ -32,6 +32,25 @@ const TASK_POLL_MS = 1_500;
 // unavailability), which means executor is genuinely down, not just reloading.
 const MAX_CONSECUTIVE_POLL_FAILURES = 20;
 
+// Hard ceiling on how long the tool blocks waiting for a background artifact
+// task. Sized for the largest expected workload — a ~100-page HTML deck, and
+// later ~30s video generation — with generous headroom. A task still running
+// past this is treated as stuck: the waiter cancels it and fails the tool call
+// rather than blocking the turn (and the user) indefinitely.
+const MAX_TASK_WAIT_MS = 30 * 60_000;
+
+// Distinguishes "waited too long" from an abort or a fatal poll error so the
+// tool can surface a clear, user-facing timeout message instead of a generic
+// failure.
+class TaskWaitTimeoutError extends Error {
+  constructor(taskId: string) {
+    super(
+      `artifact task ${taskId} did not finish within ${Math.round(MAX_TASK_WAIT_MS / 60_000)} minutes`,
+    );
+    this.name = "TaskWaitTimeoutError";
+  }
+}
+
 // A missing task (404) is fatal — the row is genuinely gone. Anything else from
 // a poll (5xx from Nitro's dev proxy mid-reload, a timeout, a network error) is
 // transient: the task keeps running server-side, so retry rather than fail the
@@ -63,11 +82,16 @@ function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
 // Transient poll failures are tolerated (see isTransientPollError) so a dev
 // rebuild or redeploy mid-generation does not fail an otherwise-healthy task.
 async function waitForTaskTerminal(taskId: string, signal?: AbortSignal): Promise<Task> {
+  const deadline = Date.now() + MAX_TASK_WAIT_MS;
   let consecutiveFailures = 0;
   while (true) {
     if (signal?.aborted) {
       await cancelTask(taskId).catch(() => undefined);
       throw new DOMException("aborted", "AbortError");
+    }
+    if (Date.now() >= deadline) {
+      await cancelTask(taskId).catch(() => undefined);
+      throw new TaskWaitTimeoutError(taskId);
     }
     try {
       const task = await getTask(taskId);
@@ -138,7 +162,24 @@ async function* streamHtmlArtifactTask(
 ): AsyncGenerator<Record<string, unknown>> {
   const base = { title: meta.title, filename: meta.filename, kind: "html" as const, task_id: task.id };
   yield { ok: true, status: task.status, ...base };
-  const terminal = await waitForTaskTerminal(task.id, signal);
+  let terminal: Task;
+  try {
+    terminal = await waitForTaskTerminal(task.id, signal);
+  } catch (error) {
+    // A timeout is a normal terminal outcome for the card (task already
+    // cancelled); anything else (abort, fatal poll error) propagates so the run
+    // is recorded correctly.
+    if (error instanceof TaskWaitTimeoutError) {
+      yield {
+        ok: false,
+        status: "failed",
+        error: `生成超时：超过 ${Math.round(MAX_TASK_WAIT_MS / 60_000)} 分钟未完成，已取消任务。`,
+        ...base,
+      };
+      return;
+    }
+    throw error;
+  }
   if (terminal.status === "completed") {
     const { documentId, totalChars, blocksFailed } = taskResultFields(terminal.result);
     yield {

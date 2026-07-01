@@ -21,6 +21,16 @@ observability in MySQL and consumes admin (providers), knowledge
 ## Tools and artifacts
 
 - `update_plan` snapshots are persisted in native UIMessage tool parts.
+- `update_todos` (both modes) is a stateless, side-effect-free tool: it
+  always replaces the full `{id, content, status}` list and has no
+  `contextSchema`, no knowledge writes, and no revision/CAS. State lives only
+  in the `tool-update_todos` UIMessage part, same as every other tool output.
+  It never becomes a second truth source for the plan body (ADR-0017).
+  Because it has no read-back tool, `projectModelContext` always reinjects
+  the latest completed call (via `latestCompletedToolOutput`) as
+  `<current_todo_list>` so it survives `pruneMessages`/compaction; the
+  frontend separately renders only the newest `tool-update_todos` part so
+  the UI shows one live card instead of one per call (ADR-0017).
 - `write_file`/`edit_file` handle both Markdown and HTML. Markdown runs
   synchronously in this tool call (a single `streamText`, no durability
   needed). **HTML dispatches to the `executor` service and foreground-blocks

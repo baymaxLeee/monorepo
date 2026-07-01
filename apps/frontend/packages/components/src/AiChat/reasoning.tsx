@@ -183,7 +183,7 @@ export const ReasoningContent = memo(function ReasoningContent({
     <div
       ref={contentRef}
       className={cn(
-        "overscroll-contain text-sm leading-5 text-muted-foreground transition-[max-height]",
+        "text-sm leading-5 text-muted-foreground transition-[max-height]",
         isOpen
           ? "max-h-[min(24rem,50vh)] overflow-y-auto"
           : "max-h-[3.75rem] overflow-hidden",

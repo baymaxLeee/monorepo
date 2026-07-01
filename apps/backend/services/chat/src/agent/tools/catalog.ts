@@ -6,6 +6,7 @@ import { createInteractionTools } from "./builtins/interaction.js";
 import { createKnowledgeTools } from "./builtins/files.js";
 import { createMemoryTools } from "./builtins/memory.js";
 import { createPlanTools } from "./builtins/plan.js";
+import { createTodoTools } from "./builtins/todo.js";
 import type {
   AgentExtension,
   AgentExtensionContext,
@@ -19,6 +20,7 @@ function builtinTools(mode: AgentMode) {
         ...createWebTools(),
         ...createInteractionTools(mode),
         ...createPlanTools(),
+        ...createTodoTools(),
       }
     : {
         ...createKnowledgeTools(),
@@ -26,6 +28,7 @@ function builtinTools(mode: AgentMode) {
         ...createInteractionTools(mode),
         ...createMemoryTools(),
         ...createArtifactTools(),
+        ...createTodoTools(),
       };
 }
 

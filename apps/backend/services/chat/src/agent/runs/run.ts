@@ -9,6 +9,7 @@ import {
 
 import type { ProviderSnapshot } from "../../clients/admin.js";
 import { getDocument } from "../../clients/knowledge.js";
+import type { PersistedMessageContent } from "../../db/schema.js";
 import { NotFoundError, RequestError } from "../../lib/errors.js";
 import type { AuthContext } from "../../middleware/auth.js";
 import {
@@ -116,16 +117,15 @@ function referencedDocumentIds(message: AnyUIMessage): string[] {
   return referencedDocumentIdsFromParts(message.parts);
 }
 
-function serializeMessageContent(message: AnyUIMessage): string {
-  return JSON.stringify({ version: 1, parts: message.parts });
+function serializeMessageContent(message: AnyUIMessage): PersistedMessageContent {
+  return { version: 1, parts: message.parts };
 }
 
-function partsFromPersistedContent(content: string): AnyUIMessage["parts"] | null {
-  try {
-    const payload = JSON.parse(content) as { parts?: AnyUIMessage["parts"] };
-    if (Array.isArray(payload.parts)) return payload.parts;
-  } catch {
-    // Older records can still be plain text.
+function partsFromPersistedContent(
+  content: PersistedMessageContent,
+): AnyUIMessage["parts"] | null {
+  if (content && typeof content === "object" && Array.isArray(content.parts)) {
+    return content.parts as AnyUIMessage["parts"];
   }
   return null;
 }
@@ -141,14 +141,11 @@ function sanitizeHistoryParts(message: AnyUIMessage): AnyUIMessage {
 
 function persistedMessageToUiMessage(message: Message): AnyUIMessage {
   const parts = partsFromPersistedContent(message.content);
-  if (parts) {
-    return sanitizeHistoryParts({ id: message.id, role: message.role, parts } as AnyUIMessage);
-  }
-  return {
+  return sanitizeHistoryParts({
     id: message.id,
     role: message.role,
-    parts: message.content ? [{ type: "text", text: message.content }] : [],
-  } as AnyUIMessage;
+    parts: parts ?? [],
+  } as AnyUIMessage);
 }
 
 export async function createAgentRunResponse(

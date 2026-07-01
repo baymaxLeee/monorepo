@@ -24,12 +24,14 @@ import {
   parseArtifactTaskOutput,
 } from "./ChatArtifactCard";
 import { ChatMessageFilePart } from "./ChatMessageFilePart";
+import { ChatTodoListCard, parseTodoListOutput } from "./ChatTodoListCard";
 
 export interface ChatMessageViewProps {
   message: UIMessage;
   conversationId: string;
   streaming: boolean;
   documents: Map<string, ConversationDocument>;
+  latestTodoCallId: string | null;
   onOpenArtifact: (documentId: string) => void;
   onAnswerClientTool: (
     toolName: string,
@@ -45,6 +47,7 @@ export function ChatMessageView({
   conversationId,
   streaming,
   documents,
+  latestTodoCallId,
   onOpenArtifact,
   onAnswerClientTool,
   onContinuePlan,
@@ -84,6 +87,7 @@ export function ChatMessageView({
               streaming={streaming}
               variant={variant}
               documents={documents}
+              latestTodoCallId={latestTodoCallId}
               onOpenArtifact={onOpenArtifact}
               onAnswerClientTool={onAnswerClientTool}
               onContinuePlan={onContinuePlan}
@@ -111,6 +115,7 @@ function MessagePartView({
   streaming,
   variant,
   documents,
+  latestTodoCallId,
   onOpenArtifact,
   onAnswerClientTool,
   onContinuePlan,
@@ -121,6 +126,7 @@ function MessagePartView({
   streaming: boolean;
   variant: "user" | "assistant";
   documents: Map<string, ConversationDocument>;
+  latestTodoCallId: string | null;
   onOpenArtifact: (documentId: string) => void;
   onAnswerClientTool: (
     toolName: string,
@@ -175,6 +181,7 @@ function MessagePartView({
         part={part}
         conversationId={conversationId}
         documents={documents}
+        latestTodoCallId={latestTodoCallId}
         onOpenArtifact={onOpenArtifact}
         onAnswerClientTool={onAnswerClientTool}
         onContinuePlan={onContinuePlan}
@@ -190,6 +197,7 @@ function ToolPartView({
   part,
   conversationId,
   documents,
+  latestTodoCallId,
   onOpenArtifact,
   onAnswerClientTool,
   onContinuePlan,
@@ -198,6 +206,7 @@ function ToolPartView({
   part: Extract<UIMessage["parts"][number], { toolCallId: string }>;
   conversationId: string;
   documents: Map<string, ConversationDocument>;
+  latestTodoCallId: string | null;
   onOpenArtifact: (documentId: string) => void;
   onAnswerClientTool: (
     toolName: string,
@@ -208,6 +217,9 @@ function ToolPartView({
   onExecutePlan: (documentId: string) => void;
 }) {
   const toolName = getToolName(part);
+  if (toolName === "update_todos" && part.toolCallId !== latestTodoCallId) {
+    return null;
+  }
   const input = "input" in part ? part.input : undefined;
   const rawInput =
     "rawInput" in part ? compactRawInput(part.rawInput) : undefined;
@@ -221,6 +233,8 @@ function ToolPartView({
   const artifactTask = parseArtifactTaskOutput(output);
   const askUserInput =
     toolName === "ask_user" ? parseAskUserInput(input) : null;
+  const todoList =
+    toolName === "update_todos" ? parseTodoListOutput(output) : null;
 
   if (artifact?.documentId) {
     return (
@@ -270,17 +284,23 @@ function ToolPartView({
               "工具调用失败，未返回错误详情。"}
           </div>
         ) : null}
-        {askUserInput == null && input !== undefined ? (
-          <ToolJsonBlock value={input} />
-        ) : null}
-        {askUserInput == null &&
-        input === undefined &&
-        rawInput !== undefined ? (
-          <ToolJsonBlock value={{ rawInput }} />
-        ) : null}
-        {askUserInput == null && output !== undefined ? (
-          <ToolJsonBlock value={output} />
-        ) : null}
+        {todoList ? (
+          <ChatTodoListCard todos={todoList.todos} />
+        ) : (
+          <>
+            {askUserInput == null && input !== undefined ? (
+              <ToolJsonBlock value={input} />
+            ) : null}
+            {askUserInput == null &&
+            input === undefined &&
+            rawInput !== undefined ? (
+              <ToolJsonBlock value={{ rawInput }} />
+            ) : null}
+            {askUserInput == null && output !== undefined ? (
+              <ToolJsonBlock value={output} />
+            ) : null}
+          </>
+        )}
       </ToolContent>
     </Tool>
   );

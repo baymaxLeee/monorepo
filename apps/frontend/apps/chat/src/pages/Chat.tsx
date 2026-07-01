@@ -32,29 +32,17 @@ import { useParams } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 import { ChatComposerControls } from "../components/ChatComposerControls";
 import { ChatMessageView } from "../components/ChatMessageView";
+import { findLatestUpdateTodosCallId } from "../components/ChatTodoListCard";
 import type { ChatUIMessage } from "../lib/chat-message";
 import { buildUserFilePart } from "../lib/file-parts";
 import { useChatStore } from "../store/useChatStore";
 
 function messageToUiMessage(message: ApiMessage): ChatUIMessage {
-  try {
-    const payload = JSON.parse(message.content) as {
-      parts?: ChatUIMessage["parts"];
-    };
-    if (Array.isArray(payload.parts)) {
-      return {
-        id: message.id,
-        role: message.role,
-        parts: payload.parts,
-      };
-    }
-  } catch {
-    // Plain text messages are not expected for new chat records.
-  }
+  const parts = message.content?.parts;
   return {
     id: message.id,
     role: message.role,
-    parts: message.content ? [{ type: "text", text: message.content }] : [],
+    parts: Array.isArray(parts) ? (parts as ChatUIMessage["parts"]) : [],
   };
 }
 
@@ -193,6 +181,10 @@ export function Chat() {
       map.set(document.id, document);
     return map;
   }, [detail?.documents]);
+  const latestTodoCallId = useMemo(
+    () => findLatestUpdateTodosCallId(messages),
+    [messages],
+  );
 
   useEffect(() => {
     closeArtifactPreview();
@@ -223,12 +215,18 @@ export function Chat() {
     resumedConversationRef.current = null;
   }, [id]);
 
+  // Reconnect to an in-flight run only when the loaded conversation says one is
+  // live (active_run_id). For the overwhelmingly common case — opening a
+  // finished conversation — this skips the reconnect probe entirely instead of
+  // firing a GET .../agents/run/stream that just 204s, and avoids the extra
+  // fetchConversation the reconnect path used to trigger.
   useEffect(() => {
     if (
       !id ||
       loading ||
       detail?.id !== id ||
       busy ||
+      !detail?.active_run_id ||
       resumedConversationRef.current === id
     ) {
       return;
@@ -245,7 +243,15 @@ export function Chat() {
         if (/204|no active|not found/i.test(message)) return;
         toast.error(message);
       });
-  }, [busy, detail?.id, id, loading, resumeStream, setMessages]);
+  }, [
+    busy,
+    detail?.id,
+    detail?.active_run_id,
+    id,
+    loading,
+    resumeStream,
+    setMessages,
+  ]);
 
   async function submit(value: PromptInputValue) {
     if (busy || !id) return;
@@ -386,124 +392,123 @@ export function Chat() {
         </h1>
       </header>
 
-      <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 basis-0 flex-col overflow-hidden px-4 pb-4">
-        <Conversation className="min-h-0 flex-1 basis-0">
-          <ConversationContent className="gap-6 px-0 py-2">
-            {loading && messages.length === 0 ? (
-              <ConversationEmptyState
-                title="加载中"
-                description="正在读取会话..."
-              />
-            ) : messages.length === 0 ? (
-              <ConversationEmptyState
-                title="开始对话"
-                description="输入你的问题，或粘贴、拖入文件开始。"
-              />
-            ) : (
-              messages.map((message) => (
-                <ChatMessageView
-                  key={message.id}
-                  message={message}
-                  conversationId={id ?? ""}
-                  streaming={busy && message === messages.at(-1)}
-                  documents={documents}
-                  onOpenArtifact={openArtifact}
-                  onAnswerClientTool={(toolName, toolCallId, output) => {
-                    void answerClientTool(toolName, toolCallId, output).catch(
-                      (error) => toast.error(String(error)),
-                    );
-                  }}
-                  onContinuePlan={(documentId) =>
-                    void continuePlan(documentId).catch((error) =>
-                      toast.error(String(error)),
-                    )
-                  }
-                  onExecutePlan={(documentId) =>
-                    void executePlan(documentId).catch((error) =>
-                      toast.error(String(error)),
-                    )
-                  }
-                />
-              ))
-            )}
-            {showThinkingPlaceholder ? (
-              <div
-                className="flex items-center gap-2 py-2 text-sm text-muted-foreground"
-                role="status"
-                aria-live="polite"
-              >
-                <span className="flex gap-1" aria-hidden="true">
-                  <span className="size-1.5 animate-pulse rounded-full bg-current" />
-                  <span className="size-1.5 animate-pulse rounded-full bg-current [animation-delay:150ms]" />
-                  <span className="size-1.5 animate-pulse rounded-full bg-current [animation-delay:300ms]" />
-                </span>
-                正在思考…
-              </div>
-            ) : null}
-          </ConversationContent>
-          <ConversationScrollButton />
-        </Conversation>
-
-        <div className="shrink-0 pt-2">
-          <RichPromptInput
-            ref={promptRef}
-            className="[&_.prompt-input-footer]:border-t-0 [&_.prompt-input-footer]:bg-transparent"
-            disabled={false}
-            loading={busy}
-            placeholder={
-              mode === "plan"
-                ? "描述要规划的任务，/ 引用技能，@ 添加上下文"
-                : "要求后续变更"
-            }
-            maxHeight={260}
-            accept="image/*,text/plain,text/markdown,application/pdf"
-            maxFiles={8}
-            maxFileSize={20 * 1024 * 1024}
-            onError={(message) => toast.error(message)}
-            onStop={() => void stopRun()}
-            onFilesAdded={(items) => {
-              if (!id) return;
-              void streamKnowledgeIngest(
-                id,
-                items.map(({ token, file }) => ({
-                  clientRef: token.id,
-                  file,
-                })),
-                { onEvent: onIngestEvent },
-                { providerId: selectedProviderId },
-              ).catch((error) => {
-                for (const { token } of items) {
-                  promptRef.current?.updateToken(token.id, {
-                    meta: {
-                      ingestStatus: "failed",
-                      ingestError: String(error),
-                    },
-                  });
-                }
-                toast.error(String(error));
-              });
-            }}
-            onSubmit={(value) =>
-              void submit(value).catch((error) => toast.error(String(error)))
-            }
-            footerRender={() => (
-              <ChatComposerControls
-                providers={providers ?? []}
-                selectedProviderId={selectedProviderId}
-                onSelectProvider={setSelectedProviderId}
-                thinking={thinking}
-                onThinkingChange={setThinking}
-                mode={mode}
-                onModeChange={(next) =>
-                  void changeMode(next).catch((error) =>
+      <Conversation className="min-h-0 flex-1 basis-0">
+        <ConversationContent className="mx-auto w-full max-w-4xl gap-6 px-4 py-2">
+          {loading && messages.length === 0 ? (
+            <ConversationEmptyState
+              title="加载中"
+              description="正在读取会话..."
+            />
+          ) : messages.length === 0 ? (
+            <ConversationEmptyState
+              title="开始对话"
+              description="输入你的问题，或粘贴、拖入文件开始。"
+            />
+          ) : (
+            messages.map((message) => (
+              <ChatMessageView
+                key={message.id}
+                message={message}
+                conversationId={id ?? ""}
+                streaming={busy && message === messages.at(-1)}
+                documents={documents}
+                latestTodoCallId={latestTodoCallId}
+                onOpenArtifact={openArtifact}
+                onAnswerClientTool={(toolName, toolCallId, output) => {
+                  void answerClientTool(toolName, toolCallId, output).catch(
+                    (error) => toast.error(String(error)),
+                  );
+                }}
+                onContinuePlan={(documentId) =>
+                  void continuePlan(documentId).catch((error) =>
                     toast.error(String(error)),
                   )
                 }
-                disabled={busy}
+                onExecutePlan={(documentId) =>
+                  void executePlan(documentId).catch((error) =>
+                    toast.error(String(error)),
+                  )
+                }
               />
-            )}
-          />
-        </div>
+            ))
+          )}
+          {showThinkingPlaceholder ? (
+            <div
+              className="flex items-center gap-2 py-2 text-sm text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="flex gap-1" aria-hidden="true">
+                <span className="size-1.5 animate-pulse rounded-full bg-current" />
+                <span className="size-1.5 animate-pulse rounded-full bg-current [animation-delay:150ms]" />
+                <span className="size-1.5 animate-pulse rounded-full bg-current [animation-delay:300ms]" />
+              </span>
+              正在思考…
+            </div>
+          ) : null}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
+
+      <div className="mx-auto w-full max-w-4xl shrink-0 px-4 pt-2 pb-4">
+        <RichPromptInput
+          ref={promptRef}
+          className="[&_.prompt-input-footer]:border-t-0 [&_.prompt-input-footer]:bg-transparent"
+          disabled={false}
+          loading={busy}
+          placeholder={
+            mode === "plan"
+              ? "描述要规划的任务，/ 引用技能，@ 添加上下文"
+              : "要求后续变更"
+          }
+          maxHeight={260}
+          accept="image/*,text/plain,text/markdown,application/pdf"
+          maxFiles={8}
+          maxFileSize={20 * 1024 * 1024}
+          onError={(message) => toast.error(message)}
+          onStop={() => void stopRun()}
+          onFilesAdded={(items) => {
+            if (!id) return;
+            void streamKnowledgeIngest(
+              id,
+              items.map(({ token, file }) => ({
+                clientRef: token.id,
+                file,
+              })),
+              { onEvent: onIngestEvent },
+              { providerId: selectedProviderId },
+            ).catch((error) => {
+              for (const { token } of items) {
+                promptRef.current?.updateToken(token.id, {
+                  meta: {
+                    ingestStatus: "failed",
+                    ingestError: String(error),
+                  },
+                });
+              }
+              toast.error(String(error));
+            });
+          }}
+          onSubmit={(value) =>
+            void submit(value).catch((error) => toast.error(String(error)))
+          }
+          footerRender={() => (
+            <ChatComposerControls
+              providers={providers ?? []}
+              selectedProviderId={selectedProviderId}
+              onSelectProvider={setSelectedProviderId}
+              thinking={thinking}
+              onThinkingChange={setThinking}
+              mode={mode}
+              onModeChange={(next) =>
+                void changeMode(next).catch((error) =>
+                  toast.error(String(error)),
+                )
+              }
+              disabled={busy}
+            />
+          )}
+        />
       </div>
     </div>
   );

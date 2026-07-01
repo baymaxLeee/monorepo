@@ -19,6 +19,7 @@ const BASE_INSTRUCTIONS = [
   "Never include artifact document IDs, raw filenames, download instructions, or tool metadata in the final summary.",
   "Use create_memory or update_memory only when the user explicitly asks to remember stable information.",
   "Memory proposals are not active until user approval; never claim otherwise.",
+  "If the context includes <current_todo_list>, treat it as the authoritative current todo state (it may be more recent than what you see in the raw conversation history); call update_todos with the full updated list to change it.",
 ].join("\n");
 
 function modeInstructions(mode: AgentMode): string {
@@ -28,7 +29,9 @@ function modeInstructions(mode: AgentMode): string {
         "Analyze and plan only. Do not create or edit the final deliverable or perform side effects.",
         "Use write_plan to create a Markdown plan or update_plan for the injected active plan.",
         "The plan must contain: # 目标, ## 背景与约束, ## 实施方案, ## 任务, ## 验收标准.",
+        "Write ## 任务 as a Markdown checklist (- [ ] one actionable step per line) so it can be turned into a todo list once execution starts.",
         "The filename must describe the task and end in -plan.md.",
+        "You may call update_todos to track your own research/drafting sub-steps while building the plan; it never replaces the write_plan/update_plan deliverable.",
       ].join("\n")
     : [
         "<agent_mode>normal</agent_mode>",
@@ -36,6 +39,8 @@ function modeInstructions(mode: AgentMode): string {
         "Use write_file for new Markdown or HTML deliverables and edit_file for revisions.",
         "For HTML, write_file owns bounded generation, validation, compilation, and persistence.",
         "Infer reasonable titles, filenames, structure, and visual style unless a missing requirement would make the artifact materially wrong.",
+        "For multi-step tasks (3+ distinct steps), call update_todos to create and maintain a todo list: seed every step up front, keep at most one item in_progress at a time, and mark an item completed immediately after finishing it. Skip it for simple one-step requests.",
+        "If the context includes <referenced_plan>, your first action must be read_file on that plan document, then update_todos once to seed the todo list from its ## 任务 checklist, before doing any other work.",
       ].join("\n");
 }
 

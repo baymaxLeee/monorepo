@@ -10,6 +10,13 @@
 > [ADR-0015](../../../../docs/ADR/0015-agent-task-executor.md) 把 HTML 生成整体
 > 迁到独立 `executor` 服务。保留本文档仅作历史参照。
 >
+> **后续**：本文档 §1-7 设想的逐 item `PlanSnapshot`/revision 结构随后也被
+> `05d69f2`（`feat: exec plan`）整体删除，`update_plan` 改为纯 Markdown plan
+> artifact（无逐 item 状态）。为恢复可见的执行进度，
+> [ADR-0017](../../../../docs/ADR/0017-agent-todo-list.md) 新增了一个**无独立
+> 真相源**的 `update_todos` 工具（状态只存在于 tool part，不做 revision/CAS），
+> 而不是复活本文档的 `PlanSnapshot`。本文档余下部分仅作历史参照。
+>
 > 状态：设计待 review
 > 范围：`apps/backend/services/chat`、`apps/backend/services/knowledge`、`apps/frontend/apps/chat`、`apps/frontend/packages/components`
 > 核心技术栈：Vercel AI SDK 7、`WorkflowAgent`、Workflow SDK、AI Elements

@@ -48,16 +48,34 @@ export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
   };
 }
 
-// write_file/edit_file's HTML branch dispatches to executor and returns this
-// immediately (status is "queued" or "running" at that point; the tool part
-// itself never updates after that — ArtifactTaskCard below polls the task
-// separately to find out when it actually finishes).
+// write_file/edit_file's HTML branch blocks until the executor task finishes and
+// yields twice: a preliminary output carrying task_id (status "queued"/"running")
+// so the card can mount mid-run, then a final output carrying the terminal
+// status. The AI SDK persists the last yield, so a reloaded conversation already
+// knows the outcome: a completed task carries document_id (rendered by
+// ArtifactDocumentCard upstream), and a failed/cancelled one carries a terminal
+// status here — neither needs to reopen the progress stream.
 export type ArtifactTaskOutput = {
   taskId: string;
   title: string;
   filename: string;
   kind: string;
+  status?: TaskStatus;
+  documentId?: string;
+  totalChars?: number;
+  blocksFailed?: number;
+  error?: string;
 };
+
+const TERMINAL_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set([
+  "completed",
+  "failed",
+  "cancelled",
+]);
+
+function isTerminalTaskStatus(status: TaskStatus | undefined): boolean {
+  return status !== undefined && TERMINAL_TASK_STATUSES.has(status);
+}
 
 export function parseArtifactTaskOutput(
   output: unknown,
@@ -70,6 +88,15 @@ export function parseArtifactTaskOutput(
     title: typeof raw.title === "string" ? raw.title : "Artifact",
     filename: typeof raw.filename === "string" ? raw.filename : "artifact",
     kind: typeof raw.kind === "string" ? raw.kind : "html",
+    status:
+      typeof raw.status === "string" ? (raw.status as TaskStatus) : undefined,
+    documentId:
+      typeof raw.document_id === "string" ? raw.document_id : undefined,
+    totalChars:
+      typeof raw.total_chars === "number" ? raw.total_chars : undefined,
+    blocksFailed:
+      typeof raw.blocks_failed === "number" ? raw.blocks_failed : undefined,
+    error: typeof raw.error === "string" ? raw.error : undefined,
   };
 }
 
@@ -100,10 +127,26 @@ function latestProgress(message: UIMessage): ProgressSnapshot | null {
   return null;
 }
 
-// Owns the full lifecycle of one background html-artifact task. Instead of
-// polling, it opens the task's native UIMessage SSE stream once and lets chat
-// push progress + the terminal result. On connect chat re-seeds the current
-// snapshot, so this also covers page reloads long after the task finished.
+function terminalSnapshot(task: ArtifactTaskOutput): ProgressSnapshot | null {
+  if (!isTerminalTaskStatus(task.status)) return null;
+  return {
+    status: task.status as TaskStatus,
+    progress: null,
+    documentId: task.documentId ?? null,
+    totalChars: task.totalChars ?? null,
+    blocksTotal: null,
+    blocksDone: null,
+    blocksFailed: task.blocksFailed ?? null,
+    error: task.error ?? null,
+  };
+}
+
+// Owns the lifecycle of one background html-artifact task while it is live: it
+// opens the task's native UIMessage SSE stream once and lets chat push progress
+// + the terminal result. When the persisted tool output already carries a
+// terminal status (a reloaded failed/cancelled task), it renders straight from
+// that snapshot and never opens the stream — the completed case is handled
+// upstream by ArtifactDocumentCard via document_id.
 export function ArtifactTaskCard({
   task,
   conversationId,
@@ -115,9 +158,12 @@ export function ArtifactTaskCard({
   documents: Map<string, ConversationDocument>;
   onOpen: (documentId: string) => void;
 }) {
-  const [snapshot, setSnapshot] = useState<ProgressSnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<ProgressSnapshot | null>(() =>
+    terminalSnapshot(task),
+  );
 
   useEffect(() => {
+    if (isTerminalTaskStatus(task.status)) return;
     const controller = new AbortController();
     let active = true;
     (async () => {
@@ -151,7 +197,7 @@ export function ArtifactTaskCard({
       active = false;
       controller.abort();
     };
-  }, [conversationId, task.taskId]);
+  }, [conversationId, task.taskId, task.status]);
 
   const status = snapshot?.status ?? "queued";
 

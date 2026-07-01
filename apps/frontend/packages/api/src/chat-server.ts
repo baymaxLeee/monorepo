@@ -18,11 +18,21 @@ export type MessageRole = "user" | "assistant" | "system";
 export type MessageStatus = "ok" | "streaming" | "failed";
 export type ReasoningEffort = "low" | "medium" | "high";
 
+/**
+ * Persisted message content mirrors the backend shape: serialized UIMessage
+ * parts stored as structured JSON (matching the AI SDK persistence shape),
+ * wrapped in a `version` envelope for forward-compatible part migrations.
+ */
+export interface PersistedMessageContent {
+  version: number;
+  parts: unknown[];
+}
+
 export interface Message {
   id: string;
   conversation_id: string;
   role: MessageRole;
-  content: string;
+  content: PersistedMessageContent;
   status: MessageStatus;
   created_at: string;
 }
@@ -42,6 +52,12 @@ export interface Conversation {
 export interface ConversationDetail extends Conversation {
   messages: Message[];
   documents: ConversationDocument[];
+  /**
+   * Best-effort id of a currently-resumable agent run, or null when nothing is
+   * live. Lets the client skip the reconnect probe on load; the reconnect
+   * endpoint stays authoritative.
+   */
+  active_run_id: string | null;
 }
 
 export interface CreateConversationInput {

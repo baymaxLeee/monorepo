@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { getDocument, getDocumentSource } from "../../clients/knowledge.js";
 import { getDb } from "../../db/index.js";
 import { conversationContexts } from "../../db/schema.js";
+import { latestCompletedToolOutput } from "../runs/repository.js";
 import { buildCompactionState, type CompactionState } from "./compaction-state.js";
 import {
   documentIdFromFilePart,
@@ -47,6 +48,26 @@ function compactOlderMessages(messages: AnyUIMessage[]): string {
     .filter(Boolean)
     .join("\n\n")
     .slice(-MAX_SUMMARY_CHARS);
+}
+
+interface TodoSnapshotItem {
+  id: string;
+  content: string;
+  status: "pending" | "in_progress" | "completed";
+}
+
+function parseTodoSnapshot(output: unknown): TodoSnapshotItem[] | null {
+  if (!output || typeof output !== "object") return null;
+  const todos = (output as { todos?: unknown }).todos;
+  if (!Array.isArray(todos)) return null;
+  return todos.filter(
+    (item): item is TodoSnapshotItem =>
+      !!item &&
+      typeof item === "object" &&
+      typeof (item as Record<string, unknown>).id === "string" &&
+      typeof (item as Record<string, unknown>).content === "string" &&
+      typeof (item as Record<string, unknown>).status === "string",
+  );
 }
 
 function estimatedMessageChars(message: AnyUIMessage): number {
@@ -254,6 +275,23 @@ export async function projectModelContext(input: {
     const serializedState = JSON.stringify(state);
     instructionContext.push(
       `<conversation_state>\n${serializedState}\n</conversation_state>`,
+    );
+  }
+
+  // update_todos has no external store and no read-back tool (ADR-0017): the
+  // full list only ever exists inside its own tool-result parts. The generic
+  // pruneMessages(toolCalls: "before-last-2-messages") pass below is safe for
+  // re-fetchable tools (read_file, web_search, ...) but would silently erase
+  // this state once it ages past two messages. Look up the latest completed
+  // call from the tool-call trace (independent of message pruning/compaction)
+  // and carry it in instructions so it survives regardless of where in the
+  // transcript the call happened.
+  const todoSnapshot = parseTodoSnapshot(
+    await latestCompletedToolOutput(input.conversationId, "update_todos"),
+  );
+  if (todoSnapshot) {
+    instructionContext.push(
+      `<current_todo_list>\n${JSON.stringify(todoSnapshot)}\n</current_todo_list>`,
     );
   }
 
