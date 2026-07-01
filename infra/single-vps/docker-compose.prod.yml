@@ -74,6 +74,27 @@ services:
       retries: 10
     <<: *restart_policy
 
+  # Self-hosted Workflow World for `executor` (@workflow/world-postgres).
+  # Separate from the business `mysql` container by design: run/step/event log
+  # state is Workflow DevKit's own bookkeeping, not application business data.
+  # Local dev deliberately has no equivalent container — it uses the
+  # filesystem-backed Local World instead (see docs/微服务/executor.md).
+  workflow-postgres:
+    image: postgres:16-alpine
+    container_name: monorepo-workflow-postgres
+    environment:
+      POSTGRES_USER: workflow
+      POSTGRES_PASSWORD: ${WORKFLOW_POSTGRES_PASSWORD:?WORKFLOW_POSTGRES_PASSWORD is required}
+      POSTGRES_DB: workflow
+    volumes:
+      - workflow_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    <<: *restart_policy
+
   # Custom image (built by build-images.yml) bundles mysql-init.sh + all
   # services' migration SQL. Runs once per `docker compose up`; downstream
   # backend services gate on its `service_completed_successfully` state.
@@ -194,8 +215,38 @@ services:
       # admin owns LLM credentials; chat asks it for decrypted snapshots.
       ADMIN_SERVICE_URL: http://admin:8001
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
+      EXECUTOR_SERVICE_URL: http://executor:8011
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
       TAVILY_API_KEY: ${TAVILY_API_KEY:?TAVILY_API_KEY is required}
+    <<: *restart_policy
+
+  executor:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/executor:${IMAGE_TAG:-main}
+    container_name: monorepo-executor
+    depends_on:
+      mysql: { condition: service_healthy }
+      workflow-postgres: { condition: service_healthy }
+      db-init: { condition: service_completed_successfully }
+    environment:
+      ENVIRONMENT: single-vps
+      PORT: "8011"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: ${MYSQL_USER:-app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_DATABASE: executor
+      # No default World here (unlike executor/.env.example's commented-out
+      # local-dev hint): a deployed environment MUST use the durable Postgres
+      # World, never the filesystem-backed Local World (it isn't shared
+      # across replicas or container restarts).
+      WORKFLOW_TARGET_WORLD: "@workflow/world-postgres"
+      WORKFLOW_POSTGRES_URL: postgres://workflow:${WORKFLOW_POSTGRES_PASSWORD}@workflow-postgres:5432/workflow
+      # Shared secret with chat/admin for `/internal/*`-style calls.
+      # Must match chat-secrets.INTERNAL_API_TOKEN exactly.
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
+      # Provider calls (SSRF-guarded); knowledge owns the published document.
+      ADMIN_SERVICE_URL: http://admin:8001
+      KNOWLEDGE_SERVICE_URL: http://knowledge:8010
     <<: *restart_policy
 
   knowledge:
@@ -255,3 +306,4 @@ volumes:
   mysql_data:
   redis_data:
   knowledge_data:
+  workflow_postgres_data:

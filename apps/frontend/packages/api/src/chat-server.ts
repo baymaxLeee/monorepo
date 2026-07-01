@@ -355,30 +355,29 @@ export function cancelConversationAgentRun(
   });
 }
 
-export interface ArtifactJob {
+export type TaskStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+
+export interface Task {
   id: string;
-  document_id: string;
-  status:
-    | "queued"
-    | "running"
-    | "cancel_requested"
-    | "cancelled"
-    | "failed"
-    | "completed"
-    | "interrupted";
-  phase: string;
-  total_blocks: number;
-  completed_blocks: number;
-  failed_blocks: number;
+  type: string;
+  status: TaskStatus;
+  ownerService: string;
+  ownerRef: string;
+  result: unknown;
   error: string | null;
-  attempt: number;
+  createdAt: string;
+  updatedAt: string;
+  finishedAt: string | null;
 }
 
-export function fetchConversationArtifactJobs(
+// Proxied to the executor service. write_file/edit_file's tool output
+// carries the task_id to poll here (see ChatArtifactCard/ArtifactJobBar).
+export function fetchConversationTask(
   conversationId: string,
-): Promise<ArtifactJob[]> {
+  taskId: string,
+): Promise<Task> {
   return request({
-    url: `${BASE}/${encodeURIComponent(conversationId)}/artifact-jobs`,
+    url: `${BASE}/${encodeURIComponent(conversationId)}/tasks/${encodeURIComponent(taskId)}`,
     method: "GET",
   });
 }

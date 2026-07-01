@@ -13,7 +13,7 @@ agent/
 ├── runs/            # run 编排、lease/cancel、trace persistence
 ├── streams/         # Redis-backed UIMessage SSE transport resume
 ├── memory/          # durable memory 与 extraction
-├── artifacts/       # artifact generation/compiler/worker
+├── artifacts/       # markdown generation + read-only HTML inspection (validate/inspect)
 ├── plans/           # plan domain service
 ├── providers/       # provider/model adapter
 └── observability/   # product run/step/tool lifecycle
@@ -21,11 +21,15 @@ agent/
 
 ## Runtime policy
 
-- `ToolLoopAgent` 是当前默认且唯一启用的交互 runtime。
-- `WorkflowAgent` 只用于必须跨进程、部署、重试或长时间等待后恢复的 run。
-- `HarnessAgent` 只用于 Codex、Claude Code、Pi 等外部 harness session；其 API 仍属实验边界。
+- `ToolLoopAgent` 是当前默认且唯一启用的交互 runtime（Brain）。
+- 必须跨进程、部署、重试或长时间等待后恢复的工作**不会**塞进主 ToolLoopAgent。它们委派给
+  独立的 `executor` 服务（真实的 Workflow DevKit，`apps/backend/services/executor`），
+  通过 `@backend/transport-ts` 的 `ExecutorInternalClient` 非阻塞地起一个 task 就返回。
+  `write_file`/`edit_file` 的 HTML 分支是第一个例子，详见
+  `agent_task_执行时服务` plan 与 `apps/backend/services/executor/AGENTS.md`。
+- `HarnessAgent` 只用于 Codex、Claude Code、Pi 等外部 harness session；其 API 仍属实验边界，
+  未来会作为 executor 内的另一种执行引擎接入，工具契约和前端协议不因此改变。
 - Runtime 在 run 开始前由 profile/policy 明确选择并持久化，模型不能自行切换 runtime。
-- Workflow 和 subagent 可以作为主 Agent 的 delegation tools，也可以通过统一 Agent API 独立运行。
 
 ## Context and tools
 

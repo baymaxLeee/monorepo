@@ -70,24 +70,6 @@ export interface ArtifactGenerationDetail {
   manifest?: ArtifactGenerationDetailManifest;
 }
 
-export interface ArtifactLeaseInput {
-  /**
-     * @minLength 1
-     * @maxLength 26
-     */
-  user_id: string;
-  /**
-     * @minLength 1
-     * @maxLength 128
-     */
-  owner: string;
-  /**
-     * @minimum 15
-     * @maximum 300
-     */
-  lease_seconds?: number;
-}
-
 export interface ArtifactMutationInput {
   /**
      * @minLength 1
@@ -96,24 +78,6 @@ export interface ArtifactMutationInput {
   user_id: string;
   owner?: string | null;
   error?: string | null;
-}
-
-export interface ArtifactPhaseInput {
-  /**
-     * @minLength 1
-     * @maxLength 26
-     */
-  user_id: string;
-  /**
-     * @minLength 1
-     * @maxLength 128
-     */
-  owner: string;
-  /**
-     * @minLength 1
-     * @maxLength 32
-     */
-  phase: string;
 }
 
 export type ArtifactRevisionWorkspaceManifest = { [key: string]: unknown };
@@ -137,29 +101,6 @@ export interface BodyIngestStreamIngestStreamPost {
   client_refs: string;
   conversation_id?: string | null;
   provider_id?: string | null;
-}
-
-export interface ClaimableArtifactJob {
-  id: string;
-  document_id: string;
-  status: string;
-  phase: string;
-  total_blocks: number;
-  completed_blocks: number;
-  failed_blocks: number;
-  error: string | null;
-  attempt: number;
-  run_id: string | null;
-  tool_call_id: string | null;
-  lease_owner: string | null;
-  lease_expires_at: string | null;
-  started_at: string | null;
-  finished_at: string | null;
-  cancel_requested_at: string | null;
-  user_id: string;
-  title: string;
-  filename: string;
-  brief: string;
 }
 
 export interface CreateArtifactInput {
@@ -311,7 +252,6 @@ export interface ReserveArtifactGenerationInput {
   document_id?: string | null;
   run_id?: string | null;
   tool_call_id?: string | null;
-  resume_generation_id?: string | null;
 }
 
 export interface SaveArtifactBlockInput {
@@ -394,18 +334,6 @@ max_chars?: number;
 
 export type GetDocumentSourceInternalDocumentsDocumentIdSourceGetParams = {
 user_id: string;
-};
-
-export type ListClaimableGenerationsInternalArtifactGenerationsClaimableGetParams = {
-limit?: number;
-};
-
-export type ListUnfinishedGenerationsInternalArtifactGenerationsUnfinishedGetParams = {
-user_id: string;
-conversation_id?: string | null;
-run_id?: string | null;
-include_terminal?: boolean;
-limit?: number;
 };
 
 export type GetGenerationInternalArtifactGenerationsGenerationIdGetParams = {
@@ -637,32 +565,6 @@ const reserveGenerationInternalArtifactGenerationsPost = (
     }
 
 /**
- * @summary List Claimable Generations
- */
-const listClaimableGenerationsInternalArtifactGenerationsClaimableGet = (
-    params?: ListClaimableGenerationsInternalArtifactGenerationsClaimableGetParams,
- options?: SecondParameter<typeof apiMutator<ClaimableArtifactJob[]>>,) => {
-      return apiMutator<ClaimableArtifactJob[]>(
-      {url: `/internal/artifact-generations/claimable`, method: 'GET',
-        params
-    },
-      options);
-    }
-
-/**
- * @summary List Unfinished Generations
- */
-const listUnfinishedGenerationsInternalArtifactGenerationsUnfinishedGet = (
-    params: ListUnfinishedGenerationsInternalArtifactGenerationsUnfinishedGetParams,
- options?: SecondParameter<typeof apiMutator<ArtifactGeneration[]>>,) => {
-      return apiMutator<ArtifactGeneration[]>(
-      {url: `/internal/artifact-generations/unfinished`, method: 'GET',
-        params
-    },
-      options);
-    }
-
-/**
  * @summary Get Generation
  */
 const getGenerationInternalArtifactGenerationsGenerationIdGet = (
@@ -672,51 +574,6 @@ const getGenerationInternalArtifactGenerationsGenerationIdGet = (
       return apiMutator<ArtifactGenerationDetail>(
       {url: `/internal/artifact-generations/${generationId}`, method: 'GET',
         params
-    },
-      options);
-    }
-
-/**
- * @summary Claim Generation
- */
-const claimGenerationInternalArtifactGenerationsGenerationIdClaimPost = (
-    generationId: string,
-    artifactLeaseInput: ArtifactLeaseInput,
- options?: SecondParameter<typeof apiMutator<ArtifactGeneration>>,) => {
-      return apiMutator<ArtifactGeneration>(
-      {url: `/internal/artifact-generations/${generationId}/claim`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: artifactLeaseInput
-    },
-      options);
-    }
-
-/**
- * @summary Update Generation Phase
- */
-const updateGenerationPhaseInternalArtifactGenerationsGenerationIdPhasePost = (
-    generationId: string,
-    artifactPhaseInput: ArtifactPhaseInput,
- options?: SecondParameter<typeof apiMutator<ArtifactGeneration>>,) => {
-      return apiMutator<ArtifactGeneration>(
-      {url: `/internal/artifact-generations/${generationId}/phase`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: artifactPhaseInput
-    },
-      options);
-    }
-
-/**
- * @summary Renew Generation
- */
-const renewGenerationInternalArtifactGenerationsGenerationIdRenewPost = (
-    generationId: string,
-    artifactLeaseInput: ArtifactLeaseInput,
- options?: SecondParameter<typeof apiMutator<ArtifactGeneration>>,) => {
-      return apiMutator<ArtifactGeneration>(
-      {url: `/internal/artifact-generations/${generationId}/renew`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: artifactLeaseInput
     },
       options);
     }
@@ -825,7 +682,7 @@ const publishRevisionInternalArtifactGenerationsGenerationIdPublishPost = (
       options);
     }
 
-return {healthzHealthzGet,ingestStreamIngestStreamPost,listMyDocumentsDocumentsGet,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,reserveGenerationInternalArtifactGenerationsPost,listClaimableGenerationsInternalArtifactGenerationsClaimableGet,listUnfinishedGenerationsInternalArtifactGenerationsUnfinishedGet,getGenerationInternalArtifactGenerationsGenerationIdGet,claimGenerationInternalArtifactGenerationsGenerationIdClaimPost,updateGenerationPhaseInternalArtifactGenerationsGenerationIdPhasePost,renewGenerationInternalArtifactGenerationsGenerationIdRenewPost,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost}};
+return {healthzHealthzGet,ingestStreamIngestStreamPost,listMyDocumentsDocumentsGet,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,reserveGenerationInternalArtifactGenerationsPost,getGenerationInternalArtifactGenerationsGenerationIdGet,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -846,12 +703,7 @@ export type GetDocumentSliceInternalDocumentsDocumentIdSliceGetResult = NonNulla
 export type GetDocumentSourceInternalDocumentsDocumentIdSourceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getDocumentSourceInternalDocumentsDocumentIdSourceGet']>>>
 export type CreateArtifactInternalArtifactsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createArtifactInternalArtifactsPost']>>>
 export type ReserveGenerationInternalArtifactGenerationsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['reserveGenerationInternalArtifactGenerationsPost']>>>
-export type ListClaimableGenerationsInternalArtifactGenerationsClaimableGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['listClaimableGenerationsInternalArtifactGenerationsClaimableGet']>>>
-export type ListUnfinishedGenerationsInternalArtifactGenerationsUnfinishedGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['listUnfinishedGenerationsInternalArtifactGenerationsUnfinishedGet']>>>
 export type GetGenerationInternalArtifactGenerationsGenerationIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getGenerationInternalArtifactGenerationsGenerationIdGet']>>>
-export type ClaimGenerationInternalArtifactGenerationsGenerationIdClaimPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['claimGenerationInternalArtifactGenerationsGenerationIdClaimPost']>>>
-export type UpdateGenerationPhaseInternalArtifactGenerationsGenerationIdPhasePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['updateGenerationPhaseInternalArtifactGenerationsGenerationIdPhasePost']>>>
-export type RenewGenerationInternalArtifactGenerationsGenerationIdRenewPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['renewGenerationInternalArtifactGenerationsGenerationIdRenewPost']>>>
 export type CancelGenerationInternalArtifactGenerationsGenerationIdCancelPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost']>>>
 export type FailGenerationInternalArtifactGenerationsGenerationIdFailPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['failGenerationInternalArtifactGenerationsGenerationIdFailPost']>>>
 export type SavePlanInternalArtifactGenerationsGenerationIdPlanPutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['savePlanInternalArtifactGenerationsGenerationIdPlanPut']>>>

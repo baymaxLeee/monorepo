@@ -51,7 +51,7 @@ MUST keep them working — see "Migration safety" rule below.
 | Command | What it does |
 |---|---|
 | `just install` | Install ALL deps (mise + pnpm + uv + go; copies `.env` from examples) |
-| `just up` | Docker (MySQL 8, Redis, Workflow Postgres) + DB/workflow schema bootstrap |
+| `just up` | Docker (MySQL 8, Redis) + DB/workflow schema bootstrap |
 | `just down` | Stop local infra |
 | `just dev` | Start full demo stack (gateway + iam + admin svc + platform + admin MFE) |
 | `just build [target]` | Build frontend / backend / specific service (target optional) |
@@ -221,11 +221,14 @@ concerns by hand.
 ### Definition of done (every change)
 1. `just lint` scoped to affected area
 2. `just fmt` only when explicitly requested or clearly needed; do not auto-run
-   it after every code edit
+ it after every code edit
 3. ~~`just test`~~ — **skipped during demo phase** (see above)
 4. If cross-stack: `just sync` and verify both sides build
 5. If new behavior: add/update ADR in `docs/ADR/NNNN-<slug>.md`
 6. Update relevant `docs/<domain>/index.md` if conventions changed
+7. If the task spanned multiple phases or multiple services: run the review
+ pass in `docs/ADR/0016-post-implementation-review.md` before calling it
+ done — functional tests passing is not the same claim as "complete."
 
 ## Worktree policy
 

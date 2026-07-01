@@ -3,7 +3,6 @@ import { and, eq, lte } from "drizzle-orm";
 import { getDb } from "../../db/index.js";
 import { conversationRunLeases } from "../../db/schema.js";
 import { ConflictError } from "../../lib/errors.js";
-import { cancelArtifactGeneration, listUnfinishedArtifactGenerations } from "../../clients/knowledge.js";
 import { finishAgentRun, getAgentRunById, requestAgentRunCancellation } from "./repository.js";
 
 const controllers = new Map<string, AbortController>();
@@ -81,14 +80,16 @@ export async function releaseRun(runId: string): Promise<void> {
   await getDb().delete(conversationRunLeases).where(eq(conversationRunLeases.runId, runId));
 }
 
+// Stop cancels the model/tool-loop turn only. It deliberately does not reach
+// into any executor task a write_file/edit_file call already dispatched —
+// those are durable background work by design (agent_task_执行时服务 plan)
+// and outlive the run that started them, the same way a Cursor/Codex
+// background agent keeps running after you stop watching it. Cancel a
+// specific task explicitly (once exposed) if that's what's needed.
 export async function cancelRun(conversationId: string, runId: string): Promise<boolean> {
   const run = await getAgentRunById(runId);
   if (!run || run.conversationId !== conversationId) return false;
   await requestAgentRunCancellation(runId);
   controllers.get(runId)?.abort(new DOMException("agent run cancelled", "AbortError"));
-  const jobs = await listUnfinishedArtifactGenerations({ userId: run.userId, runId });
-  await Promise.all(jobs.map((job) =>
-    cancelArtifactGeneration({ userId: run.userId, generationId: job.id }).catch(() => undefined),
-  ));
   return true;
 }

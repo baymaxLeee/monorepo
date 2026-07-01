@@ -5,7 +5,6 @@ import {
 } from "ai";
 import {
   type Message as ApiMessage,
-  type ArtifactJob,
   type ConversationDetail,
   type ConversationDocument,
   cancelConversationAgentRun,
@@ -13,7 +12,6 @@ import {
   conversationAgentStreamUrl,
   type DocumentIngestStreamEvent,
   fetchConversation,
-  fetchConversationArtifactJobs,
   streamKnowledgeIngest,
   updateConversationMode,
 } from "api";
@@ -32,7 +30,6 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
-import { ArtifactJobBar } from "../components/ArtifactJobBar";
 import { ChatComposerControls } from "../components/ChatComposerControls";
 import { ChatMessageView } from "../components/ChatMessageView";
 import type { ChatUIMessage } from "../lib/chat-message";
@@ -73,7 +70,6 @@ export function Chat() {
   const [loading, setLoading] = useState(true);
   const [thinking, setThinking] = useState(false);
   const [mode, setMode] = useState<"normal" | "plan">("normal");
-  const [artifactJobs, setArtifactJobs] = useState<ArtifactJob[]>([]);
   const promptRef = useRef<PromptInputRef>(null);
   const resumedConversationRef = useRef<string | null>(null);
   const {
@@ -230,24 +226,6 @@ export function Chat() {
         toast.error(message);
       });
   }, [busy, detail?.id, id, loading, resumeStream, setMessages]);
-
-  useEffect(() => {
-    if (!id) return;
-    let active = true;
-    const refresh = () => {
-      void fetchConversationArtifactJobs(id)
-        .then((jobs) => {
-          if (active) setArtifactJobs(jobs);
-        })
-        .catch(() => undefined);
-    };
-    refresh();
-    const timer = window.setInterval(refresh, 1_500);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, [id]);
 
   async function submit(value: PromptInputValue) {
     if (busy || !id) return;
@@ -447,7 +425,6 @@ export function Chat() {
         </Conversation>
 
         <div className="shrink-0 pt-2">
-          <ArtifactJobBar jobs={artifactJobs} />
           <RichPromptInput
             ref={promptRef}
             className="[&_.prompt-input-footer]:border-t-0 [&_.prompt-input-footer]:bg-transparent"

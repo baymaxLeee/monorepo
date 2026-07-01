@@ -10,6 +10,7 @@
 | telemetry | Python | 8008 | 可观测 / RUM 上报 |
 | chat | TypeScript | 8009 | 对话 / Agent runtime（SSE 流式） |
 | knowledge | Python | 8010 | 知识库 / 文件 ingest / artifact 持久化 |
+| executor | TypeScript | 8011 | 长任务 durable executor（Workflow DevKit） |
 
 ## 通用规则
 
@@ -73,3 +74,4 @@ chunk 都打 sibling。
 
 - [chat](./chat.md)
 - [knowledge](./knowledge.md)
+- [executor](./executor.md)

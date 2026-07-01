@@ -19,13 +19,6 @@ class ReserveArtifactGenerationInput(BaseModel):
     document_id: str | None = Field(default=None, max_length=32)
     run_id: str | None = Field(default=None, max_length=32)
     tool_call_id: str | None = Field(default=None, max_length=64)
-    resume_generation_id: str | None = Field(default=None, max_length=32)
-
-
-class ArtifactLeaseInput(BaseModel):
-    user_id: str = Field(min_length=1, max_length=26)
-    owner: str = Field(min_length=1, max_length=128)
-    lease_seconds: int = Field(default=60, ge=15, le=300)
 
 
 class ArtifactMutationInput(BaseModel):
@@ -57,12 +50,6 @@ class PublishArtifactRevisionInput(BaseModel):
     compiled_html: str = Field(min_length=1)
 
 
-class ArtifactPhaseInput(BaseModel):
-    user_id: str = Field(min_length=1, max_length=26)
-    owner: str = Field(min_length=1, max_length=128)
-    phase: str = Field(min_length=1, max_length=32)
-
-
 class ArtifactGeneration(BaseModel):
     id: str
     document_id: str
@@ -80,13 +67,6 @@ class ArtifactGeneration(BaseModel):
     started_at: str | None
     finished_at: str | None
     cancel_requested_at: str | None
-
-
-class ClaimableArtifactJob(ArtifactGeneration):
-    user_id: str
-    title: str
-    filename: str
-    brief: str
 
 
 class ArtifactGenerationDetail(ArtifactGeneration):

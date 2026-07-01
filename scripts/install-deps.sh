@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Does NOT start Docker — run `just up` for MySQL/Redis/Workflow Postgres and schemas.
+# Does NOT start Docker — run `just up` for MySQL/Redis and schemas.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -81,7 +81,8 @@ for pair in \
   "apps/backend/services/knowledge/.env.example:apps/backend/services/knowledge/.env" \
   "apps/backend/services/telemetry/.env.example:apps/backend/services/telemetry/.env" \
   "apps/backend/services/gateway/.env.example:apps/backend/services/gateway/.env" \
-  "apps/backend/services/iam/.env.example:apps/backend/services/iam/.env"; do
+  "apps/backend/services/iam/.env.example:apps/backend/services/iam/.env" \
+  "apps/backend/services/executor/.env.example:apps/backend/services/executor/.env"; do
   src="${pair%%:*}"
   dst="${pair##*:}"
   if [ -f "$src" ] && [ ! -f "$dst" ]; then

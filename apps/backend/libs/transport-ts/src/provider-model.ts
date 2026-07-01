@@ -1,7 +1,10 @@
-// Provider adaptation stays independent from agent tools and execution.
+// AI SDK LanguageModelV4 adapter over an admin-configured OpenAI-compatible
+// provider. Shared by chat (main tool-loop) and executor (html-artifact
+// blocks) — both call the exact same admin-owned provider snapshot shape,
+// so this was reviewed out of per-service duplication (see ADR-0015).
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { JSONObject, JSONValue, LanguageModelV4, LanguageModelV4CallOptions } from "@ai-sdk/provider";
-import { secureProviderFetch } from "../../clients/provider-url.js";
+import { secureProviderFetch } from "./provider-url.js";
 
 export type ReasoningEffort = "low" | "medium" | "high";
 

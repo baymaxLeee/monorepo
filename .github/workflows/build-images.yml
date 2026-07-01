@@ -44,10 +44,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # gateway / iam / knowledge / admin / chat / telemetry → backend service images
+        # gateway / iam / knowledge / admin / chat / executor / telemetry → backend service images
         # web                                      → nginx + bundled frontend SPA dist
         # db-init                                  → one-shot MySQL schema bootstrap
-        service: [gateway, iam, knowledge, admin, chat, telemetry, web, db-init]
+        service: [gateway, iam, knowledge, admin, chat, executor, telemetry, web, db-init]
     env:
       # Surfaced into the shell of every step so the "Compute tags" script
       # can branch on whether the TCR mirror is configured.
@@ -117,11 +117,11 @@ jobs:
               echo "context=apps/backend/services/${{ matrix.service }}" >> "$GITHUB_OUTPUT"
               echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
               ;;
-            chat)
+            chat|executor)
               # Root context gives the image access to the backend workspace;
               # Corepack reads the repository-level pnpm version from here.
               echo "context=." >> "$GITHUB_OUTPUT"
-              echo "dockerfile=apps/backend/services/chat/Dockerfile" >> "$GITHUB_OUTPUT"
+              echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
               ;;
             admin|knowledge|telemetry)
               echo "context=apps/backend" >> "$GITHUB_OUTPUT"

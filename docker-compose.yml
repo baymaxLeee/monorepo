@@ -26,5 +26,14 @@ services:
       timeout: 3s
       retries: 5
 
+  # No workflow-postgres here: `executor`'s Workflow World defaults to the
+  # filesystem-backed Local World when WORKFLOW_TARGET_WORLD is unset, which
+  # is what every local-dev / test run against this stack actually uses.
+  # Deployed environments (infra/single-vps/docker-compose.prod.yml,
+  # infra/k8s/*) provision @workflow/world-postgres for real durability
+  # across replicas/restarts — that's a deployment concern, not a local-dev
+  # one. Don't add it back here "just in case"; it was reviewed out once
+  # already for adding container weight with zero local payoff.
+
 volumes:
   mysql_data:

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: executor-config
+data:
+  PORT: "8011"
+  ENVIRONMENT: "production"
+  MYSQL_PORT: "3306"
+  MYSQL_DATABASE: "executor"
+  # A deployed environment MUST use the durable Postgres World — the
+  # filesystem-backed Local World isn't shared across replicas or restarts.
+  # WORKFLOW_POSTGRES_URL (the real connection string, with credentials)
+  # lives in the Secret below, not here.
+  WORKFLOW_TARGET_WORLD: "@workflow/world-postgres"
+  ADMIN_SERVICE_URL: "http://admin.default.svc.cluster.local:8001"
+  KNOWLEDGE_SERVICE_URL: "http://knowledge.default.svc.cluster.local:8010"

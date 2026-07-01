@@ -8,7 +8,7 @@ import {
   recordToolStart,
   startModelStep,
 } from "../observability/lifecycle.js";
-import { createProviderModel } from "../providers/model.js";
+import { createProviderModel } from "@backend/transport-ts/provider-model";
 import { defaultToolCatalog, type ToolCatalog } from "../tools/catalog.js";
 import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
 

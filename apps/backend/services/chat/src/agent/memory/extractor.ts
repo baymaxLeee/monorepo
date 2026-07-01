@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { extractJsonMiddleware, generateText, Output, wrapLanguageModel } from "ai";
 
-import { createProviderModel } from "../providers/model.js";
-import type { ChatProvider } from "../providers/model.js";
+import { createProviderModel } from "@backend/transport-ts/provider-model";
+import type { ChatProvider } from "@backend/transport-ts/provider-model";
 import {
   createMemoryCandidate,
   listActiveMemories,

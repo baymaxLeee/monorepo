@@ -1,5 +1,13 @@
 # 大型 HTML Artifact 生成 — 重构设计（基于 AI SDK 7）
 
+> **历史文档，已被 [ADR-0015](../../../../docs/ADR/0015-agent-task-executor.md) 取代。**
+> 本文档设想的 child workflow 方案从未实现；实际演进路径是先落地手搓
+> worker/lease/poll（无 workflow），再在 ADR-0015 里迁移到独立 `executor`
+> 服务 + 真正的 Workflow DevKit。引用的文件路径（`src/services/*`）也已不存在，
+> 当前实现在 `src/agent/artifacts/*`（chat 侧，仅剩 markdown + 只读校验）和
+> `apps/backend/services/executor/src/artifacts/*`（HTML 生成主体）。保留本文档
+> 仅作历史参照。
+>
 > 状态：设计待 review（已确认方向）
 > 范围：`apps/backend/services/chat` + `apps/frontend/packages/components`
 > 作者：agent review @ 2026-06-28

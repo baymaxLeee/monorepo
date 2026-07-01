@@ -6,6 +6,7 @@ resources:
   - ../../base/iam
   - ../../base/admin
   - ../../base/chat
+  - ../../base/executor
   - ../../base/knowledge
   - ../../base/telemetry
   - ../../base/web
@@ -18,6 +19,8 @@ images:
   - name: ghcr.io/example/admin
     newTag: dev
   - name: ghcr.io/example/chat
+    newTag: dev
+  - name: ghcr.io/example/executor
     newTag: dev
   - name: ghcr.io/example/knowledge
     newTag: dev

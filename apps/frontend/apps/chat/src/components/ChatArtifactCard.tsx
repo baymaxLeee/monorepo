@@ -1,4 +1,4 @@
-import type { ConversationDocument } from "api";
+import { fetchConversationTask, type ConversationDocument, type Task } from "api";
 import { Button } from "components";
 import {
   Artifact,
@@ -7,142 +7,178 @@ import {
   ArtifactHeader,
   ArtifactTitle,
 } from "components/ai-chat";
-import { FileTextIcon } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { FileTextIcon, Loader2Icon } from "lucide-react";
+import { useEffect, useState } from "react";
 
+// Synchronous tool result shape — only the markdown path returns this
+// immediately (a single fast streamText call needs no durability). The HTML
+// path always returns ArtifactTaskOutput instead (see below).
 export type ArtifactOutput = {
   documentId: string;
   status: string;
   title: string;
   filename: string;
   kind: string;
-  content: string;
+  totalChars?: number;
+};
+
+export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
+  if (!output || typeof output !== "object") return null;
+  const raw = output as Record<string, unknown>;
+  if (typeof raw.document_id !== "string") return null;
+  return {
+    documentId: raw.document_id,
+    status: typeof raw.status === "string" ? raw.status : "persisted",
+    title: typeof raw.title === "string" ? raw.title : "Artifact",
+    filename: typeof raw.filename === "string" ? raw.filename : "artifact",
+    kind: typeof raw.kind === "string" ? raw.kind : "file",
+    totalChars: typeof raw.total_chars === "number" ? raw.total_chars : undefined,
+  };
+}
+
+// write_file/edit_file's HTML branch dispatches to executor and returns this
+// immediately (status is "queued" or "running" at that point; the tool part
+// itself never updates after that — ArtifactTaskCard below polls the task
+// separately to find out when it actually finishes).
+export type ArtifactTaskOutput = {
+  taskId: string;
+  title: string;
+  filename: string;
+  kind: string;
+};
+
+export function parseArtifactTaskOutput(output: unknown): ArtifactTaskOutput | null {
+  if (!output || typeof output !== "object") return null;
+  const raw = output as Record<string, unknown>;
+  if (typeof raw.task_id !== "string") return null;
+  return {
+    taskId: raw.task_id,
+    title: typeof raw.title === "string" ? raw.title : "Artifact",
+    filename: typeof raw.filename === "string" ? raw.filename : "artifact",
+    kind: typeof raw.kind === "string" ? raw.kind : "html",
+  };
+}
+
+type HtmlArtifactTaskResult = {
+  documentId?: string;
   totalChars?: number;
   blocksTotal?: number;
   blocksDone?: number;
   blocksFailed?: number;
 };
 
-export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
-  if (!output || typeof output !== "object") return null;
-  const raw = output as {
-    document_id?: unknown;
-    status?: unknown;
-    title?: unknown;
-    filename?: unknown;
-    kind?: unknown;
-    content?: unknown;
-    total_chars?: unknown;
-    blocks_total?: unknown;
-    blocks_done?: unknown;
-    blocks_failed?: unknown;
-  };
-  if (typeof raw.document_id !== "string" && raw.status !== "generating") {
-    return null;
-  }
+function parseTaskResult(result: unknown): HtmlArtifactTaskResult {
+  if (!result || typeof result !== "object") return {};
+  const raw = result as Record<string, unknown>;
   return {
-    documentId: typeof raw.document_id === "string" ? raw.document_id : "",
-    status: typeof raw.status === "string" ? raw.status : "persisted",
-    title: typeof raw.title === "string" ? raw.title : "Artifact",
-    filename: typeof raw.filename === "string" ? raw.filename : "artifact",
-    kind: typeof raw.kind === "string" ? raw.kind : "file",
-    content: typeof raw.content === "string" ? raw.content : "",
-    totalChars:
-      typeof raw.total_chars === "number" ? raw.total_chars : undefined,
-    blocksTotal:
-      typeof raw.blocks_total === "number" ? raw.blocks_total : undefined,
-    blocksDone:
-      typeof raw.blocks_done === "number" ? raw.blocks_done : undefined,
-    blocksFailed:
-      typeof raw.blocks_failed === "number" ? raw.blocks_failed : undefined,
+    documentId: typeof raw.documentId === "string" ? raw.documentId : undefined,
+    totalChars: typeof raw.totalChars === "number" ? raw.totalChars : undefined,
+    blocksTotal: typeof raw.blocksTotal === "number" ? raw.blocksTotal : undefined,
+    blocksDone: typeof raw.blocksDone === "number" ? raw.blocksDone : undefined,
+    blocksFailed: typeof raw.blocksFailed === "number" ? raw.blocksFailed : undefined,
   };
 }
 
-export type ArtifactStreamData = {
-  toolCallId: string;
-  status: "generating" | "persisted" | "error";
-  title: string;
-  filename: string;
-  kind: string;
-  preview: string;
-  generated_chars: number;
-  document_id?: string;
-  blocks_total?: number;
-  blocks_done?: number;
-};
+const POLL_MS = 2_000;
 
-export function parseArtifactStreamData(
-  data: unknown,
-): ArtifactStreamData | null {
-  if (!data || typeof data !== "object") return null;
-  const raw = data as Record<string, unknown>;
-  const status = raw.status;
-  if (status !== "generating" && status !== "persisted" && status !== "error") {
-    return null;
-  }
-  return {
-    toolCallId: typeof raw.toolCallId === "string" ? raw.toolCallId : "",
-    status,
-    title: typeof raw.title === "string" ? raw.title : "Artifact",
-    filename: typeof raw.filename === "string" ? raw.filename : "artifact",
-    kind: typeof raw.kind === "string" ? raw.kind : "file",
-    preview: typeof raw.preview === "string" ? raw.preview : "",
-    generated_chars:
-      typeof raw.generated_chars === "number" ? raw.generated_chars : 0,
-    document_id:
-      typeof raw.document_id === "string" ? raw.document_id : undefined,
-    blocks_total:
-      typeof raw.blocks_total === "number" ? raw.blocks_total : undefined,
-    blocks_done:
-      typeof raw.blocks_done === "number" ? raw.blocks_done : undefined,
-  };
-}
-
-export function StreamingArtifactCard({
-  artifact,
+// Owns the full lifecycle of one background html-artifact task: polls
+// chat's task proxy (-> executor) until the task leaves queued/running, then
+// renders either the finished ArtifactDocumentCard or an error state. This
+// replaces the old conversation-wide ArtifactJobBar poll — each card tracks
+// only the one task it cares about, matching the non-blocking dispatch model
+// (agent_task_执行时服务 plan Phase 2).
+export function ArtifactTaskCard({
+  task,
+  conversationId,
+  documents,
+  onOpen,
 }: {
-  artifact: ArtifactOutput;
+  task: ArtifactTaskOutput;
+  conversationId: string;
+  documents: Map<string, ConversationDocument>;
+  onOpen: (documentId: string) => void;
 }) {
-  const hasBlockProgress =
-    typeof artifact.blocksTotal === "number" && artifact.blocksTotal > 0;
+  const [snapshot, setSnapshot] = useState<Task | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let timer: number | undefined;
+    async function poll() {
+      try {
+        const next = await fetchConversationTask(conversationId, task.taskId);
+        if (!active) return;
+        setSnapshot(next);
+        if (next.status === "queued" || next.status === "running") {
+          timer = window.setTimeout(poll, POLL_MS);
+        }
+      } catch {
+        if (active) timer = window.setTimeout(poll, POLL_MS * 2);
+      }
+    }
+    void poll();
+    return () => {
+      active = false;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [conversationId, task.taskId]);
+
+  const status = snapshot?.status ?? "queued";
+  const result = parseTaskResult(snapshot?.result);
+
+  if (status === "completed" && result.documentId) {
+    return (
+      <ArtifactDocumentCard
+        document={documents.get(result.documentId)}
+        documentId={result.documentId}
+        fallback={{
+          documentId: result.documentId,
+          status: "persisted",
+          title: task.title,
+          filename: task.filename,
+          kind: task.kind,
+          totalChars: result.totalChars,
+        }}
+        blocksFailed={result.blocksFailed}
+        onOpen={() => onOpen(result.documentId!)}
+      />
+    );
+  }
+
+  if (status === "failed" || status === "cancelled") {
+    return (
+      <Artifact>
+        <ArtifactHeader>
+          <div className="min-w-0">
+            <ArtifactTitle className="truncate">{task.title}</ArtifactTitle>
+            <ArtifactDescription className="truncate">
+              {task.kind} · {task.filename} ·{" "}
+              {status === "cancelled" ? "已取消" : "生成失败"}
+            </ArtifactDescription>
+          </div>
+        </ArtifactHeader>
+        {status === "failed" && snapshot?.error ? (
+          <ArtifactContent className="px-4 py-3 text-xs text-destructive">
+            {snapshot.error}
+          </ArtifactContent>
+        ) : null}
+      </Artifact>
+    );
+  }
+
+  const hasBlockProgress = typeof result.blocksTotal === "number" && result.blocksTotal > 0;
   return (
     <Artifact>
       <ArtifactHeader>
         <div className="min-w-0">
-          <ArtifactTitle className="truncate">{artifact.title}</ArtifactTitle>
+          <ArtifactTitle className="truncate">{task.title}</ArtifactTitle>
           <ArtifactDescription className="truncate">
-            {artifact.kind} · {artifact.filename} · {artifact.status}
-            {hasBlockProgress
-              ? ` · 已生成 ${artifact.blocksDone ?? 0}/${artifact.blocksTotal} 页`
-              : artifact.totalChars
-                ? ` · ${artifact.totalChars} chars`
-                : ""}
+            {task.kind} · {task.filename} · 后台生成中
+            {hasBlockProgress ? ` · 已生成 ${result.blocksDone ?? 0}/${result.blocksTotal} 页` : ""}
           </ArtifactDescription>
         </div>
+        <Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground" />
       </ArtifactHeader>
-      <ArtifactContent>
-        <ArtifactStreamPreview content={artifact.content || "artifact"} />
-      </ArtifactContent>
     </Artifact>
-  );
-}
-
-function ArtifactStreamPreview({ content }: { content: string }) {
-  const previewRef = useRef<HTMLPreElement>(null);
-
-  useEffect(() => {
-    const node = previewRef.current;
-    if (!node) return;
-    node.scrollTop = node.scrollHeight;
-  }, [content]);
-
-  return (
-    <pre
-      ref={previewRef}
-      className="max-h-[6.25rem] overflow-hidden whitespace-pre-wrap rounded-md bg-muted/60 p-2 text-[11px] leading-5"
-    >
-      {content}
-    </pre>
   );
 }
 
@@ -150,6 +186,7 @@ export function ArtifactDocumentCard({
   document,
   documentId,
   fallback,
+  blocksFailed,
   onOpen,
   onContinuePlan,
   onExecutePlan,
@@ -157,6 +194,7 @@ export function ArtifactDocumentCard({
   document: ConversationDocument | undefined;
   documentId: string;
   fallback?: ArtifactOutput;
+  blocksFailed?: number;
   onOpen: () => void;
   onContinuePlan?: () => void;
   onExecutePlan?: () => void;
@@ -200,9 +238,9 @@ export function ArtifactDocumentCard({
       <ArtifactContent className="px-4 py-3 text-xs text-muted-foreground">
         <FileTextIcon className="mr-1 inline size-3" />
         AI artifact
-        {fallback?.blocksFailed ? (
+        {blocksFailed ? (
           <span className="ml-2 text-destructive">
-            · {fallback.blocksFailed} 页生成失败，已在预览中标注
+            · {blocksFailed} 页生成失败，已在预览中标注
           </span>
         ) : null}
       </ArtifactContent>

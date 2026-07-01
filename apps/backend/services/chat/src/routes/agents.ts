@@ -4,7 +4,7 @@ import { z } from "zod";
 import { UI_MESSAGE_STREAM_HEADERS } from "ai";
 
 import { getProvider } from "../clients/admin.js";
-import { listUnfinishedArtifactGenerations } from "../clients/knowledge.js";
+import { getTask } from "../clients/executor.js";
 import { getAuth } from "../middleware/auth.js";
 import {
   createAgentRunResponse,
@@ -103,20 +103,20 @@ agentsRoutes.post("/:conversationId/agents/runs/:runId/cancel", async (c) => {
   const auth = getAuth(c);
   const conversationId = c.req.param("conversationId");
   const runId = c.req.param("runId");
+  await getAgentRunTrace(auth, conversationId, runId);
+  const cancelled = await cancelRun(conversationId, runId);
   const run = await getAgentRunTrace(auth, conversationId, runId);
-  return c.json({
-    cancelled: await cancelRun(conversationId, runId),
-    status: run.status,
-  });
+  return c.json({ cancelled, status: run.status });
 });
 
-agentsRoutes.get("/:conversationId/artifact-jobs", async (c) => {
+// Thin proxy to executor: write_file/edit_file's tool output carries a
+// task_id (see ChatArtifactCard on the frontend), which polls this endpoint
+// for progress instead of the old "list all unfinished jobs for this
+// conversation" endpoint. One task at a time, looked up by id, matches the
+// non-blocking dispatch model (agent_task_执行时服务 plan Phase 2).
+agentsRoutes.get("/:conversationId/tasks/:taskId", async (c) => {
   const auth = getAuth(c);
-  const conversation = await getConversationRow(auth, c.req.param("conversationId"));
-  const jobs = await listUnfinishedArtifactGenerations({
-    userId: conversation.userId,
-    conversationId: conversation.id,
-    limit: 20,
-  });
-  return c.json(jobs);
+  await getConversationRow(auth, c.req.param("conversationId"));
+  const task = await getTask(c.req.param("taskId"));
+  return c.json(task);
 });

@@ -26,6 +26,13 @@ const memoryIdPathParam = {
   schema: { type: "string" },
 };
 
+const taskPathParam = {
+  name: "task_id",
+  in: "path",
+  required: true,
+  schema: { type: "string" },
+};
+
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 const jsonResponse = (description: string, schema: object) => ({
   description,
@@ -124,14 +131,13 @@ const openapi = {
         responses: { "200": jsonResponse("request agent run cancellation", ref("RunCancellation")) },
       },
     },
-    "/conversations/{conversation_id}/artifact-jobs": {
+    "/conversations/{conversation_id}/tasks/{task_id}": {
       get: {
-        parameters: [pathParam],
+        summary: "Proxy to the executor service's task status (see write_file/edit_file tool output task_id).",
+        parameters: [pathParam, taskPathParam],
         responses: {
-          "200": jsonResponse("list recent artifact jobs", {
-            type: "array",
-            items: ref("ArtifactJob"),
-          }),
+          "200": jsonResponse("task snapshot", ref("Task")),
+          "404": { description: "task not found" },
         },
       },
     },
@@ -210,19 +216,23 @@ const openapi = {
           status: { type: "string" },
         },
       },
-      ArtifactJob: {
+      Task: {
         type: "object",
-        required: ["id", "document_id", "status", "phase", "total_blocks", "completed_blocks", "failed_blocks", "attempt"],
+        required: [
+          "id", "type", "status", "ownerService", "ownerRef", "result", "error",
+          "createdAt", "updatedAt", "finishedAt",
+        ],
         properties: {
           id: { type: "string" },
-          document_id: { type: "string" },
-          status: { type: "string" },
-          phase: { type: "string" },
-          total_blocks: { type: "integer" },
-          completed_blocks: { type: "integer" },
-          failed_blocks: { type: "integer" },
+          type: { type: "string" },
+          status: { type: "string", enum: ["queued", "running", "completed", "failed", "cancelled"] },
+          ownerService: { type: "string" },
+          ownerRef: { type: "string" },
+          result: {},
           error: { type: ["string", "null"] },
-          attempt: { type: "integer" },
+          createdAt: { type: "string" },
+          updatedAt: { type: "string" },
+          finishedAt: { type: ["string", "null"] },
         },
       },
       MemoryCategory: {

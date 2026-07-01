@@ -1,8 +1,9 @@
 # chat service (TypeScript)
 
 Conversation + agent runtime service. It owns conversation/message/run
-observability in MySQL and consumes admin (providers) plus knowledge
-(documents/artifacts) through `@backend/transport-ts`.
+observability in MySQL and consumes admin (providers), knowledge
+(documents/artifacts), and executor (durable background tasks) through
+`@backend/transport-ts`.
 
 ## Runtime contract
 
@@ -20,14 +21,24 @@ observability in MySQL and consumes admin (providers) plus knowledge
 ## Tools and artifacts
 
 - `update_plan` snapshots are persisted in native UIMessage tool parts.
-- Markdown uses `create_artifact`.
-- Large HTML uses `begin_artifact` → bounded `write_artifact_part` calls →
-  `publish_artifact`. Knowledge/ObjectStore owns full content; chat history and
-  traces redact HTML fragments.
-- Artifact tools do not start nested agents/workflows. The main ToolLoopAgent
-  waits for every server tool execution before its next step.
-- `web_search` uses Tavily. `propose_memory` stages a candidate; user approval
-  remains asynchronous in the memory panel.
+- `write_file`/`edit_file` handle both Markdown and HTML. Markdown runs
+  synchronously in this tool call (a single `streamText`, no durability
+  needed). **HTML dispatches to the `executor` service as a non-blocking
+  background task** (`agent_task_执行时服务` plan, Phase 2) — the tool call
+  returns immediately with `{ status, task_id }`; the ToolLoopAgent does not
+  wait for generation to finish. The frontend polls
+  `GET /conversations/:id/tasks/:taskId` (proxied to executor) and renders the
+  artifact card once the task completes. Knowledge/ObjectStore owns full
+  content; chat history and traces never carry HTML fragments.
+- `run_command` (`validate_html`/`inspect_layout`) inspects an already
+  *published* HTML artifact; it stays local to chat since it needs no LLM
+  call and no durability.
+- Cancelling a chat run does **not** cancel an in-flight executor task it
+  already dispatched — that task is durable background work by design and
+  outlives the run/turn that started it, the same way a Cursor/Codex
+  background agent keeps running after you stop watching it.
+- `web_search` uses Tavily. `create_memory`/`update_memory` stage a candidate;
+  user approval remains asynchronous in the memory panel.
 
 ## Boundaries
 

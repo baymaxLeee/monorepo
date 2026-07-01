@@ -1,8 +1,16 @@
-"""Storage API for chat-owned durable Artifact tools."""
+"""Storage API for chat-owned durable Artifact tools.
 
-from datetime import UTC, datetime, timedelta
+No claim/renew/phase-lease endpoints here on purpose (removed in the ADR-0015
+review): they implemented a multi-worker lease/heartbeat protocol for chat's
+old hand-rolled worker pool. That pool is gone — the executor service's
+Workflow DevKit run is now the one and only owner of a generation from start
+to finish, so "claim a lease from a pool of competing workers" no longer has
+a caller. `lease_owner`/`lease_expires_at` columns remain on the row (dropping
+them needs a migration) but are only ever set to `None` or `"executor"` now.
+"""
+
+from datetime import UTC, datetime
 from hashlib import sha256
-from typing import cast
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends
@@ -13,11 +21,8 @@ from knowledge.models.artifact import ArtifactBlockVersionRow, ArtifactGeneratio
 from knowledge.schemas.artifact import (
     ArtifactGeneration,
     ArtifactGenerationDetail,
-    ArtifactLeaseInput,
     ArtifactMutationInput,
-    ArtifactPhaseInput,
     ArtifactRevisionWorkspace,
-    ClaimableArtifactJob,
     PublishArtifactRevisionInput,
     PublishedArtifactRevision,
     ReserveArtifactGenerationInput,
@@ -26,8 +31,7 @@ from knowledge.schemas.artifact import (
     StoredArtifactBlock,
 )
 from knowledge.services.object_store import ObjectStore
-from sqlalchemy import func, or_, select, update
-from sqlalchemy.engine import CursorResult
+from sqlalchemy import func, select
 
 router = APIRouter(
     prefix="/internal/artifact-generations",
@@ -83,17 +87,7 @@ async def reserve_generation(payload: ReserveArtifactGenerationInput, session: D
             raise ConflictError("artifact idempotency key belongs to another user")
         return _generation_schema(existing)
 
-    resume = None
-    if payload.resume_generation_id:
-        resume = await _owned_generation(session, payload.resume_generation_id, payload.user_id)
-        if resume.status not in {"cancelled", "failed", "interrupted"}:
-            raise ConflictError("only a stopped artifact generation can be resumed")
-
-    document_id = (
-        resume.document_id
-        if resume
-        else sha256(f"{payload.user_id}:{payload.idempotency_key}".encode()).hexdigest()[:16]
-    )
+    document_id = sha256(f"{payload.user_id}:{payload.idempotency_key}".encode()).hexdigest()[:16]
     base_revision_id = payload.base_revision_id
     if payload.document_id:
         document = await document_crud.get_document(session, payload.document_id, payload.user_id)
@@ -115,13 +109,13 @@ async def reserve_generation(payload: ReserveArtifactGenerationInput, session: D
         document_id=document_id,
         user_id=payload.user_id,
         conversation_id=payload.conversation_id,
-        kind="update" if payload.document_id or payload.base_revision_id or resume else "create",
+        kind="update" if payload.document_id or payload.base_revision_id else "create",
         title=payload.title,
         filename=payload.filename,
         brief=payload.brief,
         idempotency_key=payload.idempotency_key,
         base_revision_id=base_revision_id,
-        attempt=(resume.attempt + 1) if resume else 1,
+        attempt=1,
         run_id=payload.run_id,
         tool_call_id=payload.tool_call_id,
         status="queued",
@@ -140,95 +134,8 @@ async def reserve_generation(payload: ReserveArtifactGenerationInput, session: D
         finished_at=None,
     )
     session.add(row)
-    if resume:
-        row.base_revision_id = resume.base_revision_id
-        row.manifest_json = resume.manifest_json
-        row.total_blocks = resume.total_blocks
-        ready_blocks = (
-            await session.scalars(
-                select(ArtifactBlockVersionRow).where(
-                    ArtifactBlockVersionRow.generation_id == resume.id,
-                    ArtifactBlockVersionRow.status == "ready",
-                )
-            )
-        ).all()
-        row.completed_blocks = len(ready_blocks)
-        session.add_all(
-            ArtifactBlockVersionRow(
-                id=_id(),
-                document_id=row.document_id,
-                generation_id=row.id,
-                block_id=block.block_id,
-                block_type=block.block_type,
-                position=block.position,
-                brief=block.brief,
-                status="ready",
-                object_bucket=block.object_bucket,
-                object_key=block.object_key,
-                object_sha256=block.object_sha256,
-                content_size=block.content_size,
-                error=None,
-                attempt=block.attempt,
-                created_at=now,
-                updated_at=now,
-            )
-            for block in ready_blocks
-        )
     await session.commit()
     return _generation_schema(row)
-
-
-@router.get("/claimable", response_model=list[ClaimableArtifactJob])
-async def list_claimable_generations(session: DbSession, limit: int = 20) -> list[ClaimableArtifactJob]:
-    now = datetime.now(UTC)
-    rows = (
-        await session.scalars(
-            select(ArtifactGenerationRow)
-            .where(
-                ArtifactGenerationRow.status.in_(["queued", "running"]),
-                ArtifactGenerationRow.phase == "generating_blocks",
-                ArtifactGenerationRow.total_blocks > 0,
-                or_(
-                    ArtifactGenerationRow.lease_owner.is_(None),
-                    ArtifactGenerationRow.lease_expires_at.is_(None),
-                    ArtifactGenerationRow.lease_expires_at <= now,
-                ),
-            )
-            .order_by(ArtifactGenerationRow.created_at)
-            .limit(max(1, min(limit, 50)))
-        )
-    ).all()
-    return [
-        ClaimableArtifactJob(
-            **_generation_schema(row).model_dump(),
-            user_id=row.user_id,
-            title=row.title,
-            filename=row.filename,
-            brief=row.brief,
-        )
-        for row in rows
-    ]
-
-
-@router.get("/unfinished", response_model=list[ArtifactGeneration])
-async def list_unfinished_generations(
-    user_id: str,
-    session: DbSession,
-    conversation_id: str | None = None,
-    run_id: str | None = None,
-    include_terminal: bool = False,
-    limit: int = 20,
-) -> list[ArtifactGeneration]:
-    query = select(ArtifactGenerationRow).where(ArtifactGenerationRow.user_id == user_id)
-    if not include_terminal:
-        query = query.where(ArtifactGenerationRow.status.in_(["queued", "running", "cancel_requested"]))
-    if conversation_id:
-        query = query.where(ArtifactGenerationRow.conversation_id == conversation_id)
-    if run_id:
-        query = query.where(ArtifactGenerationRow.run_id == run_id)
-    order = ArtifactGenerationRow.created_at.desc() if include_terminal else ArtifactGenerationRow.created_at
-    rows = (await session.scalars(query.order_by(order).limit(max(1, min(limit, 100))))).all()
-    return [_generation_schema(row) for row in rows]
 
 
 @router.get("/{generation_id}", response_model=ArtifactGenerationDetail)
@@ -242,76 +149,6 @@ async def get_generation(generation_id: str, user_id: str, session: DbSession) -
         brief=row.brief,
         manifest=row.manifest_json,
     )
-
-
-@router.post("/{generation_id}/claim", response_model=ArtifactGeneration)
-async def claim_generation(generation_id: str, payload: ArtifactLeaseInput, session: DbSession) -> ArtifactGeneration:
-    now = datetime.now(UTC)
-    row = await _owned_generation(session, generation_id, payload.user_id)
-    if row.status == "cancel_requested":
-        row.status = "cancelled"
-        row.finished_at = now
-        row.lease_owner = None
-        row.lease_expires_at = None
-        await session.commit()
-        return _generation_schema(row)
-
-    result = await session.execute(
-        update(ArtifactGenerationRow)
-        .where(
-            ArtifactGenerationRow.id == generation_id,
-            ArtifactGenerationRow.user_id == payload.user_id,
-            ArtifactGenerationRow.status.in_(["queued", "running"]),
-            or_(
-                ArtifactGenerationRow.lease_owner.is_(None),
-                ArtifactGenerationRow.lease_expires_at.is_(None),
-                ArtifactGenerationRow.lease_expires_at <= now,
-            ),
-        )
-        .values(
-            status="running",
-            lease_owner=payload.owner,
-            lease_expires_at=now + timedelta(seconds=payload.lease_seconds),
-            started_at=func.coalesce(ArtifactGenerationRow.started_at, now),
-            updated_at=now,
-        )
-        .execution_options(synchronize_session=False)
-    )
-    if cast(CursorResult[object], result).rowcount != 1:
-        await session.rollback()
-        current = await _owned_generation(session, generation_id, payload.user_id)
-        if current.status not in {"queued", "running"}:
-            raise ConflictError(f"artifact generation is {current.status}")
-        raise ConflictError("artifact generation is leased by another worker")
-    await session.commit()
-    await session.refresh(row)
-    return _generation_schema(row)
-
-
-@router.post("/{generation_id}/phase", response_model=ArtifactGeneration)
-async def update_generation_phase(
-    generation_id: str, payload: ArtifactPhaseInput, session: DbSession
-) -> ArtifactGeneration:
-    row = await _owned_generation(session, generation_id, payload.user_id)
-    if row.lease_owner != payload.owner:
-        raise ConflictError("artifact generation lease is not owned by this worker")
-    now = datetime.now(UTC)
-    row.phase = payload.phase
-    row.updated_at = now
-    await session.commit()
-    return _generation_schema(row)
-
-
-@router.post("/{generation_id}/renew", response_model=ArtifactGeneration)
-async def renew_generation(generation_id: str, payload: ArtifactLeaseInput, session: DbSession) -> ArtifactGeneration:
-    row = await _owned_generation(session, generation_id, payload.user_id)
-    if row.status != "running" or row.lease_owner != payload.owner:
-        raise ConflictError("artifact generation lease is not owned by this worker")
-    now = datetime.now(UTC)
-    row.lease_expires_at = now + timedelta(seconds=payload.lease_seconds)
-    row.updated_at = now
-    await session.commit()
-    return _generation_schema(row)
 
 
 @router.post("/{generation_id}/cancel", response_model=ArtifactGeneration)
@@ -365,6 +202,12 @@ async def save_plan(generation_id: str, payload: SaveArtifactPlanInput, session:
     row.manifest_json = payload.manifest
     row.total_blocks = len(payload.blocks)
     row.phase = "generating_blocks"
+    # No claim/lease step exists anymore (one workflow run is the one and
+    # only owner of a generation — see artifacts_internal.py module note),
+    # so this is the first point at which we know it's actually executing.
+    if row.status == "queued":
+        row.status = "running"
+        row.started_at = row.started_at or now
     row.updated_at = now
     existing_ids = set(
         (

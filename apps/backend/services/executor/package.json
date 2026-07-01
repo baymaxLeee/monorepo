@@ -1,0 +1,38 @@
+{
+  "name": "executor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nitro dev",
+    "build": "nitro build && node scripts/fix-oidc-trace.mjs",
+    "start": "node .output/server/index.mjs",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "gen-openapi": "tsx src/gen-openapi.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/provider-utils": "^5.0.1",
+    "@ai-sdk/workflow": "^1.0.2",
+    "@backend/transport-ts": "workspace:*",
+    "@hono/zod-validator": "^0.4.0",
+    "@workflow/world-postgres": "^4.2.0",
+    "ai": "^7.0.4",
+    "drizzle-orm": "^0.44.0",
+    "hono": "^4.7.0",
+    "mysql2": "^3.14.0",
+    "postcss": "^8.5.15",
+    "postcss-selector-parser": "^7.1.4",
+    "sanitize-html": "^2.17.0",
+    "workflow": "^4.5.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "@types/sanitize-html": "^2.16.0",
+    "nitro": "3.0.260610-beta",
+    "rollup": "^4.62.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}

@@ -158,10 +158,19 @@ export type ArtifactPreviewKind =
   | "audio"
   | "pdf";
 
-const HTML_PREVIEW_CSP = [
+// Compiler-trusted artifacts (write_file/edit_file output) embed their own
+// runtime head — CSP that allows the pinned ECharts CDN plus the compiler's
+// trusted inline hydration/nav/error-boundary scripts — marked with this
+// attribute (see chat's buildArtifactRuntimeHead). Only fall back to a
+// script-blocking CSP for content that lacks that marker, e.g. arbitrary
+// uploaded HTML documents that never passed through the artifact compiler.
+const TRUSTED_ARTIFACT_RUNTIME_MARKER = 'data-chat-artifact-runtime="true"';
+
+const UNTRUSTED_HTML_PREVIEW_CSP = [
   "default-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",
+  "script-src 'none'",
   "img-src data: blob:",
   "media-src data: blob:",
   "font-src data: blob:",
@@ -169,7 +178,14 @@ const HTML_PREVIEW_CSP = [
 ].join("; ");
 
 function sandboxedHtml(content: string) {
-  return `<meta http-equiv="Content-Security-Policy" content="${HTML_PREVIEW_CSP}">${content}`;
+  if (content.includes(TRUSTED_ARTIFACT_RUNTIME_MARKER)) return content;
+  const meta = `<meta http-equiv="Content-Security-Policy" content="${UNTRUSTED_HTML_PREVIEW_CSP}">`;
+  const headOpen = content.match(/<head\b[^>]*>/i);
+  if (headOpen?.index !== undefined) {
+    const insertAt = headOpen.index + headOpen[0].length;
+    return `${content.slice(0, insertAt)}${meta}${content.slice(insertAt)}`;
+  }
+  return `${meta}${content}`;
 }
 
 export type ArtifactPreviewProps = HTMLAttributes<HTMLDivElement> & {
@@ -262,7 +278,11 @@ export function ArtifactPreview({
         ) : resolvedKind === "html" ? (
           <iframe
             title={title}
-            sandbox=""
+            // Opaque origin (no allow-same-origin): scripts can run — required
+            // for the compiler's trusted chart-hydration/nav/error-boundary
+            // scripts (see ADR-0012) — but the frame can never read parent
+            // cookies/localStorage, navigate the top window, or open popups.
+            sandbox="allow-scripts"
             referrerPolicy="no-referrer"
             src={src}
             srcDoc={src ? undefined : sandboxedHtml(content)}

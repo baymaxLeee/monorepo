@@ -1,5 +1,5 @@
 import type { ModelMessage } from "ai";
-import type { ChatProvider, ReasoningEffort } from "../providers/model.js";
+import type { ChatProvider, ReasoningEffort } from "@backend/transport-ts/provider-model";
 
 export type AgentMode = "normal" | "plan";
 

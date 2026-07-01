@@ -19,8 +19,9 @@ import { useState } from "react";
 import { cn } from "shared";
 import {
   ArtifactDocumentCard,
+  ArtifactTaskCard,
   parseArtifactOutput,
-  StreamingArtifactCard,
+  parseArtifactTaskOutput,
 } from "./ChatArtifactCard";
 import { ChatMessageFilePart } from "./ChatMessageFilePart";
 
@@ -172,6 +173,7 @@ function MessagePartView({
     return (
       <ToolPartView
         part={part}
+        conversationId={conversationId}
         documents={documents}
         onOpenArtifact={onOpenArtifact}
         onAnswerClientTool={onAnswerClientTool}
@@ -186,6 +188,7 @@ function MessagePartView({
 
 function ToolPartView({
   part,
+  conversationId,
   documents,
   onOpenArtifact,
   onAnswerClientTool,
@@ -193,6 +196,7 @@ function ToolPartView({
   onExecutePlan,
 }: {
   part: Extract<UIMessage["parts"][number], { toolCallId: string }>;
+  conversationId: string;
   documents: Map<string, ConversationDocument>;
   onOpenArtifact: (documentId: string) => void;
   onAnswerClientTool: (
@@ -214,6 +218,7 @@ function ToolPartView({
       : undefined;
   const outputErrorReason = parseToolOutputError(output);
   const artifact = parseArtifactOutput(output);
+  const artifactTask = parseArtifactTaskOutput(output);
   const askUserInput =
     toolName === "ask_user" ? parseAskUserInput(input) : null;
 
@@ -230,8 +235,15 @@ function ToolPartView({
     );
   }
 
-  if (artifact) {
-    return <StreamingArtifactCard artifact={artifact} />;
+  if (artifactTask) {
+    return (
+      <ArtifactTaskCard
+        task={artifactTask}
+        conversationId={conversationId}
+        documents={documents}
+        onOpen={onOpenArtifact}
+      />
+    );
   }
 
   const hasError = part.state === "output-error" || outputErrorReason != null;

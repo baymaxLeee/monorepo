@@ -6,14 +6,19 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
-    "codegen": "openapi-typescript ../../../../schemas/openapi/admin-server.json -o src/schema/admin.ts && openapi-typescript ../../../../schemas/openapi/knowledge-server.json -o src/schema/knowledge.ts"
+    "codegen": "openapi-typescript ../../../../schemas/openapi/admin-server.json -o src/schema/admin.ts && openapi-typescript ../../../../schemas/openapi/knowledge-server.json -o src/schema/knowledge.ts && openapi-typescript ../../../../schemas/openapi/executor-server.json -o src/schema/executor.ts"
   },
   "exports": {
     ".": "./src/index.ts",
     "./admin": "./src/admin.ts",
-    "./knowledge": "./src/knowledge.ts"
+    "./executor": "./src/executor.ts",
+    "./knowledge": "./src/knowledge.ts",
+    "./provider-model": "./src/provider-model.ts",
+    "./provider-url": "./src/provider-url.ts"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.1",
+    "@ai-sdk/provider": "^4.0.0",
     "openapi-fetch": "^0.17.0"
   },
   "devDependencies": {

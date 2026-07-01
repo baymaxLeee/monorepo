@@ -15,6 +15,7 @@ export interface Settings {
   redisDb: number;
   adminServiceUrl: string;
   knowledgeServiceUrl: string;
+  executorServiceUrl: string;
   internalApiToken: string;
   tavilyApiKey: string;
   providerCacheTtlSeconds: number;
@@ -45,6 +46,7 @@ export function getSettings(): Settings {
     redisDb: envInt("REDIS_DB", 2),
     adminServiceUrl: envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
     knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
+    executorServiceUrl: envOr("EXECUTOR_SERVICE_URL", "http://localhost:8011"),
     internalApiToken: envOr("INTERNAL_API_TOKEN", DEV_INTERNAL_TOKEN),
     tavilyApiKey: envOr("TAVILY_API_KEY", ""),
     providerCacheTtlSeconds: envInt("PROVIDER_CACHE_TTL_SECONDS", 300),

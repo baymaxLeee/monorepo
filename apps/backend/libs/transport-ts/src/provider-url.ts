@@ -1,3 +1,7 @@
+// SSRF guard for outbound calls to admin-configured LLM provider base URLs.
+// Shared by chat and executor (both call user-configured providers) — kept
+// here instead of duplicated per-service so the blocklist can't silently
+// drift between copies.
 import { lookup } from "node:dns/promises";
 import { BlockList, isIP } from "node:net";
 

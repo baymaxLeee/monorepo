@@ -29,15 +29,25 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 MySQL；
 ## Artifact
 
 - Markdown 与 HTML 统一由 `write_file` 创建、`edit_file` 更新。
-- 大型 HTML 在一次 tool execute 内完成 typed outline、4 路有界并发 block 生成、
-  allowlist sanitize、compile 和完整发布；主 Agent 不传输 HTML 正文。
-- HTML block 自行生成 scoped CSS、主题、布局与图表 option；compiler 只提供安全壳、
-  CSP、网络型 CSS 清洗和 ECharts hydration，不按 document/presentation/dashboard
-  注入固定视觉模板。
-- `edit_file` 从 knowledge 读取最新 immutable revision，复用未改 block，只生成受影响
-  block，并在同一个 document 下发布新 revision。
-- `run_command` 只提供 HTML 结构与内部链接检查，不执行宿主机 shell。
-- 主 Agent 等待高层 tool 完成，因此无需单独 server、child agent 或 workflow。
+- **Markdown** 同步：一次 `streamText` 直接在这次 tool execute 内完成，无需持久化
+  执行状态。
+- **HTML 委派给 `executor` 服务，非阻塞**（ADR-0015）：tool execute 立刻返回
+  `{ status, task_id }`，主 ToolLoopAgent 不等待生成完成。typed outline、4 路
+  有界并发 block 生成、allowlist sanitize、compile、发布全部发生在 executor
+  的 `html-artifact` TaskType（真正的 Workflow DevKit，可跨进程崩溃/重启存活）
+  里，chat 不再传输 HTML 正文，也不再自己跑 worker pool。
+- 前端通过 `GET /conversations/{id}/tasks/{taskId}`（代理到 executor）按
+  `task_id` 单独轮询进度，取代旧版"列出会话所有未完成任务"的 `/artifact-jobs`。
+- HTML block 自行生成 scoped CSS、主题、布局与图表 option；executor 的 compiler
+  只提供安全壳、CSP、网络型 CSS 清洗和 ECharts hydration，不按
+  document/presentation/dashboard 注入固定视觉模板。
+- `edit_file` 从 knowledge 读取最新 immutable revision，复用未改 block，只生成受
+  影响 block，并在同一个 document 下发布新 revision（同样委派给 executor）。
+- `run_command` 只提供 HTML 结构与内部链接检查，不执行宿主机 shell，留在 chat
+  本地（不需要模型调用，不需要持久化执行状态）。
+- 取消一次 chat run **不会**级联取消它已经派发出去的 executor task——那是设计上
+  独立于当前 run/turn 存活的后台工作，语义上等同 Cursor/Codex 的后台 agent。
 
-跨服务调用必须经过 `@backend/transport-ts`；provider 配置归 admin，artifact 归
-knowledge。架构决策见 ADR-0011、ADR-0012、ADR-0013。
+跨服务调用必须经过 `@backend/transport-ts`；provider 配置归 admin，artifact 存储
+归 knowledge，长任务执行归 executor。架构决策见 ADR-0011、ADR-0012、ADR-0013、
+ADR-0015。

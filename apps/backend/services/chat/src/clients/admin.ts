@@ -1,7 +1,7 @@
 import { AdminInternalClient, TransportError, type AdminProviderSnapshot } from "@backend/transport-ts";
 import { getSettings } from "../config.js";
 import { AdminUnavailableError, ProviderNotConfiguredError } from "../lib/errors.js";
-import { assertPublicProviderUrl } from "./provider-url.js";
+import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
 
 export interface ProviderSnapshot {
   id: string;

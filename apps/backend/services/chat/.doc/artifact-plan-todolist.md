@@ -1,5 +1,15 @@
 # 通用 Plan / Todo List 与主 Agent 持久化方案
 
+> **部分历史文档**：§1-7 的通用 Plan/Todo 设计已落地（`write_plan`/`update_plan`
+> 工具、`ChatPlanCard` 等），但运行在 [ADR-0011](../../../../docs/ADR/0011-tool-loop-agent-core.md)
+> 的 `ToolLoopAgent` 之上，而不是本文档设想的顶层 `WorkflowAgent`。§8 的
+> "HTML Artifact 作为 Plan 执行"（`begin_artifact`/`write_artifact_part`/
+> `publish_artifact` 三工具、无 child workflow、主模型逐 fragment 生成）**未被
+> 采用**——[ADR-0012](../../../../docs/ADR/0012-agent-file-tools.md) 选择了单一
+> `write_file` 工具（避免 100 页 = 100 个 ToolLoop step 的成本），随后
+> [ADR-0015](../../../../docs/ADR/0015-agent-task-executor.md) 把 HTML 生成整体
+> 迁到独立 `executor` 服务。保留本文档仅作历史参照。
+>
 > 状态：设计待 review
 > 范围：`apps/backend/services/chat`、`apps/backend/services/knowledge`、`apps/frontend/apps/chat`、`apps/frontend/packages/components`
 > 核心技术栈：Vercel AI SDK 7、`WorkflowAgent`、Workflow SDK、AI Elements

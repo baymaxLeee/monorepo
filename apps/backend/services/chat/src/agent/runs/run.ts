@@ -8,7 +8,7 @@ import {
 } from "ai";
 
 import type { ProviderSnapshot } from "../../clients/admin.js";
-import { getDocument, listUnfinishedArtifactGenerations } from "../../clients/knowledge.js";
+import { getDocument } from "../../clients/knowledge.js";
 import { NotFoundError, RequestError } from "../../lib/errors.js";
 import type { AuthContext } from "../../middleware/auth.js";
 import {
@@ -86,41 +86,6 @@ function describeStreamError(error: unknown): string {
   const trimmed = message.trim();
   if (!trimmed) return "工具调用失败，未返回具体原因。";
   return `工具调用失败：${trimmed.slice(0, 600)}`;
-}
-
-// A crashed or interrupted worker can leave an artifact job in queued/running
-// state with some blocks already persisted. Surface it to the model so it can
-// continue from the completed blocks via write_file(resume_job_id) instead of
-// regenerating the whole document. Best-effort: never block a run on this.
-async function buildResumeHints(input: {
-  userId: string;
-  conversationId: string;
-}): Promise<string[]> {
-  try {
-    const jobs = await listUnfinishedArtifactGenerations({
-      userId: input.userId,
-      conversationId: input.conversationId,
-    });
-    if (!jobs.length) return [];
-    const lines = jobs
-      .map(
-        (job) =>
-          `- resume_job_id=${job.id} (document ${job.document_id}, ${job.completed_blocks}/${job.total_blocks} blocks done, attempt ${job.attempt})`,
-      )
-      .join("\n");
-    return [
-      [
-        "<unfinished_artifact_jobs>",
-        "A previous artifact generation for this conversation did not finish.",
-        "If the user still wants it, call write_file with the matching resume_job_id to continue from the already-generated blocks instead of starting over.",
-        lines,
-        "</unfinished_artifact_jobs>",
-      ].join("\n"),
-    ];
-  } catch (error) {
-    console.error("[chat-agent] failed to load unfinished artifact jobs", error);
-    return [];
-  }
 }
 
 function assertRunAccess(
@@ -324,9 +289,6 @@ export async function createAgentRunResponse(
       messages: await validateUIMessages<AnyUIMessage>({ messages: modelUiMessages }),
     });
     const modelMessages = projected.messages;
-    const resumeHints = mode === "normal"
-      ? await buildResumeHints({ userId: conversation.userId, conversationId: conversation.id })
-      : [];
     const assistantMessageId = randomBytes(8).toString("hex");
     const agentInstance = await createAgent({
       runId,
@@ -336,7 +298,7 @@ export async function createAgentRunResponse(
       provider,
       multimodalProviderId: input.multimodalProviderId,
       modelMessages,
-      instructions: [instructions, ...projected.instructionContext, ...resumeHints].join("\n\n"),
+      instructions: [instructions, ...projected.instructionContext].join("\n\n"),
       reasoningEffort: input.reasoningEffort ?? (input.thinking ? "medium" : null),
     });
     const agent = agentInstance.agent;
