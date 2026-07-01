@@ -17,6 +17,12 @@ observability in MySQL and consumes admin (providers), knowledge
 - `ask_user` is a client tool without `execute`. The browser supplies
   `addToolOutput`; AI SDK automatically starts the next request.
 - Trace persistence is observability and must never fail generation.
+- The UIMessage SSE stream is a cross-stack contract. Before adding any custom
+  `data-*` part / streamed field, read
+  `schemas/streaming/chat-uimessage-stream.md` and register it there. Reuse
+  official parts first (`text`/`reasoning`/`tool-*`/`file`/`source-*`, message
+  `metadata`); only invent a `data-*` part when none fits (a custom part that
+  duplicates an official one is a bug).
 
 ## Tools and artifacts
 

@@ -164,9 +164,6 @@ async function transformUserFilePartsForModel(
       parts: message.parts.flatMap((part): AnyUIMessage["parts"] => {
         if (part.type !== "file") return [part];
         const docId = documentIdFromFilePart(part);
-        // Never forward client-provided URLs, provider references, or provider
-        // options. Only files resolved through the authenticated knowledge
-        // service may enter a model request.
         if (!docId) return [];
         const mediaType = String(part.mediaType ?? "application/octet-stream");
         if (isImageMediaType(mediaType)) {
@@ -237,10 +234,6 @@ export async function projectModelContext(input: {
   const older = input.messages.slice(0, splitAt);
   const recent = input.messages.slice(splitAt);
 
-  // Incremental compaction: the stored snapshot already summarizes everything
-  // up to coveredThroughMessageId. Only fold the messages that have sunk below
-  // the recent-window since then, so a long conversation never re-summarizes
-  // its whole history every turn.
   let summary = stored?.summary ?? "";
   if (older.length) {
     const coveredIndex = stored?.coveredThroughMessageId
@@ -249,8 +242,6 @@ export async function projectModelContext(input: {
     const newlyOlder = coveredIndex >= 0 ? older.slice(coveredIndex + 1) : older;
     if (newlyOlder.length) {
       const addition = compactOlderMessages(newlyOlder);
-      // Reuse the stored summary as the base only when it actually covers part
-      // of the current older window; otherwise fall back to a full recompaction.
       summary = (coveredIndex >= 0 && stored?.summary
         ? `${stored.summary}\n\n${addition}`
         : addition
@@ -278,14 +269,6 @@ export async function projectModelContext(input: {
     );
   }
 
-  // update_todos has no external store and no read-back tool (ADR-0017): the
-  // full list only ever exists inside its own tool-result parts. The generic
-  // pruneMessages(toolCalls: "before-last-2-messages") pass below is safe for
-  // re-fetchable tools (read_file, web_search, ...) but would silently erase
-  // this state once it ages past two messages. Look up the latest completed
-  // call from the tool-call trace (independent of message pruning/compaction)
-  // and carry it in instructions so it survives regardless of where in the
-  // transcript the call happened.
   const todoSnapshot = parseTodoSnapshot(
     await latestCompletedToolOutput(input.conversationId, "update_todos"),
   );

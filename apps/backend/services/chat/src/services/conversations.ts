@@ -307,6 +307,21 @@ export async function touchConversation(conversationId: string): Promise<void> {
     .where(eq(conversations.id, conversationId));
 }
 
+// Internal (no auth): used by the agent run to auto-name a fresh conversation
+// from its first user turn. Auth is unnecessary — the caller already resolved
+// and authorized the conversation for the run.
+export async function setConversationTitle(
+  conversationId: string,
+  title: string,
+): Promise<void> {
+  const trimmed = title.trim();
+  if (!trimmed) return;
+  await getDb()
+    .update(conversations)
+    .set({ title: trimmed, updatedAt: new Date() })
+    .where(eq(conversations.id, conversationId));
+}
+
 export async function getConversationRow(
   auth: AuthContext,
   conversationId: string,

@@ -39,10 +39,13 @@ export function ModelSelector({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className={cn("h-8 max-w-72 justify-between gap-2", className)}
+          className={cn(
+            "h-8 max-w-72 justify-between gap-2 text-muted-foreground hover:text-foreground",
+            className,
+          )}
           disabled={disabled}
           type="button"
-          variant="outline"
+          variant="ghost"
         >
           <span className="min-w-0 truncate">
             {selected?.label ?? placeholder}

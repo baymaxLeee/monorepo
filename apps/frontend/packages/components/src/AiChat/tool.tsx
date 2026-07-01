@@ -1,6 +1,6 @@
 import {
   CheckCircleIcon,
-  ChevronDownIcon,
+  ChevronRightIcon,
   CircleIcon,
   ClockIcon,
   WrenchIcon,
@@ -102,7 +102,7 @@ export function ToolHeader({
             <span className="truncate text-sm font-medium">{title}</span>
             {getToolStatusBadge(state)}
           </div>
-          <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+          <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
         </>
       )}
     </summary>

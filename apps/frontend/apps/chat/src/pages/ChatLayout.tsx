@@ -35,6 +35,7 @@ export function ChatLayout() {
     openTracePanel,
     setTracePanelOpen,
     artifactPreview,
+    conversationTitleUpdate,
   } = useChatStore(
     useShallow((s) => ({
       loadProviders: s.loadProviders,
@@ -48,6 +49,7 @@ export function ChatLayout() {
       openTracePanel: s.openTracePanel,
       setTracePanelOpen: s.setTracePanelOpen,
       artifactPreview: s.artifactPreview,
+      conversationTitleUpdate: s.conversationTitleUpdate,
     })),
   );
 
@@ -103,6 +105,19 @@ export function ChatLayout() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Patch the sidebar entry in place when a chat page auto-renames a
+  // conversation from its streamed title, so the label updates live without
+  // refetching the whole list.
+  useEffect(() => {
+    if (!conversationTitleUpdate) return;
+    const { id, title } = conversationTitleUpdate;
+    setConversations((prev) =>
+      prev
+        ? prev.map((conv) => (conv.id === id ? { ...conv, title } : conv))
+        : prev,
+    );
+  }, [conversationTitleUpdate]);
 
   async function handleCreate() {
     if (creating) return;

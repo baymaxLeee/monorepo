@@ -6,6 +6,11 @@ Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 
 - Chat uses AI SDK `useChat` + `DefaultChatTransport` and native UIMessage
   parts. Reconnection replays that same protocol; do not add a parallel one.
+- The UIMessage stream is a cross-stack contract. Before adding a custom
+  `data-*` part / `onData` field, read `schemas/streaming/chat-uimessage-stream.md`
+  and register it there. Reuse official parts first (`text`/`reasoning`/`tool-*`/
+  `file`/`source-*`, message `metadata`); custom `ChatUIDataTypes` entries are
+  only for data no official part covers.
 - After persisted messages load, call `resumeStream()` once per conversation.
   Refresh and route changes disconnect only the subscriber. Stop calls both
   `useChat.stop()` and the server run cancellation endpoint.

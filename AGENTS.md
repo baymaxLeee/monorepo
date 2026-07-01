@@ -85,6 +85,27 @@ matrices) we will introduce deliberately once the surface stabilizes.
 **Override:** if (and only if) the user explicitly asks for tests in a given
 task, honor it for that task only — do not generalize it into scaffolding.
 
+### Solution design: the `plan` skill is MANDATORY
+
+Before any planning / design / architecture / tech-selection / review / refactor
+work — and before writing non-trivial code — every agent (Cursor, Codex, Claude
+Code, ...) MUST follow `.cursor/skills/plan/SKILL.md`. Its five hard constraints:
+
+1. **No preconceptions** — critically review all existing architecture, designs,
+   and code; never assume "it exists, so it's correct."
+2. **Ground every AI decision in the latest official best practice** — look up
+   the current Vercel AI SDK (`ToolLoopAgent` + Workflow DevKit + harness) and AI
+   Elements; do not rely on memory; never reinvent a primitive the SDK provides
+   (see AI-Native rule).
+3. **Single-agent-first** runtime for long / complex tasks; add a few subAgents
+   later only as assistance. **No role-play / persona multi-agent theatre.**
+4. **Copy the benchmarks** — base decisions on the core implementations of Claude
+   Code / Codex / Cursor; do not build in a vacuum.
+5. **No historical baggage** — when existing design has systemic
+   performance / security / usability / extensibility / maintainability problems,
+   refactor directly; do not add compatibility layers or shims (see Future-first
+   policy).
+
 ### Migration safety: don't break the CLI
 
 The `just` commands above are how everyone (humans, agents, CI, docs, README)
@@ -221,10 +242,12 @@ concerns by hand.
 ### Required reads before editing
 | Task | Read first |
 |---|---|
+| Any plan / design / architecture / refactor / 技术选型 | `.cursor/skills/plan/SKILL.md` (MANDATORY — see "Solution design" hard rule) |
 | New backend route | `apps/backend/services/<svc>/AGENTS.md` + `docs/开发规范/` |
 | New micro-frontend | `apps/frontend/AGENTS.md` + `docs/微前端/index.md` |
 | New microservice | `docs/微服务/index.md` + `.agents/playbooks/new-microservice.md` |
 | Cross-service refactor | `.agents/playbooks/cross-service-refactor.md` |
+| Chat stream / any custom `data-*` part / `onData` field | `schemas/streaming/chat-uimessage-stream.md` (reuse official AI SDK parts first; a custom part that duplicates an official one is a bug) |
 
 ### Definition of done (every change)
 1. `just lint` scoped to affected area

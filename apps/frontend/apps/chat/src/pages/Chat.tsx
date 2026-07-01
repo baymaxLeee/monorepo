@@ -87,6 +87,7 @@ export function Chat() {
     bumpTraceRefresh,
     openArtifactPreview,
     closeArtifactPreview,
+    applyConversationTitle,
   } = useChatStore(
     useShallow((s) => ({
       providers: s.providers,
@@ -98,6 +99,7 @@ export function Chat() {
       bumpTraceRefresh: s.bumpTraceRefresh,
       openArtifactPreview: s.openArtifactPreview,
       closeArtifactPreview: s.closeArtifactPreview,
+      applyConversationTitle: s.applyConversationTitle,
     })),
   );
 
@@ -160,6 +162,13 @@ export function Chat() {
     onError: (error) => {
       if (/abort|aborted/i.test(error.message)) return;
       toast.error(error.message);
+    },
+    onData: (dataPart) => {
+      if (dataPart.type !== "data-conversation-title") return;
+      const title = dataPart.data.title.trim();
+      if (!title) return;
+      setDetail((current) => (current ? { ...current, title } : current));
+      if (id) applyConversationTitle(id, title);
     },
     onFinish: () => {
       bumpTraceRefresh();
@@ -453,7 +462,6 @@ export function Chat() {
       <div className="mx-auto w-full max-w-4xl shrink-0 px-4 pt-2 pb-4">
         <RichPromptInput
           ref={promptRef}
-          className="[&_.prompt-input-footer]:border-t-0 [&_.prompt-input-footer]:bg-transparent"
           disabled={false}
           loading={busy}
           placeholder={

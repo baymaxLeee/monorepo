@@ -1,7 +1,7 @@
 import type { Editor, JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Paperclip, SendHorizontal, Square } from "lucide-react";
+import { ArrowUp, Plus, Square } from "lucide-react";
 import {
   type FormEvent,
   forwardRef,
@@ -448,17 +448,19 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
               type="button"
               variant="ghost"
               size="icon"
+              className="rounded-full"
               disabled={disabled}
               onClick={() => fileInputRef.current?.click()}
               aria-label="Attach files"
             >
-              <Paperclip className="size-4" />
+              <Plus className="size-4" />
             </Button>
             {footerRender?.(api)}
           </div>
           <Button
             type={loading && onStop ? "button" : "submit"}
             size="icon"
+            className="rounded-full"
             disabled={disabled && !loading}
             aria-label={loading ? "Stop" : "Submit prompt"}
             onClick={loading ? onStop : undefined}
@@ -467,7 +469,7 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
               (loading ? (
                 <Square className="size-4" />
               ) : (
-                <SendHorizontal className="size-4" />
+                <ArrowUp className="size-4" />
               ))}
           </Button>
         </div>

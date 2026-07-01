@@ -31,6 +31,11 @@ export type ChatUIState = {
   artifactPreview: ArtifactPreviewState;
   openArtifactPreview: (conversationId: string, documentId: string) => void;
   closeArtifactPreview: () => void;
+  // Cross-panel signal: a chat page auto-renamed a conversation (live, from the
+  // streamed title) and the sidebar list (owned by ChatLayout) needs to reflect
+  // it without a refetch. `seq` makes repeated same-title updates observable.
+  conversationTitleUpdate: { id: string; title: string; seq: number } | null;
+  applyConversationTitle: (id: string, title: string) => void;
 };
 
 type Persisted = Pick<ChatUIState, "selectedProviderId">;
@@ -139,6 +144,16 @@ export const useChatStore = create<ChatUIState>()(
         set({
           artifactPreview: CLOSED_ARTIFACT_PREVIEW,
         }),
+
+      conversationTitleUpdate: null,
+      applyConversationTitle: (id, title) =>
+        set((state) => ({
+          conversationTitleUpdate: {
+            id,
+            title,
+            seq: (state.conversationTitleUpdate?.seq ?? 0) + 1,
+          },
+        })),
     }),
     {
       name: "chat.store",

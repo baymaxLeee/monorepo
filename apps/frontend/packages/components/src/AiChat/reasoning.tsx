@@ -1,4 +1,4 @@
-import { BrainIcon, ChevronDownIcon } from "lucide-react";
+import { BrainIcon, ChevronRightIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import {
   createContext,
@@ -149,10 +149,10 @@ export const ReasoningTrigger = memo(function ReasoningTrigger({
         <>
           <BrainIcon className="size-4" />
           <span>{getThinkingMessage(isStreaming, duration)}</span>
-          <ChevronDownIcon
+          <ChevronRightIcon
             className={cn(
               "size-4 transition-transform",
-              isOpen ? "rotate-180" : "rotate-0",
+              isOpen ? "rotate-90" : "rotate-0",
             )}
           />
         </>

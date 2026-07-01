@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import {
+  createUIMessageStream,
   createUIMessageStreamResponse,
   toUIMessageStream,
   type UIMessage,
@@ -16,11 +17,13 @@ import {
   createMessage,
   getConversationRow,
   listMessages,
+  setConversationTitle,
   touchConversation,
   updateMessageContent,
   updateConversationProvider,
   type Message,
 } from "../../services/conversations.js";
+import { generateConversationTitle } from "../title/generator.js";
 import {
   createAgentRun,
   finishAgentRun,
@@ -53,6 +56,16 @@ export interface RunAgentInput {
 }
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
+
+// The placeholder title createConversation() stamps on a new conversation. Only
+// an auto-named (or blank) conversation is eligible for title generation, so a
+// title the user typed themselves is never overwritten.
+const DEFAULT_CONVERSATION_TITLE = "新对话";
+
+function isAutoNamableTitle(title: string): boolean {
+  const trimmed = title.trim();
+  return trimmed === "" || trimmed === DEFAULT_CONVERSATION_TITLE;
+}
 
 function persistedMessageId(id: string): string {
   return id.length <= 32 ? id : createHash("sha256").update(id).digest("hex").slice(0, 32);
@@ -230,6 +243,18 @@ export async function createAgentRunResponse(
       updateConversationProvider(conversation.id, provider.id, provider.model),
     ]);
 
+    // Auto-name the conversation from its opening user turn (industry standard:
+    // the first message becomes the sidebar title). Gated to a brand-new,
+    // still-auto-named conversation so we never clobber a user-set title or
+    // re-run on every turn. The generation itself streams in below, off the
+    // hot path.
+    const firstUserText = latestUser ? textFromUiMessage(latestUser) : "";
+    const shouldGenerateTitle =
+      latestMessage.role === "user" &&
+      persistedMessages.length === 0 &&
+      isAutoNamableTitle(conversation.title) &&
+      firstUserText.length > 0;
+
     let modelUiMessages: AnyUIMessage[];
     if (latestMessage.role === "user") {
       const storedMessageId = persistedMessageId(latestMessage.id);
@@ -306,7 +331,7 @@ export async function createAgentRunResponse(
       runId,
       setupMs: Math.round(performance.now() - startedAt),
     });
-    const uiStream = toUIMessageStream({
+    const agentUiStream = toUIMessageStream({
       stream: result.stream,
       tools: agent.tools,
       originalMessages: modelUiMessages,
@@ -377,6 +402,39 @@ export async function createAgentRunResponse(
         }
       },
     });
+    // On a first turn, wrap the agent stream so a generated title rides the same
+    // SSE channel as a transient `data-conversation-title` part: the client
+    // updates the header + sidebar live (ChatGPT-style) without a refetch, and
+    // because it is transient it is never persisted into the message. Title
+    // generation runs concurrently with the agent — it never delays the first
+    // token — and any failure is swallowed so the chat is unaffected.
+    const uiStream = shouldGenerateTitle
+      ? createUIMessageStream<AnyUIMessage>({
+          execute: async ({ writer }) => {
+            const titlePromise = (async () => {
+              const title = await generateConversationTitle({
+                provider,
+                userText: firstUserText,
+              });
+              if (!title) return;
+              await setConversationTitle(conversation.id, title);
+              writer.write({
+                type: "data-conversation-title",
+                data: { title },
+                transient: true,
+              });
+            })().catch((error) =>
+              console.error("[chat-agent] conversation title update failed (non-fatal)", error),
+            );
+            writer.merge(agentUiStream);
+            // Keep the stream open until the title write lands, so a very short
+            // agent reply can't close the channel before the title arrives.
+            await titlePromise;
+          },
+          onError: describeStreamError,
+        })
+      : agentUiStream;
+
     return createUIMessageStreamResponse({
       stream: uiStream,
       headers: { "x-agent-run-id": runId },

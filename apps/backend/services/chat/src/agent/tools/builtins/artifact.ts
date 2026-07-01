@@ -239,7 +239,7 @@ export function createArtifactTools() {
   return {
     write_file: tool({
       description:
-        "Generate and persist a new Markdown or HTML file from a compact brief. HTML runs as a durable task (planning, bounded concurrent block generation, compilation) and this call blocks until it finishes, streaming live progress into an artifact card and returning the persisted document_id. Do not call write_file/edit_file again for the same artifact while it is running. Markdown is generated inline.",
+        "Generate and persist a new Markdown or HTML file from a compact brief. HTML runs as a durable task (planning, bounded concurrent block generation, compilation) and this call blocks until it finishes, streaming live progress into an artifact card and returning the persisted document_id. Do not call write_file/edit_file again for the same artifact while it is running. Markdown is generated inline. All HTML charts render via ECharts (CDN, injected automatically by the compiler); never name Chart.js or any other charting library in the brief.",
       inputSchema: z.object({
         title: z.string().min(1).max(120).describe("Human-readable artifact title."),
         filename: z.string().min(1).max(160).describe("Filename including .html or .md extension."),
@@ -248,7 +248,13 @@ export function createArtifactTools() {
           .enum(["document", "presentation", "dashboard"])
           .default("document")
           .describe("Content intent only. It affects outlining and default page count, never theme, color scheme, or layout."),
-        brief: z.string().min(1).max(20_000).describe("Content and visual requirements. Preserve explicit user design requests."),
+        brief: z
+          .string()
+          .min(1)
+          .max(20_000)
+          .describe(
+            "Content and visual requirements. Preserve explicit user design requests. Describe chart type/data only — never name a charting library; all charts render via ECharts.",
+          ),
         page_count: z.number().int().min(1).max(100).optional().describe("Requested number of generated blocks or pages."),
       }),
       contextSchema: artifactToolContextSchema,
@@ -256,12 +262,16 @@ export function createArtifactTools() {
     }),
     edit_file: tool({
       description:
-        "Edit an existing generated file from a change brief. HTML block content, CSS, theme, layout, and charts may all be revised. HTML edits run as a durable task and this call blocks until it finishes, streaming live progress and returning the updated document_id. Do not dispatch another edit for the same artifact while one is running.",
+        "Edit an existing generated file from a change brief. HTML block content, CSS, theme, layout, and charts may all be revised. HTML edits run as a durable task and this call blocks until it finishes, streaming live progress and returning the updated document_id. Do not dispatch another edit for the same artifact while one is running. All HTML charts render via ECharts (CDN, injected automatically by the compiler); never name Chart.js or any other charting library in the brief.",
       inputSchema: z.object({
         document_id: z.string().min(1).max(32),
         title: z.string().min(1).max(120).optional(),
         filename: z.string().min(1).max(160).optional(),
-        brief: z.string().min(1).max(12_000),
+        brief: z
+          .string()
+          .min(1)
+          .max(12_000)
+          .describe("Describe chart type/data only — never name a charting library; all charts render via ECharts."),
         block_ids: z.array(z.string().regex(/^page-[1-9]\d*$/)).max(100).optional(),
       }),
       contextSchema: artifactToolContextSchema,

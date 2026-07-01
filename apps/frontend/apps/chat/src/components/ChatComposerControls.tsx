@@ -1,7 +1,7 @@
 import type { ModelProvider } from "api";
 import { Button, Switch } from "components";
 import { ModelSelector } from "components/ai-chat";
-import { BrainIcon, InfinityIcon } from "lucide-react";
+import { BotIcon, BrainIcon, ListChecksIcon } from "lucide-react";
 
 export interface ChatComposerControlsProps {
   providers: ModelProvider[];
@@ -43,7 +43,11 @@ export function ChatComposerControls({
         disabled={disabled}
         onClick={() => onModeChange(mode === "plan" ? "normal" : "plan")}
       >
-        <InfinityIcon className="size-3.5" />
+        {mode === "plan" ? (
+          <ListChecksIcon className="size-3.5" />
+        ) : (
+          <BotIcon className="size-3.5" />
+        )}
         {mode === "plan" ? "Plan" : "Agent"}
       </Button>
       <ModelSelector
@@ -53,7 +57,7 @@ export function ChatComposerControls({
         placeholder="选择模型"
         disabled={disabled || options.length === 0}
       />
-      <span className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
+      <span className="flex items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground">
         <BrainIcon className="size-3.5" />
         <span>思考</span>
         <Switch
