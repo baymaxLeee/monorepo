@@ -261,13 +261,23 @@ function ToolPartView({
   }
 
   const hasError = part.state === "output-error" || outputErrorReason != null;
+  const todoAllDone =
+    todoList != null &&
+    todoList.todos.length > 0 &&
+    todoList.todos.every((item) => item.status === "completed");
+  const displayState = hasError
+    ? "output-error"
+    : todoList != null
+      ? todoAllDone
+        ? "output-available"
+        : "input-available"
+      : part.state;
+  const isOpenByDefault =
+    todoList != null ? !todoAllDone : part.state !== "output-available";
 
   return (
-    <Tool open={part.state !== "output-available" || outputErrorReason != null}>
-      <ToolHeader
-        title={toolName}
-        state={hasError ? "output-error" : part.state}
-      />
+    <Tool open={isOpenByDefault || outputErrorReason != null}>
+      <ToolHeader title={toolName} state={displayState} />
       <ToolContent>
         {part.state === "input-available" && askUserInput ? (
           <AskUserToolCard

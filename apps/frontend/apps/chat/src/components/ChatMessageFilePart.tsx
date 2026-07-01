@@ -75,7 +75,7 @@ export function ChatMessageFilePart({
         ) : (
           <AttachmentPreview />
         )}
-        <AttachmentInfo showMediaType={!isImage} />
+        {isImage ? null : <AttachmentInfo showMediaType={!isImage} />}
       </button>
     </Attachment>
   );
