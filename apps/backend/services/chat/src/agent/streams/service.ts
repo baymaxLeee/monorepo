@@ -120,15 +120,33 @@ export async function activeAgentStreamRunId(
   return (await getRedis().hget(activeKey(conversationId), "run_id")) || null;
 }
 
+// Between BLOCK timeouts with no new chunk, keep trusting the Redis "active"
+// flag for this many idle rounds before re-verifying against the run's own
+// source of truth. A writer that crashed/restarted never clears the flag
+// itself (see reconcileOrphanedRuns), so without this the flag's own TTL —
+// scoped for legitimate reconnect gaps, not liveness — is the only bound,
+// and that can be up to an hour. ~30s (6 * 5s BLOCK) catches a dead run
+// promptly without adding a query to every single idle poll.
+const STALE_CHECK_EVERY_IDLE_ROUNDS = 6;
+
+export interface ReplayAgentStreamOptions {
+  // Cross-checks the run's actual persisted status. Optional so this module
+  // stays a plain Redis transport with no knowledge of the agent_runs schema
+  // — the caller (the run/lease layer) supplies the check.
+  isRunLive?: (runId: string) => Promise<boolean>;
+}
+
 export async function* replayAgentSseStream(
   conversationId: string,
   runId: string,
+  options?: ReplayAgentStreamOptions,
 ): AsyncGenerator<string> {
   // XREAD BLOCK monopolizes a Redis connection. A duplicate is required so a
   // reconnecting subscriber cannot block the writer that feeds this stream.
   const reader = getRedis().duplicate();
   const key = streamKey(runId);
   let lastId = "0-0";
+  let idleRounds = 0;
   try {
     while (true) {
       const response = await (reader as XReadRedis).xread(
@@ -141,6 +159,7 @@ export async function* replayAgentSseStream(
         lastId,
       );
       if (response) {
+        idleRounds = 0;
         for (const [, entries] of response) {
           for (const [entryId, fields] of entries) {
             lastId = entryId;
@@ -154,7 +173,17 @@ export async function* replayAgentSseStream(
       }
 
       const activeRunId = await activeAgentStreamRunId(conversationId);
-      if (activeRunId === runId) continue;
+      let stillActive = activeRunId === runId;
+      if (stillActive && options?.isRunLive) {
+        idleRounds += 1;
+        if (
+          idleRounds % STALE_CHECK_EVERY_IDLE_ROUNDS === 0 &&
+          !(await options.isRunLive(runId).catch(() => true))
+        ) {
+          stillActive = false;
+        }
+      }
+      if (stillActive) continue;
 
       const tail = await (reader as XReadRedis).xread(
         "COUNT",

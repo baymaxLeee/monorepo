@@ -36,3 +36,15 @@ export async function getTask(id: string): Promise<Task> {
     throw err;
   }
 }
+
+// Best-effort: a write_file/edit_file tool that is aborted (user Stop) cancels
+// the executor task it is foreground-blocking on. Workflow DevKit's run.cancel()
+// interrupts the in-flight step within seconds; a 404 means it already finished.
+export async function cancelTask(id: string): Promise<void> {
+  try {
+    await executorClient().cancelTask(id);
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) return;
+    throw err;
+  }
+}

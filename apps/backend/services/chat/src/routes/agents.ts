@@ -11,6 +11,7 @@ import {
   getAgentRunTrace,
   cancelRun,
   activeAgentStreamRunId,
+  isRunActive,
   replayAgentSseStream,
   markTaskStreamActive,
   replayTaskSseStream,
@@ -72,7 +73,7 @@ agentsRoutes.get("/:conversationId/agents/run/stream", async (c) => {
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const chunk of replayAgentSseStream(conversationId, runId)) {
+        for await (const chunk of replayAgentSseStream(conversationId, runId, { isRunLive: isRunActive })) {
           if (cancelled) return;
           controller.enqueue(encoder.encode(chunk));
         }

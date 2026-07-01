@@ -1,6 +1,11 @@
 export { createAgentRunResponse, getAgentRunTrace, type RunAgentInput } from "./runs/run.js";
-export { cancelRun } from "./runs/lease.js";
-export { activeAgentStreamRunId, replayAgentSseStream } from "./streams/service.js";
+export { cancelRun, reconcileOrphanedRuns } from "./runs/lease.js";
+export { isRunActive } from "./runs/repository.js";
+export {
+  activeAgentStreamRunId,
+  replayAgentSseStream,
+  type ReplayAgentStreamOptions,
+} from "./streams/service.js";
 export {
   markTaskStreamActive,
   replayTaskSseStream,

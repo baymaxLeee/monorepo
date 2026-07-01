@@ -33,6 +33,22 @@
 > parallel one**."*）。因此改为**跟随 Vercel AI SDK 官方原语**：进度以原生
 > `data-*` UIMessage part 表达，复用现有 resumable-stream 传输，前端用 AI SDK
 > 自带的流读取 + AI Elements 组件渲染，不自造轮子。
+>
+> ## 后续决策：artifact 工具改为「前台阻塞」（本推送流仅作 UX 通道）
+>
+> 本方案落地后发现一个更上层的编排问题：`write_file`/`edit_file` 的 HTML 分支
+> 原本**非阻塞**（派发即返回 `task_id`），导致主 agent 拿不到产物就按计划发起
+> 下一次 `edit_file`，对同一文档派发**互相竞争的任务**。修复见 **ADR-0015
+> Revision**：HTML 工具改为 **async generator**，先 `yield` `{task_id}`（卡片
+> 立即挂载并订阅本方案的进度流），再**阻塞等待** executor 任务终态（以
+> `GET /tasks/:id` 快照为准），最后 `yield` `{document_id}`。
+>
+> 关键分工：**本推送流（executor→notify→task-scoped Redis 流→卡片）只负责顺滑
+> 的中间进度（UX）**；工具「何时返回」由 `GET /tasks/:id` 轮询这一**权威信号**
+> 决定——best-effort 的 notify 丢一帧绝不能挂死一个阻塞工具。因此本方案的推送
+> 链路全部保留、语义不变，只是不再承担「完成判定」。阻塞期间会话并不静默：AI
+> SDK v7 会把 generator 的每次 `yield` 作为 preliminary 工具输出实时下发（且中间
+> 值不进模型上下文），配合本进度流，用户全程看到「已生成 N/总数 页」。
 
 ## 概述
 

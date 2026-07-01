@@ -64,6 +64,23 @@ function isRunning(
   return status === "streaming" || status === "submitted";
 }
 
+// AI SDK flips `status` to "streaming" as soon as the response begins
+// arriving, which can be well before the model's first visible token (TTFT,
+// extended thinking, or a provider that opens the connection before it has
+// anything to say). Treat a freshly-appended assistant message with no
+// renderable content yet as still "waiting", so the placeholder below
+// bridges submitted -> streaming -> first visible part instead of only
+// covering submitted.
+function isPendingAssistantMessage(message: ChatUIMessage | undefined) {
+  if (message?.role !== "assistant") return false;
+  return message.parts.every((part) => {
+    if (part.type === "text" || part.type === "reasoning") {
+      return !part.text.trim();
+    }
+    return part.type === "step-start";
+  });
+}
+
 export function Chat() {
   const { id } = useParams<{ id: string }>();
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
@@ -167,6 +184,9 @@ export function Chat() {
   });
 
   const busy = isRunning(status);
+  const showThinkingPlaceholder =
+    status === "submitted" ||
+    (status === "streaming" && isPendingAssistantMessage(messages.at(-1)));
   const documents = useMemo(() => {
     const map = new Map<string, ConversationDocument>();
     for (const document of detail?.documents ?? [])
@@ -406,7 +426,7 @@ export function Chat() {
                 />
               ))
             )}
-            {status === "submitted" ? (
+            {showThinkingPlaceholder ? (
               <div
                 className="flex items-center gap-2 py-2 text-sm text-muted-foreground"
                 role="status"

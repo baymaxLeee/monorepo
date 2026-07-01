@@ -97,6 +97,34 @@ export async function requestAgentRunCancellation(runId: string): Promise<void> 
     .where(and(eq(agentRuns.id, runId), inArray(agentRuns.status, ["running", "cancel_requested"])));
 }
 
+// Used by the resumable-stream replay loop to stop trusting the Redis
+// "active" flag once it has gone stale (see reconcileOrphanedRuns for why the
+// flag alone cannot detect a dead writer promptly).
+export async function isRunActive(runId: string): Promise<boolean> {
+  const run = await getAgentRunById(runId);
+  return run?.status === "running" || run?.status === "cancel_requested";
+}
+
+// Boot-time recovery: any run still `running`/`cancel_requested` belongs to a
+// process that no longer exists (this process just started, and a
+// ToolLoopAgent turn has no durable checkpoint to resume — see
+// agent/README.md's persistence boundaries), so it can only be cleaned up,
+// never continued.
+export async function listOrphanedRuns(): Promise<Array<{ id: string; conversationId: string }>> {
+  return getDb()
+    .select({ id: agentRuns.id, conversationId: agentRuns.conversationId })
+    .from(agentRuns)
+    .where(inArray(agentRuns.status, ["running", "cancel_requested"]));
+}
+
+export async function interruptRuns(runIds: string[]): Promise<void> {
+  if (runIds.length === 0) return;
+  await getDb()
+    .update(agentRuns)
+    .set({ status: "interrupted", finishedAt: new Date() })
+    .where(inArray(agentRuns.id, runIds));
+}
+
 export interface AgentTraceStep {
   id: string;
   stepIndex: number;

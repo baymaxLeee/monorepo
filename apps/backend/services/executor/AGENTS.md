@@ -131,19 +131,29 @@ All fixed, all re-check-worthy whenever `nitro`/`workflow`/`ai` are bumped:
    `completed`) — this had never actually been tested before, only assumed
    from reading the docs.
 
-4. **`nitro dev` auto-loads `.env`; the built server does not.** `pnpm dev`
-   (`nitro dev`) picks up `WORKFLOW_TARGET_WORLD` etc. from `.env`
-   automatically — verified by dispatching a real task and confirming no
-   `.workflow-data/` appeared. Running `node .output/server/index.mjs`
-   directly does **not** load `.env` at all (also verified: same task,
-   `.workflow-data/` did appear, meaning it silently fell back to Local
-   World even with `.env` correctly configured). `package.json`'s `start`
-   script is `node --env-file=.env .output/server/index.mjs` specifically
-   to close this gap for anyone running the production build locally
-   (`pnpm run build && pnpm run start`). This doesn't affect real
-   deployments — `docker-compose.prod.yml`/k8s inject env vars directly,
-   never through a `.env` file — but it matters for local testing: don't
-   assume `.env` "just works" for every way of running this service.
+4. **`nitro dev` auto-loads `.env`; the built server does not.** The Nitro
+   dev watcher (now `pnpm dev:watch`) picks up `WORKFLOW_TARGET_WORLD` etc.
+   from `.env` automatically — verified by dispatching a real task and
+   confirming no `.workflow-data/` appeared. Running `node
+   .output/server/index.mjs` directly does **not** load `.env` at all (also
+   verified: same task, `.workflow-data/` did appear, meaning it silently fell
+   back to Local World even with `.env` correctly configured). `package.json`'s
+   `start` script is `node --env-file=.env .output/server/index.mjs`
+   specifically to close this gap for the production build locally. This
+   doesn't affect real deployments — `docker-compose.prod.yml`/k8s inject env
+   vars directly, never through a `.env` file — but it matters for local
+   testing: don't assume `.env` "just works" for every way of running this.
+
+5. **Local dev runs the built server, not a watcher (no hot reload).** `pnpm
+   dev` is `pnpm build && pnpm start` — a one-shot `nitro build` then the
+   `--env-file` node run above. This is deliberate: `nitro dev`'s file watcher
+   is expensive and, more importantly, returns HTTP **503/500** from its dev
+   proxy for the seconds it takes to rebuild on every save — which surfaced as
+   a `TransportError: executor request failed: 503` in chat once
+   `write_file`/`edit_file` began foreground-polling `GET /tasks/:id` across a
+   whole generation (chat now tolerates transient 5xx there, but the churn was
+   still pointless). Edit executor code → restart the process to pick it up.
+   Use `pnpm dev:watch` only if you specifically want the watcher back.
 
 Calling `getWorld().start()` is gated on `WORKFLOW_TARGET_WORLD` being set:
 under the default Local World it throws `Invalid version string: "bundled"`

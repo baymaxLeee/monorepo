@@ -58,22 +58,58 @@ just chat), which makes this gap the priority rather than a deferred nicety.
    claim/heartbeat/cancellation-poll code anymore, because one workflow run
    is the one and only owner of a task (the multi-worker racing that
    lease/claim existed for no longer applies).
-5. **`write_file`/`edit_file`'s HTML branch is now non-blocking.** The tool
-   call dispatches to executor and returns `{ status, task_id }`
-   immediately; the ToolLoopAgent does not wait for generation to finish.
-   Markdown generation is unchanged (a single fast `streamText` call needs no
-   durability and stays inline in chat). This is a deliberate divergence from
-   ADR-0012's "the ToolLoopAgent waits for each tool" stance for this one
-   tool family, matching how Cursor/Codex background agents keep running
-   after you stop watching them — cancelling a chat run does **not** cascade
-   to cancelling an executor task it already dispatched.
-6. **Frontend polls per-task, not per-conversation.** The old
-   `GET /conversations/:id/artifact-jobs` (list all unfinished generations)
-   is replaced by `GET /conversations/:id/tasks/:taskId` (proxied to
-   executor), driven by the `task_id` embedded in the tool's own output.
-   `ArtifactTaskCard` (replacing the dead `StreamingArtifactCard`/
-   `ArtifactJobBar` code) owns the poll-until-terminal lifecycle for exactly
-   the one task it renders.
+5. **`write_file`/`edit_file`'s HTML branch is foreground-blocking**
+   (revised — see the "Revision" note below; the original decision here was
+   non-blocking). The tool `execute` is an async generator: it dispatches the
+   executor task, yields a preliminary `{ status, task_id }` so the artifact
+   card mounts immediately, then blocks the ToolLoopAgent turn until the task
+   reaches a terminal state (authoritative via `GET /tasks/:id`), and finally
+   yields `{ status: "completed", document_id, ... }`. Markdown generation is
+   unchanged (a single fast `streamText` call needs no durability and stays
+   inline). This keeps ADR-0012's "the ToolLoopAgent waits for each tool"
+   stance for this tool family too, and cancelling a chat run **does** now
+   cascade: the tool's `abortSignal` fires and it calls
+   `POST /tasks/:id/cancel` before unwinding, exactly like Cursor aborting an
+   in-flight file write.
+6. **Frontend renders progress from the tool part, plus the task's resumable
+   stream** (revised). The old `GET /conversations/:id/artifact-jobs` is gone;
+   `task_id` still comes from the tool's own (now preliminary) output. Because
+   the tool blocks, the turn's UI-message stream stays open for the whole
+   generation, so per-block progress reaches the browser two ways at once:
+   the tool's preliminary outputs on the main run stream, and the dedicated
+   `GET /conversations/:id/tasks/:taskId/stream` the `ArtifactTaskCard`
+   subscribes to for sub-poll-interval `data-artifact-progress` updates (see
+   `docs/plans/executor-task-progress-notifications.md`). When the tool's
+   final output carries `document_id`, the card transitions to the persisted
+   document view. No frontend poll loop remains.
+
+## Revision — foreground-blocking artifact tools
+
+The original decision 5 made the HTML branch **non-blocking** (dispatch and
+return `task_id` immediately, agent continues). Real usage exposed an
+orchestration bug that non-blocking made structurally unavoidable: the tool
+returned with no deliverable, so the model — following its own plan — would
+issue the *next* `edit_file` on the same artifact before the first task had
+produced anything, dispatching competing tasks against the same document. This
+is the exact failure mode Cursor/Codex/Claude Code avoid by keeping
+deliverable-producing tools blocking; only truly fire-and-forget background
+agents return early, and those are not in a tool-call dependency chain.
+
+The fix keeps the executor durable and unchanged; it only moves the *wait* back
+into the tool. Because AI SDK v7 tool `execute` may be an async generator whose
+yields stream as preliminary tool outputs (and whose intermediate values are
+excluded from model context), blocking no longer means the conversation goes
+silent — the card shows live per-block progress throughout the wait. Control
+flow (when the tool returns) uses the authoritative `GET /tasks/:id` snapshot;
+UX (smooth progress) uses the best-effort push stream. The executor→chat notify
+push and the chat task-stream from
+`executor-task-progress-notifications.md` are retained as the UX channel; they
+are deliberately *not* the completion signal, since a dropped best-effort
+notification must never hang a blocking tool.
+
+Trade-off accepted: a turn now stays active for the whole generation (minutes).
+The run lease's 60s heartbeat renews it for the duration, and generation is
+bounded by the step timeouts, so this does not risk lease expiry.
 
 ## Consequences
 

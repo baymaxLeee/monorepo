@@ -23,25 +23,31 @@ observability in MySQL and consumes admin (providers), knowledge
 - `update_plan` snapshots are persisted in native UIMessage tool parts.
 - `write_file`/`edit_file` handle both Markdown and HTML. Markdown runs
   synchronously in this tool call (a single `streamText`, no durability
-  needed). **HTML dispatches to the `executor` service as a non-blocking
-  background task** (`agent_task_执行时服务` plan, Phase 2) — the tool call
-  returns immediately with `{ status, task_id }`; the ToolLoopAgent does not
-  wait for generation to finish. The frontend subscribes to
-  `GET /conversations/:id/tasks/:taskId/stream` — a native AI SDK UIMessage SSE
-  stream (data part `data-artifact-progress`) carried over the same resumable
-  Redis Streams transport as agent runs. Executor pushes live progress and the
-  terminal result to chat's `/internal/tasks/notify`; chat fans it onto that
-  stream and re-seeds the current snapshot from executor on connect, so reloads
-  after completion still render without polling. `GET .../tasks/:taskId` stays
-  as a plain JSON read for cold-start/debug. Knowledge/ObjectStore owns full
-  content; chat history and traces never carry HTML fragments.
+  needed). **HTML dispatches to the `executor` service and foreground-blocks
+  this turn** (`agent_task_执行时服务` plan, Phase 2; ADR-0015 revision). The
+  tool `execute` is an async generator: it yields a preliminary
+  `{ status, task_id }` (so the card mounts at once), then polls
+  `GET /tasks/:id` until the task is terminal, then yields
+  `{ status: "completed", document_id, ... }`. The ToolLoopAgent waits for the
+  document before its next step — this is what stops the model from dispatching
+  a second competing edit for an artifact still being written. Live per-block
+  progress reaches the browser over `GET /conversations/:id/tasks/:taskId/stream`
+  — a native AI SDK UIMessage SSE stream (data part `data-artifact-progress`)
+  on the same resumable Redis Streams transport as agent runs — fed by executor
+  pushing progress/terminal events to chat's `/internal/tasks/notify`. That push
+  is the **UX channel only**; the tool's `GET /tasks/:id` poll is the
+  authoritative completion signal, so a dropped best-effort notify never hangs
+  the blocking tool. `GET .../tasks/:taskId` stays as a plain JSON read for
+  cold-start/debug. Knowledge/ObjectStore owns full content; chat history and
+  traces never carry HTML fragments.
 - `run_command` (`validate_html`/`inspect_layout`) inspects an already
   *published* HTML artifact; it stays local to chat since it needs no LLM
   call and no durability.
-- Cancelling a chat run does **not** cancel an in-flight executor task it
-  already dispatched — that task is durable background work by design and
-  outlives the run/turn that started it, the same way a Cursor/Codex
-  background agent keeps running after you stop watching it.
+- Cancelling a chat run **does** cancel the in-flight executor task the current
+  `write_file`/`edit_file` call is blocking on: Stop aborts the turn, the tool's
+  `abortSignal` fires, and it calls `POST /tasks/:id/cancel` before unwinding —
+  like Cursor aborting an in-flight file write. (The executor task stays durable
+  against *process* loss; it is only tied to the turn for user-initiated Stop.)
 - `web_search` uses Tavily. `create_memory`/`update_memory` stage a candidate;
   user approval remains asynchronous in the memory panel.
 

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nitro dev",
+    "dev": "pnpm build && pnpm start",
+    "dev:watch": "nitro dev",
     "build": "nitro build && node scripts/fix-oidc-trace.mjs",
     "start": "node --env-file=.env .output/server/index.mjs",
     "lint": "tsc -p tsconfig.json --noEmit",

@@ -1,16 +1,3 @@
-// The first real TaskType (Phase 2 of the agent_task_执行时服务 plan):
-// large multi-page HTML artifact generation, migrated from chat's
-// agent/artifacts/{worker,generation-runner}.ts hand-rolled poll/lease/worker
-// pool. Reliability now comes from Workflow DevKit's own step retry and
-// durable execution — there is deliberately no claim/heartbeat/cancellation-
-// poll code here; one workflow run is the one and only owner of this task.
-//
-// Cancellation (measured — see ADR-0016, do not re-document as a "known gap"):
-// Workflow DevKit's run.cancel() interrupts an in-flight step within seconds,
-// it does NOT wait for the current block to finish, so no custom AbortSignal
-// forwarding is needed here. The only cancellation subtlety lives in the
-// caller: run.returnValue rejects with WorkflowRunCancelledError (classified
-// in tasks/service.ts), not a generic AbortError.
 import { getWorkflowMetadata } from "workflow";
 import { z } from "zod";
 
@@ -46,10 +33,6 @@ export const htmlArtifactInputSchema = z.object({
   pageCount: z.number().int().min(1).max(100).optional(),
   documentId: z.string().max(32).optional(),
   blockIds: z.array(z.string()).max(100).optional(),
-  // Stable per-dispatch key (chat passes the tool call id, == the task's
-  // owner_ref). Ties this run to exactly one knowledge-side generation record.
-  // Falls back to title+filename for older callers that don't send it, but that
-  // fallback can collide across distinct tool calls with the same title/file.
   idempotencyKey: z.string().min(1).max(120).optional(),
 });
 export type HtmlArtifactInput = z.infer<typeof htmlArtifactInputSchema>;
