@@ -22,34 +22,42 @@ function safeVideoFilename(prompt: string): string {
   return `${slug}.mp4`;
 }
 
-const VIDEO_DURATION_MIN_S = 4;
-const VIDEO_DURATION_MAX_S = 30;
-const VIDEO_DURATION_AUTO = -1;
+const VIDEO_TARGET_MIN_S = 5;
+const VIDEO_TARGET_MAX_S = 120;
 
-export function createVideoTools(videoProviderId: string) {
+// The video tool needs three providers: the video model (Seedance) renders each
+// scene clip, the text model writes the storyboard (Seedance can't), and an
+// optional image model (Seedream) makes a subject-anchor still for loose
+// character consistency. They are resolved once per run and closed over here.
+export interface VideoToolProviders {
+  videoProviderId: string;
+  textProviderId: string;
+  imageProviderId: string | null;
+}
+
+export function createVideoTools(providers: VideoToolProviders) {
   return {
     generate_video: tool({
       description:
-        "Generate a video from a text prompt using the user's configured video model (e.g. Volcengine Ark Seedance) and render it inline in the chat. Use this whenever the user asks to create, make, or generate a video, animation, or clip. Write the prompt in concrete cinematic detail (subject, action, camera movement, style, lighting, mood). CONTROLLING LENGTH: the output length is set ONLY by the `duration` argument (whole seconds) — never just claim a length in your reply, because your text does not affect the generated video. Capability depends on the selected model: Seedance 2.0 supports 4–15s (fast variant 4–12s), Seedance 2.5 supports a single native clip up to 30s, and `-1` lets the model auto-pick. The provider is the source of truth and rejects any value beyond the selected model's real limit, so do NOT assume a conservative cap — pass the exact length the user asked for, and only clamp if the provider rejects it or you already know the specific model's ceiling (then tell the user what you used). Omit `duration` to use the provider default (~5s). Video generation is asynchronous and takes tens of seconds to a few minutes; this call runs it as a durable background task and blocks until it finishes, then returns the persisted video — do not restate file IDs or download steps, and do not call it again for the same request while it is running. Requires the user to have configured and selected a video provider; if none is available the tool returns an error you must relay, asking them to configure one in model management.",
+        "Generate a VERTICAL (9:16) short-drama video for 抖音/小红书 投流 from a text premise, using the user's configured video model (Volcengine Ark Seedance), and render it inline in the chat. Use this whenever the user asks to create, make, or generate a video, drama, skit, or clip. Write the premise as a concrete story/scene idea (characters, conflict, setting, tone) — the tool internally plans a hook-first shot list, generates the scenes concurrently, and stitches them into one fast-cut vertical reel with native audio. CONTROLLING LENGTH: total length is set ONLY by the `duration` argument (whole seconds of the FINAL reel) — never just claim a length in your reply, your text does not affect the output. Range is 5–120s; omit for a ~50s default. Video generation is asynchronous and takes tens of seconds to a few minutes; this call runs it as a durable background task and blocks until it finishes, then returns the persisted video — do not restate file IDs or download steps, and do not call it again for the same request while it is running. Requires the user to have configured and selected a video provider; if none is available the tool returns an error you must relay, asking them to configure one in model management.",
       inputSchema: z.object({
         prompt: z
           .string()
           .min(1)
           .max(4000)
-          .describe("Rich, concrete cinematic description of the video to generate."),
+          .describe("Concrete short-drama premise: characters, conflict, setting, tone."),
         duration: z
           .number()
           .int()
-          .refine((seconds) => seconds === VIDEO_DURATION_AUTO || seconds >= 1, {
-            message: `duration must be ${VIDEO_DURATION_AUTO} (auto) or a positive number of seconds`,
-          })
+          .min(VIDEO_TARGET_MIN_S)
+          .max(VIDEO_TARGET_MAX_S)
           .optional()
           .describe(
-            `Desired video length in whole seconds, or ${VIDEO_DURATION_AUTO} to let the model auto-pick. Capability depends on the selected model — Seedance 2.0: ${VIDEO_DURATION_MIN_S}–15s; Seedance 2.5: up to ${VIDEO_DURATION_MAX_S}s single-pass. Pass the exact length the user asked for; the provider enforces the real limit, so this is intentionally NOT hard-capped for newer longer-capable models.`,
+            `Target total length of the finished reel in whole seconds (${VIDEO_TARGET_MIN_S}–${VIDEO_TARGET_MAX_S}). Omit for a ~50s default. This is the WHOLE reel; the tool splits it into scene clips internally.`,
           ),
       }),
       contextSchema: mediaToolContextSchema,
-      execute: (input, options) => generateVideoTool(input, options, videoProviderId),
+      execute: (input, options) => generateVideoTool(input, options, providers),
     }),
   };
 }
@@ -63,7 +71,7 @@ export async function* generateVideoTool(
     toolCallId,
     abortSignal,
   }: { context: MediaToolContext; toolCallId: string; abortSignal?: AbortSignal },
-  videoProviderId: string,
+  providers: VideoToolProviders,
 ): AsyncGenerator<Record<string, unknown>> {
   const title = input.prompt.slice(0, 80);
   const filename = safeVideoFilename(input.prompt);
@@ -76,9 +84,11 @@ export async function* generateVideoTool(
         payload: {
           userId: context.userId,
           conversationId: context.conversationId,
-          providerId: videoProviderId,
+          providerId: providers.videoProviderId,
+          textProviderId: providers.textProviderId,
+          imageProviderId: providers.imageProviderId ?? undefined,
           prompt: input.prompt,
-          duration: input.duration,
+          targetDurationSec: input.duration,
           title,
           filename,
           idempotencyKey: toolCallId,

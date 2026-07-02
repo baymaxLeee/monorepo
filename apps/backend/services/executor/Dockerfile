@@ -19,6 +19,12 @@ RUN pnpm run build
 FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+# ffmpeg is required by the video-generation workflow to normalize + concat
+# per-scene clips into one reel. OS binary (not ffmpeg-static) to avoid Nitro/nft
+# native-binary bundling issues; FFMPEG_PATH defaults to `ffmpeg` on PATH.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/apps/backend/services/executor/.output ./.output
 EXPOSE 8011
 CMD ["node", ".output/server/index.mjs"]

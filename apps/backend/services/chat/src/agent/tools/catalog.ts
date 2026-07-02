@@ -46,7 +46,13 @@ function builtinTools(mode: AgentMode, providers: AgentToolProviders) {
     ...createMemoryTools(),
     ...createArtifactTools(providers.textProvider),
     ...(providers.imageProvider ? createMediaTools(providers.imageProvider) : {}),
-    ...(providers.videoProviderId ? createVideoTools(providers.videoProviderId) : {}),
+    ...(providers.videoProviderId
+      ? createVideoTools({
+          videoProviderId: providers.videoProviderId,
+          textProviderId: providers.textProvider.id,
+          imageProviderId: providers.imageProvider?.id ?? null,
+        })
+      : {}),
     ...createTodoTools(),
   };
 }

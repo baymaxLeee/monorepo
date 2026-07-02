@@ -53,6 +53,14 @@ for the full rationale.
 - `echo` is a smoke-test type only. `html-artifact` (migrating
   `chat`'s `agent/artifacts/*` worker/lease/poll code here) is the first real
   type — see Phase 2 of the plan.
+- `video-generation` is a durable **plan -> concurrent-scene -> ffmpeg-assemble**
+  workflow for vertical short-drama (see ADR-0018): `planStep`
+  (`src/video/storyboard.ts`, text provider) -> `createSceneStep`/`waitSceneStep`
+  fanned out via `mapConcurrent` -> `assembleStep` (`src/video/assembler.ts`).
+  Clip URLs are the durable step state (bytes never cross a step boundary); a
+  failed scene degrades and is skipped at assembly. It needs the **ffmpeg** OS
+  binary (see operational note #6) and three providers threaded from chat's
+  `catalog.ts` (video + text-required + optional image).
 
 ## Boundaries
 
@@ -154,6 +162,22 @@ All fixed, all re-check-worthy whenever `nitro`/`workflow`/`ai` are bumped:
    whole generation (chat now tolerates transient 5xx there, but the churn was
    still pointless). Edit executor code → restart the process to pick it up.
    Use `pnpm dev:watch` only if you specifically want the watcher back.
+
+6. **`video-generation` needs ffmpeg, and the `"use workflow"` orchestrator
+   must stay Node-module-free.** The Dockerfile installs `ffmpeg` via `apt`
+   (deliberately not `ffmpeg-static` — a native binary would hit the same nft
+   bundling class of bug as #1/#2); local dev needs it on PATH
+   (`brew install ffmpeg`). `FFMPEG_PATH` overrides the binary. Separately: the
+   Workflow DevKit build (`Discovering workflow directives`) **fails the whole
+   `nitro build`** if the `"use workflow"` orchestrator — or any non-`"use step"`
+   helper it calls — transitively imports a Node-dependent module (`node:net`
+   via `provider-url`, the `ai` package, etc.). This bit `video-generation`
+   once: calling `buildScenePrompt` (exported from `storyboard.ts`, which
+   imports `ai`) inside the `mapConcurrent` worker pulled `ai` into the
+   orchestrator chunk. Fix: compose scene prompts **inside** `createSceneStep`,
+   so every Node-touching import is reachable only from a `"use step"` body.
+   Pass plain data (scene, storyboard) across the step boundary, never call a
+   Node-touching helper from the orchestrator.
 
 Calling `getWorld().start()` is gated on `WORKFLOW_TARGET_WORLD` being set:
 under the default Local World it throws `Invalid version string: "bundled"`
