@@ -180,6 +180,48 @@ async def test_video_provider(
         return TestModelProviderResult(ok=False, error=f"unexpected: {exc}")
 
 
+def _is_multimodal_embedding_model(model: str) -> bool:
+    """Ark multimodal embedding models (doubao-embedding-vision-*) use the
+    dedicated `/embeddings/multimodal` endpoint, not the text `/embeddings`."""
+    lowered = model.lower()
+    return "vision" in lowered or "multimodal" in lowered
+
+
+async def _test_multimodal_embedding(
+    *,
+    base_url: str,
+    api_key: str,
+    model: str,
+) -> TestModelProviderResult:
+    url = f"{_ark_api_root(base_url)}/embeddings/multimodal"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    start = time.perf_counter()
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(60.0, connect=10.0), follow_redirects=False
+        ) as client:
+            response = await client.post(
+                url,
+                headers=headers,
+                json={"model": model, "input": [{"type": "text", "text": "connectivity ping"}]},
+            )
+            if response.status_code in {401, 403}:
+                return TestModelProviderResult(ok=False, error="authentication: invalid API key")
+            if response.status_code >= 400:
+                return TestModelProviderResult(
+                    ok=False, error=f"api: HTTP {response.status_code}: {response.text[:500]}"
+                )
+            data = response.json()
+    except httpx.HTTPError as exc:
+        return TestModelProviderResult(ok=False, error=f"http: {exc}")
+    except Exception as exc:
+        return TestModelProviderResult(ok=False, error=f"unexpected: {exc}")
+    latency_ms = int((time.perf_counter() - start) * 1000)
+    items = data.get("data") or []
+    dim = len(items[0].get("embedding", [])) if items else 0
+    return TestModelProviderResult(ok=True, latency_ms=latency_ms, sample=f"multimodal embedding dim={dim}")
+
+
 async def test_embedding_provider(
     *,
     base_url: str,
@@ -187,6 +229,8 @@ async def test_embedding_provider(
     model: str,
     extra_body: dict[str, Any],
 ) -> TestModelProviderResult:
+    if _is_multimodal_embedding_model(model):
+        return await _test_multimodal_embedding(base_url=base_url, api_key=api_key, model=model)
     client = _openai_client(api_key, base_url)
     start = time.perf_counter()
     try:

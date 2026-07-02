@@ -7,18 +7,31 @@ configured, and callers degrade to hybrid-only when it is not.
 
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 from knowledge.config import get_settings
 from knowledge.services.admin_client import ProviderSnapshot
 from openai import AsyncOpenAI
 
 _EMBED_BATCH = 64
+_MULTIMODAL_CONCURRENCY = 5
+
+
+def is_multimodal_embedding_model(model: str) -> bool:
+    """Volcengine Ark multimodal embedding models (doubao-embedding-vision-*)
+    use the dedicated `/embeddings/multimodal` endpoint with typed-parts input,
+    NOT the standard `/embeddings` text endpoint."""
+    lowered = model.lower()
+    return "vision" in lowered or "multimodal" in lowered
 
 
 async def embed_texts(texts: list[str], *, provider: ProviderSnapshot) -> list[list[float]]:
     """Embed texts with the provider's embedding model, preserving input order."""
     if not texts:
         return []
+    if is_multimodal_embedding_model(provider.model):
+        return await _embed_texts_multimodal(texts, provider=provider)
     settings = get_settings()
     client = AsyncOpenAI(
         api_key=provider.api_key,
@@ -35,6 +48,34 @@ async def embed_texts(texts: list[str], *, provider: ProviderSnapshot) -> list[l
     finally:
         await client.close()
     return vectors
+
+
+async def _embed_texts_multimodal(texts: list[str], *, provider: ProviderSnapshot) -> list[list[float]]:
+    """Ark multimodal embedding: one structured item per request against
+    `/embeddings/multimodal`. Bounded concurrency, input order preserved."""
+    settings = get_settings()
+    url = f"{provider.base_url.rstrip('/')}/embeddings/multimodal"
+    headers = {"Authorization": f"Bearer {provider.api_key}", "Content-Type": "application/json"}
+    semaphore = asyncio.Semaphore(_MULTIMODAL_CONCURRENCY)
+
+    async with httpx.AsyncClient(timeout=httpx.Timeout(settings.llm_timeout_seconds, connect=5.0)) as client:
+
+        async def one(text: str) -> list[float]:
+            async with semaphore:
+                response = await client.post(
+                    url,
+                    json={"model": provider.model, "input": [{"type": "text", "text": text}]},
+                    headers=headers,
+                )
+                response.raise_for_status()
+                data = response.json()
+                items = data.get("data") or []
+                embedding = items[0].get("embedding") if items else None
+                if not isinstance(embedding, list):
+                    raise ValueError("multimodal embedding response missing data[0].embedding")
+                return [float(value) for value in embedding]
+
+        return list(await asyncio.gather(*(one(text) for text in texts)))
 
 
 async def rerank(
