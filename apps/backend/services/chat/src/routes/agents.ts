@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { UI_MESSAGE_STREAM_HEADERS } from "ai";
 
-import { getProvider } from "../clients/admin.js";
+import { getAgent, getProvider, type ProviderSnapshot } from "../clients/admin.js";
 import { getTask } from "../clients/executor.js";
 import { getAuth } from "../middleware/auth.js";
 import {
@@ -25,9 +25,10 @@ export const agentsRoutes = new Hono();
 const runSchema = z.object({
   id: z.string().optional(),
   message: z.unknown(),
-  provider_id: z.string().max(32).optional().nullable(),
-  multimodal_provider_id: z.string().max(32).optional().nullable(),
-  video_provider_id: z.string().max(32).optional().nullable(),
+  // One run is bound to exactly one agent. The agent's text provider is the
+  // chat model; its image/video providers drive the media tools. Omitting it
+  // falls back to the user's default chat provider (plain chat, no media tools).
+  agent_id: z.string().max(32).optional().nullable(),
   document_ids: z.array(z.string()).max(10).optional().default([]),
   thinking: z.boolean().optional().nullable(),
   reasoning_effort: z.enum(["low", "medium", "high"]).optional().nullable(),
@@ -44,17 +45,30 @@ agentsRoutes.post(
     const auth = getAuth(c);
     const conversationId = c.req.param("conversationId");
     const payload = c.req.valid("json");
-    const provider = await getProvider(auth.userId, payload.provider_id ?? null);
+
+    // Resolve the agent ONCE here — the single provider-resolution point for a
+    // run. The text provider is the chat model; image/video snapshots/ids are
+    // passed through to tools/executor so nothing re-fetches a provider.
+    let textProvider: ProviderSnapshot;
+    let imageProvider: ProviderSnapshot | null = null;
+    let videoProviderId: string | null = null;
+    if (payload.agent_id) {
+      const agent = await getAgent(auth.userId, payload.agent_id);
+      textProvider = agent.text ?? (await getProvider(auth.userId, null));
+      imageProvider = agent.image;
+      videoProviderId = agent.video?.id ?? null;
+    } else {
+      textProvider = await getProvider(auth.userId, null);
+    }
 
     return createAgentRunResponse(
       auth,
       conversationId,
-      provider,
+      textProvider,
       [payload.message],
       {
-        providerId: payload.provider_id,
-        multimodalProviderId: payload.multimodal_provider_id,
-        videoProviderId: payload.video_provider_id,
+        imageProvider,
+        videoProviderId,
         documentIds: [...(payload.document_ids ?? [])],
         thinking: payload.thinking,
         reasoningEffort: payload.reasoning_effort,

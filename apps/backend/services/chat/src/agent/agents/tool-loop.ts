@@ -24,20 +24,24 @@ export async function createToolLoopAgent(
   toolCatalog: ToolCatalog = defaultToolCatalog,
 ) {
   const provider = input.provider;
-  const resolvedTools = await toolCatalog.resolve({
-    mode: input.mode,
-    runId: input.runId,
-    userId: input.userId,
-    conversationId: input.conversationId,
-  });
+  const resolvedTools = await toolCatalog.resolve(
+    {
+      mode: input.mode,
+      runId: input.runId,
+      userId: input.userId,
+      conversationId: input.conversationId,
+    },
+    {
+      textProvider: provider,
+      imageProvider: input.imageProvider ?? null,
+      videoProviderId: input.videoProviderId ?? null,
+    },
+  );
   const { tools } = resolvedTools;
   const toolContext = {
     runId: input.runId,
     userId: input.userId,
     conversationId: input.conversationId,
-    providerId: provider.id,
-    multimodalProviderId: input.multimodalProviderId ?? null,
-    videoProviderId: input.videoProviderId ?? null,
   };
   const toolsContext = Object.fromEntries(
     Object.entries(tools)

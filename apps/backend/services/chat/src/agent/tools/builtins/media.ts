@@ -3,7 +3,7 @@ import type { JSONValue } from "ai";
 import { z } from "zod";
 
 import { createProviderImageModel } from "@backend/transport-ts/provider-model";
-import { getProvider } from "../../../clients/admin.js";
+import type { ProviderSnapshot } from "../../../clients/admin.js";
 import { createMediaDocument } from "../../../clients/knowledge.js";
 import { mediaToolContextSchema, type MediaToolContext } from "../context.js";
 
@@ -88,7 +88,7 @@ function describeImageError(error: unknown): string {
   return `图片生成失败：${String(error).slice(0, 300)}`;
 }
 
-export function createMediaTools() {
+export function createMediaTools(imageProvider: ProviderSnapshot) {
   return {
     generate_image: tool({
       description:
@@ -108,7 +108,7 @@ export function createMediaTools() {
           .describe("How many images to generate (default 1)."),
       }),
       contextSchema: mediaToolContextSchema,
-      execute: generateImageTool,
+      execute: (input, options) => generateImageTool(input, options, imageProvider),
     }),
   };
 }
@@ -122,38 +122,19 @@ export async function* generateImageTool(
     toolCallId,
     abortSignal,
   }: { context: MediaToolContext; toolCallId: string; abortSignal?: AbortSignal },
+  imageProvider: ProviderSnapshot,
 ): AsyncGenerator<Record<string, unknown>> {
   const count = input.n ?? 1;
   yield { ok: true, status: "generating", prompt: input.prompt, count };
 
-  const providerId = context.multimodalProviderId;
-  if (!providerId) {
-    yield {
-      ok: false,
-      status: "failed",
-      error: "未选择图片模型：请先在「模型管理」配置并选择一个图片(image)类型的模型 provider。",
-    };
-    return;
-  }
-
   try {
-    const provider = await getProvider(context.userId, providerId);
-    if (provider.providerKind !== "image") {
-      yield {
-        ok: false,
-        status: "failed",
-        error: `所选 provider「${provider.name}」不是图片模型(image),无法用于生成图片。`,
-      };
-      return;
-    }
-
     const { model, providerOptionsKey } = createProviderImageModel({
-      id: provider.id,
-      model: provider.model,
-      baseUrl: provider.baseUrl,
-      apiKey: provider.apiKey,
+      id: imageProvider.id,
+      model: imageProvider.model,
+      baseUrl: imageProvider.baseUrl,
+      apiKey: imageProvider.apiKey,
     });
-    const providerOptions = buildImageProviderOptions(provider.extraBody);
+    const providerOptions = buildImageProviderOptions(imageProvider.extraBody);
 
     const result = await generateImage({
       model,

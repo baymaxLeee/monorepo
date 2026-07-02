@@ -1,4 +1,4 @@
-"""Bot ORM model."""
+"""Bot (智能体/agent) ORM model."""
 
 from datetime import datetime
 
@@ -15,4 +15,10 @@ class BotRow(Base):
     user_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    # The model providers this agent uses per capability (references
+    # model_providers.id). Nullable — a capability may be left unconfigured.
+    text_provider_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    image_provider_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    video_provider_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

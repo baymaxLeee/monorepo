@@ -1,6 +1,8 @@
 import type { ToolSet } from "@ai-sdk/provider-utils";
+import type { ChatProvider } from "@backend/transport-ts/provider-model";
 
 import type { AgentMode } from "../agents/types.js";
+import type { ProviderSnapshot } from "../../clients/admin.js";
 import { createArtifactTools } from "./builtins/artifact.js";
 import { createInteractionTools } from "./builtins/interaction.js";
 import { createKnowledgeTools } from "./builtins/files.js";
@@ -15,25 +17,35 @@ import type {
 } from "../integrations/types.js";
 import { createWebTools } from "./builtins/web.js";
 
-function builtinTools(mode: AgentMode) {
-  return mode === "plan"
-    ? {
-        ...createKnowledgeTools(),
-        ...createWebTools(),
-        ...createInteractionTools(mode),
-        ...createPlanTools(),
-        ...createTodoTools(),
-      }
-    : {
-        ...createKnowledgeTools(),
-        ...createWebTools(),
-        ...createInteractionTools(mode),
-        ...createMemoryTools(),
-        ...createArtifactTools(),
-        ...createMediaTools(),
-        ...createVideoTools(),
-        ...createTodoTools(),
-      };
+// The agent's resolved providers for a run, injected into tool factories as
+// closures so no tool re-fetches a provider. image/video tools are only mounted
+// when the agent has configured that capability.
+export interface AgentToolProviders {
+  textProvider: ChatProvider;
+  imageProvider: ProviderSnapshot | null;
+  videoProviderId: string | null;
+}
+
+function builtinTools(mode: AgentMode, providers: AgentToolProviders) {
+  if (mode === "plan") {
+    return {
+      ...createKnowledgeTools(),
+      ...createWebTools(),
+      ...createInteractionTools(mode),
+      ...createPlanTools(),
+      ...createTodoTools(),
+    };
+  }
+  return {
+    ...createKnowledgeTools(),
+    ...createWebTools(),
+    ...createInteractionTools(mode),
+    ...createMemoryTools(),
+    ...createArtifactTools(providers.textProvider),
+    ...(providers.imageProvider ? createMediaTools(providers.imageProvider) : {}),
+    ...(providers.videoProviderId ? createVideoTools(providers.videoProviderId) : {}),
+    ...createTodoTools(),
+  };
 }
 
 export class ToolCatalog {
@@ -50,12 +62,12 @@ export class ToolCatalog {
     };
   }
 
-  async resolve(context: AgentExtensionContext): Promise<{
+  async resolve(context: AgentExtensionContext, providers: AgentToolProviders): Promise<{
     tools: ReturnType<typeof builtinTools> & ToolSet;
     instructions: string[];
     dispose: () => Promise<void>;
   }> {
-    const tools = builtinTools(context.mode) as ReturnType<typeof builtinTools> & ToolSet;
+    const tools = builtinTools(context.mode, providers) as ReturnType<typeof builtinTools> & ToolSet;
     const instructions: string[] = [];
     const disposers: Array<() => void | Promise<void>> = [];
 

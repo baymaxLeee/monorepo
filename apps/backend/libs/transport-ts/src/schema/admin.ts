@@ -84,10 +84,12 @@ export interface paths {
         get: operations["get_bot_bot__bot_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete Bot */
+        delete: operations["delete_bot_bot__bot_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update Bot */
+        patch: operations["update_bot_bot__bot_id__patch"];
         trace?: never;
     };
     "/scenes": {
@@ -320,6 +322,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/agents/{agent_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Resolved Agent Internal */
+        get: operations["get_resolved_agent_internal_internal_agents__agent_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/apps": {
         parameters: {
             query?: never;
@@ -401,8 +420,16 @@ export interface components {
              * @enum {string}
              */
             status: "draft" | "published" | "archived";
+            /** Text Provider Id */
+            text_provider_id?: string | null;
+            /** Image Provider Id */
+            image_provider_id?: string | null;
+            /** Video Provider Id */
+            video_provider_id?: string | null;
             /** Created At */
             created_at: string;
+            /** Updated At */
+            updated_at: string;
         };
         /** BulkDeleteIntentionsInput */
         BulkDeleteIntentionsInput: {
@@ -678,6 +705,23 @@ export interface components {
             /** Updated At */
             updated_at: string;
         };
+        /**
+         * ResolvedAgent
+         * @description An agent with its per-capability model providers fully resolved to
+         *     (decrypted) provider snapshots. Internal-only: chat resolves this once per
+         *     run and passes providers through — never re-fetching inside tools/steps.
+         *     A capability is null when the agent has not configured it (or it was
+         *     disabled/removed).
+         */
+        ResolvedAgent: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            text_provider?: components["schemas"]["InternalModelProvider"] | null;
+            image_provider?: components["schemas"]["InternalModelProvider"] | null;
+            video_provider?: components["schemas"]["InternalModelProvider"] | null;
+        };
         /** Scene */
         Scene: {
             /** Id */
@@ -743,6 +787,23 @@ export interface components {
             is_enabled?: boolean | null;
             /** Sort Order */
             sort_order?: number | null;
+        };
+        /**
+         * UpdateBotInput
+         * @description Partial update. Only fields present in the request are applied; a field
+         *     sent as null clears it (e.g. unassigning a model provider).
+         */
+        UpdateBotInput: {
+            /** Name */
+            name?: string | null;
+            /** Status */
+            status?: ("draft" | "published" | "archived") | null;
+            /** Text Provider Id */
+            text_provider_id?: string | null;
+            /** Image Provider Id */
+            image_provider_id?: string | null;
+            /** Video Provider Id */
+            video_provider_id?: string | null;
         };
         /** UpdateIntentionInput */
         UpdateIntentionInput: {
@@ -967,6 +1028,78 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bot"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_bot_bot__bot_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+            };
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_bot_bot__bot_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+            };
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBotInput"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -1761,6 +1894,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InternalModelProvider"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_resolved_agent_internal_internal_agents__agent_id__get: {
+        parameters: {
+            query: {
+                /** @description Owner of the agent */
+                user_id: string;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedAgent"];
                 };
             };
             /** @description Validation Error */

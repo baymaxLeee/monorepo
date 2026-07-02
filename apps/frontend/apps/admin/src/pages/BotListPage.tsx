@@ -1,8 +1,23 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type Bot, createBot, fetchBots } from "api";
+import {
+  type Bot,
+  createBot,
+  deleteBot,
+  fetchBots,
+  fetchModelProviders,
+  type ModelProvider,
+} from "api";
 import {
   Alert,
   AlertDescription,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   AlertTitle,
   Badge,
   Button,
@@ -45,9 +60,9 @@ import {
 } from "components";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link } from "react-router-dom";
 import { z } from "zod";
 import { useShallow } from "zustand/react/shallow";
+import { AgentModelDialog } from "../components/AgentModelDialog";
 import { useAdminStore } from "../store/useAdminStore";
 
 const createBotSchema = z.object({
@@ -72,8 +87,11 @@ function statusBadge(status: Bot["status"]) {
 
 export function BotListPage() {
   const [bots, setBots] = useState<Bot[] | null>(null);
+  const [providers, setProviders] = useState<ModelProvider[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState<Bot | null>(null);
+  const [deleting, setDeleting] = useState<Bot | null>(null);
   const { createOpen, setCreateOpen } = useAdminStore(
     useShallow((state) => ({
       createOpen: state.createDialogOpen,
@@ -89,8 +107,11 @@ export function BotListPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchBots()
-      .then(setBots)
+    Promise.all([fetchBots(), fetchModelProviders().catch(() => [])])
+      .then(([botList, providerList]) => {
+        setBots(botList);
+        setProviders(providerList);
+      })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
   }, []);
@@ -98,6 +119,26 @@ export function BotListPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const providerLabel = useCallback(
+    (id: string | null) => {
+      if (!id) return "—";
+      return providers.find((p) => p.id === id)?.name ?? id;
+    },
+    [providers],
+  );
+
+  async function onDelete() {
+    if (!deleting) return;
+    try {
+      await deleteBot(deleting.id);
+      toast.success("智能体已删除");
+      setDeleting(null);
+      load();
+    } catch (e) {
+      toast.error(String(e));
+    }
+  }
 
   async function onCreate(values: CreateBotValues) {
     try {
@@ -117,9 +158,9 @@ export function BotListPage() {
     <Page>
       <PageHeader>
         <PageHeaderContent>
-          <PageTitle>智能体列表</PageTitle>
+          <PageTitle>智能体</PageTitle>
           <PageDescription>
-            数据来自 <InlineCode>GET /api/admin-server/bot</InlineCode>
+            配置每个智能体的文本 / 图片 / 视频模型；对话时按智能体消费。
           </PageDescription>
         </PageHeaderContent>
         <PageActions>
@@ -140,7 +181,7 @@ export function BotListPage() {
               <DialogHeader>
                 <DialogTitle>新建智能体</DialogTitle>
                 <DialogDescription>
-                  名称将提交到 admin 服务并写入 MySQL。
+                  先创建智能体，再在「配置」中选择其使用的模型。
                 </DialogDescription>
               </DialogHeader>
               <Form {...form}>
@@ -222,9 +263,10 @@ export function BotListPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>名称</TableHead>
-                  <TableHead>用户名</TableHead>
+                  <TableHead>文本模型</TableHead>
+                  <TableHead>图片模型</TableHead>
+                  <TableHead>视频模型</TableHead>
                   <TableHead>状态</TableHead>
-                  <TableHead>创建时间</TableHead>
                   <TableHead className="text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
@@ -232,16 +274,31 @@ export function BotListPage() {
                 {bots.map((b) => (
                   <TableRow key={b.id}>
                     <TableCell className="font-medium">{b.name}</TableCell>
-                    <TableCell>{b.username}</TableCell>
-                    <TableCell>{statusBadge(b.status)}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(b.created_at).toLocaleString()}
+                      {providerLabel(b.text_provider_id)}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="link" size="sm" asChild>
-                        <Link to={b.id} relative="path">
-                          详情
-                        </Link>
+                    <TableCell className="text-muted-foreground">
+                      {providerLabel(b.image_provider_id)}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {providerLabel(b.video_provider_id)}
+                    </TableCell>
+                    <TableCell>{statusBadge(b.status)}</TableCell>
+                    <TableCell className="space-x-2 text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditing(b)}
+                      >
+                        配置
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setDeleting(b)}
+                      >
+                        删除
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -253,6 +310,41 @@ export function BotListPage() {
           )}
         </CardContent>
       </Card>
+
+      <AgentModelDialog
+        bot={editing}
+        open={editing !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditing(null);
+        }}
+        providers={providers}
+        onSaved={load}
+      />
+
+      <AlertDialog
+        open={deleting !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除智能体</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定删除「{deleting?.name}」？此操作不可恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={onDelete}
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Page>
   );
 }

@@ -13,6 +13,7 @@ import {
 import { ARTIFACT_GENERATION_TIMEOUT } from "../../artifacts/config.js";
 import { getDocument, getDocumentSource, createArtifact, updateArtifact } from "../../../clients/knowledge.js";
 import { type Task } from "../../../clients/executor.js";
+import type { ChatProvider } from "@backend/transport-ts/provider-model";
 import { artifactToolContextSchema, type ArtifactToolContext } from "../context.js";
 import {
   MAX_TASK_WAIT_MS,
@@ -118,7 +119,7 @@ async function inspectArtifact(
   }
 }
 
-export function createArtifactTools() {
+export function createArtifactTools(textProvider: ChatProvider) {
   return {
     write_file: tool({
       description:
@@ -141,7 +142,7 @@ export function createArtifactTools() {
         page_count: z.number().int().min(1).max(100).optional().describe("Requested number of generated blocks or pages."),
       }),
       contextSchema: artifactToolContextSchema,
-      execute: writeFileTool,
+      execute: (input, options) => writeFileTool(input, options, textProvider),
     }),
     edit_file: tool({
       description:
@@ -158,7 +159,7 @@ export function createArtifactTools() {
         block_ids: z.array(z.string().regex(/^page-[1-9]\d*$/)).max(100).optional(),
       }),
       contextSchema: artifactToolContextSchema,
-      execute: editFileTool,
+      execute: (input, options) => editFileTool(input, options, textProvider),
     }),
     run_command: tool({
       description:
@@ -183,11 +184,12 @@ export async function* writeFileTool(
     page_count?: number;
   },
   { context, toolCallId, abortSignal }: { context: ArtifactToolContext; toolCallId: string; abortSignal?: AbortSignal },
+  textProvider: ChatProvider,
 ): AsyncGenerator<Record<string, unknown>> {
   const filename = safeFilename(input.filename);
   try {
     if (input.kind === "markdown") {
-      const tools = await buildArtifactTextModel(context.userId, context.providerId);
+      const tools = buildArtifactTextModel(textProvider);
       const signal = combinedSignal(abortSignal);
       const result = streamText({
         model: tools.model,
@@ -228,7 +230,7 @@ export async function* writeFileTool(
         payload: {
           userId: context.userId,
           conversationId: context.conversationId,
-          providerId: context.providerId,
+          providerId: textProvider.id,
           title: input.title,
           filename,
           mode: input.mode,
@@ -250,6 +252,7 @@ export async function* writeFileTool(
 export async function* editFileTool(
   input: { document_id: string; title?: string; filename?: string; brief: string; block_ids?: string[] },
   { context, toolCallId, abortSignal }: { context: ArtifactToolContext; toolCallId: string; abortSignal?: AbortSignal },
+  textProvider: ChatProvider,
 ): AsyncGenerator<Record<string, unknown>> {
   try {
     const current = await getDocument(context.userId, input.document_id);
@@ -259,7 +262,7 @@ export async function* editFileTool(
     }
     const isHtml = current.mime_type === "text/html" || current.filename.toLowerCase().endsWith(".html");
     if (!isHtml) {
-      const tools = await buildArtifactTextModel(context.userId, context.providerId);
+      const tools = buildArtifactTextModel(textProvider);
       const signal = combinedSignal(abortSignal);
       const result = streamText({
         model: tools.model,
@@ -292,7 +295,7 @@ export async function* editFileTool(
         payload: {
           userId: context.userId,
           conversationId: context.conversationId,
-          providerId: context.providerId,
+          providerId: textProvider.id,
           title,
           filename,
           mode: "document",

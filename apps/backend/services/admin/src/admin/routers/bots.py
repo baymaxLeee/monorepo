@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 
 from admin.deps import CurrentUser, DbSession, RedisClient
-from admin.schemas.bot import Bot, CreateBotInput
+from admin.schemas.bot import Bot, CreateBotInput, UpdateBotInput
 from admin.services.bots import BotService
 
 router = APIRouter(prefix="/bot", tags=["bot"])
@@ -27,3 +27,22 @@ async def create_bot(
     redis: RedisClient,
 ) -> Bot:
     return await BotService(session, current_user, redis).create(payload.name)
+
+
+@router.patch("/{bot_id}", response_model=Bot)
+async def update_bot(
+    bot_id: str,
+    payload: UpdateBotInput,
+    current_user: CurrentUser,
+    session: DbSession,
+) -> Bot:
+    return await BotService(session, current_user).update(bot_id, payload)
+
+
+@router.delete("/{bot_id}", status_code=204)
+async def delete_bot(
+    bot_id: str,
+    current_user: CurrentUser,
+    session: DbSession,
+) -> None:
+    await BotService(session, current_user).delete(bot_id)

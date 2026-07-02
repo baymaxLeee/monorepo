@@ -1,16 +1,30 @@
 import { request } from "./http";
 
+export type BotStatus = "draft" | "published" | "archived";
+
 export interface Bot {
   id: string;
   user_id: string;
   username: string;
   name: string;
-  status: "draft" | "published" | "archived";
+  status: BotStatus;
+  text_provider_id: string | null;
+  image_provider_id: string | null;
+  video_provider_id: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface CreateBotInput {
   name: string;
+}
+
+export interface UpdateBotInput {
+  name?: string;
+  status?: BotStatus;
+  text_provider_id?: string | null;
+  image_provider_id?: string | null;
+  video_provider_id?: string | null;
 }
 
 export function fetchBots(): Promise<Bot[]> {
@@ -32,6 +46,21 @@ export function createBot(input: CreateBotInput): Promise<Bot> {
     url: "/api/admin-server/bot",
     method: "POST",
     data: input,
+  });
+}
+
+export function updateBot(id: string, input: UpdateBotInput): Promise<Bot> {
+  return request<Bot>({
+    url: `/api/admin-server/bot/${id}`,
+    method: "PATCH",
+    data: input,
+  });
+}
+
+export function deleteBot(id: string): Promise<void> {
+  return request<void>({
+    url: `/api/admin-server/bot/${id}`,
+    method: "DELETE",
   });
 }
 

@@ -48,8 +48,11 @@ import {
 } from "../streams/service.js";
 
 export interface RunAgentInput {
-  providerId?: string | null;
-  multimodalProviderId?: string | null;
+  // The chat model is the `provider` argument (agent's text provider). These
+  // are the agent's other resolved capabilities, passed through from the run
+  // entry: the image snapshot is used inline by generate_image; the video
+  // provider id is passed by reference to the executor video task.
+  imageProvider?: ProviderSnapshot | null;
   videoProviderId?: string | null;
   documentIds?: string[];
   thinking?: boolean | null;
@@ -319,7 +322,7 @@ export async function createAgentRunResponse(
       conversationId: conversation.id,
       mode,
       provider,
-      multimodalProviderId: input.multimodalProviderId,
+      imageProvider: input.imageProvider,
       videoProviderId: input.videoProviderId,
       modelMessages,
       instructions: [instructions, ...projected.instructionContext].join("\n\n"),

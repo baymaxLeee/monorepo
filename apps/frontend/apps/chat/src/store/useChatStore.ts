@@ -1,4 +1,4 @@
-import { fetchModelProviders, type ModelProvider } from "api";
+import { type Bot, fetchBots } from "api";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -11,22 +11,15 @@ export type ArtifactPreviewState = {
 export type ChatUIState = {
   sendingConversationId: string | null;
   setSendingConversationId: (id: string | null) => void;
-  providers: ModelProvider[] | null;
-  providersError: string | null;
-  isLoadingProviders: boolean;
-  loadProviders: () => Promise<void>;
-  selectedProviderId: string | null;
-  setSelectedProviderId: (id: string | null) => void;
-  // Image-generation provider (provider_kind === "image"), resolved
-  // independently of the chat model. Sent as `multimodal_provider_id` so the
-  // generate_image tool can pick the right Ark Seedream provider.
-  selectedImageProviderId: string | null;
-  setSelectedImageProviderId: (id: string | null) => void;
-  // Video-generation provider (provider_kind === "video"), sent as
-  // `video_provider_id` so the generate_video tool picks the right Ark Seedance
-  // provider (distinct from the image provider).
-  selectedVideoProviderId: string | null;
-  setSelectedVideoProviderId: (id: string | null) => void;
+  // Agents (智能体) are the unit of model selection: one run is bound to one
+  // agent whose text/image/video providers the backend resolves. The chat UI
+  // switches agents, never individual models.
+  agents: Bot[] | null;
+  agentsError: string | null;
+  isLoadingAgents: boolean;
+  loadAgents: () => Promise<void>;
+  selectedAgentId: string | null;
+  setSelectedAgentId: (id: string | null) => void;
   memoryPanelOpen: boolean;
   setMemoryPanelOpen: (open: boolean) => void;
   tracePanelOpen: boolean;
@@ -48,10 +41,7 @@ export type ChatUIState = {
   applyConversationTitle: (id: string, title: string) => void;
 };
 
-type Persisted = Pick<
-  ChatUIState,
-  "selectedProviderId" | "selectedImageProviderId" | "selectedVideoProviderId"
->;
+type Persisted = Pick<ChatUIState, "selectedAgentId">;
 
 const CLOSED_ARTIFACT_PREVIEW: ArtifactPreviewState = {
   open: false,
@@ -66,70 +56,31 @@ export const useChatStore = create<ChatUIState>()(
       setSendingConversationId: (sendingConversationId) =>
         set({ sendingConversationId }),
 
-      providers: null,
-      providersError: null,
-      isLoadingProviders: false,
-      async loadProviders() {
-        if (get().isLoadingProviders) return;
-        set({ isLoadingProviders: true, providersError: null });
+      agents: null,
+      agentsError: null,
+      isLoadingAgents: false,
+      async loadAgents() {
+        if (get().isLoadingAgents) return;
+        set({ isLoadingAgents: true, agentsError: null });
         try {
-          const list = await fetchModelProviders();
-          const selected = get().selectedProviderId;
+          const list = await fetchBots();
+          const selected = get().selectedAgentId;
           const stillExists = selected
-            ? list.find(
-                (p) =>
-                  p.id === selected &&
-                  p.is_enabled &&
-                  (p.provider_kind ?? "chat") === "chat",
-              )
-            : null;
-          const selectedImage = get().selectedImageProviderId;
-          const imageProviders = list.filter(
-            (p) => p.provider_kind === "image" && p.is_enabled,
-          );
-          const imageStillValid = selectedImage
-            ? imageProviders.some((p) => p.id === selectedImage)
-            : false;
-          const selectedVideo = get().selectedVideoProviderId;
-          const videoProviders = list.filter(
-            (p) => p.provider_kind === "video" && p.is_enabled,
-          );
-          const videoStillValid = selectedVideo
-            ? videoProviders.some((p) => p.id === selectedVideo)
+            ? list.some((a) => a.id === selected)
             : false;
           set({
-            providers: list,
-            selectedProviderId: stillExists
-              ? selected
-              : (list.find((p) => p.is_default && p.is_enabled)?.id ?? null),
-            selectedImageProviderId: imageStillValid
-              ? selectedImage
-              : (imageProviders[0]?.id ?? null),
-            selectedVideoProviderId: videoStillValid
-              ? selectedVideo
-              : (videoProviders[0]?.id ?? null),
+            agents: list,
+            selectedAgentId: stillExists ? selected : (list[0]?.id ?? null),
           });
         } catch (error) {
-          set({
-            providers: [],
-            providersError: String(error),
-          });
+          set({ agents: [], agentsError: String(error) });
         } finally {
-          set({ isLoadingProviders: false });
+          set({ isLoadingAgents: false });
         }
       },
 
-      selectedProviderId: null,
-      setSelectedProviderId: (selectedProviderId) =>
-        set({ selectedProviderId }),
-
-      selectedImageProviderId: null,
-      setSelectedImageProviderId: (selectedImageProviderId) =>
-        set({ selectedImageProviderId }),
-
-      selectedVideoProviderId: null,
-      setSelectedVideoProviderId: (selectedVideoProviderId) =>
-        set({ selectedVideoProviderId }),
+      selectedAgentId: null,
+      setSelectedAgentId: (selectedAgentId) => set({ selectedAgentId }),
 
       memoryPanelOpen: false,
       setMemoryPanelOpen: (memoryPanelOpen) =>
@@ -203,11 +154,9 @@ export const useChatStore = create<ChatUIState>()(
     }),
     {
       name: "chat.store",
-      version: 1,
+      version: 2,
       partialize: (state): Persisted => ({
-        selectedProviderId: state.selectedProviderId,
-        selectedImageProviderId: state.selectedImageProviderId,
-        selectedVideoProviderId: state.selectedVideoProviderId,
+        selectedAgentId: state.selectedAgentId,
       }),
     },
   ),

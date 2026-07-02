@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import (
 from .config import get_settings
 from .models.apps import AppRow
 from .models.base import Base
-from .models.bot import BotRow
+from .models.bot import BotRow  # noqa: F401 — registers with Base.metadata
 from .models.intention import IntentionRow
 from .models.provider import ModelProviderRow  # noqa: F401 — registers with Base.metadata
 from .models.scene import SceneRow
@@ -62,12 +62,6 @@ async def close_db() -> None:
     _engine = None
     _session_factory = None
 
-
-_DEMO_BOTS: list[tuple[str, str, str, str]] = [
-    ("demo-1", "客服助手", "published", "2026-01-15T08:30:00+00:00"),
-    ("demo-2", "销售小助理", "draft", "2026-02-20T11:15:00+00:00"),
-    ("demo-3", "代码评审员", "published", "2026-03-10T16:42:00+00:00"),
-]
 
 _DEMO_SCENES: list[tuple[str, str, str, str, bool, str]] = [
     (
@@ -146,19 +140,8 @@ async def seed_demo_bots() -> None:
                     )
                 )
 
-        existing_bot = await session.scalar(select(BotRow.id).limit(1))
-        if existing_bot is None:
-            for bot_id, name, status, created_at in _DEMO_BOTS:
-                session.add(
-                    BotRow(
-                        id=bot_id,
-                        user_id="demo-super-admin",
-                        name=name,
-                        status=status,
-                        created_at=datetime.fromisoformat(created_at),
-                    )
-                )
-
+        # Agents (bots) are user-managed real config now — no demo seeding, so a
+        # cleared table stays clean across restarts.
         existing_scene = await session.scalar(select(SceneRow.id).limit(1))
         if existing_scene is None:
             for scene_id, name, description, status, enabled, created_at in _DEMO_SCENES:

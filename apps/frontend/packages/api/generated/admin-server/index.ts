@@ -35,7 +35,11 @@ export interface Bot {
   username: string;
   name: string;
   status: BotStatus;
+  text_provider_id?: string | null;
+  image_provider_id?: string | null;
+  video_provider_id?: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface BulkDeleteIntentionsInput {
@@ -307,6 +311,21 @@ export interface ModelProvider {
   updated_at: string;
 }
 
+/**
+ * An agent with its per-capability model providers fully resolved to
+ * (decrypted) provider snapshots. Internal-only: chat resolves this once per
+ * run and passes providers through — never re-fetching inside tools/steps.
+ * A capability is null when the agent has not configured it (or it was
+ * disabled/removed).
+ */
+export interface ResolvedAgent {
+  id: string;
+  name: string;
+  text_provider?: InternalModelProvider | null;
+  image_provider?: InternalModelProvider | null;
+  video_provider?: InternalModelProvider | null;
+}
+
 export type SceneStatus = typeof SceneStatus[keyof typeof SceneStatus];
 
 
@@ -353,6 +372,27 @@ export interface UpdateAppInput {
   requires_admin?: boolean | null;
   is_enabled?: boolean | null;
   sort_order?: number | null;
+}
+
+export type UpdateBotInputStatus = typeof UpdateBotInputStatus[keyof typeof UpdateBotInputStatus] | null;
+
+
+export const UpdateBotInputStatus = {
+  draft: 'draft',
+  published: 'published',
+  archived: 'archived',
+} as const;
+
+/**
+ * Partial update. Only fields present in the request are applied; a field
+ * sent as null clears it (e.g. unassigning a model provider).
+ */
+export interface UpdateBotInput {
+  name?: string | null;
+  status?: UpdateBotInputStatus;
+  text_provider_id?: string | null;
+  image_provider_id?: string | null;
+  video_provider_id?: string | null;
 }
 
 export type UpdateIntentionInputStatus = typeof UpdateIntentionInputStatus[keyof typeof UpdateIntentionInputStatus] | null;
@@ -435,6 +475,14 @@ export type GetProviderInternalInternalProvidersProviderIdGetParams = {
 user_id: string;
 };
 
+export type GetResolvedAgentInternalInternalAgentsAgentIdGetParams = {
+/**
+ * Owner of the agent
+ * @minLength 1
+ */
+user_id: string;
+};
+
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
@@ -509,6 +557,33 @@ const getBotBotBotIdGet = (
  options?: SecondParameter<typeof apiMutator<Bot>>,) => {
       return apiMutator<Bot>(
       {url: `/bot/${botId}`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * @summary Update Bot
+ */
+const updateBotBotBotIdPatch = (
+    botId: string,
+    updateBotInput: UpdateBotInput,
+ options?: SecondParameter<typeof apiMutator<Bot>>,) => {
+      return apiMutator<Bot>(
+      {url: `/bot/${botId}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: updateBotInput
+    },
+      options);
+    }
+
+/**
+ * @summary Delete Bot
+ */
+const deleteBotBotBotIdDelete = (
+    botId: string,
+ options?: SecondParameter<typeof apiMutator<void>>,) => {
+      return apiMutator<void>(
+      {url: `/bot/${botId}`, method: 'DELETE'
     },
       options);
     }
@@ -805,6 +880,20 @@ const getProviderInternalInternalProvidersProviderIdGet = (
     }
 
 /**
+ * @summary Get Resolved Agent Internal
+ */
+const getResolvedAgentInternalInternalAgentsAgentIdGet = (
+    agentId: string,
+    params: GetResolvedAgentInternalInternalAgentsAgentIdGetParams,
+ options?: SecondParameter<typeof apiMutator<ResolvedAgent>>,) => {
+      return apiMutator<ResolvedAgent>(
+      {url: `/internal/agents/${agentId}`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+/**
  * @summary List Apps
  */
 const listAppsAppsGet = (
@@ -869,7 +958,7 @@ const deleteAppAppsAppIdDelete = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,listScenesScenesGet,createSceneScenesPost,getSceneScenesSceneIdGet,updateSceneScenesSceneIdPatch,deleteSceneScenesSceneIdDelete,bulkDeleteScenesScenesBulkDeletePost,listIntentionsIntentionsGet,createIntentionIntentionsPost,getIntentionIntentionsIntentionIdGet,updateIntentionIntentionsIntentionIdPatch,deleteIntentionIntentionsIntentionIdDelete,bulkDeleteIntentionsIntentionsBulkDeletePost,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderInternalInternalProvidersProviderIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listScenesScenesGet,createSceneScenesPost,getSceneScenesSceneIdGet,updateSceneScenesSceneIdPatch,deleteSceneScenesSceneIdDelete,bulkDeleteScenesScenesBulkDeletePost,listIntentionsIntentionsGet,createIntentionIntentionsPost,getIntentionIntentionsIntentionIdGet,updateIntentionIntentionsIntentionIdPatch,deleteIntentionIntentionsIntentionIdDelete,bulkDeleteIntentionsIntentionsBulkDeletePost,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderInternalInternalProvidersProviderIdGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -881,6 +970,8 @@ export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<
 export type ListBotsBotGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listBotsBotGet']>>>
 export type CreateBotBotPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createBotBotPost']>>>
 export type GetBotBotBotIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getBotBotBotIdGet']>>>
+export type UpdateBotBotBotIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateBotBotBotIdPatch']>>>
+export type DeleteBotBotBotIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['deleteBotBotBotIdDelete']>>>
 export type ListScenesScenesGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listScenesScenesGet']>>>
 export type CreateSceneScenesPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createSceneScenesPost']>>>
 export type GetSceneScenesSceneIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getSceneScenesSceneIdGet']>>>
@@ -903,6 +994,7 @@ export type SetDefaultProviderProvidersProviderIdSetDefaultPostResult = NonNulla
 export type TestProviderProvidersProviderIdTestPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['testProviderProvidersProviderIdTestPost']>>>
 export type GetDefaultProviderInternalInternalProvidersDefaultGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getDefaultProviderInternalInternalProvidersDefaultGet']>>>
 export type GetProviderInternalInternalProvidersProviderIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getProviderInternalInternalProvidersProviderIdGet']>>>
+export type GetResolvedAgentInternalInternalAgentsAgentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getResolvedAgentInternalInternalAgentsAgentIdGet']>>>
 export type ListAppsAppsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listAppsAppsGet']>>>
 export type CreateAppAppsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createAppAppsPost']>>>
 export type GetAppAppsAppIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getAppAppsAppIdGet']>>>

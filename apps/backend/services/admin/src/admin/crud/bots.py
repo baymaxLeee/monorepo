@@ -1,6 +1,7 @@
 """Bot persistence operations."""
 
 from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -26,14 +27,30 @@ async def get_bot(session: AsyncSession, bot_id: str, user_id: str, is_admin: bo
 
 
 async def create_bot(session: AsyncSession, name: str, user_id: str) -> BotRow:
+    now = datetime.now(UTC)
     row = BotRow(
         id=uuid4().hex[:8],
         user_id=user_id,
         name=name,
         status="draft",
-        created_at=datetime.now(UTC),
+        created_at=now,
+        updated_at=now,
     )
     session.add(row)
     await session.commit()
     await session.refresh(row)
     return row
+
+
+async def update_bot(session: AsyncSession, row: BotRow, values: dict[str, Any]) -> BotRow:
+    for key, value in values.items():
+        setattr(row, key, value)
+    row.updated_at = datetime.now(UTC)
+    await session.commit()
+    await session.refresh(row)
+    return row
+
+
+async def delete_bot(session: AsyncSession, row: BotRow) -> None:
+    await session.delete(row)
+    await session.commit()

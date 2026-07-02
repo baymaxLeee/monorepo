@@ -78,14 +78,10 @@ export function Chat() {
   const promptRef = useRef<PromptInputRef>(null);
   const resumedConversationRef = useRef<string | null>(null);
   const {
-    providers,
-    selectedProviderId,
-    setSelectedProviderId,
-    selectedImageProviderId,
-    setSelectedImageProviderId,
-    selectedVideoProviderId,
-    setSelectedVideoProviderId,
-    loadProviders,
+    agents,
+    selectedAgentId,
+    setSelectedAgentId,
+    loadAgents,
     setTraceRun,
     clearTraceRun,
     bumpTraceRefresh,
@@ -94,14 +90,10 @@ export function Chat() {
     applyConversationTitle,
   } = useChatStore(
     useShallow((s) => ({
-      providers: s.providers,
-      selectedProviderId: s.selectedProviderId,
-      setSelectedProviderId: s.setSelectedProviderId,
-      selectedImageProviderId: s.selectedImageProviderId,
-      setSelectedImageProviderId: s.setSelectedImageProviderId,
-      selectedVideoProviderId: s.selectedVideoProviderId,
-      setSelectedVideoProviderId: s.setSelectedVideoProviderId,
-      loadProviders: s.loadProviders,
+      agents: s.agents,
+      selectedAgentId: s.selectedAgentId,
+      setSelectedAgentId: s.setSelectedAgentId,
+      loadAgents: s.loadAgents,
       setTraceRun: s.setTraceRun,
       clearTraceRun: s.clearTraceRun,
       bumpTraceRefresh: s.bumpTraceRefresh,
@@ -113,24 +105,16 @@ export function Chat() {
 
   const requestBody = useMemo(
     () => ({
-      provider_id: selectedProviderId ?? detail?.provider_id ?? null,
-      multimodal_provider_id: selectedImageProviderId ?? null,
-      video_provider_id: selectedVideoProviderId ?? null,
+      agent_id: selectedAgentId ?? null,
       thinking: thinking || null,
       reasoning_effort: null,
     }),
-    [
-      selectedProviderId,
-      selectedImageProviderId,
-      selectedVideoProviderId,
-      detail?.provider_id,
-      thinking,
-    ],
+    [selectedAgentId, thinking],
   );
 
   useEffect(() => {
-    if (!providers) void loadProviders();
-  }, [providers, loadProviders]);
+    if (!agents) void loadAgents();
+  }, [agents, loadAgents]);
 
   const transport = useMemo(
     () =>
@@ -500,7 +484,13 @@ export function Chat() {
                 file,
               })),
               { onEvent: onIngestEvent },
-              { providerId: selectedProviderId },
+              // Ingest vision-conversion uses the selected agent's text model
+              // (falls back to the user's default provider when unset).
+              {
+                providerId:
+                  agents?.find((a) => a.id === selectedAgentId)
+                    ?.text_provider_id ?? undefined,
+              },
             ).catch((error) => {
               for (const { token } of items) {
                 promptRef.current?.updateToken(token.id, {
@@ -518,13 +508,9 @@ export function Chat() {
           }
           footerRender={() => (
             <ChatComposerControls
-              providers={providers ?? []}
-              selectedProviderId={selectedProviderId}
-              onSelectProvider={setSelectedProviderId}
-              selectedImageProviderId={selectedImageProviderId}
-              onSelectImageProvider={setSelectedImageProviderId}
-              selectedVideoProviderId={selectedVideoProviderId}
-              onSelectVideoProvider={setSelectedVideoProviderId}
+              agents={agents ?? []}
+              selectedAgentId={selectedAgentId}
+              onSelectAgent={setSelectedAgentId}
               thinking={thinking}
               onThinkingChange={setThinking}
               mode={mode}

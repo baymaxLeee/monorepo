@@ -24,8 +24,6 @@ export function ChatLayout() {
   );
   const [creating, setCreating] = useState(false);
   const {
-    loadProviders,
-    selectedProviderId,
     memoryPanelOpen,
     setMemoryPanelOpen,
     tracePanelOpen,
@@ -38,8 +36,6 @@ export function ChatLayout() {
     conversationTitleUpdate,
   } = useChatStore(
     useShallow((s) => ({
-      loadProviders: s.loadProviders,
-      selectedProviderId: s.selectedProviderId,
       memoryPanelOpen: s.memoryPanelOpen,
       setMemoryPanelOpen: s.setMemoryPanelOpen,
       tracePanelOpen: s.tracePanelOpen,
@@ -57,10 +53,6 @@ export function ChatLayout() {
   const closeArtifactPreview = useChatStore((s) => s.closeArtifactPreview);
   const shell = useChatShellLayout(artifactOpen, closeArtifactPreview);
   const sidebarOpen = shell.leftOpen && !(shell.compact && artifactOpen);
-
-  useEffect(() => {
-    loadProviders();
-  }, [loadProviders]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -123,9 +115,7 @@ export function ChatLayout() {
     if (creating) return;
     setCreating(true);
     try {
-      const conv = await createConversation({
-        provider_id: selectedProviderId ?? undefined,
-      });
+      const conv = await createConversation({});
       setConversations((prev) => (prev ? [conv, ...prev] : [conv]));
       navigate(`/platform/chat/conversations/${conv.id}`);
     } catch (error) {
