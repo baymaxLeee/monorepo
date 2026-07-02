@@ -49,11 +49,13 @@ class ObjectStore:
         mime_type: str,
         user_id: str,
         prefix: str = "uploads",
+        max_bytes: int | None = None,
     ) -> StoredObject:
-        if len(content) > self._settings.max_object_bytes:
+        limit = max_bytes if max_bytes is not None else self._settings.max_object_bytes
+        if len(content) > limit:
             raise ObjectTooLargeError(
                 "object exceeds max size",
-                details={"max_bytes": self._settings.max_object_bytes, "actual_bytes": len(content)},
+                details={"max_bytes": limit, "actual_bytes": len(content)},
             )
         bucket = self._settings.default_bucket
         safe_name = self._safe_filename_segment(filename)

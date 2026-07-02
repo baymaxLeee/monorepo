@@ -46,7 +46,8 @@ The stack decision was grounded in current (2026) practice, not memory:
 3. **Indexing pipeline** (`services/indexing.py`): `content_md` -> recursive
    ~512-token chunking -> optional Contextual Retrieval (a cheap chat-model call
    per chunk, bounded concurrency, best-effort) -> embeddings -> `document_chunks`
-   (`embedding vector(1536)` + a DB-`GENERATED` `tsv tsvector`). It fully
+   (`embedding vector(2048)` = doubao-embedding-text dim, + a DB-`GENERATED`
+   `tsv tsvector`). It fully
    replaces a document's chunks on each run.
 
 4. **Timeliness (时效性) is structural.** Re-index on document change (ingest
@@ -71,10 +72,12 @@ The stack decision was grounded in current (2026) practice, not memory:
 ## Consequences
 
 - New knowledge deps: `asyncpg`, `pgvector` (replaced `asyncmy`). New tables:
-  `document_chunks` (+ HNSW index on `embedding`, GIN on `tsv`). `documents` and
+  `document_chunks` (GIN on `tsv`; no ANN index because doubao-embedding-text is
+  2048-dim and pgvector's HNSW/IVFFlat cap at 2000 — dense search is exact,
+  fine at MVP scale). `documents` and
   the artifact tables are reproduced faithfully as a fresh PG baseline
   (`v1.0.0.sql`), which also fixes prior MySQL-migration/model drift.
-- Embedding model and the `vector(1536)` column must agree; changing the
+- Embedding model and the `vector(2048)` column must agree; changing the
   embedding model/dimension requires altering the column and re-indexing
   (`embed_model` is stored per chunk to detect drift).
 - Chinese BM25 uses the `simple` text-search config (no CJK word segmentation);

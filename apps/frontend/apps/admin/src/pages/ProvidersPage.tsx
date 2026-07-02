@@ -131,11 +131,11 @@ const kindPresets: Record<
       '{\n  "generate_audio": true,\n  "ratio": "9:16",\n  "seconds": "5",\n  "watermark": true\n}',
   },
   // Used by the knowledge base for RAG. The embedding model's output dimension
-  // MUST match knowledge's EMBEDDING_DIM (default 1536 = text-embedding-3-small);
+  // MUST match knowledge's EMBEDDING_DIM (default 2048 = doubao-embedding-text);
   // changing it requires altering the vector column and re-indexing.
   embedding: {
-    base_url: "https://api.openai.com/v1",
-    model: "text-embedding-3-small",
+    base_url: ARK_BASE_URL,
+    model: "doubao-embedding-text-240715",
     extra_body: "",
   },
   // Optional RAG reranker (Cohere/Jina-style /rerank). Retrieval degrades to

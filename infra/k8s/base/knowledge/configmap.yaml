@@ -10,4 +10,4 @@ data:
   POSTGRES_DATABASE: "knowledge"
   KNOWLEDGE_DATA_DIR: "/data/objects"
   ADMIN_SERVICE_URL: "http://admin:8001"
-  EMBEDDING_DIM: "1536"
+  EMBEDDING_DIM: "2048"

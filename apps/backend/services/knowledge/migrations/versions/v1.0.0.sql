@@ -111,7 +111,8 @@ CREATE TABLE IF NOT EXISTS artifact_revisions (
 CREATE INDEX IF NOT EXISTS ix_artifact_revisions_document_id ON artifact_revisions (document_id);
 
 -- RAG chunks: dense vector (pgvector) + sparse BM25 (tsvector) for hybrid search.
--- `embedding vector(1536)` must match Settings.embedding_dim; changing the
+-- `embedding vector(2048)` must match Settings.embedding_dim (2048 =
+-- doubao-embedding-text native dim, ByteDance/Volcengine Ark); changing the
 -- embedding model/dimension requires altering this column and re-indexing.
 -- `tsv` is DB-maintained (GENERATED) so the app never writes it.
 CREATE TABLE IF NOT EXISTS document_chunks (
@@ -121,7 +122,7 @@ CREATE TABLE IF NOT EXISTS document_chunks (
   chunk_index integer NOT NULL,
   content text NOT NULL,
   contextualized_content text NULL,
-  embedding vector(1536) NULL,
+  embedding vector(2048) NULL,
   tsv tsvector GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED,
   token_count integer NOT NULL DEFAULT 0,
   embed_model varchar(120) NULL,
@@ -134,7 +135,10 @@ CREATE TABLE IF NOT EXISTS document_chunks (
 CREATE INDEX IF NOT EXISTS ix_document_chunks_user_id ON document_chunks (user_id);
 CREATE INDEX IF NOT EXISTS ix_document_chunks_document_id ON document_chunks (document_id);
 CREATE INDEX IF NOT EXISTS ix_document_chunks_tsv ON document_chunks USING gin (tsv);
-CREATE INDEX IF NOT EXISTS ix_document_chunks_embedding
-  ON document_chunks USING hnsw (embedding vector_cosine_ops);
+-- No ANN (HNSW/IVFFlat) index: pgvector caps those at 2000 dims and
+-- doubao-embedding-text is 2048. Dense search runs exact (sequential) over the
+-- user's chunks, which is fine at MVP scale (per-user ACL keeps N small). To add
+-- ANN later, either reduce the embedding to <=2000 dims (doubao supports 1024)
+-- or move vectors to a dedicated store (Qdrant).
 
 UPDATE migration SET version = 'v1.0.0', update_time = NOW() WHERE id = 1;

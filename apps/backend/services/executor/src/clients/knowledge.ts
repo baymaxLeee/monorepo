@@ -29,6 +29,20 @@ function knowledgeClient(): KnowledgeInternalClient {
   });
 }
 
+// Assembled video reels are tens of MB; the base64 upload must not race the
+// default 15s internal-client timeout. Media uploads get their own generous
+// window (other executor→knowledge calls keep the fast-failing default).
+const MEDIA_UPLOAD_TIMEOUT_MS = 180_000;
+
+function knowledgeMediaClient(): KnowledgeInternalClient {
+  const s = getSettings();
+  return new KnowledgeInternalClient({
+    baseUrl: s.knowledgeServiceUrl,
+    internalToken: s.internalApiToken,
+    timeoutMs: MEDIA_UPLOAD_TIMEOUT_MS,
+  });
+}
+
 export async function getDocument(userId: string, documentId: string): Promise<KnowledgeDocument> {
   return knowledgeClient().getDocument({ userId, documentId });
 }
@@ -45,7 +59,7 @@ export async function createMediaDocument(input: {
   bytes: Uint8Array;
   idempotencyKey?: string;
 }): Promise<KnowledgeDocument> {
-  return knowledgeClient().createMediaDocument(input);
+  return knowledgeMediaClient().createMediaDocument(input);
 }
 
 export async function getLatestArtifactWorkspace(

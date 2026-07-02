@@ -32,6 +32,11 @@ class Settings(BaseSettings):
 
     knowledge_data_dir: str = "./data/objects"
     max_object_bytes: int = 10 * 1024 * 1024
+    # Server-generated media (executor short-drama reels, images) is trusted and
+    # routinely tens of MB after ffmpeg re-encode — well above the 10 MB general
+    # object cap and the user-attachment cap. Guard the internal media path with
+    # its own generous ceiling so a normal reel never trips a 413.
+    media_max_object_bytes: int = 512 * 1024 * 1024
     attachment_max_upload_bytes: int = 10 * 1024 * 1024
     attachment_markdown_max_chars: int = 12_000
     attachment_vision_max_tokens: int = 1024
@@ -42,8 +47,10 @@ class Settings(BaseSettings):
     # ── RAG / retrieval ────────────────────────────────────────────────
     # Embedding vector dimension. Must match the configured embedding model and
     # the `vector(N)` column in the migration; changing it requires a re-index.
-    # 1536 covers OpenAI text-embedding-3-* and many OpenAI-compatible models.
-    embedding_dim: int = 1536
+    # 2048 = doubao-embedding-text native dim (ByteDance/Volcengine Ark), the
+    # standardized embedding for this deployment. (doubao supports 512/1024/2048;
+    # OpenAI text-embedding-3-small would be 1536.)
+    embedding_dim: int = 2048
     # Recursive chunking target (tokens) — recursive ~512 is a strong 2026 baseline.
     chunk_max_tokens: int = 512
     chunk_overlap_tokens: int = 64

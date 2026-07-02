@@ -8,6 +8,7 @@ from hashlib import sha256
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from kernel.errors import ConflictError, NotFoundError, RequestError
+from knowledge.config import get_settings
 from knowledge.crud import documents as document_crud
 from knowledge.deps import DbSession, require_internal_token
 from knowledge.schemas.document import (
@@ -161,6 +162,7 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
         mime_type=payload.mime_type,
         user_id=payload.user_id,
         prefix=f"media/{payload.conversation_id or 'general'}",
+        max_bytes=get_settings().media_max_object_bytes,
     )
     try:
         row = await document_crud.create_document(
