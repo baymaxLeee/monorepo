@@ -14,6 +14,11 @@ export interface Settings {
   adminServiceUrl: string;
   knowledgeServiceUrl: string;
   chatServiceUrl: string;
+  // Path to the ffmpeg binary used by the video-generation workflow to
+  // concatenate per-scene clips. Defaults to `ffmpeg` on PATH (Docker installs
+  // it via apt; local dev needs it installed). Deliberately an OS binary, not
+  // `ffmpeg-static`, to avoid Nitro/nft native-binary bundling issues.
+  ffmpegPath: string;
 }
 
 function envOr(key: string, fallback: string): string {
@@ -51,5 +56,6 @@ export function getSettings(): Settings {
     // EXECUTOR_SERVICE_URL and lets executor reach chat's /internal endpoints
     // directly (not via the gateway), authed by the shared internal token.
     chatServiceUrl: envOr("CHAT_SERVICE_URL", "http://localhost:8009"),
+    ffmpegPath: envOr("FFMPEG_PATH", "ffmpeg"),
   };
 }

@@ -125,8 +125,10 @@ const kindPresets: Record<
     base_url: ARK_BASE_URL,
     model: "doubao-seedance-2-0-260128",
     // Ark native video duration is `seconds` (string), not `duration`.
+    // Vertical short-drama defaults: 9:16 portrait with native audio on
+    // (抖音/小红书 投流 needs sound); mirrors executor ARK_VIDEO_DEFAULTS.
     extra_body:
-      '{\n  "generate_audio": false,\n  "ratio": "16:9",\n  "seconds": "5",\n  "watermark": true\n}',
+      '{\n  "generate_audio": true,\n  "ratio": "9:16",\n  "seconds": "5",\n  "watermark": true\n}',
   },
 };
 
@@ -548,7 +550,7 @@ function ProviderFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
