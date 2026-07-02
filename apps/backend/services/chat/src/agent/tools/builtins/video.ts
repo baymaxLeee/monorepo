@@ -22,17 +22,31 @@ function safeVideoFilename(prompt: string): string {
   return `${slug}.mp4`;
 }
 
+const VIDEO_DURATION_MIN_S = 4;
+const VIDEO_DURATION_MAX_S = 30;
+const VIDEO_DURATION_AUTO = -1;
+
 export function createVideoTools(videoProviderId: string) {
   return {
     generate_video: tool({
       description:
-        "Generate a short video from a text prompt using the user's configured video model (e.g. Volcengine Ark Seedance) and render it inline in the chat. Use this whenever the user asks to create, make, or generate a video, animation, or short clip. Write the prompt in concrete cinematic detail (subject, action, camera movement, style, lighting, mood). Video generation is asynchronous and takes tens of seconds to a few minutes; this call runs it as a durable background task and blocks until it finishes, then returns the persisted video — do not restate file IDs or download steps, and do not call it again for the same request while it is running. Requires the user to have configured and selected a video provider; if none is available the tool returns an error you must relay, asking them to configure one in model management.",
+        "Generate a video from a text prompt using the user's configured video model (e.g. Volcengine Ark Seedance) and render it inline in the chat. Use this whenever the user asks to create, make, or generate a video, animation, or clip. Write the prompt in concrete cinematic detail (subject, action, camera movement, style, lighting, mood). CONTROLLING LENGTH: the output length is set ONLY by the `duration` argument (whole seconds) — never just claim a length in your reply, because your text does not affect the generated video. Capability depends on the selected model: Seedance 2.0 supports 4–15s (fast variant 4–12s), Seedance 2.5 supports a single native clip up to 30s, and `-1` lets the model auto-pick. The provider is the source of truth and rejects any value beyond the selected model's real limit, so do NOT assume a conservative cap — pass the exact length the user asked for, and only clamp if the provider rejects it or you already know the specific model's ceiling (then tell the user what you used). Omit `duration` to use the provider default (~5s). Video generation is asynchronous and takes tens of seconds to a few minutes; this call runs it as a durable background task and blocks until it finishes, then returns the persisted video — do not restate file IDs or download steps, and do not call it again for the same request while it is running. Requires the user to have configured and selected a video provider; if none is available the tool returns an error you must relay, asking them to configure one in model management.",
       inputSchema: z.object({
         prompt: z
           .string()
           .min(1)
           .max(4000)
           .describe("Rich, concrete cinematic description of the video to generate."),
+        duration: z
+          .number()
+          .int()
+          .refine((seconds) => seconds === VIDEO_DURATION_AUTO || seconds >= 1, {
+            message: `duration must be ${VIDEO_DURATION_AUTO} (auto) or a positive number of seconds`,
+          })
+          .optional()
+          .describe(
+            `Desired video length in whole seconds, or ${VIDEO_DURATION_AUTO} to let the model auto-pick. Capability depends on the selected model — Seedance 2.0: ${VIDEO_DURATION_MIN_S}–15s; Seedance 2.5: up to ${VIDEO_DURATION_MAX_S}s single-pass. Pass the exact length the user asked for; the provider enforces the real limit, so this is intentionally NOT hard-capped for newer longer-capable models.`,
+          ),
       }),
       contextSchema: mediaToolContextSchema,
       execute: (input, options) => generateVideoTool(input, options, videoProviderId),
@@ -40,7 +54,7 @@ export function createVideoTools(videoProviderId: string) {
   };
 }
 
-type GenerateVideoInput = { prompt: string };
+type GenerateVideoInput = { prompt: string; duration?: number };
 
 export async function* generateVideoTool(
   input: GenerateVideoInput,
@@ -55,11 +69,6 @@ export async function* generateVideoTool(
   const filename = safeVideoFilename(input.prompt);
 
   try {
-    // Dispatch a durable executor task and foreground-block on it. The first
-    // yield exposes task_id + status so the video card mounts and shows a
-    // generating state; the final yield carries the persisted document_id.
-    // Only the provider id (a reference) travels in the persisted payload; the
-    // executor hydrates the decrypted key in-step at run time (ADR-0014).
     const task = await startTaskResilient(
       {
         type: "video-generation",
@@ -69,6 +78,7 @@ export async function* generateVideoTool(
           conversationId: context.conversationId,
           providerId: videoProviderId,
           prompt: input.prompt,
+          duration: input.duration,
           title,
           filename,
           idempotencyKey: toolCallId,
@@ -77,7 +87,14 @@ export async function* generateVideoTool(
       abortSignal,
     );
 
-    const base = { kind: "video" as const, title, filename, prompt: input.prompt, task_id: task.id };
+    const base = {
+      kind: "video" as const,
+      title,
+      filename,
+      prompt: input.prompt,
+      duration: input.duration,
+      task_id: task.id,
+    };
     yield { ok: true, status: task.status, ...base };
 
     let terminal: Task;

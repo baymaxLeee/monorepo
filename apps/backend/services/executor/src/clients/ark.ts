@@ -8,10 +8,32 @@ import { secureProviderFetch } from "@backend/transport-ts/provider-url";
 
 const VIDEO_TASKS_PATH = "/contents/generations/tasks";
 
-// Reserved keys the caller controls; everything else in the provider's
-// extra_body (ratio, duration, resolution, watermark, generate_audio, seed, ...)
-// is forwarded verbatim as top-level Ark request-body fields.
-const VIDEO_OWNED_KEYS = new Set(["model", "content", "prompt", "test_prompt"]);
+// Ark native video params for POST /contents/generations/tasks. The duration
+// field is `seconds` (a STRING), NOT `duration` — Seedance 2.0 rejects a
+// top-level `duration` in t2v ("parameter duration ... is not valid"). We
+// allowlist the documented params and map common config aliases, so stray
+// extra_body keys (e.g. the admin test-only `test_poll_seconds`) or the legacy
+// `duration` key can no longer 400 the request.
+const ARK_VIDEO_PARAMS = new Set([
+  "seconds",
+  "ratio",
+  "resolution",
+  "framespersecond",
+  "camerafixed",
+  "watermark",
+  "return_last_frame",
+  "generate_audio",
+  "seed",
+  "size",
+  "service_tier",
+  "tools",
+]);
+
+const ARK_VIDEO_ALIASES: Record<string, string> = {
+  duration: "seconds",
+  fps: "framespersecond",
+  camera_fixed: "camerafixed",
+};
 
 export type ArkVideoStatus =
   | "queued"
@@ -43,8 +65,12 @@ export function arkApiRoot(baseUrl: string): string {
 
 function videoBodyOptions(extraBody: Record<string, unknown>): Record<string, unknown> {
   const options: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(extraBody)) {
-    if (!VIDEO_OWNED_KEYS.has(key)) options[key] = value;
+  for (const [rawKey, rawValue] of Object.entries(extraBody)) {
+    const key = ARK_VIDEO_ALIASES[rawKey] ?? rawKey;
+    if (!ARK_VIDEO_PARAMS.has(key)) continue;
+    // `seconds` is a string in the Ark native format ("5", not 5).
+    options[key] =
+      key === "seconds" && typeof rawValue === "number" ? String(rawValue) : rawValue;
   }
   return options;
 }
@@ -54,6 +80,11 @@ export async function createArkVideoTask(input: {
   apiKey: string;
   model: string;
   prompt: string;
+  // Per-request video length in seconds. Ark Seedance reads `duration` as a
+  // top-level request-body integer (supported range ~4–15, default ~5 when
+  // omitted). An explicit value here wins over any `duration` an admin baked
+  // into the provider's extra_body, so callers can set it per conversation.
+  duration?: number;
   extraBody: Record<string, unknown>;
   signal?: AbortSignal;
 }): Promise<string> {
@@ -68,6 +99,7 @@ export async function createArkVideoTask(input: {
       model: input.model,
       content: [{ type: "text", text: input.prompt }],
       ...videoBodyOptions(input.extraBody),
+      ...(input.duration != null ? { duration: input.duration } : {}),
     }),
     signal: input.signal,
   });

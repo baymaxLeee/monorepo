@@ -14,6 +14,11 @@ export const videoGenerationInputSchema = z.object({
   conversationId: z.string().optional(),
   providerId: z.string().min(1),
   prompt: z.string().min(1).max(4000),
+  // Whole seconds, or -1 for "auto". Intentionally not range-capped here: the
+  // chat tool already sanity-checks the value and Ark is the authority on what
+  // its selected model supports (and errors out otherwise), so this stays open
+  // for longer-capable future models without an executor change.
+  duration: z.number().int().optional(),
   title: z.string().min(1).max(120),
   filename: z.string().min(1).max(160),
   idempotencyKey: z.string().min(1).max(120).optional(),
@@ -42,6 +47,7 @@ async function createTaskStep(input: VideoGenerationInput): Promise<string> {
     apiKey: provider.apiKey,
     model: provider.model,
     prompt: input.prompt,
+    duration: input.duration,
     extraBody: provider.extraBody,
     signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS),
   });

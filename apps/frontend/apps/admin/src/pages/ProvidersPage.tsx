@@ -124,8 +124,9 @@ const kindPresets: Record<
   video: {
     base_url: ARK_BASE_URL,
     model: "doubao-seedance-2-0-260128",
+    // Ark native video duration is `seconds` (string), not `duration`.
     extra_body:
-      '{\n  "generate_audio": false,\n  "ratio": "16:9",\n  "duration": 4,\n  "watermark": true\n}',
+      '{\n  "generate_audio": false,\n  "ratio": "16:9",\n  "seconds": "5",\n  "watermark": true\n}',
   },
 };
 
