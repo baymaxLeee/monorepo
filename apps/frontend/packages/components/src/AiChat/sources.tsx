@@ -2,7 +2,7 @@ import type { SourceUrlUIPart } from "ai";
 import { ExternalLinkIcon, LinkIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 import { cn } from "shared";
-import { Badge } from "../Badge";
+import { Badge } from "../shadcn/badge";
 
 export type SourceItem =
   | SourceUrlUIPart

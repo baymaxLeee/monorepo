@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Button } from "../../../Button";
+import { Button } from "../../../shadcn/button";
 import {
   Form,
   FormControl,
@@ -14,10 +14,10 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "../../../Form";
-import { Input } from "../../../Input";
-import { Popover, PopoverAnchor, PopoverContent } from "../../../Popover";
-import { Tooltip, TooltipTrigger } from "../../../Tooltip";
+} from "../../../shadcn/form";
+import { Input } from "../../../shadcn/input";
+import { Popover, PopoverAnchor, PopoverContent } from "../../../shadcn/popover";
+import { Tooltip, TooltipTrigger } from "../../../shadcn/tooltip";
 import { URL_REGEX } from "../../constants";
 import { getFullUrl, getMountedEditorDom } from "../../utils";
 import { EditorTooltipContent } from "../EditorTooltipContent";

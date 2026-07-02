@@ -2,13 +2,13 @@ import type { LucideIcon } from "lucide-react";
 import { XIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 import { cn } from "shared";
-import { Button } from "../Button";
+import { Button } from "../shadcn/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "../Tooltip";
+} from "../shadcn/tooltip";
 import { MessageResponse } from "./message";
 
 export type ArtifactProps = HTMLAttributes<HTMLDivElement>;

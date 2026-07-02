@@ -1,7 +1,7 @@
 import { SparklesIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes } from "react";
 import { cn } from "shared";
-import { Button } from "../Button";
+import { Button } from "../shadcn/button";
 
 export type SuggestionsProps = HTMLAttributes<HTMLDivElement>;
 

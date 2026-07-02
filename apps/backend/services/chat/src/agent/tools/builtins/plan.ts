@@ -12,7 +12,7 @@ export function createPlanTools() {
   return {
     write_plan: tool({
       description:
-        "Create the active Markdown plan artifact. The content must contain the required Chinese plan headings and the filename is normalized to *-plan.md.",
+        "Create the active Markdown plan artifact (see content_md for required structure). The filename is normalized to *-plan.md.",
       inputSchema: writePlanInputSchema,
       contextSchema: planToolContextSchema,
       execute: writePlanTool,

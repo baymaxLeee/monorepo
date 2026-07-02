@@ -14,8 +14,8 @@ import type {
 } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "shared";
-import { Button } from "../Button";
-import { Textarea } from "../Textarea";
+import { Button } from "../shadcn/button";
+import { Textarea } from "../shadcn/textarea";
 import {
   PromptInputContext,
   type PromptInputContextValue,

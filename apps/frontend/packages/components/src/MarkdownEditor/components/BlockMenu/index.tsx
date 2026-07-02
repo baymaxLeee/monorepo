@@ -19,8 +19,8 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useRef, useState } from "react";
-import { Menu, MenuItem, MenuItemGroup } from "../../../Menu";
-import { Popover, PopoverContent, PopoverTrigger } from "../../../Popover";
+import { Menu, MenuItem, MenuItemGroup } from "../../../shadcn/menu";
+import { Popover, PopoverContent, PopoverTrigger } from "../../../shadcn/popover";
 import { ALLOWED_IMAGE_ACCEPT, isAllowedImageFile } from "../../constants";
 import { useEditorContext } from "../../context";
 import { TableSelector } from "../TableSelector";

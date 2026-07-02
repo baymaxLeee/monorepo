@@ -13,7 +13,7 @@ import {
   useRef,
 } from "react";
 import { cn } from "shared";
-import { Button } from "../../Button";
+import { Button } from "../../shadcn/button";
 import { createPromptTokenExtension } from "../extensions/PromptToken";
 import type {
   PromptInputApi,

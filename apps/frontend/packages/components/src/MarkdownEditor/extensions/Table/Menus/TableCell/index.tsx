@@ -2,7 +2,7 @@ import type { Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { AlignCenter, AlignLeft, AlignRight, Merge, Split } from "lucide-react";
 import type React from "react";
-import { Menu } from "../../../../../Menu";
+import { Menu } from "../../../../../shadcn/menu";
 import { ALWAYS_SHOW, MenuItem } from "../MenuItem";
 
 interface TableCellMenuProps {

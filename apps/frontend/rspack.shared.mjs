@@ -9,6 +9,33 @@ const cssLoader = require.resolve("css-loader");
 const styleLoader = require.resolve("style-loader");
 
 /**
+ * Shared TS/TSX rule via Rspack's native SWC loader.
+ *
+ * React Compiler runs inside `builtin:swc-loader` (Rust port, Rspack ≥ 2.1) —
+ * no Babel pass. On React 18 the compiled output imports the memoization cache
+ * helper (`_c`) from the `react-compiler-runtime` polyfill, so pass
+ * `reactCompiler: { target: "18" }` and keep that package installed + shared.
+ *
+ * @param {{ reactCompiler?: boolean | Record<string, unknown> }} [opts]
+ */
+export function createSwcRule({ reactCompiler = false } = {}) {
+  return {
+    test: /\.(t|j)sx?$/,
+    exclude: /node_modules/,
+    loader: "builtin:swc-loader",
+    options: {
+      jsc: {
+        parser: { syntax: "typescript", tsx: true },
+        transform: {
+          react: { runtime: "automatic" },
+          ...(reactCompiler ? { reactCompiler } : {}),
+        },
+      },
+    },
+  };
+}
+
+/**
  * Host-only: Tailwind v4 via @tailwindcss/webpack (no postcss.config).
  * Remotes must NOT register this rule — they consume CSS from platform.
  */

@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "shared";
-import { Badge } from "../Badge";
+import { Badge } from "../shadcn/badge";
 
 export type WorkflowStatus =
   | "pending"

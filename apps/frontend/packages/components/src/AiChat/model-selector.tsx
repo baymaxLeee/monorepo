@@ -1,14 +1,14 @@
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes } from "react";
 import { cn } from "shared";
-import { Badge } from "../Badge";
-import { Button } from "../Button";
+import { Badge } from "../shadcn/badge";
+import { Button } from "../shadcn/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "../DropdownMenu";
+} from "../shadcn/dropdown-menu";
 
 export type ModelSelectorOption = {
   id: string;

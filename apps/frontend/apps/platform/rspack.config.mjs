@@ -8,6 +8,7 @@ import { buildShared } from "../../mf-shared.mjs";
 import {
   createAppResolveAlias,
   createHostCssRule,
+  createSwcRule,
 } from "../../rspack.shared.mjs";
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -56,17 +57,7 @@ export default defineConfig({
   },
   module: {
     rules: [
-      {
-        test: /\.(t|j)sx?$/,
-        exclude: /node_modules/,
-        loader: "builtin:swc-loader",
-        options: {
-          jsc: {
-            parser: { syntax: "typescript", tsx: true },
-            transform: { react: { runtime: "automatic" } },
-          },
-        },
-      },
+      createSwcRule({ reactCompiler: { target: "18" } }),
       createHostCssRule({
         loader: isProduction
           ? rspack.CssExtractRspackPlugin.loader

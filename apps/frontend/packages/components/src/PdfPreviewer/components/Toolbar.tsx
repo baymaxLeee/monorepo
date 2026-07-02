@@ -13,16 +13,16 @@ import {
 import { type ReactNode, useMemo, useState } from "react";
 
 import { cn } from "shared";
-import { Button } from "../../Button";
+import { Button } from "../../shadcn/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "../../DropdownMenu";
-import { Input } from "../../Input";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../Tooltip";
+} from "../../shadcn/dropdown-menu";
+import { Input } from "../../shadcn/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../shadcn/tooltip";
 import type { PdfSidebarType, PdfToolbarConfig } from "../interface";
 
 export const DEFAULT_TOOLBAR_CONFIG: Required<PdfToolbarConfig> = {

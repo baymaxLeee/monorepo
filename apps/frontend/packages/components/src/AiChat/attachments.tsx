@@ -15,7 +15,7 @@ import {
   useContext,
 } from "react";
 import { cn } from "shared";
-import { Button } from "../Button";
+import { Button } from "../shadcn/button";
 
 export type AttachmentItem = (FileUIPart | SourceDocumentUIPart) & {
   id?: string;

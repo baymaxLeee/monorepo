@@ -13,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type React from "react";
-import { Menu } from "../../../../../Menu";
+import { Menu } from "../../../../../shadcn/menu";
 import { useEditorContext } from "../../../../context";
 import { isCellSelection, isEntireTableSelected } from "../../utils";
 import { ALWAYS_SHOW, MenuItem } from "../MenuItem";

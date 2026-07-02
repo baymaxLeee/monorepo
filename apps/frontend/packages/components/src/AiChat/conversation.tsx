@@ -4,7 +4,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { useCallback } from "react";
 import { cn } from "shared";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
-import { Button } from "../Button";
+import { Button } from "../shadcn/button";
 
 export type ConversationProps = ComponentProps<typeof StickToBottom>;
 

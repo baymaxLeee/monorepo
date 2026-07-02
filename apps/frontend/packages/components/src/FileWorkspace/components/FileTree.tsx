@@ -12,7 +12,7 @@ import { cn } from "shared";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { FileIcon } from "../../FileIcon";
-import { Input } from "../../Input";
+import { Input } from "../../shadcn/input";
 import { ChangeAction, type FileChange, type FileNode } from "../interface";
 import { isDescendant, updateTree } from "../utils";
 

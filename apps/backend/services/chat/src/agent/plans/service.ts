@@ -3,18 +3,19 @@ import { createArtifact, getDocument, updateArtifact } from "../../clients/knowl
 import { setActivePlanDocument } from "../../services/conversations.js";
 import type { PlanToolContext } from "../tools/context.js";
 
-const PLAN_TEMPLATE_HEADINGS = ["# 目标", "## 背景与约束", "## 实施方案", "## 任务", "## 验收标准"];
+const PLAN_CONTENT_DESCRIPTION =
+  "Full plan Markdown. Must contain, in order: # 目标, ## 背景与约束, ## 实施方案, ## 任务 (a checklist: - [ ] one step per line), ## 验收标准.";
 
 export const writePlanInputSchema = z.object({
   title: z.string().min(1).max(120),
   filename: z.string().min(1).max(160),
-  content_md: z.string().min(1).max(40_000),
+  content_md: z.string().min(1).max(40_000).describe(PLAN_CONTENT_DESCRIPTION),
 });
 
 export const updatePlanInputSchema = z.object({
   document_id: z.string().min(1).max(32),
   base_revision_id: z.string().min(1).max(80),
-  content_md: z.string().min(1).max(40_000),
+  content_md: z.string().min(1).max(40_000).describe(PLAN_CONTENT_DESCRIPTION),
 });
 
 export type PlanArtifactOutput = {
@@ -37,11 +38,6 @@ function planFilename(value: string): string {
   return `${base}-plan.md`;
 }
 
-function validatePlanMarkdown(content: string): void {
-  const missing = PLAN_TEMPLATE_HEADINGS.filter((heading) => !content.includes(heading));
-  if (missing.length) throw new Error(`plan markdown is missing required sections: ${missing.join(", ")}`);
-}
-
 function output(document: { id: string; updated_at: string; title: string; filename: string }): PlanArtifactOutput {
   return {
     ok: true,
@@ -58,7 +54,6 @@ export async function writePlanTool(
   input: z.infer<typeof writePlanInputSchema>,
   { context, toolCallId }: { context: PlanToolContext; toolCallId: string },
 ): Promise<PlanArtifactOutput> {
-  validatePlanMarkdown(input.content_md);
   const document = await createArtifact({
     userId: context.userId,
     conversationId: context.conversationId,
@@ -76,7 +71,6 @@ export async function updatePlanTool(
   input: z.infer<typeof updatePlanInputSchema>,
   { context }: { context: PlanToolContext; toolCallId: string },
 ): Promise<PlanArtifactOutput | { ok: false; conflict: true; error: string; revision_id?: string }> {
-  validatePlanMarkdown(input.content_md);
   const current = await getDocument(context.userId, input.document_id);
   if (current.conversation_id !== context.conversationId || current.kind !== "artifact") {
     return { ok: false, conflict: true, error: "active plan artifact was not found" };

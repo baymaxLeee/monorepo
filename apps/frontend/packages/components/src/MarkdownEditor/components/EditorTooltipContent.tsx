@@ -1,6 +1,6 @@
 import type React from "react";
 
-import { TooltipContent } from "../../Tooltip";
+import { TooltipContent } from "../../shadcn/tooltip";
 
 type EditorTooltipContentProps = React.ComponentProps<typeof TooltipContent>;
 

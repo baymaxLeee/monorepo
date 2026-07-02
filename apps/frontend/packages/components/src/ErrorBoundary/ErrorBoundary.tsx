@@ -6,14 +6,14 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
-import { Button } from "../Button";
+import { Button } from "../shadcn/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "../Card";
+} from "../shadcn/card";
 
 export type ErrorFallbackProps = {
   error: Error;

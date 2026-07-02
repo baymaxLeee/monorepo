@@ -23,8 +23,8 @@ import {
 } from "react";
 import { cn } from "shared";
 import MindMap from "simple-mind-map";
-import { Button } from "../../Button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../Tooltip";
+import { Button } from "../../shadcn/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../shadcn/tooltip";
 import type {
   XMindFullData,
   XMindNode,

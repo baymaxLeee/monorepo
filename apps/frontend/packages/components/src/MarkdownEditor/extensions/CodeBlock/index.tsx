@@ -11,15 +11,15 @@ import type React from "react";
 import { useState } from "react";
 import { cn } from "shared";
 import { toast } from "sonner";
-import { Input } from "../../../Input";
+import { Input } from "../../../shadcn/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../../../Select";
-import { Tooltip, TooltipTrigger } from "../../../Tooltip";
+} from "../../../shadcn/select";
+import { Tooltip, TooltipTrigger } from "../../../shadcn/tooltip";
 import { EditorTooltipContent } from "../../components/EditorTooltipContent";
 import { useEditorContext } from "../../context";
 

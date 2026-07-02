@@ -46,7 +46,7 @@ import { cn } from "shared";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 
-import { Button } from "../../../Button";
+import { Button } from "../../../shadcn/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,12 +56,12 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "../../../DropdownMenu";
-import { Input } from "../../../Input";
-import { Menu, MenuItem, MenuItemGroup } from "../../../Menu";
-import { Popover, PopoverContent, PopoverTrigger } from "../../../Popover";
-import { Textarea } from "../../../Textarea";
-import { Tooltip, TooltipTrigger } from "../../../Tooltip";
+} from "../../../shadcn/dropdown-menu";
+import { Input } from "../../../shadcn/input";
+import { Menu, MenuItem, MenuItemGroup } from "../../../shadcn/menu";
+import { Popover, PopoverContent, PopoverTrigger } from "../../../shadcn/popover";
+import { Textarea } from "../../../shadcn/textarea";
+import { Tooltip, TooltipTrigger } from "../../../shadcn/tooltip";
 import {
   AiPolishStatus,
   ALLOWED_IMAGE_ACCEPT,

@@ -93,6 +93,24 @@
           "style": { "useNodejsImportProtocol": "off" }
         }
       }
+    },
+    {
+      "includes": ["**/packages/components/src/shadcn/**"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useSemanticElements": "off",
+            "useFocusableInteractive": "off",
+            "useAriaPropsForRole": "off",
+            "noRedundantRoles": "off"
+          },
+          "suspicious": {
+            "noArrayIndexKey": "off",
+            "noDocumentCookie": "off",
+            "noDoubleEquals": "off"
+          }
+        }
+      }
     }
   ]
 }
