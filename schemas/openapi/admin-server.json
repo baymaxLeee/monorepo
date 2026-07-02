@@ -2373,6 +2373,77 @@
         }
       }
     },
+    "/internal/providers/by-kind/{kind}": {
+      "get": {
+        "tags": [
+          "internal-providers"
+        ],
+        "summary": "Get Provider By Kind Internal",
+        "description": "First enabled provider of `kind` (embedding/rerank/...) for the user.\n\nUsed by knowledge to resolve the embedding/rerank model for RAG. Non-chat\nkinds have no default flag, so this returns the newest enabled one.",
+        "operationId": "get_provider_by_kind_internal_internal_providers_by_kind__kind__get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Owner of the provider",
+              "title": "User Id"
+            },
+            "description": "Owner of the provider"
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalModelProvider"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/internal/providers/{provider_id}": {
       "get": {
         "tags": [
@@ -3343,7 +3414,9 @@
             "enum": [
               "chat",
               "image",
-              "video"
+              "video",
+              "embedding",
+              "rerank"
             ],
             "title": "Provider Kind",
             "default": "chat"
@@ -3540,7 +3613,9 @@
             "enum": [
               "chat",
               "image",
-              "video"
+              "video",
+              "embedding",
+              "rerank"
             ],
             "title": "Provider Kind"
           },
@@ -3615,7 +3690,9 @@
             "enum": [
               "chat",
               "image",
-              "video"
+              "video",
+              "embedding",
+              "rerank"
             ],
             "title": "Provider Kind"
           },
@@ -4166,7 +4243,9 @@
                 "enum": [
                   "chat",
                   "image",
-                  "video"
+                  "video",
+                  "embedding",
+                  "rerank"
                 ]
               },
               {

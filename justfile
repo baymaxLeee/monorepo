@@ -13,7 +13,8 @@ up:
     @./scripts/db-bootstrap.sh
     @./scripts/wait-for-workflow-postgres.sh
     @./scripts/workflow-postgres-bootstrap.sh
-    @echo "OK Infra up - MySQL :3306, Redis :6379, workflow-postgres :5432"
+    @./scripts/db-migrate.sh apps/backend/services/knowledge
+    @echo "OK Infra up - MySQL :3306, Redis :6379, Postgres :5432 (workflow + knowledge)"
 
 reset-demo-data:
     @./scripts/reset-demo-data.sh

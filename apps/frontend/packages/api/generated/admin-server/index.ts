@@ -152,6 +152,8 @@ export const CreateModelProviderInputProviderKind = {
   chat: 'chat',
   image: 'image',
   video: 'video',
+  embedding: 'embedding',
+  rerank: 'rerank',
 } as const;
 
 export type CreateModelProviderInputExtraBody = { [key: string]: unknown };
@@ -258,6 +260,8 @@ export const InternalModelProviderProviderKind = {
   chat: 'chat',
   image: 'image',
   video: 'video',
+  embedding: 'embedding',
+  rerank: 'rerank',
 } as const;
 
 export type InternalModelProviderExtraBody = { [key: string]: unknown };
@@ -287,6 +291,8 @@ export const ModelProviderProviderKind = {
   chat: 'chat',
   image: 'image',
   video: 'video',
+  embedding: 'embedding',
+  rerank: 'rerank',
 } as const;
 
 export type ModelProviderExtraBody = { [key: string]: unknown };
@@ -420,6 +426,8 @@ export const UpdateModelProviderInputProviderKind = {
   chat: 'chat',
   image: 'image',
   video: 'video',
+  embedding: 'embedding',
+  rerank: 'rerank',
 } as const;
 
 export type UpdateModelProviderInputExtraBody = { [key: string]: unknown } | null;
@@ -460,6 +468,14 @@ export type ReadyzReadyzGet200 = { [key: string]: unknown };
 export type HealthzHealthzGet200 = { [key: string]: unknown };
 
 export type GetDefaultProviderInternalInternalProvidersDefaultGetParams = {
+/**
+ * Owner of the provider
+ * @minLength 1
+ */
+user_id: string;
+};
+
+export type GetProviderByKindInternalInternalProvidersByKindKindGetParams = {
 /**
  * Owner of the provider
  * @minLength 1
@@ -866,6 +882,24 @@ const getDefaultProviderInternalInternalProvidersDefaultGet = (
     }
 
 /**
+ * First enabled provider of `kind` (embedding/rerank/...) for the user.
+ *
+ * Used by knowledge to resolve the embedding/rerank model for RAG. Non-chat
+ * kinds have no default flag, so this returns the newest enabled one.
+ * @summary Get Provider By Kind Internal
+ */
+const getProviderByKindInternalInternalProvidersByKindKindGet = (
+    kind: string,
+    params: GetProviderByKindInternalInternalProvidersByKindKindGetParams,
+ options?: SecondParameter<typeof apiMutator<InternalModelProvider>>,) => {
+      return apiMutator<InternalModelProvider>(
+      {url: `/internal/providers/by-kind/${kind}`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+/**
  * @summary Get Provider Internal
  */
 const getProviderInternalInternalProvidersProviderIdGet = (
@@ -958,7 +992,7 @@ const deleteAppAppsAppIdDelete = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listScenesScenesGet,createSceneScenesPost,getSceneScenesSceneIdGet,updateSceneScenesSceneIdPatch,deleteSceneScenesSceneIdDelete,bulkDeleteScenesScenesBulkDeletePost,listIntentionsIntentionsGet,createIntentionIntentionsPost,getIntentionIntentionsIntentionIdGet,updateIntentionIntentionsIntentionIdPatch,deleteIntentionIntentionsIntentionIdDelete,bulkDeleteIntentionsIntentionsBulkDeletePost,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderInternalInternalProvidersProviderIdGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listScenesScenesGet,createSceneScenesPost,getSceneScenesSceneIdGet,updateSceneScenesSceneIdPatch,deleteSceneScenesSceneIdDelete,bulkDeleteScenesScenesBulkDeletePost,listIntentionsIntentionsGet,createIntentionIntentionsPost,getIntentionIntentionsIntentionIdGet,updateIntentionIntentionsIntentionIdPatch,deleteIntentionIntentionsIntentionIdDelete,bulkDeleteIntentionsIntentionsBulkDeletePost,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderByKindInternalInternalProvidersByKindKindGet,getProviderInternalInternalProvidersProviderIdGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -993,6 +1027,7 @@ export type BulkDeleteProvidersProvidersBulkDeletePostResult = NonNullable<Await
 export type SetDefaultProviderProvidersProviderIdSetDefaultPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['setDefaultProviderProvidersProviderIdSetDefaultPost']>>>
 export type TestProviderProvidersProviderIdTestPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['testProviderProvidersProviderIdTestPost']>>>
 export type GetDefaultProviderInternalInternalProvidersDefaultGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getDefaultProviderInternalInternalProvidersDefaultGet']>>>
+export type GetProviderByKindInternalInternalProvidersByKindKindGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getProviderByKindInternalInternalProvidersByKindKindGet']>>>
 export type GetProviderInternalInternalProvidersProviderIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getProviderInternalInternalProvidersProviderIdGet']>>>
 export type GetResolvedAgentInternalInternalAgentsAgentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getResolvedAgentInternalInternalAgentsAgentIdGet']>>>
 export type ListAppsAppsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listAppsAppsGet']>>>

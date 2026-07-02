@@ -195,7 +195,7 @@ export function bulkDeleteIntentions(
   });
 }
 
-export type ProviderKind = "chat" | "image" | "video";
+export type ProviderKind = "chat" | "image" | "video" | "embedding" | "rerank";
 
 export interface ModelProvider {
   id: string;

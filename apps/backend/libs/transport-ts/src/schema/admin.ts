@@ -305,6 +305,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/providers/by-kind/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Provider By Kind Internal
+         * @description First enabled provider of `kind` (embedding/rerank/...) for the user.
+         *
+         *     Used by knowledge to resolve the embedding/rerank model for RAG. Non-chat
+         *     kinds have no default flag, so this returns the newest enabled one.
+         */
+        get: operations["get_provider_by_kind_internal_internal_providers_by_kind__kind__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/providers/{provider_id}": {
         parameters: {
             query?: never;
@@ -544,7 +567,7 @@ export interface components {
              * @default chat
              * @enum {string}
              */
-            provider_kind: "chat" | "image" | "video";
+            provider_kind: "chat" | "image" | "video" | "embedding" | "rerank";
             /**
              * Base Url
              * Format: uri
@@ -648,7 +671,7 @@ export interface components {
              * Provider Kind
              * @enum {string}
              */
-            provider_kind: "chat" | "image" | "video";
+            provider_kind: "chat" | "image" | "video" | "embedding" | "rerank";
             /** Base Url */
             base_url: string;
             /** Api Key */
@@ -683,7 +706,7 @@ export interface components {
              * Provider Kind
              * @enum {string}
              */
-            provider_kind: "chat" | "image" | "video";
+            provider_kind: "chat" | "image" | "video" | "embedding" | "rerank";
             /** Base Url */
             base_url: string;
             /** Api Key Masked */
@@ -827,7 +850,7 @@ export interface components {
             /** Model */
             model?: string | null;
             /** Provider Kind */
-            provider_kind?: ("chat" | "image" | "video") | null;
+            provider_kind?: ("chat" | "image" | "video" | "embedding" | "rerank") | null;
             /** Base Url */
             base_url?: string | null;
             /** Api Key */
@@ -1847,6 +1870,42 @@ export interface operations {
                 "X-Internal-Token"?: string | null;
             };
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalModelProvider"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_provider_by_kind_internal_internal_providers_by_kind__kind__get: {
+        parameters: {
+            query: {
+                /** @description Owner of the provider */
+                user_id: string;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                kind: string;
+            };
             cookie?: never;
         };
         requestBody?: never;

@@ -6,6 +6,13 @@ export const fileToolContextSchema = z.object({
 });
 export type FileToolContext = z.infer<typeof fileToolContextSchema>;
 
+// Knowledge-base search is user-scoped (the whole KB, not just this
+// conversation's attachments), so it only needs the userId.
+export const knowledgeSearchToolContextSchema = z.object({
+  userId: z.string(),
+});
+export type KnowledgeSearchToolContext = z.infer<typeof knowledgeSearchToolContextSchema>;
+
 export const memoryToolContextSchema = z.object({
   runId: z.string(),
   userId: z.string(),

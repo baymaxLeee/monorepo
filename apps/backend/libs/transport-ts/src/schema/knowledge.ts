@@ -360,6 +360,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/retrieve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retrieve Chunks */
+        post: operations["retrieve_chunks_internal_retrieve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -666,6 +683,39 @@ export interface components {
             run_id?: string | null;
             /** Tool Call Id */
             tool_call_id?: string | null;
+        };
+        /** RetrieveInput */
+        RetrieveInput: {
+            /** User Id */
+            user_id: string;
+            /** Query */
+            query: string;
+            /** Top K */
+            top_k?: number | null;
+        };
+        /** RetrieveResult */
+        RetrieveResult: {
+            /** Query */
+            query: string;
+            /** Chunks */
+            chunks: components["schemas"]["RetrievedChunk"][];
+            /** Note */
+            note?: string | null;
+        };
+        /** RetrievedChunk */
+        RetrievedChunk: {
+            /** Document Id */
+            document_id: string;
+            /** Chunk Index */
+            chunk_index: number;
+            /** Content */
+            content: string;
+            /** Score */
+            score: number;
+            /** Title */
+            title: string;
+            /** Filename */
+            filename: string;
         };
         /** SaveArtifactBlockInput */
         SaveArtifactBlockInput: {
@@ -1576,6 +1626,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublishedArtifactRevision"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieve_chunks_internal_retrieve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetrieveInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetrieveResult"];
                 };
             };
             /** @description Validation Error */

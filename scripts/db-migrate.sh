@@ -3,17 +3,27 @@ set -euo pipefail
 
 SERVICE_DIR="${1:?Usage: db-migrate.sh <service-dir> [target-version]}"
 TARGET_VERSION="${2:-}"
-CONTAINER="${MYSQL_CONTAINER:-monorepo-mysql}"
-APP_USER="${MYSQL_USER:-dev}"
-ROOT_USER="${MYSQL_ROOT_USER:-root}"
-ROOT_PASS="${MYSQL_ROOT_PASSWORD:-dev}"
+
+# Engine selection: a service opts into Postgres with a `migrations/engine`
+# marker file containing "postgres"; everything else defaults to MySQL.
+ENGINE="mysql"
+if [ -f "$SERVICE_DIR/migrations/engine" ]; then
+  ENGINE="$(tr -d '[:space:]' < "$SERVICE_DIR/migrations/engine")"
+fi
+
+# MySQL connection (shared business instance)
+MYSQL_CONTAINER_NAME="${MYSQL_CONTAINER:-monorepo-mysql}"
+MYSQL_APP_USER="${MYSQL_USER:-dev}"
+MYSQL_ROOT_USER_NAME="${MYSQL_ROOT_USER:-root}"
+MYSQL_ROOT_PASS="${MYSQL_ROOT_PASSWORD:-dev}"
+
+# Postgres connection (shared instance: workflow DB + knowledge DB)
+PG_CONTAINER_NAME="${POSTGRES_CONTAINER:-monorepo-workflow-postgres}"
+PG_USER_NAME="${POSTGRES_USER:-workflow}"
+PG_PASSWORD_VALUE="${POSTGRES_PASSWORD:-workflow}"
 
 service_database_name() {
   basename "$1" | tr '-' '_'
-}
-
-mysql_root() {
-  docker exec -i "$CONTAINER" mysql -u"$ROOT_USER" -p"$ROOT_PASS" "$@"
 }
 
 validate_version() {
@@ -56,8 +66,35 @@ if [ -n "$TARGET_VERSION" ] && ! validate_version "$TARGET_VERSION"; then
   exit 1
 fi
 
-mysql_root -e "CREATE DATABASE IF NOT EXISTS \`$DB\`; GRANT ALL PRIVILEGES ON \`$DB\`.* TO '$APP_USER'@'%'; FLUSH PRIVILEGES;"
-mysql_root "$DB" <<'SQL'
+# ── engine-specific primitives ─────────────────────────────────────────
+mysql_root() {
+  docker exec -i "$MYSQL_CONTAINER_NAME" mysql -u"$MYSQL_ROOT_USER_NAME" -p"$MYSQL_ROOT_PASS" "$@"
+}
+
+pg() {
+  docker exec -i -e PGPASSWORD="$PG_PASSWORD_VALUE" "$PG_CONTAINER_NAME" \
+    psql -v ON_ERROR_STOP=1 -U "$PG_USER_NAME" "$@"
+}
+
+ensure_db_and_migration_table() {
+  if [ "$ENGINE" = "postgres" ]; then
+    if ! pg -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB';" | grep -q 1; then
+      pg -d postgres -c "CREATE DATABASE \"$DB\";"
+    fi
+    pg -d "$DB" -c "CREATE EXTENSION IF NOT EXISTS vector;"
+    pg -d "$DB" <<'SQL'
+CREATE TABLE IF NOT EXISTS migration (
+  id smallint NOT NULL PRIMARY KEY,
+  version varchar(32) NOT NULL,
+  update_time timestamptz NOT NULL
+);
+INSERT INTO migration (id, version, update_time)
+VALUES (1, 'v0.0.0', NOW())
+ON CONFLICT (id) DO NOTHING;
+SQL
+  else
+    mysql_root -e "CREATE DATABASE IF NOT EXISTS \`$DB\`; GRANT ALL PRIVILEGES ON \`$DB\`.* TO '$MYSQL_APP_USER'@'%'; FLUSH PRIVILEGES;"
+    mysql_root "$DB" <<'SQL'
 CREATE TABLE IF NOT EXISTS `migration` (
   `id` TINYINT NOT NULL COMMENT '主键, 只允许为 1',
   `version` VARCHAR(32) NOT NULL COMMENT '当前数据库表结构版本',
@@ -68,8 +105,38 @@ CREATE TABLE IF NOT EXISTS `migration` (
 INSERT IGNORE INTO `migration` (`id`, `version`, `update_time`)
 VALUES (1, 'v0.0.0', NOW());
 SQL
+  fi
+}
 
-CURRENT_VERSION="$(mysql_root "$DB" -N -B -e "SELECT version FROM migration WHERE id = 1;" | tail -n 1)"
+read_current_version() {
+  if [ "$ENGINE" = "postgres" ]; then
+    pg -d "$DB" -tA -c "SELECT version FROM migration WHERE id = 1;" | tail -n 1 | tr -d '[:space:]'
+  else
+    mysql_root "$DB" -N -B -e "SELECT version FROM migration WHERE id = 1;" | tail -n 1
+  fi
+}
+
+apply_migration_file() {
+  if [ "$ENGINE" = "postgres" ]; then
+    pg -d "$DB" < "$1"
+  else
+    mysql_root "$DB" < "$1"
+  fi
+}
+
+set_migration_version() {
+  if [ "$ENGINE" = "postgres" ]; then
+    pg -d "$DB" -c "UPDATE migration SET version = '$1', update_time = NOW() WHERE id = 1;"
+  else
+    mysql_root "$DB" -e "UPDATE migration SET version = '$1', update_time = NOW() WHERE id = 1;"
+  fi
+}
+
+# ── shared migration flow ──────────────────────────────────────────────
+echo "→ ($ENGINE) preparing database: $DB"
+ensure_db_and_migration_table
+
+CURRENT_VERSION="$(read_current_version)"
 if ! validate_version "$CURRENT_VERSION"; then
   echo "✗ invalid current migration.version in $DB: $CURRENT_VERSION" >&2
   exit 1
@@ -121,10 +188,10 @@ for migration in "${MIGRATIONS[@]}"; do
   file="$(cut -d' ' -f3- <<<"$migration")"
   if version_gt "$version" "$CURRENT_VERSION" && version_le "$version" "$TARGET_VERSION"; then
     echo "  → applying $(basename "$file")"
-    mysql_root "$DB" < "$file"
-    mysql_root "$DB" -e "UPDATE migration SET version = '$version', update_time = NOW() WHERE id = 1;"
+    apply_migration_file "$file"
+    set_migration_version "$version"
   fi
 done
 
-FINAL_VERSION="$(mysql_root "$DB" -N -B -e "SELECT version FROM migration WHERE id = 1;" | tail -n 1)"
+FINAL_VERSION="$(read_current_version)"
 echo "✓ $DB migration.version = $FINAL_VERSION"

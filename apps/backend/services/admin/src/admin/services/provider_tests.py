@@ -12,6 +12,7 @@ from admin.schemas.provider import TestModelProviderResult
 
 CHAT_RESERVED_KEYS = frozenset({"model", "messages", "max_tokens", "stream"})
 IMAGE_RESERVED_KEYS = frozenset({"model", "prompt", "response_format", "n"})
+EMBEDDING_RESERVED_KEYS = frozenset({"model", "input", "encoding_format"})
 VIDEO_TASKS_PATH = "/contents/generations/tasks"
 
 
@@ -179,6 +180,35 @@ async def test_video_provider(
         return TestModelProviderResult(ok=False, error=f"unexpected: {exc}")
 
 
+async def test_embedding_provider(
+    *,
+    base_url: str,
+    api_key: str,
+    model: str,
+    extra_body: dict[str, Any],
+) -> TestModelProviderResult:
+    client = _openai_client(api_key, base_url)
+    start = time.perf_counter()
+    try:
+        resp = await client.embeddings.create(
+            model=model,
+            input="connectivity ping",
+            extra_body=_split_extra_body(extra_body, EMBEDDING_RESERVED_KEYS) or None,
+        )
+    except AuthenticationError as exc:
+        return TestModelProviderResult(ok=False, error=f"authentication: {exc}")
+    except APIError as exc:
+        return TestModelProviderResult(ok=False, error=f"api: {exc}")
+    except Exception as exc:
+        return TestModelProviderResult(ok=False, error=f"unexpected: {exc}")
+    finally:
+        await client.close()
+
+    latency_ms = int((time.perf_counter() - start) * 1000)
+    dim = len(resp.data[0].embedding) if resp.data else 0
+    return TestModelProviderResult(ok=True, latency_ms=latency_ms, sample=f"embedding dim={dim}")
+
+
 async def test_provider_by_kind(
     *,
     provider_kind: str,
@@ -201,6 +231,18 @@ async def test_provider_by_kind(
             model=model,
             extra_body=extra_body,
         )
+    if provider_kind == "embedding":
+        return await test_embedding_provider(
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            extra_body=extra_body,
+        )
+    if provider_kind == "rerank":
+        # Rerank endpoints are not OpenAI-standard and vary by vendor; saving the
+        # provider is validated, but a live rerank call is left to the retrieval
+        # path (knowledge) which degrades gracefully when rerank is unavailable.
+        return TestModelProviderResult(ok=True, sample="rerank provider saved; live test not implemented")
     return await test_chat_provider(
         base_url=base_url,
         api_key=api_key,

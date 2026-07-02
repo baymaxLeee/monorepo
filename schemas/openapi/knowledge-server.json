@@ -1750,6 +1750,65 @@
           }
         }
       }
+    },
+    "/internal/retrieve": {
+      "post": {
+        "tags": [
+          "internal-retrieval"
+        ],
+        "summary": "Retrieve Chunks",
+        "operationId": "retrieve_chunks_internal_retrieve_post",
+        "parameters": [
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetrieveInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrieveResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2753,6 +2812,111 @@
           "idempotency_key"
         ],
         "title": "ReserveArtifactGenerationInput"
+      },
+      "RetrieveInput": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "User Id"
+          },
+          "query": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Query"
+          },
+          "top_k": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 50.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top K"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "query"
+        ],
+        "title": "RetrieveInput"
+      },
+      "RetrieveResult": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "chunks": {
+            "items": {
+              "$ref": "#/components/schemas/RetrievedChunk"
+            },
+            "type": "array",
+            "title": "Chunks"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "chunks"
+        ],
+        "title": "RetrieveResult"
+      },
+      "RetrievedChunk": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "chunk_index": {
+            "type": "integer",
+            "title": "Chunk Index"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "chunk_index",
+          "content",
+          "score",
+          "title",
+          "filename"
+        ],
+        "title": "RetrievedChunk"
       },
       "SaveArtifactBlockInput": {
         "properties": {

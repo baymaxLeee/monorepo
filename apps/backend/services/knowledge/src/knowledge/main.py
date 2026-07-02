@@ -8,7 +8,14 @@ from kernel.errors import register_exception_handlers
 from kernel.tracing import TraceIDMiddleware
 
 from knowledge.db import close_db
-from knowledge.routers import artifacts_internal, documents, documents_internal, health, ingest
+from knowledge.routers import (
+    artifacts_internal,
+    documents,
+    documents_internal,
+    health,
+    ingest,
+    retrieval_internal,
+)
 from knowledge.services.admin_client import close_admin_client
 
 
@@ -33,6 +40,7 @@ def create_app() -> FastAPI:
     app.include_router(documents.router)
     app.include_router(documents_internal.router)
     app.include_router(artifacts_internal.router)
+    app.include_router(retrieval_internal.router)
     return app
 
 

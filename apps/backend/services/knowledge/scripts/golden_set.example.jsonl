@@ -1,0 +1,5 @@
+# Golden set template for scripts/eval_rag.py (JSONL; lines starting with # are ignored).
+# Replace with your own queries + expectations after ingesting real documents.
+{"query": "What is the reimbursement limit?", "expected_substrings": ["reimbursement"]}
+{"query": "How many days of annual leave?", "expected_substrings": ["annual leave"]}
+{"query": "报销上限是多少?", "expected_substrings": ["报销"]}

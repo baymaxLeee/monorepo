@@ -236,6 +236,12 @@ class ModelProviderService:
             raise NotFoundError(f"no default model provider for user {user_id}")
         return to_internal_schema(row)
 
+    async def get_by_kind_for_user(self, user_id: str, kind: str) -> InternalModelProvider:
+        row = await provider_crud.get_first_enabled_by_kind(self._session, user_id, kind)
+        if row is None:
+            raise NotFoundError(f"no enabled {kind} provider for user {user_id}")
+        return to_internal_schema(row)
+
     async def get_internal(self, provider_id: str, user_id: str) -> InternalModelProvider:
         row = await provider_crud.get_provider_for_internal(self._session, provider_id)
         if row is None:

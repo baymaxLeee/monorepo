@@ -67,6 +67,31 @@ async def get_default_provider(
     return result.one_or_none()
 
 
+async def get_first_enabled_by_kind(
+    session: AsyncSession,
+    user_id: str,
+    kind: str,
+) -> ModelProviderRow | None:
+    """Most-recently-updated enabled provider of a given kind for a user.
+
+    Non-chat kinds (embedding, rerank, image, video) have no `is_default`
+    flag — consumers that need one (e.g. knowledge picking an embedding model)
+    take the newest enabled provider of that kind.
+    """
+    stmt = (
+        select(ModelProviderRow)
+        .where(
+            ModelProviderRow.user_id == user_id,
+            ModelProviderRow.is_enabled.is_(True),
+            ModelProviderRow.provider_kind == kind,
+        )
+        .order_by(ModelProviderRow.updated_at.desc())
+        .limit(1)
+    )
+    result = await session.scalars(stmt)
+    return result.one_or_none()
+
+
 async def clear_default_flag(session: AsyncSession, user_id: str) -> None:
     await session.execute(
         update(ModelProviderRow)

@@ -3,11 +3,12 @@ import {
   TransportError,
   type DocumentSlice,
   type KnowledgeDocument,
+  type RetrieveResult,
 } from "@backend/transport-ts";
 import { getSettings } from "../config.js";
 import { NotFoundError } from "../lib/errors.js";
 
-export type { DocumentSlice, KnowledgeDocument } from "@backend/transport-ts";
+export type { DocumentSlice, KnowledgeDocument, RetrieveResult } from "@backend/transport-ts";
 
 function knowledgeClient(): KnowledgeInternalClient {
   const s = getSettings();
@@ -64,6 +65,14 @@ export async function getDocumentSource(
     }
     throw err;
   }
+}
+
+export async function retrieveKnowledge(
+  userId: string,
+  query: string,
+  topK?: number,
+): Promise<RetrieveResult> {
+  return knowledgeClient().retrieve({ userId, query, topK });
 }
 
 export async function createArtifact(input: {

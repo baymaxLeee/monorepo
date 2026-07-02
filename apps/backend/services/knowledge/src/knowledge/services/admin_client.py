@@ -56,14 +56,30 @@ class AdminClient:
         async with self._cache_lock:
             if (cached := self._cache.get(cache_key)) is not None:
                 return cached
-            snapshot = await self._fetch(user_id=user_id, provider_id=provider_id)
+            url = f"/internal/providers/{provider_id}" if provider_id else "/internal/providers/default"
+            snapshot = await self._fetch(url, user_id=user_id)
             self._cache[cache_key] = snapshot
             if provider_id is None:
                 self._cache[(user_id, snapshot.id)] = snapshot
             return snapshot
 
-    async def _fetch(self, *, user_id: str, provider_id: str | None) -> ProviderSnapshot:
-        url = f"/internal/providers/{provider_id}" if provider_id else "/internal/providers/default"
+    async def get_provider_by_kind(self, *, user_id: str, kind: str) -> ProviderSnapshot:
+        """Resolve the user's provider for a non-chat kind (embedding, rerank).
+
+        Cached by (user_id, "kind:<kind>") so RAG indexing/retrieval does not hit
+        admin on every chunk/query.
+        """
+        cache_key = (user_id, f"kind:{kind}")
+        if (cached := self._cache.get(cache_key)) is not None:
+            return cached
+        async with self._cache_lock:
+            if (cached := self._cache.get(cache_key)) is not None:
+                return cached
+            snapshot = await self._fetch(f"/internal/providers/by-kind/{kind}", user_id=user_id)
+            self._cache[cache_key] = snapshot
+            return snapshot
+
+    async def _fetch(self, url: str, *, user_id: str) -> ProviderSnapshot:
         try:
             response = await self._http.get(url, params={"user_id": user_id})
         except httpx.HTTPError as exc:

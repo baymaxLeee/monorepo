@@ -37,6 +37,21 @@ async def get_default_provider_internal(
     return await _service_for(session, user_id).get_default_for_user(user_id)
 
 
+@router.get("/by-kind/{kind}", response_model=InternalModelProvider)
+async def get_provider_by_kind_internal(
+    kind: str,
+    user_id: Annotated[str, Query(min_length=1, description="Owner of the provider")],
+    session: DbSession,
+    _caller: InternalCaller,
+) -> InternalModelProvider:
+    """First enabled provider of `kind` (embedding/rerank/...) for the user.
+
+    Used by knowledge to resolve the embedding/rerank model for RAG. Non-chat
+    kinds have no default flag, so this returns the newest enabled one.
+    """
+    return await _service_for(session, user_id).get_by_kind_for_user(user_id, kind)
+
+
 @router.get("/{provider_id}", response_model=InternalModelProvider)
 async def get_provider_internal(
     provider_id: str,

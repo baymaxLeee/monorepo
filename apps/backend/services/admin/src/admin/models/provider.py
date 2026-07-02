@@ -10,7 +10,17 @@ from .base import Base
 PROVIDER_KIND_CHAT = "chat"
 PROVIDER_KIND_IMAGE = "image"
 PROVIDER_KIND_VIDEO = "video"
-PROVIDER_KINDS = frozenset({PROVIDER_KIND_CHAT, PROVIDER_KIND_IMAGE, PROVIDER_KIND_VIDEO})
+PROVIDER_KIND_EMBEDDING = "embedding"
+PROVIDER_KIND_RERANK = "rerank"
+PROVIDER_KINDS = frozenset(
+    {
+        PROVIDER_KIND_CHAT,
+        PROVIDER_KIND_IMAGE,
+        PROVIDER_KIND_VIDEO,
+        PROVIDER_KIND_EMBEDDING,
+        PROVIDER_KIND_RERANK,
+    }
+)
 
 
 class ModelProviderRow(Base):

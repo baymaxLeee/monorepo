@@ -66,7 +66,7 @@ import { z } from "zod";
 const providerSchema = z
   .object({
     name: z.string().trim().min(1, "请输入名称").max(100),
-    provider_kind: z.enum(["chat", "image", "video"]),
+    provider_kind: z.enum(["chat", "image", "video", "embedding", "rerank"]),
     model: z.string().trim().min(1, "请输入模型名").max(128),
     base_url: z.string().trim().url("base_url 必须是合法 URL"),
     // Optional in edit mode (leave empty to keep current key).
@@ -128,12 +128,29 @@ const kindPresets: Record<
     extra_body:
       '{\n  "generate_audio": false,\n  "ratio": "16:9",\n  "seconds": "5",\n  "watermark": true\n}',
   },
+  // Used by the knowledge base for RAG. The embedding model's output dimension
+  // MUST match knowledge's EMBEDDING_DIM (default 1536 = text-embedding-3-small);
+  // changing it requires altering the vector column and re-indexing.
+  embedding: {
+    base_url: "https://api.openai.com/v1",
+    model: "text-embedding-3-small",
+    extra_body: "",
+  },
+  // Optional RAG reranker (Cohere/Jina-style /rerank). Retrieval degrades to
+  // hybrid-only when no rerank provider is configured.
+  rerank: {
+    base_url: ARK_BASE_URL,
+    model: "doubao-rerank",
+    extra_body: "",
+  },
 };
 
 const kindLabels: Record<ProviderKind, string> = {
   chat: "对话",
   image: "图片生成",
   video: "视频生成",
+  embedding: "向量嵌入",
+  rerank: "重排",
 };
 
 const defaults: ProviderValues = {
@@ -588,6 +605,12 @@ function ProviderFormDialog({
                         </SelectItem>
                         <SelectItem value="video">
                           视频生成 (Seedance)
+                        </SelectItem>
+                        <SelectItem value="embedding">
+                          向量嵌入 (Embedding · RAG)
+                        </SelectItem>
+                        <SelectItem value="rerank">
+                          重排 (Rerank · RAG)
                         </SelectItem>
                       </SelectContent>
                     </Select>

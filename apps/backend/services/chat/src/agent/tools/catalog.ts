@@ -6,6 +6,7 @@ import type { ProviderSnapshot } from "../../clients/admin.js";
 import { createArtifactTools } from "./builtins/artifact.js";
 import { createInteractionTools } from "./builtins/interaction.js";
 import { createKnowledgeTools } from "./builtins/files.js";
+import { createKnowledgeSearchTools } from "./builtins/knowledge-search.js";
 import { createMediaTools } from "./builtins/media.js";
 import { createMemoryTools } from "./builtins/memory.js";
 import { createPlanTools } from "./builtins/plan.js";
@@ -30,6 +31,7 @@ function builtinTools(mode: AgentMode, providers: AgentToolProviders) {
   if (mode === "plan") {
     return {
       ...createKnowledgeTools(),
+      ...createKnowledgeSearchTools(),
       ...createWebTools(),
       ...createInteractionTools(mode),
       ...createPlanTools(),
@@ -38,6 +40,7 @@ function builtinTools(mode: AgentMode, providers: AgentToolProviders) {
   }
   return {
     ...createKnowledgeTools(),
+    ...createKnowledgeSearchTools(),
     ...createWebTools(),
     ...createInteractionTools(mode),
     ...createMemoryTools(),

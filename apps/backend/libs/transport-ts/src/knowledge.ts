@@ -21,6 +21,8 @@ export type ArtifactBlockPlan = components["schemas"]["ArtifactBlockPlan"];
 export type PublishedArtifactRevision = components["schemas"]["PublishedArtifactRevision"];
 export type StoredArtifactBlock = components["schemas"]["StoredArtifactBlock"];
 export type ArtifactRevisionWorkspace = components["schemas"]["ArtifactRevisionWorkspace"];
+export type RetrieveResult = components["schemas"]["RetrieveResult"];
+export type RetrievedChunk = components["schemas"]["RetrievedChunk"];
 
 export interface KnowledgeClientOptions {
   baseUrl: string;
@@ -301,6 +303,18 @@ export class KnowledgeInternalClient {
       this.client.POST("/internal/artifact-generations/{generation_id}/publish", {
         params: { path: { generation_id: input.generationId } },
         body: { user_id: input.userId, compiled_html: input.compiledHtml },
+      }),
+    );
+  }
+
+  /**
+   * Hybrid RAG retrieval (dense + BM25 + RRF + optional rerank), scoped to the
+   * user. Returns chunks with their source document for citation.
+   */
+  retrieve(input: { userId: string; query: string; topK?: number }): Promise<RetrieveResult> {
+    return this.unwrap(
+      this.client.POST("/internal/retrieve", {
+        body: { user_id: input.userId, query: input.query, top_k: input.topK },
       }),
     );
   }

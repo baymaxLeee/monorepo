@@ -26,6 +26,14 @@ services:
       timeout: 3s
       retries: 5
 
+  # Shared Postgres instance (one instance, many databases):
+  #   - `workflow` DB   → executor's Workflow DevKit World (@workflow/world-postgres)
+  #   - `knowledge` DB  → knowledge service business + RAG vectors (pgvector)
+  # Image is pgvector/pgvector (a superset of the official postgres image) so the
+  # knowledge DB can `CREATE EXTENSION vector`; the workflow DB is unaffected.
+  # Kept the `workflow-postgres` service name to avoid re-wiring executor's env;
+  # full MySQL→PG consolidation of other services is a separate later task.
+  #
   # Dev/prod parity (explicit product decision — see docs/微服务/executor.md):
   # every deployed environment runs executor against the self-hosted Postgres
   # World, so local dev runs the same container rather than defaulting to the
@@ -34,7 +42,7 @@ services:
   # notes" #3) was caught in the first place — Local World would have hidden
   # it in every local run.
   workflow-postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: monorepo-workflow-postgres
     environment:
       POSTGRES_USER: workflow

@@ -8,10 +8,21 @@ service_has_sql_migrations() {
   compgen -G "$1/migrations/versions/*.sql" >/dev/null
 }
 
-echo "→ discovering service-owned database migrations"
+# Non-MySQL services (e.g. knowledge on Postgres) opt out of this MySQL
+# bootstrap with a `migrations/engine` marker; they are migrated separately
+# once their engine's container is up (see justfile `up`).
+service_migration_engine() {
+  if [ -f "$1/migrations/engine" ]; then
+    tr -d '[:space:]' < "$1/migrations/engine"
+  else
+    echo "mysql"
+  fi
+}
+
+echo "→ discovering service-owned database migrations (MySQL)"
 SERVICE_DIRS=()
 while IFS= read -r service_dir; do
-  if service_has_sql_migrations "$service_dir"; then
+  if service_has_sql_migrations "$service_dir" && [ "$(service_migration_engine "$service_dir")" = "mysql" ]; then
     SERVICE_DIRS+=("$service_dir")
   fi
 done < <(find "$SERVICES_DIR" -mindepth 1 -maxdepth 1 -type d | sort)

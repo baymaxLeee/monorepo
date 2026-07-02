@@ -7,6 +7,7 @@ from knowledge.crud import documents as document_crud
 from knowledge.deps import CurrentUser, DbSession
 from knowledge.schemas.document import Document
 from knowledge.services.documents import document_to_schema
+from knowledge.services.indexing import index_document
 from knowledge.services.object_store import ObjectStore
 from pydantic import BaseModel, Field
 
@@ -54,6 +55,12 @@ async def update_my_document(
     if values:
         row = await document_crud.update_document(session, row, values)
         await session.commit()
+        # Keep the RAG index fresh when the document body changes (时效性).
+        if "content_md" in values:
+            try:
+                await index_document(session, document_id=row.id, user_id=current_user.user_id)
+            except Exception as exc:
+                print(f"[knowledge] reindex failed for {row.id}: {exc}")
     return document_to_schema(row, include_content=True)
 
 

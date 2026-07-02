@@ -20,6 +20,7 @@ from knowledge.models.document import DocumentRow
 from knowledge.services.admin_client import get_admin_client
 from knowledge.services.convert import AttachmentConversionError, AttachmentTooLargeError, ConvertService
 from knowledge.services.documents import document_to_schema
+from knowledge.services.indexing import index_document
 from knowledge.services.object_store import ObjectStore
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -184,6 +185,17 @@ async def stream_ingest_events(
                         },
                     )
                     await worker_session.commit()
+                    # Index into the RAG store so the document is immediately
+                    # retrievable in chat. Best-effort: a missing embedding
+                    # provider or an indexing error must not fail the upload.
+                    try:
+                        index_result = await index_document(
+                            worker_session, document_id=row.id, user_id=current_user.user_id
+                        )
+                        if index_result.note:
+                            print(f"[knowledge-ingest] index note for {row.id}: {index_result.note}")
+                    except Exception as index_exc:
+                        print(f"[knowledge-ingest] indexing failed for {row.id}: {index_exc}")
                     succeeded += 1
                     doc = document_to_schema(row)
                     await emit(

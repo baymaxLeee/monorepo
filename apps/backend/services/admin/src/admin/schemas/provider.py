@@ -15,7 +15,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
-ProviderKind = Literal["chat", "image", "video"]
+ProviderKind = Literal["chat", "image", "video", "embedding", "rerank"]
 
 
 class ModelProvider(BaseModel):

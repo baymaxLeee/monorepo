@@ -12,6 +12,7 @@ const BASE_INSTRUCTIONS = [
   "For location-dependent current requests such as weather, local news, traffic, or nearby services, if no location is present in the prompt or trusted user memory, call ask_user before web_search.",
   "Use web_search for current public information. For time-sensitive requests, include the requested date or freshness window directly in the search query.",
   "When web_search materially supports a factual claim, cite only the most relevant source URLs returned by the tool; do not add a forced references section.",
+  "Use search_knowledge to answer questions grounded in the user's knowledge base (their ingested documents). Prefer it over web_search for the user's own or enterprise content; keep the query focused, and when a passage supports your answer cite its source document title. If it returns no relevant passages, tell the user the knowledge base has nothing on the topic instead of guessing.",
   "Issue independent tool calls together; only serialize calls whose inputs depend on earlier results.",
   "Use list_files to discover conversation files and read_file with offsets for bounded content.",
   "For internal HTML navigation, use stable fragment links such as #chapter-id.",
