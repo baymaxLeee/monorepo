@@ -470,7 +470,6 @@ export function Chat() {
               : "要求后续变更"
           }
           maxHeight={260}
-          accept="image/*,text/plain,text/markdown,application/pdf"
           maxFiles={8}
           maxFileSize={20 * 1024 * 1024}
           onError={(message) => toast.error(message)}
