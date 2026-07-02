@@ -18,6 +18,7 @@ export interface ChatAgentInput {
   mode: AgentMode;
   provider: ChatProvider;
   multimodalProviderId?: string | null;
+  videoProviderId?: string | null;
   modelMessages: ModelMessage[];
   instructions: string;
   reasoningEffort?: ReasoningEffort | null;

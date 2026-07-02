@@ -27,6 +27,7 @@ const runSchema = z.object({
   message: z.unknown(),
   provider_id: z.string().max(32).optional().nullable(),
   multimodal_provider_id: z.string().max(32).optional().nullable(),
+  video_provider_id: z.string().max(32).optional().nullable(),
   document_ids: z.array(z.string()).max(10).optional().default([]),
   thinking: z.boolean().optional().nullable(),
   reasoning_effort: z.enum(["low", "medium", "high"]).optional().nullable(),
@@ -53,6 +54,7 @@ agentsRoutes.post(
       {
         providerId: payload.provider_id,
         multimodalProviderId: payload.multimodal_provider_id,
+        videoProviderId: payload.video_provider_id,
         documentIds: [...(payload.document_ids ?? [])],
         thinking: payload.thinking,
         reasoningEffort: payload.reasoning_effort,

@@ -78,6 +78,18 @@ export async function createArtifact(input: {
   return knowledgeClient().createArtifact(input);
 }
 
+export async function createMediaDocument(input: {
+  userId: string;
+  conversationId: string;
+  title: string;
+  filename: string;
+  mimeType: string;
+  bytes: Uint8Array;
+  idempotencyKey?: string;
+}): Promise<KnowledgeDocument> {
+  return knowledgeClient().createMediaDocument(input);
+}
+
 export async function updateArtifact(input: {
   userId: string;
   documentId: string;

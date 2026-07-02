@@ -49,6 +49,22 @@ class UpdateArtifactInput(BaseModel):
     expected_updated_at: str | None = Field(default=None, min_length=1, max_length=64)
 
 
+class CreateMediaDocumentInput(BaseModel):
+    """Persist agent-generated binary media (image/video/audio) as a document.
+
+    The bytes are copied into the object store and served back via the existing
+    ``/documents/{id}/source`` route. Callers must never persist a provider's
+    temporary URL as the durable source of truth (ADR-0014)."""
+
+    user_id: str = Field(min_length=1, max_length=26)
+    conversation_id: str | None = Field(default=None, max_length=32)
+    title: str = Field(min_length=1, max_length=120)
+    filename: str = Field(min_length=1, max_length=160)
+    mime_type: str = Field(min_length=1, max_length=120)
+    data_base64: str = Field(min_length=1)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
+
+
 class DocumentSlice(BaseModel):
     id: str
     title: str

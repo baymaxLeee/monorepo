@@ -3,7 +3,13 @@
 // blocks) — both call the exact same admin-owned provider snapshot shape,
 // so this was reviewed out of per-service duplication (see ADR-0015).
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import type { JSONObject, JSONValue, LanguageModelV4, LanguageModelV4CallOptions } from "@ai-sdk/provider";
+import type {
+  ImageModelV4,
+  JSONObject,
+  JSONValue,
+  LanguageModelV4,
+  LanguageModelV4CallOptions,
+} from "@ai-sdk/provider";
 import { secureProviderFetch } from "./provider-url.js";
 
 export type ReasoningEffort = "low" | "medium" | "high";
@@ -179,4 +185,35 @@ export function createProviderModel(
     disableReasoning: options.disableReasoning ?? false,
     parallelToolCalls: options.parallelToolCalls ?? null,
   });
+}
+
+export interface ImageProvider {
+  id: string;
+  model: string;
+  baseUrl: string;
+  apiKey: string;
+}
+
+// Image generation over an admin-configured OpenAI-compatible provider
+// (e.g. Volcengine Ark Seedream). The OpenAI-compatible image model always
+// requests `response_format: "b64_json"` and parses it, so `generateImage`
+// yields raw bytes regardless of the provider's configured default — those
+// bytes get copied into Knowledge, never a temporary provider URL (ADR-0014).
+//
+// `providerOptionsKey` is the key callers pass Ark-specific request-body fields
+// under (size, watermark, ...) via `generateImage({ providerOptions })`. It is
+// dot-free on purpose: the image model derives its options key as
+// `provider.split(".")[0]`.
+export function createProviderImageModel(provider: ImageProvider): {
+  model: ImageModelV4;
+  providerOptionsKey: string;
+} {
+  const name = providerName(provider.id);
+  const openai = createOpenAICompatible({
+    name,
+    baseURL: normalizeOpenAICompatibleBaseUrl(provider.baseUrl),
+    apiKey: provider.apiKey,
+    fetch: secureProviderFetch,
+  });
+  return { model: openai.imageModel(provider.model), providerOptionsKey: name };
 }

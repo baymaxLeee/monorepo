@@ -37,6 +37,7 @@ export async function createToolLoopAgent(
     conversationId: input.conversationId,
     providerId: provider.id,
     multimodalProviderId: input.multimodalProviderId ?? null,
+    videoProviderId: input.videoProviderId ?? null,
   };
   const toolsContext = Object.fromEntries(
     Object.entries(tools)

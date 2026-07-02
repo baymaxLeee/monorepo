@@ -4,15 +4,15 @@ import * as React from "react";
 
 import { cn } from "shared";
 
-function InputOTP({
-  className,
-  containerClassName,
-  ...props
-}: React.ComponentProps<typeof OTPInput> & {
-  containerClassName?: string;
-}) {
+const InputOTP = React.forwardRef<
+  React.ComponentRef<typeof OTPInput>,
+  React.ComponentProps<typeof OTPInput> & {
+    containerClassName?: string;
+  }
+>(function InputOTP({ className, containerClassName, ...props }, ref) {
   return (
     <OTPInput
+      ref={ref}
       data-slot="input-otp"
       containerClassName={cn(
         "flex items-center gap-2 has-disabled:opacity-50",
@@ -22,7 +22,7 @@ function InputOTP({
       {...props}
     />
   );
-}
+});
 
 function InputOTPGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (

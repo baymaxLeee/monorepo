@@ -181,6 +181,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/media-documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Media Document
+         * @description Persist agent-generated binary media (e.g. a generated image) as a document.
+         *
+         *     Mirrors the artifact-publish path: bytes go into the object store and the
+         *     document row records ``object_bucket``/``object_key`` so the existing
+         *     ``/documents/{id}/source`` route serves them. Idempotent on
+         *     ``idempotency_key`` (typically the tool-call id) so a retried generation
+         *     reuses the same document instead of duplicating storage.
+         */
+        post: operations["create_media_document_internal_media_documents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/artifact-generations": {
         parameters: {
             query?: never;
@@ -476,6 +502,30 @@ export interface components {
             content: string;
             /** Mime Type */
             mime_type?: string | null;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+        };
+        /**
+         * CreateMediaDocumentInput
+         * @description Persist agent-generated binary media (image/video/audio) as a document.
+         *
+         *     The bytes are copied into the object store and served back via the existing
+         *     ``/documents/{id}/source`` route. Callers must never persist a provider's
+         *     temporary URL as the durable source of truth (ADR-0014).
+         */
+        CreateMediaDocumentInput: {
+            /** User Id */
+            user_id: string;
+            /** Conversation Id */
+            conversation_id?: string | null;
+            /** Title */
+            title: string;
+            /** Filename */
+            filename: string;
+            /** Mime Type */
+            mime_type: string;
+            /** Data Base64 */
+            data_base64: string;
             /** Idempotency Key */
             idempotency_key?: string | null;
         };
@@ -1155,6 +1205,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CreateArtifactInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Document"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_media_document_internal_media_documents_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMediaDocumentInput"];
             };
         };
         responses: {

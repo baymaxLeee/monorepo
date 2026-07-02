@@ -1,5 +1,6 @@
 import { echoInputSchema, echoWorkflow } from "../../workflows/echo.js";
 import { htmlArtifactInputSchema, htmlArtifactWorkflow } from "../../workflows/html-artifact.js";
+import { videoGenerationInputSchema, videoGenerationWorkflow } from "../../workflows/video-generation.js";
 import type { TaskTypeDefinition } from "./types.js";
 
 const registry = new Map<string, TaskTypeDefinition>();
@@ -34,4 +35,10 @@ registerTaskType({
   name: "html-artifact",
   inputSchema: htmlArtifactInputSchema,
   workflow: htmlArtifactWorkflow,
+});
+
+registerTaskType({
+  name: "video-generation",
+  inputSchema: videoGenerationInputSchema,
+  workflow: videoGenerationWorkflow,
 });

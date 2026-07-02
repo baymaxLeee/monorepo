@@ -1,6 +1,6 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { Slot } from "radix-ui";
-import type * as React from "react";
+import * as React from "react";
 
 import { cn } from "shared";
 
@@ -38,20 +38,32 @@ const buttonVariants = cva(
   },
 );
 
-function Button({
-  className,
-  variant = "default",
-  size = "default",
-  asChild = false,
-  ...props
-}: React.ComponentProps<"button"> &
+export type ButtonProps = React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean;
-  }) {
+  };
+
+// forwardRef (React 18 shape): when used as an `asChild` child — e.g.
+// `<DropdownMenuTrigger asChild><Button/></DropdownMenuTrigger>` — Radix's Slot
+// forwards a ref to the child to anchor Popper positioning. A plain function
+// component (React 19 shadcn output) silently drops that ref on React 18, so the
+// popper never measures its anchor and the content renders off-screen ("click
+// does nothing, no error"). Keep this component ref-forwarding on React 18.
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  {
+    className,
+    variant = "default",
+    size = "default",
+    asChild = false,
+    ...props
+  },
+  ref,
+) {
   const Comp = asChild ? Slot.Root : "button";
 
   return (
     <Comp
+      ref={ref}
       data-slot="button"
       data-variant={variant}
       data-size={size}
@@ -59,6 +71,6 @@ function Button({
       {...props}
     />
   );
-}
+});
 
 export { Button, buttonVariants };

@@ -12,132 +12,15 @@ import {
 } from "../../artifacts/template.js";
 import { ARTIFACT_GENERATION_TIMEOUT } from "../../artifacts/config.js";
 import { getDocument, getDocumentSource, createArtifact, updateArtifact } from "../../../clients/knowledge.js";
-import { startTask, getTask, cancelTask, type Task } from "../../../clients/executor.js";
-import { NotFoundError } from "../../../lib/errors.js";
-import { TransportError } from "@backend/transport-ts";
+import { type Task } from "../../../clients/executor.js";
 import { artifactToolContextSchema, type ArtifactToolContext } from "../context.js";
+import {
+  MAX_TASK_WAIT_MS,
+  startTaskResilient,
+  TaskWaitTimeoutError,
+  waitForTaskTerminal,
+} from "../task-runner.js";
 import { streamText } from "ai";
-
-// How often the tool re-reads the durable task snapshot while foreground-
-// blocking on a background HTML generation. The user-visible per-block progress
-// still streams live over the task's own resumable stream (ArtifactTaskCard);
-// this poll is only the authoritative control-flow signal that decides when the
-// tool call returns, so a coarse interval is fine.
-const TASK_POLL_MS = 1_500;
-
-// A durable executor task survives brief executor unavailability (Nitro dev HMR
-// rebuild, a redeploy, a transient 5xx/network blip), so the blocking waiter
-// must ride those out and keep polling — the task is still running. Give up only
-// after this many *consecutive* poll failures (~30s of continuous
-// unavailability), which means executor is genuinely down, not just reloading.
-const MAX_CONSECUTIVE_POLL_FAILURES = 20;
-
-// Hard ceiling on how long the tool blocks waiting for a background artifact
-// task. Sized for the largest expected workload — a ~100-page HTML deck, and
-// later ~30s video generation — with generous headroom. A task still running
-// past this is treated as stuck: the waiter cancels it and fails the tool call
-// rather than blocking the turn (and the user) indefinitely.
-const MAX_TASK_WAIT_MS = 30 * 60_000;
-
-// Distinguishes "waited too long" from an abort or a fatal poll error so the
-// tool can surface a clear, user-facing timeout message instead of a generic
-// failure.
-class TaskWaitTimeoutError extends Error {
-  constructor(taskId: string) {
-    super(
-      `artifact task ${taskId} did not finish within ${Math.round(MAX_TASK_WAIT_MS / 60_000)} minutes`,
-    );
-    this.name = "TaskWaitTimeoutError";
-  }
-}
-
-// A missing task (404) is fatal — the row is genuinely gone. Anything else from
-// a poll (5xx from Nitro's dev proxy mid-reload, a timeout, a network error) is
-// transient: the task keeps running server-side, so retry rather than fail the
-// whole turn on a blip.
-function isTransientPollError(error: unknown): boolean {
-  if (error instanceof NotFoundError) return false;
-  if (error instanceof TransportError) return error.status >= 500 || error.status === 429;
-  return true;
-}
-
-function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    if (signal?.aborted) return resolve();
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer);
-        resolve();
-      },
-      { once: true },
-    );
-  });
-}
-
-// Foreground-block on a dispatched executor task until it reaches a terminal
-// state, returning the authoritative durable snapshot. On abort (user Stop) it
-// cancels the task and throws AbortError so the run is recorded as cancelled.
-// Transient poll failures are tolerated (see isTransientPollError) so a dev
-// rebuild or redeploy mid-generation does not fail an otherwise-healthy task.
-async function waitForTaskTerminal(taskId: string, signal?: AbortSignal): Promise<Task> {
-  const deadline = Date.now() + MAX_TASK_WAIT_MS;
-  let consecutiveFailures = 0;
-  while (true) {
-    if (signal?.aborted) {
-      await cancelTask(taskId).catch(() => undefined);
-      throw new DOMException("aborted", "AbortError");
-    }
-    if (Date.now() >= deadline) {
-      await cancelTask(taskId).catch(() => undefined);
-      throw new TaskWaitTimeoutError(taskId);
-    }
-    try {
-      const task = await getTask(taskId);
-      consecutiveFailures = 0;
-      if (task.status === "completed" || task.status === "failed" || task.status === "cancelled") {
-        return task;
-      }
-    } catch (error) {
-      if (!isTransientPollError(error)) throw error;
-      consecutiveFailures += 1;
-      if (consecutiveFailures >= MAX_CONSECUTIVE_POLL_FAILURES) throw error;
-      console.warn("[chat-agent] task poll transient failure, retrying", {
-        taskId,
-        consecutiveFailures,
-        error: String(error).slice(0, 200),
-      });
-    }
-    await abortableSleep(TASK_POLL_MS, signal);
-  }
-}
-
-// Dispatch is idempotent on executor (owner_service+owner_ref == toolCallId),
-// so retrying a transiently-failed start just returns the same task — safe to
-// ride out a dev rebuild / redeploy blip here too, with a shorter cap since a
-// task that never starts should surface quickly.
-async function startTaskResilient(
-  input: Parameters<typeof startTask>[0],
-  signal?: AbortSignal,
-): Promise<Task> {
-  let attempts = 0;
-  while (true) {
-    if (signal?.aborted) throw new DOMException("aborted", "AbortError");
-    try {
-      return await startTask(input);
-    } catch (error) {
-      attempts += 1;
-      if (!isTransientPollError(error) || attempts >= 5) throw error;
-      console.warn("[chat-agent] task dispatch transient failure, retrying", {
-        ownerRef: input.ownerRef,
-        attempts,
-        error: String(error).slice(0, 200),
-      });
-      await abortableSleep(TASK_POLL_MS, signal);
-    }
-  }
-}
 
 function taskResultFields(result: unknown): { documentId?: string; totalChars?: number; blocksFailed?: number } {
   if (!result || typeof result !== "object") return {};

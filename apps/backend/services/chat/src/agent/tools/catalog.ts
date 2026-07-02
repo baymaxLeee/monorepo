@@ -4,9 +4,11 @@ import type { AgentMode } from "../agents/types.js";
 import { createArtifactTools } from "./builtins/artifact.js";
 import { createInteractionTools } from "./builtins/interaction.js";
 import { createKnowledgeTools } from "./builtins/files.js";
+import { createMediaTools } from "./builtins/media.js";
 import { createMemoryTools } from "./builtins/memory.js";
 import { createPlanTools } from "./builtins/plan.js";
 import { createTodoTools } from "./builtins/todo.js";
+import { createVideoTools } from "./builtins/video.js";
 import type {
   AgentExtension,
   AgentExtensionContext,
@@ -28,6 +30,8 @@ function builtinTools(mode: AgentMode) {
         ...createInteractionTools(mode),
         ...createMemoryTools(),
         ...createArtifactTools(),
+        ...createMediaTools(),
+        ...createVideoTools(),
         ...createTodoTools(),
       };
 }

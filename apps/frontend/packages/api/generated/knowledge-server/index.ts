@@ -126,6 +126,40 @@ export interface CreateArtifactInput {
   idempotency_key?: string | null;
 }
 
+/**
+ * Persist agent-generated binary media (image/video/audio) as a document.
+ *
+ * The bytes are copied into the object store and served back via the existing
+ * ``/documents/{id}/source`` route. Callers must never persist a provider's
+ * temporary URL as the durable source of truth (ADR-0014).
+ */
+export interface CreateMediaDocumentInput {
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  user_id: string;
+  conversation_id?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  title: string;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  filename: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  mime_type: string;
+  /** @minLength 1 */
+  data_base64: string;
+  idempotency_key?: string | null;
+}
+
 export type DocumentKind = typeof DocumentKind[keyof typeof DocumentKind];
 
 
@@ -551,6 +585,27 @@ const createArtifactInternalArtifactsPost = (
     }
 
 /**
+ * Persist agent-generated binary media (e.g. a generated image) as a document.
+ *
+ * Mirrors the artifact-publish path: bytes go into the object store and the
+ * document row records ``object_bucket``/``object_key`` so the existing
+ * ``/documents/{id}/source`` route serves them. Idempotent on
+ * ``idempotency_key`` (typically the tool-call id) so a retried generation
+ * reuses the same document instead of duplicating storage.
+ * @summary Create Media Document
+ */
+const createMediaDocumentInternalMediaDocumentsPost = (
+    createMediaDocumentInput: CreateMediaDocumentInput,
+ options?: SecondParameter<typeof apiMutator<Document>>,) => {
+      return apiMutator<Document>(
+      {url: `/internal/media-documents`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createMediaDocumentInput
+    },
+      options);
+    }
+
+/**
  * @summary Reserve Generation
  */
 const reserveGenerationInternalArtifactGenerationsPost = (
@@ -682,7 +737,7 @@ const publishRevisionInternalArtifactGenerationsGenerationIdPublishPost = (
       options);
     }
 
-return {healthzHealthzGet,ingestStreamIngestStreamPost,listMyDocumentsDocumentsGet,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,reserveGenerationInternalArtifactGenerationsPost,getGenerationInternalArtifactGenerationsGenerationIdGet,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost}};
+return {healthzHealthzGet,ingestStreamIngestStreamPost,listMyDocumentsDocumentsGet,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,reserveGenerationInternalArtifactGenerationsPost,getGenerationInternalArtifactGenerationsGenerationIdGet,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -702,6 +757,7 @@ export type DeleteDocumentInternalDocumentsDocumentIdDeleteResult = NonNullable<
 export type GetDocumentSliceInternalDocumentsDocumentIdSliceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getDocumentSliceInternalDocumentsDocumentIdSliceGet']>>>
 export type GetDocumentSourceInternalDocumentsDocumentIdSourceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getDocumentSourceInternalDocumentsDocumentIdSourceGet']>>>
 export type CreateArtifactInternalArtifactsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createArtifactInternalArtifactsPost']>>>
+export type CreateMediaDocumentInternalMediaDocumentsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createMediaDocumentInternalMediaDocumentsPost']>>>
 export type ReserveGenerationInternalArtifactGenerationsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['reserveGenerationInternalArtifactGenerationsPost']>>>
 export type GetGenerationInternalArtifactGenerationsGenerationIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getGenerationInternalArtifactGenerationsGenerationIdGet']>>>
 export type CancelGenerationInternalArtifactGenerationsGenerationIdCancelPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost']>>>

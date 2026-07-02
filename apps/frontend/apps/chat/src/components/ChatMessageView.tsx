@@ -23,8 +23,10 @@ import {
   parseArtifactOutput,
   parseArtifactTaskOutput,
 } from "./ChatArtifactCard";
+import { ChatImageCard } from "./ChatImageCard";
 import { ChatMessageFilePart } from "./ChatMessageFilePart";
 import { ChatTodoListCard, parseTodoListOutput } from "./ChatTodoListCard";
+import { ChatVideoCard } from "./ChatVideoCard";
 
 export interface ChatMessageViewProps {
   message: UIMessage;
@@ -228,6 +230,31 @@ function ToolPartView({
     "errorText" in part && typeof part.errorText === "string"
       ? part.errorText
       : undefined;
+
+  // Generated images/videos render inline (not a generic tool card): their
+  // output carries a document_id that would otherwise match the artifact branch.
+  if (toolName === "generate_image") {
+    return (
+      <ChatImageCard
+        conversationId={conversationId}
+        output={output}
+        state={part.state}
+        onOpen={onOpenArtifact}
+      />
+    );
+  }
+
+  if (toolName === "generate_video") {
+    return (
+      <ChatVideoCard
+        conversationId={conversationId}
+        output={output}
+        state={part.state}
+        onOpen={onOpenArtifact}
+      />
+    );
+  }
+
   const outputErrorReason = parseToolOutputError(output);
   const artifact = parseArtifactOutput(output);
   const artifactTask = parseArtifactTaskOutput(output);

@@ -50,6 +50,7 @@ import {
 export interface RunAgentInput {
   providerId?: string | null;
   multimodalProviderId?: string | null;
+  videoProviderId?: string | null;
   documentIds?: string[];
   thinking?: boolean | null;
   reasoningEffort?: "low" | "medium" | "high" | null;
@@ -319,6 +320,7 @@ export async function createAgentRunResponse(
       mode,
       provider,
       multimodalProviderId: input.multimodalProviderId,
+      videoProviderId: input.videoProviderId,
       modelMessages,
       instructions: [instructions, ...projected.instructionContext].join("\n\n"),
       reasoningEffort: input.reasoningEffort ?? (input.thinking ? "medium" : null),

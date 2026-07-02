@@ -1078,6 +1078,66 @@
         }
       }
     },
+    "/internal/media-documents": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Create Media Document",
+        "description": "Persist agent-generated binary media (e.g. a generated image) as a document.\n\nMirrors the artifact-publish path: bytes go into the object store and the\ndocument row records ``object_bucket``/``object_key`` so the existing\n``/documents/{id}/source`` route serves them. Idempotent on\n``idempotency_key`` (typically the tool-call id) so a retried generation\nreuses the same document instead of duplicating storage.",
+        "operationId": "create_media_document_internal_media_documents_post",
+        "parameters": [
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMediaDocumentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/internal/artifact-generations": {
       "post": {
         "tags": [
@@ -2230,6 +2290,74 @@
           "content"
         ],
         "title": "CreateArtifactInput"
+      },
+      "CreateMediaDocumentInput": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "User Id"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "filename": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Filename"
+          },
+          "mime_type": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Mime Type"
+          },
+          "data_base64": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Data Base64"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "title",
+          "filename",
+          "mime_type",
+          "data_base64"
+        ],
+        "title": "CreateMediaDocumentInput",
+        "description": "Persist agent-generated binary media (image/video/audio) as a document.\n\nThe bytes are copied into the object store and served back via the existing\n``/documents/{id}/source`` route. Callers must never persist a provider's\ntemporary URL as the durable source of truth (ADR-0014)."
       },
       "Document": {
         "properties": {

@@ -53,3 +53,54 @@ long-running generation workflow.
   image/video runtime parameters.
 - Admin connectivity checks stay bounded; actual video progress and
   cancellation can be surfaced through the agent generation workflow later.
+
+## Update: image generation landed (Seedream)
+
+Image generation is now wired end to end as an agent tool, honoring the
+boundaries above:
+
+- The chat `ToolLoopAgent` has an inline `generate_image` tool
+  (`services/chat/src/agent/tools/builtins/media.ts`). It resolves the image
+  provider from the run-scoped `multimodal_provider_id` (independent of the chat
+  language model), validates `provider_kind === "image"`, and calls the AI SDK
+  `generateImage` over the shared OpenAI-compatible adapter
+  (`libs/transport-ts/provider-model.ts` `createProviderImageModel`, same
+  `secureProviderFetch` SSRF guard as chat).
+- The OpenAI-compatible image model always requests `response_format: "b64_json"`
+  and parses it, so we receive raw bytes regardless of the provider's configured
+  default. Those bytes are copied immediately into Knowledge via a new internal
+  endpoint `POST /internal/media-documents`
+  (`services/knowledge/src/knowledge/routers/documents_internal.py`), which
+  mirrors the artifact-publish object-store path. Messages persist only the
+  resulting `document_id`; Ark's temporary URL is never persisted.
+- Generation is synchronous/inline (a single `generateImage` await), matching
+  the request/response nature of image models — no durable executor task. The
+  frontend renders results inline from the tool output (`ChatImageCard`) and can
+  open the side preview panel (`ArtifactPreview`, image kind).
+
+## Update: video generation landed (Seedance)
+
+Video generation is now wired end to end as a durable executor workflow, exactly
+as this ADR prescribed for its asynchronous, billable task API:
+
+- Ark video is an async task API (create `POST /contents/generations/tasks`,
+  then poll `GET .../tasks/{id}`), so it runs as an executor Workflow DevKit task
+  (`services/executor/workflows/video-generation.ts`, registered as
+  `video-generation`), never inline in the chat turn. Steps: create the Ark task
+  → poll to a terminal state → download the finished video → persist to Knowledge.
+  Ark HTTP goes through `secureProviderFetch` (SSRF guard) via
+  `services/executor/src/clients/ark.ts`.
+- The chat `generate_video` tool (`services/chat/src/agent/tools/builtins/video.ts`)
+  resolves the video provider from a run-scoped `video_provider_id` (distinct
+  from the image `multimodal_provider_id`; a user typically has separate Seedream
+  and Seedance providers), validates `provider_kind === "video"`, dispatches the
+  durable task and foreground-blocks on it — reusing the same
+  dispatch/resilient-poll/cancel-on-abort helpers as the HTML-artifact tool
+  (extracted to `services/chat/src/agent/tools/task-runner.ts`). It streams a
+  preliminary `{ status, task_id }` then a terminal `{ status, document_id }` on
+  the main chat stream; the frontend `ChatVideoCard` shows a generating state and
+  then plays the video inline. Downloaded bytes are copied into Knowledge via the
+  same `POST /internal/media-documents` endpoint; the temporary Ark video URL is
+  never persisted.
+- User Stop cancels the in-flight executor task (Workflow DevKit `run.cancel()`),
+  same as the HTML-artifact tool.

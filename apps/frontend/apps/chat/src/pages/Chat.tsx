@@ -81,6 +81,10 @@ export function Chat() {
     providers,
     selectedProviderId,
     setSelectedProviderId,
+    selectedImageProviderId,
+    setSelectedImageProviderId,
+    selectedVideoProviderId,
+    setSelectedVideoProviderId,
     loadProviders,
     setTraceRun,
     clearTraceRun,
@@ -93,6 +97,10 @@ export function Chat() {
       providers: s.providers,
       selectedProviderId: s.selectedProviderId,
       setSelectedProviderId: s.setSelectedProviderId,
+      selectedImageProviderId: s.selectedImageProviderId,
+      setSelectedImageProviderId: s.setSelectedImageProviderId,
+      selectedVideoProviderId: s.selectedVideoProviderId,
+      setSelectedVideoProviderId: s.setSelectedVideoProviderId,
       loadProviders: s.loadProviders,
       setTraceRun: s.setTraceRun,
       clearTraceRun: s.clearTraceRun,
@@ -106,10 +114,18 @@ export function Chat() {
   const requestBody = useMemo(
     () => ({
       provider_id: selectedProviderId ?? detail?.provider_id ?? null,
+      multimodal_provider_id: selectedImageProviderId ?? null,
+      video_provider_id: selectedVideoProviderId ?? null,
       thinking: thinking || null,
       reasoning_effort: null,
     }),
-    [selectedProviderId, detail?.provider_id, thinking],
+    [
+      selectedProviderId,
+      selectedImageProviderId,
+      selectedVideoProviderId,
+      detail?.provider_id,
+      thinking,
+    ],
   );
 
   useEffect(() => {
@@ -505,6 +521,10 @@ export function Chat() {
               providers={providers ?? []}
               selectedProviderId={selectedProviderId}
               onSelectProvider={setSelectedProviderId}
+              selectedImageProviderId={selectedImageProviderId}
+              onSelectImageProvider={setSelectedImageProviderId}
+              selectedVideoProviderId={selectedVideoProviderId}
+              onSelectVideoProvider={setSelectedVideoProviderId}
               thinking={thinking}
               onThinkingChange={setThinking}
               mode={mode}

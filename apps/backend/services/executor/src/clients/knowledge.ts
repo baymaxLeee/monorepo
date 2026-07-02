@@ -33,6 +33,21 @@ export async function getDocument(userId: string, documentId: string): Promise<K
   return knowledgeClient().getDocument({ userId, documentId });
 }
 
+// Persist generated binary media (e.g. a generated video) as a knowledge
+// document. Bytes go into the object store; conversation messages only ever
+// reference the returned document id, never the provider's temporary URL.
+export async function createMediaDocument(input: {
+  userId: string;
+  conversationId?: string;
+  title: string;
+  filename: string;
+  mimeType: string;
+  bytes: Uint8Array;
+  idempotencyKey?: string;
+}): Promise<KnowledgeDocument> {
+  return knowledgeClient().createMediaDocument(input);
+}
+
 export async function getLatestArtifactWorkspace(
   userId: string,
   documentId: string,

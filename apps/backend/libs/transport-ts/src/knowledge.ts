@@ -119,6 +119,37 @@ export class KnowledgeInternalClient {
     );
   }
 
+  /**
+   * Persist agent-generated binary media (image/video/audio) as a document.
+   * The bytes are copied into knowledge's object store and served back via the
+   * existing `/documents/{id}/source` route. Callers must pass raw bytes, never
+   * a provider's temporary URL (ADR-0014). Idempotent on `idempotencyKey`.
+   */
+  createMediaDocument(input: {
+    userId: string;
+    conversationId?: string;
+    title: string;
+    filename: string;
+    mimeType: string;
+    bytes: Uint8Array;
+    idempotencyKey?: string;
+  }): Promise<KnowledgeDocument> {
+    return this.unwrap(
+      this.client.POST("/internal/media-documents", {
+        body: {
+          user_id: input.userId,
+          conversation_id: input.conversationId,
+          title: input.title,
+          filename: input.filename,
+          mime_type: input.mimeType,
+          data_base64: base64FromBytes(input.bytes),
+          idempotency_key: input.idempotencyKey,
+        },
+      }),
+      normalizeDocument,
+    );
+  }
+
   updateArtifact(input: {
     userId: string;
     documentId: string;
@@ -282,6 +313,10 @@ export class KnowledgeInternalClient {
     if (data) return map ? map(data) : (data as unknown as R);
     throw toTransportError(response, error);
   }
+}
+
+function base64FromBytes(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString("base64");
 }
 
 function normalizeDocument(document: KnowledgeDocumentSchema): KnowledgeDocument {

@@ -1,14 +1,22 @@
 """Internal document API for chat and other services."""
 
+import base64
+import binascii
 from datetime import datetime
 from hashlib import sha256
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
-from kernel.errors import ConflictError, NotFoundError
+from kernel.errors import ConflictError, NotFoundError, RequestError
 from knowledge.crud import documents as document_crud
 from knowledge.deps import DbSession, require_internal_token
-from knowledge.schemas.document import CreateArtifactInput, Document, DocumentSlice, UpdateArtifactInput
+from knowledge.schemas.document import (
+    CreateArtifactInput,
+    CreateMediaDocumentInput,
+    Document,
+    DocumentSlice,
+    UpdateArtifactInput,
+)
 from knowledge.services.documents import document_to_schema
 from knowledge.services.object_store import ObjectStore
 from sqlalchemy.exc import IntegrityError
@@ -108,6 +116,67 @@ async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> D
             filename=payload.filename,
             mime_type=mime,
             content_md=payload.content,
+            ingest_status="ready",
+            ingest_progress=100,
+            document_id=document_id,
+        )
+        await session.commit()
+    except IntegrityError:
+        if document_id is None:
+            raise
+        await session.rollback()
+        existing = await document_crud.get_document(session, document_id, payload.user_id)
+        if existing is None:
+            raise
+        return document_to_schema(existing, include_content=True)
+    return document_to_schema(row, include_content=True)
+
+
+@router.post("/media-documents", response_model=Document, status_code=201)
+async def create_media_document(payload: CreateMediaDocumentInput, session: DbSession) -> Document:
+    """Persist agent-generated binary media (e.g. a generated image) as a document.
+
+    Mirrors the artifact-publish path: bytes go into the object store and the
+    document row records ``object_bucket``/``object_key`` so the existing
+    ``/documents/{id}/source`` route serves them. Idempotent on
+    ``idempotency_key`` (typically the tool-call id) so a retried generation
+    reuses the same document instead of duplicating storage."""
+    document_id = None
+    if payload.idempotency_key:
+        document_id = sha256(
+            f"{payload.user_id}:{payload.conversation_id or ''}:{payload.idempotency_key}".encode()
+        ).hexdigest()[:16]
+        existing = await document_crud.get_document(session, document_id, payload.user_id)
+        if existing is not None:
+            return document_to_schema(existing, include_content=True)
+    try:
+        raw = base64.b64decode(payload.data_base64, validate=True)
+    except (ValueError, binascii.Error) as exc:
+        raise RequestError("invalid base64 media payload") from exc
+    if not raw:
+        raise RequestError("empty media payload")
+    stored = ObjectStore().put_bytes(
+        content=raw,
+        filename=payload.filename,
+        mime_type=payload.mime_type,
+        user_id=payload.user_id,
+        prefix=f"media/{payload.conversation_id or 'general'}",
+    )
+    try:
+        row = await document_crud.create_document(
+            session,
+            user_id=payload.user_id,
+            conversation_id=payload.conversation_id,
+            kind="artifact",
+            title=payload.title,
+            filename=payload.filename,
+            mime_type=payload.mime_type,
+            content_md="",
+            source_size=stored.size,
+            source_mime_type=payload.mime_type,
+            object_bucket=stored.bucket,
+            object_key=stored.key,
+            object_sha256=stored.sha256,
             ingest_status="ready",
             ingest_progress=100,
             document_id=document_id,
