@@ -27,6 +27,10 @@
 - `content_md` — MarkItDown 或 artifact 正文
 - `ingest_status` / `ingest_progress` — 上传流水线状态
 
+业务表与 RAG 向量统一存储在 PostgreSQL + pgvector；`knowledge` 不再使用
+MySQL。single-VPS 部署通过一次性的 `knowledge-db-init` 容器先执行服务自有
+迁移，再启动 API 容器，避免应用启动时隐式修改 schema。
+
 ## API 分层
 
 | 路径 | 鉴权 | 说明 |

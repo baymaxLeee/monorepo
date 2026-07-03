@@ -1,6 +1,6 @@
 # Single-VPS Deployment
 
-Run the entire monorepo (frontend SPA + 4 backend services + MySQL/Redis) on **one VPS**, behind **one port** (no domain, no HTTPS, no Kubernetes). Browsers hit `http://<vps-ip>:8080` and get a fully-functional app.
+Run the entire monorepo (frontend SPA + backend services + MySQL/Redis/PostgreSQL) on **one VPS**, behind **one port** (no domain, no HTTPS, no Kubernetes). Browsers hit `http://<vps-ip>:8080` and get a fully-functional app.
 
 > Telemetry storage was migrated from ClickHouse to MySQL in 2026-05 to keep the single-VPS footprint under 1 GB RAM. See `apps/backend/services/telemetry/AGENTS.md` for the trade-offs.
 
@@ -40,11 +40,11 @@ browser
 │      ┌───────────┴───────────┐                            │
 │      ▼                       ▼                            │
 │  gateway:8000          (db-init runs once)                │
-│      ├─ iam:8002                                          │
-│      ├─ admin:8001                                        │
-│      └─ telemetry:8008                                    │
+│      ├─ iam:8002 / admin:8001 / telemetry:8008            │
+│      ├─ chat:8009 / knowledge:8010                        │
+│      └─ executor:8011                                     │
 │                                                           │
-│  mysql:3306    redis:6379                              │
+│  mysql:3306    redis:6379    postgres+pgvector:5432       │
 │  (volumes: /var/lib/docker/volumes/monorepo_*)            │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -57,7 +57,7 @@ All images are pulled from GHCR (or any custom registry); the VPS only stores co
 
 | File | Purpose |
 |---|---|
-| `docker-compose.prod.yml` | Stack definition (9 services) |
+| `docker-compose.prod.yml` | Full stack definition, including one-shot DB migration jobs |
 | `nginx.conf` | Web server config (baked into `web` image) |
 | `Dockerfile.web` | Builds the nginx + frontend dist image |
 | `Dockerfile.db-init` | Builds the one-shot schema migrator image |
@@ -116,7 +116,7 @@ git push origin main
 # wait ~5 minutes — watch GitHub Actions → build-images go green
 ```
 
-You should see 8 images in your registry: `gateway`, `iam`, `admin`, `chat`, `knowledge`, `telemetry`, `web`, `db-init`.
+You should see 9 images in your registry: `gateway`, `iam`, `admin`, `chat`, `executor`, `knowledge`, `telemetry`, `web`, `db-init`.
 
 ### 5. Deploy (run on your laptop)
 

@@ -14,7 +14,7 @@
 #                                     ├─ iam:8002
 #                                     ├─ admin:8001
 #                                     ├─ chat:8009
-#                                     ├─ knowledge:8010
+#                                     ├─ knowledge:8010 (Postgres + pgvector)
 #                                     └─ telemetry:8008
 #                                         ↓
 #                                    mysql + redis (internal)
@@ -80,7 +80,7 @@ services:
   # Local dev runs the same container (root docker-compose.yml) for dev/prod
   # parity — see docs/微服务/executor.md.
   workflow-postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: monorepo-workflow-postgres
     environment:
       POSTGRES_USER: workflow
@@ -95,9 +95,8 @@ services:
       retries: 10
     <<: *restart_policy
 
-  # Custom image (built by build-images.yml) bundles mysql-init.sh + all
-  # services' migration SQL. Runs once per `docker compose up`; downstream
-  # backend services gate on its `service_completed_successfully` state.
+  # Custom image (built by build-images.yml) bundles mysql-init.sh + MySQL
+  # services' migration SQL. Knowledge has its own PostgreSQL migration job.
   db-init:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/db-init:${IMAGE_TAG:-main}
     container_name: monorepo-db-init
@@ -251,20 +250,34 @@ services:
       CHAT_SERVICE_URL: http://chat:8009
     <<: *restart_policy
 
+  knowledge-db-init:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/knowledge:${IMAGE_TAG:-main}
+    container_name: monorepo-knowledge-db-init
+    depends_on:
+      workflow-postgres: { condition: service_healthy }
+    command: ["python", "-m", "knowledge.migrate"]
+    environment:
+      ENVIRONMENT: single-vps
+      POSTGRES_HOST: workflow-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: workflow
+      POSTGRES_PASSWORD: ${WORKFLOW_POSTGRES_PASSWORD:?WORKFLOW_POSTGRES_PASSWORD is required}
+      POSTGRES_DATABASE: knowledge
+    restart: "no"
+
   knowledge:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/knowledge:${IMAGE_TAG:-main}
     container_name: monorepo-knowledge
     depends_on:
-      mysql: { condition: service_healthy }
-      db-init: { condition: service_completed_successfully }
+      knowledge-db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8010"
-      MYSQL_HOST: mysql
-      MYSQL_PORT: "3306"
-      MYSQL_USER: ${MYSQL_USER:-app}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
-      MYSQL_DATABASE: knowledge
+      POSTGRES_HOST: workflow-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: workflow
+      POSTGRES_PASSWORD: ${WORKFLOW_POSTGRES_PASSWORD:?WORKFLOW_POSTGRES_PASSWORD is required}
+      POSTGRES_DATABASE: knowledge
       ADMIN_SERVICE_URL: http://admin:8001
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
       KNOWLEDGE_DATA_DIR: /data/objects

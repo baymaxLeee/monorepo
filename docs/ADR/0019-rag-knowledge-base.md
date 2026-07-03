@@ -165,3 +165,19 @@ Documents stay **user-scoped** (the operator's own knowledge base, filtered by
 decision, not part of this change. The management view lists `kind=source`
 (operator-uploaded docs) so agent-generated artifacts don't leak in. Contract
 regenerated: `knowledge-server.json` + orval `generated/knowledge-server`.
+
+## Update — single-VPS deployment parity
+
+The single-VPS profile follows the same storage contract as local development
+and Kubernetes: `knowledge` uses the shared PostgreSQL instance, never the
+legacy MySQL `knowledge` database. The PostgreSQL container therefore uses
+`pgvector/pgvector:pg16`, and a one-shot `knowledge-db-init` service runs the
+service-owned migrations before the API starts. The regular MySQL `db-init`
+does not copy or apply knowledge migrations.
+
+The migration job is part of the knowledge image rather than application
+startup. This preserves the service rule that API processes never mutate
+schema, while keeping `docker compose up` self-contained and safe for both a
+fresh volume and an existing Workflow World volume. Existing demo-era MySQL
+knowledge rows are deliberately not migrated; documents are re-ingested as
+already decided above.

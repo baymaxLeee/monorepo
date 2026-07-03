@@ -1,3 +1,4 @@
+import "@workflow/world-postgres";
 import { getWorld } from "workflow/runtime";
 
 import { createApp } from "./app.js";
