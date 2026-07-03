@@ -5,7 +5,11 @@ import { Output, extractJsonMiddleware, generateText, streamText, wrapLanguageMo
 import { z } from "zod";
 
 import { getProvider } from "../clients/admin.js";
-import { createProviderModel, type ChatProvider } from "@backend/transport-ts/provider-model";
+import {
+  createProviderModel,
+  JSON_OBJECT_MODE_INSTRUCTION,
+  type ChatProvider,
+} from "@backend/transport-ts/provider-model";
 import { sanitizeArtifactPart, ARTIFACT_VISUAL_CAPABILITIES, ARTIFACT_CHART_SPEC } from "./compiler.js";
 
 export type ArtifactMode = "document" | "presentation" | "dashboard";
@@ -106,6 +110,9 @@ function outlineInstructions(input: { mode: ArtifactMode; count: number }): stri
     "Optionally pick one accent hex color that fits the topic.",
     "Describe one specific visual direction shared by every page: color scheme, typography, composition, density, motifs, and chart treatment. Do not fall back to a generic template.",
     "Do not write any HTML; describe content only.",
+    // MUST stay last: the openai-compatible json_object mode 400s without the
+    // word "json" in the messages (see JSON_OBJECT_MODE_INSTRUCTION).
+    JSON_OBJECT_MODE_INSTRUCTION,
   ].join("\n");
 }
 

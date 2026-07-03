@@ -88,7 +88,6 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
       style,
       submitLabel,
       autoFocus,
-      maxHeight = 240,
       accept,
       maxFiles = 8,
       maxFileSize = 20 * 1024 * 1024,
@@ -423,31 +422,25 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
         style={style}
         onSubmit={handleSubmit}
       >
-        {toolbarRender?.(api)}
-        <EditorContent
-          editor={editor}
-          className="prompt-input-content"
-          style={{ maxHeight }}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={accept}
+          className="hidden"
+          onChange={(event) => {
+            insertFilesRef.current(Array.from(event.currentTarget.files ?? []));
+            event.currentTarget.value = "";
+          }}
         />
+        {toolbarRender?.(api)}
+        <EditorContent editor={editor} className="prompt-input-content" />
         <div className="prompt-input-footer">
           <div className="prompt-input-tools">
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept={accept}
-              className="hidden"
-              onChange={(event) => {
-                insertFilesRef.current(
-                  Array.from(event.currentTarget.files ?? []),
-                );
-                event.currentTarget.value = "";
-              }}
-            />
             <Button
               type="button"
               variant="ghost"
-              size="icon"
+              size="icon-sm"
               className="rounded-full"
               disabled={disabled}
               onClick={() => fileInputRef.current?.click()}

@@ -8,6 +8,18 @@ export type ArtifactPreviewState = {
   documentId: string | null;
 };
 
+export type ImagePreviewRef = { documentId: string; filename?: string };
+
+// A fullscreen image lightbox is a modal overlay, independent of the mutually
+// exclusive side panels (memory/trace/artifact), so it lives in its own slice
+// and does not participate in their close-each-other coordination.
+export type ImagePreviewState = {
+  open: boolean;
+  conversationId: string | null;
+  images: ImagePreviewRef[];
+  index: number;
+};
+
 export type ChatUIState = {
   sendingConversationId: string | null;
   setSendingConversationId: (id: string | null) => void;
@@ -34,6 +46,14 @@ export type ChatUIState = {
   artifactPreview: ArtifactPreviewState;
   openArtifactPreview: (conversationId: string, documentId: string) => void;
   closeArtifactPreview: () => void;
+  imagePreview: ImagePreviewState;
+  openImagePreview: (
+    conversationId: string,
+    images: ImagePreviewRef[],
+    index: number,
+  ) => void;
+  closeImagePreview: () => void;
+  setImagePreviewIndex: (index: number) => void;
   // Cross-panel signal: a chat page auto-renamed a conversation (live, from the
   // streamed title) and the sidebar list (owned by ChatLayout) needs to reflect
   // it without a refetch. `seq` makes repeated same-title updates observable.
@@ -47,6 +67,13 @@ const CLOSED_ARTIFACT_PREVIEW: ArtifactPreviewState = {
   open: false,
   conversationId: null,
   documentId: null,
+};
+
+const CLOSED_IMAGE_PREVIEW: ImagePreviewState = {
+  open: false,
+  conversationId: null,
+  images: [],
+  index: 0,
 };
 
 export const useChatStore = create<ChatUIState>()(
@@ -141,6 +168,25 @@ export const useChatStore = create<ChatUIState>()(
         set({
           artifactPreview: CLOSED_ARTIFACT_PREVIEW,
         }),
+
+      imagePreview: { ...CLOSED_IMAGE_PREVIEW },
+      openImagePreview: (conversationId, images, index) =>
+        set({
+          imagePreview: {
+            open: images.length > 0,
+            conversationId,
+            images,
+            index: Math.min(Math.max(index, 0), Math.max(images.length - 1, 0)),
+          },
+        }),
+      closeImagePreview: () =>
+        set((state) => ({
+          imagePreview: { ...state.imagePreview, open: false },
+        })),
+      setImagePreviewIndex: (index) =>
+        set((state) => ({
+          imagePreview: { ...state.imagePreview, index },
+        })),
 
       conversationTitleUpdate: null,
       applyConversationTitle: (id, title) =>

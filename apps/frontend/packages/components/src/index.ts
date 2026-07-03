@@ -14,6 +14,12 @@ export {
   withErrorBoundary,
 } from "./ErrorBoundary";
 export { FileIcon, type FileIconProps, getFileIcon } from "./FileIcon";
+export {
+  ImagePreview,
+  type ImagePreviewItem,
+  type ImagePreviewProps,
+  useImagePreview,
+} from "./ImagePreview";
 export type { LazyBaseProps, LazyLoader } from "./Lazy";
 export { Lazy } from "./Lazy";
 export {

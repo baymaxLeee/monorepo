@@ -34,7 +34,8 @@ export const videoGenerationInputSchema = z.object({
   // Target total length in whole seconds. Vertical short-drama 投流 is short and
   // cheap by design, so this is capped at 120s (not a long-form cinema tool).
   targetDurationSec: z.number().int().min(4).max(120).optional(),
-  // Per-scene clip length; clamped to the model's 4–15s window in the planner.
+  // Per-scene clip length; clamped to the stable 4–8s window in the planner
+  // (not the model's full 4–15s) to avoid temporal-decay repetition.
   clipSeconds: z.number().int().optional(),
   title: z.string().min(1).max(120),
   filename: z.string().min(1).max(160),
@@ -43,7 +44,10 @@ export const videoGenerationInputSchema = z.object({
 export type VideoGenerationInput = z.infer<typeof videoGenerationInputSchema>;
 
 const DEFAULT_TARGET_DURATION_S = 50;
-const DEFAULT_CLIP_SECONDS = 10;
+// Per-scene clip length. Kept in the stable window (<= 8s in storyboard.ts) to
+// avoid the temporal-decay "镜头重复" failure — cut density comes from more
+// hard-cut scenes, not longer single clips. See ADR-0018.
+const DEFAULT_CLIP_SECONDS = 6;
 
 // Per-scene Ark polling. Each scene is minutes-scale; a single clip that never
 // finishes fails only that scene (degraded, skipped at assembly), not the run.

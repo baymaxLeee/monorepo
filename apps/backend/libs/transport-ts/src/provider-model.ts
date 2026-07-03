@@ -14,6 +14,18 @@ import { secureProviderFetch } from "./provider-url.js";
 
 export type ReasoningEffort = "low" | "medium" | "high";
 
+// OpenAI-compatible providers that lack native json_schema structured output
+// fall back to `response_format: { type: "json_object" }`, which HARD-REJECTS
+// (HTTP 400) any request whose messages never contain the literal word "json"
+// (observed on Volcengine Ark's deepseek / doubao chat models). Every caller
+// that pairs `generateText` + `Output.object(...)` against an admin provider
+// MUST include this line in its `instructions` (or prompt), otherwise the call
+// 400s on the first token and the caller silently drops to its fallback. Keep
+// it here — next to the adapter that owns that json_object behavior — so it is
+// a single source of truth, not re-invented per callsite.
+export const JSON_OBJECT_MODE_INSTRUCTION =
+  "Return your entire response as a single JSON object that matches the required schema.";
+
 export interface ChatProvider {
   id: string;
   name: string;

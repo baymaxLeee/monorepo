@@ -38,7 +38,6 @@ export interface PromptInputProps {
   style?: CSSProperties;
   submitLabel?: ReactNode;
   autoFocus?: boolean;
-  maxHeight?: number;
   accept?: string;
   maxFiles?: number;
   maxFileSize?: number;

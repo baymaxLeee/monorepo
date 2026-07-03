@@ -64,6 +64,31 @@ Length is capped at 120s (default ~50s); the chat tool's `duration` argument now
 means the total reel length. Clip URLs (not bytes) are the durable step state,
 keeping the Workflow run's event log small.
 
+### Per-clip length policy (anti "镜头重复")
+
+Each scene is a **single-prompt** text-to-video generation. Video models suffer
+**temporal decay**: prompt attention is strong at frame 1 and weak at the end, so
+a single clip longer than ~6s tends to *drift* or emit *near-duplicate / looping
+frames* — the visible "镜头重复" bug. Industry guidance (Seedance 2.0 docs,
+Kling/Runway/Veo failure references) converges on: keep single-prompt clips in the
+stable window and assemble many short hard-cut clips rather than asking one clip to
+be long.
+
+So this workflow deliberately caps per-clip length at **8s** (`CLIP_SECONDS_MAX`,
+default **6s**) — *below* Seedance's 4–15s hard range — and pushes cut density onto
+the **number of scenes**, not multi-shot inside one clip. The planner is instructed
+"one continuous action + one deliberate camera move per scene, visually distinct
+from its neighbours", and `buildScenePrompt` appends a fixed "single continuous
+shot, no repeated/looping/frozen motion" clause enforced regardless of the LLM
+output. Seedance's native task API exposes no negative-prompt or multi-shot toggle,
+so all of this lives in prompt text + the length cap.
+
+**Why not use the anchor as a `first_frame` (image-to-video)?** I2V is more stable
+per clip, but feeding the *same* anchor image as every scene's first frame would
+make every clip open on an identical frame — manufacturing exactly the cross-scene
+repetition we are fixing. We therefore keep the anchor in `reference_image` mode
+(loose subject consistency) and never as `first_frame`.
+
 ## Consequences
 
 - New OS dependency: **ffmpeg** in the executor image (`apt-get`, not

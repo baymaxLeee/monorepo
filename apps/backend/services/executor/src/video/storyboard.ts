@@ -7,16 +7,19 @@ import { z } from "zod";
 
 import { getProvider } from "../clients/admin.js";
 import { generateArkImageUrl } from "../clients/ark.js";
-import { createProviderModel } from "@backend/transport-ts/provider-model";
+import { createProviderModel, JSON_OBJECT_MODE_INSTRUCTION } from "@backend/transport-ts/provider-model";
 
 export const STORYBOARD_TIMEOUT_MS = 3 * 60_000;
 
-// Vertical short-drama targets: fast, cheap, high-volume. A single clip is
-// 4–15s (Seedance) and can itself hold a few native shots, so a ~50s reel is
-// only a handful of scenes. Cap scene count so a runaway target never fans out
-// into an unbounded number of paid Ark calls.
+// Vertical short-drama targets: fast, cheap, high-volume. Seedance's hard clip
+// range is 4–15s, but we deliberately cap OURS at 8s: video models suffer
+// "temporal decay" — prompt attention falls off toward the end of a clip, so a
+// single-prompt generation longer than ~6s tends to drift or emit near-duplicate
+// / looping frames (the "镜头重复" failure). Cut density comes from MORE hard-cut
+// scenes, not from a longer single clip. Cap scene count so a runaway target
+// never fans out into an unbounded number of paid Ark calls.
 export const CLIP_SECONDS_MIN = 4;
-export const CLIP_SECONDS_MAX = 15;
+export const CLIP_SECONDS_MAX = 8;
 export const MAX_SCENES = 24;
 
 export type Scene = { id: string; order: number; prompt: string; seconds: number };
@@ -28,7 +31,7 @@ export type Storyboard = {
 };
 
 export function clampClipSeconds(value: number | undefined): number {
-  const n = Number.isFinite(value) ? Math.round(value as number) : 10;
+  const n = Number.isFinite(value) ? Math.round(value as number) : 6;
   return Math.min(CLIP_SECONDS_MAX, Math.max(CLIP_SECONDS_MIN, n));
 }
 
@@ -59,12 +62,22 @@ function storyboardInstructions(sceneCount: number, clipSeconds: number): string
     `You are the director of a VERTICAL (9:16) short-drama reel for 抖音/小红书 投流 (paid distribution).`,
     `Break the user's premise into exactly ${sceneCount} consecutive scene clips, each ~${clipSeconds}s.`,
     "Optimize for retention: scene 1 must HOOK in the first 3 seconds (conflict, question, or striking visual); each following scene escalates; the last scene ends on a cliffhanger or payoff.",
-    "Each scene `prompt` is a self-contained instruction to a text-to-video model. Write concrete cinematic detail: subject action, camera movement, framing, lighting, mood.",
-    "Exploit native multi-shot: within one scene prompt you may describe 2–3 quick shots/angles (e.g. wide -> close-up -> reaction) to raise cut density.",
+    "Each scene `prompt` is a self-contained instruction to a text-to-video model.",
+    // Anti-"镜头重复" (temporal decay): each clip is ONE continuous shot. Do NOT
+    // cram multiple shots/angles into a single clip — the model has too few
+    // frames and fills them by looping/repeating. Cut density comes from having
+    // MORE scenes (hard cuts at assembly), not from multi-shot inside one clip.
+    "CRITICAL — one shot per scene: describe EXACTLY ONE continuous action and ONE deliberate camera move (static, or a single slow push-in / pan / tracking). Do NOT put multiple shots, angle changes, or cuts inside a single scene prompt.",
+    "The single action must visibly PROGRESS from start to finish (continuous forward motion). Never a motion that loops back, repeats, or freezes.",
+    "Make consecutive scenes VISUALLY DISTINCT: each scene must differ from its neighbours in action, location, or framing. Never restate or lightly re-word the previous scene's shot.",
+    "Write concrete cinematic detail: subject action, the one camera move, framing, lighting, mood.",
     "Restate the protagonist's key appearance in EVERY scene prompt so independently generated clips keep them recognizable.",
     "`character_dna`: one line locking the protagonist's fixed appearance (hair, face marks, wardrobe, build).",
     "`style_bible`: one shared visual direction for the whole reel — palette, grade, lens feel, energy. Vertical framing, punchy short-drama pacing.",
-    "Do not number the scenes inside the prompt text and do not write shot lists as JSON; prose only.",
+    "Do not number the scenes inside the prompt text; write each scene's prompt as prose.",
+    // MUST stay last: the openai-compatible json_object mode 400s without the
+    // word "json" in the messages (see JSON_OBJECT_MODE_INSTRUCTION).
+    JSON_OBJECT_MODE_INSTRUCTION,
   ].join("\n");
 }
 
@@ -86,7 +99,10 @@ function deterministicStoryboard(input: {
           ? "Escalate to a final payoff / cliffhanger."
           : "Escalate the tension from the previous beat.",
       `Premise: ${input.prompt}`,
-      "Keep the same protagonist appearance and visual style throughout. Quick multi-shot cutting.",
+      "Keep the same protagonist appearance and visual style throughout.",
+      // One continuous shot per clip, distinct from the previous beat — see
+      // storyboardInstructions for the temporal-decay rationale.
+      "One continuous shot with a single deliberate camera move; the action progresses continuously with no repeated or looping motion; make this beat visually distinct from the previous one.",
     ].join(" "),
   }));
   return {
@@ -152,6 +168,9 @@ export function buildScenePrompt(scene: Scene, board: Storyboard): string {
     scene.prompt,
     `Protagonist (keep consistent): ${board.characterDNA}`,
     `Visual style (keep consistent): ${board.styleBible}`,
+    // Fixed stability clause: enforced regardless of what the planner wrote, to
+    // suppress the temporal-decay "镜头重复" failure on longer single clips.
+    "Single continuous shot. Motion progresses continuously from start to end — no repeated, looping, or frozen motion.",
     "Vertical 9:16 framing.",
   ].join("\n");
 }

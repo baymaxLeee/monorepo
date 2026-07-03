@@ -64,8 +64,15 @@ observability in MySQL and consumes admin (providers), knowledge
   `abortSignal` fires, and it calls `POST /tasks/:id/cancel` before unwinding —
   like Cursor aborting an in-flight file write. (The executor task stays durable
   against *process* loss; it is only tied to the turn for user-initiated Stop.)
-- `web_search` uses Tavily. `create_memory`/`update_memory` stage a candidate;
-  user approval remains asynchronous in the memory panel.
+- `web_search` uses Tavily. Freshness is handled two ways so the model never
+  falls back to its training-cutoff year: (1) the current date is injected into
+  the agent instructions as a trailing `<environment>` block (single source of
+  truth — see `buildEnvironmentSection` in `context/instructions.ts`; kept last
+  so the static prompt prefix stays cache-stable); (2) the tool exposes Tavily's
+  native `topic`/`time_range`/`start_date`/`end_date` filters so recency is a
+  structured, server-side filter rather than a year stuffed into the query.
+  `create_memory`/`update_memory` stage a candidate; user approval remains
+  asynchronous in the memory panel.
 
 ## Boundaries
 

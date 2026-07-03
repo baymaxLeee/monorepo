@@ -15,8 +15,10 @@ import {
   ToolJsonBlock,
   withoutReasoningParts,
 } from "components/ai-chat";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { cn } from "shared";
+import { documentIdFromFilePart } from "../lib/file-parts";
+import { useChatStore } from "../store/useChatStore";
 import {
   ArtifactDocumentCard,
   ArtifactTaskCard,
@@ -62,6 +64,28 @@ export function ChatMessageView({
   const isUser = message.role === "user";
   const variant = isUser ? "user" : "assistant";
 
+  // Every image attachment in this message forms one preview group, so the
+  // lightbox can page through them with prev/next from wherever the user clicked.
+  const openImagePreview = useChatStore((s) => s.openImagePreview);
+  const imageGroup = useMemo(
+    () =>
+      message.parts.flatMap((part) => {
+        if (!isFileUIPart(part) || !part.mediaType.startsWith("image/")) {
+          return [];
+        }
+        const documentId = documentIdFromFilePart(part);
+        return documentId ? [{ documentId, filename: part.filename }] : [];
+      }),
+    [message.parts],
+  );
+  const onOpenImage = useCallback(
+    (documentId: string) => {
+      const idx = imageGroup.findIndex((ref) => ref.documentId === documentId);
+      openImagePreview(conversationId, imageGroup, Math.max(idx, 0));
+    },
+    [conversationId, imageGroup, openImagePreview],
+  );
+
   return (
     <AiMessage
       from={message.role}
@@ -91,6 +115,7 @@ export function ChatMessageView({
               documents={documents}
               latestTodoCallId={latestTodoCallId}
               onOpenArtifact={onOpenArtifact}
+              onOpenImage={onOpenImage}
               onAnswerClientTool={onAnswerClientTool}
               onContinuePlan={onContinuePlan}
               onExecutePlan={onExecutePlan}
@@ -119,6 +144,7 @@ function MessagePartView({
   documents,
   latestTodoCallId,
   onOpenArtifact,
+  onOpenImage,
   onAnswerClientTool,
   onContinuePlan,
   onExecutePlan,
@@ -130,6 +156,7 @@ function MessagePartView({
   documents: Map<string, ConversationDocument>;
   latestTodoCallId: string | null;
   onOpenArtifact: (documentId: string) => void;
+  onOpenImage: (documentId: string) => void;
   onAnswerClientTool: (
     toolName: string,
     toolCallId: string,
@@ -173,6 +200,7 @@ function MessagePartView({
         part={part}
         variant={variant}
         onOpen={onOpenArtifact}
+        onOpenImage={onOpenImage}
       />
     );
   }
@@ -239,7 +267,6 @@ function ToolPartView({
         conversationId={conversationId}
         output={output}
         state={part.state}
-        onOpen={onOpenArtifact}
       />
     );
   }

@@ -37,6 +37,8 @@ function modeInstructions(mode: AgentMode): string {
     ? [
         "<agent_mode>plan</agent_mode>",
         "Analyze and plan only. Do not create or edit the final deliverable or perform side effects.",
+        "You are given the SAME full tool set as execute mode — including generate_image, generate_video, write_file/edit_file, and create_memory — so you can reason about the complete capability set and produce a precise plan; factor these capabilities into the plan whenever they fit the task.",
+        "In plan mode those execution tools are inert: calling one does nothing and returns a plan-mode notice, so do not call them now — capture each such step in ## 任务 instead. Only search_knowledge, web_search, list_files, read_file, ask_user, and the planning tools (write_plan/update_plan/update_todos) actually run in this mode.",
         "Use write_plan to create a Markdown plan or update_plan for the injected active plan.",
         "The plan must contain: # 目标, ## 背景与约束, ## 实施方案, ## 任务, ## 验收标准.",
         "Write ## 任务 as a Markdown checklist (- [ ] one actionable step per line) so it can be turned into a todo list once execution starts.",
@@ -54,6 +56,27 @@ function modeInstructions(mode: AgentMode): string {
         "For multi-step tasks (3+ distinct steps), call update_todos to create and maintain a todo list: seed every step up front, keep at most one item in_progress at a time, and mark an item completed immediately after finishing it. Skip it for simple one-step requests.",
         "If the context includes <referenced_plan>, your first action must be read_file on that plan document, then update_todos once to seed the todo list from its ## 任务 checklist, before doing any other work.",
       ].join("\n");
+}
+
+// Ground the model in the current date so freshness-sensitive tools (web_search)
+// don't fall back to the model's training-cutoff year. Mirrors Claude Code's
+// runtime "Today's date is …" injection and Cursor's <user_info> date. This is
+// deliberately emitted as the LAST instruction section: the static prefix
+// (BASE_INSTRUCTIONS + mode) stays prompt-cache stable while this daily-volatile
+// line sits in the dynamic tail (Claude Code's cache-boundary / Codex's
+// "static first, dynamic last"). The date is the single source of truth — the
+// web_search description references it generically instead of hardcoding a year.
+function buildEnvironmentSection(now: Date = new Date()): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const weekday = now.toLocaleDateString("en-US", { weekday: "long" });
+  return [
+    "<environment>",
+    `Today's date is ${year}-${month}-${day} (${weekday}).`,
+    'Your training data has a cutoff and may be stale. For anything time-sensitive, rely on web_search and treat the date above as the authoritative "today" — never default to an earlier year such as 2025.',
+    "</environment>",
+  ].join("\n");
 }
 
 export async function buildAgentInstructions(input: {
@@ -104,5 +127,7 @@ export async function buildAgentInstructions(input: {
       ].join("\n\n"),
     );
   }
+
+  sections.push(buildEnvironmentSection());
   return sections.join("\n\n");
 }

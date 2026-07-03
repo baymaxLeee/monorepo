@@ -1,4 +1,8 @@
 .prompt-input {
+  /* Single source of truth for the editor's line height. The content area
+     grows from 2 lines up to 5 lines (then scrolls) off of this value. */
+  --prompt-line-height: 1.5rem;
+
   display: flex;
   width: 100%;
   min-width: 0;
@@ -30,19 +34,21 @@
 }
 
 .prompt-input-content {
-  min-height: 5rem;
+  /* Cap growth at 5 lines (+ top padding), then scroll inside. */
+  max-height: calc(var(--prompt-line-height) * 5 + 0.5rem);
   overflow-y: auto;
-  padding: 0.5em 0.75em 0;
+  padding: 0.5rem 0.75rem 0;
   scrollbar-width: thin;
 }
 
 .prompt-input-prosemirror {
   position: relative;
-  min-height: 3.5rem;
+  /* Default resting height: 2 lines. */
+  min-height: calc(var(--prompt-line-height) * 2);
   white-space: pre-wrap;
   overflow-wrap: break-word;
   font-size: 0.875rem;
-  line-height: 1.5rem;
+  line-height: var(--prompt-line-height);
   outline: none;
 }
 
@@ -66,6 +72,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  /* 0.25rem sides so the ghost "+" icon lines up with the text above
+     (0.75rem text inset − 0.5rem icon button inset). */
+  padding: 0.375rem 0.25rem 0.5rem;
 }
 
 .prompt-input-tools {

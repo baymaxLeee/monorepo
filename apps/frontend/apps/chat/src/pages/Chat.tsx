@@ -31,6 +31,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 import { ChatComposerControls } from "../components/ChatComposerControls";
+import { ChatImagePreview } from "../components/ChatImagePreview";
 import { ChatMessageView } from "../components/ChatMessageView";
 import { findLatestUpdateTodosCallId } from "../components/ChatTodoListCard";
 import type { ChatUIMessage } from "../lib/chat-message";
@@ -87,6 +88,7 @@ export function Chat() {
     bumpTraceRefresh,
     openArtifactPreview,
     closeArtifactPreview,
+    closeImagePreview,
     applyConversationTitle,
   } = useChatStore(
     useShallow((s) => ({
@@ -99,6 +101,7 @@ export function Chat() {
       bumpTraceRefresh: s.bumpTraceRefresh,
       openArtifactPreview: s.openArtifactPreview,
       closeArtifactPreview: s.closeArtifactPreview,
+      closeImagePreview: s.closeImagePreview,
       applyConversationTitle: s.applyConversationTitle,
     })),
   );
@@ -196,7 +199,8 @@ export function Chat() {
 
   useEffect(() => {
     closeArtifactPreview();
-  }, [id, closeArtifactPreview]);
+    closeImagePreview();
+  }, [id, closeArtifactPreview, closeImagePreview]);
 
   useEffect(() => {
     if (!id) return;
@@ -468,7 +472,6 @@ export function Chat() {
               ? "描述要规划的任务，/ 引用技能，@ 添加上下文"
               : "要求后续变更"
           }
-          maxHeight={260}
           maxFiles={8}
           maxFileSize={20 * 1024 * 1024}
           onError={(message) => toast.error(message)}
@@ -522,6 +525,8 @@ export function Chat() {
           )}
         />
       </div>
+
+      <ChatImagePreview />
     </div>
   );
 }

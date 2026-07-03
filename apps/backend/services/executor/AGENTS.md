@@ -61,6 +61,12 @@ for the full rationale.
   failed scene degrades and is skipped at assembly. It needs the **ffmpeg** OS
   binary (see operational note #6) and three providers threaded from chat's
   `catalog.ts` (video + text-required + optional image).
+  - **Per-clip length is capped at 8s (default 6s), below Seedance's 4–15s
+    range, on purpose**: single-prompt clips longer than ~6s hit *temporal decay*
+    and produce looping / near-duplicate frames (the "镜头重复" bug). Keep clips
+    short and get cut density from MORE hard-cut scenes; the planner enforces "one
+    continuous action + one camera move per scene". Do not raise `CLIP_SECONDS_MAX`
+    or reintroduce multi-shot-per-clip prompting without re-reading ADR-0018.
 
 ## Boundaries
 

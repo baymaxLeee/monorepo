@@ -13,11 +13,13 @@ export function ChatMessageFilePart({
   conversationId,
   part,
   onOpen,
+  onOpenImage,
   variant = "assistant",
 }: {
   conversationId: string;
   part: FileUIPart;
   onOpen: (documentId: string) => void;
+  onOpenImage: (documentId: string) => void;
   variant?: "user" | "assistant";
 }) {
   const rootRef = useRef<HTMLButtonElement>(null);
@@ -66,7 +68,7 @@ export function ChatMessageFilePart({
           "max-w-[min(100%,20rem)] transition-colors hover:bg-muted/60",
           variant === "user" && "bg-background/90 shadow-sm",
         )}
-        onClick={() => onOpen(documentId)}
+        onClick={() => (isImage ? onOpenImage(documentId) : onOpen(documentId))}
       >
         {isImage && (loading || error || !blobUrl) ? (
           <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-muted text-[10px] text-muted-foreground">

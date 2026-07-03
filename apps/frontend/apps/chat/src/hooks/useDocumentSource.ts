@@ -75,3 +75,54 @@ export function useDocumentBlobUrl(
 
   return { blobUrl, loading, error };
 }
+
+// Resolve a group of documents to object URLs at once (e.g. every image in a
+// lightbox so prev/next has each slide ready). Reuses the shared source cache,
+// keeps results aligned with the input ids, and revokes URLs on cleanup. Keyed
+// on the joined id list so a stable group does not re-fetch every render.
+export function useDocumentBlobUrls(
+  conversationId: string | undefined,
+  documentIds: string[],
+): Array<string | null> {
+  const key = documentIds.join("|");
+  const [urlMap, setUrlMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const ids = key ? key.split("|") : [];
+    if (!conversationId || ids.length === 0) {
+      setUrlMap({});
+      return;
+    }
+    let active = true;
+    const created: string[] = [];
+    void Promise.all(
+      ids.map(async (documentId) => {
+        try {
+          const blob = await fetchCachedDocumentSource(
+            conversationId,
+            documentId,
+          );
+          const url = URL.createObjectURL(blob);
+          created.push(url);
+          return [documentId, url] as const;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((pairs) => {
+      if (!active) {
+        for (const url of created) URL.revokeObjectURL(url);
+        return;
+      }
+      const next: Record<string, string> = {};
+      for (const pair of pairs) if (pair) next[pair[0]] = pair[1];
+      setUrlMap(next);
+    });
+    return () => {
+      active = false;
+      for (const url of created) URL.revokeObjectURL(url);
+    };
+  }, [conversationId, key]);
+
+  return documentIds.map((documentId) => urlMap[documentId] ?? null);
+}

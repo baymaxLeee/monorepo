@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { extractJsonMiddleware, generateText, Output, wrapLanguageModel } from "ai";
 
-import { createProviderModel } from "@backend/transport-ts/provider-model";
+import { createProviderModel, JSON_OBJECT_MODE_INSTRUCTION } from "@backend/transport-ts/provider-model";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
 import {
   createMemoryCandidate,
@@ -56,6 +56,9 @@ function extractionInstructions(): string {
     "If a candidate updates/contradicts an existing memory, set supersedes_content to that existing memory's text.",
     "When nothing durable is present, return an empty candidates array. Returning empty is the common, correct case.",
     "Keep each content concise and self-contained (it will be read without conversation context).",
+    // MUST stay last: the openai-compatible json_object mode 400s without the
+    // word "json" in the messages (see JSON_OBJECT_MODE_INSTRUCTION).
+    JSON_OBJECT_MODE_INSTRUCTION,
   ].join("\n");
 }
 

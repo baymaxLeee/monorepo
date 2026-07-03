@@ -1,6 +1,7 @@
 import { Loader2Icon } from "lucide-react";
 import { cn } from "shared";
 import { useDocumentBlobUrl } from "../hooks/useDocumentSource";
+import { useChatStore } from "../store/useChatStore";
 
 export type GeneratedImageRef = {
   documentId: string;
@@ -60,11 +61,11 @@ export function parseGenerateImageOutput(
 function GeneratedImageTile({
   conversationId,
   image,
-  onOpen,
+  onSelect,
 }: {
   conversationId: string;
   image: GeneratedImageRef;
-  onOpen: (documentId: string) => void;
+  onSelect: () => void;
 }) {
   const { blobUrl, loading, error } = useDocumentBlobUrl(
     conversationId,
@@ -75,7 +76,7 @@ function GeneratedImageTile({
     <button
       type="button"
       title={`预览 ${image.filename}`}
-      onClick={() => onOpen(image.documentId)}
+      onClick={onSelect}
       className="group relative overflow-hidden rounded-lg border bg-muted/20 transition-colors hover:border-primary/60"
     >
       {blobUrl ? (
@@ -103,13 +104,12 @@ export function ChatImageCard({
   conversationId,
   output,
   state,
-  onOpen,
 }: {
   conversationId: string;
   output: unknown;
   state: string;
-  onOpen: (documentId: string) => void;
 }) {
+  const openImagePreview = useChatStore((s) => s.openImagePreview);
   const parsed = parseGenerateImageOutput(output);
   const failed = state === "output-error" || parsed?.ok === false;
 
@@ -123,6 +123,10 @@ export function ChatImageCard({
 
   const images = parsed?.images ?? [];
   if (parsed?.status === "completed" && images.length > 0) {
+    const refs = images.map((image) => ({
+      documentId: image.documentId,
+      filename: image.filename,
+    }));
     return (
       <div
         className={cn(
@@ -130,12 +134,12 @@ export function ChatImageCard({
           images.length > 1 ? "grid-cols-2" : "grid-cols-1",
         )}
       >
-        {images.map((image) => (
+        {images.map((image, i) => (
           <GeneratedImageTile
             key={image.documentId}
             conversationId={conversationId}
             image={image}
-            onOpen={onOpen}
+            onSelect={() => openImagePreview(conversationId, refs, i)}
           />
         ))}
       </div>
