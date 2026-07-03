@@ -2,7 +2,18 @@
 
 ## Status
 
-Accepted. Refactors the `video-generation` task type introduced alongside
+Accepted, revised twice. The CURRENT design is the last section, **Update
+(2026-07b): single-action segments + wire-format corrections**, which supersedes
+the *multi-shot-per-segment* decision of the prior update (one segment is now ONE
+continuous action, not a multi-shot clip) and corrects two wire-format claims
+that were wrong (reference mode DOES accept an integer `duration`; Seedance 2.0
+DOES support `seed`). What survives from earlier: the durable
+plan→generate→assemble skeleton, the two-stage **script→storyboard** planning
+(the real fix for 剧情重复), character-sheet `@reference`, per-segment seed, and
+the "loose consistency, hard cuts are the 投流 language" stance. Read the last
+section first; the two middle updates are kept for history.
+
+Refactors the `video-generation` task type introduced alongside
 ADR 0014 (multimodal providers) and ADR 0015 (agent task executor). Reuses the
 `html-artifact` plan -> concurrent-block -> compile shape.
 
@@ -97,10 +108,14 @@ cue native audio. Three quality levers from the Seedance/Kling prompt guides are
 baked in: (1) the skeleton order stays identical across shots (drift comes from
 reordering, not content); (2) the camera move and the subject's action are stated
 as **separate** clauses — merging them makes the model jitter; (3) a fixed
-**stability negative-constraint** clause (avoid jitter / warped limbs / extra
-fingers / facial distortion / looping frames) is always appended — the
-highest-ROI anti-distortion lever — and the planner is told NOT to write it, so
-it lands exactly once instead of bloating every field. Global anchors are
+**positive** stability clause is always appended — Seedance ignores negative
+prompts, so it reads "maintain consistent identity, natural stable motion, no
+distortion" plus "one action that keeps progressing and fills the whole clip".
+That last part is the real fix for 镜头重复 (repeated / looping frames): the
+failure is an action-vs-duration mismatch — a momentary action stretched over a
+long clip — so the planner is also instructed to match each shot's duration to
+its motion (a near-static beat goes short or gains a continuous micro-motion),
+rather than relying on a negative word list. Global anchors are
 length-capped (≈200–240 chars) to keep each clip's prompt near the ~60–100-word
 sweet spot; over-long prompts measurably degrade Seedance's instruction-following.
 
@@ -143,3 +158,173 @@ adjacent-shot contrast, so hard cuts fall on story seams. Scenes still generate
 concurrently and assemble with hard cuts — the parallel-speed baseline and the
 "loose consistency" stance are unchanged; long blocks and last-frame chaining
 remain out of scope.
+
+## Update (2026-07): Seedance 2.0-native rebuild
+
+The two problems that surfaced in use were **场景高度重复** (clips look near
+identical) and **关键剧情重复** (beats restate each other). Re-derived from first
+principles + current practice, both were structural, and the fixes required
+adopting Seedance 2.0 capabilities the original design predated. Seedance 2.0
+went to full API GA on 火山方舟 in 2026-04 (same `POST /api/v3/contents/
+generations/tasks` endpoint) with native multi-shot, multi-image `@reference`
+(≤9 images), `return_last_frame` continuation, and an integer `duration`.
+
+### Root causes (both were designed-in)
+
+- **Visual repetition**: every scene shared **one seed** (`board.seed`) + **one
+  anchor image** + ~70% identical prompt text (the three bibles restated
+  verbatim). Independently generated clips with those three held constant
+  converge to the same face/framing. Fixing the seed was meant to reduce drift,
+  but applied *identically to every scene* it homogenizes them.
+- **Plot repetition**: the storyboard was **one LLM call** that wrote the world
+  bibles *and* every shot card at once. With no separate script/beat-sheet
+  stage, the model emits generic interchangeable "escalation" beats. Industry
+  practice is explicit: 先剧本，后分镜 (write the script, then storyboard it).
+- **Silent duration bug**: the wire sent a `seconds` STRING while attaching a
+  `reference_image`. Seedance 2.x's native format is an integer `duration`, and
+  in multimodal-reference mode it **rejects/strips duration** (the model
+  auto-picks). So the carefully-planned per-shot 4–8s lengths were likely never
+  honoured — a momentary action stretched to a default length is exactly the
+  action-vs-duration mismatch that causes 镜头重复.
+
+### Decision
+
+Rebuild the planner and generation as **script → multi-shot segments →
+(optional) last-frame chaining → assemble**:
+
+1. **Two-stage planning** (`src/video/script.ts` then `src/video/storyboard.ts`).
+   Stage A (`planScript`) writes a real short-drama SCRIPT: logline, a reusable
+   character table (fixed appearance tokens), and a beat sheet where **every
+   beat must carry a distinct, concrete plot event** plus **one explicit visual
+   throughline (motif)** repeated across beats. Stage B (`planSegments`)
+   decomposes each beat into ONE **segment** = one Seedance generation rendered
+   as a native **multi-shot** clip (timecoded shots `[00:00] … [00:05] …` in a
+   single prompt), reusing the shot grammar. Two focused calls replace one
+   20-line mega-prompt; the beat-distinctness + motif rules are the direct fix
+   for 剧情重复.
+2. **Segment = native multi-shot** (Seedance 2.x). A ~50s reel is ~4 segments of
+   ~12s (each 2–4 timecoded shots), not ~10 independent 6s clips. 2.x keeps
+   identity/lighting/style consistent *within* a segment and cuts cleanly
+   between its shots, so fewer independent generations = far less cross-clip
+   divergence. `SEGMENT_SECONDS_MAX = 15` (the 2.x per-generation ceiling).
+3. **Character sheet + `@reference`** replaces the single anchor. `planStep`
+   generates a best-effort neutral anchor **per main character** (≤3), passed as
+   `reference_image` items and declared `@image1..N` in each segment prompt
+   (supports 对手戏 / multi-character). Degrades per-character to text-only.
+4. **Per-segment derived seed** (`deriveSegmentSeed(baseSeed, order)`) replaces
+   the single shared seed: distinct per segment (visual variety) yet reproducible
+   from the run's base. Identity now comes from the reference sheet, not seed.
+5. **Wire format via a capability descriptor** (`seedanceCaps(model)` in
+   `ark.ts`) — the ONLY place model-version differences live: integer `duration`,
+   multi-image reference, `return_last_frame`, and "duration is stripped in
+   reference mode" are all flags keyed off the model id (`seedance-2*`). Bumping
+   to **Seedance 2.5** later is one match arm here, not an architecture change.
+   In reference mode we omit `duration` and let the in-prompt timecodes drive
+   length (the `requestedSeconds`/`actualDuration` logs verify this against the
+   live endpoint).
+6. **Continuity is now a tool option** (`continuity: "cut" | "chain"`, default
+   `"cut"`). `cut`: every segment references the sheet, fans out in parallel,
+   hard cuts — the native language of 投流, unchanged default. `chain`: seamless
+   — each segment continues from the previous segment's last frame
+   (`return_last_frame` → next `first_frame`), serial, slower; the first segment
+   still establishes identity via the sheet. This finally makes last-frame
+   chaining available (it was "out of scope" above) because 2.x's first/last
+   frame is a first-class per-segment mode — still mutually exclusive with
+   `reference_image` within one segment, which is why a chained segment relies on
+   text DNA + continuity for identity.
+
+Assembly (`assembler.ts`) is unchanged: it now concatenates ~4 segments instead
+of ~10 clips. `duration` remains the total-reel target, but under 2.x reference
+mode the exact total is model-approximated (timecode-driven), a deliberate
+trade of exact length for native multi-shot quality.
+
+### Consequences
+
+- Two text-model calls per run (script + storyboard) instead of one; negligible
+  next to minutes-scale video generation, and each stage gets focused
+  instructions.
+- Sources: Seedance 2.0 官方发布 (bytedance Seed), 火山方舟 视频生成 API,
+  Seedance 2.0 apifox 原生格式 (`duration` int / `return_last_frame`), amux
+  Seedance 2.0 docs (duration stripped in reference mode; `@imageN`),
+  imagine.art guide (timecode multi-shot; video extension), and AI 短剧
+  工业化 workflow guides (script→分镜→角色卡锁脸→首尾帧衔接, 视觉贯穿线).
+- Still deliberately NOT built: LoRA/fine-tune character locking, reference-video
+  motion driving, and per-shot conversational re-generation — all available in
+  2.x but heavier than the 投流 demo needs.
+
+## Update (2026-07b): single-action segments + wire-format corrections
+
+Testing the multi-shot-per-segment build surfaced a regression and a code review
+(Codex) plus a re-check against the **official** BytePlus/火山方舟 API reference
+found two wire-format claims above were wrong. This update supersedes the
+relevant parts of the previous one.
+
+### What went wrong
+
+- **块内剧情重复 (within-segment plot repetition).** Rendering one beat as a
+  native multi-shot clip (2–4 timecoded shots in one generation) asked the model
+  to *cover one event from several angles*. A single beat is a single event, so
+  the shots re-showed the same moment — the exact repetition the storyboard was
+  meant to remove, now *inside* each clip. This did not exist before the
+  multi-shot planner; the user's report was correct.
+- **`stripDurationInReferenceMode` was based on a false premise.** The prior
+  update claimed 2.x "rejects/strips duration in reference mode." That behaviour
+  is the **amux aggregator's** private adapter rule, NOT the native Volcengine
+  API. The official reference and every native-format mirror send an explicit
+  integer `duration` in EVERY mode — the docs even show reference examples with
+  `duration: 11`. Stripping it made total length uncontrolled.
+- **"Seedance 2.0 doesn't support seed" is false.** The native `POST /api/v3/
+  contents/generations/tasks` body accepts a top-level integer `seed`
+  (0–2,147,483,647; omit for random). On 2.x it is a *soft* reproducibility hint
+  (same seed+prompt → similar, not identical), so per-segment derived seeds are
+  kept — harmless and reproducible.
+- **A fixed admin `"seconds": "5"` default + a `seconds`/`duration` passthrough**
+  could pin every 2.x segment to 5s or 400 the request.
+
+### Decision (current)
+
+1. **ONE segment == ONE beat == ONE Seedance generation == ONE continuous,
+   single-take action.** No in-prompt multi-shot decomposition, no timecodes.
+   `storyboard.ts` (`planSegments`) turns each beat into a single
+   `shot_size`/`camera`/`action`/`dialogue?`/`mood`; `buildSegmentContent` emits
+   one action prompt. Within-segment repetition is now structurally impossible.
+2. **Cut density comes from MORE short segments**, hard-cut at assembly — the
+   native 投流 shape (Seedance renders a single take per generation; true cuts are
+   made by concatenation, per Seedance/MindStudio guidance).
+3. **Deterministic length: segment count = 秒数 / 6** (`deriveSegmentCount`), each
+   segment ~4–12s (sweet spot; the old 镜头重复-avoiding window), clamped on the
+   wire to the model's real integer **4–15** range (`clampArkDuration`). This is
+   the "固定按秒数/6切分" logic the pre-storyboard pipeline used, now feeding the
+   script stage instead of raw slicing.
+4. **Anti-repetition stays the script's job, hardened.** `planScript` writes
+   EXACTLY N distinct beats; `dedupeBeats` drops near-duplicates; if the sheet
+   still collapses, a deterministic DISTINCT dramatic arc (`arcBeats`) is
+   substituted using the model's real characters. The deterministic fallbacks no
+   longer restate the premise verbatim (they were themselves a repetition source).
+5. **Always send an integer `duration`** in the native field, in every mode;
+   `stripDurationInReferenceMode` removed; `seconds`/`duration` removed from the
+   admin extra_body allowlist and the admin video preset default (length is owned
+   per-segment by the pipeline). `seedanceCaps` keeps only real version deltas
+   (`durationField`, `multiImageReference`, `returnLastFrame`, `maxClipSeconds`).
+6. **Reliability.** `createArkVideoTask` throws a classified `ArkRequestError`;
+   `createSegmentStep` **rethrows** retryable faults (429/5xx/network) so Workflow
+   DevKit retries the step, and degrades only non-retryable 4xx (bad params /
+   moderation). Before assembly a quality bar requires the **hook** (segment 0)
+   plus ≥60% of segments, else the run fails instead of shipping a plot hole.
+7. **Assembler normalizes to 24fps** (Seedance's native rate), not 30 — forcing
+   30 inserted duplicate frames.
+
+This makes the previous update's "timecode-driven approximate length" trade-off
+obsolete: length is now exact-by-construction (integer per-segment `duration`),
+and the timecode-budget normalization problem disappears with the timecodes.
+
+### Out of scope (next batch, noted not built)
+
+Cancel-compensation of in-flight Ark tasks on workflow cancellation (persist
+provider task ids → Ark cancel/delete), cost estimation + quality tiers in the
+tool card, hybrid chain-islands with periodic re-anchoring, and per-segment
+quality gates (black-frame / static-frame / loudness). Sources for this update:
+official BytePlus ModelArk API reference (create task, prompt guide), 火山方舟
+Seedance 2.0 apifox 原生格式 (`seed`/`duration` int), reAPI/QWave native mirrors
+(reference-mode `duration` examples), MindStudio/Studiolist Seedance 2.0 prompt
+guides (single-take per generation; concat for true cuts).

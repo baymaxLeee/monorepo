@@ -39,7 +39,7 @@ export function createVideoTools(providers: VideoToolProviders) {
   return {
     generate_video: tool({
       description:
-        "Generate a VERTICAL (9:16) short-drama video for 抖音/小红书 投流 from a text premise, using the user's configured video model (Volcengine Ark Seedance), and render it inline in the chat. Use this whenever the user asks to create, make, or generate a video, drama, skit, or clip. Write the premise as a concrete story/scene idea (characters, conflict, setting, tone) — the tool internally storyboards it into a beat-driven, variable-length shot list (each shot gets its own framing, camera move, and duration), generates the scenes concurrently, and stitches them into one fast-cut vertical reel with native audio. CONTROLLING LENGTH: total length is set ONLY by the `duration` argument (whole seconds of the FINAL reel) — never just claim a length in your reply, your text does not affect the output. Range is 5–120s; omit for a ~50s default. Video generation is asynchronous and takes tens of seconds to a few minutes; this call runs it as a durable background task and blocks until it finishes, then returns the persisted video — do not restate file IDs or download steps, and do not call it again for the same request while it is running. Requires the user to have configured and selected a video provider; if none is available the tool returns an error you must relay, asking them to configure one in model management.",
+        "Generate a VERTICAL (9:16) short-drama video for 抖音/小红书 投流 from a text premise, using the user's configured video model (Volcengine Ark Seedance 2.x), and render it inline in the chat. Use this whenever the user asks to create, make, or generate a video, drama, skit, or clip. Write the premise as a concrete story/scene idea (characters, conflict, setting, tone) — the tool internally writes a short-drama SCRIPT (distinct beats + a visual throughline), storyboards each beat into a native MULTI-SHOT segment, locks characters with a reference sheet, and stitches the segments into one vertical reel with native audio. CONTROLLING LENGTH: total length is set ONLY by the `duration` argument (whole seconds of the FINAL reel) — never just claim a length in your reply, your text does not affect the output. Range is 5–120s; omit for a ~50s default. Video generation is asynchronous and takes tens of seconds to a few minutes; this call runs it as a durable background task and blocks until it finishes, then returns the persisted video — do not restate file IDs or download steps, and do not call it again for the same request while it is running. Requires the user to have configured and selected a video provider; if none is available the tool returns an error you must relay, asking them to configure one in model management.",
       inputSchema: z.object({
         prompt: z
           .string()
@@ -55,7 +55,13 @@ export function createVideoTools(providers: VideoToolProviders) {
           .max(VIDEO_TARGET_MAX_S)
           .optional()
           .describe(
-            `Target total length of the finished reel in whole seconds (${VIDEO_TARGET_MIN_S}–${VIDEO_TARGET_MAX_S}). Omit for a ~50s default. This is the WHOLE reel; the tool splits it into scene clips internally.`,
+            `Target total length of the finished reel in whole seconds (${VIDEO_TARGET_MIN_S}–${VIDEO_TARGET_MAX_S}). Omit for a ~50s default. This is the WHOLE reel; the tool splits it into multi-shot segments internally.`,
+          ),
+        continuity: z
+          .enum(["cut", "chain"])
+          .optional()
+          .describe(
+            "Segment-to-segment joining. 'cut' (default): fast hard cuts, segments render in parallel — the native language of 投流 short-drama. 'chain': seamless — each segment continues from the previous one's last frame (slower, serial). Only set 'chain' when the user explicitly asks for a seamless/continuous single-take feel.",
           ),
         todo_id: z
           .string()
@@ -71,7 +77,12 @@ export function createVideoTools(providers: VideoToolProviders) {
   };
 }
 
-type GenerateVideoInput = { prompt: string; duration?: number; todo_id?: string };
+type GenerateVideoInput = {
+  prompt: string;
+  duration?: number;
+  continuity?: "cut" | "chain";
+  todo_id?: string;
+};
 
 export async function* generateVideoTool(
   input: GenerateVideoInput,
@@ -98,6 +109,7 @@ export async function* generateVideoTool(
           imageProviderId: providers.imageProviderId ?? undefined,
           prompt: input.prompt,
           targetDurationSec: input.duration,
+          continuity: input.continuity,
           title,
           filename,
           idempotencyKey: toolCallId,

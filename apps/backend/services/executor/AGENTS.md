@@ -53,23 +53,42 @@ for the full rationale.
 - `echo` is a smoke-test type only. `html-artifact` (migrating
   `chat`'s `agent/artifacts/*` worker/lease/poll code here) is the first real
   type — see Phase 2 of the plan.
-- `video-generation` is a durable **plan -> concurrent-scene -> ffmpeg-assemble**
-  workflow for vertical short-drama (see ADR-0018): `planStep`
-  (`src/video/storyboard.ts`, text provider) -> `createSceneStep`/`waitSceneStep`
-  fanned out via `mapConcurrent` -> `assembleStep` (`src/video/assembler.ts`).
-  Clip URLs are the durable step state (bytes never cross a step boundary); a
-  failed scene degrades and is skipped at assembly. It needs the **ffmpeg** OS
-  binary (see operational note #6) and three providers threaded from chat's
-  `catalog.ts` (video + text-required + optional image).
-  - **Per-clip length is a 4–8s window (4s is Seedance's hard minimum; upper
-    bound 8s), below Seedance's 4–15s range, on purpose**: single-prompt clips
-    longer than ~8s hit *temporal decay*
-    and produce looping / near-duplicate frames (the "镜头重复" bug). The planner
-    (`storyboard.ts`) is a 分镜师 that decides a VARIABLE shot count and a VARIABLE
-    per-shot duration from narrative beats — cut density comes from MORE hard-cut
-    scenes, never a longer clip — and enforces "one continuous action + one camera
-    move per scene". Do not raise `CLIP_SECONDS_MAX` or reintroduce
-    multi-shot-per-clip prompting without re-reading ADR-0018.
+- `video-generation` is a durable **script -> storyboard -> per-segment
+  create/poll -> ffmpeg-assemble** workflow for vertical short-drama (see
+  ADR-0018): `planStep` runs Stage A `planScript` (`src/video/script.ts`, text
+  provider) then Stage B `planSegments` (`src/video/storyboard.ts`) plus a
+  best-effort `generateCharacterSheet` (optional image provider) ->
+  `createSegmentStep`/`waitSegmentStep` (Ark create + poll) ->
+  `assembleStep` (`src/video/assembler.ts`). Clip URLs are the durable step state
+  (bytes never cross a step boundary). It needs the **ffmpeg** OS binary (see
+  operational note #6) and three providers threaded from chat's `catalog.ts`
+  (video + text-required + optional image).
+  - **ONE segment == ONE story beat == ONE Seedance generation == ONE continuous,
+    single-take action.** We do NOT subdivide a segment into multiple in-prompt
+    shots/timecodes: a beat is one event, and asking the model to "cover" it from
+    several angles in one generation is what produced **块内剧情重复** (the same
+    moment re-shot). Cut density comes from MORE short segments hard-cut at
+    assembly (Seedance renders a single take per generation; true cuts = concat).
+  - **Length is deterministic: segment count = 秒数 / 6** (`deriveSegmentCount` in
+    `src/video/limits.ts`), each segment ~4–12s (sweet spot; `ark.ts` clamps to
+    the real integer 4–15 range). The pipeline always sends an explicit integer
+    `duration` in EVERY mode including reference mode (the official 2.x API
+    accepts it — there is no "strip duration in reference mode" case).
+  - **Anti-repetition is the script's job, in two layers**: `planScript` writes
+    exactly N DISTINCT beats; `dedupeBeats` drops near-duplicates and, if the
+    model still collapsed the sheet, swaps in a deterministic DISTINCT dramatic
+    arc built from the same characters. Within-segment repetition is structurally
+    impossible (one action per segment).
+  - **Reliability**: a non-retryable Ark 4xx (bad params / moderation) degrades
+    that one segment; 429/5xx/network **rethrow** so Workflow DevKit retries the
+    step. Before assembly a quality bar requires the **hook** (segment 0) plus
+    ≥60% of segments, else the run fails rather than shipping a plot with holes.
+  - `continuity`: `cut` (default) references the character sheet and fans segments
+    out in parallel (hard cuts); `chain` runs serially, each segment continuing
+    from the previous one's `return_last_frame`. Seed is per-segment derived
+    (soft reproducibility on 2.x).
+  - Do NOT reintroduce multi-shot-per-segment prompting, in-prompt timecodes, or a
+    fixed `seconds`/`duration` admin default without re-reading ADR-0018.
 
 ## Boundaries
 
@@ -181,12 +200,14 @@ All fixed, all re-check-worthy whenever `nitro`/`workflow`/`ai` are bumped:
    `nitro build`** if the `"use workflow"` orchestrator — or any non-`"use step"`
    helper it calls — transitively imports a Node-dependent module (`node:net`
    via `provider-url`, the `ai` package, etc.). This bit `video-generation`
-   once: calling `buildScenePrompt` (exported from `storyboard.ts`, which
-   imports `ai`) inside the `mapConcurrent` worker pulled `ai` into the
-   orchestrator chunk. Fix: compose scene prompts **inside** `createSceneStep`,
-   so every Node-touching import is reachable only from a `"use step"` body.
-   Pass plain data (scene, storyboard) across the step boundary, never call a
-   Node-touching helper from the orchestrator.
+   once: calling `buildSegmentContent` (exported from `storyboard.ts`, which
+   imports `ai`/`ark`) inside the `mapConcurrent` worker pulled `ai` into the
+   orchestrator chunk. Fix: compose segment prompts **inside**
+   `createSegmentStep`, so every Node-touching import is reachable only from a
+   `"use step"` body. Pass plain data (segment, script) across the step boundary,
+   never call a Node-touching helper from the orchestrator. Pure numeric planning
+   constants/helpers live in `src/video/limits.ts` (no `ai`/Node import) so both
+   the orchestrator and the steps can import them safely.
 
 Calling `getWorld().start()` is gated on `WORKFLOW_TARGET_WORLD` being set:
 under the default Local World it throws `Invalid version string: "bundled"`

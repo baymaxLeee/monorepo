@@ -124,11 +124,12 @@ const kindPresets: Record<
   video: {
     base_url: ARK_BASE_URL,
     model: "doubao-seedance-2-0-260128",
-    // Ark native video duration is `seconds` (string), not `duration`.
     // Vertical short-drama defaults: 9:16 portrait with native audio on
     // (抖音/小红书 投流 needs sound); mirrors executor ARK_VIDEO_DEFAULTS.
+    // Do NOT set a fixed duration/seconds here — clip length is owned per-segment
+    // by the executor pipeline; a fixed value would pin every segment to it.
     extra_body:
-      '{\n  "generate_audio": true,\n  "ratio": "9:16",\n  "seconds": "5",\n  "watermark": true\n}',
+      '{\n  "generate_audio": true,\n  "ratio": "9:16",\n  "watermark": true\n}',
   },
   // Used by the knowledge base for RAG. The embedding model's output dimension
   // MUST match knowledge's EMBEDDING_DIM (default 2048 = doubao-embedding-text);
