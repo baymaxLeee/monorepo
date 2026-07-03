@@ -217,9 +217,23 @@ async def _test_multimodal_embedding(
     except Exception as exc:
         return TestModelProviderResult(ok=False, error=f"unexpected: {exc}")
     latency_ms = int((time.perf_counter() - start) * 1000)
-    items = data.get("data") or []
-    dim = len(items[0].get("embedding", [])) if items else 0
+    embedding = _extract_embedding(data)
+    dim = len(embedding) if isinstance(embedding, list) else 0
     return TestModelProviderResult(ok=True, latency_ms=latency_ms, sample=f"multimodal embedding dim={dim}")
+
+
+def _extract_embedding(data: dict[str, Any]) -> list[Any] | None:
+    """Ark multimodal `/embeddings/multimodal` returns `data` as a single object
+    ({"embedding": [...]}); the text `/embeddings` returns a list. Handle both."""
+    payload = data.get("data")
+    if isinstance(payload, dict):
+        embedding = payload.get("embedding")
+    elif isinstance(payload, list) and payload:
+        first = payload[0]
+        embedding = first.get("embedding") if isinstance(first, dict) else None
+    else:
+        embedding = None
+    return embedding if isinstance(embedding, list) else None
 
 
 async def test_embedding_provider(

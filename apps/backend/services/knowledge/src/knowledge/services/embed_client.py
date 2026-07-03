@@ -8,6 +8,7 @@ configured, and callers degrade to hybrid-only when it is not.
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import httpx
 from knowledge.config import get_settings
@@ -24,6 +25,20 @@ def is_multimodal_embedding_model(model: str) -> bool:
     NOT the standard `/embeddings` text endpoint."""
     lowered = model.lower()
     return "vision" in lowered or "multimodal" in lowered
+
+
+def _extract_embedding(data: dict[str, Any]) -> list[Any] | None:
+    """Ark multimodal returns `data` as a single object ({"embedding": [...]});
+    the text endpoint returns a list. Handle both shapes."""
+    payload = data.get("data")
+    if isinstance(payload, dict):
+        embedding = payload.get("embedding")
+    elif isinstance(payload, list) and payload:
+        first = payload[0]
+        embedding = first.get("embedding") if isinstance(first, dict) else None
+    else:
+        embedding = None
+    return embedding if isinstance(embedding, list) else None
 
 
 async def embed_texts(texts: list[str], *, provider: ProviderSnapshot) -> list[list[float]]:
@@ -68,11 +83,9 @@ async def _embed_texts_multimodal(texts: list[str], *, provider: ProviderSnapsho
                     headers=headers,
                 )
                 response.raise_for_status()
-                data = response.json()
-                items = data.get("data") or []
-                embedding = items[0].get("embedding") if items else None
-                if not isinstance(embedding, list):
-                    raise ValueError("multimodal embedding response missing data[0].embedding")
+                embedding = _extract_embedding(response.json())
+                if embedding is None:
+                    raise ValueError("multimodal embedding response missing data.embedding")
                 return [float(value) for value in embedding]
 
         return list(await asyncio.gather(*(one(text) for text in texts)))
