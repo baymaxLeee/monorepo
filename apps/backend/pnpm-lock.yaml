@@ -104,6 +104,9 @@ importers:
       ai:
         specifier: ^7.0.4
         version: 7.0.9(zod@3.25.76)
+      dotenv:
+        specifier: 17.3.1
+        version: 17.3.1
       drizzle-orm:
         specifier: ^0.44.0
         version: 0.44.7(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@22.20.0))(pg@8.20.0)
@@ -137,7 +140,7 @@ importers:
         version: 2.16.1
       nitro:
         specifier: 3.0.260610-beta
-        version: 3.0.260610-beta(@vercel/functions@3.7.4(@aws-sdk/credential-provider-web-identity@3.972.49))(@vercel/queue@0.3.1)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.44.7(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@22.20.0))(pg@8.20.0))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(mysql2@3.22.5(@types/node@22.20.0))(rollup@4.62.2)
+        version: 3.0.260610-beta(@vercel/functions@3.7.4(@aws-sdk/credential-provider-web-identity@3.972.49))(@vercel/queue@0.3.1)(chokidar@5.0.0)(dotenv@17.3.1)(drizzle-orm@0.44.7(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@22.20.0))(pg@8.20.0))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(mysql2@3.22.5(@types/node@22.20.0))(rollup@4.62.2)
       rollup:
         specifier: ^4.62.2
         version: 4.62.2
@@ -5474,7 +5477,7 @@ snapshots:
 
   nf3@0.3.18(patch_hash=a552ec5984a677eadea8803c7a9f6082c9f7b7fd0e8b8936bcd898d4f1465f34): {}
 
-  nitro@3.0.260610-beta(@vercel/functions@3.7.4(@aws-sdk/credential-provider-web-identity@3.972.49))(@vercel/queue@0.3.1)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.44.7(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@22.20.0))(pg@8.20.0))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(mysql2@3.22.5(@types/node@22.20.0))(rollup@4.62.2):
+  nitro@3.0.260610-beta(@vercel/functions@3.7.4(@aws-sdk/credential-provider-web-identity@3.972.49))(@vercel/queue@0.3.1)(chokidar@5.0.0)(dotenv@17.3.1)(drizzle-orm@0.44.7(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@22.20.0))(pg@8.20.0))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(mysql2@3.22.5(@types/node@22.20.0))(rollup@4.62.2):
     dependencies:
       consola: 3.4.2
       crossws: 0.4.7(srvx@0.11.18)
@@ -5492,7 +5495,7 @@ snapshots:
       unstorage: 2.0.0-alpha.7(@vercel/functions@3.7.4(@aws-sdk/credential-provider-web-identity@3.972.49))(chokidar@5.0.0)(db0@0.3.4(drizzle-orm@0.44.7(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@22.20.0))(pg@8.20.0))(mysql2@3.22.5(@types/node@22.20.0)))(ioredis@5.11.1)(ofetch@2.0.0-alpha.3)
     optionalDependencies:
       '@vercel/queue': 0.3.1
-      dotenv: 17.4.2
+      dotenv: 17.3.1
       giget: 3.3.0
       jiti: 2.7.0
       rollup: 4.62.2

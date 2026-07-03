@@ -1,4 +1,7 @@
 import "@workflow/world-postgres";
+// The full-traced Postgres setup CLI imports dotenv, but nf3 does not scan
+// every full-traced asset as an entry. Keep the CLI dependency reachable.
+import "dotenv";
 import { getWorld } from "workflow/runtime";
 
 import { createApp } from "./app.js";

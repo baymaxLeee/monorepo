@@ -6,7 +6,7 @@ export default defineConfig({
   // environment-driven require is invisible to static tracing, so explicitly
   // keep the deployed Postgres World and its dependency tree in .output.
   // `*` full-traces the setup CLI and SQL assets used by workflow-db-init.
-  traceDeps: ["@workflow/world-postgres*"],
+  traceDeps: ["@workflow/world-postgres*", "dotenv"],
   routes: {
     "/**": "./src/index.ts",
   },
