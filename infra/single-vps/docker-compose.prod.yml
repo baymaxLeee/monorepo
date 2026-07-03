@@ -109,6 +109,16 @@ services:
       APP_USER: ${MYSQL_USER:-app}
     restart: "no"
 
+  workflow-db-init:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/executor:${IMAGE_TAG:-main}
+    container_name: monorepo-workflow-db-init
+    depends_on:
+      workflow-postgres: { condition: service_healthy }
+    command: ["node", "node_modules/@workflow/world-postgres/bin/setup.js"]
+    environment:
+      WORKFLOW_POSTGRES_URL: postgres://workflow:${WORKFLOW_POSTGRES_PASSWORD}@workflow-postgres:5432/workflow
+    restart: "no"
+
   iam:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/iam:${IMAGE_TAG:-main}
     container_name: monorepo-iam
@@ -226,6 +236,7 @@ services:
       mysql: { condition: service_healthy }
       workflow-postgres: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
+      workflow-db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8011"

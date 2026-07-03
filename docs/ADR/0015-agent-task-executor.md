@@ -205,3 +205,18 @@ bounded by the step timeouts, so this does not risk lease expiry.
   `apps/backend/justfile` — `lint-node` iterates that list and shells out to
   `pnpm run lint` unconditionally. Fixed by aliasing `lint` to the same `tsc
   --noEmit` command `typecheck` already ran.
+
+## Update — single-VPS database initialization
+
+The single-VPS profile treats executor's two persistence stores as explicit
+deployment prerequisites. The MySQL `db-init` job owns creation, grants, and
+service migrations for the `executor` business database. A separate one-shot
+`workflow-db-init` job runs the official `@workflow/world-postgres` setup CLI
+against the durable Workflow database. The executor API starts only after both
+jobs complete successfully.
+
+The World package is selected dynamically through `WORKFLOW_TARGET_WORLD`, so
+Nitro must full-trace it (including its setup CLI and SQL assets) into the
+production output. This keeps `docker compose up` self-contained and makes a
+fresh or pre-existing PostgreSQL volume converge to the same schema before any
+task is accepted.

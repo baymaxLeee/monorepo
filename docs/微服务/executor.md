@@ -48,6 +48,9 @@ session）的替换点——只需要新增一种执行引擎实现，Task API �
   Local World、从没在本地真正跑过 Postgres World 才被隐藏了一整个阶段，直到
   改成本地/生产一致后才在开发过程中自然暴露出来——这也是"本地要和部署环境
   一致"这条原则本身最有说服力的例证。
+- single-VPS 用两个 one-shot job 阻塞 executor 启动：`db-init` 创建并迁移
+  MySQL `executor` 业务库，`workflow-db-init` 运行官方 Postgres World setup
+  CLI。两者任何一个失败，executor 都不会接受任务。
 - `reconcilePendingTasks()` 在进程启动时重新挂载所有 `running` 状态任务的完成
   监听——对 Workflow 的 durable run 重新 `await` 是安全的，不会重新执行任何
   已完成的 step。
