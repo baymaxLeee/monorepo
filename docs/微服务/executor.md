@@ -62,7 +62,9 @@ ESM 互操作 bug、`nf3` 路径深度计算错误、Postgres World 启动缺失
 `nitro.config.ts` 必须通过 `traceDeps` 保留 `@workflow/world-postgres`，入口也
 保留静态引用，确保生产 `.output` 包含完整运行时依赖树。生产镜像还需要把
 `.output/server/node_modules` 暴露为 `/app/node_modules`，因为 Workflow 的
-`createRequire` 从应用根目录解析环境变量指定的 World 包。
+`createRequire` 从应用根目录解析环境变量指定的 World 包。构建后的 OIDC
+补丁也必须重写到 `.output/server/node_modules` 内部的稳定相对路径，不能依赖
+构建机工作区的目录深度。
 
 升级 `nitro`/`workflow`/`ai` 时请重新验证这些修复是否还需要。
 
