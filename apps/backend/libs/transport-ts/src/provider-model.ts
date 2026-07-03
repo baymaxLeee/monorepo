@@ -12,8 +12,6 @@ import type {
 } from "@ai-sdk/provider";
 import { secureProviderFetch } from "./provider-url.js";
 
-export type ReasoningEffort = "low" | "medium" | "high";
-
 // OpenAI-compatible providers that lack native json_schema structured output
 // fall back to `response_format: { type: "json_object" }`, which HARD-REJECTS
 // (HTTP 400) any request whose messages never contain the literal word "json"
@@ -92,7 +90,6 @@ function isJsonValue(value: unknown): value is JSONValue {
 function providerBodyOptions(
   provider: ChatProvider,
   options: {
-    reasoningEffort?: ReasoningEffort | null;
     disableReasoning?: boolean;
     parallelToolCalls?: boolean | null;
   },
@@ -114,8 +111,6 @@ function providerBodyOptions(
     delete body.reasoning;
     body.thinking = { type: "disabled" };
     body.enable_thinking = false;
-  } else if (options.reasoningEffort && body.reasoningEffort == null) {
-    body.reasoningEffort = options.reasoningEffort;
   }
 
   // parallel_tool_calls is not in the adapter option schema nor our reserved
@@ -131,7 +126,6 @@ function providerBodyOptions(
 
 interface AdminOpenAICompatibleModelSnapshot {
   provider: ChatProvider;
-  reasoningEffort?: ReasoningEffort | null;
   disableReasoning?: boolean;
   parallelToolCalls?: boolean | null;
 }
@@ -186,14 +180,12 @@ class AdminOpenAICompatibleModel implements LanguageModelV4 {
 export function createProviderModel(
   provider: ChatProvider,
   options: {
-    reasoningEffort?: ReasoningEffort | null;
     disableReasoning?: boolean;
     parallelToolCalls?: boolean | null;
   } = {},
 ): LanguageModelV4 {
   return new AdminOpenAICompatibleModel({
     provider,
-    reasoningEffort: options.reasoningEffort ?? null,
     disableReasoning: options.disableReasoning ?? false,
     parallelToolCalls: options.parallelToolCalls ?? null,
   });

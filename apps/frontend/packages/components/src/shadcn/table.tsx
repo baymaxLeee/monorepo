@@ -4,11 +4,28 @@ import type * as React from "react";
 
 import { cn } from "shared";
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+function Table({
+  className,
+  containerClassName,
+  ...props
+}: React.ComponentProps<"table"> & {
+  /**
+   * Extra classes for the scroll container (`data-slot=table-container`), NOT
+   * the `<table>`. The container defaults to `max-h-[65vh]` and `TableHeader`
+   * is sticky, so long tables scroll inside their own box (pinned header)
+   * instead of overflowing the page — every caller gets this for free, nothing
+   * to pass. Use this prop only to tune the default, e.g. `max-h-none` to opt
+   * out of the cap or `max-h-[80vh]` to raise it (twMerge lets it win).
+   */
+  containerClassName?: string;
+}) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn(
+        "relative max-h-[65vh] w-full overflow-x-auto",
+        containerClassName,
+      )}
     >
       <table
         data-slot="table"
@@ -23,7 +40,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
+      className={cn("sticky top-0 z-10 bg-card [&_tr]:border-b", className)}
       {...props}
     />
   );

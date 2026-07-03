@@ -55,8 +55,6 @@ export interface RunAgentInput {
   imageProvider?: ProviderSnapshot | null;
   videoProviderId?: string | null;
   documentIds?: string[];
-  thinking?: boolean | null;
-  reasoningEffort?: "low" | "medium" | "high" | null;
 }
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
@@ -326,7 +324,6 @@ export async function createAgentRunResponse(
       videoProviderId: input.videoProviderId,
       modelMessages,
       instructions: [instructions, ...projected.instructionContext].join("\n\n"),
-      reasoningEffort: input.reasoningEffort ?? (input.thinking ? "medium" : null),
     });
     const agent = agentInstance.agent;
     disposeAgentResources = agentInstance.dispose;

@@ -30,8 +30,6 @@ const runSchema = z.object({
   // falls back to the user's default chat provider (plain chat, no media tools).
   agent_id: z.string().max(32).optional().nullable(),
   document_ids: z.array(z.string()).max(10).optional().default([]),
-  thinking: z.boolean().optional().nullable(),
-  reasoning_effort: z.enum(["low", "medium", "high"]).optional().nullable(),
 });
 
 agentsRoutes.post(
@@ -70,8 +68,6 @@ agentsRoutes.post(
         imageProvider,
         videoProviderId,
         documentIds: [...(payload.document_ids ?? [])],
-        thinking: payload.thinking,
-        reasoningEffort: payload.reasoning_effort,
       },
     );
   },

@@ -19,6 +19,15 @@ class UpdateDocumentInput(BaseModel):
     content_md: str | None = Field(default=None, min_length=1)
 
 
+class BatchDeleteInput(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=200)
+
+
+class BatchDeleteResult(BaseModel):
+    requested: int
+    deleted: int
+
+
 @router.get("", response_model=list[Document])
 async def list_my_documents(
     current_user: CurrentUser,
@@ -27,6 +36,30 @@ async def list_my_documents(
 ) -> list[Document]:
     rows = await document_crud.list_documents(session, user_id=current_user.user_id, kind=kind)
     return [document_to_schema(row) for row in rows]
+
+
+@router.post("/batch-delete", response_model=BatchDeleteResult)
+async def batch_delete_my_documents(
+    payload: BatchDeleteInput,
+    current_user: CurrentUser,
+    session: DbSession,
+) -> BatchDeleteResult:
+    """Delete several of the caller's documents in one transaction.
+
+    Only rows owned by the current user are removed (ids the user does not own
+    are silently ignored). Object-store blobs are best-effort purged and the
+    RAG `document_chunks` are dropped via the FK `ON DELETE CASCADE`.
+    """
+    rows = await document_crud.list_documents_by_ids(
+        session, user_id=current_user.user_id, document_ids=payload.ids
+    )
+    store = ObjectStore()
+    for row in rows:
+        if row.object_bucket and row.object_key:
+            store.delete(bucket=row.object_bucket, key=row.object_key)
+        await document_crud.delete_document(session, row)
+    await session.commit()
+    return BatchDeleteResult(requested=len(payload.ids), deleted=len(rows))
 
 
 @router.get("/{document_id}", response_model=Document)

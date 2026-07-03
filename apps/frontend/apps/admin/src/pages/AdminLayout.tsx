@@ -4,6 +4,7 @@ import {
   BotIcon,
   BrainCircuitIcon,
   ComponentIcon,
+  LibraryBigIcon,
   ListTreeIcon,
   type LucideIcon,
   NetworkIcon,
@@ -25,6 +26,11 @@ const adminMenus: AdminMenuItem[] = [
     title: "模型管理",
     href: "/platform/admin/providers",
     icon: BrainCircuitIcon,
+  },
+  {
+    title: "知识库管理",
+    href: "/platform/admin/knowledge",
+    icon: LibraryBigIcon,
   },
   {
     title: "应用入口管理",

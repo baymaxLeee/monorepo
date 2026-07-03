@@ -222,6 +222,98 @@
         }
       }
     },
+    "/documents/batch-delete": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Batch Delete My Documents",
+        "description": "Delete several of the caller's documents in one transaction.\n\nOnly rows owned by the current user are removed (ids the user does not own\nare silently ignored). Object-store blobs are best-effort purged and the\nRAG `document_chunks` are dropped via the FK `ON DELETE CASCADE`.",
+        "operationId": "batch_delete_my_documents_documents_batch_delete_post",
+        "parameters": [
+          {
+            "name": "X-Auth-Name",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Email"
+            }
+          },
+          {
+            "name": "X-Auth-User-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-User-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchDeleteInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchDeleteResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/documents/{document_id}": {
       "get": {
         "tags": [
@@ -2233,6 +2325,42 @@
           "blocks"
         ],
         "title": "ArtifactRevisionWorkspace"
+      },
+      "BatchDeleteInput": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "BatchDeleteInput"
+      },
+      "BatchDeleteResult": {
+        "properties": {
+          "requested": {
+            "type": "integer",
+            "title": "Requested"
+          },
+          "deleted": {
+            "type": "integer",
+            "title": "Deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "requested",
+          "deleted"
+        ],
+        "title": "BatchDeleteResult"
       },
       "Body_ingest_stream_ingest_stream_post": {
         "properties": {

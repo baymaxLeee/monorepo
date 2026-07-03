@@ -2,6 +2,7 @@ import { authFetch } from "./auth-fetch";
 import type {
   ConversationDocument,
   ConversationDocumentDetail,
+  ConversationDocumentKind,
   DocumentIngestStreamEvent,
   StreamEventOptions,
   UpdateConversationDocumentInput,
@@ -10,7 +11,12 @@ import { API_BASE_URL, apiHttp, request } from "./http";
 
 const BASE = "/api/knowledge-server";
 
-export type KnowledgeDocument = ConversationDocument & {
+// A knowledge-base document is not tied to a conversation, so `conversation_id`
+// is relaxed to optional/nullable (the chat ConversationDocument requires it).
+export type KnowledgeDocument = Omit<
+  ConversationDocument,
+  "conversation_id"
+> & {
   user_id?: string;
   conversation_id?: string | null;
 };
@@ -113,39 +119,75 @@ export async function streamKnowledgeIngest(
 }
 
 export async function fetchKnowledgeDocument(
-  _conversationId: string,
   documentId: string,
 ): Promise<ConversationDocumentDetail> {
   const doc = await request<Record<string, unknown>>({
-    url: `${BASE}/documents/${documentId}`,
+    url: `${BASE}/documents/${encodeURIComponent(documentId)}`,
     method: "GET",
   });
   return {
-    ...toConversationDocument(
-      doc,
-      String(doc.conversation_id ?? _conversationId),
-    ),
+    ...toConversationDocument(doc, String(doc.conversation_id ?? "")),
     content_md: String(doc.content_md ?? ""),
   };
 }
 
 export async function updateKnowledgeDocument(
-  _conversationId: string,
   documentId: string,
   input: UpdateConversationDocumentInput,
 ): Promise<ConversationDocumentDetail> {
   const doc = await request<Record<string, unknown>>({
-    url: `${BASE}/documents/${documentId}`,
+    url: `${BASE}/documents/${encodeURIComponent(documentId)}`,
     method: "PATCH",
     data: input,
   });
   return {
-    ...toConversationDocument(
-      doc,
-      String(doc.conversation_id ?? _conversationId),
-    ),
+    ...toConversationDocument(doc, String(doc.conversation_id ?? "")),
     content_md: String(doc.content_md ?? ""),
   };
+}
+
+/**
+ * List the current user's knowledge-base documents. Defaults to `source`
+ * (operator-uploaded enterprise docs) so agent-generated artifacts don't leak
+ * into the management view.
+ */
+export async function listKnowledgeDocuments(params?: {
+  kind?: ConversationDocumentKind;
+}): Promise<KnowledgeDocument[]> {
+  const query = params?.kind ? `?kind=${encodeURIComponent(params.kind)}` : "";
+  const docs = await request<Array<Record<string, unknown>>>({
+    url: `${BASE}/documents${query}`,
+    method: "GET",
+  });
+  return docs.map((doc) => ({
+    ...toConversationDocument(doc, String(doc.conversation_id ?? "")),
+    user_id: doc.user_id ? String(doc.user_id) : undefined,
+    conversation_id: (doc.conversation_id as string | null) ?? null,
+  }));
+}
+
+export async function deleteKnowledgeDocument(
+  documentId: string,
+): Promise<void> {
+  await request<void>({
+    url: `${BASE}/documents/${encodeURIComponent(documentId)}`,
+    method: "DELETE",
+  });
+}
+
+export interface BatchDeleteKnowledgeResult {
+  requested: number;
+  deleted: number;
+}
+
+export async function batchDeleteKnowledgeDocuments(
+  ids: string[],
+): Promise<BatchDeleteKnowledgeResult> {
+  return request<BatchDeleteKnowledgeResult>({
+    url: `${BASE}/documents/batch-delete`,
+    method: "POST",
+    data: { ids },
+  });
 }
 
 export function knowledgeDocumentSourceUrl(documentId: string): string {
@@ -168,7 +210,6 @@ export function isMediaConversationDocument(
 }
 
 export async function fetchKnowledgeDocumentSource(
-  _conversationId: string,
   documentId: string,
 ): Promise<Blob> {
   const response = await apiHttp.get<Blob>(
@@ -176,6 +217,30 @@ export async function fetchKnowledgeDocumentSource(
     { responseType: "blob" },
   );
   return response.data;
+}
+
+/**
+ * Upload one or more files into the knowledge base (no conversation scope).
+ * Bytes are stored, converted to markdown, and RAG-indexed server-side;
+ * progress streams back via SSE, mirroring the chat ingest flow.
+ */
+export async function uploadKnowledgeDocuments(
+  files: Array<{ clientRef: string; file: File }>,
+  options: StreamEventOptions<DocumentIngestStreamEvent>,
+  ingestOptions?: { providerId?: string | null },
+): Promise<void> {
+  const form = new FormData();
+  const clientRefs: string[] = [];
+  for (const item of files) {
+    form.append("files", item.file);
+    clientRefs.push(item.clientRef);
+  }
+  form.append("client_refs", JSON.stringify(clientRefs));
+  if (ingestOptions?.providerId) {
+    form.append("provider_id", ingestOptions.providerId);
+  }
+  const url = `${API_BASE_URL}${BASE}/ingest/stream`;
+  await openKnowledgeIngestStream(url, form, options);
 }
 
 export type { ConversationDocumentDetail };

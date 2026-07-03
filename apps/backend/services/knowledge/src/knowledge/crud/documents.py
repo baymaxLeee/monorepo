@@ -85,6 +85,23 @@ async def list_documents(
     return list(result.all())
 
 
+async def list_documents_by_ids(
+    session: AsyncSession,
+    *,
+    user_id: str,
+    document_ids: list[str],
+) -> list[DocumentRow]:
+    """Fetch the caller's documents for the given ids (used by batch delete)."""
+    if not document_ids:
+        return []
+    stmt = select(DocumentRow).where(
+        DocumentRow.user_id == user_id,
+        DocumentRow.id.in_(document_ids),
+    )
+    result = await session.scalars(stmt)
+    return list(result.all())
+
+
 async def get_documents_meta(
     session: AsyncSession,
     document_ids: list[str],

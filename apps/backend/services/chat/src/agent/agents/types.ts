@@ -1,5 +1,5 @@
 import type { ModelMessage } from "ai";
-import type { ChatProvider, ReasoningEffort } from "@backend/transport-ts/provider-model";
+import type { ChatProvider } from "@backend/transport-ts/provider-model";
 import type { ProviderSnapshot } from "../../clients/admin.js";
 
 export type AgentMode = "normal" | "plan";
@@ -25,5 +25,4 @@ export interface ChatAgentInput {
   videoProviderId?: string | null;
   modelMessages: ModelMessage[];
   instructions: string;
-  reasoningEffort?: ReasoningEffort | null;
 }

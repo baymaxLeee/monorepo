@@ -39,13 +39,15 @@ export function createVideoTools(providers: VideoToolProviders) {
   return {
     generate_video: tool({
       description:
-        "Generate a VERTICAL (9:16) short-drama video for 抖音/小红书 投流 from a text premise, using the user's configured video model (Volcengine Ark Seedance), and render it inline in the chat. Use this whenever the user asks to create, make, or generate a video, drama, skit, or clip. Write the premise as a concrete story/scene idea (characters, conflict, setting, tone) — the tool internally plans a hook-first shot list, generates the scenes concurrently, and stitches them into one fast-cut vertical reel with native audio. CONTROLLING LENGTH: total length is set ONLY by the `duration` argument (whole seconds of the FINAL reel) — never just claim a length in your reply, your text does not affect the output. Range is 5–120s; omit for a ~50s default. Video generation is asynchronous and takes tens of seconds to a few minutes; this call runs it as a durable background task and blocks until it finishes, then returns the persisted video — do not restate file IDs or download steps, and do not call it again for the same request while it is running. Requires the user to have configured and selected a video provider; if none is available the tool returns an error you must relay, asking them to configure one in model management.",
+        "Generate a VERTICAL (9:16) short-drama video for 抖音/小红书 投流 from a text premise, using the user's configured video model (Volcengine Ark Seedance), and render it inline in the chat. Use this whenever the user asks to create, make, or generate a video, drama, skit, or clip. Write the premise as a concrete story/scene idea (characters, conflict, setting, tone) — the tool internally storyboards it into a beat-driven, variable-length shot list (each shot gets its own framing, camera move, and duration), generates the scenes concurrently, and stitches them into one fast-cut vertical reel with native audio. CONTROLLING LENGTH: total length is set ONLY by the `duration` argument (whole seconds of the FINAL reel) — never just claim a length in your reply, your text does not affect the output. Range is 5–120s; omit for a ~50s default. Video generation is asynchronous and takes tens of seconds to a few minutes; this call runs it as a durable background task and blocks until it finishes, then returns the persisted video — do not restate file IDs or download steps, and do not call it again for the same request while it is running. Requires the user to have configured and selected a video provider; if none is available the tool returns an error you must relay, asking them to configure one in model management.",
       inputSchema: z.object({
         prompt: z
           .string()
           .min(1)
           .max(4000)
-          .describe("Concrete short-drama premise: characters, conflict, setting, tone."),
+          .describe(
+            "A concrete short-drama PREMISE the internal storyboard planner will break into shots. Describe the STORY, not camera angles: the protagonist's key appearance (so they stay recognizable across independently generated shots), the core conflict/stakes, the setting/world, the emotional tone, and any pacing/twist ideas. Prose is fine — a richer premise yields a sharper shot list.",
+          ),
         duration: z
           .number()
           .int()

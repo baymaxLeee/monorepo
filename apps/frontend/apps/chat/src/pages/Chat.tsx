@@ -70,7 +70,6 @@ export function Chat() {
   const { id } = useParams<{ id: string }>();
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [thinking, setThinking] = useState(false);
   const [mode, setMode] = useState<"normal" | "plan">("normal");
   const promptRef = useRef<PromptInputRef>(null);
   const resumedConversationRef = useRef<string | null>(null);
@@ -105,10 +104,8 @@ export function Chat() {
   const requestBody = useMemo(
     () => ({
       agent_id: selectedAgentId ?? null,
-      thinking: thinking || null,
-      reasoning_effort: null,
     }),
-    [selectedAgentId, thinking],
+    [selectedAgentId],
   );
 
   useEffect(() => {
@@ -492,8 +489,6 @@ export function Chat() {
               agents={agents ?? []}
               selectedAgentId={selectedAgentId}
               onSelectAgent={setSelectedAgentId}
-              thinking={thinking}
-              onThinkingChange={setThinking}
               mode={mode}
               onModeChange={(next) =>
                 void changeMode(next).catch((error) =>

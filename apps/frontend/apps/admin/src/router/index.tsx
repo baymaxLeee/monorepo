@@ -5,6 +5,7 @@ import { BotDetailPage } from "../pages/BotDetailPage";
 import { BotListPage } from "../pages/BotListPage";
 import { ComponentsDemoPage } from "../pages/ComponentsDemoPage";
 import { IntentionsPage } from "../pages/IntentionsPage";
+import { KnowledgeBasePage } from "../pages/KnowledgeBasePage";
 import { OperationsObservabilityPage } from "../pages/observability/OperationsObservabilityPage";
 import { ProvidersPage } from "../pages/ProvidersPage";
 import { ScenesPage } from "../pages/ScenesPage";
@@ -23,6 +24,7 @@ export const routes: RouteObject[] = [
       { path: "scenes", element: <ScenesPage /> },
       { path: "intentions", element: <IntentionsPage /> },
       { path: "providers", element: <ProvidersPage /> },
+      { path: "knowledge", element: <KnowledgeBasePage /> },
       { path: "apps", element: <AppsRegistryPage /> },
       { path: "observability", element: <OperationsObservabilityPage /> },
       { path: "demo", element: <ComponentsDemoPage /> },

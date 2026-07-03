@@ -96,6 +96,19 @@ export interface ArtifactRevisionWorkspace {
   blocks: StoredArtifactBlock[];
 }
 
+export interface BatchDeleteInput {
+  /**
+     * @minItems 1
+     * @maxItems 200
+     */
+  ids: string[];
+}
+
+export interface BatchDeleteResult {
+  requested: number;
+  deleted: number;
+}
+
 export interface BodyIngestStreamIngestStreamPost {
   files: Blob[];
   client_refs: string;
@@ -465,6 +478,25 @@ const listMyDocumentsDocumentsGet = (
     }
 
 /**
+ * Delete several of the caller's documents in one transaction.
+ *
+ * Only rows owned by the current user are removed (ids the user does not own
+ * are silently ignored). Object-store blobs are best-effort purged and the
+ * RAG `document_chunks` are dropped via the FK `ON DELETE CASCADE`.
+ * @summary Batch Delete My Documents
+ */
+const batchDeleteMyDocumentsDocumentsBatchDeletePost = (
+    batchDeleteInput: BatchDeleteInput,
+ options?: SecondParameter<typeof apiMutator<BatchDeleteResult>>,) => {
+      return apiMutator<BatchDeleteResult>(
+      {url: `/documents/batch-delete`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: batchDeleteInput
+    },
+      options);
+    }
+
+/**
  * @summary Get My Document
  */
 const getMyDocumentDocumentsDocumentIdGet = (
@@ -780,7 +812,7 @@ const retrieveChunksInternalRetrievePost = (
       options);
     }
 
-return {healthzHealthzGet,ingestStreamIngestStreamPost,listMyDocumentsDocumentsGet,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,reserveGenerationInternalArtifactGenerationsPost,getGenerationInternalArtifactGenerationsGenerationIdGet,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,retrieveChunksInternalRetrievePost}};
+return {healthzHealthzGet,ingestStreamIngestStreamPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,reserveGenerationInternalArtifactGenerationsPost,getGenerationInternalArtifactGenerationsGenerationIdGet,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,retrieveChunksInternalRetrievePost}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -789,6 +821,7 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['healthzHealthzGet']>>>
 export type IngestStreamIngestStreamPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['ingestStreamIngestStreamPost']>>>
 export type ListMyDocumentsDocumentsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['listMyDocumentsDocumentsGet']>>>
+export type BatchDeleteMyDocumentsDocumentsBatchDeletePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['batchDeleteMyDocumentsDocumentsBatchDeletePost']>>>
 export type GetMyDocumentDocumentsDocumentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getMyDocumentDocumentsDocumentIdGet']>>>
 export type UpdateMyDocumentDocumentsDocumentIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['updateMyDocumentDocumentsDocumentIdPatch']>>>
 export type DeleteMyDocumentDocumentsDocumentIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['deleteMyDocumentDocumentsDocumentIdDelete']>>>

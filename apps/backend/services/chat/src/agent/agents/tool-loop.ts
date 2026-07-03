@@ -60,7 +60,6 @@ export async function createToolLoopAgent(
   const agent = new ToolLoopAgent({
     id: "chat-agent",
     model: createProviderModel(provider, {
-      reasoningEffort: input.reasoningEffort,
       parallelToolCalls: true,
     }),
     instructions: [input.instructions, ...resolvedTools.instructions].join("\n\n"),

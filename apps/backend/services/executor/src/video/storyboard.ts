@@ -1,7 +1,13 @@
 // Short-drama (短剧投流) storyboard planning + per-scene prompt construction.
-// Mirrors artifacts/generator.ts in shape: an LLM structured-output planner with
-// a deterministic fallback, plus a best-effort image anchor. Runs inside
-// executor "use step" functions, never in the "use workflow" orchestrator.
+// The planner is a real 分镜师: it reads the premise, finds its emotional beats,
+// and cuts it into a VARIABLE number of shots with VARIABLE per-shot durations,
+// emitting a structured shot card (purpose / shot size / camera / action /
+// dialogue / mood) per shot instead of one flat prompt. buildScenePrompt then
+// assembles each card with the global consistency anchors using a STABLE
+// six-component skeleton, so independently generated clips stay on-model and
+// adjacent shots read as intentional cuts rather than glitches. Runs inside
+// executor "use step" functions, never in the "use workflow" orchestrator (keeps
+// storyboard.ts's Node-dependent `ai` import isolated in a step chunk).
 import { Output, extractJsonMiddleware, generateText, wrapLanguageModel } from "ai";
 import { z } from "zod";
 
@@ -11,20 +17,45 @@ import { createProviderModel, JSON_OBJECT_MODE_INSTRUCTION } from "@backend/tran
 
 export const STORYBOARD_TIMEOUT_MS = 3 * 60_000;
 
-// Vertical short-drama targets: fast, cheap, high-volume. Seedance's hard clip
-// range is 4–15s, but we deliberately cap OURS at 8s: video models suffer
-// "temporal decay" — prompt attention falls off toward the end of a clip, so a
-// single-prompt generation longer than ~6s tends to drift or emit near-duplicate
-// / looping frames (the "镜头重复" failure). Cut density comes from MORE hard-cut
-// scenes, not from a longer single clip. Cap scene count so a runaway target
-// never fans out into an unbounded number of paid Ark calls.
+// Per-shot clip length window. Seedance's hard range is 4–15s; the LOWER bound
+// here is pinned at Seedance's minimum (4s) because the task API 400s any clip
+// shorter than that — it is a hard floor, NOT a stylistic choice (do not lower
+// it to squeeze in 2–3s "爆点" shots; those get rejected and the scene is
+// dropped). We keep the UPPER bound at 8s (temporal-decay "镜头重复" guard — a
+// single-prompt clip longer than ~8s drifts or emits looping frames; do NOT
+// raise this). Rhythm variety comes from spreading shots ACROSS the 4–8s band
+// (hooks at ~4s, emotional beats longer), not from going below 4s.
+// clampClipSeconds enforces this floor so an out-of-range planner value can
+// never reach the Ark request.
 export const CLIP_SECONDS_MIN = 4;
 export const CLIP_SECONDS_MAX = 8;
+// Hard ceiling on shot count so a runaway target never fans out into an
+// unbounded number of paid Ark calls.
 export const MAX_SCENES = 24;
 
-export type Scene = { id: string; order: number; prompt: string; seconds: number };
+export type Scene = {
+  id: string;
+  order: number;
+  // Narrative job of the shot (hook / problem / escalation / turn / payoff …).
+  purpose: string;
+  // Framing: extreme close-up / close-up / medium / wide / establishing …
+  shotSize: string;
+  // Exactly one camera behaviour: static / slow push-in / pan / tracking / orbit / tilt.
+  camera: string;
+  // One concrete, visual, continuous action for this shot.
+  action: string;
+  // Optional on-screen spoken line; quoted downstream to cue Seedance's audio.
+  dialogue?: string;
+  // Emotional tone of the shot.
+  mood: string;
+  seconds: number;
+};
+
 export type Storyboard = {
   styleBible: string;
+  // Shared environment/world anchor (key locations, defining props, palette)
+  // repeated across shots to prevent "environmental drift".
+  settingBible: string;
   characterDNA: string;
   seed: number;
   scenes: Scene[];
@@ -35,9 +66,15 @@ export function clampClipSeconds(value: number | undefined): number {
   return Math.min(CLIP_SECONDS_MAX, Math.max(CLIP_SECONDS_MIN, n));
 }
 
-export function resolveSceneCount(targetDurationSec: number, clipSeconds: number): number {
-  const raw = Math.ceil(targetDurationSec / clipSeconds);
-  return Math.min(MAX_SCENES, Math.max(1, raw));
+// Suggest a shot-count RANGE from the total-duration budget instead of pinning
+// an exact count: the planner picks the actual number by narrative beats within
+// this range. Density mirrors industry practice for vertical short-form (a cut
+// every ~4–7s on average, hooks shorter). MAX_SCENES caps the top so a large
+// target can't fan out unbounded.
+export function suggestSceneRange(targetDurationSec: number): { min: number; max: number } {
+  const min = Math.max(1, Math.round(targetDurationSec / 7));
+  const max = Math.min(MAX_SCENES, Math.max(min, Math.round(targetDurationSec / 4)));
+  return { min, max };
 }
 
 export function buildVideoTextModel(userId: string, providerId: string) {
@@ -46,40 +83,65 @@ export function buildVideoTextModel(userId: string, providerId: string) {
   }));
 }
 
+// One shot card. `seconds` is optional: the planner is nudged to set it per
+// shot, but a missing value degrades to an even split of the target budget.
 const sceneSchema = z.object({
-  prompt: z.string().min(1).max(1500),
+  purpose: z.string().min(1).max(60),
+  shot_size: z.string().min(1).max(48),
+  camera: z.string().min(1).max(60),
+  action: z.string().min(1).max(320),
+  dialogue: z.string().max(120).optional(),
+  mood: z.string().min(1).max(60),
   seconds: z.number().int().min(CLIP_SECONDS_MIN).max(CLIP_SECONDS_MAX).optional(),
 });
 
+// Global anchors are repeated into EVERY scene prompt, so they are capped short
+// on purpose: Seedance follows a ~60–100-word prompt best and degrades on long
+// ones. Long bibles here would blow every clip's prompt past that budget.
 const storyboardSchema = z.object({
-  style_bible: z.string().min(1).max(1200),
-  character_dna: z.string().min(1).max(600),
+  style_bible: z.string().min(1).max(240),
+  setting_bible: z.string().min(1).max(240),
+  character_dna: z.string().min(1).max(200),
   scenes: z.array(sceneSchema).min(1).max(MAX_SCENES),
 });
 
-function storyboardInstructions(sceneCount: number, clipSeconds: number): string {
+function storyboardInstructions(range: { min: number; max: number }, targetDurationSec: number): string {
   return [
-    `You are the director of a VERTICAL (9:16) short-drama reel for 抖音/小红书 投流 (paid distribution).`,
-    `Break the user's premise into exactly ${sceneCount} consecutive scene clips, each ~${clipSeconds}s.`,
-    "Optimize for retention: scene 1 must HOOK in the first 3 seconds (conflict, question, or striking visual); each following scene escalates; the last scene ends on a cliffhanger or payoff.",
-    "Each scene `prompt` is a self-contained instruction to a text-to-video model.",
-    // Anti-"镜头重复" (temporal decay): each clip is ONE continuous shot. Do NOT
-    // cram multiple shots/angles into a single clip — the model has too few
-    // frames and fills them by looping/repeating. Cut density comes from having
-    // MORE scenes (hard cuts at assembly), not from multi-shot inside one clip.
-    "CRITICAL — one shot per scene: describe EXACTLY ONE continuous action and ONE deliberate camera move (static, or a single slow push-in / pan / tracking). Do NOT put multiple shots, angle changes, or cuts inside a single scene prompt.",
-    "The single action must visibly PROGRESS from start to finish (continuous forward motion). Never a motion that loops back, repeats, or freezes.",
-    "Make consecutive scenes VISUALLY DISTINCT: each scene must differ from its neighbours in action, location, or framing. Never restate or lightly re-word the previous scene's shot.",
-    "Write concrete cinematic detail: subject action, the one camera move, framing, lighting, mood.",
-    "Restate the protagonist's key appearance in EVERY scene prompt so independently generated clips keep them recognizable.",
-    "`character_dna`: one line locking the protagonist's fixed appearance (hair, face marks, wardrobe, build).",
-    "`style_bible`: one shared visual direction for the whole reel — palette, grade, lens feel, energy. Vertical framing, punchy short-drama pacing.",
-    "Do not number the scenes inside the prompt text; write each scene's prompt as prose.",
-    // MUST stay last: the openai-compatible json_object mode 400s without the
-    // word "json" in the messages (see JSON_OBJECT_MODE_INSTRUCTION).
+    "You are a senior director storyboarding a VERTICAL (9:16) short-drama reel for 抖音/小红书 投流 (paid distribution).",
+    "Think like a real 分镜师: read the premise, find its emotional beats, and cut it into shots — do NOT slice it into uniform equal-length blocks.",
+    // Narrative structure (retention-first).
+    "Give the reel a retention-first arc with explicit beats: a 3-second HOOK (conflict / question / striking visual) → establish the character and stakes → escalate → a turn/反转 → end on a payoff or cliffhanger. (Equivalent structures you may use: hook→problem→transformation→result, or establishing→action→detail→hero.)",
+    // Variable shot COUNT — driven by beats, not arithmetic.
+    `Decide the NUMBER of shots from the beats, not by division. Aim for roughly ${range.min}–${range.max} shots for this ~${targetDurationSec}s reel, but let the story lead: merge a beat that needs room into one longer shot, split a beat that carries two actions into two.`,
+    // Variable DURATION — matched to each shot's job.
+    `Give each shot its OWN whole-second duration within the ${CLIP_SECONDS_MIN}–${CLIP_SECONDS_MAX}s range — never shorter than ${CLIP_SECONDS_MIN}s (the model rejects sub-${CLIP_SECONDS_MIN}s clips). Match length to the shot's job: a punchy hook / 爆点 / reaction beat uses the short end (~${CLIP_SECONDS_MIN}s); an emotional or establishing beat can run longer (up to ${CLIP_SECONDS_MAX}s, but longer clips drift more, so use the top of the range sparingly). Do NOT make every shot the same length. The durations should sum to roughly ${targetDurationSec}s.`,
+    // Per-shot shot grammar.
+    "For EACH shot output: `purpose` (its narrative job); `shot_size` (extreme close-up / close-up / medium / wide / establishing); `camera` (EXACTLY ONE precise move — static, slow push-in, pull-out, pan, tilt, tracking, or orbit; prefer static, use motion sparingly; NEVER vague terms like 'cinematic movement', and NEVER the word 'fast'); `action` (ONE concrete continuous action); optional `dialogue` (a short spoken line); and `mood`.",
+    "Describe the CAMERA move (in `camera`) and the SUBJECT's motion (in `action`) as two SEPARATE things — never fold a camera move into the action, or the model jitters (this is the official Seedance rule).",
+    // Cut craft — the real fix for bad transitions.
+    "Make adjacent shots read as intentional cuts: consecutive shots MUST contrast in `shot_size` and/or `camera` (e.g. wide establishing → medium → close-up); never repeat the previous shot's framing.",
+    "Place cuts at natural seams — the completion of an action, a location change, or an emotional turn — so a hard cut feels like editing, not a glitch.",
+    "Each shot is ONE continuous action that visibly progresses from start to finish; never a looping, repeating, or frozen motion.",
+    // Concreteness & dialogue.
+    "Write `action` concretely and visually — 'he slams the cup on the table, walks to the door, stops, does not look back', never 'he is angry'. No abstract inner monologue; externalise it as visible action.",
+    "Keep any `dialogue` to one short spoken line (it will be voiced on-screen), never narration.",
+    // Global consistency anchors.
+    "These three anchors are repeated into EVERY shot's prompt, so keep EACH to one short, dense line — long prompts make the model drift:",
+    "`character_dna`: the protagonist's fixed appearance in a few concrete tokens (hair, face marks, wardrobe, build).",
+    "`setting_bible`: the shared world in specific repeatable tokens (e.g. 'cramped neon-lit noodle stall, steel counter', not just 'restaurant').",
+    "`style_bible`: one visual direction — palette, color grade, lens feel, and a concrete LIGHTING setup (lighting is the highest-impact detail — e.g. 'warm rim light, deep shadows').",
+    "Restate the protagonist's key appearance briefly inside every shot's `action` so independently generated clips keep them recognizable.",
+    "Do NOT write camera-shake, resolution, aspect-ratio, or anti-distortion phrases — the system appends those; spend your words on the story and the picture.",
+    // MUST stay last: openai-compatible json_object mode 400s without the word
+    // "json" in the messages (see JSON_OBJECT_MODE_INSTRUCTION).
     JSON_OBJECT_MODE_INSTRUCTION,
   ].join("\n");
 }
+
+// Rotating framings/cameras so even the deterministic fallback produces
+// adjacent-shot contrast instead of identical repeated blocks.
+const FALLBACK_SHOTS = ["wide establishing", "medium", "close-up", "medium", "extreme close-up", "wide"];
+const FALLBACK_CAMERAS = ["static", "slow push-in", "static", "slow pan", "static", "slow tracking"];
 
 function deterministicStoryboard(input: {
   prompt: string;
@@ -87,26 +149,32 @@ function deterministicStoryboard(input: {
   clipSeconds: number;
   seed: number;
 }): Storyboard {
-  const scenes: Scene[] = Array.from({ length: input.sceneCount }, (_, i) => ({
-    id: `scene-${i + 1}`,
-    order: i,
-    seconds: input.clipSeconds,
-    prompt: [
-      `Vertical 9:16 short-drama, beat ${i + 1} of ${input.sceneCount}.`,
-      i === 0
-        ? "Open with an immediate hook in the first 3 seconds."
-        : i === input.sceneCount - 1
-          ? "Escalate to a final payoff / cliffhanger."
-          : "Escalate the tension from the previous beat.",
-      `Premise: ${input.prompt}`,
-      "Keep the same protagonist appearance and visual style throughout.",
-      // One continuous shot per clip, distinct from the previous beat — see
-      // storyboardInstructions for the temporal-decay rationale.
-      "One continuous shot with a single deliberate camera move; the action progresses continuously with no repeated or looping motion; make this beat visually distinct from the previous one.",
-    ].join(" "),
-  }));
+  const scenes: Scene[] = Array.from({ length: input.sceneCount }, (_, i) => {
+    const isFirst = i === 0;
+    const isLast = i === input.sceneCount - 1;
+    return {
+      id: `scene-${i + 1}`,
+      order: i,
+      purpose: isFirst ? "hook" : isLast ? "payoff / cliffhanger" : "escalation",
+      shotSize: FALLBACK_SHOTS[i % FALLBACK_SHOTS.length]!,
+      camera: FALLBACK_CAMERAS[i % FALLBACK_CAMERAS.length]!,
+      action: [
+        isFirst
+          ? "Open on an immediate hook in the first 3 seconds:"
+          : isLast
+            ? "Escalate to a final payoff or cliffhanger:"
+            : "Escalate the tension from the previous beat:",
+        input.prompt,
+      ].join(" "),
+      mood: isFirst ? "urgent, arresting" : isLast ? "charged, unresolved" : "rising tension",
+      // Hook leans to the short end of the legal window; the rest use the default.
+      seconds: isFirst ? CLIP_SECONDS_MIN : clampClipSeconds(input.clipSeconds),
+    };
+  });
   return {
-    styleBible: "Cohesive cinematic vertical short-drama look: punchy grade, shallow depth, fast pacing.",
+    styleBible:
+      "Cinematic vertical short-drama look: punchy color grade, shallow depth of field, directional key light with deep shadows.",
+    settingBible: `Consistent world and key locations as implied by: ${input.prompt.slice(0, 200)}`,
     characterDNA: `Consistent protagonist as described in: ${input.prompt.slice(0, 200)}`,
     seed: input.seed,
     scenes,
@@ -120,37 +188,51 @@ export async function planStoryboard(input: {
   model: Awaited<ReturnType<typeof buildVideoTextModel>>["model"];
   abortSignal: AbortSignal;
 }): Promise<Storyboard> {
-  const clipSeconds = clampClipSeconds(input.clipSeconds);
-  const sceneCount = resolveSceneCount(input.targetDurationSec, clipSeconds);
+  const range = suggestSceneRange(input.targetDurationSec);
   // A stable, non-negative 32-bit seed derived at plan time; shared by every
   // scene for reproducibility of the run.
   const seed = Math.floor(Math.random() * 2 ** 31);
-  const fallback = deterministicStoryboard({ prompt: input.prompt, sceneCount, clipSeconds, seed });
+  const fallbackCount = Math.max(range.min, Math.min(range.max, Math.round((range.min + range.max) / 2)));
+  const fallback = deterministicStoryboard({
+    prompt: input.prompt,
+    sceneCount: fallbackCount,
+    clipSeconds: clampClipSeconds(input.clipSeconds),
+    seed,
+  });
   try {
     const structuredModel = wrapLanguageModel({ model: input.model, middleware: extractJsonMiddleware() });
     const result = await generateText({
       model: structuredModel,
       output: Output.object({ schema: storyboardSchema }),
-      instructions: storyboardInstructions(sceneCount, clipSeconds),
+      instructions: storyboardInstructions(range, input.targetDurationSec),
       prompt: [
         `<premise>${input.prompt}</premise>`,
-        `<scene_count>${sceneCount}</scene_count>`,
-        `<clip_seconds>${clipSeconds}</clip_seconds>`,
+        `<target_duration_seconds>${input.targetDurationSec}</target_duration_seconds>`,
+        `<suggested_shot_range>${range.min}-${range.max}</suggested_shot_range>`,
       ].join("\n"),
       maxOutputTokens: 4_000,
       abortSignal: input.abortSignal,
     });
     const planned = result.output?.scenes ?? [];
     if (!planned.length) return fallback;
+    // Even split of the budget as the per-shot default when the planner omits a
+    // shot's `seconds`, so a partial plan still respects the total length.
+    const defaultPer = clampClipSeconds(Math.round(input.targetDurationSec / planned.length));
     return {
       styleBible: result.output?.style_bible?.trim() || fallback.styleBible,
+      settingBible: result.output?.setting_bible?.trim() || fallback.settingBible,
       characterDNA: result.output?.character_dna?.trim() || fallback.characterDNA,
       seed,
       scenes: planned.slice(0, MAX_SCENES).map((scene, i) => ({
         id: `scene-${i + 1}`,
         order: i,
-        seconds: clampClipSeconds(scene.seconds ?? clipSeconds),
-        prompt: scene.prompt.slice(0, 1500),
+        purpose: scene.purpose.trim().slice(0, 60),
+        shotSize: scene.shot_size.trim().slice(0, 48),
+        camera: scene.camera.trim().slice(0, 60),
+        action: scene.action.trim().slice(0, 320),
+        dialogue: scene.dialogue?.trim() ? scene.dialogue.trim().slice(0, 120) : undefined,
+        mood: scene.mood.trim().slice(0, 60),
+        seconds: clampClipSeconds(scene.seconds ?? defaultPer),
       })),
     };
   } catch (error) {
@@ -160,19 +242,36 @@ export async function planStoryboard(input: {
   }
 }
 
-// Compose the final Ark prompt for one scene: the scene's own beat plus the
-// shared style bible and a restated character DNA, so each independently
-// generated clip stays on-model.
+// Compose the final Ark prompt for one scene following Seedance's official
+// 6-step formula in a FIXED order — subject → action → environment → camera →
+// style → constraints. Three things drive quality (per the Seedance/Kling
+// prompt guides):
+//   1. keep the skeleton order identical across shots — cross-clip drift comes
+//      from reordering it, not from its content;
+//   2. state the camera move and the subject's action as SEPARATE clauses —
+//      merging them makes the model jitter;
+//   3. always append a stability negative-constraint clause — the single
+//      highest-ROI anti-distortion lever, which the planner is told NOT to write
+//      so it lands here exactly once instead of bloating every field.
+// A dialogue line, if present, is quoted to cue Seedance's native audio.
 export function buildScenePrompt(scene: Scene, board: Storyboard): string {
-  return [
-    scene.prompt,
-    `Protagonist (keep consistent): ${board.characterDNA}`,
-    `Visual style (keep consistent): ${board.styleBible}`,
-    // Fixed stability clause: enforced regardless of what the planner wrote, to
-    // suppress the temporal-decay "镜头重复" failure on longer single clips.
-    "Single continuous shot. Motion progresses continuously from start to end — no repeated, looping, or frozen motion.",
-    "Vertical 9:16 framing.",
-  ].join("\n");
+  const parts = [
+    `${board.characterDNA} ${scene.action}`,
+    `Setting: ${board.settingBible}.`,
+    `Camera: ${scene.shotSize}, ${scene.camera} — camera move only; the subject moves as described above.`,
+    `Style: ${board.styleBible}. Mood: ${scene.mood}.`,
+  ];
+  // Optional chaining short-circuits to undefined when there is no dialogue, so
+  // the whole expression is safely `string | undefined`. Strip any wrapping
+  // quotes the planner added, then re-quote once — Seedance voices a line placed
+  // inside double quotes.
+  const line = scene.dialogue?.trim().replace(/^["“”']+|["“”']+$/g, "").trim();
+  if (line) parts.push(`Spoken line: "${line}"`);
+  parts.push(
+    "Single continuous shot, one smooth camera move, motion flows naturally from start to finish. Vertical 9:16.",
+    "Avoid: jitter, shaking, warped or bent limbs, extra or missing fingers, facial distortion, morphing, duplicated or looping frames.",
+  );
+  return parts.join("\n");
 }
 
 // Best-effort single subject-anchor image. Returns a public HTTP(S) URL that

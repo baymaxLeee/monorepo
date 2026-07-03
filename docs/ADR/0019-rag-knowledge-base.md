@@ -143,3 +143,25 @@ and RRF + rerank restore precision. Verified: query `年假政策` recalls
 ix_document_chunks_content_trgm` — where the `simple` config returned zero rows.
 Trade-off: trigram is character-level, not word-level; adequate at this scale, with
 word-level `zhparser` reserved as a later upgrade if precision demands it.
+
+## Update — knowledge management UI lands in the admin MFE
+
+The MVP's "standalone knowledge-base MFE is out of scope" note is now resolved
+without spinning up a new micro-frontend: the document-management surface ships
+inside the existing **admin** MFE (管理配置 → 知识库管理,
+`/platform/admin/knowledge`), reusing knowledge's public `/documents` API via the
+frontend `api` package (`listKnowledgeDocuments` / `uploadKnowledgeDocuments` /
+`fetchKnowledgeDocument` / `updateKnowledgeDocument` / `deleteKnowledgeDocument` /
+`batchDeleteKnowledgeDocuments`). It covers local import (upload → MarkItDown →
+auto-index), list, per-document download of the original bytes, view/edit
+(Markdown via the shared MarkdownEditor, which re-indexes on save), single
+delete, and **batch delete**.
+
+Batch delete is the only new backend surface: `POST /documents/batch-delete`
+(`{ ids }`) deletes the caller's rows in one transaction, best-effort purging
+object-store blobs and dropping `document_chunks` via the FK `ON DELETE CASCADE`.
+Documents stay **user-scoped** (the operator's own knowledge base, filtered by
+`X-Auth-User-ID`); a shared/global enterprise corpus is a deliberately deferred
+decision, not part of this change. The management view lists `kind=source`
+(operator-uploaded docs) so agent-generated artifacts don't leak in. Contract
+regenerated: `knowledge-server.json` + orval `generated/knowledge-server`.

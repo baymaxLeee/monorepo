@@ -8,18 +8,30 @@ import { secureProviderFetch } from "@backend/transport-ts/provider-url";
 
 const VIDEO_TASKS_PATH = "/contents/generations/tasks";
 
-// Ark native video params for POST /contents/generations/tasks. The duration
-// field is `seconds` (a STRING), NOT `duration` — Seedance 2.0 rejects a
-// top-level `duration` in t2v ("parameter duration ... is not valid"). We
-// allowlist the documented params and map common config aliases, so stray
-// extra_body keys (e.g. the admin test-only `test_poll_seconds`) or the legacy
-// `duration` key can no longer 400 the request.
+// Ark native video params for POST /contents/generations/tasks.
+//
+// DURATION: the per-clip length we send is `seconds` (a STRING, e.g. "6"), NOT a
+// top-level integer `duration`. This matches what was observed against the
+// deployed endpoint (a top-level `duration` was rejected as "parameter duration
+// ... is not valid"); `videoBodyOptions` also maps a legacy `duration` alias
+// onto it. Seedance 2.0's published native format instead documents an integer
+// `duration` (4–15), so this is worth re-verifying now that the storyboard sets
+// a DIFFERENT length per scene: if the model ever ignores `seconds` (every clip
+// comes back at the default length regardless of the per-scene value), flip the
+// wire format here to an integer `duration`. To check, compare the
+// `requestedSeconds` logged at create time with the `actualDuration` logged when
+// the task succeeds (see createArkVideoTask / getArkVideoTask below).
+//
+// We allowlist the documented params and map common config aliases, so a stray
+// extra_body key (e.g. the admin test-only `test_poll_seconds`) or the legacy
+// `duration` key can no longer 400 the request. `camera_fixed` was a Seedance
+// 1.x knob the 2.0 series dropped, so `camerafixed` is intentionally no longer
+// allowlisted (2.0 ignores it — keep it out to reflect real 2.0 capability).
 const ARK_VIDEO_PARAMS = new Set([
   "seconds",
   "ratio",
   "resolution",
   "framespersecond",
-  "camerafixed",
   "watermark",
   "return_last_frame",
   "generate_audio",
@@ -32,7 +44,6 @@ const ARK_VIDEO_PARAMS = new Set([
 const ARK_VIDEO_ALIASES: Record<string, string> = {
   duration: "seconds",
   fps: "framespersecond",
-  camera_fixed: "camerafixed",
 };
 
 export type ArkVideoStatus =
@@ -148,6 +159,10 @@ export async function createArkVideoTask(input: {
   }
   const data = (await response.json()) as { id?: string };
   if (!data.id) throw new Error("ark create video task returned no task id");
+  // Record the requested per-scene length so it can be cross-checked against the
+  // actual duration read back in getArkVideoTask — this is how to confirm the
+  // model honours per-scene `seconds` (see the header note on seconds vs duration).
+  console.log("[executor] ark video task created", { taskId: data.id, requestedSeconds: input.seconds ?? null });
   return data.id;
 }
 
@@ -211,6 +226,7 @@ export async function getArkVideoTask(input: {
   const data = (await response.json()) as {
     status?: string;
     content?: { video_url?: string } | null;
+    duration?: number;
     error?: unknown;
   };
   const error =
@@ -219,8 +235,17 @@ export async function getArkVideoTask(input: {
       : data.error
         ? JSON.stringify(data.error).slice(0, 500)
         : undefined;
+  const status = (data.status as ArkVideoStatus) ?? "unknown";
+  if (status === "succeeded") {
+    // Actual generated length; compare with the `requestedSeconds` logged at
+    // create time to verify Seedance honoured the per-scene duration.
+    console.log("[executor] ark video task succeeded", {
+      taskId: input.taskId,
+      actualDuration: data.duration ?? null,
+    });
+  }
   return {
-    status: (data.status as ArkVideoStatus) ?? "unknown",
+    status,
     videoUrl: data.content?.video_url,
     error,
   };
