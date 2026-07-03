@@ -76,10 +76,12 @@ export function useDocumentBlobUrl(
   return { blobUrl, loading, error };
 }
 
-// Resolve a group of documents to object URLs at once (e.g. every image in a
-// lightbox so prev/next has each slide ready). Reuses the shared source cache,
-// keeps results aligned with the input ids, and revokes URLs on cleanup. Keyed
-// on the joined id list so a stable group does not re-fetch every render.
+// Resolve a group of documents to object URLs (e.g. every image in a lightbox so
+// prev/next has each slide ready). Reuses the shared source cache, keeps results
+// aligned with the input ids, and revokes URLs on cleanup. Keyed on the joined
+// id list so a stable group does not re-fetch every render. Slides resolve
+// independently so a just-clicked, already-cached image shows immediately
+// instead of waiting on its slower siblings.
 export function useDocumentBlobUrls(
   conversationId: string | undefined,
   documentIds: string[],
@@ -95,29 +97,24 @@ export function useDocumentBlobUrls(
     }
     let active = true;
     const created: string[] = [];
-    void Promise.all(
-      ids.map(async (documentId) => {
+    // Clear first so a new group never flashes the previous group's URLs.
+    setUrlMap({});
+    for (const documentId of ids) {
+      void (async () => {
         try {
           const blob = await fetchCachedDocumentSource(
             conversationId,
             documentId,
           );
+          if (!active) return;
           const url = URL.createObjectURL(blob);
           created.push(url);
-          return [documentId, url] as const;
+          setUrlMap((prev) => ({ ...prev, [documentId]: url }));
         } catch {
-          return null;
+          // A failed slide stays a loading state; navigating still works.
         }
-      }),
-    ).then((pairs) => {
-      if (!active) {
-        for (const url of created) URL.revokeObjectURL(url);
-        return;
-      }
-      const next: Record<string, string> = {};
-      for (const pair of pairs) if (pair) next[pair[0]] = pair[1];
-      setUrlMap(next);
-    });
+      })();
+    }
     return () => {
       active = false;
       for (const url of created) URL.revokeObjectURL(url);

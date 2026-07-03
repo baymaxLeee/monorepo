@@ -72,16 +72,16 @@ The stack decision was grounded in current (2026) practice, not memory:
 ## Consequences
 
 - New knowledge deps: `asyncpg`, `pgvector` (replaced `asyncmy`). New tables:
-  `document_chunks` (GIN on `tsv`; no ANN index because doubao-embedding-text is
-  2048-dim and pgvector's HNSW/IVFFlat cap at 2000 — dense search is exact,
-  fine at MVP scale). `documents` and
+  `document_chunks` (GIN on `tsv` for sparse; the dense side originally shipped
+  with no ANN index — corrected in the v1.1.0 update below). `documents` and
   the artifact tables are reproduced faithfully as a fresh PG baseline
   (`v1.0.0.sql`), which also fixes prior MySQL-migration/model drift.
 - Embedding model and the `vector(2048)` column must agree; changing the
   embedding model/dimension requires altering the column and re-indexing
   (`embed_model` is stored per chunk to detect drift).
-- Chinese BM25 uses the `simple` text-search config (no CJK word segmentation);
-  dense retrieval carries semantics. `zhparser`/`pg_jieba` is a later upgrade.
+- Chinese sparse retrieval uses pg_trgm character-trigram `word_similarity`
+  (v1.2.0), not the `simple` FTS config (which does not segment CJK). Word-level
+  `zhparser`/`pg_jieba` remains a heavier later upgrade if precision demands it.
 - Artifact auto-indexing and a standalone knowledge-base MFE are out of scope for
   the MVP; only ingest + public document edits index today.
 - Cross-stack contract regenerated: `knowledge-server.json` / `admin-server.json`
@@ -108,3 +108,38 @@ edit/delete a document and confirm retrieval reflects it. A lightweight,
 manual-only retrieval quality script lives at
 `apps/backend/services/knowledge/scripts/eval_rag.py` (not CI, not pytest — the
 demo-phase test ban still holds).
+
+## Update — v1.1.0: dense ANN index (halfvec HNSW)
+
+The v1.0.0 claim that "no ANN index is possible because the embedding is 2048-dim
+and pgvector caps HNSW/IVFFlat at 2000" is corrected: since pgvector 0.7 the 16-bit
+`halfvec` type indexes up to 4000 dims (verified on the running
+`pgvector/pgvector:pg16`, pgvector 0.8.4). Migration `v1.1.0.sql` adds
+
+    CREATE INDEX ix_document_chunks_embedding_hnsw ON document_chunks
+      USING hnsw ((embedding::halfvec(2048)) halfvec_cosine_ops);
+
+The `embedding` column stays full-precision `vector(2048)` for storage/scoring
+(half-precision *indexing* only): recall is effectively unchanged and dense search
+is no longer an exact sequential scan over each user's chunks. `crud/chunks.py`
+`dense_search` orders by the identical `embedding::halfvec(2048) <=> q::halfvec(2048)`
+expression and raises `hnsw.ef_search` to cover the candidate pool, so the planner
+uses the index. The dedicated-vector-DB migration thresholds (Alternatives) are
+unchanged — this defers that cliff, it does not move it.
+
+## Update — v1.2.0: Chinese sparse retrieval via pg_trgm
+
+v1.0.0's sparse branch was `tsv = to_tsvector('simple', content)`, but `simple`
+does not segment CJK, so Chinese queries matched almost nothing and hybrid silently
+degraded to dense-only. This corpus is small and mostly Chinese, so v1.2.0 switches
+the sparse branch to pg_trgm character-trigram matching — no custom image needed
+(`zhparser`/`pg_jieba` are absent from `pgvector/pgvector:pg16`), GIN-accelerated.
+Migration `v1.2.0.sql` drops the dead `tsv` column + its GIN index, adds
+`CREATE EXTENSION pg_trgm` and a `gin (content gin_trgm_ops)` index; `crud/chunks.py`
+`sparse_search` now scores with `word_similarity(query, content)` (filtered by `<%`,
+`pg_trgm.word_similarity_threshold` lowered to 0.2 for a high-recall candidate pool),
+and RRF + rerank restore precision. Verified: query `年假政策` recalls
+`公司年假政策…` (word_similarity 0.6) via `Bitmap Index Scan on
+ix_document_chunks_content_trgm` — where the `simple` config returned zero rows.
+Trade-off: trigram is character-level, not word-level; adequate at this scale, with
+word-level `zhparser` reserved as a later upgrade if precision demands it.

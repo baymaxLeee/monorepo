@@ -55,6 +55,13 @@ export function createVideoTools(providers: VideoToolProviders) {
           .describe(
             `Target total length of the finished reel in whole seconds (${VIDEO_TARGET_MIN_S}–${VIDEO_TARGET_MAX_S}). Omit for a ~50s default. This is the WHOLE reel; the tool splits it into scene clips internally.`,
           ),
+        todo_id: z
+          .string()
+          .max(64)
+          .optional()
+          .describe(
+            "Optional id of the todo item this video fulfills. Set it when executing a plan/todo list so the UI flips that todo to done the moment this task finishes; omit for ad-hoc calls.",
+          ),
       }),
       contextSchema: mediaToolContextSchema,
       execute: (input, options) => generateVideoTool(input, options, providers),
@@ -62,7 +69,7 @@ export function createVideoTools(providers: VideoToolProviders) {
   };
 }
 
-type GenerateVideoInput = { prompt: string; duration?: number };
+type GenerateVideoInput = { prompt: string; duration?: number; todo_id?: string };
 
 export async function* generateVideoTool(
   input: GenerateVideoInput,
@@ -104,6 +111,7 @@ export async function* generateVideoTool(
       prompt: input.prompt,
       duration: input.duration,
       task_id: task.id,
+      todo_id: input.todo_id,
     };
     yield { ok: true, status: task.status, ...base };
 
@@ -149,6 +157,7 @@ export async function* generateVideoTool(
       status: "failed",
       kind: "video",
       error: `视频生成失败:${String(error).slice(0, 300)}`,
+      todo_id: input.todo_id,
     };
   }
 }

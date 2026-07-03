@@ -27,7 +27,11 @@ import {
 } from "./ChatArtifactCard";
 import { ChatImageCard } from "./ChatImageCard";
 import { ChatMessageFilePart } from "./ChatMessageFilePart";
-import { ChatTodoListCard, parseTodoListOutput } from "./ChatTodoListCard";
+import {
+  ChatTodoListCard,
+  parseTodoListOutput,
+  type TodoTaskStatus,
+} from "./ChatTodoListCard";
 import { ChatVideoCard } from "./ChatVideoCard";
 
 export interface ChatMessageViewProps {
@@ -36,6 +40,7 @@ export interface ChatMessageViewProps {
   streaming: boolean;
   documents: Map<string, ConversationDocument>;
   latestTodoCallId: string | null;
+  todoTaskStatus: Map<string, TodoTaskStatus>;
   onOpenArtifact: (documentId: string) => void;
   onAnswerClientTool: (
     toolName: string,
@@ -52,6 +57,7 @@ export function ChatMessageView({
   streaming,
   documents,
   latestTodoCallId,
+  todoTaskStatus,
   onOpenArtifact,
   onAnswerClientTool,
   onContinuePlan,
@@ -114,6 +120,7 @@ export function ChatMessageView({
               variant={variant}
               documents={documents}
               latestTodoCallId={latestTodoCallId}
+              todoTaskStatus={todoTaskStatus}
               onOpenArtifact={onOpenArtifact}
               onOpenImage={onOpenImage}
               onAnswerClientTool={onAnswerClientTool}
@@ -143,6 +150,7 @@ function MessagePartView({
   variant,
   documents,
   latestTodoCallId,
+  todoTaskStatus,
   onOpenArtifact,
   onOpenImage,
   onAnswerClientTool,
@@ -155,6 +163,7 @@ function MessagePartView({
   variant: "user" | "assistant";
   documents: Map<string, ConversationDocument>;
   latestTodoCallId: string | null;
+  todoTaskStatus: Map<string, TodoTaskStatus>;
   onOpenArtifact: (documentId: string) => void;
   onOpenImage: (documentId: string) => void;
   onAnswerClientTool: (
@@ -196,7 +205,6 @@ function MessagePartView({
   if (isFileUIPart(part)) {
     return (
       <ChatMessageFilePart
-        conversationId={conversationId}
         part={part}
         variant={variant}
         onOpen={onOpenArtifact}
@@ -212,6 +220,7 @@ function MessagePartView({
         conversationId={conversationId}
         documents={documents}
         latestTodoCallId={latestTodoCallId}
+        todoTaskStatus={todoTaskStatus}
         onOpenArtifact={onOpenArtifact}
         onAnswerClientTool={onAnswerClientTool}
         onContinuePlan={onContinuePlan}
@@ -228,6 +237,7 @@ function ToolPartView({
   conversationId,
   documents,
   latestTodoCallId,
+  todoTaskStatus,
   onOpenArtifact,
   onAnswerClientTool,
   onContinuePlan,
@@ -237,6 +247,7 @@ function ToolPartView({
   conversationId: string;
   documents: Map<string, ConversationDocument>;
   latestTodoCallId: string | null;
+  todoTaskStatus: Map<string, TodoTaskStatus>;
   onOpenArtifact: (documentId: string) => void;
   onAnswerClientTool: (
     toolName: string,
@@ -274,7 +285,6 @@ function ToolPartView({
   if (toolName === "generate_video") {
     return (
       <ChatVideoCard
-        conversationId={conversationId}
         output={output}
         state={part.state}
         onOpen={onOpenArtifact}
@@ -349,7 +359,10 @@ function ToolPartView({
           </div>
         ) : null}
         {todoList ? (
-          <ChatTodoListCard todos={todoList.todos} />
+          <ChatTodoListCard
+            todos={todoList.todos}
+            taskStatus={todoTaskStatus}
+          />
         ) : (
           <>
             {askUserInput == null && input !== undefined ? (

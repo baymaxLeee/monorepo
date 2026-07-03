@@ -33,7 +33,10 @@ import { useShallow } from "zustand/react/shallow";
 import { ChatComposerControls } from "../components/ChatComposerControls";
 import { ChatImagePreview } from "../components/ChatImagePreview";
 import { ChatMessageView } from "../components/ChatMessageView";
-import { findLatestUpdateTodosCallId } from "../components/ChatTodoListCard";
+import {
+  collectTodoTaskStatus,
+  findLatestUpdateTodosCallId,
+} from "../components/ChatTodoListCard";
 import type { ChatUIMessage } from "../lib/chat-message";
 import { buildUserFilePart } from "../lib/file-parts";
 import { useChatStore } from "../store/useChatStore";
@@ -53,13 +56,6 @@ function isRunning(
   return status === "streaming" || status === "submitted";
 }
 
-// AI SDK flips `status` to "streaming" as soon as the response begins
-// arriving, which can be well before the model's first visible token (TTFT,
-// extended thinking, or a provider that opens the connection before it has
-// anything to say). Treat a freshly-appended assistant message with no
-// renderable content yet as still "waiting", so the placeholder below
-// bridges submitted -> streaming -> first visible part instead of only
-// covering submitted.
 function isPendingAssistantMessage(message: ChatUIMessage | undefined) {
   if (message?.role !== "assistant") return false;
   return message.parts.every((part) => {
@@ -176,7 +172,7 @@ export function Chat() {
       bumpTraceRefresh();
       if (!id) return;
       void fetchConversation(id).then((next) => {
-        setDetail(next);
+        setDetail({ ...next, active_run_id: null });
         setMessages(next.messages.map(messageToUiMessage));
       });
     },
@@ -194,6 +190,10 @@ export function Chat() {
   }, [detail?.documents]);
   const latestTodoCallId = useMemo(
     () => findLatestUpdateTodosCallId(messages),
+    [messages],
+  );
+  const todoTaskStatus = useMemo(
+    () => collectTodoTaskStatus(messages),
     [messages],
   );
 
@@ -227,11 +227,6 @@ export function Chat() {
     resumedConversationRef.current = null;
   }, [id]);
 
-  // Reconnect to an in-flight run only when the loaded conversation says one is
-  // live (active_run_id). For the overwhelmingly common case — opening a
-  // finished conversation — this skips the reconnect probe entirely instead of
-  // firing a GET .../agents/run/stream that just 204s, and avoids the extra
-  // fetchConversation the reconnect path used to trigger.
   useEffect(() => {
     if (
       !id ||
@@ -244,26 +239,12 @@ export function Chat() {
       return;
     }
     resumedConversationRef.current = id;
-    void resumeStream()
-      .then(async () => {
-        const next = await fetchConversation(id);
-        setDetail(next);
-        setMessages(next.messages.map(messageToUiMessage));
-      })
-      .catch((error) => {
-        const message = String(error);
-        if (/204|no active|not found/i.test(message)) return;
-        toast.error(message);
-      });
-  }, [
-    busy,
-    detail?.id,
-    detail?.active_run_id,
-    id,
-    loading,
-    resumeStream,
-    setMessages,
-  ]);
+    void resumeStream().catch((error) => {
+      const message = String(error);
+      if (/204|no active|not found/i.test(message)) return;
+      toast.error(message);
+    });
+  }, [busy, detail?.id, detail?.active_run_id, id, loading, resumeStream]);
 
   async function submit(value: PromptInputValue) {
     if (busy || !id) return;
@@ -425,6 +406,7 @@ export function Chat() {
                 streaming={busy && message === messages.at(-1)}
                 documents={documents}
                 latestTodoCallId={latestTodoCallId}
+                todoTaskStatus={todoTaskStatus}
                 onOpenArtifact={openArtifact}
                 onAnswerClientTool={(toolName, toolCallId, output) => {
                   void answerClientTool(toolName, toolCallId, output).catch(
@@ -485,8 +467,6 @@ export function Chat() {
                 file,
               })),
               { onEvent: onIngestEvent },
-              // Ingest vision-conversion uses the selected agent's text model
-              // (falls back to the user's default provider when unset).
               {
                 providerId:
                   agents?.find((a) => a.id === selectedAgentId)
@@ -525,7 +505,6 @@ export function Chat() {
           )}
         />
       </div>
-
       <ChatImagePreview />
     </div>
   );

@@ -23,10 +23,11 @@ function updateTodos(input: z.infer<typeof updateTodosInputSchema>): UpdateTodos
     }
     ids.add(item.id);
   }
-  const inProgress = input.todos.filter((item) => item.status === "in_progress");
-  if (inProgress.length > 1) {
-    return { ok: false, error: "at most one todo may be in_progress at a time" };
-  }
+  // Multiple items may be in_progress at once: when several independent
+  // deliverables are dispatched concurrently in one step, they are all running
+  // in parallel and each should show a live spinner (matches Claude Code's
+  // multi-task behavior). Progress per item is linked to its task via `todo_id`
+  // on the deliverable tool calls (see artifact/media/video tools).
   return { ok: true, todos: input.todos };
 }
 
@@ -34,9 +35,13 @@ export function createTodoTools() {
   return {
     update_todos: tool({
       description:
-        "Create or replace the current todo list for this task. Always pass the full list; " +
-        "mark at most one item in_progress at a time and mark items completed as soon as they finish. " +
-        "Use it for multi-step tasks so progress stays visible; skip it for simple one-step requests.",
+        "Create or replace the current todo list for this task. Always pass the full list. " +
+        "Mark an item in_progress when you start it and completed as soon as it finishes. " +
+        "When you dispatch several independent deliverables concurrently in one step, mark ALL of " +
+        "them in_progress together (multiple in_progress is allowed), and set each deliverable tool " +
+        "call's `todo_id` to the id of the todo item it fulfills so the UI can flip that item to done " +
+        "the moment its task completes. Use it for multi-step tasks so progress stays visible; skip it " +
+        "for simple one-step requests.",
       inputSchema: updateTodosInputSchema,
       execute: updateTodos,
     }),

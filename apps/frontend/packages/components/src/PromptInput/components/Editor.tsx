@@ -452,17 +452,17 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
           </div>
           <Button
             type={loading && onStop ? "button" : "submit"}
-            size="icon"
-            className="rounded-full"
+            size="icon-xs"
+            className="rounded-full mr-2 cursor-pointer"
             disabled={disabled && !loading}
             aria-label={loading ? "Stop" : "Submit prompt"}
             onClick={loading ? onStop : undefined}
           >
             {submitLabel ??
               (loading ? (
-                <Square className="size-4" />
+                <Square className="size-3" />
               ) : (
-                <ArrowUp className="size-4" />
+                <ArrowUp className="size-3" />
               ))}
           </Button>
         </div>

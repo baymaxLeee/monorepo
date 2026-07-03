@@ -92,20 +92,22 @@ export function createMediaTools(imageProvider: ProviderSnapshot) {
   return {
     generate_image: tool({
       description:
-        "Generate one or more images from a text prompt using the user's configured image model (e.g. Volcengine Ark Seedream) and render them inline in the chat. Use this whenever the user asks to create, draw, paint, or generate a picture, illustration, poster, icon, logo, or similar visual. Write the prompt in concrete visual detail (subject, style, composition, colors, lighting, mood). The generated images are persisted automatically; do not describe file IDs or download steps. Requires the user to have configured and selected an image provider — if none is available the tool returns an error you must relay, asking them to configure one in model management. Do not use this to edit an already-uploaded image.",
+        "Generate one or more images in a SINGLE call from the user's configured image model (e.g. Volcengine Ark Seedream) and render them inline as one grouped gallery card. Use this whenever the user asks to create, draw, paint, or generate pictures, illustrations, posters, icons, logos, or similar visuals. To produce SEVERAL images (a set, options/variations, or different subjects), put ALL of their prompts in the `prompts` array of ONE call — do NOT call this tool multiple times for a multi-image request; batched prompts generate concurrently and preview together. Write each prompt in concrete visual detail (subject, style, composition, colors, lighting, mood). Generated images are persisted automatically; do not describe file IDs or download steps. Requires the user to have configured and selected an image provider — if none is available the tool returns an error you must relay, asking them to configure one in model management. Do not use this to edit an already-uploaded image.",
       inputSchema: z.object({
-        prompt: z
+        prompts: z
+          .array(z.string().min(1).max(4000))
+          .min(1)
+          .max(6)
+          .describe(
+            "One rich, concrete visual prompt per image (subject, style, composition, colors, lighting, mood). Pass every image this request needs in this one array — multiple prompts generate concurrently and render as a single gallery card. For N variations of one idea, repeat or vary the prompt N times.",
+          ),
+        todo_id: z
           .string()
-          .min(1)
-          .max(4000)
-          .describe("Rich, concrete visual description of the image to generate."),
-        n: z
-          .number()
-          .int()
-          .min(1)
-          .max(4)
+          .max(64)
           .optional()
-          .describe("How many images to generate (default 1)."),
+          .describe(
+            "Optional id of the todo item this image group fulfills. Set it when executing a plan/todo list so the UI flips that todo to done the moment this batch finishes; omit for ad-hoc calls.",
+          ),
       }),
       contextSchema: mediaToolContextSchema,
       execute: (input, options) => generateImageTool(input, options, imageProvider),
@@ -113,7 +115,9 @@ export function createMediaTools(imageProvider: ProviderSnapshot) {
   };
 }
 
-type GenerateImageInput = { prompt: string; n?: number };
+type GeneratedImage = { document_id: string; filename: string; media_type: string };
+
+type GenerateImageInput = { prompts: string[]; todo_id?: string };
 
 export async function* generateImageTool(
   input: GenerateImageInput,
@@ -124,8 +128,9 @@ export async function* generateImageTool(
   }: { context: MediaToolContext; toolCallId: string; abortSignal?: AbortSignal },
   imageProvider: ProviderSnapshot,
 ): AsyncGenerator<Record<string, unknown>> {
-  const count = input.n ?? 1;
-  yield { ok: true, status: "generating", prompt: input.prompt, count };
+  const prompts = input.prompts;
+  const todoId = input.todo_id;
+  yield { ok: true, status: "generating", count: prompts.length, todo_id: todoId };
 
   try {
     const { model, providerOptionsKey } = createProviderImageModel({
@@ -136,41 +141,71 @@ export async function* generateImageTool(
     });
     const providerOptions = buildImageProviderOptions(imageProvider.extraBody);
 
-    const result = await generateImage({
-      model,
-      prompt: input.prompt,
-      n: count,
-      abortSignal,
-      providerOptions: { [providerOptionsKey]: providerOptions },
-    });
-
-    const generated = result.images.length > 0 ? result.images : [result.image];
-    const images: Array<{ document_id: string; filename: string; media_type: string }> = [];
-    for (const [index, file] of generated.entries()) {
+    // One image per prompt, all generated concurrently. Each prompt is an
+    // independent request/document (unique idempotency key by index), so a
+    // single failed prompt degrades to a partial gallery instead of failing
+    // the whole batch.
+    const generateOne = async (prompt: string, index: number): Promise<GeneratedImage> => {
+      const result = await generateImage({
+        model,
+        prompt,
+        n: 1,
+        abortSignal,
+        providerOptions: { [providerOptionsKey]: providerOptions },
+      });
+      const file = result.images[0] ?? result.image;
       const mediaType = resolveImageMediaType(file.mediaType, file.uint8Array);
-      const filename = imageFilename(input.prompt, mediaType, index);
+      const filename = imageFilename(prompt, mediaType, index);
       const document = await createMediaDocument({
         userId: context.userId,
         conversationId: context.conversationId,
-        title: input.prompt.slice(0, 80),
+        title: prompt.slice(0, 80),
         filename,
         mimeType: mediaType,
         bytes: file.uint8Array,
         idempotencyKey: `${toolCallId}-${index}`,
       });
-      images.push({ document_id: document.id, filename: document.filename, media_type: mediaType });
+      return { document_id: document.id, filename: document.filename, media_type: mediaType };
+    };
+
+    const settled = await Promise.allSettled(prompts.map(generateOne));
+
+    // A cancelled run surfaces as AbortError on the individual calls; re-throw
+    // so the run records cancellation instead of a partial "completed".
+    if (abortSignal?.aborted) {
+      const aborted = settled.find(
+        (outcome): outcome is PromiseRejectedResult =>
+          outcome.status === "rejected" &&
+          outcome.reason instanceof Error &&
+          outcome.reason.name === "AbortError",
+      );
+      throw aborted?.reason ?? Object.assign(new Error("aborted"), { name: "AbortError" });
+    }
+
+    const images: GeneratedImage[] = [];
+    const errors: unknown[] = [];
+    for (const outcome of settled) {
+      if (outcome.status === "fulfilled") images.push(outcome.value);
+      else errors.push(outcome.reason);
+    }
+
+    if (images.length === 0) {
+      yield { ok: false, status: "failed", error: describeImageError(errors[0]), todo_id: todoId };
+      return;
     }
 
     yield {
       ok: true,
       status: "completed",
-      prompt: input.prompt,
       images,
+      count: prompts.length,
+      failed: prompts.length - images.length,
       document_id: images[0]?.document_id,
+      todo_id: todoId,
     };
   } catch (error) {
     if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
     console.error("[chat-agent] generate_image failed", { toolCallId, error });
-    yield { ok: false, status: "failed", error: describeImageError(error) };
+    yield { ok: false, status: "failed", error: describeImageError(error), todo_id: todoId };
   }
 }

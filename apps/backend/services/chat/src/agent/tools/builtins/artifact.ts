@@ -41,10 +41,16 @@ function taskResultFields(result: unknown): { documentId?: string; totalChars?: 
 // one, so intermediate progress never pollutes the model's context.
 async function* streamHtmlArtifactTask(
   task: Task,
-  meta: { title: string; filename: string },
+  meta: { title: string; filename: string; todoId?: string },
   signal: AbortSignal | undefined,
 ): AsyncGenerator<Record<string, unknown>> {
-  const base = { title: meta.title, filename: meta.filename, kind: "html" as const, task_id: task.id };
+  const base = {
+    title: meta.title,
+    filename: meta.filename,
+    kind: "html" as const,
+    task_id: task.id,
+    todo_id: meta.todoId,
+  };
   yield { ok: true, status: task.status, ...base };
   let terminal: Task;
   try {
@@ -140,6 +146,13 @@ export function createArtifactTools(textProvider: ChatProvider) {
             "Content and visual requirements. Preserve explicit user design requests. Describe chart type/data only — never name a charting library; all charts render via ECharts.",
           ),
         page_count: z.number().int().min(1).max(100).optional().describe("Requested number of generated blocks or pages."),
+        todo_id: z
+          .string()
+          .max(64)
+          .optional()
+          .describe(
+            "Optional id of the todo item this file fulfills. Set it when executing a plan/todo list so the UI flips that todo to done the moment this task finishes; omit for ad-hoc calls.",
+          ),
       }),
       contextSchema: artifactToolContextSchema,
       execute: (input, options) => writeFileTool(input, options, textProvider),
@@ -157,6 +170,13 @@ export function createArtifactTools(textProvider: ChatProvider) {
           .max(12_000)
           .describe("Describe chart type/data only — never name a charting library; all charts render via ECharts."),
         block_ids: z.array(z.string().regex(/^page-[1-9]\d*$/)).max(100).optional(),
+        todo_id: z
+          .string()
+          .max(64)
+          .optional()
+          .describe(
+            "Optional id of the todo item this edit fulfills. Set it when executing a plan/todo list so the UI flips that todo to done the moment this task finishes; omit for ad-hoc calls.",
+          ),
       }),
       contextSchema: artifactToolContextSchema,
       execute: (input, options) => editFileTool(input, options, textProvider),
@@ -182,11 +202,13 @@ export async function* writeFileTool(
     mode: "document" | "presentation" | "dashboard";
     brief: string;
     page_count?: number;
+    todo_id?: string;
   },
   { context, toolCallId, abortSignal }: { context: ArtifactToolContext; toolCallId: string; abortSignal?: AbortSignal },
   textProvider: ChatProvider,
 ): AsyncGenerator<Record<string, unknown>> {
   const filename = safeFilename(input.filename);
+  const todoId = input.todo_id;
   try {
     if (input.kind === "markdown") {
       const tools = buildArtifactTextModel(textProvider);
@@ -202,7 +224,7 @@ export async function* writeFileTool(
       const content = normalizeArtifactContent("markdown", await collectText(result));
       const validation = validateArtifactContent("markdown", content);
       if (!validation.ok) {
-        yield { ok: false, error: validation.error };
+        yield { ok: false, error: validation.error, todo_id: todoId };
         return;
       }
       const document = await createArtifact({
@@ -214,7 +236,7 @@ export async function* writeFileTool(
         mimeType: "text/markdown",
         idempotencyKey: toolCallId,
       });
-      yield { ok: true, status: "persisted", document_id: document.id, title: document.title, filename: document.filename, kind: "markdown", total_chars: content.length };
+      yield { ok: true, status: "persisted", document_id: document.id, title: document.title, filename: document.filename, kind: "markdown", total_chars: content.length, todo_id: todoId };
       return;
     }
 
@@ -241,23 +263,24 @@ export async function* writeFileTool(
       },
       abortSignal,
     );
-    yield* streamHtmlArtifactTask(task, { title: input.title, filename }, abortSignal);
+    yield* streamHtmlArtifactTask(task, { title: input.title, filename, todoId }, abortSignal);
   } catch (error) {
     if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
     console.error("[chat-agent] write_file failed", { toolCallId, error });
-    yield { ok: false, error: String(error).slice(0, 500) };
+    yield { ok: false, error: String(error).slice(0, 500), todo_id: todoId };
   }
 }
 
 export async function* editFileTool(
-  input: { document_id: string; title?: string; filename?: string; brief: string; block_ids?: string[] },
+  input: { document_id: string; title?: string; filename?: string; brief: string; block_ids?: string[]; todo_id?: string },
   { context, toolCallId, abortSignal }: { context: ArtifactToolContext; toolCallId: string; abortSignal?: AbortSignal },
   textProvider: ChatProvider,
 ): AsyncGenerator<Record<string, unknown>> {
+  const todoId = input.todo_id;
   try {
     const current = await getDocument(context.userId, input.document_id);
     if (current.kind !== "artifact") {
-      yield { ok: false, error: `file ${input.document_id} is not editable` };
+      yield { ok: false, error: `file ${input.document_id} is not editable`, todo_id: todoId };
       return;
     }
     const isHtml = current.mime_type === "text/html" || current.filename.toLowerCase().endsWith(".html");
@@ -282,7 +305,7 @@ export async function* editFileTool(
         mimeType: "text/markdown",
         expectedUpdatedAt: current.updated_at,
       });
-      yield { ok: true, status: "persisted", document_id: document.id, title: document.title, filename: document.filename, kind: "markdown", total_chars: content.length };
+      yield { ok: true, status: "persisted", document_id: document.id, title: document.title, filename: document.filename, kind: "markdown", total_chars: content.length, todo_id: todoId };
       return;
     }
 
@@ -307,10 +330,10 @@ export async function* editFileTool(
       },
       abortSignal,
     );
-    yield* streamHtmlArtifactTask(task, { title, filename }, abortSignal);
+    yield* streamHtmlArtifactTask(task, { title, filename, todoId }, abortSignal);
   } catch (error) {
     if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
     console.error("[chat-agent] edit_file failed", { toolCallId, documentId: input.document_id, error });
-    yield { ok: false, error: String(error).slice(0, 500) };
+    yield { ok: false, error: String(error).slice(0, 500), todo_id: todoId };
   }
 }

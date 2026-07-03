@@ -1,8 +1,9 @@
 """Document chunk ORM model for RAG retrieval (Postgres + pgvector).
 
 One row per retrievable chunk of a document. `embedding` is the dense vector
-(pgvector); the sparse BM25 side is a DB-maintained `tsv tsvector` GENERATED
-column (see the migration) that the ORM never writes, so it is not mapped here.
+(pgvector, HNSW-indexed on its `halfvec` cast); the sparse side is pg_trgm
+character-trigram matching over `content` (GIN `gin_trgm_ops`, see the migrations),
+so there is no separate lexical column to map here.
 """
 
 from datetime import datetime

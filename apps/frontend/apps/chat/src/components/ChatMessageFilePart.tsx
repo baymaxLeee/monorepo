@@ -2,52 +2,41 @@ import type { FileUIPart } from "ai";
 import {
   Attachment,
   AttachmentInfo,
-  AttachmentPreview,
+  getMediaCategory,
 } from "components/ai-chat";
-import { useEffect, useRef, useState } from "react";
+import {
+  FileIcon,
+  ImageIcon,
+  type LucideIcon,
+  MusicIcon,
+  PlaySquareIcon,
+} from "lucide-react";
 import { cn } from "shared";
-import { useDocumentBlobUrl } from "../hooks/useDocumentSource";
 import { documentIdFromFilePart } from "../lib/file-parts";
 
+const CATEGORY_ICON: Record<string, LucideIcon> = {
+  image: ImageIcon,
+  video: PlaySquareIcon,
+  audio: MusicIcon,
+};
+
+// A file attachment renders as a lightweight chip only — icon + filename, never
+// the bytes (ADR-0021). Clicking an image opens the shared lightbox; any other
+// file opens the side panel. Both preview surfaces fetch the source on demand,
+// so the transcript stays cheap to render even with many attachments.
 export function ChatMessageFilePart({
-  conversationId,
   part,
   onOpen,
   onOpenImage,
   variant = "assistant",
 }: {
-  conversationId: string;
   part: FileUIPart;
   onOpen: (documentId: string) => void;
   onOpenImage: (documentId: string) => void;
   variant?: "user" | "assistant";
 }) {
-  const rootRef = useRef<HTMLButtonElement>(null);
-  const [visible, setVisible] = useState(false);
   const documentId = documentIdFromFilePart(part);
   const isImage = part.mediaType.startsWith("image/");
-
-  useEffect(() => {
-    const node = rootRef.current;
-    if (!node || !isImage || visible) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) {
-          setVisible(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "160px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [isImage, visible]);
-
-  const { blobUrl, loading, error } = useDocumentBlobUrl(
-    conversationId,
-    documentId,
-    Boolean(documentId && isImage && visible),
-  );
 
   if (!documentId) {
     return (
@@ -57,11 +46,12 @@ export function ChatMessageFilePart({
     );
   }
 
-  const displayPart = blobUrl ? { ...part, url: blobUrl } : part;
+  const item = { ...part, id: documentId };
+  const Icon = CATEGORY_ICON[getMediaCategory(item)] ?? FileIcon;
+
   return (
-    <Attachment data={{ ...displayPart, id: documentId }} asChild>
+    <Attachment data={item} asChild>
       <button
-        ref={rootRef}
         type="button"
         title={`预览 ${part.filename || part.mediaType}`}
         className={cn(
@@ -70,14 +60,10 @@ export function ChatMessageFilePart({
         )}
         onClick={() => (isImage ? onOpenImage(documentId) : onOpen(documentId))}
       >
-        {isImage && (loading || error || !blobUrl) ? (
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-muted text-[10px] text-muted-foreground">
-            {loading ? "加载中" : error ? "失败" : "图片"}
-          </span>
-        ) : (
-          <AttachmentPreview />
-        )}
-        {isImage ? null : <AttachmentInfo showMediaType={!isImage} />}
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+          <Icon className="size-4" />
+        </span>
+        <AttachmentInfo showMediaType />
       </button>
     </Attachment>
   );

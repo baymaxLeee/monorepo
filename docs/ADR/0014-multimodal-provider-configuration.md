@@ -73,10 +73,14 @@ boundaries above:
   (`services/knowledge/src/knowledge/routers/documents_internal.py`), which
   mirrors the artifact-publish object-store path. Messages persist only the
   resulting `document_id`; Ark's temporary URL is never persisted.
-- Generation is synchronous/inline (a single `generateImage` await), matching
-  the request/response nature of image models — no durable executor task. The
-  frontend renders results inline from the tool output (`ChatImageCard`) and can
-  open the side preview panel (`ArtifactPreview`, image kind).
+- Generation runs inline in the tool call (no durable executor task), but a
+  multi-image request is a **single** `generate_image` call taking a `prompts[]`
+  array (was `{ prompt, n }`): each prompt becomes one `generateImage` request
+  run concurrently via `Promise.allSettled`, so a batch fails soft — a dead
+  prompt drops from the gallery instead of failing the whole call — and the tool
+  reports `count` / `failed`. See ADR-0022 for the parallel-deliverable execution
+  model this is part of. The frontend renders the result as a lightweight
+  reference card and defers bytes to the preview surface (ADR-0021).
 
 ## Update: video generation landed (Seedance)
 

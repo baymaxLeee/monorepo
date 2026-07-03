@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from secrets import token_hex
 from typing import Any, cast
 
+from knowledge.config import get_settings
 from knowledge.models.chunk import DocumentChunkRow
 from sqlalchemy import Row, delete, func, select, text
 from sqlalchemy.engine import CursorResult
@@ -46,21 +47,27 @@ async def dense_search(
     query_vector: list[float],
     limit: int,
 ) -> Sequence[Row[Any]]:
-    """Cosine-distance ANN search over a user's chunk embeddings (best first)."""
-    distance = DocumentChunkRow.embedding.cosine_distance(query_vector)
-    stmt = (
-        select(
-            DocumentChunkRow.id,
-            DocumentChunkRow.document_id,
-            DocumentChunkRow.chunk_index,
-            DocumentChunkRow.content,
-            distance.label("distance"),
-        )
-        .where(DocumentChunkRow.user_id == user_id, DocumentChunkRow.embedding.is_not(None))
-        .order_by(distance)
-        .limit(limit)
+    """Dense ANN search over a user's chunk embeddings (cosine distance, best first).
+
+    Orders by `embedding::halfvec(dim) <=> q::halfvec(dim)` — the exact expression
+    the v1.1.0 `ix_document_chunks_embedding_hnsw` index is built on — so the HNSW
+    index is used instead of an exact sequential scan. `hnsw.ef_search` is raised
+    to cover the candidate pool (`limit`) so ANN recall is not truncated below it.
+    """
+    dim = get_settings().embedding_dim
+    vec_literal = "[" + ",".join(repr(float(value)) for value in query_vector) + "]"
+    await session.execute(text(f"SET LOCAL hnsw.ef_search = {max(limit * 2, 40)}"))
+    stmt = text(
+        f"""
+        SELECT id, document_id, chunk_index, content,
+               embedding::halfvec({dim}) <=> (:q)::halfvec({dim}) AS distance
+        FROM document_chunks
+        WHERE user_id = :uid AND embedding IS NOT NULL
+        ORDER BY embedding::halfvec({dim}) <=> (:q)::halfvec({dim})
+        LIMIT :lim
+        """
     )
-    result = await session.execute(stmt)
+    result = await session.execute(stmt, {"q": vec_literal, "uid": user_id, "lim": limit})
     return result.all()
 
 
@@ -71,13 +78,22 @@ async def sparse_search(
     query: str,
     limit: int,
 ) -> Sequence[Row[Any]]:
-    """BM25-style full-text search over the DB-maintained tsvector (best first)."""
+    """Lexical search via pg_trgm word-similarity (CJK-friendly, best first).
+
+    Replaces the old `to_tsvector('simple', ...)` path: the `simple` FTS config
+    does not segment Chinese, so sparse recall was dead for CJK queries.
+    `word_similarity(query, content)` scores the query against its best-matching
+    span in each chunk over character trigrams, GIN-accelerated by
+    `ix_document_chunks_content_trgm`. The word-similarity threshold is lowered so
+    this stays a high-recall candidate branch; RRF fusion + rerank restore precision.
+    """
+    await session.execute(text("SET LOCAL pg_trgm.word_similarity_threshold = 0.2"))
     stmt = text(
         """
         SELECT id, document_id, chunk_index, content,
-               ts_rank_cd(tsv, websearch_to_tsquery('simple', :q)) AS score
+               word_similarity(:q, content) AS score
         FROM document_chunks
-        WHERE user_id = :uid AND tsv @@ websearch_to_tsquery('simple', :q)
+        WHERE user_id = :uid AND (:q) <% content
         ORDER BY score DESC
         LIMIT :lim
         """

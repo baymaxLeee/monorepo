@@ -1,5 +1,5 @@
-import { Loader2Icon } from "lucide-react";
-import { useDocumentBlobUrl } from "../hooks/useDocumentSource";
+import { Loader2Icon, PlaySquareIcon } from "lucide-react";
+import { ChatMediaCard } from "./ChatMediaCard";
 
 export type GenerateVideoOutput = {
   ok: boolean;
@@ -30,13 +30,14 @@ export function parseGenerateVideoOutput(
   };
 }
 
+// The transcript never inlines the generated clip (ADR-0021): a completed video
+// renders as one lightweight card; clicking it opens the side panel, which
+// fetches and plays the clip on demand.
 export function ChatVideoCard({
-  conversationId,
   output,
   state,
   onOpen,
 }: {
-  conversationId: string;
   output: unknown;
   state: string;
   onOpen: (documentId: string) => void;
@@ -45,11 +46,6 @@ export function ChatVideoCard({
   const failed = state === "output-error" || parsed?.ok === false;
   const documentId = parsed?.documentId ?? null;
   const completed = parsed?.status === "completed" && Boolean(documentId);
-  const { blobUrl, loading, error } = useDocumentBlobUrl(
-    conversationId,
-    documentId,
-    completed,
-  );
 
   if (failed) {
     return (
@@ -61,36 +57,12 @@ export function ChatVideoCard({
 
   if (completed && documentId) {
     return (
-      <div className="space-y-1.5">
-        {blobUrl ? (
-          <video
-            src={blobUrl}
-            controls
-            className="max-h-[24rem] w-full rounded-lg border bg-black"
-          >
-            {/* Generated videos have no caption track; element provided to
-                satisfy a11y lint. */}
-            <track kind="captions" />
-          </video>
-        ) : (
-          <div className="flex aspect-video w-full items-center justify-center rounded-lg border bg-muted/20 text-xs text-muted-foreground">
-            {loading ? (
-              <Loader2Icon className="size-5 animate-spin" />
-            ) : error ? (
-              "加载失败"
-            ) : (
-              "视频"
-            )}
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={() => onOpen(documentId)}
-          className="text-xs text-muted-foreground hover:text-foreground hover:underline"
-        >
-          在侧栏预览
-        </button>
-      </div>
+      <ChatMediaCard
+        icon={PlaySquareIcon}
+        title="视频"
+        description="点击在侧栏预览"
+        onOpen={() => onOpen(documentId)}
+      />
     );
   }
 
