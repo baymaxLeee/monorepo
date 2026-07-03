@@ -2,16 +2,18 @@
 
 ## Status
 
-Accepted, revised twice. The CURRENT design is the last section, **Update
-(2026-07b): single-action segments + wire-format corrections**, which supersedes
-the *multi-shot-per-segment* decision of the prior update (one segment is now ONE
-continuous action, not a multi-shot clip) and corrects two wire-format claims
-that were wrong (reference mode DOES accept an integer `duration`; Seedance 2.0
-DOES support `seed`). What survives from earlier: the durable
-plan→generate→assemble skeleton, the two-stage **script→storyboard** planning
-(the real fix for 剧情重复), character-sheet `@reference`, per-segment seed, and
-the "loose consistency, hard cuts are the 投流 language" stance. Read the last
-section first; the two middle updates are kept for history.
+Accepted — **current, validated in use (2026-07-03), and retained** as the
+short-drama video-generation pipeline for now. The authoritative design is the
+last section, **Update (2026-07b): single-action segments + wire-format
+corrections**, which supersedes the *multi-shot-per-segment* decision of the
+prior update (one segment is now ONE continuous action, not a multi-shot clip)
+and corrects two wire-format claims that were wrong (reference mode DOES accept
+an integer `duration`; Seedance 2.0 DOES support `seed`). What survives from
+earlier: the durable plan→generate→assemble skeleton, the two-stage
+**script→storyboard** planning (the real fix for 剧情重复), character-sheet
+`@reference`, per-segment seed, and the "loose consistency, hard cuts are the
+投流 language" stance. Read the last section first; the two middle updates are
+kept for history only (each is superseded, not current).
 
 Refactors the `video-generation` task type introduced alongside
 ADR 0014 (multimodal providers) and ADR 0015 (agent task executor). Reuses the
@@ -317,6 +319,15 @@ relevant parts of the previous one.
 This makes the previous update's "timecode-driven approximate length" trade-off
 obsolete: length is now exact-by-construction (integer per-segment `duration`),
 and the timecode-budget normalization problem disappears with the timecodes.
+
+### Validation & status
+
+Validated end-to-end on **2026-07-03**: both 块内 (within-segment) and 跨块
+(cross-segment) 剧情重复 are gone, total length is controllable via `duration`,
+and executor `nitro build` (incl. Workflow DevKit directive discovery) +
+executor/chat/admin typecheck are green with no `schemas/` drift. **This is the
+retained pipeline** — the items below are deferred, not rejected; revisit them
+before scaling past the 投流 demo.
 
 ### Out of scope (next batch, noted not built)
 
