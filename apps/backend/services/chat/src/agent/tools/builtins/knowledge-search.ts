@@ -10,10 +10,12 @@ async function searchKnowledge(
 ) {
   try {
     const result = await retrieveKnowledge(context.userId, input.query, input.top_k);
+    const emptyNote =
+      "no relevant knowledge base passages found; if the answer is public information use web_search, otherwise tell the user the knowledge base does not cover this — do not fabricate";
     return {
       ok: true,
       query: result.query,
-      note: result.note ?? null,
+      note: result.chunks.length === 0 ? (result.note ?? emptyNote) : (result.note ?? null),
       results: result.chunks.map((chunk) => ({
         document_id: chunk.document_id,
         title: chunk.title,
@@ -32,10 +34,19 @@ export function createKnowledgeSearchTools() {
   return {
     search_knowledge: tool({
       description:
-        "Search the user's knowledge base (their uploaded/ingested documents) for passages " +
-        "relevant to a question. Returns passages with their source document title for citation. " +
-        "Use this to answer questions grounded in the user's own or enterprise documents; use " +
-        "web_search instead for current public information not in the knowledge base.",
+        // What it does.
+        "Search the user's knowledge base — their uploaded/ingested documents, internal " +
+        "policies (规章制度), and organization-specific content — and return passages with " +
+        "their source document title for citation. " +
+        // When to use it.
+        "Use this FIRST for any question about the user's own or their company/team information " +
+        "(e.g. 'our reimbursement limit', '公司年假政策', 'what does our handbook say', anything " +
+        "referencing their documents or internal rules). " +
+        // When NOT to use it.
+        "Do NOT use it for current or public information that is not in their documents (use " +
+        "web_search), or for general knowledge you already know. If it returns no relevant " +
+        "passages, fall back to web_search for public info or tell the user the knowledge base " +
+        "does not cover it.",
       inputSchema: z.object({
         query: z.string().min(1).max(2000).describe("A focused natural-language search query."),
         top_k: z

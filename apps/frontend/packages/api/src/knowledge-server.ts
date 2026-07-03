@@ -1,3 +1,4 @@
+import { authFetch } from "./auth-fetch";
 import type {
   ConversationDocument,
   ConversationDocumentDetail,
@@ -22,37 +23,12 @@ async function openKnowledgeIngestStream(
   options: StreamEventOptions<DocumentIngestStreamEvent>,
 ): Promise<void> {
   const { onEvent, signal } = options;
-  const { getToken, isAccessTokenValid } = await import("./storage");
-  const { refreshSession } = await import("./session");
-
-  if (!isAccessTokenValid()) {
-    await refreshSession();
-  }
-
-  const headers: Record<string, string> = { Accept: "text/event-stream" };
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  let response = await fetch(url, {
+  const response = await authFetch(url, {
     method: "POST",
-    credentials: "include",
-    headers,
+    headers: { Accept: "text/event-stream" },
     body: form,
     signal,
   });
-
-  if (response.status === 401) {
-    const refreshed = await refreshSession();
-    if (refreshed) {
-      response = await fetch(url, {
-        method: "POST",
-        credentials: "include",
-        headers: { ...headers, Authorization: `Bearer ${getToken()}` },
-        body: form,
-        signal,
-      });
-    }
-  }
 
   if (!response.ok || !response.body) {
     throw new Error(`ingest stream failed: ${response.status}`);

@@ -65,7 +65,16 @@ async function webSearch(
 export function createWebTools() {
   return {
     web_search: tool({
-      description: "Search the public web for current information using Tavily.",
+      description:
+        // What it does.
+        "Search the public web (Tavily) and return titled results with URLs and dates. " +
+        // When to use it.
+        "Use this for current, public, or time-sensitive information that is NOT in the user's " +
+        "knowledge base — news, prices, weather, product releases, public reference, anything " +
+        "'latest/today/this year'. Put the requested date or freshness window directly in the query. " +
+        // When NOT to use it.
+        "Do NOT use it for the user's own or organization-internal content (use search_knowledge " +
+        "first), or for general knowledge/reasoning you can answer directly.",
       inputSchema: z.object({
         query: z.string().min(1),
         max_results: z.number().int().min(1).max(8).default(5),

@@ -4,9 +4,8 @@ import {
   type UpdateMemoryCandidate,
   type UserMemory,
 } from "../generated/chat-server/index";
+import { authFetch } from "./auth-fetch";
 import { API_BASE_URL, request } from "./http";
-import { refreshSession } from "./session";
-import { getToken, isAccessTokenValid } from "./storage";
 
 export type {
   MemoryCandidate,
@@ -120,13 +119,6 @@ export function conversationAgentStreamUrl(conversationId: string): string {
   return `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/agents/run/stream`;
 }
 
-export function chatAuthHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {};
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-  return headers;
-}
-
 export function fetchConversations(): Promise<Conversation[]> {
   return request<Conversation[]>({ url: BASE, method: "GET" });
 }
@@ -220,32 +212,9 @@ export async function fetchConversationDocumentSource(
   conversationId: string,
   documentId: string,
 ): Promise<Blob> {
-  if (!isAccessTokenValid()) {
-    await refreshSession();
-  }
-
-  const headers: Record<string, string> = {};
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  let response = await fetch(
+  const response = await authFetch(
     conversationDocumentSourceUrl(conversationId, documentId),
-    { credentials: "include", headers },
   );
-
-  if (response.status === 401) {
-    const refreshed = await refreshSession();
-    if (refreshed) {
-      const retryHeaders: Record<string, string> = {};
-      const retryToken = getToken();
-      if (retryToken) retryHeaders.Authorization = `Bearer ${retryToken}`;
-      response = await fetch(
-        conversationDocumentSourceUrl(conversationId, documentId),
-        { credentials: "include", headers: retryHeaders },
-      );
-    }
-  }
-
   if (!response.ok) {
     throw new Error(`document source failed: ${response.status}`);
   }
@@ -371,7 +340,12 @@ export function cancelConversationAgentRun(
   });
 }
 
-export type TaskStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+export type TaskStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
 
 export interface Task {
   id: string;
@@ -407,31 +381,19 @@ export function conversationTaskStreamUrl(
   return `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/tasks/${encodeURIComponent(taskId)}/stream`;
 }
 
-// Opens the task's live progress stream (native AI SDK UIMessage SSE). Handles
-// bearer auth + a single 401 refresh-and-retry, then hands the raw Response to
-// the caller, which parses it with the AI SDK reader (kept in the app package
-// that already depends on `ai`). Replaces the old polling loop.
+// Opens the task's live progress stream (native AI SDK UIMessage SSE), then
+// hands the raw Response to the caller, which parses it with the AI SDK reader
+// (kept in the app package that already depends on `ai`). Bearer auth +
+// refresh/retry are owned by `authFetch`. Replaces the old polling loop.
 export async function openConversationTaskStream(
   conversationId: string,
   taskId: string,
   signal?: AbortSignal,
 ): Promise<Response> {
-  if (!isAccessTokenValid()) {
-    await refreshSession();
-  }
-  const url = conversationTaskStreamUrl(conversationId, taskId);
-  const run = () =>
-    fetch(url, {
-      credentials: "include",
-      headers: { ...chatAuthHeaders() },
-      signal,
-    });
-
-  let response = await run();
-  if (response.status === 401) {
-    const refreshed = await refreshSession();
-    if (refreshed) response = await run();
-  }
+  const response = await authFetch(
+    conversationTaskStreamUrl(conversationId, taskId),
+    { signal },
+  );
   if (!response.ok || !response.body) {
     throw new Error(`task stream failed: ${response.status}`);
   }

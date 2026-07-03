@@ -5,10 +5,10 @@ import {
 } from "ai";
 import {
   type Message as ApiMessage,
+  authFetch,
   type ConversationDetail,
   type ConversationDocument,
   cancelConversationAgentRun,
-  chatAuthHeaders,
   conversationAgentStreamUrl,
   type DocumentIngestStreamEvent,
   fetchConversation,
@@ -123,7 +123,6 @@ export function Chat() {
           ? conversationAgentStreamUrl(id)
           : "/api/chat-server/conversations/missing/agents/run/stream",
         credentials: "include",
-        headers: () => chatAuthHeaders(),
         prepareSendMessagesRequest: ({ messages, id: chatId, body }) => ({
           body: {
             ...body,
@@ -136,8 +135,8 @@ export function Chat() {
           credentials,
           headers,
         }),
-        fetch: async (request, init) => {
-          const response = await fetch(request, init);
+        fetch: async (input, init) => {
+          const response = await authFetch(input, init);
           const runId = response.headers.get("x-agent-run-id");
           if (runId && id) setTraceRun(id, runId);
           return response;
