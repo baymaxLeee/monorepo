@@ -215,6 +215,11 @@ service migrations for the `executor` business database. A separate one-shot
 against the durable Workflow database. The executor API starts only after both
 jobs complete successfully.
 
+The MySQL job advances the shared `migration.version` only after each SQL file
+succeeds; service migration files do not need to update that bookkeeping row
+themselves. This matches the canonical `scripts/db-migrate.sh` contract and
+keeps retries idempotent after successful files.
+
 The World package is selected dynamically through `WORKFLOW_TARGET_WORLD`, so
 Nitro must full-trace it (including its setup CLI and SQL assets) into the
 production output. This keeps `docker compose up` self-contained and makes a

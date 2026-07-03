@@ -97,7 +97,15 @@ for db in ${DATABASES}; do
         fi
         echo "  → applying $(basename "${f}") to \`${db}\`"
         mysql_root "${db}" < "${f}"
-        applied="$(db_version "${db}")"
+        # Migration files are service-owned SQL and are not required to update
+        # the shared version row themselves. Advance it only after the file
+        # succeeds, matching scripts/db-migrate.sh's canonical behavior.
+        mysql_root "${db}" -e "
+            UPDATE migration
+            SET version = '${file_ver}', update_time = NOW()
+            WHERE id = 1;
+        "
+        applied="${file_ver}"
     done
 done
 

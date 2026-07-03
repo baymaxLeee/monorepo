@@ -1,7 +1,8 @@
 import "@workflow/world-postgres";
-// The full-traced Postgres setup CLI imports dotenv, but nf3 does not scan
-// every full-traced asset as an entry. Keep the CLI dependency reachable.
-import "dotenv";
+// Full tracing copies CLI assets but does not analyze them as entry points.
+// This inert import makes the official setup CLI's complete dependency graph
+// part of the production output; its main-module guard prevents migrations.
+import "@workflow/world-postgres/cli";
 import { getWorld } from "workflow/runtime";
 
 import { createApp } from "./app.js";
