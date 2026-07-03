@@ -60,7 +60,9 @@ ESM 互操作 bug、`nf3` 路径深度计算错误、Postgres World 启动缺失
 `getWorld().start()`、`nitro dev` 与内置 server 对 `.env` 加载行为不同）。
 此外，World 实现由 `WORKFLOW_TARGET_WORLD` 动态加载，静态打包器无法发现；
 `nitro.config.ts` 必须通过 `traceDeps` 保留 `@workflow/world-postgres`，入口也
-保留静态引用，确保生产 `.output` 包含完整运行时依赖树。
+保留静态引用，确保生产 `.output` 包含完整运行时依赖树。生产镜像还需要把
+`.output/server/node_modules` 暴露为 `/app/node_modules`，因为 Workflow 的
+`createRequire` 从应用根目录解析环境变量指定的 World 包。
 
 升级 `nitro`/`workflow`/`ai` 时请重新验证这些修复是否还需要。
 

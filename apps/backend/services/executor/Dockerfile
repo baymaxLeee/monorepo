@@ -26,5 +26,9 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends ffmpeg \
   && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/apps/backend/services/executor/.output ./.output
+# WORKFLOW_TARGET_WORLD is loaded through createRequire() rooted at /app,
+# while Nitro writes traced dependencies under .output/server/node_modules.
+# Expose that self-contained dependency tree at Node's root lookup location.
+RUN ln -s .output/server/node_modules node_modules
 EXPOSE 8011
 CMD ["node", ".output/server/index.mjs"]
