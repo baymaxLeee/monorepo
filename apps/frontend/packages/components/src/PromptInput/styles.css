@@ -72,8 +72,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  /* 0.25rem sides so the ghost "+" icon lines up with the text above
-     (0.75rem text inset − 0.5rem icon button inset). */
   padding: 0.375rem 0.25rem 0.5rem;
 }
 
