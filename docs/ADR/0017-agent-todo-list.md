@@ -29,7 +29,7 @@ tracker for the *current* execution, not a versioned document.
 ## Decision
 
 - Add one new tool, `update_todos`
-  (`apps/backend/services/chat/src/agent/tools/builtins/todo.ts`), available
+  (`apps/backend/services/chat/src/agent/tools/builtins/planning.ts`), available
   in both `normal` and `plan` mode tool catalogs
   (`apps/backend/services/chat/src/agent/tools/catalog.ts`).
 - The tool takes `{ todos: [{ id, content, status }] }` and always replaces
@@ -96,27 +96,14 @@ source of truth for plan content.
 - `apps/backend/services/chat/.doc/artifact-plan-todolist.md` remains a
   historical reference for the abandoned `PlanSnapshot` design; it is not
   reactivated by this ADR.
-- **Update (concurrent execution — ADR 0022 linkage):** the original "at most
+- **Update (concurrent execution):** the original "at most
   one item in_progress" cap was dropped (both the `update_todos` validation and
   its tool description). When several independent deliverables are dispatched in
   one foreground-blocking step (ADR 0022), they run concurrently and must all
   show `in_progress`; capping it to one forced the model into an artificial
   serial order — it visibly agonized over the "system doesn't allow more than
   one in_progress" contradiction and marked only one. Multiple in_progress
-  matches Claude Code's 2026 task tools, which spin a live indicator for every
-  in_progress item across parallel work. To make the list advance *live* during
-  that blocking step — when the model is blocked and cannot call `update_todos`
-  between per-task completions — each deliverable tool
-  (`write_file`/`edit_file`, `generate_image`, `generate_video`) now accepts an
-  optional `todo_id` and echoes it in every yield. The frontend
-  (`ChatTodoListCard.collectTodoTaskStatus`) joins each todo item to its linked
-  task's streamed status and overlays it, so a todo flips to completed/failed the
-  moment its own task finishes, even while siblings are still running. The model
-  still owns the canonical list — it reconciles with a final `update_todos` when
-  the step returns — so the overlay is a purely presentational live view, the
-  same class of frontend-only enhancement as the "render only the latest
-  `tool-update_todos` part" rule above. This mirrors Codex's split (model-driven
-  `update_plan`, client renders progress) and Cursor's split (todo list vs live
-  task dashboard) while deliberately NOT adopting Claude Code's heavier
-  persistent `TaskCreate`/`TaskUpdate` store: the linkage rides the tool outputs
-  the frontend already streams, needing no store, endpoint, or executor change.
+  matches parallel task execution. ADR 0023 removes the cross-domain `todo_id`
+  linkage from artifact and media inputs. Each tool card owns its live progress;
+  after the parallel step returns, the model reconciles the canonical todo list
+  with one `update_todos` call.

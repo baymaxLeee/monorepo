@@ -1,22 +1,25 @@
-import type { ToolSet } from "@ai-sdk/provider-utils";
+import type { ToolSet } from "ai";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
 
-import type { AgentMode } from "../agents/types.js";
 import type { ProviderSnapshot } from "../../clients/admin.js";
-import { createArtifactTools } from "./builtins/artifact.js";
-import { createInteractionTools } from "./builtins/interaction.js";
-import { createKnowledgeTools } from "./builtins/files.js";
-import { createKnowledgeSearchTools } from "./builtins/knowledge-search.js";
-import { createMediaTools } from "./builtins/media.js";
-import { createMemoryTools } from "./builtins/memory.js";
-import { createPlanTools } from "./builtins/plan.js";
-import { createTodoTools } from "./builtins/todo.js";
-import { createVideoTools } from "./builtins/video.js";
+import type { AgentMode } from "../agents/types.js";
 import type {
   AgentExtension,
   AgentExtensionContext,
 } from "../integrations/types.js";
-import { createWebTools } from "./builtins/web.js";
+import { createArtifactToolManifests } from "./builtins/artifacts.js";
+import { createFileToolManifests } from "./builtins/files.js";
+import { createInteractionToolManifests } from "./builtins/interaction.js";
+import { createMediaToolManifests } from "./builtins/media.js";
+import { createMemoryToolManifests } from "./builtins/memory.js";
+import { createPlanningToolManifests } from "./builtins/planning.js";
+import { createSearchToolManifests } from "./builtins/search.js";
+import {
+  defineAgentTool,
+  manifestsToTools,
+  renderExecutionCapabilities,
+} from "./manifest.js";
+import type { AgentToolManifest, ToolSource } from "./types.js";
 
 export interface AgentToolProviders {
   textProvider: ChatProvider;
@@ -24,60 +27,40 @@ export interface AgentToolProviders {
   videoProviderId: string | null;
 }
 
-function sharedTools(mode: AgentMode) {
-  return {
-    ...createKnowledgeTools(),
-    ...createKnowledgeSearchTools(),
-    ...createWebTools(),
-    ...createInteractionTools(mode),
-    ...createTodoTools(),
-  };
+function builtinManifests(mode: AgentMode, providers: AgentToolProviders): AgentToolManifest[] {
+  return [
+    ...createSearchToolManifests(),
+    ...createFileToolManifests(),
+    ...createPlanningToolManifests(),
+    ...createInteractionToolManifests(mode),
+    ...createArtifactToolManifests(providers.textProvider),
+    ...createMediaToolManifests({
+      imageProvider: providers.imageProvider,
+      videoProviderId: providers.videoProviderId,
+      textProviderId: providers.textProvider.id,
+    }),
+    ...createMemoryToolManifests(),
+  ];
 }
 
-function sideEffectingTools(providers: AgentToolProviders) {
-  return {
-    ...createMemoryTools(),
-    ...createArtifactTools(providers.textProvider),
-    ...(providers.imageProvider ? createMediaTools(providers.imageProvider) : {}),
-    ...(providers.videoProviderId
-      ? createVideoTools({
-          videoProviderId: providers.videoProviderId,
-          textProviderId: providers.textProvider.id,
-          imageProviderId: providers.imageProvider?.id ?? null,
-        })
-      : {}),
-  };
+function extensionSource(id: string): ToolSource {
+  if (id.startsWith("mcp:")) return "mcp";
+  if (id.startsWith("skill:")) return "skill";
+  return "skill";
 }
 
-const PLAN_MODE_NOTICE = {
-  ok: false,
-  status: "plan_mode",
-  message:
-    "plan 阶段不执行该操作。把它作为一个步骤写入计划(## 任务),切换到执行模式后再运行。",
-} as const;
-
-function denyExecutionInPlan<T extends ToolSet>(tools: T): T {
-  return Object.fromEntries(
-    Object.entries(tools).map(([name, definition]) => [
-      name,
-      { ...definition, execute: async () => PLAN_MODE_NOTICE },
-    ]),
-  ) as unknown as T;
+function safeNamespace(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]+/g, "_");
 }
 
-function builtinTools(mode: AgentMode, providers: AgentToolProviders) {
-  const sideEffecting = sideEffectingTools(providers);
-  if (mode === "plan") {
-    return {
-      ...sharedTools(mode),
-      ...createPlanTools(),
-      ...denyExecutionInPlan(sideEffecting),
-    };
+function extensionToolName(extensionId: string, toolName: string): string {
+  if (extensionId.startsWith("mcp:")) {
+    return `mcp__${safeNamespace(extensionId.slice(4))}__${safeNamespace(toolName)}`;
   }
-  return {
-    ...sharedTools(mode),
-    ...sideEffecting,
-  };
+  if (extensionId.startsWith("skill:")) {
+    return `skill__${safeNamespace(extensionId.slice(6))}__${safeNamespace(toolName)}`;
+  }
+  return safeNamespace(toolName);
 }
 
 export class ToolCatalog {
@@ -94,29 +77,72 @@ export class ToolCatalog {
     };
   }
 
-  async resolve(context: AgentExtensionContext, providers: AgentToolProviders): Promise<{
-    tools: ReturnType<typeof builtinTools> & ToolSet;
+  async resolve(
+    context: AgentExtensionContext,
+    providers: AgentToolProviders,
+  ): Promise<{
+    tools: ToolSet;
+    activeTools: string[];
+    manifests: AgentToolManifest[];
     instructions: string[];
     dispose: () => Promise<void>;
   }> {
-    const tools = builtinTools(context.mode, providers) as ReturnType<typeof builtinTools> & ToolSet;
+    const manifests = builtinManifests(context.mode, providers);
     const instructions: string[] = [];
     const disposers: Array<() => void | Promise<void>> = [];
 
-    for (const extension of this.#extensions) {
+    for (const extension of [...this.#extensions]) {
       const contribution = await extension.resolve(context);
-      for (const [name, definition] of Object.entries(contribution.tools ?? {})) {
-        if (tools[name]) {
-          throw new Error(`agent tool ${name} from ${extension.id} conflicts with an existing tool`);
-        }
-        tools[name] = definition;
+      const source = extensionSource(extension.id);
+      for (const [contributedName, definition] of Object.entries(contribution.tools ?? {})) {
+        const name = extensionToolName(extension.id, contributedName);
+        manifests.push(
+          defineAgentTool(
+            name,
+            definition,
+            {
+              capability: "external",
+              effect: "unknown",
+              trust: "unknown",
+              execution: "inline",
+              modes: ["normal"],
+              source,
+            },
+            {
+              summary:
+                typeof definition.description === "string"
+                  ? definition.description
+                  : `Use ${name} from ${extension.id}.`,
+              prerequisites: [`Enable and authorize ${extension.id}.`],
+            },
+          ),
+        );
       }
       instructions.push(...(contribution.instructions ?? []));
       if (contribution.dispose) disposers.push(contribution.dispose);
     }
 
+    const names = new Set<string>();
+    for (const manifest of manifests) {
+      if (names.has(manifest.name)) throw new Error(`duplicate agent tool ${manifest.name}`);
+      names.add(manifest.name);
+    }
+
+    if (context.mode === "plan") {
+      const capabilityProjection = renderExecutionCapabilities(manifests);
+      if (capabilityProjection) instructions.push(capabilityProjection);
+    }
+
+    const activeManifests = manifests.filter(
+      (manifest) => manifest.tool && manifest.policy.modes.includes(context.mode),
+    );
+    const tools = manifestsToTools(activeManifests);
+    const activeTools = Object.keys(tools);
+
     return {
       tools,
+      activeTools,
+      manifests,
       instructions,
       dispose: async () => {
         await Promise.allSettled(disposers.reverse().map((dispose) => dispose()));

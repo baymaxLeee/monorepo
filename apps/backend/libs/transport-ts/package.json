@@ -17,8 +17,8 @@
     "./provider-url": "./src/provider-url.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "^3.0.1",
-    "@ai-sdk/provider": "^4.0.0",
+    "@ai-sdk/openai-compatible": "catalog:",
+    "@ai-sdk/provider": "catalog:",
     "openapi-fetch": "^0.17.0"
   },
   "devDependencies": {

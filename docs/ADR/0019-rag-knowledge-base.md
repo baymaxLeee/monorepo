@@ -29,7 +29,7 @@ The stack decision was grounded in current (2026) practice, not memory:
 
 1. **Split of responsibility.** Retrieval lives in `knowledge` (Python);
    generation stays in chat's `ToolLoopAgent` (ADR-0011). Chat consumes
-   retrieval through a `search_knowledge` tool -> knowledge
+   retrieval through a `knowledge_search` tool -> knowledge
    `POST /internal/retrieve`. No second agent runtime is built in Python.
 
 2. **knowledge moves to the shared Postgres instance** (documents + chunks +
@@ -103,7 +103,7 @@ The stack decision was grounded in current (2026) practice, not memory:
 
 Static (done): `ruff` + `mypy` clean for knowledge and admin; `tsc` clean for
 chat; OpenAPI + transport-ts regenerated. Runtime (manual, requires `just up`):
-upload -> auto-index -> `search_knowledge` in chat returns cited passages;
+upload -> auto-index -> `knowledge_search` in chat returns cited passages;
 edit/delete a document and confirm retrieval reflects it. A lightweight,
 manual-only retrieval quality script lives at
 `apps/backend/services/knowledge/scripts/eval_rag.py` (not CI, not pytest — the

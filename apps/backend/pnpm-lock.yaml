@@ -4,13 +4,29 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@ai-sdk/provider': 4.0.1
+catalogs:
+  default:
+    '@ai-sdk/openai-compatible':
+      specifier: ^3.0.5
+      version: 3.0.5
+    '@ai-sdk/provider':
+      specifier: ^4.0.2
+      version: 4.0.2
+    '@ai-sdk/provider-utils':
+      specifier: ^5.0.5
+      version: 5.0.5
+    '@workflow/world-postgres':
+      specifier: ^4.2.0
+      version: 4.2.0
+    ai:
+      specifier: ^7.0.15
+      version: 7.0.15
+    workflow:
+      specifier: ^4.5.0
+      version: 4.5.0
 
 patchedDependencies:
-  nf3@0.3.18:
-    hash: a552ec5984a677eadea8803c7a9f6082c9f7b7fd0e8b8936bcd898d4f1465f34
-    path: patches/nf3@0.3.18.patch
+  nf3@0.3.18: a552ec5984a677eadea8803c7a9f6082c9f7b7fd0e8b8936bcd898d4f1465f34
 
 importers:
 
@@ -19,11 +35,11 @@ importers:
   libs/transport-ts:
     dependencies:
       '@ai-sdk/openai-compatible':
-        specifier: ^3.0.1
-        version: 3.0.1(zod@4.3.6)
+        specifier: 'catalog:'
+        version: 3.0.5(zod@4.3.6)
       '@ai-sdk/provider':
-        specifier: 4.0.1
-        version: 4.0.1
+        specifier: 'catalog:'
+        version: 4.0.2
       openapi-fetch:
         specifier: ^0.17.0
         version: 0.17.0
@@ -35,11 +51,11 @@ importers:
   services/chat:
     dependencies:
       '@ai-sdk/provider':
-        specifier: 4.0.1
-        version: 4.0.1
+        specifier: 'catalog:'
+        version: 4.0.2
       '@ai-sdk/provider-utils':
-        specifier: ^5.0.1
-        version: 5.0.1(zod@3.25.76)
+        specifier: 'catalog:'
+        version: 5.0.5(zod@3.25.76)
       '@backend/transport-ts':
         specifier: workspace:*
         version: link:../../libs/transport-ts
@@ -50,8 +66,8 @@ importers:
         specifier: ^0.4.0
         version: 0.4.3(hono@4.12.27)(zod@3.25.76)
       ai:
-        specifier: ^7.0.4
-        version: 7.0.4(zod@3.25.76)
+        specifier: 'catalog:'
+        version: 7.0.15(zod@3.25.76)
       drizzle-orm:
         specifier: ^0.44.0
         version: 0.44.7(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@22.20.0))(pg@8.20.0)
@@ -99,11 +115,11 @@ importers:
         specifier: ^0.4.0
         version: 0.4.3(hono@4.12.27)(zod@3.25.76)
       '@workflow/world-postgres':
-        specifier: ^4.2.0
+        specifier: 'catalog:'
         version: 4.2.0(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@22.20.0))(typescript@5.9.3)
       ai:
-        specifier: ^7.0.4
-        version: 7.0.9(zod@3.25.76)
+        specifier: 'catalog:'
+        version: 7.0.15(zod@3.25.76)
       drizzle-orm:
         specifier: ^0.44.0
         version: 0.44.7(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@22.20.0))(pg@8.20.0)
@@ -123,7 +139,7 @@ importers:
         specifier: ^2.17.0
         version: 2.17.5
       workflow:
-        specifier: ^4.5.0
+        specifier: 'catalog:'
         version: 4.5.0(@nestjs/common@11.1.27(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.27(@nestjs/common@11.1.27(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@swc/cli@0.8.1(@swc/core@1.15.3)(chokidar@5.0.0))(@swc/core@1.15.3)(typescript@5.9.3)
       zod:
         specifier: ^3.25.76
@@ -150,38 +166,26 @@ importers:
 
 packages:
 
-  '@ai-sdk/gateway@4.0.4':
-    resolution: {integrity: sha512-xO0e9duft/uZlnDaIeBZmzTMjfdEz1kkDzWnhQNkJZZljsKWVi6IREZW9nAa+Dx6jYJssyxSUggaFYBAV1WZpw==}
+  '@ai-sdk/gateway@4.0.12':
+    resolution: {integrity: sha512-Y7Fy8xJwPz7ZC0DhSQG3HIVk+drup42hrIj6yqKlib3CxwiR0F7nYyUI8+kPrEtbZEoyKoRstvT4/o0HEyFBHA==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/gateway@4.0.7':
-    resolution: {integrity: sha512-L0/CZwEL8AHO/Nxe5D0laNq9Q44mrKcth99tPgMNHqfsYbbNExwke4OYH18o/eLd3FLLBxs+03SuHP+Gcyp51Q==}
+  '@ai-sdk/openai-compatible@3.0.5':
+    resolution: {integrity: sha512-4UtDxT6Ga7U225o5fBEgtCFZHba4/iTDXRqMrU62yEfTrFks4o+F4jt0D3OWmUasR9LPFzLy0KnEITxFDtc89g==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/openai-compatible@3.0.1':
-    resolution: {integrity: sha512-nUbQoGzdFZspb1cr6GUy+nR8Uvdi4/lCwTkdE9qKe+Qr2OVPsIKRIpyC9ewJ2uqUfl+1JlkWhPfR5l8bokNs4Q==}
+  '@ai-sdk/provider-utils@5.0.5':
+    resolution: {integrity: sha512-oI0t3dvCoqWNV1I8o1Rybi2DXDvHES5r/TrwtJW90tuFLVepgJlftPxrcjh8vaSvjqC2diTuA2vXyjKAyHJm4A==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/provider-utils@5.0.1':
-    resolution: {integrity: sha512-p9Ra+dN4jjHrssXvklNf4nFvWbj1KePMfUOs7nue0NuoIMbYFBULhX4Vu0+6DWLnw3+UsLL9+RCKLtzzU43Qpg==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/provider-utils@5.0.2':
-    resolution: {integrity: sha512-EcmdjJb7yggsZPCbS3MFBpvAUnKaPW+QvanU5GzF00XCq0bqqAmvJ3MN19ejlmOETbW8sJNiq6qam48wTcbUNw==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/provider@4.0.1':
-    resolution: {integrity: sha512-6p3C/vGqVIjcptBu1DnVd/BZJ2wWmV9TUv9192vT6ZvT9KNED8EwRTqyqFpoQZKgSbMDSvBSq3dqR524Nt/Crw==}
+  '@ai-sdk/provider@4.0.2':
+    resolution: {integrity: sha512-pfPoy9J1B1xV7cqJ8MYHOsDYrMv5tR3+EMNfI249OhkD2uRakvav3Fo7XpD2luuN/YNCBY7KfEQc7vEV7KEtyw==}
     engines: {node: '>=22'}
 
   '@aws-sdk/core@3.974.25':
@@ -1221,14 +1225,8 @@ packages:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
 
-  ai@7.0.4:
-    resolution: {integrity: sha512-mZub080RWRxpWg8OY56KVnI3AoMVniccSWG+dwVb3nH81+GiNMDYBIdP41RLUivLpmU49pB7ssD7tvfIUaSaCA==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  ai@7.0.9:
-    resolution: {integrity: sha512-yoxg/ousRxSX5Ko4+/8SH4vsc8BzoQqG7ywtS04L0kLH/+Ww71c+zqdTDXNVRQteDtKFGmt8+Q82ra/NbzjYqA==}
+  ai@7.0.15:
+    resolution: {integrity: sha512-7406MUy9O5sIhwOgxEWuoj+td3XUGgG96SBt6pmBU4t4sQ2fpnDx5UnHaXT2HUTXl5GorbWz/MfCrSPRz0QJqw==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -2310,6 +2308,10 @@ packages:
     resolution: {integrity: sha512-qQKT4zQxXl8lLwBtHMWwaTcGfFOZviOJet3Oy/xmGk2gZH677CJM9EvtfdSkgWcATZhj/55JZ0rmy3myCT5lsA==}
     hasBin: true
 
+  js-yaml@4.3.0:
+    resolution: {integrity: sha512-1td788aAnnZ5qs7V2QIRl1owjtYpbKt749Y3xauqQgwIIGF/xXWz1wMTEBx5O3LK3lXLVuqXPdPxj2BoFHaW9Q==}
+    hasBin: true
+
   json-parse-even-better-errors@2.3.1:
     resolution: {integrity: sha512-xyFwyhro/JEof6Ghe2iz2NcXoj2sloNsWr/XsERDK/oiPCfaNhl5ONfp+jQdAZRQQ0IJWNzH9zIZF7li91kh2w==}
 
@@ -3312,51 +3314,36 @@ packages:
 
 snapshots:
 
-  '@ai-sdk/gateway@4.0.4(zod@3.25.76)':
+  '@ai-sdk/gateway@4.0.12(zod@3.25.76)':
     dependencies:
-      '@ai-sdk/provider': 4.0.1
-      '@ai-sdk/provider-utils': 5.0.1(zod@3.25.76)
+      '@ai-sdk/provider': 4.0.2
+      '@ai-sdk/provider-utils': 5.0.5(zod@3.25.76)
       '@vercel/oidc': 3.2.0
       zod: 3.25.76
 
-  '@ai-sdk/gateway@4.0.7(zod@3.25.76)':
+  '@ai-sdk/openai-compatible@3.0.5(zod@4.3.6)':
     dependencies:
-      '@ai-sdk/provider': 4.0.1
-      '@ai-sdk/provider-utils': 5.0.2(zod@3.25.76)
-      '@vercel/oidc': 3.2.0
-      zod: 3.25.76
-
-  '@ai-sdk/openai-compatible@3.0.1(zod@4.3.6)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.1
-      '@ai-sdk/provider-utils': 5.0.1(zod@4.3.6)
+      '@ai-sdk/provider': 4.0.2
+      '@ai-sdk/provider-utils': 5.0.5(zod@4.3.6)
       zod: 4.3.6
 
-  '@ai-sdk/provider-utils@5.0.1(zod@3.25.76)':
+  '@ai-sdk/provider-utils@5.0.5(zod@3.25.76)':
     dependencies:
-      '@ai-sdk/provider': 4.0.1
+      '@ai-sdk/provider': 4.0.2
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.0
       zod: 3.25.76
 
-  '@ai-sdk/provider-utils@5.0.1(zod@4.3.6)':
+  '@ai-sdk/provider-utils@5.0.5(zod@4.3.6)':
     dependencies:
-      '@ai-sdk/provider': 4.0.1
+      '@ai-sdk/provider': 4.0.2
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.0
       zod: 4.3.6
 
-  '@ai-sdk/provider-utils@5.0.2(zod@3.25.76)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.1
-      '@standard-schema/spec': 1.1.0
-      '@workflow/serde': 4.1.0
-      eventsource-parser: 3.1.0
-      zod: 3.25.76
-
-  '@ai-sdk/provider@4.0.1':
+  '@ai-sdk/provider@4.0.2':
     dependencies:
       json-schema: 0.4.0
 
@@ -4027,7 +4014,7 @@ snapshots:
     dependencies:
       async-listen: 3.0.0
       open: 8.4.0
-      xdg-app-paths: 5.1.0
+      xdg-app-paths: 5.5.1
       zod: 4.1.11
 
   '@vercel/cli-config@0.2.0':
@@ -4454,18 +4441,11 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  ai@7.0.4(zod@3.25.76):
+  ai@7.0.15(zod@3.25.76):
     dependencies:
-      '@ai-sdk/gateway': 4.0.4(zod@3.25.76)
-      '@ai-sdk/provider': 4.0.1
-      '@ai-sdk/provider-utils': 5.0.1(zod@3.25.76)
-      zod: 3.25.76
-
-  ai@7.0.9(zod@3.25.76):
-    dependencies:
-      '@ai-sdk/gateway': 4.0.7(zod@3.25.76)
-      '@ai-sdk/provider': 4.0.1
-      '@ai-sdk/provider-utils': 5.0.2(zod@3.25.76)
+      '@ai-sdk/gateway': 4.0.12(zod@3.25.76)
+      '@ai-sdk/provider': 4.0.2
+      '@ai-sdk/provider-utils': 5.0.5(zod@3.25.76)
       zod: 3.25.76
 
   ansi-align@3.0.1:
@@ -4711,7 +4691,7 @@ snapshots:
   cosmiconfig@8.3.6(typescript@5.9.3):
     dependencies:
       import-fresh: 3.3.1
-      js-yaml: 4.1.1
+      js-yaml: 4.3.0
       parse-json: 5.2.0
       path-type: 4.0.0
     optionalDependencies:
@@ -5341,6 +5321,10 @@ snapshots:
   js-tokens@4.0.0: {}
 
   js-yaml@4.1.1:
+    dependencies:
+      argparse: 2.0.1
+
+  js-yaml@4.3.0:
     dependencies:
       argparse: 2.0.1
 

@@ -1,6 +1,7 @@
 import { useChat } from "@ai-sdk/react";
 import {
   DefaultChatTransport,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
   lastAssistantMessageIsCompleteWithToolCalls,
 } from "ai";
 import {
@@ -33,10 +34,7 @@ import { useShallow } from "zustand/react/shallow";
 import { ChatComposerControls } from "../components/ChatComposerControls";
 import { ChatImagePreview } from "../components/ChatImagePreview";
 import { ChatMessageView } from "../components/ChatMessageView";
-import {
-  collectTodoTaskStatus,
-  findLatestUpdateTodosCallId,
-} from "../components/ChatTodoListCard";
+import { findLatestUpdateTodosCallId } from "../components/ChatTodoListCard";
 import type { ChatUIMessage } from "../lib/chat-message";
 import { buildUserFilePart } from "../lib/file-parts";
 import { useChatStore } from "../store/useChatStore";
@@ -148,12 +146,15 @@ export function Chat() {
     stop,
     resumeStream,
     addToolOutput,
+    addToolApprovalResponse,
     status,
   } = useChat<ChatUIMessage>({
     id: id ?? "chat",
     transport,
     resume: false,
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    sendAutomaticallyWhen: (options) =>
+      lastAssistantMessageIsCompleteWithToolCalls(options) ||
+      lastAssistantMessageIsCompleteWithApprovalResponses(options),
     onError: (error) => {
       if (/abort|aborted/i.test(error.message)) return;
       toast.error(error.message);
@@ -187,10 +188,6 @@ export function Chat() {
   }, [detail?.documents]);
   const latestTodoCallId = useMemo(
     () => findLatestUpdateTodosCallId(messages),
-    [messages],
-  );
-  const todoTaskStatus = useMemo(
-    () => collectTodoTaskStatus(messages),
     [messages],
   );
 
@@ -398,12 +395,18 @@ export function Chat() {
                 streaming={busy && message === messages.at(-1)}
                 documents={documents}
                 latestTodoCallId={latestTodoCallId}
-                todoTaskStatus={todoTaskStatus}
                 onOpenArtifact={openArtifact}
                 onAnswerClientTool={(toolName, toolCallId, output) => {
                   void answerClientTool(toolName, toolCallId, output).catch(
                     (error) => toast.error(String(error)),
                   );
+                }}
+                onToolApproval={(approvalId, approved) => {
+                  void addToolApprovalResponse({
+                    id: approvalId,
+                    approved,
+                    options: { body: requestBody },
+                  });
                 }}
                 onContinuePlan={(documentId) =>
                   void continuePlan(documentId).catch((error) =>

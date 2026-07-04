@@ -3,16 +3,13 @@ packages:
   - "services/chat"
   - "services/executor"
 
-# chat pulls ai@7.0.4 (pinning @ai-sdk/provider@4.0.0 exactly) while executor
-# pulls ai@7.0.9 via @ai-sdk/workflow's peer range (pinning @ai-sdk/provider@
-# 4.0.1 exactly). Without this override, @backend/transport-ts/provider-model
-# (consumed by both) resolves a THIRD, independent copy of @ai-sdk/provider,
-# and TypeScript then can't structurally unify LanguageModelV4 across the two
-# services' own copies vs. transport-ts's copy (TS2742 "cannot be named
-# without a reference to ..."). Forcing one physical copy fixes it — the two
-# @ai-sdk/provider versions differ only by a patch release.
-overrides:
-  "@ai-sdk/provider": "4.0.1"
+catalog:
+  ai: ^7.0.15
+  "@ai-sdk/provider": ^4.0.2
+  "@ai-sdk/provider-utils": ^5.0.5
+  "@ai-sdk/openai-compatible": ^3.0.5
+  workflow: ^4.5.0
+  "@workflow/world-postgres": ^4.2.0
 
 # These packages ship usable prebuilt/JS fallbacks; no install scripts needed.
 allowBuilds:
@@ -21,20 +18,10 @@ allowBuilds:
   esbuild: false
 
 minimumReleaseAgeExclude:
-  - '@ai-sdk/gateway@4.0.4'
-  - '@ai-sdk/openai-compatible@3.0.1'
-  - '@ai-sdk/provider-utils@5.0.1'
-  - ai@7.0.4
-  # Added while building the executor service (Workflow DevKit + Nitro):
-  # these are fast-moving beta-adjacent packages pulled in by
-  # workflow/nitro/@workflow/world-vercel; excluded the same way the ai-sdk
-  # entries above already are. Safe to drop an entry once its version ages
-  # past the org's minimumReleaseAge cutoff on its own.
-  - '@ai-sdk/gateway@4.0.7'
-  - '@ai-sdk/provider-utils@5.0.2'
-  - '@ai-sdk/provider@4.0.1'
-  - '@ai-sdk/workflow@1.0.9'
-  - ai@7.0.9
+  - '@ai-sdk/openai-compatible@3.0.5'
+  - '@ai-sdk/provider-utils@5.0.5'
+  - '@ai-sdk/provider@4.0.2'
+  - ai@7.0.15
   - '@aws-sdk/core@3.974.25'
   - '@aws-sdk/nested-clients@3.997.25'
   - '@aws-sdk/signature-v4-multi-region@3.996.37'
@@ -42,5 +29,6 @@ minimumReleaseAgeExclude:
   - env-runner@0.1.15
   - httpxy@0.5.4
   - srvx@0.11.18
+  - '@ai-sdk/gateway@4.0.12'
 patchedDependencies:
   nf3@0.3.18: patches/nf3@0.3.18.patch

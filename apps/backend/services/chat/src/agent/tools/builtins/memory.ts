@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { createMemoryCandidate, listActiveMemories } from "../../memory/repository.js";
 import { memoryToolContextSchema, type MemoryToolContext } from "../context.js";
+import { defineAgentTool } from "../manifest.js";
 
 type MemoryInput = {
   category: "preference" | "profile" | "project" | "instruction";
@@ -16,80 +17,100 @@ const memoryInputSchema = z.object({
   reason: z.string().min(1).max(200),
 });
 
+const memoryProposalOutputSchema = z.object({
+  status: z.literal("proposed"),
+  candidate_id: z.string(),
+  supersedes_id: z.string().optional(),
+});
+
+const updateMemoryOutputSchema = z.discriminatedUnion("status", [
+  memoryProposalOutputSchema,
+  z.object({
+    status: z.literal("blocked"),
+    code: z.literal("MEMORY_NOT_FOUND"),
+    message: z.string(),
+  }),
+]);
+
 async function createMemory(input: MemoryInput, { context }: { context: MemoryToolContext }) {
-  try {
-    const candidate = await createMemoryCandidate({
-      userId: context.userId,
-      category: input.category,
-      content: input.content,
-      reason: input.reason,
-      originRunId: context.runId,
-      source: "user-requested",
-    });
-    return {
-      ok: true,
-      staged: candidate.status === "pending",
-      candidate_id: candidate.id,
-      status: candidate.status,
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      error: `failed to create memory proposal: ${String(error).slice(0, 500)}`,
-    };
-  }
+  const candidate = await createMemoryCandidate({
+    userId: context.userId,
+    category: input.category,
+    content: input.content,
+    reason: input.reason,
+    originRunId: context.runId,
+    source: "user-requested",
+  });
+  return { status: "proposed" as const, candidate_id: candidate.id };
 }
 
 async function updateMemory(
   input: MemoryInput & { memory_id: string },
   { context }: { context: MemoryToolContext },
 ) {
-  try {
-    const active = (await listActiveMemories(context.userId)).find(
-      (memory) => memory.id === input.memory_id,
-    );
-    if (!active) {
-      return { ok: false, error: `active memory ${input.memory_id} was not found` };
-    }
-    const candidate = await createMemoryCandidate({
-      userId: context.userId,
-      category: input.category,
-      content: input.content,
-      reason: input.reason,
-      originRunId: context.runId,
-      source: "user-requested-update",
-      supersedesId: active.id,
-    });
+  const active = (await listActiveMemories(context.userId)).find(
+    (memory) => memory.id === input.memory_id,
+  );
+  if (!active) {
     return {
-      ok: true,
-      staged: candidate.status === "pending",
-      candidate_id: candidate.id,
-      supersedes_id: active.id,
-      status: candidate.status,
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      error: `failed to update memory proposal: ${String(error).slice(0, 500)}`,
+      status: "blocked" as const,
+      code: "MEMORY_NOT_FOUND" as const,
+      message: `active memory ${input.memory_id} was not found`,
     };
   }
+  const candidate = await createMemoryCandidate({
+    userId: context.userId,
+    category: input.category,
+    content: input.content,
+    reason: input.reason,
+    originRunId: context.runId,
+    source: "user-requested-update",
+    supersedesId: active.id,
+  });
+  return {
+    status: "proposed" as const,
+    candidate_id: candidate.id,
+    supersedes_id: active.id,
+  };
 }
 
-export function createMemoryTools() {
-  return {
-    create_memory: tool({
-      description:
-        "Stage a new long-term memory for non-blocking user review. It is not active until the user approves it in the memory panel.",
-      inputSchema: memoryInputSchema,
-      contextSchema: memoryToolContextSchema,
-      execute: createMemory,
-    }),
-    update_memory: tool({
-      description:
-        "Stage a replacement for an active memory. The old memory remains active until the user approves the candidate.",
-      inputSchema: memoryInputSchema.extend({ memory_id: z.string().min(1).max(32) }),
-      contextSchema: memoryToolContextSchema,
-      execute: updateMemory,
-    }),
-  };
+export function createMemoryToolManifests() {
+  return [
+    defineAgentTool(
+      "create_memory",
+      tool({
+        description: "Propose a new long-term memory. It remains inactive until the user approves it.",
+        inputSchema: memoryInputSchema,
+        outputSchema: memoryProposalOutputSchema,
+        contextSchema: memoryToolContextSchema,
+        execute: createMemory,
+      }),
+      {
+        capability: "memory",
+        effect: "add",
+        trust: "closed",
+        execution: "inline",
+        modes: ["normal"],
+      },
+      { summary: "Propose a new long-term memory for user approval." },
+    ),
+    defineAgentTool(
+      "update_memory",
+      tool({
+        description: "Propose a replacement for an active memory. The current memory remains active until approval.",
+        inputSchema: memoryInputSchema.extend({ memory_id: z.string().min(1).max(32) }),
+        outputSchema: updateMemoryOutputSchema,
+        contextSchema: memoryToolContextSchema,
+        execute: updateMemory,
+      }),
+      {
+        capability: "memory",
+        effect: "update",
+        trust: "closed",
+        execution: "inline",
+        modes: ["normal"],
+      },
+      { summary: "Propose replacing an active memory after user approval." },
+    ),
+  ];
 }

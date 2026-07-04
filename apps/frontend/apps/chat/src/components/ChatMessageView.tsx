@@ -27,11 +27,7 @@ import {
 } from "./ChatArtifactCard";
 import { ChatImageCard } from "./ChatImageCard";
 import { ChatMessageFilePart } from "./ChatMessageFilePart";
-import {
-  ChatTodoListCard,
-  parseTodoListOutput,
-  type TodoTaskStatus,
-} from "./ChatTodoListCard";
+import { ChatTodoListCard, parseTodoListOutput } from "./ChatTodoListCard";
 import { ChatVideoCard } from "./ChatVideoCard";
 
 export interface ChatMessageViewProps {
@@ -40,13 +36,13 @@ export interface ChatMessageViewProps {
   streaming: boolean;
   documents: Map<string, ConversationDocument>;
   latestTodoCallId: string | null;
-  todoTaskStatus: Map<string, TodoTaskStatus>;
   onOpenArtifact: (documentId: string) => void;
   onAnswerClientTool: (
     toolName: string,
     toolCallId: string,
     output: unknown,
   ) => void;
+  onToolApproval: (approvalId: string, approved: boolean) => void;
   onContinuePlan: (documentId: string) => void;
   onExecutePlan: (documentId: string) => void;
 }
@@ -57,9 +53,9 @@ export function ChatMessageView({
   streaming,
   documents,
   latestTodoCallId,
-  todoTaskStatus,
   onOpenArtifact,
   onAnswerClientTool,
+  onToolApproval,
   onContinuePlan,
   onExecutePlan,
 }: ChatMessageViewProps) {
@@ -118,10 +114,10 @@ export function ChatMessageView({
               variant={variant}
               documents={documents}
               latestTodoCallId={latestTodoCallId}
-              todoTaskStatus={todoTaskStatus}
               onOpenArtifact={onOpenArtifact}
               onOpenImage={onOpenImage}
               onAnswerClientTool={onAnswerClientTool}
+              onToolApproval={onToolApproval}
               onContinuePlan={onContinuePlan}
               onExecutePlan={onExecutePlan}
             />
@@ -148,10 +144,10 @@ function MessagePartView({
   variant,
   documents,
   latestTodoCallId,
-  todoTaskStatus,
   onOpenArtifact,
   onOpenImage,
   onAnswerClientTool,
+  onToolApproval,
   onContinuePlan,
   onExecutePlan,
 }: {
@@ -161,7 +157,6 @@ function MessagePartView({
   variant: "user" | "assistant";
   documents: Map<string, ConversationDocument>;
   latestTodoCallId: string | null;
-  todoTaskStatus: Map<string, TodoTaskStatus>;
   onOpenArtifact: (documentId: string) => void;
   onOpenImage: (documentId: string) => void;
   onAnswerClientTool: (
@@ -169,6 +164,7 @@ function MessagePartView({
     toolCallId: string,
     output: unknown,
   ) => void;
+  onToolApproval: (approvalId: string, approved: boolean) => void;
   onContinuePlan: (documentId: string) => void;
   onExecutePlan: (documentId: string) => void;
 }) {
@@ -218,9 +214,9 @@ function MessagePartView({
         conversationId={conversationId}
         documents={documents}
         latestTodoCallId={latestTodoCallId}
-        todoTaskStatus={todoTaskStatus}
         onOpenArtifact={onOpenArtifact}
         onAnswerClientTool={onAnswerClientTool}
+        onToolApproval={onToolApproval}
         onContinuePlan={onContinuePlan}
         onExecutePlan={onExecutePlan}
       />
@@ -235,9 +231,9 @@ function ToolPartView({
   conversationId,
   documents,
   latestTodoCallId,
-  todoTaskStatus,
   onOpenArtifact,
   onAnswerClientTool,
+  onToolApproval,
   onContinuePlan,
   onExecutePlan,
 }: {
@@ -245,18 +241,19 @@ function ToolPartView({
   conversationId: string;
   documents: Map<string, ConversationDocument>;
   latestTodoCallId: string | null;
-  todoTaskStatus: Map<string, TodoTaskStatus>;
   onOpenArtifact: (documentId: string) => void;
   onAnswerClientTool: (
     toolName: string,
     toolCallId: string,
     output: unknown,
   ) => void;
+  onToolApproval: (approvalId: string, approved: boolean) => void;
   onContinuePlan: (documentId: string) => void;
   onExecutePlan: (documentId: string) => void;
 }) {
   const toolName = getToolName(part);
-  if (toolName === "update_todos" && part.toolCallId !== latestTodoCallId) {
+  const kind = toolUiKind(part);
+  if (kind === "todo-list" && part.toolCallId !== latestTodoCallId) {
     return null;
   }
   const input = "input" in part ? part.input : undefined;
@@ -268,7 +265,56 @@ function ToolPartView({
       ? part.errorText
       : undefined;
 
-  if (toolName === "generate_image") {
+  if (part.state === "approval-requested") {
+    return (
+      <Tool open>
+        <ToolHeader title={toolName} state={part.state} />
+        <ToolContent>
+          <ToolJsonBlock value={input} />
+          {part.approval.isAutomatic ? (
+            <div className="text-xs text-muted-foreground">
+              正在检查工具授权策略…
+            </div>
+          ) : (
+            <div className="flex gap-2 p-3">
+              <Button
+                size="sm"
+                onClick={() => onToolApproval(part.approval.id, true)}
+              >
+                允许
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onToolApproval(part.approval.id, false)}
+              >
+                拒绝
+              </Button>
+            </div>
+          )}
+        </ToolContent>
+      </Tool>
+    );
+  }
+
+  if (part.state === "approval-responded" || part.state === "output-denied") {
+    return (
+      <Tool open={part.state === "output-denied"}>
+        <ToolHeader title={toolName} state={part.state} />
+        <ToolContent>
+          <div className="p-3 text-xs text-muted-foreground">
+            {part.state === "output-denied"
+              ? "工具调用已被拒绝。"
+              : part.approval.approved
+                ? "工具调用已授权。"
+                : "工具调用未获授权。"}
+          </div>
+        </ToolContent>
+      </Tool>
+    );
+  }
+
+  if (kind === "image-gallery") {
     return (
       <ChatImageCard
         conversationId={conversationId}
@@ -278,7 +324,7 @@ function ToolPartView({
     );
   }
 
-  if (toolName === "generate_video") {
+  if (kind === "video") {
     return (
       <ChatVideoCard
         output={output}
@@ -289,12 +335,11 @@ function ToolPartView({
   }
 
   const outputErrorReason = parseToolOutputError(output);
-  const artifact = parseArtifactOutput(output);
-  const artifactTask = parseArtifactTaskOutput(output);
-  const askUserInput =
-    toolName === "ask_user" ? parseAskUserInput(input) : null;
-  const todoList =
-    toolName === "update_todos" ? parseTodoListOutput(output) : null;
+  const artifact = kind === "artifact" ? parseArtifactOutput(output) : null;
+  const artifactTask =
+    kind === "artifact" ? parseArtifactTaskOutput(output) : null;
+  const askUserInput = kind === "ask-user" ? parseAskUserInput(input) : null;
+  const todoList = kind === "todo-list" ? parseTodoListOutput(output) : null;
 
   if (artifact?.documentId) {
     return (
@@ -355,10 +400,7 @@ function ToolPartView({
           </div>
         ) : null}
         {todoList ? (
-          <ChatTodoListCard
-            todos={todoList.todos}
-            taskStatus={todoTaskStatus}
-          />
+          <ChatTodoListCard todos={todoList.todos} />
         ) : (
           <>
             {askUserInput == null && input !== undefined ? (
@@ -377,6 +419,16 @@ function ToolPartView({
       </ToolContent>
     </Tool>
   );
+}
+
+function toolUiKind(
+  part: Extract<UIMessage["parts"][number], { toolCallId: string }>,
+): string | null {
+  if (!("toolMetadata" in part) || !part.toolMetadata) return null;
+  const agent = part.toolMetadata.agent;
+  if (!agent || typeof agent !== "object" || Array.isArray(agent)) return null;
+  const value = agent as Record<string, unknown>;
+  return typeof value.uiKind === "string" ? value.uiKind : null;
 }
 
 function parseToolOutputError(output: unknown): string | null {

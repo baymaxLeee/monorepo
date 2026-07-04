@@ -15,15 +15,15 @@
   "dependencies": {
     "@backend/transport-ts": "workspace:*",
     "@hono/zod-validator": "^0.4.0",
-    "@workflow/world-postgres": "^4.2.0",
-    "ai": "^7.0.4",
+    "@workflow/world-postgres": "catalog:",
+    "ai": "catalog:",
     "drizzle-orm": "^0.44.0",
     "hono": "^4.7.0",
     "mysql2": "^3.14.0",
     "postcss": "^8.5.15",
     "postcss-selector-parser": "^7.1.4",
     "sanitize-html": "^2.17.0",
-    "workflow": "^4.5.0",
+    "workflow": "catalog:",
     "zod": "^3.25.76"
   },
   "devDependencies": {

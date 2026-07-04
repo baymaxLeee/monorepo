@@ -164,7 +164,7 @@ Phase 1 直接用真正的 Workflow DevKit（`workflow` + `@ai-sdk/workflow`）�
   → compile → publish）搬进 `executor` 服务，实现为该服务的一个
   `TaskType`；`generator.ts`/`compiler.ts`/`template.ts` 中与 LLM/HTML 无关
   的纯逻辑原样迁移或共享。
-- chat 侧 `builtins/artifact.ts` 的 `write_file`/`edit_file` 改为调用
+- chat 侧 `builtins/artifacts.ts` 的 `write_file`/`edit_file` 改为调用
   `executor` 的 Task API，不再自己跑 worker pool / 三层轮询。
 - `write_file` 立即返回 `{status, task_id}`，不阻塞当前 turn。
   **原计划设想用 `data-artifact-progress` data part（ID reconciliation 增量

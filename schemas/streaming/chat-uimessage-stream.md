@@ -121,8 +121,8 @@ Two separate streams carry these:
   - `generate_image` (media generation) returns its result **as tool output**,
     not a custom part: an inline async-generator tool yields
     `{ status: "generating", count }` then a terminal
-    `{ status: "completed", images: [{ document_id, filename, media_type }], count, failed }`
-    (or `{ ok: false, error }`). A multi-image request is ONE call with a
+    `{ status: "completed", images: [{ document_id, filename, media_type }], count, failed }`.
+    Execution failures use the official `output-error` state. A multi-image request is ONE call with a
     `prompts[]` array (one image per prompt, generated concurrently); `count` is
     the requested total and `failed` how many prompts dropped (partial gallery).
     See ADR-0022 for the parallel-deliverable execution model. The frontend
@@ -135,25 +135,18 @@ Two separate streams carry these:
     provider URL (ADR-0014); the transcript never inlines them (ADR-0021).
   - `generate_video` follows the same tool-output pattern but is a durable task
     (Ark video is async): it yields a preliminary `{ status, task_id, kind:
-    "video" }` then a terminal `{ status: "completed", document_id }` (or `{ ok:
-    false, error }`) over the **main chat stream** while the tool foreground-
+    "video" }` then a terminal `{ status: "completed", document_id }` over the
+    **main chat stream** while the tool foreground-
     blocks. Because those two yields already carry the generating → done
     transition, `ChatVideoCard` needs **no** task-progress SSE subscription (it
     is not per-block like the HTML artifact), and no `data-*` part is added.
     Like `ChatImageCard`, it renders a lightweight card (no inline `<video>`);
     the side-panel preview fetches and plays the clip on open (ADR-0021).
-  - **Todo linkage (`todo_id`), tool output — not a new part.** Every deliverable
-    tool (`write_file`/`edit_file`, `generate_image`, `generate_video`) accepts an
-    optional `todo_id` input and echoes it back in **every** yield alongside the
-    shapes above (e.g. `{ status: "completed", …, todo_id }`). It is the id of the
-    todo item the deliverable fulfills. The frontend
-    (`ChatTodoListCard.collectTodoTaskStatus`) joins each `tool-update_todos` item
-    to its linked deliverable's live streamed status, so the todo list advances
-    per-task while a concurrent, foreground-blocking step is still running (the
-    model is blocked and cannot call `update_todos` mid-step). No `data-*` part is
-    needed — the linkage rides the existing tool outputs; the model reconciles the
-    canonical list with a final `update_todos` when the step returns. See
-    ADR-0017 (linkage + relaxed multi-`in_progress`) and ADR-0022 (concurrency).
+  - Tool definitions carry `toolMetadata.agent` with capability, effect,
+    execution, source, trust, and `uiKind`. AI SDK propagates this metadata onto
+    official tool parts; the frontend selects artifact/media/todo/approval UI by
+    `uiKind`, not by hard-coded public tool names. This is metadata on the
+    official tool part, not a custom `data-*` channel.
 
 ---
 

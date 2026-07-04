@@ -52,7 +52,7 @@
 - 是什么：`firecrawl/firecrawl`，一站式 search / crawl / scrape / extract，将网页转成 LLM-ready markdown 或结构化 JSON；自托管引擎 AGPL-3.0，另有商用 hosted API。
 - 最近热度：2026 年 agent "web context" 赛道常青款，多份榜单与横评列为首选抓取层。
 - 填补空白：项目 `web_search` 只有 Tavily（"搜"）。Firecrawl 补的是"读整页 / 爬整站 / 抽结构"，二者互补——Tavily 负责发现，Firecrawl 负责深取并喂给 knowledge 的 RAG 摄取。
-- 契合度与理由：可作为 chat 的新工具（如 `scrape_url` / `crawl_site`，落在 `apps/backend/services/chat/src/agent/tools/builtins/web.ts` 同层），或作为 knowledge 的 web 摄取源，形态与现有工具/摄取管线一致。
+- 契合度与理由：可作为 chat 的新检索工具（如 `scrape_url` / `crawl_site`，归入 `apps/backend/services/chat/src/agent/tools/builtins/search.ts`），或作为 knowledge 的 web 摄取源，形态与现有工具/摄取管线一致。
 - 成本 / 风险：hosted API 作为工具调用无 license 传染；**自托管改源码分发受 AGPL-3.0 约束**，需留意。轻量替代可评估 Exa（搜索质量）/ Jina Reader。
 
 ### 4. 自动化 Eval —— promptfoo（TS）+ ragas（Python）（有价值，需授权)

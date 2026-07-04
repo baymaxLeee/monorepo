@@ -5,6 +5,7 @@ import type { ProviderSnapshot } from "../../clients/admin.js";
 export type AgentMode = "normal" | "plan";
 
 export interface AgentRuntimeContext {
+  [key: string]: unknown;
   runId: string;
   userId: string;
   conversationId: string;

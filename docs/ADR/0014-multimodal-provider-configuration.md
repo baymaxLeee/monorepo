@@ -94,13 +94,13 @@ as this ADR prescribed for its asynchronous, billable task API:
   → poll to a terminal state → download the finished video → persist to Knowledge.
   Ark HTTP goes through `secureProviderFetch` (SSRF guard) via
   `services/executor/src/clients/ark.ts`.
-- The chat `generate_video` tool (`services/chat/src/agent/tools/builtins/video.ts`)
+- The chat `generate_video` tool (`services/chat/src/agent/tools/builtins/media.ts`)
   resolves the video provider from a run-scoped `video_provider_id` (distinct
   from the image `multimodal_provider_id`; a user typically has separate Seedream
   and Seedance providers), validates `provider_kind === "video"`, dispatches the
   durable task and foreground-blocks on it — reusing the same
   dispatch/resilient-poll/cancel-on-abort helpers as the HTML-artifact tool
-  (extracted to `services/chat/src/agent/tools/task-runner.ts`). It streams a
+  (extracted to `services/chat/src/agent/tasks/executor-task.ts`). It streams a
   preliminary `{ status, task_id }` then a terminal `{ status, document_id }` on
   the main chat stream; the frontend `ChatVideoCard` shows a generating state and
   then plays the video inline. Downloaded bytes are copied into Knowledge via the

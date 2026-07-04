@@ -453,6 +453,13 @@ function sanitizePersistedPart(part: AnyUIMessage["parts"][number]): AnyUIMessag
     } as AnyUIMessage["parts"][number];
   }
 
+  if (part.type === "tool-knowledge_search" && "output" in part && part.output) {
+    return {
+      ...part,
+      output: compactWebSearchOutput(part.output),
+    } as AnyUIMessage["parts"][number];
+  }
+
   return part;
 }
 

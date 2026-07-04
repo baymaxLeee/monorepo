@@ -2,14 +2,13 @@
 
 ## Status
 
-Accepted. Supersedes the artifact protocol in ADR 0010 and ADR 0011.
+Superseded in part by ADR 0023. The artifact pipeline remains accepted; ADR
+0023 owns current public names, manifests, policy, and directory structure.
 
 ## Decision
 
-- The ToolLoopAgent exposes a compact public tool set: `list_files`,
-  `read_file`, `write_file`, `edit_file`, `run_command`, `web_search`,
-  `ask_user`, `write_plan`, `update_plan`, `create_memory`, and
-  `update_memory`.
+- The ToolLoopAgent exposes a compact, flat public tool set grouped internally
+  by capability. See ADR 0023 for the complete current list.
 - `write_file` is the only HTML creation entry point. Its execute function
   plans a typed outline, generates semantic blocks with bounded concurrency,
   sanitizes and persists every block, compiles one document, and publishes
@@ -24,9 +23,8 @@ Accepted. Supersedes the artifact protocol in ADR 0010 and ADR 0011.
 - Preview HTML runs in an opaque-origin iframe with `sandbox="allow-scripts"`.
   Internal `#fragment` navigation remains available; same-origin access to the
   application is not.
-- `run_command` is a small set of read-only file validators. It is explicitly
-  not host shell access; arbitrary execution requires a future isolated
-  sandbox product boundary.
+- `html_validate` is a read-only HTML validator and inspector. It is explicitly
+  not host shell access; arbitrary execution requires an isolated sandbox.
 - `write_plan` creates revision 1. `update_plan` performs compare-and-swap and
   returns conflicts as tool output rather than terminating the UI stream.
 - Memory tools create pending candidates. `update_memory` links the candidate

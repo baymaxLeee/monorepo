@@ -10,6 +10,7 @@ import {
 } from "../observability/lifecycle.js";
 import { createProviderModel } from "@backend/transport-ts/provider-model";
 import { defaultToolCatalog, type ToolCatalog } from "../tools/catalog.js";
+import { createToolApprovalPolicy } from "../tools/policy.js";
 import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {
@@ -56,7 +57,7 @@ export async function createToolLoopAgent(
     profileId: input.mode,
     runtimeKind: "tool-loop",
   };
-  const agent = new ToolLoopAgent({
+  const agent = new ToolLoopAgent<never, typeof tools, AgentRuntimeContext>({
     id: "chat-agent",
     model: createProviderModel(provider, {
       parallelToolCalls: true,
@@ -64,7 +65,10 @@ export async function createToolLoopAgent(
     instructions: [input.instructions, ...resolvedTools.instructions].join("\n\n"),
     maxOutputTokens: provider.maxOutputTokens,
     tools,
-    toolsContext,
+    activeTools: resolvedTools.activeTools,
+    toolOrder: [...resolvedTools.activeTools].sort(),
+    toolApproval: createToolApprovalPolicy(input.mode),
+    toolsContext: toolsContext as never,
     runtimeContext,
     stopWhen: isStepCount(MAX_AGENT_STEPS),
     onStepStart: (event) => {

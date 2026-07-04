@@ -99,13 +99,6 @@ reuse-the-SDK, no-role-play rules.
   unchanged.
 - Rendering of the concurrent results is owned by ADR-0021 (lightweight cards +
   deferred bytes); this ADR only governs how they are produced.
-- **Live todo progress during the blocking parallel step** is owned by ADR-0017's
-  `todo_id` linkage: each deliverable tool (`write_file`/`edit_file`,
-  `generate_image`, `generate_video`) echoes an optional `todo_id` in every
-  yield, and the frontend joins each todo item to its task's streamed status so
-  the todo list advances 1/3 → 2/3 → 3/3 while the step is still blocked (the
-  model, blocked in the step, cannot update it between per-task completions). The
-  division of labor: this ADR *produces* the deliverables concurrently, ADR-0017
-  *reflects* their per-task completion in the todo list, ADR-0021 *renders* each
-  card. The model still reconciles the canonical todo list with a final
-  `update_todos` when the step returns.
+- ADR 0023 removes deliverable `todo_id` inputs. Artifact and media cards render
+  their own live progress; the model reconciles the todo snapshot after the
+  parallel tool step returns.

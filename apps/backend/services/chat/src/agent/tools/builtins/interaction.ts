@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 
 import type { AgentMode } from "../../agents/types.js";
+import { defineAgentTool } from "../manifest.js";
 
 const askUserInputSchema = z.object({
   question: z.string().min(1).max(240),
@@ -19,14 +20,36 @@ const askUserInputSchema = z.object({
   freeform_label: z.string().min(1).max(40).default("其他"),
 });
 
-export function createInteractionTools(mode: AgentMode) {
-  return {
-    ask_user: tool({
-      description:
-        mode === "plan"
-          ? "Ask the user for missing information that is required to finish the plan."
-          : "Ask the user for missing information that is required to continue.",
-      inputSchema: askUserInputSchema,
-    }),
-  };
+const askUserOutputSchema = z.union([
+  z.object({ answer: z.string(), label: z.string(), other: z.boolean().optional() }),
+  z.object({
+    answers: z.array(z.string()),
+    labels: z.array(z.string()),
+    other: z.string().optional(),
+  }),
+]);
+
+export function createInteractionToolManifests(mode: AgentMode) {
+  return [
+    defineAgentTool(
+      "ask_user",
+      tool({
+        description:
+          mode === "plan"
+            ? "Ask for information required to finish the plan."
+            : "Ask for information required to continue the task.",
+        inputSchema: askUserInputSchema,
+        outputSchema: askUserOutputSchema,
+      }),
+      {
+        capability: "interaction",
+        effect: "none",
+        trust: "closed",
+        execution: "client",
+        modes: ["normal", "plan"],
+        uiKind: "ask-user",
+      },
+      { summary: "Pause and ask the user for required information." },
+    ),
+  ];
 }

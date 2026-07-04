@@ -31,7 +31,8 @@
     `registerMcpTools/registerSkillTools`，但**全仓无人调用**（纯占位）。
 - **工具目录按 run 解析**：`agent/tools/catalog.ts` 的 `ToolCatalog.resolve(context)` 拿到
   `{mode, runId, userId, conversationId}`，是正确接入点。
-- **运行时**：`agent/agents/tool-loop.ts` 用 `ai@7.0.4` 的 `ToolLoopAgent`，支持
+- **运行时**：`agent/agents/tool-loop.ts` 使用 backend workspace catalog 管理的
+  AI SDK 7 `ToolLoopAgent`，支持
   `toolApproval` / `activeTools` / `toolOrder` / `pruneMessages`。
 - **长任务载体**：`executor` 服务（真 Workflow DevKit + `TaskType` 注册表），
   ADR-0015 已预留 "harness 执行引擎接同一 `TaskType` 契约" —— 长时 SubAgent 的家。

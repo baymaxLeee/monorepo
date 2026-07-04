@@ -56,9 +56,8 @@ observability in MySQL and consumes admin (providers), knowledge
   the blocking tool. `GET .../tasks/:taskId` stays as a plain JSON read for
   cold-start/debug. Knowledge/ObjectStore owns full content; chat history and
   traces never carry HTML fragments.
-- `run_command` (`validate_html`/`inspect_layout`) inspects an already
-  *published* HTML artifact; it stays local to chat since it needs no LLM
-  call and no durability.
+- `html_validate` validates and inspects an already-published HTML artifact;
+  it stays local to chat since it needs no LLM call and no durability.
 - Cancelling a chat run **does** cancel the in-flight executor task the current
   `write_file`/`edit_file` call is blocking on: Stop aborts the turn, the tool's
   `abortSignal` fires, and it calls `POST /tasks/:id/cancel` before unwinding —
@@ -73,6 +72,12 @@ observability in MySQL and consumes admin (providers), knowledge
   structured, server-side filter rather than a year stuffed into the query.
   `create_memory`/`update_memory` stage a candidate; user approval remains
   asynchronous in the memory panel.
+- Built-ins are grouped by capability under `tools/builtins/` but remain one
+  flat AI SDK ToolSet. `manifest.ts` is the source of tool policy, planning
+  capability projection, and UI metadata. Plan mode receives only callable
+  research/planning tools plus a generated summary of execution capabilities.
+- Long-running executor start/poll/cancel helpers live in
+  `agent/tasks/executor-task.ts`, outside the model-facing tools boundary.
 
 ## Boundaries
 
@@ -87,7 +92,7 @@ observability in MySQL and consumes admin (providers), knowledge
 - `src/routes/agents.ts` — run stream and trace routes
 - `src/agent/runs/run.ts` — request/stream/persistence orchestration
 - `src/agent/agents/tool-loop.ts` — ToolLoopAgent implementation
-- `src/agent/tools/catalog.ts` — built-in tools and run-scoped extension assembly
+- `src/agent/tools/catalog.ts` — manifest resolution and run-scoped extension assembly
 - `src/agent/context/projector.ts` — bounded model context projection
 - `src/agent/README.md` — module boundaries and extension rules
 - `src/gen-openapi.ts` — OpenAPI export
