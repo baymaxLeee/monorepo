@@ -59,7 +59,11 @@ import {
 } from "../../../shadcn/dropdown-menu";
 import { Input } from "../../../shadcn/input";
 import { Menu, MenuItem, MenuItemGroup } from "../../../shadcn/menu";
-import { Popover, PopoverContent, PopoverTrigger } from "../../../shadcn/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "../../../shadcn/popover";
 import { Textarea } from "../../../shadcn/textarea";
 import { Tooltip, TooltipTrigger } from "../../../shadcn/tooltip";
 import {
@@ -98,7 +102,6 @@ interface IProps {
 const colorNormalizer =
   typeof document !== "undefined" ? document.createElement("div") : null;
 
-// 工具栏内联 utility class（高保真还原自原 Toolbar/index.less）
 /**
  * 普通图标按钮（B/I/U/S/Code/Link 等）。
  * active 仅改文字色（高保真还原原 less `color: rgb(var(--primary-6))`），
@@ -401,8 +404,6 @@ const AlignDropdownItems = ({
     }
   };
 
-  // active 仅用蓝色文字（对齐原 less `color: rgb(var(--primary-6))`），不动背景；
-  // focus 也强制保持蓝色文字，避免被 DropdownMenuItem 默认的 focus:text-secondary-foreground 覆盖。
   const itemCls = (active: boolean) =>
     cn(
       "gap-2 [&>svg]:size-4",
@@ -463,7 +464,6 @@ const NodeTypeDropdownItems = ({
   const handle = (key: string) => {
     let chain = editor.chain().focus();
 
-    // 先彻底清理现有的块类型，确保互斥
     if (editor.isActive("bulletList")) chain = chain.toggleBulletList();
     if (editor.isActive("orderedList")) chain = chain.toggleOrderedList();
     if (editor.isActive("taskList")) chain = chain.toggleTaskList();
@@ -684,8 +684,6 @@ export const AIPolishContent = ({
       setTriggerVisible(false);
       setMaskVisible?.(false);
     };
-    // 故意 mount-once：只在弹层装载/卸载时切换 mask；
-    // setMaskVisible 引用变化不应触发清理（会让 UI 闪烁）
   }, []);
 
   const handlePolish = async () => {
@@ -946,8 +944,6 @@ export const AIPolishContent = ({
         <div className="flex w-[600px] flex-wrap items-center gap-2 px-3 py-2">
           <div
             ref={inputRef}
-            // 高保真还原原 Toolbar/index.less 的 ai-input：
-            // 占据剩余空间、可换行、空态显示 placeholder（用 [data-empty="true"] hook）。
             className={cn(
               "max-h-60 min-h-[1em] flex-grow-[9999] overflow-y-auto break-words leading-normal outline-none",
               "[&>p]:m-0",
@@ -982,7 +978,6 @@ export const AIPolishContent = ({
         sideOffset={4}
         className="w-auto rounded-lg border bg-popover p-1 shadow-md"
         container={overlayContainer}
-        // 阻止 Popover 抢焦点，让 contentEditable 能正常输入
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <Menu inline>
@@ -1244,7 +1239,6 @@ const ToolbarContent = ({
         </>
       )}
 
-      {/* 节点类型（hover 触发） */}
       <DropdownMenu trigger="hover">
         <DropdownMenuTrigger
           type="button"
@@ -1337,7 +1331,6 @@ const ToolbarContent = ({
         onClick={() => editor.chain().focus().toggleCode().run()}
       />
 
-      {/* 链接 */}
       <Popover
         open={linkVisible}
         onOpenChange={(v) => {
@@ -1366,7 +1359,6 @@ const ToolbarContent = ({
           className="w-64 p-3"
           container={overlayContainer}
           onOpenAutoFocus={(e) => {
-            // 让 Input 接管首焦
             e.preventDefault();
           }}
         >
@@ -1401,7 +1393,6 @@ const ToolbarContent = ({
         </PopoverContent>
       </Popover>
 
-      {/* 颜色（仅非 markdown 模式，hover 触发） */}
       {contentType !== "markdown" && (
         <Popover
           trigger="hover"
@@ -1479,7 +1470,6 @@ const ToolbarContent = ({
             isDisabled={!editorState.canChangeType}
             onClick={() => editor.chain().focus().toggleCodeBlock().run()}
           />
-          {/* 表格：插入用 hover popover，已存在则点击删除 */}
           {editorState.isTable ? (
             <IconBtn
               label="删除表格"

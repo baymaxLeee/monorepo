@@ -98,9 +98,6 @@ export function ChatLayout() {
     load();
   }, [load]);
 
-  // Patch the sidebar entry in place when a chat page auto-renames a
-  // conversation from its streamed title, so the label updates live without
-  // refetching the whole list.
   useEffect(() => {
     if (!conversationTitleUpdate) return;
     const { id, title } = conversationTitleUpdate;

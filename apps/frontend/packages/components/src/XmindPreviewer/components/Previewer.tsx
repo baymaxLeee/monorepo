@@ -1,9 +1,3 @@
-// 注意：本组件的 useEffect 故意写窄依赖（仅 supported / hasData / isCanvasReady
-// 等关键控制位）。simple-mind-map 实例必须保持稳定，把闭包函数 / useMemo 推导
-// 对象塞进依赖数组会让父组件每次重渲染都触发 destroy + new MindMap()，进而让
-// SVG.js 在 detach 后调用 rbox 抛 `Getting rbox of element "g" is not possible`。
-// 在补足"内部状态机"之前，请勿按 lint 提示无脑扩展依赖数组。
-
 import {
   Fullscreen,
   type LucideIcon,

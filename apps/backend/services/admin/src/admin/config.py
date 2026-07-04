@@ -9,11 +9,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "staging", "single-vps", "production"]
 
-# Defaults that MUST NOT leak into staging/production.
 _INSECURE_PASSWORDS: frozenset[str] = frozenset({"", "dev", "password", "admin"})
 
-# Generated once with `Fernet.generate_key()`; OK for `just dev` only. We
-# refuse to start in production with this exact value.
 _DEV_ADMIN_SECRET_KEY = "MFnLpzWN-y-Hh0aJtaxKXh4uOFcljnPC6FwpDF4S5Y8="
 _DEV_INTERNAL_API_TOKEN = "dev-internal-token"
 
@@ -38,12 +35,8 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_db: int = 0
 
-    # Symmetric key used to encrypt at-rest secrets (model provider api_keys).
-    # MUST be a 32-byte url-safe base64 Fernet key. Rotate with care.
     admin_secret_key: str = _DEV_ADMIN_SECRET_KEY
 
-    # Shared secret presented by consumer services (chat, ...) on the
-    # `/internal/*` API surface. NEVER expose this to the gateway / browser.
     internal_api_token: str = _DEV_INTERNAL_API_TOKEN
 
     @computed_field  # type: ignore[prop-decorator]

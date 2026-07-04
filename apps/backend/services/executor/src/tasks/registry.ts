@@ -22,9 +22,6 @@ export function listTaskTypes(): string[] {
   return [...registry.keys()];
 }
 
-// "echo" is a smoke-test task type only, proving the Task API contract
-// (queue -> workflow run -> durable result) end to end. Real task types
-// (starting with html-artifact in Phase 2) register the same way.
 registerTaskType({
   name: "echo",
   inputSchema: echoInputSchema,

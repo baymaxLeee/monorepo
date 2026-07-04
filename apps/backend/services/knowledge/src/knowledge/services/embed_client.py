@@ -91,6 +91,30 @@ async def _embed_texts_multimodal(texts: list[str], *, provider: ProviderSnapsho
         return list(await asyncio.gather(*(one(text) for text in texts)))
 
 
+async def embed_image(image_url: str, *, provider: ProviderSnapshot) -> list[float]:
+    """Embed a single image body with a multimodal embedding model via
+    `/embeddings/multimodal`. `image_url` is a data URI or a reachable URL.
+
+    Returns one dense vector in the SAME space as `embed_texts` for the same
+    provider, so image and caption-text chunks can share one pgvector column.
+    Callers must ensure `is_multimodal_embedding_model(provider.model)`.
+    """
+    settings = get_settings()
+    url = f"{provider.base_url.rstrip('/')}/embeddings/multimodal"
+    headers = {"Authorization": f"Bearer {provider.api_key}", "Content-Type": "application/json"}
+    async with httpx.AsyncClient(timeout=httpx.Timeout(settings.llm_timeout_seconds, connect=5.0)) as client:
+        response = await client.post(
+            url,
+            json={"model": provider.model, "input": [{"type": "image_url", "image_url": {"url": image_url}}]},
+            headers=headers,
+        )
+        response.raise_for_status()
+        embedding = _extract_embedding(response.json())
+    if embedding is None:
+        raise ValueError("multimodal image embedding response missing data.embedding")
+    return [float(value) for value in embedding]
+
+
 async def rerank(
     query: str,
     documents: list[str],

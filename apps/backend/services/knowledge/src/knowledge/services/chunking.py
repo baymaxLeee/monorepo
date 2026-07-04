@@ -10,7 +10,6 @@ sizing (it slightly under-fills for CJK, which is fine).
 from __future__ import annotations
 
 _CHARS_PER_TOKEN = 4
-# Full-width CJK punctuation is intentional here (splitting Chinese text).
 _SEPARATORS = ["\n\n", "\n", "。", "！", "？", ". ", "! ", "? ", "；", "; ", " "]  # noqa: RUF001
 
 
@@ -30,7 +29,6 @@ def _split_recursive(text: str, limit: int) -> list[str]:
                 else:
                     pieces.extend(_split_recursive(piece, limit))
             return pieces
-    # No separator helped (one very long token run): hard-split by length.
     return [text[i : i + limit] for i in range(0, len(text), limit)]
 
 
@@ -53,7 +51,6 @@ def chunk_text(text: str, *, max_tokens: int = 512, overlap_tokens: int = 64) ->
             buffer += piece
         else:
             chunks.append(buffer.strip())
-            # Carry a bounded tail of the previous chunk as overlap.
             tail = buffer[-overlap_chars:] if overlap_chars else ""
             buffer = (tail + piece) if tail else piece
     if buffer.strip():

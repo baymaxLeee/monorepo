@@ -34,8 +34,6 @@ func main() {
 	}
 	defer st.Close()
 
-	// Demo super-admin is a dev convenience. In production, the bootstrap
-	// admin is created via explicit migrations / admin tooling.
 	if !cfg.IsProduction() {
 		ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 		if err := service.SeedDemoSuperAdmin(ctx, st, cfg); err != nil {

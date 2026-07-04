@@ -8,12 +8,12 @@ import { isAllowedImageFile } from "./constants";
  * 记录了纯文本内容、样式标记（如加粗、链接）及其属性
  */
 export interface StyledTextBlock {
-  id: string; // 唯一标识，用于映射
-  text: string; // 纯文本内容
-  marks: Mark[]; // ProseMirror Mark 对象数组
+  id: string;
+  text: string;
+  marks: Mark[];
   type: string;
-  from: number; // 原文档中的起始位置
-  to: number; // 原文档中的结束位置
+  from: number;
+  to: number;
 }
 
 /**
@@ -61,7 +61,6 @@ export const extractSelectionToBlocks = (editor: Editor): SelectionSnapshot => {
 
   editor.state.doc.nodesBetween(from, to, (node, pos) => {
     if (node.isText) {
-      // 计算当前文本节点在选区内的有效范围（处理选区只覆盖文本节点一部分的情况）
       const start = Math.max(from, pos);
       const end = Math.min(to, pos + node.nodeSize);
 
@@ -111,7 +110,7 @@ export const extractSelectionToBlocks = (editor: Editor): SelectionSnapshot => {
           ) {
             lastBlock.text += currentBlock.text;
             lastBlock.to = currentBlock.to;
-            lastBlock.id = `block_${lastBlock.from}_${currentBlock.to}`; // 更新ID以反映新的范围
+            lastBlock.id = `block_${lastBlock.from}_${currentBlock.to}`;
           } else {
             blocks.push(currentBlock);
           }
@@ -141,8 +140,6 @@ export const applyBlocksToSelection = (
 
   const tr = editor.state.tr;
 
-  // 关键策略：倒序替换
-  // 必须从文档末尾向前替换，这样前面的替换操作不会影响后面节点的位置索引
   for (let i = snapshot.blocks.length - 1; i >= 0; i--) {
     const block = snapshot.blocks[i];
     const newText = newTexts[i];
@@ -223,9 +220,7 @@ export async function* parseSSEStream(
           if (typeof parsed.content === "string") {
             yield parsed.content;
           }
-        } catch {
-          // 忽略不完整 / 非法 JSON 行
-        }
+        } catch {}
       }
     }
   } finally {

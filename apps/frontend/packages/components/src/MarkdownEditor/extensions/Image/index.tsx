@@ -106,8 +106,6 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
         if (!realUrl) throw new Error("onUpload returned empty url");
         if (cancelled) return;
 
-        // 持久化 src + 清 uploadId。addToHistory: false 使得命令层的"插入 N 张图"
-        // 保持为单步 undo，异步回填不占用额外 history
         const pos = typeof getPos === "function" ? getPos() : null;
         storage?.pendingFiles.delete(uploadId!);
         if (typeof pos === "number" && !editor.isDestroyed) {
@@ -141,7 +139,6 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
       cancelled = true;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-    // 故意 mount-once：上传只能触发一次，依赖项追加会导致重复上传
   }, []);
 
   return (
@@ -223,7 +220,6 @@ export const createImageExtension = ({
             const attrsList = entries.map(({ uploadId }) => ({ uploadId }));
 
             if ($from.depth <= 1 || isSelectionInsideTableCell(selection)) {
-              // 顶层块 / 表格单元格内：直接按当前光标位置插入
               const inserted = commands.insertContent(
                 attrsList.map((attrs) => ({ type: "image", attrs })),
               );
@@ -232,8 +228,6 @@ export const createImageExtension = ({
                 return false;
               }
             } else {
-              // 嵌套在 quote / list / details 等其它 block 内：
-              // 跳到当前顶层块之后作为新的顶层 block 依次插入，不允许 image 嵌套
               const imageNodes = attrsList.map((attrs) =>
                 schema.nodes.image.create(attrs),
               );

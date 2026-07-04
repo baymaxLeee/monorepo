@@ -9,12 +9,6 @@ export type GenerateVideoOutput = {
   error?: string;
 };
 
-// generate_video is a durable-task tool: it yields a preliminary
-// `{ status: "queued"|"running", task_id }` (so this card mounts and shows a
-// generating state on the main chat stream), then a terminal
-// `{ status: "completed", document_id }` (or `{ ok: false, error }`). No task
-// SSE subscription is needed — the tool foreground-blocks and streams both
-// yields over the same chat stream.
 export function parseGenerateVideoOutput(
   output: unknown,
 ): GenerateVideoOutput | null {
@@ -30,9 +24,6 @@ export function parseGenerateVideoOutput(
   };
 }
 
-// The transcript never inlines the generated clip (ADR-0021): a completed video
-// renders as one lightweight card; clicking it opens the side panel, which
-// fetches and plays the clip on demand.
 export function ChatVideoCard({
   output,
   state,

@@ -3,10 +3,6 @@ import { useShallow } from "zustand/react/shallow";
 import { useDocumentBlobUrls } from "../hooks/useDocumentSource";
 import { useChatStore } from "../store/useChatStore";
 
-// Bridges the chat store's image-preview slice to the reusable <ImagePreview>:
-// it resolves each document ref to a blob URL and feeds the group to the
-// lightbox. Mounted once per chat page; the actual open trigger comes from
-// image cards / attachments via `openImagePreview`.
 export function ChatImagePreview() {
   const { imagePreview, closeImagePreview, setImagePreviewIndex } =
     useChatStore(

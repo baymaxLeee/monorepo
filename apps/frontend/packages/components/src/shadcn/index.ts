@@ -1,6 +1,3 @@
-// shadcn/ui primitives (new-york, Tailwind v4). Managed by the shadcn CLI.
-// Add a new primitive: `pnpm ui:add <name>` then re-export it below.
-// Do NOT hand-edit generated primitives unless intentionally forking one.
 export * from "./accordion";
 export * from "./alert";
 export * from "./alert-dialog";

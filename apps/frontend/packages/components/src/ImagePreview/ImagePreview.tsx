@@ -10,11 +10,6 @@ import { useCallback, useEffect } from "react";
 import { cn } from "shared";
 import type { ImagePreviewProps } from "./interface";
 
-// A fullscreen lightbox built on our radix Dialog primitive (focus trap, scroll
-// lock, Escape-to-close come for free). The overlay is the click-to-close
-// backdrop: Content is `pointer-events-none` so empty-space clicks fall through
-// to the overlay (radix closes), while the image and controls opt back in with
-// `pointer-events-auto`. API mirrors common React lightboxes (images/index/loop).
 const ICON_BUTTON =
   "pointer-events-auto inline-flex items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:pointer-events-none disabled:opacity-40";
 

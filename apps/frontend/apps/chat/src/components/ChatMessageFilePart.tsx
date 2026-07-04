@@ -20,10 +20,6 @@ const CATEGORY_ICON: Record<string, LucideIcon> = {
   audio: MusicIcon,
 };
 
-// A file attachment renders as a lightweight chip only — icon + filename, never
-// the bytes (ADR-0021). Clicking an image opens the shared lightbox; any other
-// file opens the side panel. Both preview surfaces fetch the source on demand,
-// so the transcript stays cheap to render even with many attachments.
 export function ChatMessageFilePart({
   part,
   onOpen,

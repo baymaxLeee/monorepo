@@ -14,7 +14,6 @@ import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {
   return operation.catch((error) => {
-    // Trace persistence must never take down the user-facing generation.
     console.error(`[chat-agent] ${label} failed`, error);
   });
 }

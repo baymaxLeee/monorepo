@@ -50,9 +50,7 @@ async def batch_delete_my_documents(
     are silently ignored). Object-store blobs are best-effort purged and the
     RAG `document_chunks` are dropped via the FK `ON DELETE CASCADE`.
     """
-    rows = await document_crud.list_documents_by_ids(
-        session, user_id=current_user.user_id, document_ids=payload.ids
-    )
+    rows = await document_crud.list_documents_by_ids(session, user_id=current_user.user_id, document_ids=payload.ids)
     store = ObjectStore()
     for row in rows:
         if row.object_bucket and row.object_key:
@@ -88,7 +86,6 @@ async def update_my_document(
     if values:
         row = await document_crud.update_document(session, row, values)
         await session.commit()
-        # Keep the RAG index fresh when the document body changes (时效性).
         if "content_md" in values:
             try:
                 await index_document(session, document_id=row.id, user_id=current_user.user_id)

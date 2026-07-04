@@ -118,44 +118,50 @@ async function saveSnapshot(
   try {
     await db.insert(conversationContexts).values(values);
   } catch {
-    // Another run created the first snapshot. Its revision wins; the next run
-    // will compact incrementally from that canonical state.
   }
 }
 
 async function transformUserFilePartsForModel(
   messages: AnyUIMessage[],
   userId: string,
+  supportsImageInput: boolean,
 ): Promise<AnyUIMessage[]> {
-  const imageDocIds = new Set<string>();
-  for (const message of messages) {
-    if (message.role !== "user") continue;
-    for (const part of message.parts) {
-      if (part.type !== "file") continue;
-      const docId = documentIdFromFilePart(part);
-      if (docId && isImageMediaType(String(part.mediaType ?? ""))) {
-        imageDocIds.add(docId);
+  // Only inline image bytes when the chat model actually accepts image input.
+  // For a text-only model we skip the fetch entirely and let every image
+  // degrade to a text document reference below, so the provider never receives
+  // an unsupported image part (which Ark and others reject outright). The
+  // image's content stays reachable via the knowledge base (ingest caption).
+  const imageFiles = new Map<string, { data: Uint8Array; filename: string; mediaType: string }>();
+  if (supportsImageInput) {
+    const imageDocIds = new Set<string>();
+    for (const message of messages) {
+      if (message.role !== "user") continue;
+      for (const part of message.parts) {
+        if (part.type !== "file") continue;
+        const docId = documentIdFromFilePart(part);
+        if (docId && isImageMediaType(String(part.mediaType ?? ""))) {
+          imageDocIds.add(docId);
+        }
       }
     }
-  }
 
-  const imageFiles = new Map<string, { data: Uint8Array; filename: string; mediaType: string }>();
-  await Promise.all([...imageDocIds].map(async (documentId) => {
-    try {
-      const source = await getDocumentSource(userId, documentId);
-      const part = messages
-        .flatMap((message) => (message.role === "user" ? message.parts : []))
-        .find((candidate) => candidate.type === "file" && documentIdFromFilePart(candidate) === documentId);
-      imageFiles.set(documentId, {
-        data: source.bytes,
-        filename:
-          (part?.type === "file" ? part.filename : undefined) || "image",
-        mediaType: source.mimeType || "application/octet-stream",
-      });
-    } catch (error) {
-      console.error("[chat-context] failed to load image attachment", error);
-    }
-  }));
+    await Promise.all([...imageDocIds].map(async (documentId) => {
+      try {
+        const source = await getDocumentSource(userId, documentId);
+        const part = messages
+          .flatMap((message) => (message.role === "user" ? message.parts : []))
+          .find((candidate) => candidate.type === "file" && documentIdFromFilePart(candidate) === documentId);
+        imageFiles.set(documentId, {
+          data: source.bytes,
+          filename:
+            (part?.type === "file" ? part.filename : undefined) || "image",
+          mediaType: source.mimeType || "application/octet-stream",
+        });
+      } catch (error) {
+        console.error("[chat-context] failed to load image attachment", error);
+      }
+    }));
+  }
 
   return messages.map((message) => {
     if (message.role !== "user") return message;
@@ -199,6 +205,7 @@ export async function projectModelContext(input: {
   activePlanDocumentId: string | null;
   contextWindow: number;
   maxOutputTokens: number;
+  supportsImageInput: boolean;
   messages: AnyUIMessage[];
 }): Promise<{ messages: ModelMessage[]; instructionContext: string[] }> {
   const inputTokenBudget = Math.max(
@@ -292,7 +299,7 @@ export async function projectModelContext(input: {
     }
   }
 
-  const modelReadyRecent = await transformUserFilePartsForModel(recent, input.userId);
+  const modelReadyRecent = await transformUserFilePartsForModel(recent, input.userId, input.supportsImageInput);
   const converted = await convertToModelMessages(modelReadyRecent, {
     convertDataPart: (part) => {
       if (part.type === "data-plan-execution") {

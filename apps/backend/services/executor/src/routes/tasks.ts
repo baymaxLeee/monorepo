@@ -34,9 +34,3 @@ tasksRoutes.post("/:id/cancel", async (c) => {
   return c.json(task);
 });
 
-// No GET /:id/stream: it was speculative (built ahead of any real consumer —
-// neither chat nor the frontend ever called it) and its chunk format was
-// never actually defined. Removed rather than kept "for later" — add it back
-// with a concrete shape once a real consumer needs sub-poll-interval
-// progress. Polling GET /:id is the only progress channel today and is
-// sufficient for the current UX (see ChatArtifactCard.tsx).

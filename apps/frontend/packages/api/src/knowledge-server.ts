@@ -11,8 +11,6 @@ import { API_BASE_URL, apiHttp, request } from "./http";
 
 const BASE = "/api/knowledge-server";
 
-// A knowledge-base document is not tied to a conversation, so `conversation_id`
-// is relaxed to optional/nullable (the chat ConversationDocument requires it).
 export type KnowledgeDocument = Omit<
   ConversationDocument,
   "conversation_id"

@@ -25,11 +25,7 @@ export const agentsRoutes = new Hono();
 const runSchema = z.object({
   id: z.string().optional(),
   message: z.unknown(),
-  // One run is bound to exactly one agent. The agent's text provider is the
-  // chat model; its image/video providers drive the media tools. Omitting it
-  // falls back to the user's default chat provider (plain chat, no media tools).
   agent_id: z.string().max(32).optional().nullable(),
-  document_ids: z.array(z.string()).max(10).optional().default([]),
 });
 
 agentsRoutes.post(
@@ -44,9 +40,6 @@ agentsRoutes.post(
     const conversationId = c.req.param("conversationId");
     const payload = c.req.valid("json");
 
-    // Resolve the agent ONCE here — the single provider-resolution point for a
-    // run. The text provider is the chat model; image/video snapshots/ids are
-    // passed through to tools/executor so nothing re-fetches a provider.
     let textProvider: ProviderSnapshot;
     let imageProvider: ProviderSnapshot | null = null;
     let videoProviderId: string | null = null;
@@ -67,7 +60,6 @@ agentsRoutes.post(
       {
         imageProvider,
         videoProviderId,
-        documentIds: [...(payload.document_ids ?? [])],
       },
     );
   },
@@ -126,11 +118,6 @@ agentsRoutes.post("/:conversationId/agents/runs/:runId/cancel", async (c) => {
   return c.json({ cancelled, status: run.status });
 });
 
-// Live progress for one background task, as a native AI SDK UIMessage SSE
-// stream. Replaces the old ArtifactTaskCard polling: on connect we seed the
-// current snapshot from executor (durable truth), then replay executor's pushed
-// progress/terminal events over the same resumable-stream transport as agent
-// runs. The browser consumes this with readUIMessageStream (no bespoke parser).
 agentsRoutes.get("/:conversationId/tasks/:taskId/stream", async (c) => {
   const auth = getAuth(c);
   const conversationId = c.req.param("conversationId");
@@ -177,9 +164,6 @@ agentsRoutes.get("/:conversationId/tasks/:taskId/stream", async (c) => {
   return new Response(body, { headers: { ...UI_MESSAGE_STREAM_HEADERS } });
 });
 
-// Thin JSON read of one task (durable snapshot, proxied to executor). Kept as a
-// plain REST read for cold-start/debug; the card no longer polls it — it opens
-// the /stream endpoint above instead.
 agentsRoutes.get("/:conversationId/tasks/:taskId", async (c) => {
   const auth = getAuth(c);
   await getConversationRow(auth, c.req.param("conversationId"));

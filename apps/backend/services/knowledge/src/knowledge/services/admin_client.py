@@ -33,6 +33,10 @@ class ProviderSnapshot:
     extra_body: dict[str, Any]
     is_default: bool
     is_enabled: bool
+    # Vision capability of a chat model. Ingest only asks a provider to caption
+    # an image when this is true; otherwise the image degrades to metadata so a
+    # non-vision model is never sent image input (which Ark/others reject).
+    supports_image_input: bool = False
 
 
 class AdminClient:
@@ -99,6 +103,7 @@ class AdminClient:
             extra_body=data.get("extra_body") or {},
             is_default=data["is_default"],
             is_enabled=data["is_enabled"],
+            supports_image_input=bool(data.get("supports_image_input", False)),
         )
 
 

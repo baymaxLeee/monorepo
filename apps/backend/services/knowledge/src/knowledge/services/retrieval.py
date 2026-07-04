@@ -83,14 +83,13 @@ async def retrieve(
         ]
     except ProviderNotConfiguredError:
         note = "no embedding provider configured; sparse-only retrieval"
-    except Exception as exc:  # dense is best-effort; fall back to sparse
+    except Exception as exc:
         logger.warning("dense retrieval failed: %s", exc)
         note = "dense retrieval unavailable; sparse-only retrieval"
 
     sparse_rows = await chunk_crud.sparse_search(session, user_id=user_id, query=query, limit=candidate_k)
     sparse = [
-        _Candidate(row.id, row.document_id, row.chunk_index, row.content, float(row.score))
-        for row in sparse_rows
+        _Candidate(row.id, row.document_id, row.chunk_index, row.content, float(row.score)) for row in sparse_rows
     ]
 
     fused = _rrf_fuse(dense, sparse, k=settings.rrf_k)[:candidate_k]
@@ -101,14 +100,12 @@ async def retrieve(
     if settings.rerank_enabled and len(fused) > 1:
         try:
             rerank_provider = await get_admin_client().get_provider_by_kind(user_id=user_id, kind="rerank")
-            ranking = await rerank(
-                query, [c.content for c in fused], provider=rerank_provider, top_n=top_k
-            )
+            ranking = await rerank(query, [c.content for c in fused], provider=rerank_provider, top_n=top_k)
             if ranking:
                 ordered = [fused[index] for index, _ in ranking]
         except ProviderNotConfiguredError:
-            pass  # no rerank provider: keep RRF order
-        except Exception as exc:  # rerank is best-effort
+            pass
+        except Exception as exc:
             logger.warning("rerank failed; using RRF order: %s", exc)
 
     top = ordered[:top_k]

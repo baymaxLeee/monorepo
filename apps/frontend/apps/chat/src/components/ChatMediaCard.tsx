@@ -1,12 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "shared";
 
-// A lightweight transcript card for a media product (generated image group /
-// video). It renders ZERO media bytes at mount — just an icon + label the user
-// clicks to open the real preview surface (image lightbox / side panel), which
-// fetches the bytes on demand. This keeps the chat transcript cheap to render
-// and re-render on conversation switch; see ADR-0021. The whole card is one
-// button (no nested interactive element) so the entire surface is the target.
 export function ChatMediaCard({
   icon: Icon,
   title,

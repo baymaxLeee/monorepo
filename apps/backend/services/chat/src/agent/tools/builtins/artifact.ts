@@ -33,12 +33,6 @@ function taskResultFields(result: unknown): { documentId?: string; totalChars?: 
   };
 }
 
-// The HTML artifact tool blocks this turn until the executor task finishes, but
-// it is an async generator so the model still surfaces live progress: the first
-// yield exposes task_id (ArtifactTaskCard mounts and subscribes to the task's
-// progress stream), and the final yield carries the persisted document_id. AI
-// SDK emits every yield as a preliminary tool output and only persists the last
-// one, so intermediate progress never pollutes the model's context.
 async function* streamHtmlArtifactTask(
   task: Task,
   meta: { title: string; filename: string; todoId?: string },
@@ -56,9 +50,6 @@ async function* streamHtmlArtifactTask(
   try {
     terminal = await waitForTaskTerminal(task.id, signal);
   } catch (error) {
-    // A timeout is a normal terminal outcome for the card (task already
-    // cancelled); anything else (abort, fatal poll error) propagates so the run
-    // is recorded correctly.
     if (error instanceof TaskWaitTimeoutError) {
       yield {
         ok: false,
@@ -240,11 +231,6 @@ export async function* writeFileTool(
       return;
     }
 
-    // HTML: dispatch a durable executor task and foreground-block on it. The
-    // first yield exposes task_id so ArtifactTaskCard mounts and streams live
-    // per-block progress; the final yield carries the persisted document_id.
-    // Blocking here is deliberate — the model must not race ahead and issue a
-    // second edit for an artifact that is still being written (ADR-0015).
     const task = await startTaskResilient(
       {
         type: "html-artifact",

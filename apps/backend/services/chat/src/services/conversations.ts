@@ -84,10 +84,6 @@ export interface ConversationDocumentDetail extends ConversationDocument {
 export interface ConversationDetail extends Conversation {
   messages: Message[];
   documents: ConversationDocument[];
-  // Best-effort "is there a resumable run right now" hint. The service leaves it
-  // null (run liveness is a route-layer concern); the GET-detail route fills it
-  // from the resumable-stream registry so the client can skip a reconnect probe
-  // when nothing is live. The reconnect endpoint stays authoritative.
   active_run_id: string | null;
 }
 
@@ -307,9 +303,6 @@ export async function touchConversation(conversationId: string): Promise<void> {
     .where(eq(conversations.id, conversationId));
 }
 
-// Internal (no auth): used by the agent run to auto-name a fresh conversation
-// from its first user turn. Auth is unnecessary — the caller already resolved
-// and authorized the conversation for the run.
 export async function setConversationTitle(
   conversationId: string,
   title: string,

@@ -208,6 +208,7 @@ export interface ModelProvider {
   extra_body: Record<string, unknown>;
   context_window: number;
   max_output_tokens: number;
+  supports_image_input: boolean;
   is_default: boolean;
   is_enabled: boolean;
   created_at: string;
@@ -223,6 +224,7 @@ export interface CreateModelProviderInput {
   extra_body?: Record<string, unknown>;
   context_window?: number;
   max_output_tokens?: number;
+  supports_image_input?: boolean;
   is_default?: boolean;
   is_enabled?: boolean;
 }
@@ -232,11 +234,11 @@ export interface UpdateModelProviderInput {
   model?: string;
   provider_kind?: ProviderKind;
   base_url?: string;
-  // Omit to keep the previously stored key.
   api_key?: string;
   extra_body?: Record<string, unknown> | null;
   context_window?: number;
   max_output_tokens?: number;
+  supports_image_input?: boolean;
   is_default?: boolean;
   is_enabled?: boolean;
 }

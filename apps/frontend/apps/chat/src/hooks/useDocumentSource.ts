@@ -76,12 +76,6 @@ export function useDocumentBlobUrl(
   return { blobUrl, loading, error };
 }
 
-// Resolve a group of documents to object URLs (e.g. every image in a lightbox so
-// prev/next has each slide ready). Reuses the shared source cache, keeps results
-// aligned with the input ids, and revokes URLs on cleanup. Keyed on the joined
-// id list so a stable group does not re-fetch every render. Slides resolve
-// independently so a just-clicked, already-cached image shows immediately
-// instead of waiting on its slower siblings.
 export function useDocumentBlobUrls(
   conversationId: string | undefined,
   documentIds: string[],
@@ -97,7 +91,6 @@ export function useDocumentBlobUrls(
     }
     let active = true;
     const created: string[] = [];
-    // Clear first so a new group never flashes the previous group's URLs.
     setUrlMap({});
     for (const documentId of ids) {
       void (async () => {
@@ -110,9 +103,7 @@ export function useDocumentBlobUrls(
           const url = URL.createObjectURL(blob);
           created.push(url);
           setUrlMap((prev) => ({ ...prev, [documentId]: url }));
-        } catch {
-          // A failed slide stays a loading state; navigating still works.
-        }
+        } catch {}
       })();
     }
     return () => {

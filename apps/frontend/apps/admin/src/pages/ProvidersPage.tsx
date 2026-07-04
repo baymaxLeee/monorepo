@@ -69,7 +69,6 @@ const providerSchema = z
     provider_kind: z.enum(["chat", "image", "video", "embedding", "rerank"]),
     model: z.string().trim().min(1, "请输入模型名").max(128),
     base_url: z.string().trim().url("base_url 必须是合法 URL"),
-    // Optional in edit mode (leave empty to keep current key).
     api_key: z.string().max(4096),
     extra_body: z
       .string()
@@ -93,6 +92,7 @@ const providerSchema = z
       ),
     context_window: z.number().int().min(1024).max(2_000_000),
     max_output_tokens: z.number().int().min(256).max(1_000_000),
+    supports_image_input: z.boolean(),
     is_default: z.boolean(),
     is_enabled: z.boolean(),
   })
@@ -124,23 +124,14 @@ const kindPresets: Record<
   video: {
     base_url: ARK_BASE_URL,
     model: "doubao-seedance-2-0-260128",
-    // Vertical short-drama defaults: 9:16 portrait with native audio on
-    // (抖音/小红书 投流 needs sound); mirrors executor ARK_VIDEO_DEFAULTS.
-    // Do NOT set a fixed duration/seconds here — clip length is owned per-segment
-    // by the executor pipeline; a fixed value would pin every segment to it.
     extra_body:
       '{\n  "generate_audio": true,\n  "ratio": "9:16",\n  "watermark": true\n}',
   },
-  // Used by the knowledge base for RAG. The embedding model's output dimension
-  // MUST match knowledge's EMBEDDING_DIM (default 2048 = doubao-embedding-text);
-  // changing it requires altering the vector column and re-indexing.
   embedding: {
     base_url: ARK_BASE_URL,
     model: "doubao-embedding-text-240715",
     extra_body: "",
   },
-  // Optional RAG reranker (Cohere/Jina-style /rerank). Retrieval degrades to
-  // hybrid-only when no rerank provider is configured.
   rerank: {
     base_url: ARK_BASE_URL,
     model: "doubao-rerank",
@@ -165,6 +156,7 @@ const defaults: ProviderValues = {
   extra_body: kindPresets.chat.extra_body,
   context_window: 128_000,
   max_output_tokens: 8_192,
+  supports_image_input: false,
   is_default: false,
   is_enabled: true,
 };
@@ -234,12 +226,11 @@ export function ProvidersPage() {
       provider_kind: provider.provider_kind ?? "chat",
       model: provider.model,
       base_url: provider.base_url,
-      // Never echo the stored key back — even masked. Empty here means
-      // "keep the existing encrypted value".
       api_key: "",
       extra_body: stringifyExtraBody(provider.extra_body ?? {}),
       context_window: provider.context_window,
       max_output_tokens: provider.max_output_tokens,
+      supports_image_input: provider.supports_image_input ?? false,
       is_default: provider.is_default,
       is_enabled: provider.is_enabled,
     });
@@ -257,6 +248,7 @@ export function ProvidersPage() {
           extra_body,
           context_window: values.context_window,
           max_output_tokens: values.max_output_tokens,
+          supports_image_input: values.supports_image_input,
           is_default: values.is_default,
           is_enabled: values.is_enabled,
         };
@@ -278,6 +270,7 @@ export function ProvidersPage() {
           extra_body,
           context_window: values.context_window,
           max_output_tokens: values.max_output_tokens,
+          supports_image_input: values.supports_image_input,
           is_default: values.is_default,
           is_enabled: values.is_enabled,
         };
@@ -772,6 +765,26 @@ function ProviderFormDialog({
                   )}
                 />
               </div>
+              {providerKind === "chat" && (
+                <FormField
+                  control={form.control}
+                  name="supports_image_input"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel className="flex items-center gap-2">
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                        支持图片输入（多模态视觉）
+                        <span className="text-xs font-normal text-muted-foreground">
+                          关闭时上传图片自动降级为文本引用
+                        </span>
+                      </FieldLabel>
+                    </Field>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="is_default"

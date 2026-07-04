@@ -74,8 +74,6 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
     return { mode: input.mode, theme: outline.theme, blocks: outline.blocks };
   }
 
-  // edit_file: load the current workspace and decide, per block, whether to
-  // reuse it byte-for-byte or regenerate it against the change brief.
   const workspace = await getLatestArtifactWorkspace(input.userId, input.documentId);
   const manifest = workspace.manifest as Record<string, unknown>;
   const manifestBlocks = Array.isArray(manifest.blocks) ? (manifest.blocks as ArtifactBlock[]) : [];
@@ -220,11 +218,6 @@ async function compileAndPublishStep(input: {
   };
 }
 
-// Best-effort progress ping. Runs as its own durable step so the "use workflow"
-// orchestrator stays deterministic (no direct DB/network there), but it never
-// throws: a failed progress update must not fail — or retry-storm — the artifact
-// generation it merely annotates. getWorkflowMetadata() gives us this run's id,
-// which executor's tasks table already indexes back to the business task.
 async function reportProgressStep(done: number, total: number): Promise<void> {
   "use step";
   try {
@@ -266,8 +259,6 @@ const BLOCK_CONCURRENCY = 4;
 export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
   "use workflow";
   const plan = await planStep(input);
-  // idempotencyKey ties this workflow run to exactly one knowledge-side
-  // generation record even if the step retries.
   const generationId = await reserveStep(
     input,
     plan,

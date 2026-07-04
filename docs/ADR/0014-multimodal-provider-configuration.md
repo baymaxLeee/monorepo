@@ -108,3 +108,30 @@ as this ADR prescribed for its asynchronous, billable task API:
   never persisted.
 - User Stop cancels the in-flight executor task (Workflow DevKit `run.cancel()`),
   same as the HTML-artifact tool.
+
+## Update: chat model vision capability flag (`supports_image_input`)
+
+Providers gained a boolean `supports_image_input` (admin `model_providers`
+migration `v1.6.0`, default false; added to `ModelProvider` /
+`InternalModelProvider` / create / update schemas + CRUD, and to the admin MFE
+provider form as a Switch shown only for the `chat` kind). It records whether a
+chat model actually accepts image input — a distinction `provider_kind === "chat"`
+alone cannot express: a text-only reasoner (e.g. `deepseek-*`, `doubao-seed-*`)
+and a vision chat model are both `chat`, but only the latter may be sent image
+parts.
+
+Consumers gate on it, replacing the previous "always inline the user's image"
+behavior that made Ark reject requests with *"Model do not support image input"*:
+
+- Chat context projection (`services/chat/src/agent/context/projector.ts`,
+  threaded from `runs/run.ts` through the resolved provider snapshot) inlines a
+  user-uploaded image as a model `file` part **only** when the answering model is
+  `supports_image_input`; otherwise the image degrades to the existing
+  `<document_reference>` text pointer (its content stays reachable via the
+  knowledge base).
+- Knowledge ingest captions an uploaded image only via a provider flagged
+  vision-capable (see ADR-0019 update).
+
+The flag rides the standard contract regen (`admin-server.json` OpenAPI →
+`@backend/transport-ts` + frontend `api`). It is chat-only in the UI; non-chat
+kinds ignore it.

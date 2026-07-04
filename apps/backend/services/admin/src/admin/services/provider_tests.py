@@ -140,10 +140,6 @@ async def test_video_provider(
     model: str,
     extra_body: dict[str, Any],
 ) -> TestModelProviderResult:
-    # Video generation is asynchronous and billable. A provider connectivity
-    # test must not create a real task or hold this HTTP request open while
-    # polling. Listing one task validates the Ark base URL and API key; the
-    # future video generation workflow owns model validation and task lifecycle.
     del extra_body
     tasks_url = _video_tasks_url(base_url)
     headers = {
@@ -197,9 +193,7 @@ async def _test_multimodal_embedding(
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     start = time.perf_counter()
     try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(60.0, connect=10.0), follow_redirects=False
-        ) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0), follow_redirects=False) as client:
             response = await client.post(
                 url,
                 headers=headers,
@@ -297,9 +291,6 @@ async def test_provider_by_kind(
             extra_body=extra_body,
         )
     if provider_kind == "rerank":
-        # Rerank endpoints are not OpenAI-standard and vary by vendor; saving the
-        # provider is validated, but a live rerank call is left to the retrieval
-        # path (knowledge) which degrades gracefully when rerank is unavailable.
         return TestModelProviderResult(ok=True, sample="rerank provider saved; live test not implemented")
     return await test_chat_provider(
         base_url=base_url,

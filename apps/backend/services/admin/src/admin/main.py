@@ -25,8 +25,6 @@ from .routers import (
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await init_redis()
-    # Demo data is only useful for development/staging. In production,
-    # seed data must be loaded through explicit migrations / admin tooling.
     if not get_settings().is_production:
         await seed_demo_bots()
     yield
@@ -35,8 +33,6 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
-    # CORS、鉴权等横切关注点由 gateway 统一处理。
-    # 内网微服务只面向 gateway,不直接面向浏览器。
     app = FastAPI(
         title="Admin Service",
         version="0.1.0",

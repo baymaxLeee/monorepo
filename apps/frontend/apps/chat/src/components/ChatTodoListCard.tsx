@@ -15,14 +15,8 @@ export type TodoItem = {
   status: TodoStatus;
 };
 
-// Live status of the durable task a todo item is linked to (via todo_id echoed
-// by the deliverable tools). "running" while its task is in flight, terminal
-// otherwise. This is the frontend join that lets the todo list advance
-// 1/3 -> 2/3 -> 3/3 live during a concurrent, foreground-blocking step, before
-// the model regains control to reconcile the canonical list (ADR-0017 / 0022).
 export type TodoTaskStatus = "running" | "completed" | "failed";
 
-// A visual status the Task primitive understands. A subset of WorkflowStatus.
 type EffectiveStatus = "pending" | "running" | "completed" | "failed";
 
 const DELIVERABLE_TOOL_NAMES = new Set([
@@ -32,12 +26,6 @@ const DELIVERABLE_TOOL_NAMES = new Set([
   "edit_file",
 ]);
 
-// Scan the whole transcript for deliverable tool parts that carry a todo_id and
-// map each to its live status. A deliverable's own generator yields its terminal
-// result the moment THAT task finishes (streamed as a preliminary tool output),
-// so this reflects per-task completion even while sibling tasks are still
-// running inside the same blocking step. Later parts overwrite earlier ones, so
-// a todo_id reused across executions resolves to its most recent task.
 export function collectTodoTaskStatus(
   messages: UIMessage[],
 ): Map<string, TodoTaskStatus> {
@@ -68,10 +56,6 @@ export function collectTodoTaskStatus(
   return map;
 }
 
-// Combine the model's canonical status with the linked task's live status,
-// preferring whichever is "more done": a finished task shows completed/failed
-// even before the model reconciles, and an unfinished linked task shows a
-// running spinner even while the model still lists it pending.
 function effectiveStatus(
   modelStatus: TodoStatus,
   taskStatus: TodoTaskStatus | undefined,

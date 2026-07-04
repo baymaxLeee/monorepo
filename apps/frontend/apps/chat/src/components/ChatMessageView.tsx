@@ -70,8 +70,6 @@ export function ChatMessageView({
   const isUser = message.role === "user";
   const variant = isUser ? "user" : "assistant";
 
-  // Every image attachment in this message forms one preview group, so the
-  // lightbox can page through them with prev/next from wherever the user clicked.
   const openImagePreview = useChatStore((s) => s.openImagePreview);
   const imageGroup = useMemo(
     () =>
@@ -270,8 +268,6 @@ function ToolPartView({
       ? part.errorText
       : undefined;
 
-  // Generated images/videos render inline (not a generic tool card): their
-  // output carries a document_id that would otherwise match the artifact branch.
   if (toolName === "generate_image") {
     return (
       <ChatImageCard

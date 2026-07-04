@@ -191,6 +191,7 @@ export interface CreateModelProviderInput {
      * @maximum 1000000
      */
   max_output_tokens?: number;
+  supports_image_input?: boolean;
   is_default?: boolean;
   is_enabled?: boolean;
 }
@@ -280,6 +281,7 @@ export interface InternalModelProvider {
   extra_body: InternalModelProviderExtraBody;
   context_window: number;
   max_output_tokens: number;
+  supports_image_input: boolean;
   is_default: boolean;
   is_enabled: boolean;
 }
@@ -311,6 +313,7 @@ export interface ModelProvider {
   extra_body: ModelProviderExtraBody;
   context_window: number;
   max_output_tokens: number;
+  supports_image_input: boolean;
   is_default: boolean;
   is_enabled: boolean;
   created_at: string;
@@ -441,6 +444,7 @@ export interface UpdateModelProviderInput {
   extra_body?: UpdateModelProviderInputExtraBody;
   context_window?: number | null;
   max_output_tokens?: number | null;
+  supports_image_input?: boolean | null;
   is_default?: boolean | null;
   is_enabled?: boolean | null;
 }

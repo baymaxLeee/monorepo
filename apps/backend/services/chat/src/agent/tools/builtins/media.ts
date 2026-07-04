@@ -7,10 +7,6 @@ import type { ProviderSnapshot } from "../../../clients/admin.js";
 import { createMediaDocument } from "../../../clients/knowledge.js";
 import { mediaToolContextSchema, type MediaToolContext } from "../context.js";
 
-// Fields the tool or the OpenAI-compatible image model owns. Everything else in
-// the admin-configured `extra_body` (size, watermark, seed, guidance, ...) is
-// forwarded to Ark verbatim as request-body options. `response_format` is
-// dropped because the model always forces `b64_json` so we get raw bytes.
 const IMAGE_OWNED_KEYS = new Set(["response_format", "prompt", "model", "n", "test_prompt"]);
 
 const IMAGE_EXTENSIONS: Record<string, string> = {
@@ -41,8 +37,6 @@ function buildImageProviderOptions(extraBody: Record<string, unknown>): Record<s
   return options;
 }
 
-// Prefer the SDK-provided media type; fall back to sniffing common image magic
-// bytes so a document always carries a correct, previewable MIME.
 function resolveImageMediaType(mediaType: string | undefined, bytes: Uint8Array): string {
   if (mediaType && mediaType.startsWith("image/")) return mediaType;
   if (bytes.length >= 4) {
@@ -141,10 +135,6 @@ export async function* generateImageTool(
     });
     const providerOptions = buildImageProviderOptions(imageProvider.extraBody);
 
-    // One image per prompt, all generated concurrently. Each prompt is an
-    // independent request/document (unique idempotency key by index), so a
-    // single failed prompt degrades to a partial gallery instead of failing
-    // the whole batch.
     const generateOne = async (prompt: string, index: number): Promise<GeneratedImage> => {
       const result = await generateImage({
         model,
@@ -170,8 +160,6 @@ export async function* generateImageTool(
 
     const settled = await Promise.allSettled(prompts.map(generateOne));
 
-    // A cancelled run surfaces as AbortError on the individual calls; re-throw
-    // so the run records cancellation instead of a partial "completed".
     if (abortSignal?.aborted) {
       const aborted = settled.find(
         (outcome): outcome is PromiseRejectedResult =>

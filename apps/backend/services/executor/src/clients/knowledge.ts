@@ -29,9 +29,6 @@ function knowledgeClient(): KnowledgeInternalClient {
   });
 }
 
-// Assembled video reels are tens of MB; the base64 upload must not race the
-// default 15s internal-client timeout. Media uploads get their own generous
-// window (other executor→knowledge calls keep the fast-failing default).
 const MEDIA_UPLOAD_TIMEOUT_MS = 180_000;
 
 function knowledgeMediaClient(): KnowledgeInternalClient {
@@ -47,9 +44,6 @@ export async function getDocument(userId: string, documentId: string): Promise<K
   return knowledgeClient().getDocument({ userId, documentId });
 }
 
-// Persist generated binary media (e.g. a generated video) as a knowledge
-// document. Bytes go into the object store; conversation messages only ever
-// reference the returned document id, never the provider's temporary URL.
 export async function createMediaDocument(input: {
   userId: string;
   conversationId?: string;
@@ -69,10 +63,6 @@ export async function getLatestArtifactWorkspace(
   return knowledgeClient().getLatestArtifactWorkspace({ userId, documentId });
 }
 
-// No claim/renew/listClaimable here on purpose: Workflow DevKit's own step
-// retry and durable execution replace the multi-worker job-queue racing that
-// those existed for in chat's old hand-rolled worker (see chat's AGENTS.md
-// history / the agent_task_执行时服务 plan). One workflow run == one owner.
 
 export async function reserveArtifactGeneration(input: {
   userId: string;

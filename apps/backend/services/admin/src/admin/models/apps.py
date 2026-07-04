@@ -16,15 +16,12 @@ from .base import Base
 class AppRow(Base):
     __tablename__ = "apps"
 
-    # Slug primary key (e.g. "admin", "chat"); used as the URL segment.
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     base_path: Mapped[str] = mapped_column(String(200), nullable=False)
     remote_name: Mapped[str] = mapped_column(String(120), nullable=False)
     expose_key: Mapped[str] = mapped_column(String(120), nullable=False, default="./App")
     entry: Mapped[str] = mapped_column(String(500), nullable=False, default="")
-    # When true the app is only visible to admin users; when false it is also
-    # rendered for normal users. This is the lever operators flip per app.
     requires_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

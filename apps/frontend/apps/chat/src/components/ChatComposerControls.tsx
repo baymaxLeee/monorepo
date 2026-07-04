@@ -20,10 +20,6 @@ export function ChatComposerControls({
   mode,
   onModeChange,
 }: ChatComposerControlsProps) {
-  // One agent bundles the text/image/video models a run uses; picking an agent
-  // replaces per-model selection (configured in admin → 智能体). Reasoning
-  // effort is likewise an admin-owned provider setting (extraBody), not a
-  // per-message toggle here.
   const options = agents.map((agent) => ({
     id: agent.id,
     label: agent.name,

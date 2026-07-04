@@ -34,15 +34,12 @@ export function createKnowledgeSearchTools() {
   return {
     search_knowledge: tool({
       description:
-        // What it does.
         "Search the user's knowledge base — their uploaded/ingested documents, internal " +
         "policies (规章制度), and organization-specific content — and return passages with " +
         "their source document title for citation. " +
-        // When to use it.
         "Use this FIRST for any question about the user's own or their company/team information " +
         "(e.g. 'our reimbursement limit', '公司年假政策', 'what does our handbook say', anything " +
         "referencing their documents or internal rules). " +
-        // When NOT to use it.
         "Do NOT use it for current or public information that is not in their documents (use " +
         "web_search), or for general knowledge you already know. If it returns no relevant " +
         "passages, fall back to web_search for public info or tell the user the knowledge base " +

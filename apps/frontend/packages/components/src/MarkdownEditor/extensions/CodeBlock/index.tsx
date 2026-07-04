@@ -66,7 +66,6 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({
           isCollapsed ? "h-10" : "min-h-10",
         )}
       >
-        {/* Header */}
         <div
           className="flex h-10 flex-shrink-0 select-none items-center justify-between border-b bg-muted px-3"
           contentEditable={false}
@@ -150,14 +149,12 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({
           )}
         </div>
 
-        {/* Code Content */}
         <div
           className={cn(
             "relative flex w-full bg-background transition-all duration-200",
             isCollapsed && "hidden",
           )}
         >
-          {/* Line Numbers */}
           <div
             className="flex-none select-none border-r bg-muted py-4 pr-2 text-right"
             style={{ width: 40 }}
@@ -173,7 +170,6 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({
             ))}
           </div>
 
-          {/* Code Area */}
           <pre className="m-0 flex-1 overflow-x-auto break-all bg-background p-4 font-mono text-sm leading-[22px]">
             <code
               className="block min-w-full !border-0 !bg-transparent !p-0"

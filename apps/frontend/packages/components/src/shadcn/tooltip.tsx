@@ -22,9 +22,6 @@ function Tooltip({
   return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
 }
 
-// 使用 forwardRef：嵌套 `asChild` 时（例如 `<TooltipTrigger asChild><DropdownMenuTrigger asChild>`）
-// 外层的 SlotClone 会向内传 ref，function 组件接不到 ref 会触发 React warning，
-// 严重时 Radix 内部的 anchor / collision 检测也会失效。
 const TooltipTrigger = forwardRef<
   React.ComponentRef<typeof TooltipPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Trigger>

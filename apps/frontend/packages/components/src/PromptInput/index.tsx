@@ -34,4 +34,8 @@ export type {
   PromptInputToken,
   PromptInputTokenKind,
   PromptInputValue,
+  PromptMentionItem,
+  PromptMentionSource,
+  PromptSlashCommand,
+  PromptSlashSource,
 } from "./interface";

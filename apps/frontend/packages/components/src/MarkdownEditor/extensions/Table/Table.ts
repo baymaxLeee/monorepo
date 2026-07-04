@@ -229,9 +229,7 @@ export const createTableExtension = () => {
                     return $pos.before(d);
                   }
                 }
-              } catch {
-                // posAtDOM can throw when DOM is out of sync with the document
-              }
+              } catch {}
               return null;
             };
 
@@ -243,7 +241,6 @@ export const createTableExtension = () => {
               const { tableRow, tableCell } = state.schema.nodes;
               if (!tableRow || !tableCell) return;
 
-              // TableMap.width correctly handles colspan
               const colCount = TableMap.get(tableNode).width;
               const cells: ProseMirrorNode[] = [];
               for (let i = 0; i < colCount; i++) {
@@ -251,7 +248,6 @@ export const createTableExtension = () => {
                 if (cell) cells.push(cell);
               }
 
-              // tablePos + 1 (past table open) + content.size = before table close token
               const insertPos = tablePos + 1 + tableNode.content.size;
               editorView.dispatch(
                 state.tr.insert(insertPos, tableRow.create(null, cells)),
@@ -272,18 +268,12 @@ export const createTableExtension = () => {
               tableNode.forEach((row, rowOffset) => {
                 if (row.type.name !== "tableRow") return;
 
-                // Preserve cell type: header rows get tableHeader cells
                 const isHeader = row.firstChild?.type.name === "tableHeader";
                 const cellType =
                   isHeader && tableHeader ? tableHeader : tableCell;
                 const newCell = cellType.createAndFill();
                 if (!newCell) return;
 
-                //   tablePos + 1   → past table open token
-                //   + rowOffset    → row open token
-                //   + 1            → past row open token (into row content)
-                //   + content.size → end of row content (before row close token)
-                //   + shift        → accumulated offset from prior inserts in this transaction
                 const insertAt =
                   tablePos + 1 + rowOffset + 1 + row.content.size + shift;
                 tr.insert(insertAt, newCell);
@@ -311,7 +301,6 @@ export const createTableExtension = () => {
 
               let action: ((pos: number) => void) | null = null;
 
-              // Right pseudo-element → add column
               if (
                 x >= rect.right &&
                 x <= rect.right + colBtnW &&
@@ -319,9 +308,7 @@ export const createTableExtension = () => {
                 y <= rect.bottom
               ) {
                 action = insertColumn;
-              }
-              // Bottom pseudo-element → add row
-              else if (
+              } else if (
                 x >= rect.left &&
                 x <= rect.right &&
                 y >= rect.bottom &&
@@ -338,8 +325,6 @@ export const createTableExtension = () => {
               }
             };
 
-            // Single delegated handler in capture phase — fires before ProseMirror's own handlers,
-            // avoids the cost of registering / tearing down per-table listeners on every update.
             const root = editorView.dom.parentElement;
             root?.addEventListener("click", handleClick, true);
 
@@ -354,7 +339,7 @@ export const createTableExtension = () => {
                       .querySelector("table")
                       ?.classList.add(tableClassName);
                   }
-                  return false; // no need to descend into table children
+                  return false;
                 }
                 return true;
               });
@@ -364,7 +349,6 @@ export const createTableExtension = () => {
 
             return {
               update(view, prevState) {
-                // Only re-apply when the document actually changes, skip pure selection updates
                 if (view.state.doc !== prevState.doc) {
                   applyTableStyles();
                 }

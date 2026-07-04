@@ -43,12 +43,6 @@ export type ButtonProps = React.ComponentProps<"button"> &
     asChild?: boolean;
   };
 
-// forwardRef (React 18 shape): when used as an `asChild` child — e.g.
-// `<DropdownMenuTrigger asChild><Button/></DropdownMenuTrigger>` — Radix's Slot
-// forwards a ref to the child to anchor Popper positioning. A plain function
-// component (React 19 shadcn output) silently drops that ref on React 18, so the
-// popper never measures its anchor and the content renders off-screen ("click
-// does nothing, no error"). Keep this component ref-forwarding on React 18.
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   {
     className,

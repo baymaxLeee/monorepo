@@ -46,8 +46,6 @@ def decrypt(ciphertext: str) -> str:
     try:
         return _fernet().decrypt(ciphertext.encode("utf-8")).decode("utf-8")
     except InvalidToken as exc:
-        # Most likely cause: ADMIN_SECRET_KEY was rotated without re-encrypting
-        # existing rows. Surface a clear actionable error.
         raise ProviderKeyUndecryptableError(
             "stored api_key is unreadable; ADMIN_SECRET_KEY may have rotated",
         ) from exc

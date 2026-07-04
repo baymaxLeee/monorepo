@@ -31,6 +31,7 @@ class ModelProvider(BaseModel):
     extra_body: dict[str, Any]
     context_window: int
     max_output_tokens: int
+    supports_image_input: bool
     is_default: bool
     is_enabled: bool
     created_at: str
@@ -50,6 +51,7 @@ class InternalModelProvider(BaseModel):
     extra_body: dict[str, Any]
     context_window: int
     max_output_tokens: int
+    supports_image_input: bool
     is_default: bool
     is_enabled: bool
 
@@ -63,6 +65,7 @@ class CreateModelProviderInput(BaseModel):
     extra_body: dict[str, Any] = Field(default_factory=dict)
     context_window: int = Field(default=128_000, ge=1024, le=2_000_000)
     max_output_tokens: int = Field(default=8_192, ge=256, le=1_000_000)
+    supports_image_input: bool = False
     is_default: bool = False
     is_enabled: bool = True
 
@@ -78,12 +81,11 @@ class UpdateModelProviderInput(BaseModel):
     model: str | None = Field(default=None, min_length=1, max_length=128)
     provider_kind: ProviderKind | None = None
     base_url: HttpUrl | None = None
-    # When omitted, the existing encrypted value is preserved. When provided,
-    # it MUST be the new plaintext key — the admin re-encrypts on write.
     api_key: str | None = Field(default=None, min_length=1, max_length=4096)
     extra_body: dict[str, Any] | None = None
     context_window: int | None = Field(default=None, ge=1024, le=2_000_000)
     max_output_tokens: int | None = Field(default=None, ge=256, le=1_000_000)
+    supports_image_input: bool | None = None
     is_default: bool | None = None
     is_enabled: bool | None = None
 

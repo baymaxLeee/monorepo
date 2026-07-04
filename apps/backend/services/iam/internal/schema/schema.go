@@ -35,10 +35,7 @@ type UserResponse struct {
 	Theme          string `json:"theme"`
 	MarketingOptIn bool   `json:"marketingOptIn"`
 	EmailVerified  bool   `json:"emailVerified"`
-	// Type is the coarse identity class consumed by the frontend shell to gate
-	// which apps/products are visible. Derived from role assignments:
-	// holding an admin role ("super_admin"/"admin") => "admin", else "normal".
-	Type string `json:"type"`
+	Type           string `json:"type"`
 }
 
 type RoleRequest struct {

@@ -181,3 +181,48 @@ schema, while keeping `docker compose up` self-contained and safe for both a
 fresh volume and an existing Workflow World volume. Existing demo-era MySQL
 knowledge rows are deliberately not migrated; documents are re-ingested as
 already decided above.
+
+## Update — multimodal ingestion: caption gating + image dual representation
+
+Once real chat models (not all vision-capable) drove ingest, two problems plus
+an outright bug surfaced. All three are now fixed:
+
+1. **Caption bug (止血).** `services/convert.py` spread a provider's `extra_body`
+   (e.g. Ark `{"thinking": {...}, "reasoning_effort": "high"}`) as top-level
+   OpenAI kwargs, so every image caption raised
+   `TypeError: create() got an unexpected keyword argument 'thinking'` and images
+   silently fell back to metadata. Non-standard params now ride `extra_body=`
+   (both `_describe_image_sync` and the MarkItDown-embedded `_VisionCaptionClient`).
+
+2. **Caption gating.** Ingest captions an image only when the resolved provider
+   is `supports_image_input` (ADR-0014 update); a non-vision provider skips the
+   caption and degrades to metadata instead of sending the picture and being
+   rejected by Ark. Text documents (pdf/office/html/…) are unchanged — they carry
+   no provider and go straight through MarkItDown → chunk → embed.
+
+3. **Image dual representation.** Grounded in current (2026) practice — a VLM
+   caption for lexical/keyword recall *plus* a native image embedding for semantic
+   recall — an image document is now indexed two ways in the single
+   `document_chunks` / pgvector space:
+   - the caption Markdown is chunked and text-embedded as before (BM25 + dense
+     over text), **and**
+   - the image body itself is embedded via a multimodal embedding model
+     (`embed_client.embed_image` → Ark `/embeddings/multimodal` with an `image_url`
+     data-URI) and stored as one extra chunk whose dense `embedding` is the image
+     vector and whose `content` is a `[图片] <name>` marker + caption snippet (for
+     BM25 / rerank / display).
+
+   This is **gated and best-effort**: it runs only when the embedding provider is
+   multimodal (`is_multimodal_embedding_model`, i.e. `doubao-embedding-vision-*`)
+   and the returned vector matches the configured `embedding_dim`; otherwise the
+   image vector is skipped and the document stays caption-only. No new migration —
+   the image vector reuses the existing `vector(embedding_dim)` column and the
+   v1.1.0 halfvec HNSW index. Retrieval (hybrid + RRF + rerank) is unchanged:
+   image and text chunks share one vector column, so an image-semantic query now
+   recalls the picture's chunk.
+
+**Deferred (next round).** The answer side still cites images through the caption
+chunk's text/title. Feeding the *original image* back to a vision-capable chat
+model as an AI SDK `file` part on a retrieval hit — with official `source-*`
+stream parts for citation — is intentionally out of this round's scope; the
+retrieval + dual-index groundwork here is its prerequisite.

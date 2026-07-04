@@ -10,13 +10,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Store holds shared infrastructure connections.
 type Store struct {
 	MySQL *sql.DB
 	Redis *redis.Client
 }
 
-// Connect opens MySQL and Redis using the given URLs.
 func Connect(ctx context.Context, databaseURL, redisURL string) (*Store, error) {
 	db, err := sql.Open("mysql", databaseURL)
 	if err != nil {
@@ -47,7 +45,6 @@ func Connect(ctx context.Context, databaseURL, redisURL string) (*Store, error) 
 	return s, nil
 }
 
-// Ping checks MySQL and Redis connectivity.
 func (s *Store) Ping(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -61,7 +58,6 @@ func (s *Store) Ping(ctx context.Context) error {
 	return nil
 }
 
-// Close releases all connections.
 func (s *Store) Close() {
 	if s.MySQL != nil {
 		_ = s.MySQL.Close()

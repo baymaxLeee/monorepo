@@ -1,9 +1,3 @@
-// Package security implements the access-token verification used by gateway
-// middleware. It mirrors the HS256 JWT format issued by the iam service so the
-// gateway can validate tokens without calling iam on every request.
-//
-// Token issuance lives in services/iam/internal/security/token.go.
-// This package is verification-only.
 package security
 
 import (

@@ -10,9 +10,6 @@ export type ArtifactPreviewState = {
 
 export type ImagePreviewRef = { documentId: string; filename?: string };
 
-// A fullscreen image lightbox is a modal overlay, independent of the mutually
-// exclusive side panels (memory/trace/artifact), so it lives in its own slice
-// and does not participate in their close-each-other coordination.
 export type ImagePreviewState = {
   open: boolean;
   conversationId: string | null;
@@ -23,9 +20,6 @@ export type ImagePreviewState = {
 export type ChatUIState = {
   sendingConversationId: string | null;
   setSendingConversationId: (id: string | null) => void;
-  // Agents (智能体) are the unit of model selection: one run is bound to one
-  // agent whose text/image/video providers the backend resolves. The chat UI
-  // switches agents, never individual models.
   agents: Bot[] | null;
   agentsError: string | null;
   isLoadingAgents: boolean;
@@ -54,9 +48,6 @@ export type ChatUIState = {
   ) => void;
   closeImagePreview: () => void;
   setImagePreviewIndex: (index: number) => void;
-  // Cross-panel signal: a chat page auto-renamed a conversation (live, from the
-  // streamed title) and the sidebar list (owned by ChatLayout) needs to reflect
-  // it without a refetch. `seq` makes repeated same-title updates observable.
   conversationTitleUpdate: { id: string; title: string; seq: number } | null;
   applyConversationTitle: (id: string, title: string) => void;
 };

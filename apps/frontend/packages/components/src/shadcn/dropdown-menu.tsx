@@ -42,11 +42,6 @@ export function DropdownMenu({
     hoverCloseDelay,
   });
 
-  // hover 模式默认 modal=false：Radix DropdownMenu 默认 modal=true 会通过
-  // DismissableLayer.disableOutsidePointerEvents 给 trigger 也加上 pointer-events:none，
-  // 与 hover 触发互斥（trigger 被禁用 → mouseleave → 关弹层 → 恢复可交互 → mouseenter → 再次打开 → 高频闪烁）。
-  // hover 菜单本就是瞬时的，不应该 trap focus / 禁止外部交互，因此 hover 模式默认 false。
-  // click 模式保持 Radix 原生默认（true，模态体验）。
   const effectiveModal = modal ?? (hover.enabled ? false : undefined);
 
   if (!hover.enabled) {
@@ -82,8 +77,6 @@ export const DropdownMenuPortal = DropdownMenuPrimitive.Portal;
 export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
-// forwardRef：嵌套 `asChild` 时（例如外层 TooltipTrigger 包裹本组件），
-// 上层 SlotClone 会向 DropdownMenuTrigger 传 ref，function 组件接不住会触发 React warning。
 export const DropdownMenuTrigger = forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Trigger>

@@ -13,7 +13,6 @@ const HeaderTraceParent = "traceparent"
 
 type traceIDContextKey struct{}
 
-// TraceId normalizes the request trace id and propagates it to responses and upstreams.
 func TraceId(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		traceParent := normalizeTraceParent(r.Header.Get(HeaderTraceParent))

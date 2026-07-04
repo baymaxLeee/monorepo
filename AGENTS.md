@@ -233,6 +233,25 @@ calls, structured output, or LLM-specific failure modes?" If yes, prefer it.
 If no, you're picking a tool that will require you to re-implement those
 concerns by hand.
 
+### Comments: minimal, only for the genuinely non-obvious
+
+The default is **no comment**. Code agents MUST NOT narrate code
+(`// increment i`, `# build the client`, `// return result`), MUST NOT leave
+section-banner or step-by-step tour-guide comments, and MUST NOT explain in a
+comment the change they just made.
+
+Write a comment ONLY where the code departs from the obvious / idiomatic
+solution and a competent reader would stop and ask "why is it done this weird
+way?" — then state the *reason*, not the mechanics: **this looks wrong, but it
+must be this way because <specific constraint>** (a platform / library
+bug, an external API contract, an ordering / perf / security constraint, a spec
+quirk). Keep it to the minimum — usually a single line.
+
+Litmus test: if deleting the comment loses no information a competent reader
+couldn't recover from the code itself in seconds, it must not exist. Comment
+the surprise, never the routine — this mirrors the core agents (Claude Code /
+Codex / Cursor).
+
 ### Forbidden zones for unprompted edits
 - `**/generated/**` — codegen output
 - `apps/backend/services/*/migrations/versions/**` — DB migrations

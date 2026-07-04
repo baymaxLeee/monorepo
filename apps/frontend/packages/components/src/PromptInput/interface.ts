@@ -29,6 +29,39 @@ export interface PromptInputRenderContext {
   deleteToken: () => void;
 }
 
+/** A mentionable entity surfaced by an `@` trigger (e.g. an uploaded file). */
+export interface PromptMentionItem {
+  id: string;
+  label: string;
+  kind?: PromptInputTokenKind;
+  mime?: string;
+  url?: string;
+  description?: string;
+  /** Merged into the inserted token's `meta` — carry `artifactId` here so the
+   *  host can map the token straight to an official `FileUIPart` on submit. */
+  meta?: Record<string, unknown>;
+}
+
+export type PromptMentionSource = (
+  query: string,
+  signal: AbortSignal,
+) => PromptMentionItem[] | Promise<PromptMentionItem[]>;
+
+/** A `/` slash command. `run` is optional; when omitted the editor falls back
+ *  to the `onSlashCommand` prop so the host owns the behaviour. */
+export interface PromptSlashCommand {
+  id: string;
+  title: string;
+  description?: string;
+  keywords?: string[];
+  icon?: ReactNode;
+  run?: (api: PromptInputApi) => void;
+}
+
+export type PromptSlashSource =
+  | PromptSlashCommand[]
+  | ((query: string) => PromptSlashCommand[]);
+
 export interface PromptInputProps {
   defaultValue?: string;
   placeholder?: string;
@@ -57,6 +90,12 @@ export interface PromptInputProps {
   ) => ReactNode;
   toolbarRender?: (api: PromptInputApi) => ReactNode;
   footerRender?: (api: PromptInputApi) => ReactNode;
+  /** Enables the `@` mention popup. Resolve mentionable entities for a query. */
+  mentionSource?: PromptMentionSource;
+  /** Enables the `/` slash popup. Static list or a per-query resolver. */
+  slashCommands?: PromptSlashSource;
+  /** Fallback handler when a picked slash command has no own `run`. */
+  onSlashCommand?: (command: PromptSlashCommand, api: PromptInputApi) => void;
 }
 
 export interface PromptInputApi {

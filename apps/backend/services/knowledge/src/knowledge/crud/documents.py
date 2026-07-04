@@ -63,9 +63,7 @@ async def create_document(
 
 
 async def get_document(session: AsyncSession, document_id: str, user_id: str) -> DocumentRow | None:
-    row = await session.scalar(
-        select(DocumentRow).where(DocumentRow.id == document_id, DocumentRow.user_id == user_id)
-    )
+    row = await session.scalar(select(DocumentRow).where(DocumentRow.id == document_id, DocumentRow.user_id == user_id))
     return row
 
 
@@ -109,9 +107,7 @@ async def get_documents_meta(
     """Map document_id -> (title, filename) for citation rendering."""
     if not document_ids:
         return {}
-    stmt = select(DocumentRow.id, DocumentRow.title, DocumentRow.filename).where(
-        DocumentRow.id.in_(document_ids)
-    )
+    stmt = select(DocumentRow.id, DocumentRow.title, DocumentRow.filename).where(DocumentRow.id.in_(document_ids))
     result = await session.execute(stmt)
     return {row.id: (row.title, row.filename) for row in result.all()}
 

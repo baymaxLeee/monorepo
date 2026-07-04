@@ -1,4 +1,3 @@
-// Ported verbatim from chat's agent/artifacts/compiler.ts.
 import { buildArtifactNavScript, buildArtifactRuntimeHead, buildChartHydrationScript } from "./template.js";
 import sanitizeHtml from "sanitize-html";
 import postcss from "postcss";
@@ -135,11 +134,6 @@ export function sanitizeArtifactPart(value: string, scopeId: string): string {
     allowedSchemes: ["http", "https", "data"],
     allowedSchemesByTag: { img: ["data"] },
     allowProtocolRelative: false,
-    // sanitize-html flags `style` as inherently XSS-vulnerable because most
-    // callers pass it through untouched. Here it's safe: sanitizeArtifactCss()
-    // (postcss) already ran over every <style> block above and stripped
-    // @import/url()/expression()/javascript: and scoped every selector, so by
-    // the time sanitize-html sees it the CSS itself has been vetted.
     allowVulnerableTags: true,
     transformTags: {
       a: (_tagName, attributes) => {

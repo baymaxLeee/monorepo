@@ -25,10 +25,6 @@ function safeVideoFilename(prompt: string): string {
 const VIDEO_TARGET_MIN_S = 5;
 const VIDEO_TARGET_MAX_S = 120;
 
-// The video tool needs three providers: the video model (Seedance) renders each
-// scene clip, the text model writes the storyboard (Seedance can't), and an
-// optional image model (Seedream) makes a subject-anchor still for loose
-// character consistency. They are resolved once per run and closed over here.
 export interface VideoToolProviders {
   videoProviderId: string;
   textProviderId: string;

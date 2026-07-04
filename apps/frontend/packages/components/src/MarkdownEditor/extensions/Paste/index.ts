@@ -20,14 +20,12 @@ export const createPasteFlattenExtension = () =>
               const { selection, schema } = state;
               const { $from } = selection;
 
-              // file 优先 文件系统复制/web右键复制/截图
               const imageFiles = getClipboardImageFiles(event);
               if (imageFiles.length > 0) {
                 editor.chain().focus().insertImages(imageFiles).run();
                 return true;
               }
 
-              // tableCell内允许复杂嵌套 交给 PM 处理
               if (isSelectionInsideTableCell(selection)) return false;
 
               if ($from.depth <= 1) {
@@ -38,7 +36,6 @@ export const createPasteFlattenExtension = () =>
                 return true;
               }
 
-              // 嵌套块：跳到顶层块之后新起空 paragraph 再粘贴 slice
               const insertPos = $from.after(1);
               const paragraph = schema.nodes.paragraph.create();
               const tr = state.tr.insert(insertPos, paragraph);

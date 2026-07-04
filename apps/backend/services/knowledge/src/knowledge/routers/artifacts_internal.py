@@ -202,9 +202,6 @@ async def save_plan(generation_id: str, payload: SaveArtifactPlanInput, session:
     row.manifest_json = payload.manifest
     row.total_blocks = len(payload.blocks)
     row.phase = "generating_blocks"
-    # No claim/lease step exists anymore (one workflow run is the one and
-    # only owner of a generation — see artifacts_internal.py module note),
-    # so this is the first point at which we know it's actually executing.
     if row.status == "queued":
         row.status = "running"
         row.started_at = row.started_at or now

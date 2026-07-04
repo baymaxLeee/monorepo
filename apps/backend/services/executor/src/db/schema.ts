@@ -1,9 +1,5 @@
 import { datetime, index, json, mysqlTable, text, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
-// Business record of a durable task. Execution truth (steps, retries, replay)
-// lives in the Workflow World; this table is the authorization/business
-// boundary — "who started this, for what, and is it done" — mirroring the
-// chat service's agent_runs/Redis split (ADR-0013 in chat's docs/ADR).
 export const tasks = mysqlTable(
   "tasks",
   {
@@ -22,8 +18,6 @@ export const tasks = mysqlTable(
     finishedAt: datetime("finished_at", { mode: "date", fsp: 6 }),
   },
   (t) => [
-    // Idempotency: the same (service, ownerRef) must map to one task even if
-    // the caller retries the start request (e.g. chat's write_file toolCallId).
     uniqueIndex("ux_tasks_owner").on(t.ownerService, t.ownerRef),
     index("ix_tasks_workflow_run_id").on(t.workflowRunId),
   ],

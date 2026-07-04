@@ -70,8 +70,6 @@ function Popover({
   );
 }
 
-// forwardRef：嵌套 `asChild` 时（例如外层 TooltipTrigger 包裹本组件），
-// 上层 SlotClone 会向 PopoverTrigger 传 ref，function 组件接不住会触发 React warning。
 const PopoverTrigger = React.forwardRef<
   React.ComponentRef<typeof PopoverPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Trigger>

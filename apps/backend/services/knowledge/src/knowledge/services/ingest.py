@@ -185,9 +185,6 @@ async def stream_ingest_events(
                         },
                     )
                     await worker_session.commit()
-                    # Index into the RAG store so the document is immediately
-                    # retrievable in chat. Best-effort: a missing embedding
-                    # provider or an indexing error must not fail the upload.
                     try:
                         index_result = await index_document(
                             worker_session, document_id=row.id, user_id=current_user.user_id

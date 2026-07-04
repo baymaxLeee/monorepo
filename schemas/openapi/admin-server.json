@@ -3453,6 +3453,11 @@
             "title": "Max Output Tokens",
             "default": 8192
           },
+          "supports_image_input": {
+            "type": "boolean",
+            "title": "Supports Image Input",
+            "default": false
+          },
           "is_default": {
             "type": "boolean",
             "title": "Is Default",
@@ -3640,6 +3645,10 @@
             "type": "integer",
             "title": "Max Output Tokens"
           },
+          "supports_image_input": {
+            "type": "boolean",
+            "title": "Supports Image Input"
+          },
           "is_default": {
             "type": "boolean",
             "title": "Is Default"
@@ -3661,6 +3670,7 @@
           "extra_body",
           "context_window",
           "max_output_tokens",
+          "supports_image_input",
           "is_default",
           "is_enabled"
         ],
@@ -3717,6 +3727,10 @@
             "type": "integer",
             "title": "Max Output Tokens"
           },
+          "supports_image_input": {
+            "type": "boolean",
+            "title": "Supports Image Input"
+          },
           "is_default": {
             "type": "boolean",
             "title": "Is Default"
@@ -3746,6 +3760,7 @@
           "extra_body",
           "context_window",
           "max_output_tokens",
+          "supports_image_input",
           "is_default",
           "is_enabled",
           "created_at",
@@ -4318,6 +4333,17 @@
               }
             ],
             "title": "Max Output Tokens"
+          },
+          "supports_image_input": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supports Image Input"
           },
           "is_default": {
             "anyOf": [

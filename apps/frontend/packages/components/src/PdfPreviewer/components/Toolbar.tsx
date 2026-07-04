@@ -358,7 +358,6 @@ function PageInput({ value, numPages, disabled, onCommit }: PageInputProps) {
   const [draft, setDraft] = useState<string>(String(value));
   const [editing, setEditing] = useState(false);
 
-  // 外部 value 变化时（翻页 / 跳转）同步 draft，同时不打断当前编辑会话
   if (!editing && draft !== String(value)) {
     setDraft(String(value));
   }

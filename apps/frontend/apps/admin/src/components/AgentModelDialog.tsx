@@ -27,8 +27,6 @@ import { useEffect } from "react";
 import { type Control, useForm } from "react-hook-form";
 import { z } from "zod";
 
-// Radix Select forbids an empty-string item value, so "unset" rides a sentinel
-// that maps back to null (clear the slot) on save.
 const NONE = "__none__";
 
 const schema = z.object({

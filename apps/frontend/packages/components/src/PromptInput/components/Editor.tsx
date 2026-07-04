@@ -1,4 +1,4 @@
-import type { Editor, JSONContent } from "@tiptap/core";
+import type { Editor, Extensions, JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { ArrowUp, Plus, Square } from "lucide-react";
@@ -14,7 +14,13 @@ import {
 } from "react";
 import { cn } from "shared";
 import { Button } from "../../shadcn/button";
+import { buildMentionExtension, mentionPluginKey } from "../extensions/mention";
 import { createPromptTokenExtension } from "../extensions/PromptToken";
+import {
+  buildSlashExtension,
+  DEFAULT_SLASH_COMMANDS,
+  slashPluginKey,
+} from "../extensions/slash";
 import type {
   PromptInputApi,
   PromptInputProps,
@@ -99,6 +105,9 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
       renderToken,
       toolbarRender,
       footerRender,
+      mentionSource,
+      slashCommands,
+      onSlashCommand,
     } = props;
     const filesRef = useRef<Record<string, File>>({});
     const objectUrlsRef = useRef<Record<string, string>>({});
@@ -107,13 +116,20 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
     const onChangeRef = useRef(onChange);
     const onFilesAddedRef = useRef(onFilesAdded);
     const renderTokenRef = useRef(renderToken);
+    const mentionSourceRef = useRef(mentionSource);
+    const slashCommandsRef = useRef(slashCommands);
+    const onSlashCommandRef = useRef(onSlashCommand);
+    const apiRef = useRef<PromptInputApi | null>(null);
 
     onChangeRef.current = onChange;
     onFilesAddedRef.current = onFilesAdded;
     renderTokenRef.current = renderToken;
+    mentionSourceRef.current = mentionSource;
+    slashCommandsRef.current = slashCommands;
+    onSlashCommandRef.current = onSlashCommand;
 
-    const extensions = useMemo(
-      () => [
+    const extensions = useMemo<Extensions>(() => {
+      const list: Extensions = [
         StarterKit.configure({
           blockquote: false,
           bulletList: false,
@@ -133,9 +149,26 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
             if (file) onFilesAddedRef.current?.([{ token, file }]);
           },
         }),
-      ],
-      [],
-    );
+      ];
+      if (mentionSource) {
+        list.push(
+          buildMentionExtension(
+            (query, signal) => mentionSourceRef.current?.(query, signal) ?? [],
+          ),
+        );
+      }
+      if (slashCommands || onSlashCommand) {
+        list.push(
+          buildSlashExtension({
+            getSource: () => slashCommandsRef.current ?? DEFAULT_SLASH_COMMANDS,
+            getApi: () => apiRef.current,
+            onCommand: (command, currentApi) =>
+              onSlashCommandRef.current?.(command, currentApi),
+          }),
+        );
+      }
+      return list;
+    }, []);
 
     const emitChange = useCallback((currentEditor: Editor) => {
       if (currentEditor.isDestroyed) return;
@@ -279,6 +312,10 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
             return true;
           },
           handleKeyDown: (view, event) => {
+            const suggestionOpen =
+              Boolean(mentionPluginKey.getState(view.state)?.active) ||
+              Boolean(slashPluginKey.getState(view.state)?.active);
+            if (suggestionOpen) return false;
             if (
               event.key === "Enter" &&
               !event.shiftKey &&
@@ -399,6 +436,8 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
       }),
       [editor, emitChange, getValue, insertToken, setValue, updateToken],
     );
+
+    apiRef.current = api;
 
     useImperativeHandle(ref, () => api, [api]);
 

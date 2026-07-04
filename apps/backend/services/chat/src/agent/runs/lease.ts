@@ -87,12 +87,6 @@ export async function releaseRun(runId: string): Promise<void> {
   await getDb().delete(conversationRunLeases).where(eq(conversationRunLeases.runId, runId));
 }
 
-// Stop aborts the model/tool-loop turn. write_file/edit_file now foreground-
-// block on their executor task (ADR-0015 revision), so aborting the turn also
-// aborts the tool's abortSignal, and the tool itself calls the executor's
-// cancel endpoint before unwinding — the in-flight artifact generation is
-// abandoned with the turn, matching how Cursor's file write stops when you hit
-// Stop. There is no orphaned background task to reach into afterwards.
 export async function cancelRun(conversationId: string, runId: string): Promise<boolean> {
   const run = await getAgentRunById(runId);
   if (!run || run.conversationId !== conversationId) return false;
@@ -101,20 +95,6 @@ export async function cancelRun(conversationId: string, runId: string): Promise<
   return true;
 }
 
-// Boot-time cleanup for runs orphaned by a process crash/restart mid-stream.
-// A fresh process starts with empty `controllers`/`heartbeats` maps, so any
-// run still `running`/`cancel_requested` in MySQL is unrecoverable — its
-// heartbeat stopped renewing `conversation_run_leases` the moment the old
-// process died, but nothing else ever notices on its own:
-// - The Redis "active" flag (agent/streams/service.ts) is only cleared by the
-//   dead process's own `finally` block, so it keeps telling
-//   `GET /:conversationId/agents/run/stream` the run is still generating for
-//   up to an hour (its TTL is scoped for legitimate reconnect gaps, not
-//   liveness) — every refresh just reattaches to the same stuck belief.
-// - `conversation_run_leases` rows are only reaped lazily, inside
-//   `acquireRunLease`, the next time that conversation tries to start a run.
-// Call this once, before the server starts accepting traffic, so neither gap
-// can strand a conversation in "generating" indefinitely.
 export async function reconcileOrphanedRuns(): Promise<void> {
   const orphaned = await listOrphanedRuns();
   if (orphaned.length === 0) return;
@@ -126,9 +106,6 @@ export async function reconcileOrphanedRuns(): Promise<void> {
       ),
     ),
   );
-  // Every lease's heartbeat setInterval died with the old process, so none of
-  // them can still be legitimate — drop them now instead of waiting for each
-  // row's individual expiresAt.
   await getDb().delete(conversationRunLeases);
   console.info(`[chat-agent] reconciled ${orphaned.length} orphaned run(s) on boot`);
 }

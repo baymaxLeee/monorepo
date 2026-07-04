@@ -1,8 +1,5 @@
 """Bot business service."""
 
-# `async def list(self)` shadows builtin `list` in this class. Delay
-# annotation evaluation so future `foo: list[str]` annotations don't blow
-# up at import time. See intentions.py for the full story.
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -98,9 +95,6 @@ class BotService:
             values["name"] = payload.name
         if "status" in fields_set and payload.status is not None:
             values["status"] = payload.status
-        # Each model slot may be assigned a provider of the matching kind, or
-        # cleared with an explicit null. Validate ownership + kind so an agent
-        # can never point a slot at another user's or a wrong-kind provider.
         for field, expected_kind in (
             ("text_provider_id", PROVIDER_KIND_CHAT),
             ("image_provider_id", PROVIDER_KIND_IMAGE),
@@ -143,8 +137,6 @@ class BotService:
             self._current_user.user_id,
             self._current_user.is_admin,
         )
-        # A disabled or since-removed provider resolves to null so a consumer
-        # simply treats that capability as unavailable rather than erroring.
         if provider is None or not provider.is_enabled:
             return None
         return provider_to_internal_schema(provider)

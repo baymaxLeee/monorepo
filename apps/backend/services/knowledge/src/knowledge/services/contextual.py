@@ -15,7 +15,6 @@ from knowledge.services.admin_client import ProviderSnapshot
 from openai import AsyncOpenAI
 
 _CONCURRENCY = 5
-# Cap how much of the document is shown per call to bound token cost.
 _DOC_BUDGET_CHARS = 8000
 
 _PROMPT = (

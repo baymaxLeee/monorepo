@@ -118,8 +118,3 @@ export async function updateArtifact(input: {
   }
 }
 
-// Artifact *generation* lifecycle (reserve/plan/save-block/publish/claim/
-// renew/cancel/fail) moved to the executor service, which now owns calling
-// these APIs directly via @backend/transport-ts. Chat only ever reads
-// finished documents (above) or dispatches a new generation task (see
-// clients/executor.ts).

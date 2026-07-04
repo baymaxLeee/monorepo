@@ -158,12 +158,6 @@ export type ArtifactPreviewKind =
   | "audio"
   | "pdf";
 
-// Compiler-trusted artifacts (write_file/edit_file output) embed their own
-// runtime head — CSP that allows the pinned ECharts CDN plus the compiler's
-// trusted inline hydration/nav/error-boundary scripts — marked with this
-// attribute (see chat's buildArtifactRuntimeHead). Only fall back to a
-// script-blocking CSP for content that lacks that marker, e.g. arbitrary
-// uploaded HTML documents that never passed through the artifact compiler.
 const TRUSTED_ARTIFACT_RUNTIME_MARKER = 'data-chat-artifact-runtime="true"';
 
 const UNTRUSTED_HTML_PREVIEW_CSP = [
@@ -278,10 +272,6 @@ export function ArtifactPreview({
         ) : resolvedKind === "html" ? (
           <iframe
             title={title}
-            // Opaque origin (no allow-same-origin): scripts can run — required
-            // for the compiler's trusted chart-hydration/nav/error-boundary
-            // scripts (see ADR-0012) — but the frame can never read parent
-            // cookies/localStorage, navigate the top window, or open popups.
             sandbox="allow-scripts"
             referrerPolicy="no-referrer"
             src={src}

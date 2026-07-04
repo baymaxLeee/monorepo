@@ -33,7 +33,6 @@ function lazyPage(loader: RouteLoader): RouteObject["lazy"] {
   };
 }
 
-// Cache lazy remote components by module id so navigation doesn't recreate them.
 const remoteComponents = new Map<string, ComponentType>();
 
 function getRemoteComponent(app: AppEntry): ComponentType {
@@ -62,8 +61,6 @@ function RemoteLoading() {
   );
 }
 
-// Resolves /platform/:appSlug/* against the entitled apps. A slug the user may
-// not see is simply absent from the store → redirect home (server is the SoT).
 function RemoteHost() {
   const { appSlug } = useParams();
   const { apps, loaded } = useAppsStore(
@@ -156,7 +153,6 @@ export const routes: RouteObject[] = [
             path: "observability",
             lazy: lazyPage(() => import("../pages/observability")),
           },
-          // Dynamic remote mount; static siblings above out-rank this.
           {
             path: ":appSlug/*",
             element: <RemoteHost />,

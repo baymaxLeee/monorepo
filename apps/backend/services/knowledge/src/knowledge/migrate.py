@@ -53,10 +53,7 @@ async def migrate() -> None:
     await _ensure_database(database)
 
     migrations = sorted(
-        (
-            (_version_key(path.stem), path.stem, path)
-            for path in _VERSIONS_DIR.glob("v*.sql")
-        ),
+        ((_version_key(path.stem), path.stem, path) for path in _VERSIONS_DIR.glob("v*.sql")),
         key=lambda item: item[0],
     )
     if not migrations:
@@ -82,9 +79,7 @@ async def migrate() -> None:
         current_key = _version_key(str(current))
         latest_key, latest_version, _ = migrations[-1]
         if current_key > latest_key:
-            raise RuntimeError(
-                f"database migration version {current} is newer than local {latest_version}"
-            )
+            raise RuntimeError(f"database migration version {current} is newer than local {latest_version}")
 
         for version_key, version, path in migrations:
             if version_key <= current_key:

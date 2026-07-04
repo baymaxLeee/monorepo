@@ -5,10 +5,6 @@ export interface TaskProgress {
   total: number;
 }
 
-// Reverse-direction notification: executor -> chat. Chat owns the durable task
-// (write_file/edit_file dispatched it), so it is the one that pushes live
-// progress + terminal state to the browser over its resumable stream. Executor
-// only fires these; it does not know how chat delivers them.
 export interface TaskEventNotification {
   taskId: string;
   conversationId: string;

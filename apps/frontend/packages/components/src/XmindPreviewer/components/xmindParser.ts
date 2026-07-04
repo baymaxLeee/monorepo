@@ -334,7 +334,6 @@ const transformOldXmind = async (
   return newTree;
 };
 
-// 直接转换为最新版本的xmind文件 2023.09.11172
 const transformToXmind = async (
   data: AnyRecord,
   name: string,
@@ -375,7 +374,6 @@ const transformToXmind = async (
       });
     }
     handleNodeImageToXmind(node, newNode, waitLoadImageList, imageList);
-    // 暂时不考虑样式
     if (isRoot) {
       newData.class = "topic";
       newNode.id = id;

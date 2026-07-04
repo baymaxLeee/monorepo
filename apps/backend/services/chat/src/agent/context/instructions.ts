@@ -60,14 +60,6 @@ function modeInstructions(mode: AgentMode): string {
       ].join("\n");
 }
 
-// Ground the model in the current date so freshness-sensitive tools (web_search)
-// don't fall back to the model's training-cutoff year. Mirrors Claude Code's
-// runtime "Today's date is …" injection and Cursor's <user_info> date. This is
-// deliberately emitted as the LAST instruction section: the static prefix
-// (BASE_INSTRUCTIONS + mode) stays prompt-cache stable while this daily-volatile
-// line sits in the dynamic tail (Claude Code's cache-boundary / Codex's
-// "static first, dynamic last"). The date is the single source of truth — the
-// web_search description references it generically instead of hardcoding a year.
 function buildEnvironmentSection(now: Date = new Date()): string {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");

@@ -121,7 +121,6 @@ export const createTableCellExtension = () => {
               return buildDecorations(state);
             },
             apply(tr, value, oldState, newState) {
-              // Reuse cached decorations when neither doc nor selection changed
               if (!tr.docChanged && oldState.selection.eq(newState.selection)) {
                 return value;
               }

@@ -6,8 +6,6 @@ export const fileToolContextSchema = z.object({
 });
 export type FileToolContext = z.infer<typeof fileToolContextSchema>;
 
-// Knowledge-base search is user-scoped (the whole KB, not just this
-// conversation's attachments), so it only needs the userId.
 export const knowledgeSearchToolContextSchema = z.object({
   userId: z.string(),
 });
@@ -22,9 +20,6 @@ export type MemoryToolContext = z.infer<typeof memoryToolContextSchema>;
 export const planToolContextSchema = fileToolContextSchema;
 export type PlanToolContext = FileToolContext;
 
-// Run-scoped ids only. The agent's providers (text/image/video) are resolved
-// once at the run entry and injected into the tool factories as closures, so no
-// tool re-fetches a provider or needs a provider id in its context.
 export const artifactToolContextSchema = z.object({
   runId: z.string(),
   userId: z.string(),

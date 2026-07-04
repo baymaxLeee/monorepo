@@ -6,10 +6,6 @@ import {
   encodeSseData,
 } from "./service.js";
 
-// One place that knows the on-the-wire shape of a background task's progress.
-// Both the /internal/tasks/notify writer and the GET task stream seeder build
-// frames through here so the browser only ever sees one native UIMessage data
-// part type ("data-artifact-progress"), reconciled by a stable id.
 export const ARTIFACT_PROGRESS_DATA_TYPE = "artifact-progress";
 
 export type TaskStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
@@ -63,8 +59,6 @@ function toProgressData(input: TaskEventInput): ArtifactProgressData {
 }
 
 function progressChunk(data: ArtifactProgressData): UIMessageChunk {
-  // A single stable id means every update replaces the prior card state instead
-  // of appending a new part (AI SDK data-part id reconciliation).
   return {
     type: `data-${ARTIFACT_PROGRESS_DATA_TYPE}`,
     id: `progress-${data.taskId}`,
@@ -72,8 +66,6 @@ function progressChunk(data: ArtifactProgressData): UIMessageChunk {
   } as UIMessageChunk;
 }
 
-// Called by the notify route on every executor push. Appends one data frame and,
-// on a terminal event, the [DONE] sentinel that ends every replay.
 export async function publishArtifactTaskEvent(input: TaskEventInput): Promise<void> {
   const data = toProgressData(input);
   await appendTaskSseFrame(input.taskId, encodeSseData(progressChunk(data)));
@@ -82,9 +74,6 @@ export async function publishArtifactTaskEvent(input: TaskEventInput): Promise<v
   }
 }
 
-// Called by the GET task stream on connect: a `start` frame plus the current
-// snapshot so a late (or post-completion) subscriber renders immediately,
-// without polling. `terminal` tells the route whether to close right away.
 export function taskSeedFrames(input: TaskEventInput): { frames: string[]; terminal: boolean } {
   const data = toProgressData(input);
   const start: UIMessageChunk = { type: "start", messageId: `task-${input.taskId}` };

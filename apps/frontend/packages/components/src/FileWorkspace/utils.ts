@@ -81,7 +81,6 @@ export function diffTree(
   const oldMap = buildNodeMap(oldTree);
   const newMap = buildNodeMap(newTree);
 
-  // DELETE: 只报告顶层删除（父节点也被删除时跳过子节点）
   const deletedIds = new Set<string>();
   for (const [id] of oldMap) {
     if (!newMap.has(id)) deletedIds.add(id);
@@ -101,7 +100,6 @@ export function diffTree(
     }
   }
 
-  // CREATE: 所有新增节点，按深度排序（父先于子）
   const created: FileNode[] = [];
   for (const [id, node] of newMap) {
     if (!oldMap.has(id)) created.push(node);
@@ -129,7 +127,6 @@ export function diffTree(
     });
   }
 
-  // RENAME / MOVE / UPDATE
   for (const [id, newNode] of newMap) {
     const oldNode = oldMap.get(id);
     if (!oldNode) continue;

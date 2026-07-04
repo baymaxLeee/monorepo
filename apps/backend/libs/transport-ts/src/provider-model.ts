@@ -1,7 +1,3 @@
-// AI SDK LanguageModelV4 adapter over an admin-configured OpenAI-compatible
-// provider. Shared by chat (main tool-loop) and executor (html-artifact
-// blocks) — both call the exact same admin-owned provider snapshot shape,
-// so this was reviewed out of per-service duplication (see ADR-0015).
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type {
   ImageModelV4,
@@ -12,15 +8,6 @@ import type {
 } from "@ai-sdk/provider";
 import { secureProviderFetch } from "./provider-url.js";
 
-// OpenAI-compatible providers that lack native json_schema structured output
-// fall back to `response_format: { type: "json_object" }`, which HARD-REJECTS
-// (HTTP 400) any request whose messages never contain the literal word "json"
-// (observed on Volcengine Ark's deepseek / doubao chat models). Every caller
-// that pairs `generateText` + `Output.object(...)` against an admin provider
-// MUST include this line in its `instructions` (or prompt), otherwise the call
-// 400s on the first token and the caller silently drops to its fallback. Keep
-// it here — next to the adapter that owns that json_object behavior — so it is
-// a single source of truth, not re-invented per callsite.
 export const JSON_OBJECT_MODE_INSTRUCTION =
   "Return your entire response as a single JSON object that matches the required schema.";
 
@@ -113,10 +100,6 @@ function providerBodyOptions(
     body.enable_thinking = false;
   }
 
-  // parallel_tool_calls is not in the adapter option schema nor our reserved
-  // keys, so an admin value in extraBody passes through verbatim and wins.
-  // Only fall back to our code default when the path opts in (the tool-using
-  // chat model) and the admin left it unset; tool-less paths never send it.
   if (options.parallelToolCalls != null && body.parallel_tool_calls == null) {
     body.parallel_tool_calls = options.parallelToolCalls;
   }
@@ -198,16 +181,6 @@ export interface ImageProvider {
   apiKey: string;
 }
 
-// Image generation over an admin-configured OpenAI-compatible provider
-// (e.g. Volcengine Ark Seedream). The OpenAI-compatible image model always
-// requests `response_format: "b64_json"` and parses it, so `generateImage`
-// yields raw bytes regardless of the provider's configured default — those
-// bytes get copied into Knowledge, never a temporary provider URL (ADR-0014).
-//
-// `providerOptionsKey` is the key callers pass Ark-specific request-body fields
-// under (size, watermark, ...) via `generateImage({ providerOptions })`. It is
-// dot-free on purpose: the image model derives its options key as
-// `provider.split(".")[0]`.
 export function createProviderImageModel(provider: ImageProvider): {
   model: ImageModelV4;
   providerOptionsKey: string;

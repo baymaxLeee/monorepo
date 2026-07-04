@@ -1,7 +1,3 @@
-// HTML block sanitization/compilation moved to the executor service. What
-// remains here is read-only inspection of an *already published* HTML
-// artifact, used by the run_command tool (validate_html / inspect_layout) —
-// that never needs durability, so it stays a plain chat-local function.
 export type ArtifactValidation = {
   ok: boolean;
   structural_errors: string[];
@@ -18,9 +14,6 @@ export type ArtifactInspection = {
   total_chars: number;
 };
 
-// Correctness gate over a compiled artifact: things that make the document
-// objectively wrong (unparseable shell, unsafe inline JS, dangling anchors).
-// Layout/visual issues are out of scope — those are for the human preview.
 export function validateArtifactHtml(html: string): ArtifactValidation {
   const brokenInternalLinks = findBrokenInternalLinks(html);
   const structuralErrors = [
@@ -38,9 +31,6 @@ export function validateArtifactHtml(html: string): ArtifactValidation {
   };
 }
 
-// Layout/content signal over a compiled artifact. Surfaces the compiler's own
-// degradation markers (error sections, invalid charts) so a reviewer or the
-// model can see which pages need a follow-up edit instead of guessing.
 export function inspectArtifactHtml(html: string): ArtifactInspection {
   const pages = (html.match(/\bclass="[^"]*artifact-block\b/g) ?? []).length;
   const charts = (html.match(/\bdata-chart-option=/g) ?? []).length;

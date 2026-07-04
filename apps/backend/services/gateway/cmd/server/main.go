@@ -41,8 +41,6 @@ func main() {
 	r.Use(middleware.RequestLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.BodyLimit(cfg.MaxRequestBodyBytes))
-	// dev: also accept any http://localhost:* / 127.0.0.1:* Origin so port
-	// changes don't break the SPA. prod: strict allowlist only.
 	r.Use(middleware.CORS(cfg.AllowedOrigins, !cfg.IsProduction()))
 	r.Use(middleware.IdentityPropagation(cfg.AccessTokenSecret, cfg.PublicPathPrefixes, cfg.OptionalAuthPathPrefixes))
 

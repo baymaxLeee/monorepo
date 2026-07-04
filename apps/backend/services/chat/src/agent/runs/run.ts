@@ -48,20 +48,12 @@ import {
 } from "../streams/service.js";
 
 export interface RunAgentInput {
-  // The chat model is the `provider` argument (agent's text provider). These
-  // are the agent's other resolved capabilities, passed through from the run
-  // entry: the image snapshot is used inline by generate_image; the video
-  // provider id is passed by reference to the executor video task.
   imageProvider?: ProviderSnapshot | null;
   videoProviderId?: string | null;
-  documentIds?: string[];
 }
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
-// The placeholder title createConversation() stamps on a new conversation. Only
-// an auto-named (or blank) conversation is eligible for title generation, so a
-// title the user typed themselves is never overwritten.
 const DEFAULT_CONVERSATION_TITLE = "新对话";
 
 function isAutoNamableTitle(title: string): boolean {
@@ -73,10 +65,6 @@ function persistedMessageId(id: string): string {
   return id.length <= 32 ? id : createHash("sha256").update(id).digest("hex").slice(0, 32);
 }
 
-// The reason a tool/stream failed must reach both the model (next turn, via
-// convertToModelMessages) and the user. The AI SDK routes every thrown tool
-// error and stream error through this string, so we surface the real cause
-// instead of a generic placeholder. Aborts stay quiet; nothing else is hidden.
 function describeStreamError(error: unknown): string {
   if (
     (error instanceof Error && error.name === "AbortError") ||
@@ -182,15 +170,13 @@ export async function createAgentRunResponse(
   if (latestMessage.role !== "user" && latestMessage.role !== "assistant") {
     throw new RequestError("the last chat message must be a user message or completed client tool call");
   }
-  // A user turn carries the prompt directly. An assistant continuation (a
-  // completed client tool such as ask_user) carries no user text in this
-  // single-message payload, so the prompt is recovered from history below.
   const latestUser = [...uiMessages].reverse().find((message) => message.role === "user");
   if (latestUser && hasUntrustedFilePart(latestUser.parts)) {
     throw new RequestError("file attachments must reference a conversation document");
   }
-  const messageDocumentIds = latestUser ? referencedDocumentIds(latestUser) : [];
-  const requestedDocumentIds = [...new Set([...(input.documentIds ?? []), ...messageDocumentIds])];
+  const requestedDocumentIds = latestUser
+    ? [...new Set(referencedDocumentIds(latestUser))]
+    : [];
   if (latestMessage.role === "user") {
     const prompt = latestUser ? textFromUiMessage(latestUser) : "";
     if (!prompt.trim() && !requestedDocumentIds.length) {
@@ -222,8 +208,6 @@ export async function createAgentRunResponse(
     throw error;
   }
 
-  // Register before context/provider setup so a page refreshed before the POST
-  // response headers arrive can already attach and wait for the first chunk.
   let resumable = false;
   try {
     await activateAgentStream(conversation.id, runId);
@@ -245,11 +229,6 @@ export async function createAgentRunResponse(
       updateConversationProvider(conversation.id, provider.id, provider.model),
     ]);
 
-    // Auto-name the conversation from its opening user turn (industry standard:
-    // the first message becomes the sidebar title). Gated to a brand-new,
-    // still-auto-named conversation so we never clobber a user-set title or
-    // re-run on every turn. The generation itself streams in below, off the
-    // hot path.
     const firstUserText = latestUser ? textFromUiMessage(latestUser) : "";
     const shouldGenerateTitle =
       latestMessage.role === "user" &&
@@ -272,9 +251,6 @@ export async function createAgentRunResponse(
         ? persistedMessages.map(persistedMessageToUiMessage)
         : [...persistedMessages.map(persistedMessageToUiMessage), { ...latestMessage, id: storedMessageId }];
     } else {
-      // Client tools (for example ask_user) complete on the browser and trigger
-      // a fresh ToolLoopAgent request. Persist that completed tool output and
-      // use the validated UI message history as the continuation context.
       const historyMessages = persistedMessages.map(persistedMessageToUiMessage);
       const continuationIndex = historyMessages.findIndex(
         (message) => message.id === latestMessage.id && message.role === "assistant",
@@ -292,15 +268,10 @@ export async function createAgentRunResponse(
       modelUiMessages[continuationIndex] = latestMessage;
     }
 
-    // Memory extraction needs the user's intent text. A user turn has it directly;
-    // a client-tool continuation recovers it from the most recent user message in
-    // the assembled context.
     const memorySourceUser =
       latestUser ?? [...modelUiMessages].reverse().find((message) => message.role === "user");
     const memorySourceText = memorySourceUser ? textFromUiMessage(memorySourceUser) : "";
 
-    // Browser navigation only disconnects an SSE subscriber. Explicit Stop is
-    // propagated through the run cancellation endpoint and this controller.
     const runSignal = registerRunController(runId);
     const mode = conversation.agentMode === "plan" ? "plan" : "normal";
     const projected = await projectModelContext({
@@ -310,6 +281,7 @@ export async function createAgentRunResponse(
       activePlanDocumentId: conversation.activePlanDocumentId,
       contextWindow: provider.contextWindow,
       maxOutputTokens: provider.maxOutputTokens,
+      supportsImageInput: provider.supportsImageInput,
       messages: await validateUIMessages<AnyUIMessage>({ messages: modelUiMessages }),
     });
     const modelMessages = projected.messages;
@@ -404,12 +376,6 @@ export async function createAgentRunResponse(
         }
       },
     });
-    // On a first turn, wrap the agent stream so a generated title rides the same
-    // SSE channel as a transient `data-conversation-title` part: the client
-    // updates the header + sidebar live (ChatGPT-style) without a refetch, and
-    // because it is transient it is never persisted into the message. Title
-    // generation runs concurrently with the agent — it never delays the first
-    // token — and any failure is swallowed so the chat is unaffected.
     const uiStream = shouldGenerateTitle
       ? createUIMessageStream<AnyUIMessage>({
           execute: async ({ writer }) => {
@@ -429,8 +395,6 @@ export async function createAgentRunResponse(
               console.error("[chat-agent] conversation title update failed (non-fatal)", error),
             );
             writer.merge(agentUiStream);
-            // Keep the stream open until the title write lands, so a very short
-            // agent reply can't close the channel before the title arrives.
             await titlePromise;
           },
           onError: describeStreamError,

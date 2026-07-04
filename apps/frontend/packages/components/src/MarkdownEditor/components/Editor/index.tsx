@@ -150,13 +150,13 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
         createImageExtension({ onUpload, imageLoader }),
         TextStyle,
         Code.extend({
-          excludes: contentType === "markdown" ? "_" : "", // markdown 模式下，code 不允许与其他 mark 共存，避免冲突,
+          excludes: contentType === "markdown" ? "_" : "",
         }),
         Color.configure({
           types: [TextStyle.name],
         }),
         Highlight.configure({ multicolor: true }).extend({
-          priority: 10000, // 显著高于 TextStyle (100)，确保 mark 包裹 span
+          priority: 10000,
           renderHTML({ HTMLAttributes }) {
             return ["mark", HTMLAttributes, 0];
           },
@@ -178,8 +178,6 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
         createPasteFlattenExtension(),
         ...stableExtensions,
       ],
-      // 故意只依赖 [contentType, editable, stableExtensions]：onUpload / imageLoader
-      // 通过 ref / closure 捕获，避免父组件每次传新回调都重建 editor extensions
       [contentType, editable, stableExtensions],
     );
 
@@ -234,12 +232,10 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
       [editor],
     );
 
-    // 父级 effect 在 EditorContent 挂载 view 之后执行，确保菜单组件渲染时 view 已就绪
     useEffect(() => {
       setViewReady(!!editor);
     }, [editor]);
 
-    // SSE 流式模式自动滚动：监听内容高度变化，用户在底部附近时自动滚动
     useEffect(() => {
       if (!autoScrollToBottom) return;
 
@@ -292,7 +288,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
         typeof normalizedValue !== "string" ||
         normalizedValue === lastSyncValueRef.current
       )
-        return; // 避免不必要的 setContent 调用
+        return;
       if (externalSyncFrameRef.current !== null) {
         cancelAnimationFrame(externalSyncFrameRef.current);
         externalSyncFrameRef.current = null;

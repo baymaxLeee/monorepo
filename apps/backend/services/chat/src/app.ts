@@ -19,9 +19,6 @@ export function createApp() {
     return c.json(body, status as 400);
   });
 
-  // Service-to-service endpoints (X-Internal-Token). Mounted before the browser
-  // API and with its own auth so executor's task notifications never touch the
-  // per-user gateway auth path.
   app.route("/internal", internalRoutes);
 
   const api = new Hono();

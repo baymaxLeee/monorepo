@@ -16,11 +16,6 @@ import { Input } from "../../shadcn/input";
 import { ChangeAction, type FileChange, type FileNode } from "../interface";
 import { isDescendant, updateTree } from "../utils";
 
-/* ────────────── style tokens ──────────────
- * 提取为本地常量，避免 className 拼接得太长，便于一处修改样式。
- * 颜色魔法值（#1677ff / #e8f3ff / #f3c623 等）来自原 file-workspace 视觉系统，
- * 本仓 design tokens 未直接暴露，先以 arbitrary value 保真还原。
- */
 const NODE_BASE = "flex cursor-default items-center text-sm transition-colors";
 const TREE_NODE_CLS =
   "h-8 gap-2 whitespace-nowrap pr-2 text-foreground hover:bg-muted";
@@ -323,7 +318,6 @@ export const FileTree: React.FC<FileTreeProps> = ({
       const srcParentId = nodeMap.get(srcId)?.parent_id ?? null;
       if (srcParentId === targetId) return;
 
-      // 防止把文件夹拖进自己的子目录（循环引用）
       const src = nodeMap.get(srcId);
       if (src?.type === "directory" && targetId !== null) {
         if (isDescendant(src, targetId)) return;

@@ -19,13 +19,14 @@ export interface ProviderSnapshot {
   extraBody: Record<string, unknown>;
   contextWindow: number;
   maxOutputTokens: number;
+  // Vision capability of the chat model. Only when true does the chat context
+  // inline user-uploaded images as model file parts; otherwise images degrade
+  // to a text document reference (see context/projector.ts).
+  supportsImageInput: boolean;
   isDefault: boolean;
   isEnabled: boolean;
 }
 
-// An agent's per-capability providers, resolved once at the chat run entry and
-// passed through to tools/executor from there (see clients/admin getResolvedAgent
-// and ADR-0014). Any capability the agent has not configured is null.
 export interface ResolvedAgentProviders {
   agentId: string;
   agentName: string;
@@ -54,6 +55,7 @@ function toSnapshot(data: AdminProviderSnapshot): ProviderSnapshot {
     extraBody: data.extra_body ?? {},
     contextWindow: data.context_window,
     maxOutputTokens: data.max_output_tokens,
+    supportsImageInput: data.supports_image_input ?? false,
     isDefault: data.is_default,
     isEnabled: data.is_enabled,
   };
@@ -87,9 +89,6 @@ export async function getProvider(
   return assertSnapshotUrl(toSnapshot(data));
 }
 
-// Resolve an agent to its text/image/video provider snapshots in a single admin
-// call. This is the ONLY provider-resolution point for a run: the resulting
-// snapshots are passed through to inline tools and (as ids) to executor tasks.
 export async function getAgent(userId: string, agentId: string): Promise<ResolvedAgentProviders> {
   let data: AdminResolvedAgent;
   try {

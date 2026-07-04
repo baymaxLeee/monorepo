@@ -6,7 +6,6 @@ apps). Writes are admin-only — this catalog governs what every user can reach,
 so a normal user must never mutate it.
 """
 
-# `async def list(self)` shadows builtin `list`; defer annotation evaluation.
 from __future__ import annotations
 
 from datetime import UTC, datetime

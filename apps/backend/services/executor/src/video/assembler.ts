@@ -9,8 +9,6 @@ import { getSettings } from "../config.js";
 
 const TARGET_W = 720;
 const TARGET_H = 1280;
-// Seedance renders at 24fps; normalize to the SAME rate so concat re-timing does
-// not insert duplicate frames (forcing 30 made every clip stutter with repeats).
 const TARGET_FPS = 24;
 
 const NORMALIZE_VF = [

@@ -65,8 +65,6 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
 
   async approve(id) {
     await approveMemoryCandidate(id);
-    // Approval may supersede a different active memory, so revalidate both
-    // collections instead of attempting an incomplete optimistic merge.
     await get().refresh();
   },
 

@@ -15,8 +15,6 @@ class Bot(BaseModel):
     username: str
     name: str
     status: BotStatus
-    # Model providers the agent uses per capability (model_providers.id), or
-    # null when that capability is not configured.
     text_provider_id: str | None = None
     image_provider_id: str | None = None
     video_provider_id: str | None = None

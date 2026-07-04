@@ -16,7 +16,11 @@ import {
   FormMessage,
 } from "../../../shadcn/form";
 import { Input } from "../../../shadcn/input";
-import { Popover, PopoverAnchor, PopoverContent } from "../../../shadcn/popover";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from "../../../shadcn/popover";
 import { Tooltip, TooltipTrigger } from "../../../shadcn/tooltip";
 import { URL_REGEX } from "../../constants";
 import { getFullUrl, getMountedEditorDom } from "../../utils";
@@ -39,8 +43,6 @@ const ICON_BTN_CLS =
 export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
   const [mode, setMode] = useState<"preview" | "edit">("preview");
   const form = useForm<LinkFormValues>({
-    // Zod 4 schema 与 @hookform/resolvers 的多个重载存在类型推断歧义，
-    // 这里用 `as never` 让 TS 跳过重载选择 —— 运行时完全正确。
     resolver: zodResolver(linkSchema as never),
     mode: "onChange",
     defaultValues: { text: "", href: "" },

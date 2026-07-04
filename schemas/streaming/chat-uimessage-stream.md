@@ -108,10 +108,13 @@ Two separate streams carry these:
   `tool-*`, `file`, and `source-*` (`sendSources: true`). Do not wrap any of
   these in `data-*`.
 - Known non-redundant overlaps to leave alone:
-  - `data-plan-execution` also passes `document_id` via the request body
-    (`document_ids`). Different lifetimes on purpose: the body drives *this*
-    run's document loading; the part *persists* the plan reference into history
-    for future turns. Not a protocol redundancy.
+  - Document references (uploaded files and a plan hand-off) travel ONLY as
+    message parts: a `file` part whose URL carries the document id, or a
+    `data-plan-execution` part. `agent/context/file-parts.ts`
+    (`referencedDocumentIdsFromParts`) extracts them for *this* run's document
+    loading, and the same parts *persist* the references into history for future
+    turns. There is no separate `document_ids` request field (removed) — one
+    channel, two roles.
   - The artifact tool returns coarse control-flow (`task_id` → `document_id`) as
     **tool output**, while `data-artifact-progress` streams fine per-block
     progress. Deliberately separate granularities — do not collapse them.

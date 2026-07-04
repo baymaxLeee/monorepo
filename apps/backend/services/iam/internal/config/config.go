@@ -10,14 +10,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Environment is the deployment environment name. Production triggers
-// stricter validation (no dev defaults allowed for secrets).
-//
-// `single-vps` is a special public-internet demo profile: same-origin behind
-// nginx on a single box, plain HTTP, IP-only URL. It skips the production
-// strict-cookie/strict-CORS/strict-secret-rotation requirements that only
-// make sense for a cross-origin HTTPS deployment, but still runs against a
-// real MySQL and seeds demo data.
 const (
 	EnvDevelopment = "development"
 	EnvStaging     = "staging"
@@ -26,8 +18,6 @@ const (
 )
 
 const (
-	// devAccessTokenSecret is intentionally the placeholder used in dev.
-	// In production we refuse to start if ACCESS_TOKEN_SECRET equals it.
 	devAccessTokenSecret = "dev-only-change-me"
 	devMysqlPassword     = "dev"
 )
@@ -50,11 +40,8 @@ type Config struct {
 	SuperAdminDisplayName string
 }
 
-// IsProduction reports whether the service should apply production policy
-// (skip demo seeding, strict cookie attrs, etc.).
 func (c Config) IsProduction() bool { return c.Environment == EnvProduction }
 
-// IsSingleVPS reports the special single-box public-demo profile.
 func (c Config) IsSingleVPS() bool { return c.Environment == EnvSingleVPS }
 
 func Load() (Config, error) {
@@ -107,15 +94,10 @@ func (c Config) validate(mysqlHost, mysqlPassword string) error {
 	if mysqlHost == "localhost" || mysqlHost == "127.0.0.1" {
 		missing = append(missing, "MYSQL_HOST")
 	}
-	// Cross-origin SPA (Cloudflare frontend → backend) requires SameSite=None
-	// + Secure. We enforce Secure here; SameSite is validated at the value
-	// level (must not be 'lax' in prod cross-site setups).
 	if !c.RefreshCookieSecure {
 		missing = append(missing, "REFRESH_COOKIE_SECURE=true")
 	}
 	if strings.EqualFold(c.RefreshCookieSameSite, "lax") && c.RefreshCookieDomain == "" {
-		// SameSite=Lax + no Domain means cookie is host-only, which breaks
-		// cross-subdomain SPA. Warn loudly.
 		missing = append(missing, "REFRESH_COOKIE_SAMESITE=none + REFRESH_COOKIE_DOMAIN")
 	}
 	if len(missing) > 0 {
@@ -125,7 +107,6 @@ func (c Config) validate(mysqlHost, mysqlPassword string) error {
 	return nil
 }
 
-// ErrProductionMisconfigured is returned by Load when production checks fail.
 var ErrProductionMisconfigured = errors.New("production misconfigured")
 
 func envOr(key, fallback string) string {

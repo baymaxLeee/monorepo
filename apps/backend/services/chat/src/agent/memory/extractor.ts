@@ -27,8 +27,6 @@ const extractionSchema = z.object({
     .max(MAX_MEMORY_CANDIDATES_PER_RUN),
 });
 
-// Cheap signal gate: only spend an extraction LLM call when the latest user
-// turn plausibly contains durable self-description. Keeps extraction low-freq.
 const MEMORY_SIGNAL_PATTERNS: RegExp[] = [
   /\b(remember|from now on|going forward|in the future)\b/i,
   /\b(i (?:prefer|always|never|usually|hate|like|dislike)|my (?:favorite|favourite|preference))\b/i,
@@ -56,8 +54,6 @@ function extractionInstructions(): string {
     "If a candidate updates/contradicts an existing memory, set supersedes_content to that existing memory's text.",
     "When nothing durable is present, return an empty candidates array. Returning empty is the common, correct case.",
     "Keep each content concise and self-contained (it will be read without conversation context).",
-    // MUST stay last: the openai-compatible json_object mode 400s without the
-    // word "json" in the messages (see JSON_OBJECT_MODE_INSTRUCTION).
     JSON_OBJECT_MODE_INSTRUCTION,
   ].join("\n");
 }
@@ -88,14 +84,9 @@ export interface ExtractMemoryInput {
 }
 
 export async function extractMemoryCandidates(input: ExtractMemoryInput): Promise<{ created: number }> {
-  // Memory is grounded only in the latest user-authored text. Feeding the
-  // assistant response or full history can turn model inferences into facts
-  // and repeatedly re-extract stale turns.
   const conversationText = input.userText.trim().slice(-8_000);
   if (!hasMemorySignal(conversationText)) return { created: 0 };
 
-  // Pull existing active + pending so the model can judge "new vs changed" and
-  // we can dedup; rejected is pulled to avoid re-proposing declined memories.
   const [active, pending, dedupEntries] = await Promise.all([
     listActiveMemories(input.userId),
     listPendingCandidates(input.userId),

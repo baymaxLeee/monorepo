@@ -112,6 +112,7 @@ async def create_provider(
     extra_body: str,
     context_window: int,
     max_output_tokens: int,
+    supports_image_input: bool,
     is_default: bool,
     is_enabled: bool,
 ) -> ModelProviderRow:
@@ -127,6 +128,7 @@ async def create_provider(
         extra_body=extra_body,
         context_window=context_window,
         max_output_tokens=max_output_tokens,
+        supports_image_input=supports_image_input,
         is_default=is_default,
         is_enabled=is_enabled,
         created_at=now,

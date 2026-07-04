@@ -14,10 +14,6 @@ export interface Settings {
   adminServiceUrl: string;
   knowledgeServiceUrl: string;
   chatServiceUrl: string;
-  // Path to the ffmpeg binary used by the video-generation workflow to
-  // concatenate per-scene clips. Defaults to `ffmpeg` on PATH (Docker installs
-  // it via apt; local dev needs it installed). Deliberately an OS binary, not
-  // `ffmpeg-static`, to avoid Nitro/nft native-binary bundling issues.
   ffmpegPath: string;
 }
 
@@ -35,8 +31,6 @@ function envInt(key: string, fallback: number): number {
 export function getSettings(): Settings {
   const environment = envOr("ENVIRONMENT", "development") as Environment;
   const internalApiToken = envOr("INTERNAL_API_TOKEN", DEV_INTERNAL_TOKEN);
-  // Demo-phase guardrail (see chat-server AGENTS.md P2 finding): never let a
-  // production deployment silently fall back to the well-known dev token.
   if (environment === "production" && internalApiToken === DEV_INTERNAL_TOKEN) {
     throw new Error("INTERNAL_API_TOKEN must be set explicitly in production");
   }
@@ -51,10 +45,6 @@ export function getSettings(): Settings {
     internalApiToken,
     adminServiceUrl: envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
     knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
-    // Outbound task-event notifications (progress + terminal) are pushed to the
-    // owning service. Only chat is an owner today; this is the reverse of chat's
-    // EXECUTOR_SERVICE_URL and lets executor reach chat's /internal endpoints
-    // directly (not via the gateway), authed by the shared internal token.
     chatServiceUrl: envOr("CHAT_SERVICE_URL", "http://localhost:8009"),
     ffmpegPath: envOr("FFMPEG_PATH", "ffmpeg"),
   };

@@ -95,7 +95,7 @@ export function createDecorations(
   try {
     doc.nodesBetween(0, docSize, (node: ProseMirrorNode, pos: number) => {
       if (!node.isText || !node.marks || node.marks.length === 0) {
-        return true; // 继续遍历子节点
+        return true;
       }
 
       const mark = node.marks.find(
@@ -115,7 +115,7 @@ export function createDecorations(
         }
       }
 
-      return true; // 继续遍历
+      return true;
     });
   } catch (error) {
     console.warn("Error finding comment ranges:", error);
@@ -196,7 +196,6 @@ export function createDecorations(
 }
 
 export const createCommentExtension = () => {
-  // 插件 Key，用于在事务元数据中标识评论状态更新
   const commentDecorationKey = new PluginKey<CommentPluginState>(
     "comment-decoration",
   );
@@ -248,7 +247,6 @@ export const createCommentExtension = () => {
             | Set<CommentEventListener<K>>
             | undefined;
           if (callbacks) {
-            // 使用 Array.from 创建副本，避免在迭代时修改集合
             Array.from(callbacks).forEach((callback) => {
               try {
                 callback(...args);
@@ -355,7 +353,6 @@ export const createCommentExtension = () => {
                 tr.removeMark(from, to, this.type);
               });
 
-              // 仅在删除当前激活评论时才重置激活态
               if (pluginState?.activeCommentId === commentId) {
                 tr.setMeta(commentDecorationKey, { activeCommentId: null });
               }

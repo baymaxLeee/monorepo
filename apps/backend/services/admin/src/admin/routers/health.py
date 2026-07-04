@@ -7,17 +7,11 @@ from admin.redis_client import ping_redis
 router = APIRouter(tags=["meta"])
 
 
-# Liveness: only confirms the process is up. K8s uses this to decide whether
-# to RESTART the container — must NOT fail on dependency hiccups, or a
-# transient DB blip will trigger a kill loop.
 @router.get("/livez")
 async def livez() -> dict[str, str]:
     return {"status": "ok"}
 
 
-# Readiness: confirms downstream deps are reachable. K8s uses this to decide
-# whether to ROUTE traffic. Returning 503 here removes the pod from the
-# Service endpoints without killing it.
 @router.get("/readyz")
 async def readyz(response: Response) -> dict[str, object]:
     redis_ok = await ping_redis()
@@ -38,7 +32,6 @@ async def readyz(response: Response) -> dict[str, object]:
     }
 
 
-# Back-compat alias; existing scripts and dev tooling hit /healthz.
 @router.get("/healthz")
 async def healthz(response: Response) -> dict[str, object]:
     return await readyz(response)

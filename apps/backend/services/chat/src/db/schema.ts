@@ -1,8 +1,5 @@
 import { datetime, index, int, json, mysqlTable, text, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
-// A persisted message stores serialized UIMessage parts, matching the Vercel AI
-// SDK persistence shape (parts kept as structured JSON, not a flat string). The
-// `version` envelope leaves room for future part-schema migrations.
 export interface PersistedMessageContent {
   version: number;
   parts: unknown[];
@@ -52,9 +49,6 @@ export const messages = mysqlTable(
     id: varchar("id", { length: 32 }).primaryKey(),
     conversationId: varchar("conversation_id", { length: 32 }).notNull(),
     role: varchar("role", { length: 20 }).notNull(),
-    // Native JSON column (not TEXT): a serialized UIMessage with tool outputs
-    // easily exceeds TEXT's 64KB limit, and structured JSON matches the AI SDK
-    // persistence shape and validates on write.
     content: json("content").$type<PersistedMessageContent>().notNull(),
     status: varchar("status", { length: 20 }).notNull().default("ok"),
     createdAt: datetime("created_at", { mode: "date", fsp: 6 }).notNull(),

@@ -18,17 +18,12 @@ import type {
 } from "../integrations/types.js";
 import { createWebTools } from "./builtins/web.js";
 
-// The agent's resolved providers for a run, injected into tool factories as
-// closures so no tool re-fetches a provider. image/video tools are still only
-// mounted when the agent has configured that capability — an unconfigured
-// capability is not a capability, so it should not appear in either mode.
 export interface AgentToolProviders {
   textProvider: ChatProvider;
   imageProvider: ProviderSnapshot | null;
   videoProviderId: string | null;
 }
 
-// Read-only + planning-neutral builtins: safe to actually run in either mode.
 function sharedTools(mode: AgentMode) {
   return {
     ...createKnowledgeTools(),
@@ -39,11 +34,6 @@ function sharedTools(mode: AgentMode) {
   };
 }
 
-// Side-effecting builtins: they generate/persist media, write artifacts, or
-// stage memory candidates. Assembled identically for both modes so the model
-// always sees the SAME full capability set — the tool schema IS the capability
-// declaration the model reasons from — and can produce a precise plan. Plan
-// mode keeps these visible but gates execution (see denyExecutionInPlan).
 function sideEffectingTools(providers: AgentToolProviders) {
   return {
     ...createMemoryTools(),
@@ -59,12 +49,6 @@ function sideEffectingTools(providers: AgentToolProviders) {
   };
 }
 
-// In plan mode the model is given the full tool set so it can reason about the
-// complete capability surface, but plan mode must not perform side effects. We
-// keep each tool's description/inputSchema/contextSchema (what the model reads)
-// and only swap execute for an inert no-op that tells the model to record the
-// step in the plan instead of running it now. Mirrors Claude Code's plan mode:
-// tools are visible, execution is gated until you switch to execute mode.
 const PLAN_MODE_NOTICE = {
   ok: false,
   status: "plan_mode",

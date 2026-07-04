@@ -78,11 +78,7 @@ export function useHoverTrigger({
       : internalOpen
     : controlledOpen;
 
-  // 当前鼠标是否在 trigger 或 content 内的范围里。
-  // 因为 trigger 和 content 各有 enter/leave，跨缝隙时会先 leave 再 enter，
-  // insideRef 让 timer fire 前知道"用户实际还在范围内"，避免误关闭。
   const insideRef = useRef(false);
-  // 当前实际 open 的最新值，timer 内同步用，避免闭包拿到旧 open。
   const openRef = useRef<boolean | undefined>(open);
   useEffect(() => {
     openRef.current = open;
@@ -108,8 +104,6 @@ export function useHoverTrigger({
       cancelOpen();
       cancelClose();
     },
-    // mount-once cleanup：cancelOpen / cancelClose 引用每渲染都新建，加入 deps
-    // 会导致计时器被频繁清掉，反而引发 hover 闪烁
     [],
   );
 
@@ -129,30 +123,24 @@ export function useHoverTrigger({
       onMouseEnter: () => {
         insideRef.current = true;
         cancelClose();
-        // 已经处于 open 或正在 open 的途中，不重复 schedule
         if (openRef.current === true) return;
         if (openTimerRef.current) return;
         openTimerRef.current = setTimeout(() => {
           openTimerRef.current = null;
-          // 二次校验：timer fire 时鼠标还在范围内才真正打开
           if (insideRef.current) setOpen(true);
         }, hoverEnterDelay);
       },
       onMouseLeave: () => {
         insideRef.current = false;
         cancelOpen();
-        // 已经处于 closed 或正在 close 的途中，不重复 schedule
         if (openRef.current === false) return;
         if (closeTimerRef.current) return;
         closeTimerRef.current = setTimeout(() => {
           closeTimerRef.current = null;
-          // 二次校验：timer fire 时鼠标已离开才真正关闭
           if (!insideRef.current) setOpen(false);
         }, hoverCloseDelay);
       },
     };
-    // cancelOpen / cancelClose 通过 closure 拿到稳定的 ref-based 实现，
-    // 不要塞进 deps 里 —— 否则 handlers 每渲染都新建，破坏 trigger 监听稳定性
   }, [enabled, hoverEnterDelay, hoverCloseDelay, setOpen]);
 
   return { open, setOpen, handlers, enabled };

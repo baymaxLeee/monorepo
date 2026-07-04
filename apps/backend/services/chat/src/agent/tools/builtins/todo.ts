@@ -23,11 +23,6 @@ function updateTodos(input: z.infer<typeof updateTodosInputSchema>): UpdateTodos
     }
     ids.add(item.id);
   }
-  // Multiple items may be in_progress at once: when several independent
-  // deliverables are dispatched concurrently in one step, they are all running
-  // in parallel and each should show a live spinner (matches Claude Code's
-  // multi-task behavior). Progress per item is linked to its task via `todo_id`
-  // on the deliverable tool calls (see artifact/media/video tools).
   return { ok: true, todos: input.todos };
 }
 

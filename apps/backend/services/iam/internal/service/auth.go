@@ -147,15 +147,11 @@ func (s *AuthService) AuthResponse(ctx context.Context, user model.User) (schema
 	return schema.AuthResponse{AccessToken: token, ExpiresAt: expiresAt, User: s.userResponse(ctx, user)}, nil
 }
 
-// UserType classes consumed by the frontend shell for app/product gating.
 const (
 	UserTypeAdmin  = "admin"
 	UserTypeNormal = "normal"
 )
 
-// userResponse maps a user to its DTO and resolves the coarse identity Type
-// from role assignments. A failed role lookup degrades to "normal" (least
-// privilege) rather than blocking auth.
 func (s *AuthService) userResponse(ctx context.Context, user model.User) schema.UserResponse {
 	resp := UserResponse(user)
 	resp.Type = UserTypeNormal

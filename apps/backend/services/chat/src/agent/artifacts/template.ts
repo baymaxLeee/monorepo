@@ -1,7 +1,3 @@
-// Markdown-only prompts and content normalization. The HTML runtime shell
-// (CSP, ECharts CDN, hydration/nav/error-boundary scripts) moved to the
-// executor service — see its src/artifacts/template.ts — since compilation
-// now happens there.
 export type ArtifactKind = "markdown";
 
 export function artifactSystemPrompt(_kind: ArtifactKind): string {

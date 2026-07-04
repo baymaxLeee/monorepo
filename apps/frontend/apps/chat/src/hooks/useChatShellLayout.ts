@@ -70,9 +70,7 @@ function readStoredWidth(key: string): number | null {
 function persistWidth(key: string, value: number) {
   try {
     window.localStorage.setItem(key, String(Math.round(value)));
-  } catch {
-    // Storage can be unavailable in privacy-restricted browser contexts.
-  }
+  } catch {}
 }
 
 function resolvePanelWidth(

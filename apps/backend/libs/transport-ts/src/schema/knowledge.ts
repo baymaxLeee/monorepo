@@ -58,6 +58,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents/batch-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Batch Delete My Documents
+         * @description Delete several of the caller's documents in one transaction.
+         *
+         *     Only rows owned by the current user are removed (ids the user does not own
+         *     are silently ignored). Object-store blobs are best-effort purged and the
+         *     RAG `document_chunks` are dropped via the FK `ON DELETE CASCADE`.
+         */
+        post: operations["batch_delete_my_documents_documents_batch_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/{document_id}": {
         parameters: {
             query?: never;
@@ -494,6 +518,18 @@ export interface components {
             /** Blocks */
             blocks: components["schemas"]["StoredArtifactBlock"][];
         };
+        /** BatchDeleteInput */
+        BatchDeleteInput: {
+            /** Ids */
+            ids: string[];
+        };
+        /** BatchDeleteResult */
+        BatchDeleteResult: {
+            /** Requested */
+            requested: number;
+            /** Deleted */
+            deleted: number;
+        };
         /** Body_ingest_stream_ingest_stream_post */
         Body_ingest_stream_ingest_stream_post: {
             /** Files */
@@ -876,6 +912,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Document"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_delete_my_documents_documents_batch_delete_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchDeleteInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchDeleteResult"];
                 };
             };
             /** @description Validation Error */

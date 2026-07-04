@@ -34,36 +34,44 @@ class AttachmentConversionError(BaseError):
 
 
 class _BoundedCompletions:
-    def __init__(self, completions: Any, max_tokens: int) -> None:
+    def __init__(self, completions: Any, max_tokens: int, extra_body: dict[str, Any] | None = None) -> None:
         self._completions = completions
         self._max_tokens = max_tokens
+        self._extra_body = extra_body or None
 
     def create(self, *args: Any, **kwargs: Any) -> Any:
         kwargs.setdefault("max_tokens", self._max_tokens)
+        # Provider-configured non-standard params (e.g. Ark `thinking`,
+        # `reasoning_effort`) must ride `extra_body`, not top-level kwargs —
+        # the openai SDK rejects unknown top-level keys.
+        if self._extra_body is not None:
+            kwargs.setdefault("extra_body", self._extra_body)
         return self._completions.create(*args, **kwargs)
 
 
 class _BoundedChat:
-    def __init__(self, chat: Any, max_tokens: int) -> None:
+    def __init__(self, chat: Any, max_tokens: int, extra_body: dict[str, Any] | None = None) -> None:
         self._chat = chat
         self._max_tokens = max_tokens
+        self._extra_body = extra_body or None
 
     @property
     def completions(self) -> _BoundedCompletions:
-        return _BoundedCompletions(self._chat.completions, self._max_tokens)
+        return _BoundedCompletions(self._chat.completions, self._max_tokens, self._extra_body)
 
 
 class _VisionCaptionClient:
-    def __init__(self, client: OpenAI, *, max_tokens: int) -> None:
+    def __init__(self, client: OpenAI, *, max_tokens: int, extra_body: dict[str, Any] | None = None) -> None:
         self._client = client
         self._max_tokens = max_tokens
+        self._extra_body = extra_body or None
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._client, name)
 
     @property
     def chat(self) -> _BoundedChat:
-        return _BoundedChat(self._client.chat, self._max_tokens)
+        return _BoundedChat(self._client.chat, self._max_tokens, self._extra_body)
 
 
 class ConvertService:
@@ -93,14 +101,21 @@ class ConvertService:
                 if provider is None:
                     vision_note = "no vision provider configured for image ingest"
                     markdown = ""
+                elif not provider.supports_image_input:
+                    # The resolved chat model can't accept image input, so we
+                    # must not send it the picture (Ark and others reject it).
+                    # Degrade to metadata; enable 支持图片输入 on the model to caption.
+                    vision_note = (
+                        f"provider '{provider.name}' does not support image input; "
+                        "caption skipped"
+                    )
+                    markdown = ""
                 else:
                     markdown = await anyio.to_thread.run_sync(
                         self._convert_image_sync, filename, mime_type, content, provider
                     )
             else:
-                markdown = await anyio.to_thread.run_sync(
-                    self._convert_sync, filename, mime_type, content, provider
-                )
+                markdown = await anyio.to_thread.run_sync(self._convert_sync, filename, mime_type, content, provider)
         except BaseError:
             raise
         except Exception as exc:
@@ -135,7 +150,11 @@ class ConvertService:
         )
         return MarkItDown(
             enable_plugins=False,
-            llm_client=_VisionCaptionClient(client, max_tokens=settings.attachment_vision_max_tokens),
+            llm_client=_VisionCaptionClient(
+                client,
+                max_tokens=settings.attachment_vision_max_tokens,
+                extra_body=provider.extra_body,
+            ),
             llm_model=provider.model,
             llm_prompt=IMAGE_INGEST_PROMPT,
         )
@@ -198,14 +217,11 @@ class ConvertService:
                 ],
             }
         ]
-        request_kwargs: dict[str, Any] = {
-            **provider.extra_body,
-            "max_tokens": settings.attachment_vision_max_tokens,
-        }
         response = client.chat.completions.create(
             model=provider.model,
             messages=messages,
-            **request_kwargs,
+            max_tokens=settings.attachment_vision_max_tokens,
+            extra_body=provider.extra_body or None,
         )
         text = response.choices[0].message.content
         return (text or "").strip()

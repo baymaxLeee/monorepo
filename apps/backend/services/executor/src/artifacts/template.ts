@@ -1,4 +1,3 @@
-// Ported verbatim from chat's agent/artifacts/template.ts.
 export type ArtifactKind = "html" | "markdown";
 
 export const ECHARTS_CDN_URL = "https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js";

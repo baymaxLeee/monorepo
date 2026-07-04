@@ -37,9 +37,6 @@ export class AdminInternalClient {
     throw toTransportError(response, error);
   }
 
-  // Resolve an agent to its per-capability provider snapshots in one call.
-  // Chat calls this once per run and passes providers through, so tools/steps
-  // never re-fetch a provider.
   async getResolvedAgent(userId: string, agentId: string): Promise<AdminResolvedAgent> {
     const { data, error, response } = await this.client.GET("/internal/agents/{agent_id}", {
       params: { path: { agent_id: agentId }, query: { user_id: userId } },

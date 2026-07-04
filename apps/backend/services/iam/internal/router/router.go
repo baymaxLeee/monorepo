@@ -47,15 +47,10 @@ func New(store *crud.Store, cfg config.Config) http.Handler {
 	return r
 }
 
-// livez only confirms the process can serve HTTP. K8s liveness probes hit this
-// — failing it would RESTART the container, which we never want on a DB blip.
 func (rt *Router) livez(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// readyz confirms downstream deps are reachable. K8s readiness probes hit this
-// — failing it removes the pod from the Service endpoint set (no traffic),
-// but the pod keeps running so it can recover.
 func (rt *Router) readyz(w http.ResponseWriter, r *http.Request) {
 	if err := rt.store.Ping(r.Context()); err != nil {
 		writeProblem(w, http.StatusServiceUnavailable, "dependency_unavailable", err.Error())
@@ -198,8 +193,6 @@ func (rt *Router) listUserRoles(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// A user may read their own role assignments; reading anyone else's
-	// requires admin privileges.
 	userID := chi.URLParam(r, "userID")
 	if userID != claims.Subject && !rt.authorizeAdmin(w, r, claims.Subject) {
 		return
@@ -252,9 +245,6 @@ func (rt *Router) claimsFromRequest(w http.ResponseWriter, r *http.Request) (sec
 	return claims, true
 }
 
-// requireAdmin authenticates the caller AND verifies they hold an IAM admin
-// role. Role-management endpoints MUST use this instead of claimsFromRequest —
-// otherwise any authenticated user could grant themselves a privileged role.
 func (rt *Router) requireAdmin(w http.ResponseWriter, r *http.Request) (security.Claims, bool) {
 	claims, ok := rt.claimsFromRequest(w, r)
 	if !ok {
@@ -266,8 +256,6 @@ func (rt *Router) requireAdmin(w http.ResponseWriter, r *http.Request) (security
 	return claims, true
 }
 
-// authorizeAdmin reports whether subject holds an admin role, writing the
-// appropriate problem response and returning false when it does not.
 func (rt *Router) authorizeAdmin(w http.ResponseWriter, r *http.Request, subject string) bool {
 	isAdmin, err := rt.roles.IsAdmin(r.Context(), subject)
 	if err != nil {

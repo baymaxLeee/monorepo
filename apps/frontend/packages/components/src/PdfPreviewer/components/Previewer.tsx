@@ -127,7 +127,6 @@ interface LoadedFileLike {
   getPage?: (pageNumber: number) => Promise<unknown>;
   getOutline?: () => Promise<unknown[] | null>;
   getDestination?: (destination: string) => Promise<unknown[] | null>;
-  // ref 实际是 pdfjs RefProxy，这里用 any 以避免和 react-pdf 的回调签名变体冲突。
   getPageIndex?: (ref: any) => Promise<number>;
 }
 
@@ -314,7 +313,6 @@ export const computeSelectionRegions = (
   };
 };
 
-// 仅处理 layout === 字符串 布局
 const resolveBestFitScale = ({
   page,
   viewportEl,
@@ -388,7 +386,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       pageProps,
     } = props;
 
-    // 剔除"组件接管"字段，防御 TS 被绕过 / 业务侧直接传 any 的场景。
     const safeDocumentProps = useMemo<PdfPreviewerDocumentEscapeProps>(
       () => dropManagedKeys(documentProps, MANAGED_DOCUMENT_KEYS),
       [documentProps],
@@ -466,9 +463,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       if (typeof window !== "undefined") {
         try {
           window.getSelection()?.removeAllRanges();
-        } catch {
-          // 极少数沙盒环境（如 jsdom 在跨 frame 场景）抛错，忽略即可
-        }
+        } catch {}
       }
       resetSelection();
     };
@@ -495,7 +490,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       setRotation(0);
       setSidebarType(defaultSidebar);
       resetSelection();
-      // 故意只依赖 file：换文件时复位状态，其他 prop 变化不应触发整体复位
     }, [file]);
 
     const selectionEnabled = Boolean(renderSelectionToolbar || onTextSelect);
@@ -556,7 +550,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
 
       const handleSelectionChange = () => {
         const selection = window.getSelection();
-        // 拖拽过程中频繁触发；只在"选区被清空"时及时收起浮层，避免抖动
         if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
           resetSelection();
         }
@@ -585,7 +578,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
 
     const keywordTextRenderer = useMemo(() => {
       if (keywordHighlights.length === 0) return undefined;
-      // 与 react-pdf 的 CustomTextRenderer 签名兼容（仅读 str，其余字段忽略）
       return (props: { str: string }): string => {
         const { str } = props;
         if (!str) return str;
@@ -602,7 +594,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
               flags.includes("g") ? flags : `${flags}g`,
             );
           })();
-          // 业务未显式传 color 时走默认偏黄半透明底色
           const bg = highlight.color ?? "rgb(250 204 21 / 35%)";
           const styleAttr = ` style="background:${bg}"`;
           const cls = cn("rounded-sm", highlight.className);
@@ -622,7 +613,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
     const composedCustomTextRenderer = useMemo(() => {
       const userRenderer = pageProps?.customTextRenderer;
       if (!keywordTextRenderer && !userRenderer) return undefined;
-      // 用 Parameters 取 react-pdf 真实入参（含 TextItem & pageIndex/pageNumber 等）
       type Args = Parameters<NonNullable<typeof userRenderer>>[0];
       return (params: Args): string => {
         let str: string = params.str;
@@ -670,7 +660,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       };
     }, []);
 
-    // viewport 尺寸变化 + 页面就绪/翻页 + 旋转/缩放区间变化 都收敛到这一个 effect
     useEffect(() => {
       if (!viewportRef.current) return;
       const scheduleCurrentFit = () => {
@@ -1047,8 +1036,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
         return;
       }
 
-      // 仅 regions 形态可推断目标页（取首条 region.pageIndex）；
-      // keyword 形态命不中已渲染 DOM 时无法定位具体页，跳过
       if (!isRegionsHighlight(target)) return;
       const firstRegion = target.regions[0];
       if (!firstRegion) return;
@@ -1056,7 +1043,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
       goToPage(firstRegion.pageIndex + 1);
     };
 
-    // 仅依赖「首条 id」而非 highlights 引用：避免父组件重渲染、尾部追加、多源合并等
     const firstHighlightId = highlights?.[0]?.id;
     useEffect(() => {
       if (autoScrollToFirstHighlight === false) return;
@@ -1257,7 +1243,6 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>(
                 <div
                   className="absolute z-20 -translate-x-1/2 -translate-y-full pb-1"
                   data-testid="pdf-selection-toolbar"
-                  // 阻止点击工具栏触发选区清空（mousedown 会让浏览器收起 selection）
                   onMouseDown={(event) => {
                     event.preventDefault();
                   }}
@@ -1280,7 +1265,5 @@ PdfPreviewerInner.displayName = "PdfPreviewerInner";
 
 export default PdfPreviewerInner;
 
-// 避免 TS 未使用警告（PdfHighlight 类型在 interface.ts 声明供外部使用）
 export type { FitMode, PdfHighlight, PdfSelectionRegion };
-// 便于测试的命名导出
 export { clampScale, resolveBestFitScale };

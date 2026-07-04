@@ -57,6 +57,7 @@ def to_public_schema(row: ModelProviderRow) -> ModelProvider:
         extra_body=_parse_extra_body(row.extra_body),
         context_window=row.context_window,
         max_output_tokens=row.max_output_tokens,
+        supports_image_input=row.supports_image_input,
         is_default=row.is_default,
         is_enabled=row.is_enabled,
         created_at=_iso(row.created_at),
@@ -76,6 +77,7 @@ def to_internal_schema(row: ModelProviderRow) -> InternalModelProvider:
         extra_body=_parse_extra_body(row.extra_body),
         context_window=row.context_window,
         max_output_tokens=row.max_output_tokens,
+        supports_image_input=row.supports_image_input,
         is_default=row.is_default,
         is_enabled=row.is_enabled,
     )
@@ -101,8 +103,6 @@ class ModelProviderService:
         if payload.is_default and payload.provider_kind != PROVIDER_KIND_CHAT:
             raise RequestError("only chat providers can be set as default")
 
-        # Only one default per user; toggling a new one as default demotes
-        # the existing default in the same transaction.
         if payload.is_default:
             await provider_crud.clear_default_flag(
                 self._session,
@@ -121,6 +121,7 @@ class ModelProviderService:
             extra_body=json.dumps(payload.extra_body),
             context_window=payload.context_window,
             max_output_tokens=payload.max_output_tokens,
+            supports_image_input=payload.supports_image_input,
             is_default=payload.is_default,
             is_enabled=payload.is_enabled,
         )
@@ -150,14 +151,14 @@ class ModelProviderService:
             values["context_window"] = payload.context_window
         if payload.max_output_tokens is not None:
             values["max_output_tokens"] = payload.max_output_tokens
+        if payload.supports_image_input is not None:
+            values["supports_image_input"] = payload.supports_image_input
         if payload.is_enabled is not None:
             values["is_enabled"] = payload.is_enabled
         next_kind = payload.provider_kind if payload.provider_kind is not None else row.provider_kind
         if next_kind != PROVIDER_KIND_CHAT:
             if payload.is_default:
                 raise RequestError("only chat providers can be set as default")
-            # Keep the invariant even for partial API updates that change only
-            # provider_kind and omit is_default.
             values["is_default"] = False
         elif payload.is_default is not None:
             if payload.is_default and not row.is_default:
@@ -228,8 +229,6 @@ class ModelProviderService:
             extra_body=extra_body,
         )
 
-    # --- internal API surface (consumer services only) ---
-
     async def get_default_for_user(self, user_id: str) -> InternalModelProvider:
         row = await provider_crud.get_default_provider(self._session, user_id)
         if row is None:
@@ -246,9 +245,6 @@ class ModelProviderService:
         row = await provider_crud.get_provider_for_internal(self._session, provider_id)
         if row is None:
             raise NotFoundError(f"model provider {provider_id} not found")
-        # Even on the internal surface we still enforce per-user ownership —
-        # callers (chat, ...) only ever ask for providers belonging to the
-        # currently authenticated end-user.
         if row.user_id != user_id:
             raise NotFoundError(f"model provider {provider_id} not found")
         if not row.is_enabled:

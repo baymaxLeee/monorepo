@@ -245,13 +245,11 @@ export function Chat() {
 
   async function submit(value: PromptInputValue) {
     if (busy || !id) return;
-    const documentIds = value.tokens.flatMap((token) => {
-      const tokenId = token.meta?.artifactId;
-      return typeof tokenId === "string" ? [tokenId] : [];
-    });
+    const hasReadyFile = value.tokens.some(
+      (token) => typeof token.meta?.artifactId === "string",
+    );
     const text =
-      value.text.trim() ||
-      (documentIds.length ? "请阅读并处理我附加的文件。" : "");
+      value.text.trim() || (hasReadyFile ? "请阅读并处理我附加的文件。" : "");
     if (!text) return;
     const parts = value.segments.flatMap(
       (segment): ChatUIMessage["parts"][number][] => {
@@ -277,10 +275,7 @@ export function Chat() {
     }
     promptRef.current?.clear();
     try {
-      await sendMessage(
-        { parts },
-        { body: { ...requestBody, document_ids: documentIds } },
-      );
+      await sendMessage({ parts }, { body: requestBody });
     } catch (error) {
       promptRef.current?.setValue(value);
       throw error;
@@ -352,7 +347,7 @@ export function Chat() {
           { type: "data-plan-execution", data: { document_id: documentId } },
         ] as ChatUIMessage["parts"],
       },
-      { body: { ...requestBody, document_ids: [documentId] } },
+      { body: requestBody },
     );
   }
 
@@ -484,6 +479,29 @@ export function Chat() {
           onSubmit={(value) =>
             void submit(value).catch((error) => toast.error(String(error)))
           }
+          mentionSource={(query) => {
+            const q = query.trim().toLowerCase();
+            return (detail?.documents ?? [])
+              .filter((document) => document.kind === "source")
+              .filter(
+                (document) =>
+                  !q ||
+                  (document.filename || document.title)
+                    .toLowerCase()
+                    .includes(q),
+              )
+              .slice(0, 8)
+              .map((document) => ({
+                id: document.id,
+                label: document.filename || document.title,
+                kind: (document.mime_type ?? "").startsWith("image/")
+                  ? "image"
+                  : "file",
+                mime: document.mime_type,
+                meta: { artifactId: document.id },
+              }));
+          }}
+          onSlashCommand={(command) => toast(`技能占位：${command.title}`)}
           footerRender={() => (
             <ChatComposerControls
               agents={agents ?? []}

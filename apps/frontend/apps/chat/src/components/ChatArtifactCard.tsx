@@ -21,9 +21,6 @@ import {
 import { FileTextIcon, Loader2Icon } from "lucide-react";
 import { useEffect, useState } from "react";
 
-// Synchronous tool result shape — only the markdown path returns this
-// immediately (a single fast streamText call needs no durability). The HTML
-// path always returns ArtifactTaskOutput instead (see below).
 export type ArtifactOutput = {
   documentId: string;
   status: string;
@@ -48,13 +45,6 @@ export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
   };
 }
 
-// write_file/edit_file's HTML branch blocks until the executor task finishes and
-// yields twice: a preliminary output carrying task_id (status "queued"/"running")
-// so the card can mount mid-run, then a final output carrying the terminal
-// status. The AI SDK persists the last yield, so a reloaded conversation already
-// knows the outcome: a completed task carries document_id (rendered by
-// ArtifactDocumentCard upstream), and a failed/cancelled one carries a terminal
-// status here — neither needs to reopen the progress stream.
 export type ArtifactTaskOutput = {
   taskId: string;
   title: string;
@@ -100,8 +90,6 @@ export function parseArtifactTaskOutput(
   };
 }
 
-// Live snapshot pushed over the task stream (chat's data-artifact-progress
-// part). Mirrors the executor-side ArtifactProgressData shape.
 type ProgressSnapshot = {
   status: TaskStatus;
   progress: { done: number; total: number } | null;
@@ -113,8 +101,6 @@ type ProgressSnapshot = {
   error: string | null;
 };
 
-// A parseJsonEventStream result, typed structurally so we don't depend on the
-// AI SDK's internal ParseResult export.
 type JsonEventResult<T> = { success: true; value: T } | { success: false };
 
 function latestProgress(message: UIMessage): ProgressSnapshot | null {
@@ -141,12 +127,6 @@ function terminalSnapshot(task: ArtifactTaskOutput): ProgressSnapshot | null {
   };
 }
 
-// Owns the lifecycle of one background html-artifact task while it is live: it
-// opens the task's native UIMessage SSE stream once and lets chat push progress
-// + the terminal result. When the persisted tool output already carries a
-// terminal status (a reloaded failed/cancelled task), it renders straight from
-// that snapshot and never opens the stream — the completed case is handled
-// upstream by ArtifactDocumentCard via document_id.
 export function ArtifactTaskCard({
   task,
   conversationId,
@@ -188,10 +168,7 @@ export function ArtifactTaskCard({
           const data = latestProgress(message);
           if (data) setSnapshot(data);
         }
-      } catch {
-        // Aborted on unmount, or a transient stream failure. The last snapshot
-        // stays on screen; a reload re-seeds from the durable task record.
-      }
+      } catch {}
     })();
     return () => {
       active = false;

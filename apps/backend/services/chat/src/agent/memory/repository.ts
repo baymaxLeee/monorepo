@@ -1,4 +1,3 @@
-// Durable user memory shared by context projection, memory tools, and CRUD routes.
 import { createHash } from "node:crypto";
 
 import { and, asc, eq, inArray } from "drizzle-orm";
@@ -141,8 +140,6 @@ export async function createMemoryCandidate(input: {
     .insert(userMemories)
     .values(row)
     .onDuplicateKeyUpdate({
-      // A retry or repeated proposal must not demote an active/rejected row
-      // back to pending. The deterministic primary key makes this a no-op.
       set: { id: row.id },
     });
   const [stored] = await getDb()

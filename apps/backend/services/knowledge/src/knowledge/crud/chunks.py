@@ -33,9 +33,7 @@ async def insert_chunks(session: AsyncSession, rows: list[DocumentChunkRow]) -> 
 
 async def count_document_chunks(session: AsyncSession, document_id: str) -> int:
     result = await session.scalar(
-        select(func.count()).select_from(DocumentChunkRow).where(
-            DocumentChunkRow.document_id == document_id
-        )
+        select(func.count()).select_from(DocumentChunkRow).where(DocumentChunkRow.document_id == document_id)
     )
     return int(result or 0)
 

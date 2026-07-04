@@ -590,6 +590,11 @@ export interface components {
              */
             max_output_tokens: number;
             /**
+             * Supports Image Input
+             * @default false
+             */
+            supports_image_input: boolean;
+            /**
              * Is Default
              * @default false
              */
@@ -684,6 +689,8 @@ export interface components {
             context_window: number;
             /** Max Output Tokens */
             max_output_tokens: number;
+            /** Supports Image Input */
+            supports_image_input: boolean;
             /** Is Default */
             is_default: boolean;
             /** Is Enabled */
@@ -719,6 +726,8 @@ export interface components {
             context_window: number;
             /** Max Output Tokens */
             max_output_tokens: number;
+            /** Supports Image Input */
+            supports_image_input: boolean;
             /** Is Default */
             is_default: boolean;
             /** Is Enabled */
@@ -863,6 +872,8 @@ export interface components {
             context_window?: number | null;
             /** Max Output Tokens */
             max_output_tokens?: number | null;
+            /** Supports Image Input */
+            supports_image_input?: boolean | null;
             /** Is Default */
             is_default?: boolean | null;
             /** Is Enabled */

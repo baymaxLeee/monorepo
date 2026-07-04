@@ -1,8 +1,5 @@
 """Scene business service."""
 
-# `async def list(self)` shadows builtin `list` in this class. Delay
-# annotation evaluation so future `foo: list[str]` annotations don't blow
-# up at import time. See intentions.py for the full story.
 from __future__ import annotations
 
 from collections.abc import Sequence

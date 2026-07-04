@@ -23,11 +23,6 @@ const taskNotifySchema = z.object({
   error: z.string().nullable().optional(),
 });
 
-// Reverse channel from executor: a background task pushes live progress and its
-// terminal result here. We fan it out onto the task-scoped resumable stream the
-// browser's ArtifactTaskCard is listening on. Best-effort by contract — executor
-// treats a failure here as non-fatal and the durable truth still lives in its
-// tasks table (re-seeded when the card reconnects).
 internalRoutes.post(
   "/tasks/notify",
   zValidator("json", taskNotifySchema, (result) => {

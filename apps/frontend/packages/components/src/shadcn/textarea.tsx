@@ -2,9 +2,6 @@ import * as React from "react";
 
 import { cn } from "shared";
 
-// forwardRef (React 18 shape): react-hook-form spreads `{...field}` (which
-// carries `field.ref`) onto <Textarea/>. On React 18 a plain function component
-// silently drops that ref, breaking RHF focus-on-error / imperative focus.
 const Textarea = React.forwardRef<
   HTMLTextAreaElement,
   React.ComponentProps<"textarea">

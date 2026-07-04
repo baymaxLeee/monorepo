@@ -9,28 +9,12 @@ import (
 	"github.com/example/monorepo/gateway/internal/security"
 )
 
-// Header names propagated to upstream services. Upstream code MUST treat these
-// as the only source of truth for caller identity and MUST ignore any X-Auth-*
-// headers it has not received from a trusted gateway path.
 const (
 	HeaderAuthUserID = "X-Auth-User-ID"
 	HeaderAuthEmail  = "X-Auth-Email"
 	HeaderAuthName   = "X-Auth-Name"
 )
 
-// IdentityPropagation parses the bearer access token, verifies it against the
-// shared HS256 secret, and forwards the resulting identity to upstream services
-// via X-Auth-* headers.
-//
-// Behavior:
-//   - Inbound X-Auth-* headers are ALWAYS stripped (defense against forgery).
-//   - Public paths (login/register/refresh/health) are passed through without
-//     requiring or parsing a token.
-//   - Optional-auth paths propagate identity when a valid token is present, but
-//     allow anonymous requests and invalid tokens through without X-Auth-*.
-//   - Protected paths require a valid bearer token; missing/invalid token →
-//     401 application/problem+json. Upstream services therefore can trust
-//     X-Auth-User-ID without re-validating.
 func IdentityPropagation(secret string, publicPathPrefixes []string, optionalAuthPathPrefixes []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -91,11 +75,6 @@ func bearerToken(header string) string {
 	return strings.TrimSpace(parts[1])
 }
 
-// isPublicPath returns true when the request path matches any configured
-// public entry. Each entry is matched as either an exact path or a path
-// prefix delimited by "/" — e.g. "/api/iam-server/login" matches
-// "/api/iam-server/login" and "/api/iam-server/login/anything", but
-// "/api/iam-server/login_other" is NOT matched.
 func isPublicPath(path string, prefixes []string) bool {
 	for _, p := range prefixes {
 		if p == "" {

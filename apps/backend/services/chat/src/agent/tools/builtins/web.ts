@@ -25,10 +25,6 @@ async function webSearch(
         "Content-Type": "application/json",
         Authorization: `Bearer ${settings.tavilyApiKey}`,
       },
-      // Forward Tavily's native, server-side freshness filters when the model
-      // provides them (accuracy) instead of relying only on a year stuffed into
-      // the query string. time_range and start/end_date are mutually exclusive
-      // per Tavily; we pass through whatever the model chose and let Tavily rule.
       body: JSON.stringify({
         query: input.query,
         max_results: input.max_results,
@@ -81,20 +77,16 @@ export function createWebTools() {
   return {
     web_search: tool({
       description:
-        // What it does.
         "Search the public web (Tavily) and return titled results with URLs and dates. " +
-        // When to use it.
         "Use this for current, public, or time-sensitive information that is NOT in the user's " +
         "knowledge base — news, prices, weather, product releases, public reference, anything " +
         "'latest/today/this year'. " +
-        // Freshness: use the real current year, and prefer structured time filters.
         "IMPORTANT — freshness: read the current date from your <environment> context. When a " +
         "query is time-sensitive, put the CURRENT year in it and never default to an earlier " +
         "year such as 2025 (e.g. search 'React 19 release notes 2026', not '... 2025'). For " +
         "'latest/today/recent' questions, prefer the structured filters over a date in the query: " +
         "set topic='news' for current events, and narrow with time_range (day/week/month/year) OR " +
         "start_date/end_date (YYYY-MM-DD) — use one, not both. " +
-        // When NOT to use it.
         "Do NOT use it for the user's own or organization-internal content (use search_knowledge " +
         "first), or for general knowledge/reasoning you can answer directly.",
       inputSchema: z.object({

@@ -6,8 +6,6 @@ type XReadRedis = Redis & {
   xread(...args: Array<string | number>): Promise<[string, [string, string[]][]][] | null>;
 };
 
-// A run lease lasts ten minutes. Keeping orphaned replay data for one hour
-// leaves ample reconnect time without turning Redis into durable chat history.
 const STREAM_TTL_SECONDS = 60 * 60;
 const STREAM_READ_BLOCK_MS = 5_000;
 
@@ -65,8 +63,6 @@ export async function consumeAgentSseStream(
       if (done) break;
       if (!value) continue;
       try {
-        // Preserve the exact SSE chunk order emitted by AI SDK. Concurrent
-        // XADD calls can reorder text/tool deltas under Redis latency.
         await appendSseChunk(conversationId, runId, value);
       } catch (error) {
         if (!redisErrorLogged) {
@@ -120,19 +116,9 @@ export async function activeAgentStreamRunId(
   return (await getRedis().hget(activeKey(conversationId), "run_id")) || null;
 }
 
-// Between BLOCK timeouts with no new chunk, keep trusting the Redis "active"
-// flag for this many idle rounds before re-verifying against the run's own
-// source of truth. A writer that crashed/restarted never clears the flag
-// itself (see reconcileOrphanedRuns), so without this the flag's own TTL —
-// scoped for legitimate reconnect gaps, not liveness — is the only bound,
-// and that can be up to an hour. ~30s (6 * 5s BLOCK) catches a dead run
-// promptly without adding a query to every single idle poll.
 const STALE_CHECK_EVERY_IDLE_ROUNDS = 6;
 
 export interface ReplayAgentStreamOptions {
-  // Cross-checks the run's actual persisted status. Optional so this module
-  // stays a plain Redis transport with no knowledge of the agent_runs schema
-  // — the caller (the run/lease layer) supplies the check.
   isRunLive?: (runId: string) => Promise<boolean>;
 }
 
@@ -141,8 +127,6 @@ export async function* replayAgentSseStream(
   runId: string,
   options?: ReplayAgentStreamOptions,
 ): AsyncGenerator<string> {
-  // XREAD BLOCK monopolizes a Redis connection. A duplicate is required so a
-  // reconnecting subscriber cannot block the writer that feeds this stream.
   const reader = getRedis().duplicate();
   const key = streamKey(runId);
   let lastId = "0-0";
@@ -216,16 +200,6 @@ function fieldValue(fields: string[], name: string): string | null {
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Task-scoped streams (executor -> chat -> browser)
-//
-// The same Redis Streams transport as agent runs, keyed by taskId instead of
-// runId. A background executor task pushes native UIMessage SSE frames here via
-// /internal/tasks/notify; the browser's ArtifactTaskCard replays them through
-// AI SDK's readUIMessageStream. This is deliberately NOT a second streaming
-// stack — it reuses the exact XADD/XREAD replay shape so the future migration
-// to ai-resumable-stream (ADR-0013 Phase 2) moves both at once.
-// ---------------------------------------------------------------------------
 
 export const SSE_DONE_FRAME = "data: [DONE]\n\n";
 
@@ -241,8 +215,6 @@ function taskActiveKey(taskId: string): string {
   return `chat:task-streams:${taskId}:active`;
 }
 
-// Marks the writer as alive so replay does not exit early during quiet gaps
-// between progress events. Terminal events clear it (see closeTaskSseStream).
 export async function markTaskStreamActive(taskId: string): Promise<void> {
   await getRedis()
     .pipeline()
@@ -262,8 +234,6 @@ export async function appendTaskSseFrame(taskId: string, frame: string): Promise
     .exec();
 }
 
-// Appends the terminal sentinel and clears the active flag so any replay loop
-// blocked on XREAD returns promptly.
 export async function closeTaskSseStream(taskId: string): Promise<void> {
   const client = getRedis();
   await client

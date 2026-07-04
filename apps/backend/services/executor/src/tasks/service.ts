@@ -52,12 +52,6 @@ async function findById(id: string): Promise<TaskRow | undefined> {
   return row;
 }
 
-// Fire-and-forget completion watcher: the HTTP request that created the task
-// returns immediately (non-blocking, per the plan's "align with Cursor/Codex"
-// decision), so nothing else awaits this. `run.returnValue` resolves against
-// the durable workflow run itself, not this process's memory, so calling it
-// again from `reconcilePendingTasks()` after a restart is safe and resumes
-// watching instead of re-running anything.
 function watchCompletion(taskId: string, workflowRunId: string): void {
   const run = getRun(workflowRunId);
   void run.returnValue
@@ -69,11 +63,6 @@ function watchCompletion(taskId: string, workflowRunId: string): void {
       await notifyOwnerById(taskId);
     })
     .catch(async (error: unknown) => {
-      // Empirically verified (see agent_task_执行时服务 plan): Workflow
-      // DevKit resolves run.cancel() within seconds even mid-step, rejecting
-      // returnValue with WorkflowRunCancelledError — not a generic
-      // AbortError. Use the SDK's own cross-module-safe check rather than
-      // guessing at error.name.
       const cancelled = WorkflowRunCancelledError.is(error);
       await getDb()
         .update(tasks)
@@ -114,9 +103,6 @@ export async function createTask(input: CreateTaskInput): Promise<TaskSnapshot> 
       updatedAt: now,
     });
   } catch {
-    // Race: a concurrent request with the same (ownerService, ownerRef) won
-    // the unique-index insert first. Idempotency means returning its task,
-    // not erroring.
     const row = await findByOwner(input.ownerService, input.ownerRef);
     if (row) return toSnapshot(row);
     throw new ConflictError("failed to create task");
@@ -151,14 +137,6 @@ export async function cancelTask(id: string): Promise<TaskSnapshot> {
   return toSnapshot(row);
 }
 
-// Restores watchers for tasks whose owning process crashed/restarted before
-// their workflow finished. Safe to call on every boot: `run.returnValue`
-// replays against the durable run, it does not re-execute anything.
-//
-// Also rescues the narrow crash window inside createTask() between the `queued`
-// insert and start() assigning a workflowRunId: such a task has no durable run
-// to resume, and re-starting one risks a duplicate run, so fail it
-// deterministically instead of leaving the poller stuck on `queued` forever.
 export async function reconcilePendingTasks(): Promise<void> {
   const db = getDb();
   const rows = await db

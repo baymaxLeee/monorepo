@@ -1,6 +1,3 @@
-// Adapted from chat's agent/artifacts/generator.ts: the outline-planning and
-// per-block generation logic, unchanged in substance, now running as
-// executor "use step" functions instead of inline inside a chat tool call.
 import { Output, extractJsonMiddleware, generateText, streamText, wrapLanguageModel } from "ai";
 import { z } from "zod";
 
@@ -110,8 +107,6 @@ function outlineInstructions(input: { mode: ArtifactMode; count: number }): stri
     "Optionally pick one accent hex color that fits the topic.",
     "Describe one specific visual direction shared by every page: color scheme, typography, composition, density, motifs, and chart treatment. Do not fall back to a generic template.",
     "Do not write any HTML; describe content only.",
-    // MUST stay last: the openai-compatible json_object mode 400s without the
-    // word "json" in the messages (see JSON_OBJECT_MODE_INSTRUCTION).
     JSON_OBJECT_MODE_INSTRUCTION,
   ].join("\n");
 }

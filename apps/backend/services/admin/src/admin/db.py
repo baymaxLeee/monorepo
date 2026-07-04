@@ -104,7 +104,6 @@ _DEMO_INTENTIONS: list[tuple[str, str, str, int, str, bool, str]] = [
 ]
 
 
-# (id, title, base_path, remote_name, requires_admin, sort_order)
 _DEMO_APPS: list[tuple[str, str, str, str, bool, int]] = [
     ("admin", "后台管理", "/platform/admin", "mfe_admin", True, 10),
     ("chat", "对话", "/platform/chat", "mfe_chat", True, 20),
@@ -112,8 +111,6 @@ _DEMO_APPS: list[tuple[str, str, str, str, bool, int]] = [
 
 
 async def seed_demo_bots() -> None:
-    # Remotes are same-origin (/mfe-<id>/) in all envs → fixed relative entry;
-    # operators can override per app in the admin UI.
     app_entries = {
         "admin": "/mfe-admin/mf-manifest.json",
         "chat": "/mfe-chat/mf-manifest.json",
@@ -140,8 +137,6 @@ async def seed_demo_bots() -> None:
                     )
                 )
 
-        # Agents (bots) are user-managed real config now — no demo seeding, so a
-        # cleared table stays clean across restarts.
         existing_scene = await session.scalar(select(SceneRow.id).limit(1))
         if existing_scene is None:
             for scene_id, name, description, status, enabled, created_at in _DEMO_SCENES:

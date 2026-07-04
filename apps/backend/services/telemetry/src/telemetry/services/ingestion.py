@@ -31,8 +31,6 @@ SENSITIVE_KEY_RE = re.compile(r"(password|token|authorization|cookie|secret)", r
 
 async def ingest_batch(session: AsyncSession, batch: RumBatch, auth: OptionalAuthContext) -> None:
     settings = get_settings()
-    # MySQL DATETIME columns are timezone-naive; we standardize on UTC at
-    # write-time and strip tzinfo on the way in.
     now = datetime.now(UTC).replace(tzinfo=None)
 
     rows: list[Any] = []
@@ -148,7 +146,6 @@ def _client_time(value: int | None) -> datetime | None:
     if value is None:
         return None
     try:
-        # Strip tzinfo to match MySQL DATETIME column semantics.
         return datetime.fromtimestamp(value / 1000, UTC).replace(tzinfo=None)
     except OSError, OverflowError, ValueError:
         return None

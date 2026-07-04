@@ -83,9 +83,7 @@ function writeStorage(key: string, value: string | null): void {
     } else {
       globalThis.localStorage?.setItem(key, value);
     }
-  } catch {
-    // Storage can be disabled in private contexts; keep the in-memory session.
-  }
+  } catch {}
 }
 
 function readJSON<T>(key: string): T | null {

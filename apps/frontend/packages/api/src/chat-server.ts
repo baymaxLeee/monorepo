@@ -361,9 +361,6 @@ export interface Task {
   finishedAt: string | null;
 }
 
-// Durable snapshot read (proxied to executor). The card no longer polls this —
-// it opens the SSE stream below — but it stays as a plain REST read for
-// cold-start/debug callers.
 export function fetchConversationTask(
   conversationId: string,
   taskId: string,
@@ -381,10 +378,6 @@ export function conversationTaskStreamUrl(
   return `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/tasks/${encodeURIComponent(taskId)}/stream`;
 }
 
-// Opens the task's live progress stream (native AI SDK UIMessage SSE), then
-// hands the raw Response to the caller, which parses it with the AI SDK reader
-// (kept in the app package that already depends on `ai`). Bearer auth +
-// refresh/retry are owned by `authFetch`. Replaces the old polling loop.
 export async function openConversationTaskStream(
   conversationId: string,
   taskId: string,
