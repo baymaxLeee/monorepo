@@ -1,7 +1,4 @@
--- Chat model vision capability: whether the provider's model accepts image
--- input. Chat inlines user-uploaded images only when true; knowledge captions
--- an uploaded image only via a provider flagged true. Defaults false (opt-in),
--- so existing providers stay safe until an operator marks a vision model.
+-- v1.6.0: add model_providers.supports_image_input (chat model vision flag).
 
 SET @has_supports_image_input := (
   SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS

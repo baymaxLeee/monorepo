@@ -126,11 +126,8 @@ async function transformUserFilePartsForModel(
   userId: string,
   supportsImageInput: boolean,
 ): Promise<AnyUIMessage[]> {
-  // Only inline image bytes when the chat model actually accepts image input.
-  // For a text-only model we skip the fetch entirely and let every image
-  // degrade to a text document reference below, so the provider never receives
-  // an unsupported image part (which Ark and others reject outright). The
-  // image's content stays reachable via the knowledge base (ingest caption).
+  // Only inline images for vision models: non-vision chat models (Ark et al.)
+  // reject image parts outright, so otherwise images degrade to a text reference.
   const imageFiles = new Map<string, { data: Uint8Array; filename: string; mediaType: string }>();
   if (supportsImageInput) {
     const imageDocIds = new Set<string>();

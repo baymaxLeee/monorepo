@@ -36,9 +36,6 @@ class ModelProviderRow(Base):
     extra_body: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     context_window: Mapped[int] = mapped_column(Integer, nullable=False, default=128_000)
     max_output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=8_192)
-    # Vision capability of a chat model: whether it accepts image input. Chat
-    # inlines user images only when true; knowledge captions an uploaded image
-    # only via a provider flagged true. Non-chat kinds ignore this.
     supports_image_input: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

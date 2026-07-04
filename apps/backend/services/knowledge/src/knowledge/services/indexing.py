@@ -50,17 +50,14 @@ async def _maybe_append_image_chunk(
     now: datetime,
     embedding_dim: int,
 ) -> str | None:
-    """Dual representation for images: on top of the caption text chunks, embed
-    the image body itself with a multimodal embedding model so semantic image
-    queries hit the picture, not only its caption. The image vector shares the
-    single pgvector column (same space as text), so hybrid+rerank retrieval is
+    """Add an image-body vector (multimodal embedding) alongside the caption
+    chunks. Shares the single pgvector column as text, so hybrid+rerank is
     unchanged. Best-effort: any problem degrades to caption-only.
     """
     if not _is_image_document(row):
         return None
     if not is_multimodal_embedding_model(embed_provider.model):
-        # A text embedding model cannot vectorize pixels; caption chunks remain
-        # the only representation. Expected degrade, not an error.
+        # text embedding model can't vectorize pixels; caption-only is expected
         return None
     if not (row.object_bucket and row.object_key):
         return "image vector skipped: original object missing"

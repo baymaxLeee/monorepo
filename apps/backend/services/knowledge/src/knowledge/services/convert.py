@@ -41,9 +41,8 @@ class _BoundedCompletions:
 
     def create(self, *args: Any, **kwargs: Any) -> Any:
         kwargs.setdefault("max_tokens", self._max_tokens)
-        # Provider-configured non-standard params (e.g. Ark `thinking`,
-        # `reasoning_effort`) must ride `extra_body`, not top-level kwargs —
-        # the openai SDK rejects unknown top-level keys.
+        # Provider params like Ark `thinking` must ride `extra_body`; the openai
+        # SDK 400s on unknown top-level kwargs.
         if self._extra_body is not None:
             kwargs.setdefault("extra_body", self._extra_body)
         return self._completions.create(*args, **kwargs)
@@ -102,9 +101,7 @@ class ConvertService:
                     vision_note = "no vision provider configured for image ingest"
                     markdown = ""
                 elif not provider.supports_image_input:
-                    # The resolved chat model can't accept image input, so we
-                    # must not send it the picture (Ark and others reject it).
-                    # Degrade to metadata; enable 支持图片输入 on the model to caption.
+                    # Non-vision chat models 400 on image input (Ark et al.).
                     vision_note = (
                         f"provider '{provider.name}' does not support image input; "
                         "caption skipped"

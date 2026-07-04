@@ -19,9 +19,6 @@ export interface ProviderSnapshot {
   extraBody: Record<string, unknown>;
   contextWindow: number;
   maxOutputTokens: number;
-  // Vision capability of the chat model. Only when true does the chat context
-  // inline user-uploaded images as model file parts; otherwise images degrade
-  // to a text document reference (see context/projector.ts).
   supportsImageInput: boolean;
   isDefault: boolean;
   isEnabled: boolean;
