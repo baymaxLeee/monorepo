@@ -18,66 +18,17 @@ export interface ArtifactBlockPlan {
      * @maxLength 40
      */
   type: string;
-  /**
-     * @minLength 1
-     * @maxLength 4000
-     */
-  brief: string;
 }
 
 export interface ArtifactGeneration {
   id: string;
   document_id: string;
   status: string;
-  phase: string;
   total_blocks: number;
   completed_blocks: number;
   failed_blocks: number;
   error: string | null;
-  attempt: number;
-  run_id: string | null;
-  tool_call_id: string | null;
-  lease_owner: string | null;
-  lease_expires_at: string | null;
-  started_at: string | null;
   finished_at: string | null;
-  cancel_requested_at: string | null;
-}
-
-export type ArtifactGenerationDetailManifest = { [key: string]: unknown } | null;
-
-export interface ArtifactGenerationDetail {
-  id: string;
-  document_id: string;
-  status: string;
-  phase: string;
-  total_blocks: number;
-  completed_blocks: number;
-  failed_blocks: number;
-  error: string | null;
-  attempt: number;
-  run_id: string | null;
-  tool_call_id: string | null;
-  lease_owner: string | null;
-  lease_expires_at: string | null;
-  started_at: string | null;
-  finished_at: string | null;
-  cancel_requested_at: string | null;
-  user_id: string;
-  title: string;
-  filename: string;
-  brief: string;
-  manifest?: ArtifactGenerationDetailManifest;
-}
-
-export interface ArtifactMutationInput {
-  /**
-     * @minLength 1
-     * @maxLength 26
-     */
-  user_id: string;
-  owner?: string | null;
-  error?: string | null;
 }
 
 export type ArtifactRevisionWorkspaceManifest = { [key: string]: unknown };
@@ -91,7 +42,6 @@ export interface StoredArtifactBlock {
 
 export interface ArtifactRevisionWorkspace {
   document_id: string;
-  revision_id: string;
   manifest: ArtifactRevisionWorkspaceManifest;
   blocks: StoredArtifactBlock[];
 }
@@ -114,6 +64,14 @@ export interface BodyIngestStreamIngestStreamPost {
   client_refs: string;
   conversation_id?: string | null;
   provider_id?: string | null;
+}
+
+export interface CancelArtifactGenerationInput {
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  user_id: string;
 }
 
 export interface CreateArtifactInput {
@@ -225,6 +183,15 @@ export interface DocumentSlice {
   next_start?: number | null;
 }
 
+export interface FailArtifactGenerationInput {
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  user_id: string;
+  error?: string | null;
+}
+
 export type ValidationErrorCtx = { [key: string]: unknown };
 
 export interface ValidationError {
@@ -251,7 +218,6 @@ export interface PublishArtifactRevisionInput {
 
 export interface PublishedArtifactRevision {
   document_id: string;
-  revision_id: string;
   title: string;
   filename: string;
   mime_type?: string;
@@ -295,10 +261,7 @@ export interface ReserveArtifactGenerationInput {
      * @maxLength 128
      */
   idempotency_key: string;
-  base_revision_id?: string | null;
   document_id?: string | null;
-  run_id?: string | null;
-  tool_call_id?: string | null;
 }
 
 export interface RetrieveInput {
@@ -409,10 +372,6 @@ max_chars?: number;
 };
 
 export type GetDocumentSourceInternalDocumentsDocumentIdSourceGetParams = {
-user_id: string;
-};
-
-export type GetGenerationInternalArtifactGenerationsGenerationIdGetParams = {
 user_id: string;
 };
 
@@ -681,15 +640,16 @@ const reserveGenerationInternalArtifactGenerationsPost = (
     }
 
 /**
- * @summary Get Generation
+ * @summary Fail Generation
  */
-const getGenerationInternalArtifactGenerationsGenerationIdGet = (
+const failGenerationInternalArtifactGenerationsGenerationIdFailPost = (
     generationId: string,
-    params: GetGenerationInternalArtifactGenerationsGenerationIdGetParams,
- options?: SecondParameter<typeof apiMutator<ArtifactGenerationDetail>>,) => {
-      return apiMutator<ArtifactGenerationDetail>(
-      {url: `/internal/artifact-generations/${generationId}`, method: 'GET',
-        params
+    failArtifactGenerationInput: FailArtifactGenerationInput,
+ options?: SecondParameter<typeof apiMutator<ArtifactGeneration>>,) => {
+      return apiMutator<ArtifactGeneration>(
+      {url: `/internal/artifact-generations/${generationId}/fail`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: failArtifactGenerationInput
     },
       options);
     }
@@ -699,27 +659,12 @@ const getGenerationInternalArtifactGenerationsGenerationIdGet = (
  */
 const cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost = (
     generationId: string,
-    artifactMutationInput: ArtifactMutationInput,
+    cancelArtifactGenerationInput: CancelArtifactGenerationInput,
  options?: SecondParameter<typeof apiMutator<ArtifactGeneration>>,) => {
       return apiMutator<ArtifactGeneration>(
       {url: `/internal/artifact-generations/${generationId}/cancel`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
-      data: artifactMutationInput
-    },
-      options);
-    }
-
-/**
- * @summary Fail Generation
- */
-const failGenerationInternalArtifactGenerationsGenerationIdFailPost = (
-    generationId: string,
-    artifactMutationInput: ArtifactMutationInput,
- options?: SecondParameter<typeof apiMutator<ArtifactGeneration>>,) => {
-      return apiMutator<ArtifactGeneration>(
-      {url: `/internal/artifact-generations/${generationId}/fail`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: artifactMutationInput
+      data: cancelArtifactGenerationInput
     },
       options);
     }
@@ -812,7 +757,7 @@ const retrieveChunksInternalRetrievePost = (
       options);
     }
 
-return {healthzHealthzGet,ingestStreamIngestStreamPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,reserveGenerationInternalArtifactGenerationsPost,getGenerationInternalArtifactGenerationsGenerationIdGet,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,retrieveChunksInternalRetrievePost}};
+return {healthzHealthzGet,ingestStreamIngestStreamPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,reserveGenerationInternalArtifactGenerationsPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,retrieveChunksInternalRetrievePost}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -835,9 +780,8 @@ export type GetDocumentSourceInternalDocumentsDocumentIdSourceGetResult = NonNul
 export type CreateArtifactInternalArtifactsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createArtifactInternalArtifactsPost']>>>
 export type CreateMediaDocumentInternalMediaDocumentsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createMediaDocumentInternalMediaDocumentsPost']>>>
 export type ReserveGenerationInternalArtifactGenerationsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['reserveGenerationInternalArtifactGenerationsPost']>>>
-export type GetGenerationInternalArtifactGenerationsGenerationIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getGenerationInternalArtifactGenerationsGenerationIdGet']>>>
-export type CancelGenerationInternalArtifactGenerationsGenerationIdCancelPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost']>>>
 export type FailGenerationInternalArtifactGenerationsGenerationIdFailPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['failGenerationInternalArtifactGenerationsGenerationIdFailPost']>>>
+export type CancelGenerationInternalArtifactGenerationsGenerationIdCancelPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost']>>>
 export type SavePlanInternalArtifactGenerationsGenerationIdPlanPutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['savePlanInternalArtifactGenerationsGenerationIdPlanPut']>>>
 export type SaveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut']>>>
 export type ListReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet']>>>

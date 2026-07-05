@@ -1289,13 +1289,13 @@
         }
       }
     },
-    "/internal/artifact-generations/{generation_id}": {
-      "get": {
+    "/internal/artifact-generations/{generation_id}/fail": {
+      "post": {
         "tags": [
           "artifact-generations"
         ],
-        "summary": "Get Generation",
-        "operationId": "get_generation_internal_artifact_generations__generation_id__get",
+        "summary": "Fail Generation",
+        "operationId": "fail_generation_internal_artifact_generations__generation_id__fail_post",
         "parameters": [
           {
             "name": "generation_id",
@@ -1304,15 +1304,6 @@
             "schema": {
               "type": "string",
               "title": "Generation Id"
-            }
-          },
-          {
-            "name": "user_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "User Id"
             }
           },
           {
@@ -1332,13 +1323,23 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FailArtifactGenerationInput"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ArtifactGenerationDetail"
+                  "$ref": "#/components/schemas/ArtifactGeneration"
                 }
               }
             }
@@ -1395,75 +1396,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ArtifactMutationInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ArtifactGeneration"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/internal/artifact-generations/{generation_id}/fail": {
-      "post": {
-        "tags": [
-          "artifact-generations"
-        ],
-        "summary": "Fail Generation",
-        "operationId": "fail_generation_internal_artifact_generations__generation_id__fail_post",
-        "parameters": [
-          {
-            "name": "generation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Generation Id"
-            }
-          },
-          {
-            "name": "X-Internal-Token",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Internal-Token"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ArtifactMutationInput"
+                "$ref": "#/components/schemas/CancelArtifactGenerationInput"
               }
             }
           }
@@ -1919,19 +1852,12 @@
             "maxLength": 40,
             "minLength": 1,
             "title": "Type"
-          },
-          "brief": {
-            "type": "string",
-            "maxLength": 4000,
-            "minLength": 1,
-            "title": "Brief"
           }
         },
         "type": "object",
         "required": [
           "id",
-          "type",
-          "brief"
+          "type"
         ],
         "title": "ArtifactBlockPlan"
       },
@@ -1949,10 +1875,6 @@
             "type": "string",
             "title": "Status"
           },
-          "phase": {
-            "type": "string",
-            "title": "Phase"
-          },
           "total_blocks": {
             "type": "integer",
             "title": "Total Blocks"
@@ -1976,65 +1898,6 @@
             ],
             "title": "Error"
           },
-          "attempt": {
-            "type": "integer",
-            "title": "Attempt"
-          },
-          "run_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Run Id"
-          },
-          "tool_call_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tool Call Id"
-          },
-          "lease_owner": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Lease Owner"
-          },
-          "lease_expires_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Lease Expires At"
-          },
-          "started_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Started At"
-          },
           "finished_at": {
             "anyOf": [
               {
@@ -2045,17 +1908,6 @@
               }
             ],
             "title": "Finished At"
-          },
-          "cancel_requested_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cancel Requested At"
           }
         },
         "type": "object",
@@ -2063,246 +1915,19 @@
           "id",
           "document_id",
           "status",
-          "phase",
           "total_blocks",
           "completed_blocks",
           "failed_blocks",
           "error",
-          "attempt",
-          "run_id",
-          "tool_call_id",
-          "lease_owner",
-          "lease_expires_at",
-          "started_at",
-          "finished_at",
-          "cancel_requested_at"
+          "finished_at"
         ],
         "title": "ArtifactGeneration"
-      },
-      "ArtifactGenerationDetail": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "document_id": {
-            "type": "string",
-            "title": "Document Id"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "phase": {
-            "type": "string",
-            "title": "Phase"
-          },
-          "total_blocks": {
-            "type": "integer",
-            "title": "Total Blocks"
-          },
-          "completed_blocks": {
-            "type": "integer",
-            "title": "Completed Blocks"
-          },
-          "failed_blocks": {
-            "type": "integer",
-            "title": "Failed Blocks"
-          },
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
-          },
-          "attempt": {
-            "type": "integer",
-            "title": "Attempt"
-          },
-          "run_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Run Id"
-          },
-          "tool_call_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tool Call Id"
-          },
-          "lease_owner": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Lease Owner"
-          },
-          "lease_expires_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Lease Expires At"
-          },
-          "started_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Started At"
-          },
-          "finished_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Finished At"
-          },
-          "cancel_requested_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cancel Requested At"
-          },
-          "user_id": {
-            "type": "string",
-            "title": "User Id"
-          },
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "filename": {
-            "type": "string",
-            "title": "Filename"
-          },
-          "brief": {
-            "type": "string",
-            "title": "Brief"
-          },
-          "manifest": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Manifest"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "document_id",
-          "status",
-          "phase",
-          "total_blocks",
-          "completed_blocks",
-          "failed_blocks",
-          "error",
-          "attempt",
-          "run_id",
-          "tool_call_id",
-          "lease_owner",
-          "lease_expires_at",
-          "started_at",
-          "finished_at",
-          "cancel_requested_at",
-          "user_id",
-          "title",
-          "filename",
-          "brief"
-        ],
-        "title": "ArtifactGenerationDetail"
-      },
-      "ArtifactMutationInput": {
-        "properties": {
-          "user_id": {
-            "type": "string",
-            "maxLength": 26,
-            "minLength": 1,
-            "title": "User Id"
-          },
-          "owner": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 128
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owner"
-          },
-          "error": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 4000
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
-          }
-        },
-        "type": "object",
-        "required": [
-          "user_id"
-        ],
-        "title": "ArtifactMutationInput"
       },
       "ArtifactRevisionWorkspace": {
         "properties": {
           "document_id": {
             "type": "string",
             "title": "Document Id"
-          },
-          "revision_id": {
-            "type": "string",
-            "title": "Revision Id"
           },
           "manifest": {
             "additionalProperties": true,
@@ -2320,7 +1945,6 @@
         "type": "object",
         "required": [
           "document_id",
-          "revision_id",
           "manifest",
           "blocks"
         ],
@@ -2405,6 +2029,21 @@
           "client_refs"
         ],
         "title": "Body_ingest_stream_ingest_stream_post"
+      },
+      "CancelArtifactGenerationInput": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "User Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "CancelArtifactGenerationInput"
       },
       "CreateArtifactInput": {
         "properties": {
@@ -2756,6 +2395,33 @@
         ],
         "title": "DocumentSlice"
       },
+      "FailArtifactGenerationInput": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "User Id"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "FailArtifactGenerationInput"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2796,10 +2462,6 @@
             "type": "string",
             "title": "Document Id"
           },
-          "revision_id": {
-            "type": "string",
-            "title": "Revision Id"
-          },
           "title": {
             "type": "string",
             "title": "Title"
@@ -2821,7 +2483,6 @@
         "type": "object",
         "required": [
           "document_id",
-          "revision_id",
           "title",
           "filename",
           "total_chars"
@@ -2882,18 +2543,6 @@
             "minLength": 1,
             "title": "Idempotency Key"
           },
-          "base_revision_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 32
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Revision Id"
-          },
           "document_id": {
             "anyOf": [
               {
@@ -2905,30 +2554,6 @@
               }
             ],
             "title": "Document Id"
-          },
-          "run_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 32
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Run Id"
-          },
-          "tool_call_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 64
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tool Call Id"
           }
         },
         "type": "object",

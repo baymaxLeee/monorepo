@@ -11,7 +11,13 @@ import {
   validateArtifactContent,
 } from "../../artifacts/template.js";
 import { ARTIFACT_GENERATION_TIMEOUT } from "../../artifacts/config.js";
-import { getDocument, getDocumentSource, createArtifact, updateArtifact } from "../../../clients/knowledge.js";
+import {
+  getDocument,
+  getDocumentSource,
+  getLatestArtifactWorkspace,
+  createArtifact,
+  updateArtifact,
+} from "../../../clients/knowledge.js";
 import { type Task } from "../../../clients/executor.js";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
 import { artifactToolContextSchema, type ArtifactToolContext } from "../context.js";
@@ -75,6 +81,39 @@ const htmlValidateOutputSchema = z.union([
   }),
   artifactBlockedOutputSchema,
 ]);
+
+const listArtifactBlocksOutputSchema = z.union([
+  z.object({
+    ok: z.literal(true),
+    status: z.literal("completed"),
+    document_id: z.string(),
+    mode: z.string(),
+    blocks: z.array(
+      z.object({
+        id: z.string(),
+        position: z.number(),
+        type: z.string(),
+        title: z.string(),
+        brief: z.string(),
+        char_count: z.number(),
+      }),
+    ),
+  }),
+  artifactBlockedOutputSchema,
+]);
+
+function parseStoredArtifactBlock(content: string): { title?: string; html?: string; error?: string } {
+  try {
+    const parsed = JSON.parse(content) as { title?: unknown; html?: unknown; error?: unknown };
+    return {
+      title: typeof parsed.title === "string" ? parsed.title : undefined,
+      html: typeof parsed.html === "string" ? parsed.html : undefined,
+      error: typeof parsed.error === "string" ? parsed.error : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
 
 function taskResultFields(result: unknown): { documentId?: string; totalChars?: number; blocksFailed?: number } {
   if (!result || typeof result !== "object") return {};
@@ -150,6 +189,48 @@ async function validateHtml(
   };
 }
 
+async function listArtifactBlocks(
+  input: { document_id: string },
+  { context }: { context: ArtifactToolContext },
+): Promise<z.infer<typeof listArtifactBlocksOutputSchema>> {
+  const document = await getDocument(context.userId, input.document_id);
+  if (document.conversation_id !== context.conversationId) {
+    return {
+      ok: false,
+      status: "blocked",
+      code: "FILE_NOT_ATTACHED",
+      error: `file ${input.document_id} is not attached to this conversation`,
+    };
+  }
+  if (document.kind !== "artifact") {
+    return { ok: false, status: "blocked", code: "ARTIFACT_NOT_EDITABLE", error: `file ${input.document_id} is not editable` };
+  }
+  const isHtml = document.mime_type === "text/html" || document.filename.toLowerCase().endsWith(".html");
+  if (!isHtml) {
+    return { ok: false, status: "blocked", code: "NOT_HTML", error: "list_artifact_blocks only supports HTML artifacts" };
+  }
+  const workspace = await getLatestArtifactWorkspace(context.userId, input.document_id);
+  const manifest = (workspace?.manifest ?? {}) as Record<string, unknown>;
+  const manifestBlocks = Array.isArray(manifest.blocks) ? (manifest.blocks as Array<Record<string, unknown>>) : [];
+  const metaById = new Map(
+    manifestBlocks.filter((block) => typeof block?.id === "string").map((block) => [block.id as string, block]),
+  );
+  const mode = typeof manifest.mode === "string" ? manifest.mode : "document";
+  const blocks = (workspace?.blocks ?? [])
+    .slice()
+    .sort((a, b) => a.position - b.position)
+    .map((stored) => {
+      const parsed = parseStoredArtifactBlock(stored.content);
+      const meta = metaById.get(stored.id);
+      const title = (typeof meta?.title === "string" && meta.title) || parsed.title || stored.id;
+      const brief = typeof meta?.brief === "string" ? meta.brief : "";
+      const type = (typeof meta?.type === "string" && meta.type) || stored.type;
+      const charCount = parsed.html ? parsed.html.length : parsed.error ? 0 : stored.content.length;
+      return { id: stored.id, position: stored.position, type, title, brief, char_count: charCount };
+    });
+  return { ok: true, status: "completed", document_id: input.document_id, mode, blocks };
+}
+
 export function createArtifactToolManifests(textProvider: ChatProvider) {
   return [
     defineAgentTool(
@@ -205,8 +286,24 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
           .string()
           .min(1)
           .max(12_000)
-          .describe("Describe chart type/data only — never name a charting library; all charts render via ECharts."),
-        block_ids: z.array(z.string().regex(/^page-[1-9]\d*$/)).max(100).optional(),
+          .describe(
+            "Overall change description. With no block_ids/changes it rewrites every block; otherwise it is the fallback brief for targeted blocks. Describe chart type/data only — never name a charting library; all charts render via ECharts.",
+          ),
+        block_ids: z
+          .array(z.string().regex(/^page-[1-9]\d*$/))
+          .max(100)
+          .optional()
+          .describe("Blocks to revise with `brief`; all other blocks are reused unchanged. Get ids from list_artifact_blocks."),
+        changes: z
+          .array(
+            z.object({
+              block_id: z.string().regex(/^page-[1-9]\d*$/),
+              brief: z.string().min(1).max(8_000),
+            }),
+          )
+          .max(100)
+          .optional()
+          .describe("Per-block change briefs for precise edits; each targets one block by id. Untargeted blocks are reused unchanged."),
       }),
       outputSchema: artifactToolOutputSchema,
       contextSchema: artifactToolContextSchema,
@@ -245,6 +342,27 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
         modes: ["normal"],
       },
       { summary: "Validate and inspect a persisted HTML artifact." },
+    ),
+    defineAgentTool(
+      "list_artifact_blocks",
+      tool({
+        description:
+          "List the addressable blocks (id, order, type, title, brief, size) of a stored HTML artifact. Call this before edit_file so block_ids/changes target exact blocks instead of guessing.",
+        inputSchema: z.object({
+          document_id: z.string().min(1).max(32),
+        }),
+        outputSchema: listArtifactBlocksOutputSchema,
+        contextSchema: artifactToolContextSchema,
+        execute: listArtifactBlocks,
+      }),
+      {
+        capability: "artifacts",
+        effect: "read",
+        trust: "private-untrusted",
+        execution: "inline",
+        modes: ["normal"],
+      },
+      { summary: "List addressable blocks of a persisted HTML artifact." },
     ),
   ];
 }
@@ -319,7 +437,14 @@ export async function* writeFileTool(
 }
 
 export async function* editFileTool(
-  input: { document_id: string; title?: string; filename?: string; brief: string; block_ids?: string[] },
+  input: {
+    document_id: string;
+    title?: string;
+    filename?: string;
+    brief: string;
+    block_ids?: string[];
+    changes?: Array<{ block_id: string; brief: string }>;
+  },
   { context, toolCallId, abortSignal }: { context: ArtifactToolContext; toolCallId: string; abortSignal?: AbortSignal },
   textProvider: ChatProvider,
 ): AsyncGenerator<z.infer<typeof artifactToolOutputSchema>> {
@@ -362,6 +487,10 @@ export async function* editFileTool(
 
     const filename = input.filename ? safeFilename(input.filename) : current.filename;
     const title = input.title ?? current.title;
+    const changes = input.changes ?? [];
+    const blockBriefs: Record<string, string> = {};
+    for (const change of changes) blockBriefs[change.block_id] = change.brief;
+    const targetedIds = Array.from(new Set([...(input.block_ids ?? []), ...changes.map((c) => c.block_id)]));
     const task = await startTaskResilient(
       {
         type: "html-artifact",
@@ -375,7 +504,8 @@ export async function* editFileTool(
           mode: "document",
           brief: input.brief,
           documentId: current.id,
-          blockIds: input.block_ids,
+          blockIds: targetedIds.length ? targetedIds : undefined,
+          blockBriefs: Object.keys(blockBriefs).length ? blockBriefs : undefined,
           idempotencyKey: toolCallId,
         },
       },

@@ -16,7 +16,6 @@ export type KnowledgeDocument = Omit<
 };
 export type DocumentSlice = components["schemas"]["DocumentSlice"];
 export type ArtifactGeneration = components["schemas"]["ArtifactGeneration"];
-export type ArtifactGenerationDetail = components["schemas"]["ArtifactGenerationDetail"];
 export type ArtifactBlockPlan = components["schemas"]["ArtifactBlockPlan"];
 export type PublishedArtifactRevision = components["schemas"]["PublishedArtifactRevision"];
 export type StoredArtifactBlock = components["schemas"]["StoredArtifactBlock"];
@@ -185,10 +184,7 @@ export class KnowledgeInternalClient {
     mode: "document" | "presentation" | "dashboard";
     brief: string;
     idempotencyKey: string;
-    baseRevisionId?: string;
     documentId?: string;
-    runId?: string;
-    toolCallId?: string;
   }): Promise<ArtifactGeneration> {
     return this.unwrap(
       this.client.POST("/internal/artifact-generations", {
@@ -200,26 +196,23 @@ export class KnowledgeInternalClient {
           mode: input.mode,
           brief: input.brief,
           idempotency_key: input.idempotencyKey,
-          base_revision_id: input.baseRevisionId,
           document_id: input.documentId,
-          run_id: input.runId,
-          tool_call_id: input.toolCallId,
         },
       }),
     );
   }
 
-  cancelArtifactGeneration(input: { userId: string; generationId: string; owner?: string }): Promise<ArtifactGeneration> {
-    return this.unwrap(this.client.POST("/internal/artifact-generations/{generation_id}/cancel", {
+  failArtifactGeneration(input: { userId: string; generationId: string; error?: string }): Promise<ArtifactGeneration> {
+    return this.unwrap(this.client.POST("/internal/artifact-generations/{generation_id}/fail", {
       params: { path: { generation_id: input.generationId } },
-      body: { user_id: input.userId, owner: input.owner },
+      body: { user_id: input.userId, error: input.error },
     }));
   }
 
-  failArtifactGeneration(input: { userId: string; generationId: string; owner?: string; error?: string }): Promise<ArtifactGeneration> {
-    return this.unwrap(this.client.POST("/internal/artifact-generations/{generation_id}/fail", {
+  cancelArtifactGeneration(input: { userId: string; generationId: string }): Promise<ArtifactGeneration> {
+    return this.unwrap(this.client.POST("/internal/artifact-generations/{generation_id}/cancel", {
       params: { path: { generation_id: input.generationId } },
-      body: { user_id: input.userId, owner: input.owner, error: input.error },
+      body: { user_id: input.userId },
     }));
   }
 
@@ -231,20 +224,6 @@ export class KnowledgeInternalClient {
       this.client.GET("/internal/artifact-generations/documents/{document_id}/latest", {
         params: {
           path: { document_id: input.documentId },
-          query: { user_id: input.userId },
-        },
-      }),
-    );
-  }
-
-  getArtifactGeneration(input: {
-    userId: string;
-    generationId: string;
-  }): Promise<ArtifactGenerationDetail> {
-    return this.unwrap(
-      this.client.GET("/internal/artifact-generations/{generation_id}", {
-        params: {
-          path: { generation_id: input.generationId },
           query: { user_id: input.userId },
         },
       }),

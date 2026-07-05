@@ -7,14 +7,13 @@ import {
   reportTaskProgress,
 } from "../src/tasks/notify.js";
 import {
-  failArtifactGeneration,
   cancelArtifactGeneration,
+  failArtifactGeneration,
   listArtifactBlocks,
   publishArtifactRevision,
   reserveArtifactGeneration,
   saveArtifactBlock,
   saveArtifactPlan,
-  getDocument,
   getLatestArtifactWorkspace,
 } from "../src/clients/knowledge.js";
 import { compileArtifactHtml } from "../src/artifacts/compiler.js";
@@ -39,12 +38,13 @@ export const htmlArtifactInputSchema = z.object({
   pageCount: z.number().int().min(1).max(100).optional(),
   documentId: z.string().max(32).optional(),
   blockIds: z.array(z.string()).max(100).optional(),
+  blockBriefs: z.record(z.string(), z.string().min(1).max(8_000)).optional(),
   idempotencyKey: z.string().min(1).max(120).optional(),
 });
 export type HtmlArtifactInput = z.infer<typeof htmlArtifactInputSchema>;
 
 type BlockAction = "generate" | "reuse" | "revise";
-type BlockStrategy = { id: string; action: BlockAction; sourceId?: string };
+type BlockStrategy = { id: string; action: BlockAction; sourceId?: string; changeBrief?: string };
 
 type ArtifactPlan = {
   mode: ArtifactMode;
@@ -101,12 +101,18 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
       })
       .filter((block): block is ArtifactBlock => block != null);
 
-    const selected = input.blockIds?.length ? new Set(input.blockIds) : null;
+    const briefById = input.blockBriefs ?? {};
+    const targeted = input.blockIds?.length
+      ? new Set(input.blockIds)
+      : Object.keys(briefById).length
+        ? new Set(Object.keys(briefById))
+        : null;
     const blocks = existing;
     const blockStrategies: BlockStrategy[] = existing.map((block) => ({
       id: block.id,
-      action: selected && !selected.has(block.id) ? "reuse" : "revise",
+      action: targeted && !targeted.has(block.id) ? "reuse" : "revise",
       sourceId: block.id,
+      changeBrief: briefById[block.id],
     }));
     const themeParsed = manifest.theme as ArtifactTheme | undefined;
     const theme: ArtifactTheme = themeParsed?.visualDirection
@@ -135,7 +141,7 @@ async function reserveStep(input: HtmlArtifactInput, plan: ArtifactPlan, idempot
     userId: input.userId,
     generationId: generation.id,
     manifest: { schemaVersion: 2, mode: plan.mode, theme: plan.theme, blocks: plan.blocks },
-    blocks: plan.blocks.map((block) => ({ id: block.id, type: block.type, brief: block.brief })),
+    blocks: plan.blocks.map((block) => ({ id: block.id, type: block.type })),
   });
   const { workflowRunId } = getWorkflowMetadata();
   await recordArtifactGeneration(workflowRunId, generation.id);
@@ -162,40 +168,67 @@ async function generateBlockStep(input: {
   const { workflowRunId } = getWorkflowMetadata();
   const cancellation = observeTaskCancellation(workflowRunId);
   try {
+    const action = input.strategy?.action ?? "generate";
+
+    if (action === "reuse") {
+      if (!input.sourceHtml) throw new Error(`reuse block ${input.block.id} has no source html`);
+      await saveArtifactBlock({
+        userId: input.userId,
+        generationId: input.generationId,
+        blockId: input.block.id,
+        content: JSON.stringify({ title: input.block.title, html: input.sourceHtml }),
+        failed: false,
+      });
+      return { id: input.block.id, ok: true };
+    }
+
+    const tools = await buildArtifactTextModel(input.userId, input.providerId);
+    const abortSignal = AbortSignal.any([
+      cancellation.signal,
+      AbortSignal.timeout(5 * 60_000),
+    ]);
+
+    if (action === "revise") {
+      // EDIT is strict: a failed revise must throw so the whole generation fails and the
+      // previously published snapshot stays intact. Silently keeping the old block would
+      // report success for an edit that never happened.
+      const html = await generateBlock({
+        block: input.block,
+        mode: input.mode,
+        theme: input.theme,
+        outline: input.outline,
+        artifactBrief: input.artifactBrief,
+        tools,
+        abortSignal,
+        currentHtml: input.sourceHtml,
+        changeBrief: input.strategy?.changeBrief ?? input.artifactBrief,
+      });
+      if (cancellation.signal.aborted || (await isTaskCancelled(workflowRunId))) {
+        throw new DOMException("task cancelled", "AbortError");
+      }
+      await saveArtifactBlock({
+        userId: input.userId,
+        generationId: input.generationId,
+        blockId: input.block.id,
+        content: JSON.stringify({ title: input.block.title, html }),
+        failed: false,
+      });
+      return { id: input.block.id, ok: true };
+    }
+
+    // CREATE degrades a single failed block to an error section so the rest still ship.
     let payload: string;
     let failed = false;
     try {
-      let html: string;
-      if (input.strategy?.action === "reuse") {
-        if (!input.sourceHtml) throw new Error(`reuse block ${input.block.id} has no source html`);
-        html = input.sourceHtml;
-      } else {
-        const tools = await buildArtifactTextModel(input.userId, input.providerId);
-        try {
-          html = await generateBlock({
-            block: input.block,
-            mode: input.mode,
-            theme: input.theme,
-            outline: input.outline,
-            artifactBrief: input.artifactBrief,
-            tools,
-            abortSignal: AbortSignal.any([
-              cancellation.signal,
-              AbortSignal.timeout(5 * 60_000),
-            ]),
-            currentHtml: input.strategy?.action === "revise" ? input.sourceHtml : undefined,
-            changeBrief: input.artifactBrief,
-          });
-        } catch (error) {
-          if (cancellation.signal.aborted) throw error;
-          if (input.strategy?.action === "revise" && input.sourceHtml) {
-            console.error("[executor] revise failed, keeping original block", { blockId: input.block.id, error });
-            html = input.sourceHtml;
-          } else {
-            throw error;
-          }
-        }
-      }
+      const html = await generateBlock({
+        block: input.block,
+        mode: input.mode,
+        theme: input.theme,
+        outline: input.outline,
+        artifactBrief: input.artifactBrief,
+        tools,
+        abortSignal,
+      });
       payload = JSON.stringify({ title: input.block.title, html });
     } catch (error) {
       if (cancellation.signal.aborted) throw error;
@@ -203,7 +236,7 @@ async function generateBlockStep(input: {
       payload = JSON.stringify({ title: input.block.title, error: String(error).slice(0, 500) });
       failed = true;
     }
-    if (cancellation.signal.aborted || await isTaskCancelled(workflowRunId)) {
+    if (cancellation.signal.aborted || (await isTaskCancelled(workflowRunId))) {
       throw new DOMException("task cancelled", "AbortError");
     }
     await saveArtifactBlock({
@@ -253,7 +286,6 @@ async function compileAndPublishStep(input: {
   });
   return {
     documentId: published.document_id,
-    revisionId: published.revision_id,
     totalChars: compiled.html.length,
     blocksOk: compiled.partsOk,
     blocksFailed: compiled.partsFailed,
@@ -342,7 +374,6 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
     return {
       ok: true as const,
       documentId: published.documentId,
-      revisionId: published.revisionId,
       title: input.title,
       filename: input.filename,
       totalChars: published.totalChars,

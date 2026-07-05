@@ -1,14 +1,22 @@
 import {
   KnowledgeInternalClient,
   TransportError,
+  type ArtifactRevisionWorkspace,
   type DocumentSlice,
   type KnowledgeDocument,
   type RetrieveResult,
+  type StoredArtifactBlock,
 } from "@backend/transport-ts";
 import { getSettings } from "../config.js";
 import { NotFoundError } from "../lib/errors.js";
 
-export type { DocumentSlice, KnowledgeDocument, RetrieveResult } from "@backend/transport-ts";
+export type {
+  ArtifactRevisionWorkspace,
+  DocumentSlice,
+  KnowledgeDocument,
+  RetrieveResult,
+  StoredArtifactBlock,
+} from "@backend/transport-ts";
 
 function knowledgeClient(): KnowledgeInternalClient {
   const s = getSettings();
@@ -31,6 +39,20 @@ export async function getDocument(userId: string, documentId: string): Promise<K
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new NotFoundError(`document ${documentId} not found`);
+    }
+    throw err;
+  }
+}
+
+export async function getLatestArtifactWorkspace(
+  userId: string,
+  documentId: string,
+): Promise<ArtifactRevisionWorkspace | null> {
+  try {
+    return await knowledgeClient().getLatestArtifactWorkspace({ userId, documentId });
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      return null;
     }
     throw err;
   }

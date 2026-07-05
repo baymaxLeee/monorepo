@@ -248,17 +248,17 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/artifact-generations/{generation_id}": {
+    "/internal/artifact-generations/{generation_id}/fail": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Generation */
-        get: operations["get_generation_internal_artifact_generations__generation_id__get"];
+        get?: never;
         put?: never;
-        post?: never;
+        /** Fail Generation */
+        post: operations["fail_generation_internal_artifact_generations__generation_id__fail_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -276,23 +276,6 @@ export interface paths {
         put?: never;
         /** Cancel Generation */
         post: operations["cancel_generation_internal_artifact_generations__generation_id__cancel_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/artifact-generations/{generation_id}/fail": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Fail Generation */
-        post: operations["fail_generation_internal_artifact_generations__generation_id__fail_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -411,8 +394,6 @@ export interface components {
             id: string;
             /** Type */
             type: string;
-            /** Brief */
-            brief: string;
         };
         /** ArtifactGeneration */
         ArtifactGeneration: {
@@ -422,8 +403,6 @@ export interface components {
             document_id: string;
             /** Status */
             status: string;
-            /** Phase */
-            phase: string;
             /** Total Blocks */
             total_blocks: number;
             /** Completed Blocks */
@@ -432,85 +411,13 @@ export interface components {
             failed_blocks: number;
             /** Error */
             error: string | null;
-            /** Attempt */
-            attempt: number;
-            /** Run Id */
-            run_id: string | null;
-            /** Tool Call Id */
-            tool_call_id: string | null;
-            /** Lease Owner */
-            lease_owner: string | null;
-            /** Lease Expires At */
-            lease_expires_at: string | null;
-            /** Started At */
-            started_at: string | null;
             /** Finished At */
             finished_at: string | null;
-            /** Cancel Requested At */
-            cancel_requested_at: string | null;
-        };
-        /** ArtifactGenerationDetail */
-        ArtifactGenerationDetail: {
-            /** Id */
-            id: string;
-            /** Document Id */
-            document_id: string;
-            /** Status */
-            status: string;
-            /** Phase */
-            phase: string;
-            /** Total Blocks */
-            total_blocks: number;
-            /** Completed Blocks */
-            completed_blocks: number;
-            /** Failed Blocks */
-            failed_blocks: number;
-            /** Error */
-            error: string | null;
-            /** Attempt */
-            attempt: number;
-            /** Run Id */
-            run_id: string | null;
-            /** Tool Call Id */
-            tool_call_id: string | null;
-            /** Lease Owner */
-            lease_owner: string | null;
-            /** Lease Expires At */
-            lease_expires_at: string | null;
-            /** Started At */
-            started_at: string | null;
-            /** Finished At */
-            finished_at: string | null;
-            /** Cancel Requested At */
-            cancel_requested_at: string | null;
-            /** User Id */
-            user_id: string;
-            /** Title */
-            title: string;
-            /** Filename */
-            filename: string;
-            /** Brief */
-            brief: string;
-            /** Manifest */
-            manifest?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /** ArtifactMutationInput */
-        ArtifactMutationInput: {
-            /** User Id */
-            user_id: string;
-            /** Owner */
-            owner?: string | null;
-            /** Error */
-            error?: string | null;
         };
         /** ArtifactRevisionWorkspace */
         ArtifactRevisionWorkspace: {
             /** Document Id */
             document_id: string;
-            /** Revision Id */
-            revision_id: string;
             /** Manifest */
             manifest: {
                 [key: string]: unknown;
@@ -540,6 +447,11 @@ export interface components {
             conversation_id?: string | null;
             /** Provider Id */
             provider_id?: string | null;
+        };
+        /** CancelArtifactGenerationInput */
+        CancelArtifactGenerationInput: {
+            /** User Id */
+            user_id: string;
         };
         /** CreateArtifactInput */
         CreateArtifactInput: {
@@ -661,6 +573,13 @@ export interface components {
             /** Next Start */
             next_start?: number | null;
         };
+        /** FailArtifactGenerationInput */
+        FailArtifactGenerationInput: {
+            /** User Id */
+            user_id: string;
+            /** Error */
+            error?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -677,8 +596,6 @@ export interface components {
         PublishedArtifactRevision: {
             /** Document Id */
             document_id: string;
-            /** Revision Id */
-            revision_id: string;
             /** Title */
             title: string;
             /** Filename */
@@ -711,14 +628,8 @@ export interface components {
             brief: string;
             /** Idempotency Key */
             idempotency_key: string;
-            /** Base Revision Id */
-            base_revision_id?: string | null;
             /** Document Id */
             document_id?: string | null;
-            /** Run Id */
-            run_id?: string | null;
-            /** Tool Call Id */
-            tool_call_id?: string | null;
         };
         /** RetrieveInput */
         RetrieveInput: {
@@ -1421,11 +1332,9 @@ export interface operations {
             };
         };
     };
-    get_generation_internal_artifact_generations__generation_id__get: {
+    fail_generation_internal_artifact_generations__generation_id__fail_post: {
         parameters: {
-            query: {
-                user_id: string;
-            };
+            query?: never;
             header?: {
                 "X-Internal-Token"?: string | null;
             };
@@ -1434,7 +1343,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FailArtifactGenerationInput"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -1442,7 +1355,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ArtifactGenerationDetail"];
+                    "application/json": components["schemas"]["ArtifactGeneration"];
                 };
             };
             /** @description Validation Error */
@@ -1469,44 +1382,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ArtifactMutationInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ArtifactGeneration"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    fail_generation_internal_artifact_generations__generation_id__fail_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Internal-Token"?: string | null;
-            };
-            path: {
-                generation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ArtifactMutationInput"];
+                "application/json": components["schemas"]["CancelArtifactGenerationInput"];
             };
         };
         responses: {

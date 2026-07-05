@@ -2,7 +2,6 @@ import {
   KnowledgeInternalClient,
   type ArtifactBlockPlan,
   type ArtifactGeneration,
-  type ArtifactGenerationDetail,
   type ArtifactRevisionWorkspace,
   type KnowledgeDocument,
   type PublishedArtifactRevision,
@@ -14,7 +13,6 @@ import { getSettings } from "../config.js";
 export type {
   ArtifactBlockPlan,
   ArtifactGeneration,
-  ArtifactGenerationDetail,
   ArtifactRevisionWorkspace,
   KnowledgeDocument,
   PublishedArtifactRevision,
@@ -73,7 +71,6 @@ export async function reserveArtifactGeneration(input: {
   brief: string;
   idempotencyKey: string;
   documentId?: string;
-  resumeGenerationId?: string;
 }): Promise<ArtifactGeneration> {
   return knowledgeClient().reserveArtifactGeneration(input);
 }
@@ -112,24 +109,17 @@ export async function publishArtifactRevision(input: {
   return knowledgeClient().publishArtifactRevision(input);
 }
 
-export async function getArtifactGeneration(
-  userId: string,
-  generationId: string,
-): Promise<ArtifactGenerationDetail> {
-  return knowledgeClient().getArtifactGeneration({ userId, generationId });
-}
-
 export async function failArtifactGeneration(input: {
   userId: string;
   generationId: string;
   error?: string;
 }): Promise<ArtifactGeneration> {
-  return knowledgeClient().failArtifactGeneration({ ...input, owner: "executor" });
+  return knowledgeClient().failArtifactGeneration(input);
 }
 
 export async function cancelArtifactGeneration(input: {
   userId: string;
   generationId: string;
 }): Promise<ArtifactGeneration> {
-  return knowledgeClient().cancelArtifactGeneration({ ...input, owner: "executor" });
+  return knowledgeClient().cancelArtifactGeneration(input);
 }
