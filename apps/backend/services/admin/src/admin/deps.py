@@ -39,10 +39,12 @@ class AuthContext:
 
     @property
     def can_write_org_config(self) -> bool:
-        """Team-shared org config (bots/scenes/intentions/providers) writes: an
-        org_admin of the active org, or a super_admin who is scoped to an org.
-        A super_admin with no active org must not write org data unscoped."""
-        return self.is_org_admin or (self.is_super_admin and self.org_id != "")
+        """Team-shared org config (bots/scenes/intentions/providers) writes:
+        strictly an active org_admin of the bound org. The platform super_admin
+        role grants NO standing write over a tenant's data — to act inside an org
+        it must hold an active org_admin membership there (same rule as IAM member
+        management and knowledge). The platform role stays a pure control plane."""
+        return self.is_org_admin
 
 
 async def db_session() -> AsyncGenerator[AsyncSession]:
@@ -118,8 +120,8 @@ def auth_context(
 def require_admin(
     current_user: Annotated[AuthContext, Depends(auth_context)],
 ) -> AuthContext:
-    """Write guard for team-shared org config: an org_admin of the active org,
-    or a super_admin scoped to an org."""
+    """Write guard for team-shared org config: an active org_admin of the bound
+    org (no super_admin bypass — the platform role is control-plane only)."""
     if not current_user.can_write_org_config:
         raise ForbiddenError("org_admin role required")
     return current_user

@@ -438,7 +438,7 @@ func (s *Store) EnsureAllUsersInGuestOrg(ctx context.Context, orgID string) erro
 }
 
 // EnsureOrgMember upserts a membership at a fixed role/status. Used by seed to
-// keep the demo super_admin an active org_admin idempotently.
+// keep the system super_admin an active org_admin idempotently.
 func (s *Store) EnsureOrgMember(ctx context.Context, orgID, userID, role, status string) error {
 	member := model.OrganizationMember{
 		OrgID:     orgID,
