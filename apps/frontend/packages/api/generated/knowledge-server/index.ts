@@ -153,6 +153,7 @@ export const DocumentIngestStatus = {
 export interface Document {
   id: string;
   user_id: string;
+  org_id?: string | null;
   conversation_id?: string | null;
   kind: DocumentKind;
   title: string;
@@ -270,6 +271,11 @@ export interface RetrieveInput {
      * @maxLength 26
      */
   user_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  org_id: string;
   /**
      * @minLength 1
      * @maxLength 4000
@@ -439,7 +445,7 @@ const listMyDocumentsDocumentsGet = (
 /**
  * Delete several of the caller's documents in one transaction.
  *
- * Only rows owned by the current user are removed (ids the user does not own
+ * Any member of the org may delete the team's documents (ids outside the org
  * are silently ignored). Object-store blobs are best-effort purged and the
  * RAG `document_chunks` are dropped via the FK `ON DELETE CASCADE`.
  * @summary Batch Delete My Documents

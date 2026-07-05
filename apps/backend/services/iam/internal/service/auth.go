@@ -56,6 +56,9 @@ func (s *AuthService) Register(ctx context.Context, req schema.AuthRequest, meta
 	if err := s.store.CreateUserWithPassword(ctx, user, passwordHash); err != nil {
 		return schema.AuthResponse{}, "", time.Time{}, ErrConflict
 	}
+	// MVP: every user joins the seeded demo team so the shared knowledge base
+	// works out of the box. Personal-org separation is a later phase.
+	_ = s.store.EnsureOrgMember(ctx, s.cfg.DemoOrgID, user.ID, "member")
 	return s.IssueSession(ctx, user, meta)
 }
 
@@ -134,17 +137,20 @@ func (s *AuthService) IssueSession(ctx context.Context, user model.User, meta Re
 
 func (s *AuthService) AuthResponse(ctx context.Context, user model.User) (schema.AuthResponse, error) {
 	expiresAt := time.Now().UTC().Add(s.cfg.AccessTokenTTL)
+	resp := s.userResponse(ctx, user)
 	token, err := security.SignAccessToken(s.cfg.AccessTokenSecret, security.Claims{
 		Subject: user.ID,
 		Email:   user.Email,
 		Name:    user.DisplayName,
+		OrgID:   resp.OrgID,
+		Roles:   s.userRoleNames(ctx, user.ID),
 		Issued:  time.Now().UTC().Unix(),
 		Expiry:  expiresAt.Unix(),
 	})
 	if err != nil {
 		return schema.AuthResponse{}, err
 	}
-	return schema.AuthResponse{AccessToken: token, ExpiresAt: expiresAt, User: s.userResponse(ctx, user)}, nil
+	return schema.AuthResponse{AccessToken: token, ExpiresAt: expiresAt, User: resp}, nil
 }
 
 const (
@@ -163,7 +169,26 @@ func (s *AuthService) userResponse(ctx context.Context, user model.User) schema.
 			}
 		}
 	}
+	if org, err := s.store.PrimaryOrgForUser(ctx, user.ID); err == nil {
+		resp.OrgID = org.ID
+		resp.OrgName = org.Name
+	}
 	return resp
+}
+
+// userRoleNames returns the user's role names for the access-token `roles`
+// claim; downstream services derive admin/authorization from it (no service
+// re-queries iam).
+func (s *AuthService) userRoleNames(ctx context.Context, userID string) []string {
+	roles, err := s.store.UserRoles(ctx, userID)
+	if err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(roles))
+	for _, role := range roles {
+		names = append(names, role.Name)
+	}
+	return names
 }
 
 func UserResponse(user model.User) schema.UserResponse {

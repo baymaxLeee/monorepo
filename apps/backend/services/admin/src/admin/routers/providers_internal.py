@@ -17,46 +17,48 @@ from admin.services.providers import ModelProviderService
 router = APIRouter(prefix="/internal/providers", tags=["internal-providers"])
 
 
-def _service_for(session: DbSession, user_id: str) -> ModelProviderService:
-    """Construct a service bound to the caller-specified owner.
+def _service(session: DbSession, org_id: str = "") -> ModelProviderService:
+    """Construct a provider service for internal (service-to-service) use.
 
-    Internal callers (chat, …) supply the end-user via `user_id` query —
-    we still go through `ModelProviderService` so audit/log boundaries
-    stay consistent with the public CRUD path.
+    The `/default` and `/by-kind` selectors search a team's shared provider
+    pool and take `org_id`; the by-id resolve is a trusted lookup that needs no
+    scope (the internal token is the trust boundary and the id is opaque).
     """
 
-    return ModelProviderService(session, AuthContext(user_id=user_id, username=user_id, email=""))
+    return ModelProviderService(session, AuthContext(user_id="", username="", email="", org_id=org_id))
 
 
 @router.get("/default", response_model=InternalModelProvider)
 async def get_default_provider_internal(
-    user_id: Annotated[str, Query(min_length=1, description="Owner of the provider")],
+    org_id: Annotated[str, Query(min_length=1, description="Team that owns the provider")],
     session: DbSession,
     _caller: InternalCaller,
 ) -> InternalModelProvider:
-    return await _service_for(session, user_id).get_default_for_user(user_id)
+    return await _service(session, org_id).get_default_for_org(org_id)
 
 
 @router.get("/by-kind/{kind}", response_model=InternalModelProvider)
 async def get_provider_by_kind_internal(
     kind: str,
-    user_id: Annotated[str, Query(min_length=1, description="Owner of the provider")],
+    org_id: Annotated[str, Query(min_length=1, description="Team that owns the provider")],
     session: DbSession,
     _caller: InternalCaller,
 ) -> InternalModelProvider:
-    """First enabled provider of `kind` (embedding/rerank/...) for the user.
+    """First enabled provider of `kind` (embedding/rerank/...) for the team.
 
     Used by knowledge to resolve the embedding/rerank model for RAG. Non-chat
     kinds have no default flag, so this returns the newest enabled one.
     """
-    return await _service_for(session, user_id).get_by_kind_for_user(user_id, kind)
+    return await _service(session, org_id).get_by_kind_for_org(org_id, kind)
 
 
 @router.get("/{provider_id}", response_model=InternalModelProvider)
 async def get_provider_internal(
     provider_id: str,
-    user_id: Annotated[str, Query(min_length=1, description="Owner of the provider")],
     session: DbSession,
     _caller: InternalCaller,
 ) -> InternalModelProvider:
-    return await _service_for(session, user_id).get_internal(provider_id, user_id)
+    """Trusted by-id resolve: chat/executor/knowledge already hold a concrete,
+    upstream-authorized provider id. No scope param — the internal token is the
+    boundary and the id is opaque."""
+    return await _service(session).get_internal(provider_id)

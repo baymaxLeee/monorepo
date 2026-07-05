@@ -12,11 +12,13 @@ import (
 )
 
 type Claims struct {
-	Subject string `json:"sub"`
-	Email   string `json:"email"`
-	Name    string `json:"name"`
-	Issued  int64  `json:"iat"`
-	Expiry  int64  `json:"exp"`
+	Subject string   `json:"sub"`
+	Email   string   `json:"email"`
+	Name    string   `json:"name"`
+	OrgID   string   `json:"org_id,omitempty"`
+	Roles   []string `json:"roles,omitempty"`
+	Issued  int64    `json:"iat"`
+	Expiry  int64    `json:"exp"`
 }
 
 func SignAccessToken(secret string, claims Claims) (string, error) {

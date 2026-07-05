@@ -14,6 +14,9 @@ export type AuthUser = {
   emailVerified: boolean;
   /** From iam auth response; absent in pre-upgrade cached sessions → treat as "normal". */
   type?: UserType;
+  /** Active organization (team) this session is scoped to; absent in pre-org cached sessions. */
+  orgId?: string;
+  orgName?: string;
 };
 
 export type AuthSession = {

@@ -11,10 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from admin.models.scene import SceneRow
 
 
-async def list_scenes(session: AsyncSession, user_id: str, is_admin: bool) -> list[SceneRow]:
-    stmt = select(SceneRow).order_by(SceneRow.updated_at.desc())
-    if not is_admin:
-        stmt = stmt.where(SceneRow.user_id == user_id)
+async def list_scenes(session: AsyncSession, org_id: str) -> list[SceneRow]:
+    stmt = select(SceneRow).where(SceneRow.org_id == org_id).order_by(SceneRow.updated_at.desc())
     result = await session.scalars(stmt)
     return list(result.all())
 
@@ -22,12 +20,9 @@ async def list_scenes(session: AsyncSession, user_id: str, is_admin: bool) -> li
 async def get_scene(
     session: AsyncSession,
     scene_id: str,
-    user_id: str,
-    is_admin: bool,
+    org_id: str,
 ) -> SceneRow | None:
-    stmt = select(SceneRow).where(SceneRow.id == scene_id)
-    if not is_admin:
-        stmt = stmt.where(SceneRow.user_id == user_id)
+    stmt = select(SceneRow).where(SceneRow.id == scene_id, SceneRow.org_id == org_id)
     result = await session.scalars(stmt)
     return result.one_or_none()
 
@@ -40,12 +35,14 @@ async def create_scene(
     name: str,
     status: str,
     user_id: str,
+    org_id: str,
     username: str,
 ) -> SceneRow:
     now = datetime.now(UTC)
     row = SceneRow(
         id=uuid4().hex[:8],
         user_id=user_id,
+        org_id=org_id,
         username=username or user_id,
         name=name,
         description=description,
@@ -77,12 +74,9 @@ async def delete_scene(session: AsyncSession, row: SceneRow) -> None:
 async def bulk_delete_scenes(
     session: AsyncSession,
     ids: list[str],
-    user_id: str,
-    is_admin: bool,
+    org_id: str,
 ) -> int:
-    stmt = delete(SceneRow).where(SceneRow.id.in_(ids))
-    if not is_admin:
-        stmt = stmt.where(SceneRow.user_id == user_id)
+    stmt = delete(SceneRow).where(SceneRow.id.in_(ids), SceneRow.org_id == org_id)
     result = await session.execute(stmt)
     await session.commit()
     return cast(CursorResult[object], result).rowcount or 0

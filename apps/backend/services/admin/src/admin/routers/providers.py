@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from admin.deps import CurrentUser, DbSession
+from admin.deps import AdminUser, CurrentUser, DbSession
 from admin.schemas.provider import (
     BulkDeleteModelProvidersInput,
     BulkDeleteModelProvidersResult,
@@ -37,7 +37,7 @@ async def get_provider(
 @router.post("", response_model=ModelProvider, status_code=201)
 async def create_provider(
     payload: CreateModelProviderInput,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     session: DbSession,
 ) -> ModelProvider:
     return await ModelProviderService(session, current_user).create(payload)
@@ -47,7 +47,7 @@ async def create_provider(
 async def update_provider(
     provider_id: str,
     payload: UpdateModelProviderInput,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     session: DbSession,
 ) -> ModelProvider:
     return await ModelProviderService(session, current_user).update(provider_id, payload)
@@ -56,7 +56,7 @@ async def update_provider(
 @router.delete("/{provider_id}", status_code=204)
 async def delete_provider(
     provider_id: str,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     session: DbSession,
 ) -> None:
     await ModelProviderService(session, current_user).delete(provider_id)
@@ -65,7 +65,7 @@ async def delete_provider(
 @router.post("/bulk-delete", response_model=BulkDeleteModelProvidersResult)
 async def bulk_delete_providers(
     payload: BulkDeleteModelProvidersInput,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     session: DbSession,
 ) -> BulkDeleteModelProvidersResult:
     deleted = await ModelProviderService(session, current_user).bulk_delete(payload.ids)
@@ -75,7 +75,7 @@ async def bulk_delete_providers(
 @router.post("/{provider_id}/set-default", response_model=ModelProvider)
 async def set_default_provider(
     provider_id: str,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     session: DbSession,
 ) -> ModelProvider:
     return await ModelProviderService(session, current_user).set_default(provider_id)
@@ -85,7 +85,7 @@ async def set_default_provider(
 async def test_provider(
     provider_id: str,
     payload: TestModelProviderInput,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     session: DbSession,
 ) -> TestModelProviderResult:
     return await ModelProviderService(session, current_user).test(provider_id, payload)

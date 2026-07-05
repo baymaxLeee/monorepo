@@ -91,10 +91,11 @@ export async function getDocumentSource(
 
 export async function retrieveKnowledge(
   userId: string,
+  orgId: string,
   query: string,
   topK?: number,
 ): Promise<RetrieveResult> {
-  return knowledgeClient().retrieve({ userId, query, topK });
+  return knowledgeClient().retrieve({ userId, orgId, query, topK });
 }
 
 export async function createArtifact(input: {

@@ -118,7 +118,7 @@ async function knowledgeSearch(
   input: { query: string; top_k?: number },
   { context }: { context: KnowledgeSearchToolContext },
 ): Promise<z.infer<typeof knowledgeSearchOutputSchema>> {
-  const result = await retrieveKnowledge(context.userId, input.query, input.top_k);
+  const result = await retrieveKnowledge(context.userId, context.orgId, input.query, input.top_k);
   const emptyNote =
     "no relevant knowledge base passages found; use web_search for public information or report that private knowledge does not cover the question";
   return {
@@ -167,7 +167,7 @@ export function createSearchToolManifests() {
       "knowledge_search",
       tool({
         description:
-          "Search the user's private knowledge base for uploaded documents, internal policies, and organization-specific facts.",
+          "Search the team's shared knowledge base for uploaded documents, past incident write-ups, runbooks, internal policies, and organization-specific facts.",
         inputSchema: z.object({
           query: z.string().min(1).max(2_000),
           top_k: z.number().int().min(1).max(20).optional(),

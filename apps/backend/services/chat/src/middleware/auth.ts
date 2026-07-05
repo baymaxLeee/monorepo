@@ -2,14 +2,11 @@ import type { Context, Next } from "hono";
 
 import { UnauthorizedError } from "../lib/errors.js";
 
-const ADMIN_USER_ID = "demo-super-admin";
-const ADMIN_EMAIL = "admin@example.com";
-
 export interface AuthContext {
   userId: string;
   username: string;
   email: string;
-  isAdmin: boolean;
+  orgId: string;
 }
 
 export function getAuth(c: Context): AuthContext {
@@ -23,7 +20,7 @@ export async function authMiddleware(c: Context, next: Next) {
   if (!userId) throw new UnauthorizedError("X-Auth-User-ID header is required");
   const username = c.req.header("X-Auth-Name") ?? userId;
   const email = c.req.header("X-Auth-Email") ?? "";
-  const isAdmin = userId === ADMIN_USER_ID || email === ADMIN_EMAIL;
-  c.set("auth", { userId, username, email, isAdmin } satisfies AuthContext);
+  const orgId = c.req.header("X-Auth-Org-ID") ?? "";
+  c.set("auth", { userId, username, email, orgId } satisfies AuthContext);
   await next();
 }

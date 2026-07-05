@@ -132,6 +132,22 @@
               ],
               "title": "X-Auth-Email"
             }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "requestBody": {
@@ -228,6 +244,22 @@
               ],
               "title": "X-Auth-Email"
             }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -320,6 +352,22 @@
                 }
               ],
               "title": "X-Auth-Email"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
             }
           }
         ],

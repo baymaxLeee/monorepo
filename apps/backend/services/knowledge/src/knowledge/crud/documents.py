@@ -18,6 +18,7 @@ async def create_document(
     session: AsyncSession,
     *,
     user_id: str,
+    org_id: str | None = None,
     kind: str,
     title: str,
     filename: str,
@@ -39,6 +40,7 @@ async def create_document(
     row = DocumentRow(
         id=document_id or new_document_id(),
         user_id=user_id,
+        org_id=org_id,
         conversation_id=conversation_id,
         kind=kind,
         title=title[:255],
@@ -64,6 +66,21 @@ async def create_document(
 
 async def get_document(session: AsyncSession, document_id: str, user_id: str) -> DocumentRow | None:
     row = await session.scalar(select(DocumentRow).where(DocumentRow.id == document_id, DocumentRow.user_id == user_id))
+    return row
+
+
+async def get_document_by_id(session: AsyncSession, document_id: str) -> DocumentRow | None:
+    """Fetch a document with no ACL. Internal-only (indexing derives the
+    uploader + org from the row itself)."""
+    row = await session.scalar(select(DocumentRow).where(DocumentRow.id == document_id))
+    return row
+
+
+async def get_org_document(session: AsyncSession, document_id: str, org_id: str) -> DocumentRow | None:
+    """Team-scoped read: any member of the owning org may access the document."""
+    row = await session.scalar(
+        select(DocumentRow).where(DocumentRow.id == document_id, DocumentRow.org_id == org_id)
+    )
     return row
 
 
@@ -94,6 +111,37 @@ async def list_documents_by_ids(
         return []
     stmt = select(DocumentRow).where(
         DocumentRow.user_id == user_id,
+        DocumentRow.id.in_(document_ids),
+    )
+    result = await session.scalars(stmt)
+    return list(result.all())
+
+
+async def list_org_documents(
+    session: AsyncSession,
+    *,
+    org_id: str,
+    kind: str | None = None,
+) -> list[DocumentRow]:
+    """Team knowledge base: every member sees the org's documents."""
+    stmt = select(DocumentRow).where(DocumentRow.org_id == org_id).order_by(DocumentRow.created_at.desc())
+    if kind:
+        stmt = stmt.where(DocumentRow.kind == kind)
+    result = await session.scalars(stmt)
+    return list(result.all())
+
+
+async def list_org_documents_by_ids(
+    session: AsyncSession,
+    *,
+    org_id: str,
+    document_ids: list[str],
+) -> list[DocumentRow]:
+    """Fetch the org's documents for the given ids (used by team batch delete)."""
+    if not document_ids:
+        return []
+    stmt = select(DocumentRow).where(
+        DocumentRow.org_id == org_id,
         DocumentRow.id.in_(document_ids),
     )
     result = await session.scalars(stmt)

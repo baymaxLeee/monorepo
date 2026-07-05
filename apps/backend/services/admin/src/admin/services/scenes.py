@@ -24,6 +24,7 @@ def to_schema(row: SceneRow) -> Scene:
     return Scene(
         id=row.id,
         user_id=row.user_id,
+        org_id=row.org_id,
         username=row.username,
         name=row.name,
         description=row.description,
@@ -42,8 +43,7 @@ class SceneService:
     async def list(self) -> list[Scene]:
         rows = await scene_crud.list_scenes(
             self._session,
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            self._current_user.org_id,
         )
         return [to_schema(row) for row in rows]
 
@@ -58,6 +58,7 @@ class SceneService:
             name=payload.name,
             status=payload.status,
             user_id=self._current_user.user_id,
+            org_id=self._current_user.org_id,
             username=self._current_user.username,
         )
         return to_schema(row)
@@ -74,16 +75,14 @@ class SceneService:
         return await scene_crud.bulk_delete_scenes(
             self._session,
             list(ids),
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            self._current_user.org_id,
         )
 
     async def _get_row(self, scene_id: str) -> SceneRow:
         row = await scene_crud.get_scene(
             self._session,
             scene_id,
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            self._current_user.org_id,
         )
         if row is None:
             raise NotFoundError(f"scene {scene_id} not found")

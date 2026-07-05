@@ -134,13 +134,12 @@ export async function planSegments(input: {
 }
 
 export async function generateCharacterSheet(input: {
-  userId: string;
   imageProviderId: string;
   characters: Character[];
   perImageTimeoutMs: number;
   abortSignal?: AbortSignal;
 }): Promise<CharacterRef[]> {
-  const provider = await getProvider(input.userId, input.imageProviderId);
+  const provider = await getProvider(input.imageProviderId);
   const refs: CharacterRef[] = [];
   for (const character of input.characters) {
     if (input.abortSignal?.aborted) throw input.abortSignal.reason;

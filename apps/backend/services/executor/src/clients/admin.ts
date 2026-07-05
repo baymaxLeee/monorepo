@@ -13,13 +13,13 @@ function adminClient(): AdminInternalClient {
   });
 }
 
-export async function getProvider(userId: string, providerId: string): Promise<ChatProvider> {
+export async function getProvider(providerId: string): Promise<ChatProvider> {
   let data: AdminProviderSnapshot;
   try {
-    data = await adminClient().getProvider(userId, providerId);
+    data = await adminClient().getProvider(providerId);
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
-      throw new RequestError(`provider ${providerId} not found for user`);
+      throw new RequestError(`provider ${providerId} not found`);
     }
     throw err;
   }

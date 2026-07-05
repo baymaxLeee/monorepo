@@ -52,6 +52,7 @@ import {
 export interface RunAgentInput {
   imageProvider?: ProviderSnapshot | null;
   videoProviderId?: string | null;
+  persona?: string | null;
 }
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
@@ -102,10 +103,7 @@ function assertRunAccess(
     userId: string;
   },
 ): void {
-  if (
-    run.conversationId !== conversationId ||
-    (!auth.isAdmin && run.userId !== auth.userId)
-  ) {
+  if (run.conversationId !== conversationId || run.userId !== auth.userId) {
     throw new NotFoundError("agent run not found");
   }
 }
@@ -227,6 +225,7 @@ export async function createAgentRunResponse(
         conversationId: conversation.id,
         documentIds: requestedDocumentIds,
         mode: conversation.agentMode === "plan" ? "plan" : "normal",
+        persona: input.persona ?? null,
       }),
       updateConversationProvider(conversation.id, provider.id, provider.model),
     ]);
@@ -291,6 +290,7 @@ export async function createAgentRunResponse(
     const agentInstance = await createAgent({
       runId,
       userId: conversation.userId,
+      orgId: auth.orgId,
       conversationId: conversation.id,
       mode,
       provider,

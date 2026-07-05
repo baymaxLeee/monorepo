@@ -44,7 +44,6 @@ async def _maybe_append_image_chunk(
     new_rows: list[DocumentChunkRow],
     *,
     row: DocumentRow,
-    user_id: str,
     embed_provider: ProviderSnapshot,
     pieces: list[str],
     now: datetime,
@@ -81,7 +80,8 @@ async def _maybe_append_image_chunk(
         DocumentChunkRow(
             id=chunk_crud.new_chunk_id(),
             document_id=row.id,
-            user_id=user_id,
+            user_id=row.user_id,
+            org_id=row.org_id,
             chunk_index=len(new_rows),
             content=f"[图片] {name}\n\n{lexical}",
             contextualized_content=None,
@@ -94,11 +94,16 @@ async def _maybe_append_image_chunk(
     return None
 
 
-async def index_document(session: AsyncSession, *, document_id: str, user_id: str) -> IndexResult:
+async def index_document(session: AsyncSession, *, document_id: str) -> IndexResult:
     settings = get_settings()
-    row = await document_crud.get_document(session, document_id, user_id)
+    row = await document_crud.get_document_by_id(session, document_id)
     if row is None:
         return IndexResult(0, "document not found")
+    # Providers are team-shared: index against the document's own org so the
+    # whole team's chunks land in one embedding space and are retrievable.
+    org_id = row.org_id
+    if org_id is None:
+        return IndexResult(0, "document has no org")
 
     text = (row.content_md or "").strip()
     if not text:
@@ -107,7 +112,7 @@ async def index_document(session: AsyncSession, *, document_id: str, user_id: st
         return IndexResult(0, "no text content")
 
     try:
-        embed_provider = await get_admin_client().get_provider_by_kind(user_id=user_id, kind="embedding")
+        embed_provider = await get_admin_client().get_provider_by_kind(org_id=org_id, kind="embedding")
     except ProviderNotConfiguredError:
         return IndexResult(0, "no embedding provider configured")
 
@@ -124,10 +129,10 @@ async def index_document(session: AsyncSession, *, document_id: str, user_id: st
     contexts: list[str | None] = [None] * len(pieces)
     if settings.contextual_retrieval_enabled:
         try:
-            chat_provider = await get_admin_client().get_provider(user_id=user_id)
+            chat_provider = await get_admin_client().get_provider(org_id=org_id)
             contexts = await contextualize_chunks(pieces, document_text=text, provider=chat_provider)
         except ProviderNotConfiguredError:
-            logger.info("contextual retrieval skipped: no chat provider for user %s", user_id)
+            logger.info("contextual retrieval skipped: no chat provider for org %s", org_id)
         except Exception:
             logger.warning("contextual retrieval failed for %s; using raw chunks", document_id)
 
@@ -146,7 +151,8 @@ async def index_document(session: AsyncSession, *, document_id: str, user_id: st
         DocumentChunkRow(
             id=chunk_crud.new_chunk_id(),
             document_id=document_id,
-            user_id=user_id,
+            user_id=row.user_id,
+            org_id=row.org_id,
             chunk_index=index,
             content=pieces[index],
             contextualized_content=embed_inputs[index] if contexts[index] else None,
@@ -161,7 +167,6 @@ async def index_document(session: AsyncSession, *, document_id: str, user_id: st
     image_note = await _maybe_append_image_chunk(
         new_rows,
         row=row,
-        user_id=user_id,
         embed_provider=embed_provider,
         pieces=pieces,
         now=now,

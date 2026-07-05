@@ -8,6 +8,7 @@ export type FileToolContext = z.infer<typeof fileToolContextSchema>;
 
 export const knowledgeSearchToolContextSchema = z.object({
   userId: z.string(),
+  orgId: z.string(),
 });
 export type KnowledgeSearchToolContext = z.infer<typeof knowledgeSearchToolContextSchema>;
 

@@ -314,7 +314,7 @@ export interface paths {
         };
         /**
          * Get Provider By Kind Internal
-         * @description First enabled provider of `kind` (embedding/rerank/...) for the user.
+         * @description First enabled provider of `kind` (embedding/rerank/...) for the team.
          *
          *     Used by knowledge to resolve the embedding/rerank model for RAG. Non-chat
          *     kinds have no default flag, so this returns the newest enabled one.
@@ -335,7 +335,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Provider Internal */
+        /**
+         * Get Provider Internal
+         * @description Trusted by-id resolve: chat/executor/knowledge already hold a concrete,
+         *     upstream-authorized provider id. No scope param — the internal token is the
+         *     boundary and the id is opaque.
+         */
         get: operations["get_provider_internal_internal_providers__provider_id__get"];
         put?: never;
         post?: never;
@@ -434,10 +439,14 @@ export interface components {
             id: string;
             /** User Id */
             user_id: string;
+            /** Org Id */
+            org_id: string;
             /** Username */
             username: string;
             /** Name */
             name: string;
+            /** System Prompt */
+            system_prompt?: string | null;
             /**
              * Status
              * @enum {string}
@@ -637,6 +646,8 @@ export interface components {
             id: string;
             /** User Id */
             user_id: string;
+            /** Org Id */
+            org_id: string;
             /** Username */
             username: string;
             /** Name */
@@ -705,6 +716,8 @@ export interface components {
             id: string;
             /** User Id */
             user_id: string;
+            /** Org Id */
+            org_id: string;
             /** Name */
             name: string;
             /** Model */
@@ -750,6 +763,8 @@ export interface components {
             id: string;
             /** Name */
             name: string;
+            /** System Prompt */
+            system_prompt?: string | null;
             text_provider?: components["schemas"]["InternalModelProvider"] | null;
             image_provider?: components["schemas"]["InternalModelProvider"] | null;
             video_provider?: components["schemas"]["InternalModelProvider"] | null;
@@ -760,6 +775,8 @@ export interface components {
             id: string;
             /** User Id */
             user_id: string;
+            /** Org Id */
+            org_id: string;
             /** Username */
             username: string;
             /** Name */
@@ -828,6 +845,8 @@ export interface components {
         UpdateBotInput: {
             /** Name */
             name?: string | null;
+            /** System Prompt */
+            system_prompt?: string | null;
             /** Status */
             status?: ("draft" | "published" | "archived") | null;
             /** Text Provider Id */
@@ -985,6 +1004,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1018,6 +1038,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1055,6 +1076,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 bot_id: string;
@@ -1090,6 +1112,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 bot_id: string;
@@ -1123,6 +1146,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 bot_id: string;
@@ -1162,6 +1186,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1195,6 +1220,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1232,6 +1258,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 scene_id: string;
@@ -1267,6 +1294,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 scene_id: string;
@@ -1300,6 +1328,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 scene_id: string;
@@ -1339,6 +1368,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1376,6 +1406,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1409,6 +1440,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1446,6 +1478,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 intention_id: string;
@@ -1481,6 +1514,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 intention_id: string;
@@ -1514,6 +1548,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 intention_id: string;
@@ -1553,6 +1588,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1590,6 +1626,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1623,6 +1660,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1660,6 +1698,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 provider_id: string;
@@ -1695,6 +1734,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 provider_id: string;
@@ -1728,6 +1768,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 provider_id: string;
@@ -1767,6 +1808,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1804,6 +1846,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 provider_id: string;
@@ -1839,6 +1882,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 provider_id: string;
@@ -1874,8 +1918,8 @@ export interface operations {
     get_default_provider_internal_internal_providers_default_get: {
         parameters: {
             query: {
-                /** @description Owner of the provider */
-                user_id: string;
+                /** @description Team that owns the provider */
+                org_id: string;
             };
             header?: {
                 "X-Internal-Token"?: string | null;
@@ -1908,8 +1952,8 @@ export interface operations {
     get_provider_by_kind_internal_internal_providers_by_kind__kind__get: {
         parameters: {
             query: {
-                /** @description Owner of the provider */
-                user_id: string;
+                /** @description Team that owns the provider */
+                org_id: string;
             };
             header?: {
                 "X-Internal-Token"?: string | null;
@@ -1943,10 +1987,7 @@ export interface operations {
     };
     get_provider_internal_internal_providers__provider_id__get: {
         parameters: {
-            query: {
-                /** @description Owner of the provider */
-                user_id: string;
-            };
+            query?: never;
             header?: {
                 "X-Internal-Token"?: string | null;
             };
@@ -1980,8 +2021,10 @@ export interface operations {
     get_resolved_agent_internal_internal_agents__agent_id__get: {
         parameters: {
             query: {
-                /** @description Owner of the agent */
+                /** @description Requesting user */
                 user_id: string;
+                /** @description Requester's active org (team scope) */
+                org_id?: string;
             };
             header?: {
                 "X-Internal-Token"?: string | null;
@@ -2020,6 +2063,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2053,6 +2097,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2090,6 +2135,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 app_id: string;
@@ -2125,6 +2171,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 app_id: string;
@@ -2158,6 +2205,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 app_id: string;

@@ -62,6 +62,28 @@ type UserRole struct {
 	Role      Role      `gorm:"constraint:OnDelete:CASCADE;"`
 }
 
+// Organization is the team tenant that owns shared resources (knowledge base,
+// bots). It is deliberately distinct from any future desktop-client
+// "workspace" (a local working context), which is an orthogonal concept.
+type Organization struct {
+	ID          string    `gorm:"type:char(26);primaryKey"`
+	Name        string    `gorm:"type:varchar(120);not null"`
+	Slug        string    `gorm:"type:varchar(64);not null;uniqueIndex:uq_organizations_slug"`
+	OwnerUserID string    `gorm:"type:char(26);not null;index:idx_organizations_owner"`
+	CreatedAt   time.Time `gorm:"type:datetime(6);not null"`
+	UpdatedAt   time.Time `gorm:"type:datetime(6);not null"`
+}
+
+// OrganizationMember joins users to organizations. Modeled as a join table so a
+// user can belong to multiple orgs later; the MVP seeds a single membership per
+// user and treats it as the active org.
+type OrganizationMember struct {
+	OrgID     string    `gorm:"type:char(26);primaryKey"`
+	UserID    string    `gorm:"type:char(26);primaryKey;index:idx_org_members_user"`
+	Role      string    `gorm:"type:varchar(32);not null;default:'member'"`
+	CreatedAt time.Time `gorm:"type:datetime(6);not null"`
+}
+
 func (UserCredential) TableName() string {
 	return "user_credentials"
 }
@@ -72,4 +94,12 @@ func (RefreshToken) TableName() string {
 
 func (UserRole) TableName() string {
 	return "user_roles"
+}
+
+func (Organization) TableName() string {
+	return "organizations"
+}
+
+func (OrganizationMember) TableName() string {
+	return "organization_members"
 }

@@ -3,6 +3,7 @@ import {
   Avatar,
   AvatarFallback,
   AvatarImage,
+  Badge,
   Button,
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,7 @@ import {
   BrainIcon,
   LogOutIcon,
   UserIcon,
+  UsersIcon,
 } from "lucide-react";
 import {
   clearUser as clearObservabilityUser,
@@ -113,6 +115,16 @@ export function Layout() {
         </nav>
 
         <HeaderSection className="justify-end">
+          {user.orgName && (
+            <Badge
+              variant="outline"
+              className="hidden max-w-40 gap-1 md:inline-flex"
+              title={`当前团队：${user.orgName}`}
+            >
+              <UsersIcon aria-hidden="true" className="size-3 shrink-0" />
+              <span className="truncate">{user.orgName}</span>
+            </Badge>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -136,6 +148,11 @@ export function Layout() {
               <DropdownMenuLabel className="truncate">
                 {user.displayName}
               </DropdownMenuLabel>
+              {user.orgName && (
+                <DropdownMenuLabel className="truncate text-xs font-normal text-muted-foreground">
+                  团队：{user.orgName}
+                </DropdownMenuLabel>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link to="/platform/profile">

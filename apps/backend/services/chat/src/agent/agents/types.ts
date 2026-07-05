@@ -16,6 +16,7 @@ export interface AgentRuntimeContext {
 export interface ChatAgentInput {
   runId: string;
   userId: string;
+  orgId: string;
   conversationId: string;
   mode: AgentMode;
   provider: ChatProvider;

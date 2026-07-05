@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from admin.deps import CurrentUser, DbSession
+from admin.deps import AdminUser, CurrentUser, DbSession
 from admin.schemas.scene import (
     BulkDeleteScenesInput,
     BulkDeleteScenesResult,
@@ -35,7 +35,7 @@ async def get_scene(
 @router.post("", response_model=Scene, status_code=201)
 async def create_scene(
     payload: CreateSceneInput,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     session: DbSession,
 ) -> Scene:
     return await SceneService(session, current_user).create(payload)
@@ -45,7 +45,7 @@ async def create_scene(
 async def update_scene(
     scene_id: str,
     payload: UpdateSceneInput,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     session: DbSession,
 ) -> Scene:
     return await SceneService(session, current_user).update(scene_id, payload)
@@ -54,7 +54,7 @@ async def update_scene(
 @router.delete("/{scene_id}", status_code=204)
 async def delete_scene(
     scene_id: str,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     session: DbSession,
 ) -> None:
     await SceneService(session, current_user).delete(scene_id)
@@ -63,7 +63,7 @@ async def delete_scene(
 @router.post("/bulk-delete", response_model=BulkDeleteScenesResult)
 async def bulk_delete_scenes(
     payload: BulkDeleteScenesInput,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     session: DbSession,
 ) -> BulkDeleteScenesResult:
     deleted = await SceneService(session, current_user).bulk_delete(payload.ids)

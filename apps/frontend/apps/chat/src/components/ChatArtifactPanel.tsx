@@ -28,7 +28,7 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
     })),
   );
   const handleClose = onClose ?? closeArtifactPreview;
-  const { open, conversationId, documentId } = artifactPreview;
+  const { open, conversationId, documentId, token } = artifactPreview;
   const [artifact, setArtifact] = useState<ConversationDocumentDetail | null>(
     null,
   );
@@ -45,6 +45,7 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
     conversationId ?? undefined,
     documentId,
     Boolean(open && binarySource),
+    artifact?.updated_at ?? "",
   );
 
   useEffect(() => {
@@ -73,7 +74,7 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
     return () => {
       active = false;
     };
-  }, [conversationId, documentId, open]);
+  }, [conversationId, documentId, open, token]);
 
   useEffect(() => {
     if (
@@ -89,7 +90,11 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
     let active = true;
     setSourceLoading(true);
     setSourceError(false);
-    void fetchCachedDocumentSource(conversationId, documentId)
+    void fetchCachedDocumentSource(
+      conversationId,
+      documentId,
+      artifact?.updated_at ?? "",
+    )
       .then((blob) => blob.text())
       .then((html) => {
         if (active) setPreviewHtml(html);
@@ -106,7 +111,7 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
     return () => {
       active = false;
     };
-  }, [artifact?.mime_type, conversationId, documentId, open]);
+  }, [artifact?.mime_type, artifact?.updated_at, conversationId, documentId, open]);
 
   const previewLoading =
     loading ||

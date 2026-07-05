@@ -21,6 +21,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Textarea,
   toast,
 } from "components";
 import { useEffect } from "react";
@@ -31,6 +32,7 @@ const NONE = "__none__";
 
 const schema = z.object({
   name: z.string().trim().min(1, "请输入名称"),
+  system_prompt: z.string(),
   text_provider_id: z.string(),
   image_provider_id: z.string(),
   video_provider_id: z.string(),
@@ -96,6 +98,7 @@ export function AgentModelDialog({
     resolver: zodResolver(schema as never),
     defaultValues: {
       name: "",
+      system_prompt: "",
       text_provider_id: NONE,
       image_provider_id: NONE,
       video_provider_id: NONE,
@@ -106,6 +109,7 @@ export function AgentModelDialog({
     if (!bot) return;
     form.reset({
       name: bot.name,
+      system_prompt: bot.system_prompt ?? "",
       text_provider_id: fromId(bot.text_provider_id),
       image_provider_id: fromId(bot.image_provider_id),
       video_provider_id: fromId(bot.video_provider_id),
@@ -120,6 +124,7 @@ export function AgentModelDialog({
     try {
       await updateBot(bot.id, {
         name: values.name.trim(),
+        system_prompt: values.system_prompt.trim() || null,
         text_provider_id: toId(values.text_provider_id),
         image_provider_id: toId(values.image_provider_id),
         video_provider_id: toId(values.video_provider_id),
@@ -136,10 +141,10 @@ export function AgentModelDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>配置智能体模型</DialogTitle>
+          <DialogTitle>配置智能体</DialogTitle>
           <DialogDescription>
-            选择该智能体用于文本 / 图片 / 视频生成的模型
-            provider。留空表示不启用该能力。
+            设置该智能体的人设（系统提示词）与文本 / 图片 / 视频模型
+            provider。模型留空表示不启用该能力。
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -155,6 +160,25 @@ export function AgentModelDialog({
                       <Input id="agent-name" {...field} />
                     </FormControl>
                     <FieldError errors={[form.formState.errors.name]} />
+                  </Field>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="system_prompt"
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel htmlFor="agent-system-prompt">
+                      人设 / 系统提示词
+                    </FieldLabel>
+                    <FormControl>
+                      <Textarea
+                        id="agent-system-prompt"
+                        rows={8}
+                        placeholder="定义该智能体的角色、领域专长与回答格式。例如 oncall 排查助手的四段式（根因 / 排查 / 验证 / 修复建议）。留空则使用通用助手行为。"
+                        {...field}
+                      />
+                    </FormControl>
                   </Field>
                 )}
               />

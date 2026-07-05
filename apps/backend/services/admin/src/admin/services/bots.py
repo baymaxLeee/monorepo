@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from admin.crud import bots as bot_crud
 from admin.crud import providers as provider_crud
-from admin.deps import ADMIN_USER_ID, AuthContext
+from admin.deps import AuthContext
 from admin.models.bot import BotRow
 from admin.models.provider import (
     PROVIDER_KIND_CHAT,
@@ -32,8 +32,10 @@ def to_schema(row: BotRow) -> Bot:
     return Bot(
         id=row.id,
         user_id=row.user_id,
-        username="admin" if row.user_id == ADMIN_USER_ID else row.user_id,
+        org_id=row.org_id,
+        username=row.user_id,
         name=row.name,
+        system_prompt=row.system_prompt,
         status=row.status,  # type: ignore[arg-type]
         text_provider_id=row.text_provider_id,
         image_provider_id=row.image_provider_id,
@@ -57,8 +59,7 @@ class BotService:
     async def list(self) -> list[Bot]:
         rows = await bot_crud.list_bots(
             self._session,
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            self._current_user.org_id,
         )
         return [to_schema(row) for row in rows]
 
@@ -66,15 +67,14 @@ class BotService:
         row = await bot_crud.get_bot(
             self._session,
             bot_id,
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            self._current_user.org_id,
         )
         if row is None:
             raise NotFoundError(f"bot {bot_id} not found")
         return to_schema(row)
 
     async def create(self, name: str) -> Bot:
-        row = await bot_crud.create_bot(self._session, name, self._current_user.user_id)
+        row = await bot_crud.create_bot(self._session, name, self._current_user.user_id, self._current_user.org_id)
         if self._redis is not None:
             await self._redis.incr("admin:bots:created")
         return to_schema(row)
@@ -83,8 +83,7 @@ class BotService:
         row = await bot_crud.get_bot(
             self._session,
             bot_id,
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            self._current_user.org_id,
         )
         if row is None:
             raise NotFoundError(f"bot {bot_id} not found")
@@ -93,6 +92,8 @@ class BotService:
         values: dict[str, object] = {}
         if "name" in fields_set and payload.name is not None:
             values["name"] = payload.name
+        if "system_prompt" in fields_set:
+            values["system_prompt"] = payload.system_prompt
         if "status" in fields_set and payload.status is not None:
             values["status"] = payload.status
         for field, expected_kind in (
@@ -115,27 +116,28 @@ class BotService:
         row = await bot_crud.get_bot(
             self._session,
             bot_id,
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            self._current_user.org_id,
         )
         if row is None:
             raise NotFoundError(f"bot {bot_id} not found")
+        # Providers are team-shared: resolve against the bot's OWN org so a
+        # teammate running the team oncall bot uses the team's model config.
         return ResolvedAgent(
             id=row.id,
             name=row.name,
-            text_provider=await self._resolve_provider(row.text_provider_id),
-            image_provider=await self._resolve_provider(row.image_provider_id),
-            video_provider=await self._resolve_provider(row.video_provider_id),
+            system_prompt=row.system_prompt,
+            text_provider=await self._resolve_provider(row.text_provider_id, row.org_id),
+            image_provider=await self._resolve_provider(row.image_provider_id, row.org_id),
+            video_provider=await self._resolve_provider(row.video_provider_id, row.org_id),
         )
 
-    async def _resolve_provider(self, provider_id: str | None) -> InternalModelProvider | None:
+    async def _resolve_provider(self, provider_id: str | None, org_id: str) -> InternalModelProvider | None:
         if not provider_id:
             return None
         provider = await provider_crud.get_provider(
             self._session,
             provider_id,
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            org_id,
         )
         if provider is None or not provider.is_enabled:
             return None
@@ -145,8 +147,7 @@ class BotService:
         row = await bot_crud.get_bot(
             self._session,
             bot_id,
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            self._current_user.org_id,
         )
         if row is None:
             raise NotFoundError(f"bot {bot_id} not found")
@@ -156,8 +157,7 @@ class BotService:
         provider = await provider_crud.get_provider(
             self._session,
             provider_id,
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            self._current_user.org_id,
         )
         if provider is None:
             raise RequestError(f"model provider {provider_id} not found")

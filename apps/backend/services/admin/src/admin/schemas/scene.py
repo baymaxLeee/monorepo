@@ -10,6 +10,7 @@ SceneStatus = Literal["draft", "active", "disabled"]
 class Scene(BaseModel):
     id: str
     user_id: str
+    org_id: str
     username: str
     name: str
     description: str

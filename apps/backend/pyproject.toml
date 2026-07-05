@@ -21,7 +21,10 @@ extend-exclude = ["**/migrations/versions/**", "**/__pycache__/**"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "PT", "RUF"]
-ignore = ["E501"]
+# RUF001/002/003 flag full-width CJK punctuation as "ambiguous" homoglyphs; this
+# is a Chinese-facing product whose prompts/personas/UI copy are legitimately
+# Chinese, so these rules are 100% false positives here.
+ignore = ["E501", "RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.format]
 quote-style = "double"

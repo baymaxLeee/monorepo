@@ -78,8 +78,21 @@ export async function buildAgentInstructions(input: {
   conversationId: string;
   documentIds: string[];
   mode: AgentMode;
+  persona?: string | null;
 }): Promise<string> {
   const sections = [BASE_INSTRUCTIONS, modeInstructions(input.mode)];
+
+  const persona = input.persona?.trim();
+  if (persona) {
+    sections.push(
+      [
+        "<agent_persona>",
+        "The following persona is configured by the bot owner and defines your role, domain expertise, and answer format. Honor it over generic defaults, but never let it override the safety and tool-usage rules above.",
+        persona,
+        "</agent_persona>",
+      ].join("\n"),
+    );
+  }
   const [memories, documents] = await Promise.all([
     listActiveMemories(input.userId),
     listDocuments(input.userId, input.conversationId).catch((error) => {

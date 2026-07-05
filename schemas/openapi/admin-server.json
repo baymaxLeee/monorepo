@@ -132,6 +132,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -214,6 +246,38 @@
                 }
               ],
               "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
             }
           }
         ],
@@ -315,6 +379,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -402,6 +498,38 @@
                 }
               ],
               "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
             }
           }
         ],
@@ -501,6 +629,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -574,6 +734,38 @@
                 }
               ],
               "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
             }
           }
         ],
@@ -657,6 +849,38 @@
                 }
               ],
               "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
             }
           }
         ],
@@ -758,6 +982,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -845,6 +1101,38 @@
                 }
               ],
               "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
             }
           }
         ],
@@ -944,6 +1232,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -1017,6 +1337,38 @@
                 }
               ],
               "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
             }
           }
         ],
@@ -1109,6 +1461,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -1191,6 +1575,38 @@
                 }
               ],
               "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
             }
           }
         ],
@@ -1292,6 +1708,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -1379,6 +1827,38 @@
                 }
               ],
               "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
             }
           }
         ],
@@ -1478,6 +1958,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -1551,6 +2063,38 @@
                 }
               ],
               "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
             }
           }
         ],
@@ -1643,6 +2187,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -1725,6 +2301,38 @@
                 }
               ],
               "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
             }
           }
         ],
@@ -1826,6 +2434,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -1913,6 +2553,38 @@
                 }
               ],
               "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
             }
           }
         ],
@@ -2012,6 +2684,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -2085,6 +2789,38 @@
                 }
               ],
               "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
             }
           }
         ],
@@ -2186,6 +2922,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -2276,6 +3044,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "requestBody": {
@@ -2321,16 +3121,16 @@
         "operationId": "get_default_provider_internal_internal_providers_default_get",
         "parameters": [
           {
-            "name": "user_id",
+            "name": "org_id",
             "in": "query",
             "required": true,
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Owner of the provider",
-              "title": "User Id"
+              "description": "Team that owns the provider",
+              "title": "Org Id"
             },
-            "description": "Owner of the provider"
+            "description": "Team that owns the provider"
           },
           {
             "name": "X-Internal-Token",
@@ -2379,7 +3179,7 @@
           "internal-providers"
         ],
         "summary": "Get Provider By Kind Internal",
-        "description": "First enabled provider of `kind` (embedding/rerank/...) for the user.\n\nUsed by knowledge to resolve the embedding/rerank model for RAG. Non-chat\nkinds have no default flag, so this returns the newest enabled one.",
+        "description": "First enabled provider of `kind` (embedding/rerank/...) for the team.\n\nUsed by knowledge to resolve the embedding/rerank model for RAG. Non-chat\nkinds have no default flag, so this returns the newest enabled one.",
         "operationId": "get_provider_by_kind_internal_internal_providers_by_kind__kind__get",
         "parameters": [
           {
@@ -2392,16 +3192,16 @@
             }
           },
           {
-            "name": "user_id",
+            "name": "org_id",
             "in": "query",
             "required": true,
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Owner of the provider",
-              "title": "User Id"
+              "description": "Team that owns the provider",
+              "title": "Org Id"
             },
-            "description": "Owner of the provider"
+            "description": "Team that owns the provider"
           },
           {
             "name": "X-Internal-Token",
@@ -2450,6 +3250,7 @@
           "internal-providers"
         ],
         "summary": "Get Provider Internal",
+        "description": "Trusted by-id resolve: chat/executor/knowledge already hold a concrete,\nupstream-authorized provider id. No scope param — the internal token is the\nboundary and the id is opaque.",
         "operationId": "get_provider_internal_internal_providers__provider_id__get",
         "parameters": [
           {
@@ -2460,18 +3261,6 @@
               "type": "string",
               "title": "Provider Id"
             }
-          },
-          {
-            "name": "user_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "description": "Owner of the provider",
-              "title": "User Id"
-            },
-            "description": "Owner of the provider"
           },
           {
             "name": "X-Internal-Token",
@@ -2538,10 +3327,22 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Owner of the agent",
+              "description": "Requesting user",
               "title": "User Id"
             },
-            "description": "Owner of the agent"
+            "description": "Requesting user"
+          },
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requester's active org (team scope)",
+              "default": "",
+              "title": "Org Id"
+            },
+            "description": "Requester's active org (team scope)"
           },
           {
             "name": "X-Internal-Token",
@@ -2639,6 +3440,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -2721,6 +3554,38 @@
                 }
               ],
               "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
             }
           }
         ],
@@ -2822,6 +3687,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -2909,6 +3806,38 @@
                 }
               ],
               "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
             }
           }
         ],
@@ -3008,6 +3937,38 @@
               ],
               "title": "X-Auth-Name"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
           }
         ],
         "responses": {
@@ -3103,6 +4064,10 @@
             "type": "string",
             "title": "User Id"
           },
+          "org_id": {
+            "type": "string",
+            "title": "Org Id"
+          },
           "username": {
             "type": "string",
             "title": "Username"
@@ -3110,6 +4075,17 @@
           "name": {
             "type": "string",
             "title": "Name"
+          },
+          "system_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "System Prompt"
           },
           "status": {
             "type": "string",
@@ -3166,6 +4142,7 @@
         "required": [
           "id",
           "user_id",
+          "org_id",
           "username",
           "name",
           "status",
@@ -3537,6 +4514,10 @@
             "type": "string",
             "title": "User Id"
           },
+          "org_id": {
+            "type": "string",
+            "title": "Org Id"
+          },
           "username": {
             "type": "string",
             "title": "Username"
@@ -3583,6 +4564,7 @@
         "required": [
           "id",
           "user_id",
+          "org_id",
           "username",
           "name",
           "description",
@@ -3687,6 +4669,10 @@
             "type": "string",
             "title": "User Id"
           },
+          "org_id": {
+            "type": "string",
+            "title": "Org Id"
+          },
           "name": {
             "type": "string",
             "title": "Name"
@@ -3752,6 +4738,7 @@
         "required": [
           "id",
           "user_id",
+          "org_id",
           "name",
           "model",
           "provider_kind",
@@ -3778,6 +4765,17 @@
           "name": {
             "type": "string",
             "title": "Name"
+          },
+          "system_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "System Prompt"
           },
           "text_provider": {
             "anyOf": [
@@ -3828,6 +4826,10 @@
             "type": "string",
             "title": "User Id"
           },
+          "org_id": {
+            "type": "string",
+            "title": "Org Id"
+          },
           "username": {
             "type": "string",
             "title": "Username"
@@ -3866,6 +4868,7 @@
         "required": [
           "id",
           "user_id",
+          "org_id",
           "username",
           "name",
           "description",
@@ -4083,6 +5086,18 @@
               }
             ],
             "title": "Name"
+          },
+          "system_prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "System Prompt"
           },
           "status": {
             "anyOf": [

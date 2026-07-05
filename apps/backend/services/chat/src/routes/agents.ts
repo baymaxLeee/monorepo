@@ -43,13 +43,15 @@ agentsRoutes.post(
     let textProvider: ProviderSnapshot;
     let imageProvider: ProviderSnapshot | null = null;
     let videoProviderId: string | null = null;
+    let persona: string | null = null;
     if (payload.agent_id) {
-      const agent = await getAgent(auth.userId, payload.agent_id);
-      textProvider = agent.text ?? (await getProvider(auth.userId, null));
+      const agent = await getAgent(auth.userId, payload.agent_id, auth.orgId);
+      textProvider = agent.text ?? (await getProvider(auth.orgId, null));
       imageProvider = agent.image;
       videoProviderId = agent.video?.id ?? null;
+      persona = agent.systemPrompt;
     } else {
-      textProvider = await getProvider(auth.userId, null);
+      textProvider = await getProvider(auth.orgId, null);
     }
 
     return createAgentRunResponse(
@@ -60,6 +62,7 @@ agentsRoutes.post(
       {
         imageProvider,
         videoProviderId,
+        persona,
       },
     );
   },

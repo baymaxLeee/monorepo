@@ -21,25 +21,25 @@ export class AdminInternalClient {
     this.client = createInternalOpenApiClient<paths>({ ...options, service: "admin" });
   }
 
-  async getDefaultProvider(userId: string): Promise<AdminProviderSnapshot> {
+  async getDefaultProvider(orgId: string): Promise<AdminProviderSnapshot> {
     const { data, error, response } = await this.client.GET("/internal/providers/default", {
-      params: { query: { user_id: userId } },
+      params: { query: { org_id: orgId } },
     });
     if (data) return data;
     throw toTransportError(response, error);
   }
 
-  async getProvider(userId: string, providerId: string): Promise<AdminProviderSnapshot> {
+  async getProvider(providerId: string): Promise<AdminProviderSnapshot> {
     const { data, error, response } = await this.client.GET("/internal/providers/{provider_id}", {
-      params: { path: { provider_id: providerId }, query: { user_id: userId } },
+      params: { path: { provider_id: providerId } },
     });
     if (data) return data;
     throw toTransportError(response, error);
   }
 
-  async getResolvedAgent(userId: string, agentId: string): Promise<AdminResolvedAgent> {
+  async getResolvedAgent(userId: string, agentId: string, orgId = ""): Promise<AdminResolvedAgent> {
     const { data, error, response } = await this.client.GET("/internal/agents/{agent_id}", {
-      params: { path: { agent_id: agentId }, query: { user_id: userId } },
+      params: { path: { agent_id: agentId }, query: { user_id: userId, org_id: orgId } },
     });
     if (data) return data;
     throw toTransportError(response, error);

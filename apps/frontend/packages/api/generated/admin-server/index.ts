@@ -32,8 +32,10 @@ export const BotStatus = {
 export interface Bot {
   id: string;
   user_id: string;
+  org_id: string;
   username: string;
   name: string;
+  system_prompt?: string | null;
   status: BotStatus;
   text_provider_id?: string | null;
   image_provider_id?: string | null;
@@ -243,6 +245,7 @@ export const IntentionStatus = {
 export interface Intention {
   id: string;
   user_id: string;
+  org_id: string;
   username: string;
   name: string;
   description: string;
@@ -305,6 +308,7 @@ export type ModelProviderExtraBody = { [key: string]: unknown };
 export interface ModelProvider {
   id: string;
   user_id: string;
+  org_id: string;
   name: string;
   model: string;
   provider_kind: ModelProviderProviderKind;
@@ -330,6 +334,7 @@ export interface ModelProvider {
 export interface ResolvedAgent {
   id: string;
   name: string;
+  system_prompt?: string | null;
   text_provider?: InternalModelProvider | null;
   image_provider?: InternalModelProvider | null;
   video_provider?: InternalModelProvider | null;
@@ -347,6 +352,7 @@ export const SceneStatus = {
 export interface Scene {
   id: string;
   user_id: string;
+  org_id: string;
   username: string;
   name: string;
   description: string;
@@ -398,6 +404,7 @@ export const UpdateBotInputStatus = {
  */
 export interface UpdateBotInput {
   name?: string | null;
+  system_prompt?: string | null;
   status?: UpdateBotInputStatus;
   text_provider_id?: string | null;
   image_provider_id?: string | null;
@@ -473,34 +480,30 @@ export type HealthzHealthzGet200 = { [key: string]: unknown };
 
 export type GetDefaultProviderInternalInternalProvidersDefaultGetParams = {
 /**
- * Owner of the provider
+ * Team that owns the provider
  * @minLength 1
  */
-user_id: string;
+org_id: string;
 };
 
 export type GetProviderByKindInternalInternalProvidersByKindKindGetParams = {
 /**
- * Owner of the provider
+ * Team that owns the provider
  * @minLength 1
  */
-user_id: string;
-};
-
-export type GetProviderInternalInternalProvidersProviderIdGetParams = {
-/**
- * Owner of the provider
- * @minLength 1
- */
-user_id: string;
+org_id: string;
 };
 
 export type GetResolvedAgentInternalInternalAgentsAgentIdGetParams = {
 /**
- * Owner of the agent
+ * Requesting user
  * @minLength 1
  */
 user_id: string;
+/**
+ * Requester's active org (team scope)
+ */
+org_id?: string;
 };
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
@@ -886,7 +889,7 @@ const getDefaultProviderInternalInternalProvidersDefaultGet = (
     }
 
 /**
- * First enabled provider of `kind` (embedding/rerank/...) for the user.
+ * First enabled provider of `kind` (embedding/rerank/...) for the team.
  *
  * Used by knowledge to resolve the embedding/rerank model for RAG. Non-chat
  * kinds have no default flag, so this returns the newest enabled one.
@@ -904,15 +907,16 @@ const getProviderByKindInternalInternalProvidersByKindKindGet = (
     }
 
 /**
+ * Trusted by-id resolve: chat/executor/knowledge already hold a concrete,
+ * upstream-authorized provider id. No scope param — the internal token is the
+ * boundary and the id is opaque.
  * @summary Get Provider Internal
  */
 const getProviderInternalInternalProvidersProviderIdGet = (
     providerId: string,
-    params: GetProviderInternalInternalProvidersProviderIdGetParams,
  options?: SecondParameter<typeof apiMutator<InternalModelProvider>>,) => {
       return apiMutator<InternalModelProvider>(
-      {url: `/internal/providers/${providerId}`, method: 'GET',
-        params
+      {url: `/internal/providers/${providerId}`, method: 'GET'
     },
       options);
     }

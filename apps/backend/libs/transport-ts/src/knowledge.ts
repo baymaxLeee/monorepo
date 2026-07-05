@@ -288,12 +288,14 @@ export class KnowledgeInternalClient {
 
   /**
    * Hybrid RAG retrieval (dense + BM25 + RRF + optional rerank), scoped to the
-   * user. Returns chunks with their source document for citation.
+   * caller's team org so members share one knowledge base. `userId` still
+   * selects the embedding/rerank provider config. Returns chunks with their
+   * source document for citation.
    */
-  retrieve(input: { userId: string; query: string; topK?: number }): Promise<RetrieveResult> {
+  retrieve(input: { userId: string; orgId: string; query: string; topK?: number }): Promise<RetrieveResult> {
     return this.unwrap(
       this.client.POST("/internal/retrieve", {
-        body: { user_id: input.userId, query: input.query, top_k: input.topK },
+        body: { user_id: input.userId, org_id: input.orgId, query: input.query, top_k: input.topK },
       }),
     );
   }

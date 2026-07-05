@@ -95,6 +95,7 @@ async def stream_ingest_events(
                     row = await document_crud.create_document(
                         worker_session,
                         user_id=current_user.user_id,
+                        org_id=current_user.org_id,
                         conversation_id=conversation_id,
                         kind="source",
                         title=item.filename,
@@ -154,7 +155,7 @@ async def stream_ingest_events(
                     provider = None
                     if item.mime_type.lower().startswith(("image/", "audio/", "video/")) and provider_id:
                         provider = await get_admin_client().get_provider(
-                            user_id=current_user.user_id,
+                            org_id=current_user.org_id,
                             provider_id=provider_id,
                         )
                     convert_timeout = max(settings.llm_timeout_seconds * 2, 90)
@@ -186,9 +187,7 @@ async def stream_ingest_events(
                     )
                     await worker_session.commit()
                     try:
-                        index_result = await index_document(
-                            worker_session, document_id=row.id, user_id=current_user.user_id
-                        )
+                        index_result = await index_document(worker_session, document_id=row.id)
                         if index_result.note:
                             print(f"[knowledge-ingest] index note for {row.id}: {index_result.note}")
                     except Exception as index_exc:

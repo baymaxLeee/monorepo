@@ -27,6 +27,7 @@ export interface ProviderSnapshot {
 export interface ResolvedAgentProviders {
   agentId: string;
   agentName: string;
+  systemPrompt: string | null;
   text: ProviderSnapshot | null;
   image: ProviderSnapshot | null;
   video: ProviderSnapshot | null;
@@ -68,15 +69,15 @@ async function assertSnapshotUrl(snapshot: ProviderSnapshot): Promise<ProviderSn
 }
 
 export async function getProvider(
-  userId: string,
+  orgId: string,
   providerId?: string | null,
 ): Promise<ProviderSnapshot> {
   let data: AdminProviderSnapshot;
   try {
     const client = adminClient();
     data = providerId
-      ? await client.getProvider(userId, providerId)
-      : await client.getDefaultProvider(userId);
+      ? await client.getProvider(providerId)
+      : await client.getDefaultProvider(orgId);
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new ProviderNotConfiguredError("no model provider configured");
@@ -86,10 +87,14 @@ export async function getProvider(
   return assertSnapshotUrl(toSnapshot(data));
 }
 
-export async function getAgent(userId: string, agentId: string): Promise<ResolvedAgentProviders> {
+export async function getAgent(
+  userId: string,
+  agentId: string,
+  orgId = "",
+): Promise<ResolvedAgentProviders> {
   let data: AdminResolvedAgent;
   try {
-    data = await adminClient().getResolvedAgent(userId, agentId);
+    data = await adminClient().getResolvedAgent(userId, agentId, orgId);
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new ProviderNotConfiguredError(`agent ${agentId} not found`);
@@ -101,6 +106,7 @@ export async function getAgent(userId: string, agentId: string): Promise<Resolve
   return {
     agentId: data.id,
     agentName: data.name,
+    systemPrompt: data.system_prompt ?? null,
     text: await resolve(data.text_provider),
     image: await resolve(data.image_provider),
     video: await resolve(data.video_provider),

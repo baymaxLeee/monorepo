@@ -118,13 +118,11 @@ function toMessage(row: typeof messages.$inferSelect): Message {
 
 export async function listConversations(auth: AuthContext): Promise<Conversation[]> {
   const db = getDb();
-  const rows = auth.isAdmin
-    ? await db.select().from(conversations).orderBy(desc(conversations.updatedAt))
-    : await db
-        .select()
-        .from(conversations)
-        .where(eq(conversations.userId, auth.userId))
-        .orderBy(desc(conversations.updatedAt));
+  const rows = await db
+    .select()
+    .from(conversations)
+    .where(eq(conversations.userId, auth.userId))
+    .orderBy(desc(conversations.updatedAt));
   return rows.map(toConversation);
 }
 
@@ -320,9 +318,10 @@ export async function getConversationRow(
   conversationId: string,
 ): Promise<typeof conversations.$inferSelect> {
   const db = getDb();
-  const condition = auth.isAdmin
-    ? eq(conversations.id, conversationId)
-    : and(eq(conversations.id, conversationId), eq(conversations.userId, auth.userId));
+  const condition = and(
+    eq(conversations.id, conversationId),
+    eq(conversations.userId, auth.userId),
+  );
   const [row] = await db.select().from(conversations).where(condition);
   if (!row) throw new NotFoundError(`conversation ${conversationId} not found`);
   return row;

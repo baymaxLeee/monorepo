@@ -31,8 +31,8 @@ const blockSchema = z.object({
   brief: z.string().min(1).max(4000),
 });
 
-export async function buildArtifactTextModel(userId: string, providerId: string) {
-  const provider: ChatProvider = await getProvider(userId, providerId);
+export async function buildArtifactTextModel(providerId: string) {
+  const provider: ChatProvider = await getProvider(providerId);
   const model = createProviderModel(provider, { disableReasoning: true });
   return { model, maxOutputTokens: provider.maxOutputTokens };
 }

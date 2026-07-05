@@ -17,6 +17,9 @@ export type PlatformUser = {
   emailVerified: boolean;
   /** Absent in pre-upgrade cached sessions → callers treat as "normal". */
   type?: PlatformUserType;
+  /** Active organization (team) this session is scoped to; absent in pre-org cached sessions. */
+  orgId?: string;
+  orgName?: string;
 };
 
 export type PlatformState = {

@@ -11,6 +11,7 @@ IngestStatus = Literal["pending", "storing", "converting", "ready", "failed"]
 class Document(BaseModel):
     id: str
     user_id: str
+    org_id: str | None = None
     conversation_id: str | None = None
     kind: DocumentKind
     title: str

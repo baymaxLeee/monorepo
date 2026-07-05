@@ -9,7 +9,7 @@ export async function cancelVideoGeneration(
 ): Promise<void> {
   const taskIds = progress?.externalTaskIds ?? [];
   if (taskIds.length === 0) return;
-  const provider = await getProvider(input.userId, input.providerId);
+  const provider = await getProvider(input.providerId);
   const results = await Promise.allSettled(
     taskIds.map((taskId) =>
       deleteArkVideoTask({

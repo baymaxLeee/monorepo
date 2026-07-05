@@ -4,20 +4,33 @@ import { useEffect, useState } from "react";
 const MAX_CACHED_DOCUMENTS = 8;
 const sourceCache = new Map<string, Promise<Blob>>();
 
-function cacheKey(conversationId: string, documentId: string) {
-  return `${conversationId}:${documentId}`;
+function docPrefix(conversationId: string, documentId: string) {
+  return `${conversationId}:${documentId}:`;
+}
+
+function cacheKey(conversationId: string, documentId: string, version: string) {
+  return `${docPrefix(conversationId, documentId)}${version}`;
 }
 
 export function fetchCachedDocumentSource(
   conversationId: string,
   documentId: string,
+  version = "",
 ): Promise<Blob> {
-  const key = cacheKey(conversationId, documentId);
+  const key = cacheKey(conversationId, documentId, version);
   const cached = sourceCache.get(key);
   if (cached) {
     sourceCache.delete(key);
     sourceCache.set(key, cached);
     return cached;
+  }
+
+  // Artifacts are edited in place (same id, bumped updated_at), so a stale entry
+  // for an earlier version would otherwise be served forever. Drop every prior
+  // version of this document before fetching the new one.
+  const prefix = docPrefix(conversationId, documentId);
+  for (const existing of sourceCache.keys()) {
+    if (existing.startsWith(prefix)) sourceCache.delete(existing);
   }
 
   const request = fetchConversationDocumentSource(
@@ -39,6 +52,7 @@ export function useDocumentBlobUrl(
   conversationId: string | undefined,
   documentId: string | null,
   enabled: boolean,
+  version = "",
 ) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -55,7 +69,7 @@ export function useDocumentBlobUrl(
     let objectUrl: string | null = null;
     setLoading(true);
     setError(null);
-    void fetchCachedDocumentSource(conversationId, documentId)
+    void fetchCachedDocumentSource(conversationId, documentId, version)
       .then((blob) => {
         if (!active) return;
         objectUrl = URL.createObjectURL(blob);
@@ -71,7 +85,7 @@ export function useDocumentBlobUrl(
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [conversationId, documentId, enabled]);
+  }, [conversationId, documentId, enabled, version]);
 
   return { blobUrl, loading, error };
 }
@@ -79,25 +93,32 @@ export function useDocumentBlobUrl(
 export function useDocumentBlobUrls(
   conversationId: string | undefined,
   documentIds: string[],
+  versions?: Array<string | undefined>,
 ): Array<string | null> {
-  const key = documentIds.join("|");
+  const key = documentIds
+    .map((id, index) => `${id}@${versions?.[index] ?? ""}`)
+    .join("|");
   const [urlMap, setUrlMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    const ids = key ? key.split("|") : [];
-    if (!conversationId || ids.length === 0) {
+    const entries = key ? key.split("|") : [];
+    if (!conversationId || entries.length === 0) {
       setUrlMap({});
       return;
     }
     let active = true;
     const created: string[] = [];
     setUrlMap({});
-    for (const documentId of ids) {
+    for (const entry of entries) {
+      const separator = entry.lastIndexOf("@");
+      const documentId = entry.slice(0, separator);
+      const version = entry.slice(separator + 1);
       void (async () => {
         try {
           const blob = await fetchCachedDocumentSource(
             conversationId,
             documentId,
+            version,
           );
           if (!active) return;
           const url = URL.createObjectURL(blob);

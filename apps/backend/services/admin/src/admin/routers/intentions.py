@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from admin.deps import CurrentUser, DbSession
+from admin.deps import AdminUser, CurrentUser, DbSession
 from admin.schemas.intention import (
     BulkDeleteIntentionsInput,
     BulkDeleteIntentionsResult,
@@ -35,7 +35,7 @@ async def get_intention(
 @router.post("", response_model=Intention, status_code=201)
 async def create_intention(
     payload: CreateIntentionInput,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     session: DbSession,
 ) -> Intention:
     return await IntentionService(session, current_user).create(payload)
@@ -45,7 +45,7 @@ async def create_intention(
 async def update_intention(
     intention_id: str,
     payload: UpdateIntentionInput,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     session: DbSession,
 ) -> Intention:
     return await IntentionService(session, current_user).update(intention_id, payload)
@@ -54,7 +54,7 @@ async def update_intention(
 @router.delete("/{intention_id}", status_code=204)
 async def delete_intention(
     intention_id: str,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     session: DbSession,
 ) -> None:
     await IntentionService(session, current_user).delete(intention_id)
@@ -63,7 +63,7 @@ async def delete_intention(
 @router.post("/bulk-delete", response_model=BulkDeleteIntentionsResult)
 async def bulk_delete_intentions(
     payload: BulkDeleteIntentionsInput,
-    current_user: CurrentUser,
+    current_user: AdminUser,
     session: DbSession,
 ) -> BulkDeleteIntentionsResult:
     deleted = await IntentionService(session, current_user).bulk_delete(payload.ids)

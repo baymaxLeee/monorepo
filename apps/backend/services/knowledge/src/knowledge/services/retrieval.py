@@ -2,7 +2,7 @@
 Reciprocal Rank Fusion, then an optional cross-encoder rerank.
 
 Degrades gracefully: no embedding provider -> sparse-only; no rerank provider or
-a rerank error -> RRF order. All results are scoped to the requesting user
+a rerank error -> RRF order. All results are scoped to the caller's team org
 (ACL), and every chunk carries its source document for citation.
 """
 
@@ -61,10 +61,17 @@ def _rrf_fuse(
 async def retrieve(
     session: AsyncSession,
     *,
-    user_id: str,
+    org_id: str,
     query: str,
     top_k: int | None = None,
 ) -> RetrieveResult:
+    """Hybrid retrieval over the team org's knowledge base.
+
+    Both the chunk ACL scope and the embedding/rerank provider are resolved by
+    ``org_id`` — model providers are team-shared, so the whole team retrieves
+    against the same embedding space. If the team has no embedding provider,
+    dense degrades to sparse-only.
+    """
     settings = get_settings()
     top_k = top_k or settings.retrieval_top_k
     candidate_k = settings.retrieval_candidate_k
@@ -72,10 +79,10 @@ async def retrieve(
 
     dense: list[_Candidate] = []
     try:
-        embed_provider = await get_admin_client().get_provider_by_kind(user_id=user_id, kind="embedding")
+        embed_provider = await get_admin_client().get_provider_by_kind(org_id=org_id, kind="embedding")
         query_vector = (await embed_texts([query], provider=embed_provider))[0]
         dense_rows = await chunk_crud.dense_search(
-            session, user_id=user_id, query_vector=query_vector, limit=candidate_k
+            session, org_id=org_id, query_vector=query_vector, limit=candidate_k
         )
         dense = [
             _Candidate(row.id, row.document_id, row.chunk_index, row.content, 1.0 - float(row.distance))
@@ -87,7 +94,7 @@ async def retrieve(
         logger.warning("dense retrieval failed: %s", exc)
         note = "dense retrieval unavailable; sparse-only retrieval"
 
-    sparse_rows = await chunk_crud.sparse_search(session, user_id=user_id, query=query, limit=candidate_k)
+    sparse_rows = await chunk_crud.sparse_search(session, org_id=org_id, query=query, limit=candidate_k)
     sparse = [
         _Candidate(row.id, row.document_id, row.chunk_index, row.content, float(row.score)) for row in sparse_rows
     ]
@@ -99,7 +106,7 @@ async def retrieve(
     ordered = fused
     if settings.rerank_enabled and len(fused) > 1:
         try:
-            rerank_provider = await get_admin_client().get_provider_by_kind(user_id=user_id, kind="rerank")
+            rerank_provider = await get_admin_client().get_provider_by_kind(org_id=org_id, kind="rerank")
             ranking = await rerank(query, [c.content for c in fused], provider=rerank_provider, top_n=top_k)
             if ranking:
                 ordered = [fused[index] for index, _ in ranking]

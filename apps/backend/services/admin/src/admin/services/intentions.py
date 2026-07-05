@@ -24,6 +24,7 @@ def to_schema(row: IntentionRow) -> Intention:
     return Intention(
         id=row.id,
         user_id=row.user_id,
+        org_id=row.org_id,
         username=row.username,
         name=row.name,
         description=row.description,
@@ -44,8 +45,7 @@ class IntentionService:
     async def list(self) -> list[Intention]:
         rows = await intention_crud.list_intentions(
             self._session,
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            self._current_user.org_id,
         )
         return [to_schema(row) for row in rows]
 
@@ -62,6 +62,7 @@ class IntentionService:
             scene_name=payload.scene_name,
             status=payload.status,
             user_id=self._current_user.user_id,
+            org_id=self._current_user.org_id,
             username=self._current_user.username,
         )
         return to_schema(row)
@@ -81,16 +82,14 @@ class IntentionService:
         return await intention_crud.bulk_delete_intentions(
             self._session,
             list(ids),
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            self._current_user.org_id,
         )
 
     async def _get_row(self, intention_id: str) -> IntentionRow:
         row = await intention_crud.get_intention(
             self._session,
             intention_id,
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            self._current_user.org_id,
         )
         if row is None:
             raise NotFoundError(f"intention {intention_id} not found")

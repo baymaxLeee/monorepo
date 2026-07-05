@@ -49,6 +49,7 @@ def to_public_schema(row: ModelProviderRow) -> ModelProvider:
     return ModelProvider(
         id=row.id,
         user_id=row.user_id,
+        org_id=row.org_id,
         name=row.name,
         model=row.model,
         provider_kind=cast(ProviderKind, row.provider_kind),
@@ -91,8 +92,7 @@ class ModelProviderService:
     async def list(self) -> list[ModelProvider]:
         rows = await provider_crud.list_providers(
             self._session,
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            self._current_user.org_id,
         )
         return [to_public_schema(row) for row in rows]
 
@@ -106,13 +106,14 @@ class ModelProviderService:
         if payload.is_default:
             await provider_crud.clear_default_flag(
                 self._session,
-                self._current_user.user_id,
+                self._current_user.org_id,
             )
 
         base_url = await validate_provider_base_url(str(payload.base_url))
         row = await provider_crud.create_provider(
             self._session,
             user_id=self._current_user.user_id,
+            org_id=self._current_user.org_id,
             name=payload.name,
             model=payload.model,
             provider_kind=payload.provider_kind,
@@ -164,7 +165,7 @@ class ModelProviderService:
             if payload.is_default and not row.is_default:
                 await provider_crud.clear_default_flag(
                     self._session,
-                    self._current_user.user_id,
+                    self._current_user.org_id,
                 )
             values["is_default"] = payload.is_default
 
@@ -185,8 +186,7 @@ class ModelProviderService:
         return await provider_crud.bulk_delete_providers(
             self._session,
             list(ids),
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            self._current_user.org_id,
         )
 
     async def set_default(self, provider_id: str) -> ModelProvider:
@@ -199,7 +199,7 @@ class ModelProviderService:
             return to_public_schema(row)
         await provider_crud.clear_default_flag(
             self._session,
-            self._current_user.user_id,
+            self._current_user.org_id,
         )
         return to_public_schema(
             await provider_crud.update_provider(
@@ -229,23 +229,21 @@ class ModelProviderService:
             extra_body=extra_body,
         )
 
-    async def get_default_for_user(self, user_id: str) -> InternalModelProvider:
-        row = await provider_crud.get_default_provider(self._session, user_id)
+    async def get_default_for_org(self, org_id: str) -> InternalModelProvider:
+        row = await provider_crud.get_default_provider(self._session, org_id)
         if row is None:
-            raise NotFoundError(f"no default model provider for user {user_id}")
+            raise NotFoundError(f"no default model provider for org {org_id}")
         return to_internal_schema(row)
 
-    async def get_by_kind_for_user(self, user_id: str, kind: str) -> InternalModelProvider:
-        row = await provider_crud.get_first_enabled_by_kind(self._session, user_id, kind)
+    async def get_by_kind_for_org(self, org_id: str, kind: str) -> InternalModelProvider:
+        row = await provider_crud.get_first_enabled_by_kind(self._session, org_id, kind)
         if row is None:
-            raise NotFoundError(f"no enabled {kind} provider for user {user_id}")
+            raise NotFoundError(f"no enabled {kind} provider for org {org_id}")
         return to_internal_schema(row)
 
-    async def get_internal(self, provider_id: str, user_id: str) -> InternalModelProvider:
+    async def get_internal(self, provider_id: str) -> InternalModelProvider:
         row = await provider_crud.get_provider_for_internal(self._session, provider_id)
         if row is None:
-            raise NotFoundError(f"model provider {provider_id} not found")
-        if row.user_id != user_id:
             raise NotFoundError(f"model provider {provider_id} not found")
         if not row.is_enabled:
             raise ConflictError(f"model provider {provider_id} is disabled")
@@ -255,8 +253,7 @@ class ModelProviderService:
         row = await provider_crud.get_provider(
             self._session,
             provider_id,
-            self._current_user.user_id,
-            self._current_user.is_admin,
+            self._current_user.org_id,
         )
         if row is None:
             raise NotFoundError(f"model provider {provider_id} not found")

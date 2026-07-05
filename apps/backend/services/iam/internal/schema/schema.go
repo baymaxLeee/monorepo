@@ -36,6 +36,8 @@ type UserResponse struct {
 	MarketingOptIn bool   `json:"marketingOptIn"`
 	EmailVerified  bool   `json:"emailVerified"`
 	Type           string `json:"type"`
+	OrgID          string `json:"orgId"`
+	OrgName        string `json:"orgName"`
 }
 
 type RoleRequest struct {

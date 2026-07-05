@@ -23,6 +23,7 @@ class DocumentChunkRow(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     document_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     user_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
+    org_id: Mapped[str | None] = mapped_column(String(26), index=True, nullable=True)
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     contextualized_content: Mapped[str | None] = mapped_column(Text, nullable=True)

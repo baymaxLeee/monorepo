@@ -11,10 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from admin.models.intention import IntentionRow
 
 
-async def list_intentions(session: AsyncSession, user_id: str, is_admin: bool) -> list[IntentionRow]:
-    stmt = select(IntentionRow).order_by(IntentionRow.updated_at.desc())
-    if not is_admin:
-        stmt = stmt.where(IntentionRow.user_id == user_id)
+async def list_intentions(session: AsyncSession, org_id: str) -> list[IntentionRow]:
+    stmt = select(IntentionRow).where(IntentionRow.org_id == org_id).order_by(IntentionRow.updated_at.desc())
     result = await session.scalars(stmt)
     return list(result.all())
 
@@ -22,12 +20,12 @@ async def list_intentions(session: AsyncSession, user_id: str, is_admin: bool) -
 async def get_intention(
     session: AsyncSession,
     intention_id: str,
-    user_id: str,
-    is_admin: bool,
+    org_id: str,
 ) -> IntentionRow | None:
-    stmt = select(IntentionRow).where(IntentionRow.id == intention_id)
-    if not is_admin:
-        stmt = stmt.where(IntentionRow.user_id == user_id)
+    stmt = select(IntentionRow).where(
+        IntentionRow.id == intention_id,
+        IntentionRow.org_id == org_id,
+    )
     result = await session.scalars(stmt)
     return result.one_or_none()
 
@@ -42,12 +40,14 @@ async def create_intention(
     scene_name: str,
     status: str,
     user_id: str,
+    org_id: str,
     username: str,
 ) -> IntentionRow:
     now = datetime.now(UTC)
     row = IntentionRow(
         id=uuid4().hex[:8],
         user_id=user_id,
+        org_id=org_id,
         username=username or user_id,
         name=name,
         description=description,
@@ -85,12 +85,9 @@ async def delete_intention(session: AsyncSession, row: IntentionRow) -> None:
 async def bulk_delete_intentions(
     session: AsyncSession,
     ids: list[str],
-    user_id: str,
-    is_admin: bool,
+    org_id: str,
 ) -> int:
-    stmt = delete(IntentionRow).where(IntentionRow.id.in_(ids))
-    if not is_admin:
-        stmt = stmt.where(IntentionRow.user_id == user_id)
+    stmt = delete(IntentionRow).where(IntentionRow.id.in_(ids), IntentionRow.org_id == org_id)
     result = await session.execute(stmt)
     await session.commit()
     return cast(CursorResult[object], result).rowcount or 0

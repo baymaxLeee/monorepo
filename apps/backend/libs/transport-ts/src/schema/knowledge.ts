@@ -71,7 +71,7 @@ export interface paths {
          * Batch Delete My Documents
          * @description Delete several of the caller's documents in one transaction.
          *
-         *     Only rows owned by the current user are removed (ids the user does not own
+         *     Any member of the org may delete the team's documents (ids outside the org
          *     are silently ignored). Object-store blobs are best-effort purged and the
          *     RAG `document_chunks` are dropped via the FK `ON DELETE CASCADE`.
          */
@@ -500,6 +500,8 @@ export interface components {
             id: string;
             /** User Id */
             user_id: string;
+            /** Org Id */
+            org_id?: string | null;
             /** Conversation Id */
             conversation_id?: string | null;
             /**
@@ -635,6 +637,8 @@ export interface components {
         RetrieveInput: {
             /** User Id */
             user_id: string;
+            /** Org Id */
+            org_id: string;
             /** Query */
             query: string;
             /** Top K */
@@ -771,6 +775,7 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -810,6 +815,7 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -843,6 +849,7 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -880,6 +887,7 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 document_id: string;
@@ -915,6 +923,7 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 document_id: string;
@@ -948,6 +957,7 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 document_id: string;
@@ -987,6 +997,7 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
             };
             path: {
                 document_id: string;

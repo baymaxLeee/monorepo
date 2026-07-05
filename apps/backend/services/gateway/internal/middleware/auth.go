@@ -13,6 +13,8 @@ const (
 	HeaderAuthUserID = "X-Auth-User-ID"
 	HeaderAuthEmail  = "X-Auth-Email"
 	HeaderAuthName   = "X-Auth-Name"
+	HeaderAuthOrgID  = "X-Auth-Org-ID"
+	HeaderAuthRoles  = "X-Auth-Roles"
 )
 
 func IdentityPropagation(secret string, publicPathPrefixes []string, optionalAuthPathPrefixes []string) func(http.Handler) http.Handler {
@@ -21,6 +23,8 @@ func IdentityPropagation(secret string, publicPathPrefixes []string, optionalAut
 			r.Header.Del(HeaderAuthUserID)
 			r.Header.Del(HeaderAuthEmail)
 			r.Header.Del(HeaderAuthName)
+			r.Header.Del(HeaderAuthOrgID)
+			r.Header.Del(HeaderAuthRoles)
 
 			if isPublicPath(r.URL.Path, publicPathPrefixes) {
 				next.ServeHTTP(w, r)
@@ -64,6 +68,12 @@ func propagateClaims(r *http.Request, claims security.Claims) {
 	}
 	if claims.Name != "" {
 		r.Header.Set(HeaderAuthName, claims.Name)
+	}
+	if claims.OrgID != "" {
+		r.Header.Set(HeaderAuthOrgID, claims.OrgID)
+	}
+	if len(claims.Roles) > 0 {
+		r.Header.Set(HeaderAuthRoles, strings.Join(claims.Roles, ","))
 	}
 }
 

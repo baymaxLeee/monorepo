@@ -53,39 +53,50 @@ class AdminClient:
     async def aclose(self) -> None:
         await self._http.aclose()
 
-    async def get_provider(self, *, user_id: str, provider_id: str | None = None) -> ProviderSnapshot:
-        cache_key = (user_id, provider_id)
+    async def get_provider(self, *, org_id: str, provider_id: str | None = None) -> ProviderSnapshot:
+        """Resolve a chat provider: a concrete `provider_id` (by-id, trusted
+        internal resolve) or the team's default chat provider (scoped by org)."""
+        if provider_id:
+            cache_key = ("id", provider_id)
+            if (cached := self._cache.get(cache_key)) is not None:
+                return cached
+            async with self._cache_lock:
+                if (cached := self._cache.get(cache_key)) is not None:
+                    return cached
+                snapshot = await self._fetch(f"/internal/providers/{provider_id}", params=None)
+                self._cache[cache_key] = snapshot
+                return snapshot
+
+        cache_key = ("org", org_id)
         if (cached := self._cache.get(cache_key)) is not None:
             return cached
         async with self._cache_lock:
             if (cached := self._cache.get(cache_key)) is not None:
                 return cached
-            url = f"/internal/providers/{provider_id}" if provider_id else "/internal/providers/default"
-            snapshot = await self._fetch(url, user_id=user_id)
+            snapshot = await self._fetch("/internal/providers/default", params={"org_id": org_id})
             self._cache[cache_key] = snapshot
-            if provider_id is None:
-                self._cache[(user_id, snapshot.id)] = snapshot
+            self._cache[("id", snapshot.id)] = snapshot
             return snapshot
 
-    async def get_provider_by_kind(self, *, user_id: str, kind: str) -> ProviderSnapshot:
-        """Resolve the user's provider for a non-chat kind (embedding, rerank).
+    async def get_provider_by_kind(self, *, org_id: str, kind: str) -> ProviderSnapshot:
+        """Resolve the team's provider for a non-chat kind (embedding, rerank).
 
-        Cached by (user_id, "kind:<kind>") so RAG indexing/retrieval does not hit
+        Cached by (org_id, "kind:<kind>") so RAG indexing/retrieval does not hit
         admin on every chunk/query.
         """
-        cache_key = (user_id, f"kind:{kind}")
+        cache_key = ("org", f"{org_id}:kind:{kind}")
         if (cached := self._cache.get(cache_key)) is not None:
             return cached
         async with self._cache_lock:
             if (cached := self._cache.get(cache_key)) is not None:
                 return cached
-            snapshot = await self._fetch(f"/internal/providers/by-kind/{kind}", user_id=user_id)
+            snapshot = await self._fetch(f"/internal/providers/by-kind/{kind}", params={"org_id": org_id})
             self._cache[cache_key] = snapshot
             return snapshot
 
-    async def _fetch(self, url: str, *, user_id: str) -> ProviderSnapshot:
+    async def _fetch(self, url: str, *, params: dict[str, str] | None) -> ProviderSnapshot:
         try:
-            response = await self._http.get(url, params={"user_id": user_id})
+            response = await self._http.get(url, params=params)
         except httpx.HTTPError as exc:
             raise AdminUnavailableError(f"admin unreachable: {exc}") from exc
         if response.status_code == 404:

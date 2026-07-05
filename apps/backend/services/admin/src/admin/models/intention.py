@@ -13,6 +13,7 @@ class IntentionRow(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
+    org_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
     username: Mapped[str] = mapped_column(String(120), nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str] = mapped_column(String(500), nullable=False, default="")

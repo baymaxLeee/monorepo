@@ -23,9 +23,10 @@ router = APIRouter(prefix="/internal/agents", tags=["internal-agents"])
 @router.get("/{agent_id}", response_model=ResolvedAgent)
 async def get_resolved_agent_internal(
     agent_id: str,
-    user_id: Annotated[str, Query(min_length=1, description="Owner of the agent")],
+    user_id: Annotated[str, Query(min_length=1, description="Requesting user")],
     session: DbSession,
     _caller: InternalCaller,
+    org_id: Annotated[str, Query(description="Requester's active org (team scope)")] = "",
 ) -> ResolvedAgent:
-    service = BotService(session, AuthContext(user_id=user_id, username=user_id, email=""))
+    service = BotService(session, AuthContext(user_id=user_id, username=user_id, email="", org_id=org_id))
     return await service.get_resolved(agent_id)

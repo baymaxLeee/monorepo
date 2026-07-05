@@ -34,7 +34,7 @@ async def list_my_documents(
     session: DbSession,
     kind: str | None = Query(default=None),
 ) -> list[Document]:
-    rows = await document_crud.list_documents(session, user_id=current_user.user_id, kind=kind)
+    rows = await document_crud.list_org_documents(session, org_id=current_user.org_id, kind=kind)
     return [document_to_schema(row) for row in rows]
 
 
@@ -46,11 +46,11 @@ async def batch_delete_my_documents(
 ) -> BatchDeleteResult:
     """Delete several of the caller's documents in one transaction.
 
-    Only rows owned by the current user are removed (ids the user does not own
+    Any member of the org may delete the team's documents (ids outside the org
     are silently ignored). Object-store blobs are best-effort purged and the
     RAG `document_chunks` are dropped via the FK `ON DELETE CASCADE`.
     """
-    rows = await document_crud.list_documents_by_ids(session, user_id=current_user.user_id, document_ids=payload.ids)
+    rows = await document_crud.list_org_documents_by_ids(session, org_id=current_user.org_id, document_ids=payload.ids)
     store = ObjectStore()
     for row in rows:
         if row.object_bucket and row.object_key:
@@ -66,7 +66,7 @@ async def get_my_document(
     current_user: CurrentUser,
     session: DbSession,
 ) -> Document:
-    row = await document_crud.get_document(session, document_id, current_user.user_id)
+    row = await document_crud.get_org_document(session, document_id, current_user.org_id)
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
     return document_to_schema(row, include_content=True)
@@ -79,7 +79,7 @@ async def update_my_document(
     current_user: CurrentUser,
     session: DbSession,
 ) -> Document:
-    row = await document_crud.get_document(session, document_id, current_user.user_id)
+    row = await document_crud.get_org_document(session, document_id, current_user.org_id)
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
     values = payload.model_dump(exclude_unset=True, exclude_none=True)
@@ -88,7 +88,7 @@ async def update_my_document(
         await session.commit()
         if "content_md" in values:
             try:
-                await index_document(session, document_id=row.id, user_id=current_user.user_id)
+                await index_document(session, document_id=row.id)
             except Exception as exc:
                 print(f"[knowledge] reindex failed for {row.id}: {exc}")
     return document_to_schema(row, include_content=True)
@@ -100,7 +100,7 @@ async def get_my_document_source(
     current_user: CurrentUser,
     session: DbSession,
 ) -> Response:
-    row = await document_crud.get_document(session, document_id, current_user.user_id)
+    row = await document_crud.get_org_document(session, document_id, current_user.org_id)
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
     if not row.object_bucket or not row.object_key:
@@ -116,7 +116,7 @@ async def delete_my_document(
     current_user: CurrentUser,
     session: DbSession,
 ) -> None:
-    row = await document_crud.get_document(session, document_id, current_user.user_id)
+    row = await document_crud.get_org_document(session, document_id, current_user.org_id)
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
     if row.object_bucket and row.object_key:

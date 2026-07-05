@@ -10,19 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge.db import get_db_session
 
-ADMIN_USER_ID = "demo-super-admin"
-ADMIN_EMAIL = "admin@example.com"
-
 
 @dataclass(frozen=True)
 class AuthContext:
     user_id: str
     username: str
     email: str
-
-    @property
-    def is_admin(self) -> bool:
-        return self.user_id == ADMIN_USER_ID or self.email == ADMIN_EMAIL
+    org_id: str
 
 
 async def db_session() -> AsyncGenerator[AsyncSession]:
@@ -38,8 +32,18 @@ def auth_user_id(
     return x_auth_user_id
 
 
+def auth_org_id(
+    x_auth_org_id: Annotated[str | None, Header(alias="X-Auth-Org-ID")] = None,
+) -> str:
+    """Active org propagated by gateway. Required for team-scoped knowledge."""
+    if not x_auth_org_id:
+        raise UnauthorizedError("X-Auth-Org-ID header is required")
+    return x_auth_org_id
+
+
 def auth_context(
     user_id: Annotated[str, Depends(auth_user_id)],
+    org_id: Annotated[str, Depends(auth_org_id)],
     x_auth_name: Annotated[str | None, Header(alias="X-Auth-Name")] = None,
     x_auth_email: Annotated[str | None, Header(alias="X-Auth-Email")] = None,
 ) -> AuthContext:
@@ -47,6 +51,7 @@ def auth_context(
         user_id=user_id,
         username=x_auth_name or user_id,
         email=x_auth_email or "",
+        org_id=org_id,
     )
 
 

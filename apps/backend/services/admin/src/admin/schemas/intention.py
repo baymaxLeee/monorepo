@@ -10,6 +10,7 @@ IntentionStatus = Literal["draft", "active", "disabled"]
 class Intention(BaseModel):
     id: str
     user_id: str
+    org_id: str
     username: str
     name: str
     description: str

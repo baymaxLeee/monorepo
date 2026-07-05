@@ -6,6 +6,9 @@ export type ArtifactPreviewState = {
   open: boolean;
   conversationId: string | null;
   documentId: string | null;
+  // Bumped on every open so re-opening the same in-place-edited artifact
+  // (same id) still forces the panel to refetch the latest revision.
+  token: number;
 };
 
 export type ImagePreviewRef = { documentId: string; filename?: string };
@@ -58,6 +61,7 @@ const CLOSED_ARTIFACT_PREVIEW: ArtifactPreviewState = {
   open: false,
   conversationId: null,
   documentId: null,
+  token: 0,
 };
 
 const CLOSED_IMAGE_PREVIEW: ImagePreviewState = {
@@ -150,11 +154,16 @@ export const useChatStore = create<ChatUIState>()(
         ...CLOSED_ARTIFACT_PREVIEW,
       },
       openArtifactPreview: (conversationId, documentId) =>
-        set({
+        set((state) => ({
           memoryPanelOpen: false,
           tracePanelOpen: false,
-          artifactPreview: { open: true, conversationId, documentId },
-        }),
+          artifactPreview: {
+            open: true,
+            conversationId,
+            documentId,
+            token: state.artifactPreview.token + 1,
+          },
+        })),
       closeArtifactPreview: () =>
         set({
           artifactPreview: CLOSED_ARTIFACT_PREVIEW,

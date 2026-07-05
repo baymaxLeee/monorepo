@@ -12,8 +12,10 @@ BotStatus = Literal["draft", "published", "archived"]
 class Bot(BaseModel):
     id: str
     user_id: str
+    org_id: str
     username: str
     name: str
+    system_prompt: str | None = None
     status: BotStatus
     text_provider_id: str | None = None
     image_provider_id: str | None = None
@@ -31,6 +33,7 @@ class UpdateBotInput(BaseModel):
     sent as null clears it (e.g. unassigning a model provider)."""
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
+    system_prompt: str | None = Field(default=None, max_length=20000)
     status: BotStatus | None = None
     text_provider_id: str | None = Field(default=None, max_length=32)
     image_provider_id: str | None = Field(default=None, max_length=32)
@@ -46,6 +49,7 @@ class ResolvedAgent(BaseModel):
 
     id: str
     name: str
+    system_prompt: str | None = None
     text_provider: InternalModelProvider | None = None
     image_provider: InternalModelProvider | None = None
     video_provider: InternalModelProvider | None = None

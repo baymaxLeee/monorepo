@@ -45,5 +45,19 @@ func SeedDemoSuperAdmin(ctx context.Context, store *crud.Store, cfg config.Confi
 	if err != nil {
 		return err
 	}
-	return store.AssignRole(ctx, user.ID, storedRole.ID)
+	if err := store.AssignRole(ctx, user.ID, storedRole.ID); err != nil {
+		return err
+	}
+	org := model.Organization{
+		ID:          cfg.DemoOrgID,
+		Name:        cfg.DemoOrgName,
+		Slug:        cfg.DemoOrgSlug,
+		OwnerUserID: user.ID,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := store.EnsureOrganization(ctx, org); err != nil {
+		return err
+	}
+	return store.EnsureOrgMember(ctx, org.ID, user.ID, "owner")
 }

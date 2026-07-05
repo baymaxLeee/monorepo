@@ -65,7 +65,7 @@ function parseStoredBlockHtml(content: string): string | null {
 
 async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
   "use step";
-  const tools = await buildArtifactTextModel(input.userId, input.providerId);
+  const tools = await buildArtifactTextModel(input.providerId);
   const { workflowRunId } = getWorkflowMetadata();
   const cancellation = observeTaskCancellation(workflowRunId);
   const signal = AbortSignal.any([
@@ -182,7 +182,7 @@ async function generateBlockStep(input: {
       return { id: input.block.id, ok: true };
     }
 
-    const tools = await buildArtifactTextModel(input.userId, input.providerId);
+    const tools = await buildArtifactTextModel(input.providerId);
     const abortSignal = AbortSignal.any([
       cancellation.signal,
       AbortSignal.timeout(5 * 60_000),

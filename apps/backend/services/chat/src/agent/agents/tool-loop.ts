@@ -41,6 +41,7 @@ export async function createToolLoopAgent(
   const toolContext = {
     runId: input.runId,
     userId: input.userId,
+    orgId: input.orgId,
     conversationId: input.conversationId,
   };
   const toolsContext = Object.fromEntries(

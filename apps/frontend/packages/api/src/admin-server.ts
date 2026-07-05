@@ -5,8 +5,10 @@ export type BotStatus = "draft" | "published" | "archived";
 export interface Bot {
   id: string;
   user_id: string;
+  org_id: string | null;
   username: string;
   name: string;
+  system_prompt: string | null;
   status: BotStatus;
   text_provider_id: string | null;
   image_provider_id: string | null;
@@ -21,6 +23,7 @@ export interface CreateBotInput {
 
 export interface UpdateBotInput {
   name?: string;
+  system_prompt?: string | null;
   status?: BotStatus;
   text_provider_id?: string | null;
   image_provider_id?: string | null;

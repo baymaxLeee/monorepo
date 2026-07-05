@@ -23,6 +23,7 @@ class ModelProvider(BaseModel):
 
     id: str
     user_id: str
+    org_id: str
     name: str
     model: str
     provider_kind: ProviderKind

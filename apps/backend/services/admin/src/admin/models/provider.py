@@ -28,6 +28,7 @@ class ModelProviderRow(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
+    org_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     model: Mapped[str] = mapped_column(String(128), nullable=False)
     provider_kind: Mapped[str] = mapped_column(String(16), nullable=False, default=PROVIDER_KIND_CHAT)

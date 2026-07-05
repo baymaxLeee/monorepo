@@ -1,8 +1,44 @@
 # Oncall Agent 落地方案
 
-> 状态：方案阶段（未写代码，暂不执行）。本文件是聚焦 oncall agent 的完整实施计划，
-> 明确不改动工具体系。动工前需先确认文末「决策点」；落地后按需将精简决策固化为
-> `docs/ADR/`。
+> 状态：**已落地**（Phase 1 画像链路 + org 团队知识共享，均已合入）。持久决策见
+> `docs/ADR/0026-oncall-agent-org-knowledge-sharing.md`。本文件保留作为设计脉络与 as-built
+> 记录；后续 Phase 2/3 未做项见文末清单。
+
+## 落地状态（as-built）
+
+相较原方案，**按用户诉求把「团队知识共享」从 Phase 2 决策点提前并入本次交付**，因此除了
+Phase 1 的 oncall 画像链路，还额外落地了一层 org 多租户基座：
+
+- **IAM 多租户基座**：新增 `organizations` + `organization_members` 表（`iam/internal/model/models.go`
+  + migration `v1.1.0.sql`），JWT `Claims` 带 `org_id`，登录/刷新解析用户主 org，`/me` 与
+  `AuthResponse.user` 回传 `orgId`/`orgName`；注册用户自动加入 demo 团队 org。
+- **Gateway 透传**：`propagateClaims` 注入 `X-Auth-Org-ID`，并剥离入站伪造头。
+- **知识库 org 化**：`documents` / `document_chunks` 加 `org_id`（migration `v1.5.0.sql` + 复合索引 +
+  回填 `demo-org`）；检索 `dense_search` / `sparse_search` 与写入/ingest/ACL 全部改按 `org_id`，
+  同一团队成员共享同一知识库。`RetrieveInput` + `/internal/retrieve` 携带 `org_id`。
+- **admin bot org 化 + 画像**：`bots` 加 `org_id` + `system_prompt`（migration `v1.7.0.sql`，
+  `org_id` 在 `v1.8.0.sql` 收紧为 `NOT NULL`）；`create` 盖章 org，`list`/`get` 按 org 成员可见；
+  `get_resolved` 直接按 **bot 自身 org** 解析 provider（团队成员使用 oncall bot 时命中的是团队共享
+  provider）。早期草案借 bot owner 用户凭证解析,provider 团队化后该 hack 已移除。
+- **全资源表 org 隔离 + providers 团队共享**（按用户诉求"所有资源管理类 tables 都加 org_id 做隔离"）：
+  `scenes` / `intentions` / `model_providers` 加 `org_id`（admin migration `v1.8.0.sql`，
+  逐列 nullable → 回填 `demo-org` → `NOT NULL`）；对应 crud/services 非管理员按 `org_id` 过滤、
+  create 盖章调用方 org。`apps` 保持**全局**（平台配置，非团队资产），chat
+  `conversations`/`messages`/`memories` 保持**用户私有**运行时数据,二者都不属"共享资源"故不加
+  `org_id`。provider 团队化意味着 **LLM 凭证在团队内共享**;内部解析采用混合信任模型:按 id 查
+  (`/internal/providers/{id}`) **不带 org**(不透明 ULID + `X-Internal-Token` 即边界,executor/chat/
+  knowledge 等持有具体 `provider_id` 的可信调用方无需层层透传 org);只有 default / by-kind 两个
+  "在 org 内检索"的端点携带 `org_id`。
+- **chat 画像链路**：`getAgent`/`ResolvedAgent` 带 `system_prompt` → `routes/agents.ts` 经
+  `RunAgentInput.persona` → `createAgentRunResponse` → `buildAgentInstructions` 注入
+  `<agent_persona>` section（在 BASE + mode 指令之后，安全/工具规则不被覆盖）。
+- **oncall RCA 画像**：作为 demo 种子 bot `bot-oncall`（`admin/db.py`，published，归属 `demo-org`）
+  写入四段式画像（根因 / 排查 / 验证 / 修复建议 + 出处 + 置信度 + 只读边界）。
+- **前端**：platform 顶栏 + 用户菜单展示活跃团队（`AuthUser`/`PlatformUser` 加 `orgId`/`orgName`）；
+  admin bot 配置对话框加「人设 / 系统提示词」多行编辑；chat 复用既有智能体选择器即可选中 oncall bot。
+
+未做（明确留后）：完整 org 管理 UI（建组/邀请成员，后端暂无 org CRUD 端点，MVP 单活跃 org）；
+文档新鲜度元数据（Phase 2）；批量导入接口（Phase 2）；MCP 现场只读工具（Phase 3）。
 
 ## 概述
 
@@ -144,20 +180,25 @@ chat 消费入口：
 
 ## 实施清单
 
-- [ ] Phase 0：admin 知识库页上传代表性 oncall 文档，chat 内验证检索命中与定位质量（零改动 go/no-go）
-- [ ] Phase 1：admin `BotRow` 加 `system_prompt` + migration；schemas 三处加字段；crud/services 落库；`gen-openapi` + `just sync`
-- [ ] Phase 1：chat 注入链路 `getAgent` -> `agents.ts` -> `createAgentRunResponse` -> `buildAgentInstructions` 的 `<agent_persona>` section
-- [ ] Phase 1：编写 oncall 结构化 RCA 画像文案，写入 `bot.system_prompt`
-- [ ] Phase 1：admin 前端 bot 配置加系统画像编辑；确认/补齐 chat 端选择 oncall bot 入口
-- [ ] Phase 2：documents 新鲜度元数据字段 + migration + 检索透出 + 画像降权
+- [x] Phase 1：admin `BotRow` 加 `system_prompt`（及 `org_id`）+ migration `v1.7.0.sql`；schemas 三处加字段；crud/services 落库；`gen-openapi` + `just sync`
+- [x] Phase 1：chat 注入链路 `getAgent` -> `agents.ts` -> `createAgentRunResponse` -> `buildAgentInstructions` 的 `<agent_persona>` section
+- [x] Phase 1：编写 oncall 结构化 RCA 画像文案，作为种子 bot `bot-oncall` 写入 `bot.system_prompt`
+- [x] Phase 1：admin 前端 bot 配置加「人设/系统提示词」编辑；chat 端复用既有智能体选择器选中 oncall bot
+- [x] 团队共享（原 Phase 2 决策 2，提前落地）：org 多租户基座（IAM organizations + JWT + gateway header）+ 知识库 `org_id` 检索/ACL + admin bot org 化
+- [x] 全资源表 org 隔离（用户追加诉求，破坏性迁移已获准）：`scenes`/`intentions`/`model_providers` 加 `org_id` + migration `v1.8.0.sql`（回填 `demo-org` → `NOT NULL`）+ `bots.org_id` 收紧 `NOT NULL`；provider 团队共享 + 内部 by-id 解析不带 org（Option Y）；`gen-openapi` + `just sync` 回流
+- [ ] Phase 2：documents 新鲜度元数据字段（`source_url`/`last_reviewed_at`/`version`/`authority`）+ migration + 检索透出 + 画像降权
 - [ ] Phase 2：批量导入接口/脚本（`create_document` + `index_document`）
-- [ ] Phase 2（决策）：知识库团队共享可见范围（visibility/org 或 bot 绑定共享集）
+- [ ] 完整 org 管理 UI（建组/邀请成员）+ IAM org CRUD 端点（当前仅 demo 单 org 种子）
 - [ ] Phase 3（可选）：MCP 接 metrics/logs/tracing 只读工具
 
-## 决策点（默认已选，确认时可调）
+## 决策点（已定稿）
 
-1. 画像落点：admin bot `system_prompt` 字段（默认，推荐）/ chat 硬编码 oncall mode（不推荐）。
-2. 团队共享：MVP 先用单一"oncall 运营账号"维护知识 + bot，暂不改 ACL（默认）/ 立即做
-   org 级可见（需改 retrieval scope）。
-3. 新鲜度元数据：放 Phase 2（默认）/ 提前到 Phase 1 同做。
-4. 交付范围：本次做到 Phase 1 可跑 MVP（默认）/ 含 Phase 2 治理。
+1. 画像落点：**admin bot `system_prompt` 字段**（已采用）。未在 chat 硬编码 oncall mode。
+2. 团队共享：**立即做 org 级可见**（已采用，超出原 MVP 默认）——按用户诉求引入 workspace/团队
+   概念，知识与 bot 按 `org_id` 团队内共享。为与后续桌面端 app 的 workspace 解耦，多租户实体
+   命名为 **organization**（团队），而非泛化的 workspace。**范围扩展**：按用户"所有资源管理类
+   tables 都加 org_id"的追加诉求，`scenes`/`intentions`/`model_providers` 一并 org 化，且
+   `model_providers` 定为**团队共享**（LLM 凭证团队内共用），内部 by-id 解析不带 org（Option Y，
+   见 ADR-0026 决策 8）。`apps`（全局平台配置）与 chat 会话/消息/记忆（用户私有运行时数据）不纳入。
+3. 新鲜度元数据：**留 Phase 2**（未做）。
+4. 交付范围：Phase 1 可跑 MVP + org 团队共享基座（已交付）；Phase 2 治理与完整 org 管理 UI 后续。

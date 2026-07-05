@@ -87,6 +87,22 @@
               ],
               "title": "X-Auth-User-Id"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
           }
         ],
         "requestBody": {
@@ -192,6 +208,22 @@
               ],
               "title": "X-Auth-User-Id"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
           }
         ],
         "responses": {
@@ -228,7 +260,7 @@
           "documents"
         ],
         "summary": "Batch Delete My Documents",
-        "description": "Delete several of the caller's documents in one transaction.\n\nOnly rows owned by the current user are removed (ids the user does not own\nare silently ignored). Object-store blobs are best-effort purged and the\nRAG `document_chunks` are dropped via the FK `ON DELETE CASCADE`.",
+        "description": "Delete several of the caller's documents in one transaction.\n\nAny member of the org may delete the team's documents (ids outside the org\nare silently ignored). Object-store blobs are best-effort purged and the\nRAG `document_chunks` are dropped via the FK `ON DELETE CASCADE`.",
         "operationId": "batch_delete_my_documents_documents_batch_delete_post",
         "parameters": [
           {
@@ -277,6 +309,22 @@
                 }
               ],
               "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
             }
           }
         ],
@@ -378,6 +426,22 @@
               ],
               "title": "X-Auth-User-Id"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
           }
         ],
         "responses": {
@@ -465,6 +529,22 @@
                 }
               ],
               "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
             }
           }
         ],
@@ -564,6 +644,22 @@
               ],
               "title": "X-Auth-User-Id"
             }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
           }
         ],
         "responses": {
@@ -646,6 +742,22 @@
                 }
               ],
               "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
             }
           }
         ],
@@ -2195,6 +2307,17 @@
             "type": "string",
             "title": "User Id"
           },
+          "org_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Id"
+          },
           "conversation_id": {
             "anyOf": [
               {
@@ -2574,6 +2697,12 @@
             "minLength": 1,
             "title": "User Id"
           },
+          "org_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "Org Id"
+          },
           "query": {
             "type": "string",
             "maxLength": 4000,
@@ -2597,6 +2726,7 @@
         "type": "object",
         "required": [
           "user_id",
+          "org_id",
           "query"
         ],
         "title": "RetrieveInput"

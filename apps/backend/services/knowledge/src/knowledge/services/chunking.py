@@ -10,7 +10,7 @@ sizing (it slightly under-fills for CJK, which is fine).
 from __future__ import annotations
 
 _CHARS_PER_TOKEN = 4
-_SEPARATORS = ["\n\n", "\n", "。", "！", "？", ". ", "! ", "? ", "；", "; ", " "]  # noqa: RUF001
+_SEPARATORS = ["\n\n", "\n", "。", "！", "？", ". ", "! ", "? ", "；", "; ", " "]
 
 
 def _split_recursive(text: str, limit: int) -> list[str]:

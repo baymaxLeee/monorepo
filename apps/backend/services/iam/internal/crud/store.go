@@ -63,6 +63,8 @@ func (s *Store) AutoMigrate(ctx context.Context) error {
 		&model.RefreshToken{},
 		&model.Role{},
 		&model.UserRole{},
+		&model.Organization{},
+		&model.OrganizationMember{},
 	)
 }
 
@@ -263,4 +265,39 @@ func (s *Store) UserRoles(ctx context.Context, userID string) ([]model.Role, err
 		Order("roles.name").
 		Find(&roles).Error
 	return roles, err
+}
+
+func (s *Store) EnsureOrganization(ctx context.Context, org model.Organization) error {
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"name", "slug", "owner_user_id", "updated_at"}),
+	}).Create(&org).Error
+}
+
+func (s *Store) EnsureOrgMember(ctx context.Context, orgID, userID, role string) error {
+	member := model.OrganizationMember{
+		OrgID:     orgID,
+		UserID:    userID,
+		Role:      role,
+		CreatedAt: time.Now().UTC(),
+	}
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&member).Error
+}
+
+// PrimaryOrgForUser resolves the user's active organization. With single
+// membership per user (MVP) this is deterministic; when multi-org lands, this
+// becomes "the org the session last selected".
+func (s *Store) PrimaryOrgForUser(ctx context.Context, userID string) (model.Organization, error) {
+	var org model.Organization
+	err := s.db.WithContext(ctx).
+		Table("organizations").
+		Select("organizations.*").
+		Joins("JOIN organization_members ON organization_members.org_id = organizations.id").
+		Where("organization_members.user_id = ?", userID).
+		Order("organization_members.created_at").
+		First(&org).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return model.Organization{}, ErrNotFound
+	}
+	return org, err
 }

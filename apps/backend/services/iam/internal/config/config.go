@@ -38,6 +38,9 @@ type Config struct {
 	SuperAdminEmail       string
 	SuperAdminPassword    string
 	SuperAdminDisplayName string
+	DemoOrgID             string
+	DemoOrgName           string
+	DemoOrgSlug           string
 }
 
 func (c Config) IsProduction() bool { return c.Environment == EnvProduction }
@@ -72,6 +75,9 @@ func Load() (Config, error) {
 		SuperAdminEmail:       envOr("SUPER_ADMIN_EMAIL", "admin@example.com"),
 		SuperAdminPassword:    envOr("SUPER_ADMIN_PASSWORD", "admin123"),
 		SuperAdminDisplayName: envOr("SUPER_ADMIN_DISPLAY_NAME", "Super Admin"),
+		DemoOrgID:             envOr("DEMO_ORG_ID", "demo-org"),
+		DemoOrgName:           envOr("DEMO_ORG_NAME", "Demo Team"),
+		DemoOrgSlug:           envOr("DEMO_ORG_SLUG", "demo-team"),
 	}
 
 	if err := cfg.validate(mysqlHost, mysqlPassword); err != nil {

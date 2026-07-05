@@ -1,7 +1,7 @@
 """Internal RAG retrieval API for chat and other services.
 
 `POST /internal/retrieve` runs hybrid search (dense + BM25 + RRF + optional
-rerank), scoped to the requesting user, and returns chunks with citations.
+rerank), scoped to the caller's team org, and returns chunks with citations.
 """
 
 from fastapi import APIRouter, Depends
@@ -20,7 +20,7 @@ router = APIRouter(
 async def retrieve_chunks(payload: RetrieveInput, session: DbSession) -> RetrieveResult:
     return await retrieve(
         session,
-        user_id=payload.user_id,
+        org_id=payload.org_id,
         query=payload.query,
         top_k=payload.top_k,
     )

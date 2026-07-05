@@ -13,15 +13,16 @@ from admin.models.provider import PROVIDER_KIND_CHAT, ModelProviderRow
 
 async def list_providers(
     session: AsyncSession,
-    user_id: str,
-    is_admin: bool,
+    org_id: str,
 ) -> list[ModelProviderRow]:
-    stmt = select(ModelProviderRow).order_by(
-        ModelProviderRow.is_default.desc(),
-        ModelProviderRow.updated_at.desc(),
+    stmt = (
+        select(ModelProviderRow)
+        .where(ModelProviderRow.org_id == org_id)
+        .order_by(
+            ModelProviderRow.is_default.desc(),
+            ModelProviderRow.updated_at.desc(),
+        )
     )
-    if not is_admin:
-        stmt = stmt.where(ModelProviderRow.user_id == user_id)
     result = await session.scalars(stmt)
     return list(result.all())
 
@@ -29,12 +30,12 @@ async def list_providers(
 async def get_provider(
     session: AsyncSession,
     provider_id: str,
-    user_id: str,
-    is_admin: bool,
+    org_id: str,
 ) -> ModelProviderRow | None:
-    stmt = select(ModelProviderRow).where(ModelProviderRow.id == provider_id)
-    if not is_admin:
-        stmt = stmt.where(ModelProviderRow.user_id == user_id)
+    stmt = select(ModelProviderRow).where(
+        ModelProviderRow.id == provider_id,
+        ModelProviderRow.org_id == org_id,
+    )
     result = await session.scalars(stmt)
     return result.one_or_none()
 
@@ -50,12 +51,12 @@ async def get_provider_for_internal(
 
 async def get_default_provider(
     session: AsyncSession,
-    user_id: str,
+    org_id: str,
 ) -> ModelProviderRow | None:
     stmt = (
         select(ModelProviderRow)
         .where(
-            ModelProviderRow.user_id == user_id,
+            ModelProviderRow.org_id == org_id,
             ModelProviderRow.is_default.is_(True),
             ModelProviderRow.is_enabled.is_(True),
             ModelProviderRow.provider_kind == PROVIDER_KIND_CHAT,
@@ -69,10 +70,10 @@ async def get_default_provider(
 
 async def get_first_enabled_by_kind(
     session: AsyncSession,
-    user_id: str,
+    org_id: str,
     kind: str,
 ) -> ModelProviderRow | None:
-    """Most-recently-updated enabled provider of a given kind for a user.
+    """Most-recently-updated enabled provider of a given kind for the team (org).
 
     Non-chat kinds (embedding, rerank, image, video) have no `is_default`
     flag — consumers that need one (e.g. knowledge picking an embedding model)
@@ -81,7 +82,7 @@ async def get_first_enabled_by_kind(
     stmt = (
         select(ModelProviderRow)
         .where(
-            ModelProviderRow.user_id == user_id,
+            ModelProviderRow.org_id == org_id,
             ModelProviderRow.is_enabled.is_(True),
             ModelProviderRow.provider_kind == kind,
         )
@@ -92,10 +93,10 @@ async def get_first_enabled_by_kind(
     return result.one_or_none()
 
 
-async def clear_default_flag(session: AsyncSession, user_id: str) -> None:
+async def clear_default_flag(session: AsyncSession, org_id: str) -> None:
     await session.execute(
         update(ModelProviderRow)
-        .where(ModelProviderRow.user_id == user_id, ModelProviderRow.is_default.is_(True))
+        .where(ModelProviderRow.org_id == org_id, ModelProviderRow.is_default.is_(True))
         .values(is_default=False, updated_at=datetime.now(UTC))
     )
 
@@ -104,6 +105,7 @@ async def create_provider(
     session: AsyncSession,
     *,
     user_id: str,
+    org_id: str,
     name: str,
     model: str,
     provider_kind: str,
@@ -120,6 +122,7 @@ async def create_provider(
     row = ModelProviderRow(
         id=uuid4().hex[:12],
         user_id=user_id,
+        org_id=org_id,
         name=name,
         model=model,
         provider_kind=provider_kind,
@@ -161,12 +164,12 @@ async def delete_provider(session: AsyncSession, row: ModelProviderRow) -> None:
 async def bulk_delete_providers(
     session: AsyncSession,
     ids: list[str],
-    user_id: str,
-    is_admin: bool,
+    org_id: str,
 ) -> int:
-    stmt = delete(ModelProviderRow).where(ModelProviderRow.id.in_(ids))
-    if not is_admin:
-        stmt = stmt.where(ModelProviderRow.user_id == user_id)
+    stmt = delete(ModelProviderRow).where(
+        ModelProviderRow.id.in_(ids),
+        ModelProviderRow.org_id == org_id,
+    )
     result = await session.execute(stmt)
     await session.commit()
     return cast(CursorResult[object], result).rowcount or 0
