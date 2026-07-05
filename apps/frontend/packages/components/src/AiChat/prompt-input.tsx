@@ -13,7 +13,7 @@ import type {
   KeyboardEventHandler,
 } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { cn } from "shared";
+import { cn, randomId } from "shared";
 import { Button } from "../shadcn/button";
 import { Textarea } from "../shadcn/textarea";
 import {
@@ -24,10 +24,6 @@ import {
   type PromptInputMessage,
   usePromptInput,
 } from "./prompt-input-context";
-
-function fileId() {
-  return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
-}
 
 async function blobUrlToDataUrl(url: string): Promise<string> {
   const response = await fetch(url);
@@ -138,7 +134,7 @@ export function PromptInput({
           ...prev,
           ...selected.map((file) => ({
             filename: file.name,
-            id: fileId(),
+            id: randomId(),
             mediaType: file.type,
             type: "file" as const,
             url: URL.createObjectURL(file),

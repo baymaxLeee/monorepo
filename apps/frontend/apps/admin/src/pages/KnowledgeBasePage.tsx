@@ -6,6 +6,7 @@ import {
   listKnowledgeDocuments,
   uploadKnowledgeDocuments,
 } from "api";
+import { randomId } from "shared";
 import {
   Alert,
   AlertDescription,
@@ -80,7 +81,7 @@ export function KnowledgeBasePage() {
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
     const files = Array.from(fileList).map((file) => ({
-      clientRef: crypto.randomUUID(),
+      clientRef: randomId(),
       file,
     }));
     setUploading(true);

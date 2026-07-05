@@ -12,7 +12,7 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { cn } from "shared";
+import { cn, randomId } from "shared";
 import { Button } from "../../shadcn/button";
 import { buildMentionExtension, mentionPluginKey } from "../extensions/mention";
 import { createPromptTokenExtension } from "../extensions/PromptToken";
@@ -30,16 +30,9 @@ import type {
 } from "../interface";
 import { serializePromptInput } from "../serialize";
 
-const createId = () => {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-};
-
 const fileToToken = (file: File, url?: string): PromptInputToken => {
   const isImage = file.type.startsWith("image/");
-  const id = createId();
+  const id = randomId();
   return {
     id,
     kind: isImage ? "image" : "file",
