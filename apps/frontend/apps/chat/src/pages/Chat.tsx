@@ -74,6 +74,7 @@ export function Chat() {
   const [mode, setMode] = useState<"normal" | "plan">("normal");
   const promptRef = useRef<PromptInputRef>(null);
   const resumedConversationRef = useRef<string | null>(null);
+  const reconnectAbortRef = useRef<AbortController | null>(null);
   const {
     agents,
     selectedAgentId,
@@ -133,7 +134,14 @@ export function Chat() {
           headers,
         }),
         fetch: async (input, init) => {
-          const response = await authFetch(input, init);
+          let requestInit = init;
+          if (init?.method === "GET" && !init.signal) {
+            reconnectAbortRef.current?.abort();
+            const controller = new AbortController();
+            reconnectAbortRef.current = controller;
+            requestInit = { ...init, signal: controller.signal };
+          }
+          const response = await authFetch(input, requestInit);
           const runId = response.headers.get("x-agent-run-id");
           if (runId && id) setTraceRun(id, runId);
           return response;
@@ -182,6 +190,7 @@ export function Chat() {
   useEffect(
     () => () => {
       void stop();
+      reconnectAbortRef.current?.abort();
     },
     [stop],
   );
