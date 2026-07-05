@@ -60,7 +60,13 @@ type streamingProxy struct {
 }
 
 func (s *streamingProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Proxied SSE (agent runs) and multipart ingest routinely outlive the
+	// server-wide Read/WriteTimeout. Clearing only the write deadline still let
+	// ReadTimeout fire on the background connection read mid-stream, cancelling
+	// the upstream request context (context canceled -> 502). Both deadlines
+	// must be cleared so a proxied request's lifetime is bounded by the upstream.
 	rc := http.NewResponseController(w)
+	_ = rc.SetReadDeadline(time.Time{})
 	_ = rc.SetWriteDeadline(time.Time{})
 	s.inner.ServeHTTP(w, r)
 }
