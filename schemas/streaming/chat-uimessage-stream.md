@@ -118,7 +118,7 @@ Two separate streams carry these:
   - The artifact tool returns coarse control-flow (`task_id` → `document_id`) as
     **tool output**, while `data-artifact-progress` streams fine per-block
     progress. Deliberately separate granularities — do not collapse them.
-  - `generate_image` (media generation) returns its result **as tool output**,
+  - `generate_images` (media generation) returns its result **as tool output**,
     not a custom part: an inline async-generator tool yields
     `{ status: "generating", count }` then a terminal
     `{ status: "completed", images: [{ document_id, filename, media_type }], count, failed }`.
@@ -147,6 +147,23 @@ Two separate streams carry these:
     official tool parts; the frontend selects artifact/media/todo/approval UI by
     `uiKind`, not by hard-coded public tool names. This is metadata on the
     official tool part, not a custom `data-*` channel.
+  - `update_todos` output items carry an optional `deliverable` tag
+    (`"artifact" | "image" | "video"`). It is **not** a new part: it rides the
+    existing `tool-update_todos` output. The frontend
+    (`ChatTodoListCard.collectDeliverableCompletion`) reads the live
+    `image-gallery`/`video`/`artifact` tool parts emitted after the latest
+    `update_todos` and advances each tagged todo to completed the instant its own
+    deliverable card finishes — because a parallel html/image/video step
+    `Promise.all`-blocks until the slowest one returns, the model cannot restate
+    the snapshot in-step. This is display-layer derivation from official tool
+    parts (the completion fact already on the wire), so no `data-*` part is
+    added; the model's next-step `update_todos` remains the canonical snapshot.
+    See ADR 0024.
+  - On explicit user cancellation, unfinished official tool parts are persisted
+    as `output-error`; no cancellation `data-*` part is added. Non-completed
+    `update_todos` items become `cancelled`, which is a terminal persisted todo
+    status. Navigation-only disconnects do not perform this transition. See
+    ADR 0025.
 
 ---
 

@@ -10,6 +10,10 @@
   切换路由可重新订阅 Redis 中的活动 UIMessage SSE。
 - Stop 同时调用 `useChat.stop()` 与 run cancel API；前者断开本地 subscriber，后者
   才终止服务端 Agent。浏览器断连本身不再等价于 Stop。
+- cancel API 返回后重新读取持久化消息；未完成的 HTML/image/video/tool 卡片使用
+  `output-error`，todo 使用 `cancelled`，不得从历史消息继续渲染 loading。
+- 会话路由按 conversation id 隔离 `useChat` 实例；切出会话时只 abort 旧实例的
+  subscriber，防止多个 running 会话占满浏览器连接池，切回后再从 Redis 回放。
 - `ask_user` 等 client tool 通过 `addToolOutput` 回填；所有 client tool 完成后由
   `lastAssistantMessageIsCompleteWithToolCalls` 自动发起下一次 run。
 - POST 与恢复 GET 都返回 `x-agent-run-id`，用于 Stop 和执行轨迹查询；stream 内容

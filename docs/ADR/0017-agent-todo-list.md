@@ -107,3 +107,11 @@ source of truth for plan content.
   linkage from artifact and media inputs. Each tool card owns its live progress;
   after the parallel step returns, the model reconciles the canonical todo list
   with one `update_todos` call.
+- **Update (live per-deliverable completion, ADR 0024):** the "reconcile only
+  after the parallel step returns" behavior above is superseded. Todo items now
+  carry an optional `deliverable` tag (`artifact`/`image`/`video`); the frontend
+  advances each tagged todo the instant its own deliverable card completes, so
+  html/images/video update independently instead of all waiting for the slowest
+  (a multi-minute video). The tag replaces the removed `todo_id` coupling with a
+  static label on the todo, and the model snapshot remains the source of truth.
+  See ADR 0024.

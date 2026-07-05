@@ -222,15 +222,19 @@ document, on both Local World and Postgres World, under `nitro dev`, plain
 
 ## Cancellation
 
-`run.cancel()` resolves in low single-digit seconds even mid-step in testing
-— Workflow DevKit's own cancellation is not merely "stop scheduling new
-steps," it interrupts promptly. There is no custom AbortSignal-forwarding
-code here, and none should be added speculatively: verify with a real
-cancellation test (see the plan's Phase 5 notes) before assuming a gap
-exists. The one real bug found here was classification, not latency:
+`run.cancel()` makes the Workflow run terminal and prevents new orchestration,
+but it is not a provider-specific compensation protocol. Empirical inspection
+of a cancelled video run showed already-running `use step` polls continuing
+after the run became `cancelled`. Every long provider call therefore combines
+its normal timeout with `observeTaskCancellation()`; every task type that owns
+external durable state registers a `cancel` hook. Video records Ark task ids and
+DELETEs them; HTML records and cancels the Knowledge generation. Cancellation
+state is persisted before cleanup, and cleanup failures are logged without
+resurrecting the task.
+
 `run.returnValue` rejects with `WorkflowRunCancelledError` (from
-`"workflow/errors"`), not a generic `AbortError` — `watchCompletion()` in
-`src/tasks/service.ts` checks `WorkflowRunCancelledError.is(error)`.
+`"workflow/errors"`), not a generic `AbortError`; `watchCompletion()` still
+uses `WorkflowRunCancelledError.is(error)` for classification.
 
 Run from `apps/backend`: `just lint executor`, `just build executor`,
 `just gen-openapi executor`.

@@ -38,6 +38,9 @@ removed the only remaining reconnect path.
   replays the active stream from its beginning or returns 204.
 - A browser disconnect cancels only that subscriber. The server-owned run
   controller is aborted only by the authenticated run cancellation endpoint.
+- Changing conversations remounts the client chat instance and aborts the old
+  subscriber request. Subscriber abort also interrupts its blocking Redis read
+  and closes the duplicated Redis connection; it never aborts the run producer.
 - `useChat` reconnects once after the selected conversation's persisted
   messages load. POST and GET expose `x-agent-run-id` so Stop still targets the
   correct run after a refresh.

@@ -27,10 +27,12 @@ import { generateConversationTitle } from "../title/generator.js";
 import {
   createAgentRun,
   finishAgentRun,
+  finalizeCancelledRunToolCalls,
   getAgentRunById,
   getRunTrace,
   type AgentRunTrace,
 } from "./repository.js";
+import { finalizeCancelledParts } from "./cancellation.js";
 import { createAgent } from "../agents/factory.js";
 import { extractMemoryCandidates } from "../memory/extractor.js";
 import { failAgentRun } from "../observability/lifecycle.js";
@@ -322,7 +324,9 @@ export async function createAgentRunResponse(
         const failed = finishReason === "error";
         try {
           const sanitizedParts = sanitizePersistedParts(responseMessage.parts);
-          const parts = sanitizedParts;
+          const parts = aborted
+            ? finalizeCancelledParts(sanitizedParts)
+            : sanitizedParts;
           let outputMessageId: string | null = null;
           if (parts.length > 0) {
             const content = serializeMessageContent({ ...responseMessage, parts } as AnyUIMessage);
@@ -346,6 +350,7 @@ export async function createAgentRunResponse(
             }
           }
           const usage = await Promise.resolve(result.totalUsage).catch(() => null);
+          if (aborted) await finalizeCancelledRunToolCalls(runId);
           await finishAgentRun({
             runId,
             status: aborted ? "cancelled" : failed ? "failed" : "completed",

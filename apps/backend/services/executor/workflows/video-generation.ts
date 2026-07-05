@@ -1,12 +1,17 @@
 import { getWorkflowMetadata } from "workflow";
 import { z } from "zod";
 
-import { reportTaskProgress } from "../src/tasks/notify.js";
+import {
+  isTaskCancelled,
+  recordExternalTask,
+  reportTaskProgress,
+} from "../src/tasks/notify.js";
 import { getProvider } from "../src/clients/admin.js";
 import { createMediaDocument } from "../src/clients/knowledge.js";
 import {
   ArkRequestError,
   createArkVideoTask,
+  deleteArkVideoTask,
   getArkVideoTask,
   type ArkVideoSnapshot,
 } from "../src/clients/ark.js";
@@ -29,6 +34,7 @@ import {
   randomBaseSeed,
 } from "../src/video/limits.js";
 import { assembleClips } from "../src/video/assembler.js";
+import { observeTaskCancellation } from "../src/tasks/cancellation.js";
 
 export const videoGenerationInputSchema = z.object({
   userId: z.string().min(1),
@@ -77,39 +83,53 @@ async function planStep(input: VideoGenerationInput): Promise<{
   const targetDurationSec = input.targetDurationSec ?? DEFAULT_TARGET_DURATION_S;
   const count = deriveSegmentCount(targetDurationSec);
   const { model } = await buildVideoTextModel(input.userId, input.textProviderId);
+  const { workflowRunId } = getWorkflowMetadata();
+  const cancellation = observeTaskCancellation(workflowRunId);
 
-  const script = await planScript({
-    prompt: input.prompt,
-    targetDurationSec,
-    count,
-    model,
-    abortSignal: AbortSignal.timeout(SCRIPT_TIMEOUT_MS),
-  });
+  try {
+    const script = await planScript({
+      prompt: input.prompt,
+      targetDurationSec,
+      count,
+      model,
+      abortSignal: AbortSignal.any([
+        cancellation.signal,
+        AbortSignal.timeout(SCRIPT_TIMEOUT_MS),
+      ]),
+    });
 
-  const segments = await planSegments({
-    script,
-    targetDurationSec,
-    model,
-    abortSignal: AbortSignal.timeout(STORYBOARD_TIMEOUT_MS),
-  });
+    const segments = await planSegments({
+      script,
+      targetDurationSec,
+      model,
+      abortSignal: AbortSignal.any([
+        cancellation.signal,
+        AbortSignal.timeout(STORYBOARD_TIMEOUT_MS),
+      ]),
+    });
 
-  let characterRefs: CharacterRef[] = [];
-  if (input.imageProviderId) {
-    try {
-      characterRefs = await generateCharacterSheet({
-        userId: input.userId,
-        imageProviderId: input.imageProviderId,
-        characters: script.characters.slice(0, MAX_MAIN_CHARACTERS),
-        perImageTimeoutMs: ANCHOR_PER_IMAGE_TIMEOUT_MS,
-      });
-    } catch (error) {
-      console.warn("[executor] character sheet failed, degrading to text-only segments", {
-        error: String(error).slice(0, 200),
-      });
+    let characterRefs: CharacterRef[] = [];
+    if (input.imageProviderId && !cancellation.signal.aborted) {
+      try {
+        characterRefs = await generateCharacterSheet({
+          userId: input.userId,
+          imageProviderId: input.imageProviderId,
+          characters: script.characters.slice(0, MAX_MAIN_CHARACTERS),
+          perImageTimeoutMs: ANCHOR_PER_IMAGE_TIMEOUT_MS,
+          abortSignal: cancellation.signal,
+        });
+      } catch (error) {
+        if (cancellation.signal.aborted) throw error;
+        console.warn("[executor] character sheet failed, degrading to text-only segments", {
+          error: String(error).slice(0, 200),
+        });
+      }
     }
+    if (cancellation.signal.aborted) throw cancellation.signal.reason;
+    return { script, segments, characterRefs, baseSeed: randomBaseSeed() };
+  } finally {
+    cancellation.dispose();
   }
-
-  return { script, segments, characterRefs, baseSeed: randomBaseSeed() };
 }
 
 async function createSegmentStep(input: {
@@ -124,6 +144,8 @@ async function createSegmentStep(input: {
   returnLastFrame: boolean;
 }): Promise<{ taskId?: string; error?: string }> {
   "use step";
+  const { workflowRunId } = getWorkflowMetadata();
+  const cancellation = observeTaskCancellation(workflowRunId);
   try {
     const provider = await getProvider(input.userId, input.providerId);
     const { prompt, images } = buildSegmentContent(input.segment, input.script, {
@@ -141,8 +163,26 @@ async function createSegmentStep(input: {
       seed: input.seed,
       returnLastFrame: input.returnLastFrame,
       extraBody: provider.extraBody,
-      signal: AbortSignal.timeout(CREATE_REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.any([
+        cancellation.signal,
+        AbortSignal.timeout(CREATE_REQUEST_TIMEOUT_MS),
+      ]),
     });
+    await recordExternalTask(workflowRunId, taskId);
+    if (await isTaskCancelled(workflowRunId)) {
+      await deleteArkVideoTask({
+        baseUrl: provider.baseUrl,
+        apiKey: provider.apiKey,
+        taskId,
+        signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS),
+      }).catch((error) =>
+        console.error("[executor] failed to cancel newly created Ark video task", {
+          taskId,
+          error,
+        }),
+      );
+      return { error: "cancelled" };
+    }
     return { taskId };
   } catch (error) {
     if (error instanceof ArkRequestError && !error.retryable) {
@@ -156,6 +196,8 @@ async function createSegmentStep(input: {
       error: String(error).slice(0, 300),
     });
     throw error;
+  } finally {
+    cancellation.dispose();
   }
 }
 
@@ -166,8 +208,23 @@ async function waitSegmentStep(input: {
 }): Promise<ArkVideoSnapshot> {
   "use step";
   const provider = await getProvider(input.userId, input.providerId);
+  const { workflowRunId } = getWorkflowMetadata();
   const deadline = Date.now() + PER_SEGMENT_MAX_WAIT_MS;
   while (true) {
+    if (await isTaskCancelled(workflowRunId)) {
+      await deleteArkVideoTask({
+        baseUrl: provider.baseUrl,
+        apiKey: provider.apiKey,
+        taskId: input.taskId,
+        signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS),
+      }).catch((error) =>
+        console.error("[executor] failed to cancel active Ark video task", {
+          taskId: input.taskId,
+          error,
+        }),
+      );
+      return { status: "cancelled" };
+    }
     try {
       const snapshot = await getArkVideoTask({
         baseUrl: provider.baseUrl,
@@ -194,7 +251,20 @@ async function assembleStep(input: {
   urls: string[];
 }): Promise<{ documentId: string; sizeBytes: number }> {
   "use step";
-  const bytes = await assembleClips({ urls: input.urls, signal: AbortSignal.timeout(ASSEMBLE_TIMEOUT_MS) });
+  const { workflowRunId } = getWorkflowMetadata();
+  const cancellation = observeTaskCancellation(workflowRunId);
+  let bytes: Uint8Array;
+  try {
+    bytes = await assembleClips({
+      urls: input.urls,
+      signal: AbortSignal.any([
+        cancellation.signal,
+        AbortSignal.timeout(ASSEMBLE_TIMEOUT_MS),
+      ]),
+    });
+  } finally {
+    cancellation.dispose();
+  }
   const document = await createMediaDocument({
     userId: input.userId,
     conversationId: input.conversationId,

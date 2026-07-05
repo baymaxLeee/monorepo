@@ -27,10 +27,12 @@ export function parseGenerateVideoOutput(
 export function ChatVideoCard({
   output,
   state,
+  errorText,
   onOpen,
 }: {
   output: unknown;
   state: string;
+  errorText?: string;
   onOpen: (documentId: string) => void;
 }) {
   const parsed = parseGenerateVideoOutput(output);
@@ -41,7 +43,7 @@ export function ChatVideoCard({
   if (failed) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">
-        {parsed?.error?.trim() || "视频生成失败。"}
+        {errorText?.trim() || parsed?.error?.trim() || "视频生成失败。"}
       </div>
     );
   }

@@ -5,7 +5,7 @@ import type { PlanToolContext } from "../tools/context.js";
 
 const PLAN_CONTENT_DESCRIPTION =
   "Full plan Markdown. Must contain, in order: # 目标, ## 背景与约束, ## 实施方案, ## 任务 (a checklist: - [ ] one step per line), ## 验收标准. " +
-  "Encode concurrency in ## 任务: when several deliverables are mutually independent (they do not consume each other's output — e.g. an HTML page, a video, and a batch of posters), group them under a '### 并行产物（可同时生成）' subheading so execution can generate them in one concurrent batch. Keep any step that truly depends on another's output on its own line and note the dependency inline (e.g. '(依赖：上面的海报)'). Put all images of one request in a single step (one generate_image call with multiple prompts → one gallery), never one step per image.";
+  "Encode concurrency in ## 任务: when several deliverables are mutually independent (they do not consume each other's output — e.g. an HTML page, a video, and a batch of posters), group them under a '### 并行产物（可同时生成）' subheading so execution can generate them in one concurrent batch. Keep any step that truly depends on another's output on its own line and note the dependency inline (e.g. '(依赖：上面的海报)'). Put all images of one request in a single step (one generate_images call with multiple prompts → one gallery), never one step per image.";
 
 export const writePlanInputSchema = z.object({
   title: z.string().min(1).max(120),

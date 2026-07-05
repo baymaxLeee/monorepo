@@ -138,10 +138,12 @@ export async function generateCharacterSheet(input: {
   imageProviderId: string;
   characters: Character[];
   perImageTimeoutMs: number;
+  abortSignal?: AbortSignal;
 }): Promise<CharacterRef[]> {
   const provider = await getProvider(input.userId, input.imageProviderId);
   const refs: CharacterRef[] = [];
   for (const character of input.characters) {
+    if (input.abortSignal?.aborted) throw input.abortSignal.reason;
     try {
       const url = await generateArkImageUrl({
         baseUrl: provider.baseUrl,
@@ -152,10 +154,16 @@ export async function generateCharacterSheet(input: {
           character.appearance,
         ].join(" "),
         extraBody: provider.extraBody,
-        signal: AbortSignal.timeout(input.perImageTimeoutMs),
+        signal: input.abortSignal
+          ? AbortSignal.any([
+              input.abortSignal,
+              AbortSignal.timeout(input.perImageTimeoutMs),
+            ])
+          : AbortSignal.timeout(input.perImageTimeoutMs),
       });
       refs.push({ id: character.id, name: character.name, appearance: character.appearance, url });
     } catch (error) {
+      if (input.abortSignal?.aborted) throw error;
       console.warn("[executor] character sheet image failed, degrading that character to text-only", {
         character: character.name,
         error: String(error).slice(0, 200),

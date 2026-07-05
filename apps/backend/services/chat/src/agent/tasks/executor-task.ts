@@ -44,11 +44,11 @@ export async function waitForTaskTerminal(taskId: string, signal?: AbortSignal):
   let consecutiveFailures = 0;
   while (true) {
     if (signal?.aborted) {
-      await cancelTask(taskId).catch(() => undefined);
+      await cancelTask(taskId);
       throw new DOMException("aborted", "AbortError");
     }
     if (Date.now() >= deadline) {
-      await cancelTask(taskId).catch(() => undefined);
+      await cancelTask(taskId);
       throw new TaskWaitTimeoutError(taskId);
     }
     try {

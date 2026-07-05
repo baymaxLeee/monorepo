@@ -12,6 +12,9 @@ observability in MySQL and consumes admin (providers), knowledge
   UIMessage SSE so `useChat.resumeStream()` can attach through the GET route.
 - Stop uses the run cancellation endpoint. Propagate the server-owned run
   `AbortSignal` into model, search, multimodal, and nested artifact model calls.
+- Explicit Stop finalizes every unfinished official tool part as
+  `output-error`, persists unfinished todos as `cancelled`, and waits for the
+  local run finalizer before returning. Route cleanup only detaches the stream.
 - Replay is a transport concern only: never model it as ToolLoopAgent state or
   claim process-crash resume. Plans and messages remain durable business context.
 - `ask_user` is a client tool without `execute`. The browser supplies
@@ -28,15 +31,21 @@ observability in MySQL and consumes admin (providers), knowledge
 
 - `update_plan` snapshots are persisted in native UIMessage tool parts.
 - `update_todos` (both modes) is a stateless, side-effect-free tool: it
-  always replaces the full `{id, content, status}` list and has no
-  `contextSchema`, no knowledge writes, and no revision/CAS. State lives only
+  always replaces the full `{id, content, status, deliverable?}` list and has
+  no `contextSchema`, no knowledge writes, and no revision/CAS. State lives only
   in the `tool-update_todos` UIMessage part, same as every other tool output.
   It never becomes a second truth source for the plan body (ADR-0017).
   Because it has no read-back tool, `projectModelContext` always reinjects
   the latest completed call (via `latestCompletedToolOutput`) as
   `<current_todo_list>` so it survives `pruneMessages`/compaction; the
   frontend separately renders only the newest `tool-update_todos` part so
-  the UI shows one live card instead of one per call (ADR-0017).
+  the UI shows one live card instead of one per call (ADR-0017). The optional
+  `deliverable` tag (`artifact`/`image`/`video`) links a todo to the one
+  concurrent deliverable that fulfills it: because a parallel html/image/video
+  step `Promise.all`-blocks until the slowest tool returns, the model cannot
+  restate the snapshot mid-step, so the frontend advances each tagged todo live
+  from its own deliverable card instead of waiting for the next-step reconcile
+  (ADR-0024).
 - `write_file`/`edit_file` handle both Markdown and HTML. Markdown runs
   synchronously in this tool call (a single `streamText`, no durability
   needed). **HTML dispatches to the `executor` service and foreground-blocks
@@ -63,6 +72,8 @@ observability in MySQL and consumes admin (providers), knowledge
   `abortSignal` fires, and it calls `POST /tasks/:id/cancel` before unwinding —
   like Cursor aborting an in-flight file write. (The executor task stays durable
   against *process* loss; it is only tied to the turn for user-initiated Stop.)
+  Executor task-type compensation also cancels the Knowledge generation or
+  recorded Ark video jobs; Workflow run cancellation alone is insufficient.
 - `web_search` uses Tavily. Freshness is handled two ways so the model never
   falls back to its training-cutoff year: (1) the current date is injected into
   the agent instructions as a trailing `<environment>` block (single source of

@@ -27,7 +27,12 @@ import {
 } from "./ChatArtifactCard";
 import { ChatImageCard } from "./ChatImageCard";
 import { ChatMessageFilePart } from "./ChatMessageFilePart";
-import { ChatTodoListCard, parseTodoListOutput } from "./ChatTodoListCard";
+import {
+  ChatTodoListCard,
+  type DeliverableCompletion,
+  isTodoListSettled,
+  parseTodoListOutput,
+} from "./ChatTodoListCard";
 import { ChatVideoCard } from "./ChatVideoCard";
 
 export interface ChatMessageViewProps {
@@ -36,6 +41,7 @@ export interface ChatMessageViewProps {
   streaming: boolean;
   documents: Map<string, ConversationDocument>;
   latestTodoCallId: string | null;
+  deliverableCompletion: DeliverableCompletion;
   onOpenArtifact: (documentId: string) => void;
   onAnswerClientTool: (
     toolName: string,
@@ -53,6 +59,7 @@ export function ChatMessageView({
   streaming,
   documents,
   latestTodoCallId,
+  deliverableCompletion,
   onOpenArtifact,
   onAnswerClientTool,
   onToolApproval,
@@ -114,6 +121,7 @@ export function ChatMessageView({
               variant={variant}
               documents={documents}
               latestTodoCallId={latestTodoCallId}
+              deliverableCompletion={deliverableCompletion}
               onOpenArtifact={onOpenArtifact}
               onOpenImage={onOpenImage}
               onAnswerClientTool={onAnswerClientTool}
@@ -144,6 +152,7 @@ function MessagePartView({
   variant,
   documents,
   latestTodoCallId,
+  deliverableCompletion,
   onOpenArtifact,
   onOpenImage,
   onAnswerClientTool,
@@ -157,6 +166,7 @@ function MessagePartView({
   variant: "user" | "assistant";
   documents: Map<string, ConversationDocument>;
   latestTodoCallId: string | null;
+  deliverableCompletion: DeliverableCompletion;
   onOpenArtifact: (documentId: string) => void;
   onOpenImage: (documentId: string) => void;
   onAnswerClientTool: (
@@ -214,6 +224,7 @@ function MessagePartView({
         conversationId={conversationId}
         documents={documents}
         latestTodoCallId={latestTodoCallId}
+        deliverableCompletion={deliverableCompletion}
         onOpenArtifact={onOpenArtifact}
         onAnswerClientTool={onAnswerClientTool}
         onToolApproval={onToolApproval}
@@ -231,6 +242,7 @@ function ToolPartView({
   conversationId,
   documents,
   latestTodoCallId,
+  deliverableCompletion,
   onOpenArtifact,
   onAnswerClientTool,
   onToolApproval,
@@ -241,6 +253,7 @@ function ToolPartView({
   conversationId: string;
   documents: Map<string, ConversationDocument>;
   latestTodoCallId: string | null;
+  deliverableCompletion: DeliverableCompletion;
   onOpenArtifact: (documentId: string) => void;
   onAnswerClientTool: (
     toolName: string,
@@ -320,6 +333,7 @@ function ToolPartView({
         conversationId={conversationId}
         output={output}
         state={part.state}
+        errorText={errorText}
       />
     );
   }
@@ -329,6 +343,7 @@ function ToolPartView({
       <ChatVideoCard
         output={output}
         state={part.state}
+        errorText={errorText}
         onOpen={onOpenArtifact}
       />
     );
@@ -366,19 +381,18 @@ function ToolPartView({
   }
 
   const hasError = part.state === "output-error" || outputErrorReason != null;
-  const todoAllDone =
+  const todoSettled =
     todoList != null &&
-    todoList.todos.length > 0 &&
-    todoList.todos.every((item) => item.status === "completed");
+    isTodoListSettled(todoList.todos, deliverableCompletion);
   const displayState = hasError
     ? "output-error"
     : todoList != null
-      ? todoAllDone
+      ? todoSettled
         ? "output-available"
         : "input-available"
       : part.state;
   const isOpenByDefault =
-    todoList != null ? !todoAllDone : part.state !== "output-available";
+    todoList != null ? !todoSettled : part.state !== "output-available";
 
   return (
     <Tool open={isOpenByDefault || outputErrorReason != null}>
@@ -400,7 +414,10 @@ function ToolPartView({
           </div>
         ) : null}
         {todoList ? (
-          <ChatTodoListCard todos={todoList.todos} />
+          <ChatTodoListCard
+            todos={todoList.todos}
+            deliverableCompletion={deliverableCompletion}
+          />
         ) : (
           <>
             {askUserInput == null && input !== undefined ? (

@@ -13,6 +13,7 @@ import {
 } from "./repository.js";
 
 const controllers = new Map<string, AbortController>();
+const completions = new Map<string, { promise: Promise<void>; resolve: () => void }>();
 const heartbeats = new Map<string, ReturnType<typeof setInterval>>();
 const cancellationPolls = new Map<string, ReturnType<typeof setInterval>>();
 const LEASE_MS = 10 * 60_000;
@@ -55,6 +56,11 @@ export async function acquireRunLease(conversationId: string, runId: string): Pr
 export function registerRunController(runId: string): AbortSignal {
   const controller = new AbortController();
   controllers.set(runId, controller);
+  let resolve: () => void = () => {};
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  completions.set(runId, { promise, resolve });
   heartbeats.set(runId, setInterval(() => {
     const now = new Date();
     void getDb().update(conversationRunLeases).set({
@@ -78,6 +84,8 @@ export function registerRunController(runId: string): AbortSignal {
 
 export async function releaseRun(runId: string): Promise<void> {
   controllers.delete(runId);
+  completions.get(runId)?.resolve();
+  completions.delete(runId);
   const heartbeat = heartbeats.get(runId);
   if (heartbeat) clearInterval(heartbeat);
   heartbeats.delete(runId);
@@ -91,7 +99,9 @@ export async function cancelRun(conversationId: string, runId: string): Promise<
   const run = await getAgentRunById(runId);
   if (!run || run.conversationId !== conversationId) return false;
   await requestAgentRunCancellation(runId);
+  const completion = completions.get(runId)?.promise;
   controllers.get(runId)?.abort(new DOMException("agent run cancelled", "AbortError"));
+  await completion;
   return true;
 }
 

@@ -33,7 +33,8 @@ const updatePlanOutputSchema = z.union([
 const todoItemSchema = z.object({
   id: z.string().min(1).max(64),
   content: z.string().min(1).max(200),
-  status: z.enum(["pending", "in_progress", "completed"]),
+  status: z.enum(["pending", "in_progress", "completed", "cancelled"]),
+  deliverable: z.enum(["artifact", "image", "video"]).optional(),
 });
 
 export const updateTodosInputSchema = z.object({
@@ -100,7 +101,7 @@ export function createPlanningToolManifests() {
       "update_todos",
       tool({
         description:
-          "Create or replace the full todo list for a multi-step task. Reflect real parallel work with multiple in-progress items.",
+          "Create or replace the full todo list for a multi-step task. Reflect real parallel work with multiple in-progress items. Use exactly ONE todo per deliverable and tag it with `deliverable` ('artifact' for write_file/edit_file, 'image' for generate_images, 'video' for generate_video); the whole image batch (a single generate_images call with multiple prompts) is ONE 'image' todo, never one per image. Call this alone to lay out the complete list before you dispatch any deliverable — a tagged todo then advances to completed on its own the moment that deliverable's card finishes, independently of the slower siblings, so you need not wait for the whole parallel step to reconcile them.",
         inputSchema: updateTodosInputSchema,
         outputSchema: updateTodosOutputSchema,
         execute: updateTodos,
@@ -117,4 +118,3 @@ export function createPlanningToolManifests() {
     ),
   ];
 }
-

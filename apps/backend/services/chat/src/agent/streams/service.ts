@@ -120,6 +120,7 @@ const STALE_CHECK_EVERY_IDLE_ROUNDS = 6;
 
 export interface ReplayAgentStreamOptions {
   isRunLive?: (runId: string) => Promise<boolean>;
+  signal?: AbortSignal;
 }
 
 export async function* replayAgentSseStream(
@@ -131,8 +132,11 @@ export async function* replayAgentSseStream(
   const key = streamKey(runId);
   let lastId = "0-0";
   let idleRounds = 0;
+  const abortRead = () => reader.disconnect();
+  options?.signal?.addEventListener("abort", abortRead, { once: true });
   try {
     while (true) {
+      if (options?.signal?.aborted) return;
       const response = await (reader as XReadRedis).xread(
         "BLOCK",
         STREAM_READ_BLOCK_MS,
@@ -142,6 +146,7 @@ export async function* replayAgentSseStream(
         key,
         lastId,
       );
+      if (options?.signal?.aborted) return;
       if (response) {
         idleRounds = 0;
         for (const [, entries] of response) {
@@ -188,7 +193,10 @@ export async function* replayAgentSseStream(
       }
       return;
     }
+  } catch (error) {
+    if (!options?.signal?.aborted) throw error;
   } finally {
+    options?.signal?.removeEventListener("abort", abortRead);
     await reader.quit().catch(() => reader.disconnect());
   }
 }
@@ -248,12 +256,18 @@ async function taskStreamActive(taskId: string): Promise<boolean> {
   return (await getRedis().exists(taskActiveKey(taskId))) === 1;
 }
 
-export async function* replayTaskSseStream(taskId: string): AsyncGenerator<string> {
+export async function* replayTaskSseStream(
+  taskId: string,
+  options?: { signal?: AbortSignal },
+): AsyncGenerator<string> {
   const reader = getRedis().duplicate();
   const key = taskStreamKey(taskId);
   let lastId = "0-0";
+  const abortRead = () => reader.disconnect();
+  options?.signal?.addEventListener("abort", abortRead, { once: true });
   try {
     while (true) {
+      if (options?.signal?.aborted) return;
       const response = await (reader as XReadRedis).xread(
         "BLOCK",
         STREAM_READ_BLOCK_MS,
@@ -263,6 +277,7 @@ export async function* replayTaskSseStream(taskId: string): AsyncGenerator<strin
         key,
         lastId,
       );
+      if (options?.signal?.aborted) return;
       if (response) {
         for (const [, entries] of response) {
           for (const [entryId, fields] of entries) {
@@ -297,7 +312,10 @@ export async function* replayTaskSseStream(taskId: string): AsyncGenerator<strin
       }
       return;
     }
+  } catch (error) {
+    if (!options?.signal?.aborted) throw error;
   } finally {
+    options?.signal?.removeEventListener("abort", abortRead);
     await reader.quit().catch(() => reader.disconnect());
   }
 }

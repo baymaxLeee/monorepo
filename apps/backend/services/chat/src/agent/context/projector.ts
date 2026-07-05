@@ -53,7 +53,8 @@ function compactOlderMessages(messages: AnyUIMessage[]): string {
 interface TodoSnapshotItem {
   id: string;
   content: string;
-  status: "pending" | "in_progress" | "completed";
+  status: "pending" | "in_progress" | "completed" | "cancelled";
+  deliverable?: "artifact" | "image" | "video";
 }
 
 function parseTodoSnapshot(output: unknown): TodoSnapshotItem[] | null {

@@ -171,7 +171,7 @@ async function* generateImages(
     };
   } catch (error) {
     if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
-    console.error("[chat-agent] generate_image failed", { toolCallId, error });
+    console.error("[chat-agent] generate_images failed", { toolCallId, error });
     throw imageError(error);
   }
 }
@@ -271,7 +271,7 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
 
   const imageManifest = providers.imageProvider
     ? defineAgentTool(
-        "generate_image",
+        "generate_images",
         tool({
           description: "Generate and persist one or more images from detailed visual prompts as one gallery batch.",
           inputSchema: z.object({
@@ -284,7 +284,7 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
         imagePolicy,
         imagePlanning,
       )
-    : defineUnavailableCapability("generate_image", imagePolicy, imagePlanning);
+    : defineUnavailableCapability("generate_images", imagePolicy, imagePlanning);
 
   const videoManifest = providers.videoProviderId
     ? defineAgentTool(

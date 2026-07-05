@@ -34,7 +34,10 @@ import { useShallow } from "zustand/react/shallow";
 import { ChatComposerControls } from "../components/ChatComposerControls";
 import { ChatImagePreview } from "../components/ChatImagePreview";
 import { ChatMessageView } from "../components/ChatMessageView";
-import { findLatestUpdateTodosCallId } from "../components/ChatTodoListCard";
+import {
+  collectDeliverableCompletion,
+  findLatestUpdateTodosCallId,
+} from "../components/ChatTodoListCard";
 import type { ChatUIMessage } from "../lib/chat-message";
 import { buildUserFilePart } from "../lib/file-parts";
 import { useChatStore } from "../store/useChatStore";
@@ -176,6 +179,13 @@ export function Chat() {
     },
   });
 
+  useEffect(
+    () => () => {
+      void stop();
+    },
+    [stop],
+  );
+
   const busy = isRunning(status);
   const showThinkingPlaceholder =
     status === "submitted" ||
@@ -189,6 +199,10 @@ export function Chat() {
   const latestTodoCallId = useMemo(
     () => findLatestUpdateTodosCallId(messages),
     [messages],
+  );
+  const deliverableCompletion = useMemo(
+    () => collectDeliverableCompletion(messages, latestTodoCallId),
+    [messages, latestTodoCallId],
   );
 
   useEffect(() => {
@@ -315,13 +329,21 @@ export function Chat() {
   }
 
   async function stopRun() {
-    const traceRunId = useChatStore.getState().traceRunId;
+    const runId = useChatStore.getState().traceRunId ?? detail?.active_run_id;
     const cancelRequest =
-      id && traceRunId
-        ? cancelConversationAgentRun(id, traceRunId).catch(() => undefined)
+      id && runId
+        ? cancelConversationAgentRun(id, runId)
         : Promise.resolve(undefined);
     await stop();
-    await cancelRequest;
+    try {
+      await cancelRequest;
+      if (!id) return;
+      const next = await fetchConversation(id);
+      setDetail({ ...next, active_run_id: null });
+      setMessages(next.messages.map(messageToUiMessage));
+    } catch (error) {
+      toast.error(`终止执行失败：${String(error)}`);
+    }
   }
 
   async function continuePlan(documentId: string) {
@@ -395,6 +417,7 @@ export function Chat() {
                 streaming={busy && message === messages.at(-1)}
                 documents={documents}
                 latestTodoCallId={latestTodoCallId}
+                deliverableCompletion={deliverableCompletion}
                 onOpenArtifact={openArtifact}
                 onAnswerClientTool={(toolName, toolCallId, output) => {
                   void answerClientTool(toolName, toolCallId, output).catch(

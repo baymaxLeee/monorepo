@@ -102,3 +102,9 @@ reuse-the-SDK, no-role-play rules.
 - ADR 0023 removes deliverable `todo_id` inputs. Artifact and media cards render
   their own live progress; the model reconciles the todo snapshot after the
   parallel tool step returns.
+- **Superseded in part by ADR 0024:** "the model reconciles the todo snapshot
+  after the parallel tool step returns" no longer holds. Because the step
+  `Promise.all`-blocks until the slowest deliverable (a multi-minute video)
+  finishes, the todo card used to freeze for that whole window. Todo items now
+  carry an optional `deliverable` tag and the frontend advances each tagged todo
+  from its own live deliverable card, independently of the slower siblings.

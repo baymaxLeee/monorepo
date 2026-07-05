@@ -4,6 +4,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import { getDb } from "../../db/index.js";
 import { agentRuns, agentSteps, agentToolCalls } from "../../db/schema.js";
+import { cancelTodoOutput } from "./cancellation.js";
 
 export type AgentRunStatus = "running" | "cancel_requested" | "completed" | "failed" | "cancelled" | "interrupted";
 export type AgentStepStatus = "running" | "completed" | "failed";
@@ -315,6 +316,32 @@ export async function listRunToolCalls(runId: string): Promise<PersistedToolCall
     output: row.output,
     error: row.error,
   }));
+}
+
+export async function finalizeCancelledRunToolCalls(runId: string): Promise<void> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(agentToolCalls)
+    .where(eq(agentToolCalls.runId, runId));
+  const now = new Date();
+  await Promise.all(
+    rows.map((row) => {
+      if (row.status === "running") {
+        return db
+          .update(agentToolCalls)
+          .set({ status: "failed", error: "已取消。", finishedAt: now })
+          .where(eq(agentToolCalls.id, row.id));
+      }
+      if (row.toolName === "update_todos" && row.status === "completed") {
+        return db
+          .update(agentToolCalls)
+          .set({ outputJson: cancelTodoOutput(row.outputJson) })
+          .where(eq(agentToolCalls.id, row.id));
+      }
+      return Promise.resolve();
+    }),
+  );
 }
 
 export async function latestCompletedToolOutput(

@@ -74,10 +74,17 @@ agentsRoutes.get("/:conversationId/agents/run/stream", async (c) => {
 
   const encoder = new TextEncoder();
   let cancelled = false;
+  const subscriberController = new AbortController();
+  c.req.raw.signal.addEventListener("abort", () => subscriberController.abort(), {
+    once: true,
+  });
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const chunk of replayAgentSseStream(conversationId, runId, { isRunLive: isRunActive })) {
+        for await (const chunk of replayAgentSseStream(conversationId, runId, {
+          isRunLive: isRunActive,
+          signal: subscriberController.signal,
+        })) {
           if (cancelled) return;
           controller.enqueue(encoder.encode(chunk));
         }
@@ -89,6 +96,7 @@ agentsRoutes.get("/:conversationId/agents/run/stream", async (c) => {
     },
     cancel() {
       cancelled = true;
+      subscriberController.abort();
     },
   });
   return new Response(body, {
@@ -135,6 +143,10 @@ agentsRoutes.get("/:conversationId/tasks/:taskId/stream", async (c) => {
 
   const encoder = new TextEncoder();
   let cancelled = false;
+  const subscriberController = new AbortController();
+  c.req.raw.signal.addEventListener("abort", () => subscriberController.abort(), {
+    once: true,
+  });
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
@@ -147,7 +159,9 @@ agentsRoutes.get("/:conversationId/tasks/:taskId/stream", async (c) => {
           return;
         }
         await markTaskStreamActive(taskId);
-        for await (const frame of replayTaskSseStream(taskId)) {
+        for await (const frame of replayTaskSseStream(taskId, {
+          signal: subscriberController.signal,
+        })) {
           if (cancelled) return;
           controller.enqueue(encoder.encode(frame));
         }
@@ -159,6 +173,7 @@ agentsRoutes.get("/:conversationId/tasks/:taskId/stream", async (c) => {
     },
     cancel() {
       cancelled = true;
+      subscriberController.abort();
     },
   });
   return new Response(body, { headers: { ...UI_MESSAGE_STREAM_HEADERS } });

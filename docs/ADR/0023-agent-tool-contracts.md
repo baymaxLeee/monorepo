@@ -69,6 +69,10 @@ surface small.
 8. Deliverable tools no longer accept `todo_id`. `update_todos` remains the
    canonical progress state and the model reconciles it after tool completion.
    Long-running tool cards continue to stream their own progress independently.
+   (Refined by ADR 0024: the `todo_id` on tool inputs stays removed, but
+   `update_todos` items gain an optional `deliverable` tag so the frontend can
+   advance each tagged todo live from its deliverable card, without waiting for
+   the model's next-step reconcile.)
 9. Long-running executor start/poll/cancel helpers live under `agent/tasks/`,
    not `agent/tools/`. Tool files remain thin model-call adapters.
 10. Backend AI SDK dependencies are declared once in the pnpm workspace catalog
@@ -87,7 +91,9 @@ surface small.
   of reverse-engineering behavior from names.
 - ADR 0017's per-deliverable live todo completion is removed. Artifact and media
   cards still show live task status; the todo snapshot updates on the next agent
-  step.
+  step. **(Reinstated by ADR 0024 via a `deliverable` tag on todo items — the
+  frontend advances each tagged todo from its live deliverable card, so
+  html/images/video no longer wait for the slowest sibling.)**
 
 ## References
 

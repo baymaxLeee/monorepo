@@ -18,11 +18,16 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 MySQL；
   search、图片分析和 artifact 内部模型调用；只有显式 Stop/cancel 才终止生成。
 - AI SDK 原生 UIMessage SSE 由 Redis 临时保存。刷新、网络断开或切换会话只断开
   subscriber，GET 可从头重放活动 run；完成后清除 active 标记并由 MySQL 消息接管。
+- subscriber 断开会中断对应的 Redis blocking read 并关闭 duplicate connection，
+  不影响继续写 Redis Stream 的 run producer。
 - 该能力不恢复 ToolLoopAgent 的进程栈：服务进程丢失后仍依靠已持久化消息、plan
   snapshot 和 artifact 状态创建新 run。
 - `ask_user` 没有服务端 execute；客户端 `addToolOutput` 后发起下一次 run。
 - assistant UIMessage 在 stream end（包括 abort 的部分输出）持久化；run trace 写入
   失败不能影响用户流。
+- 主动 Stop 会在落库前把所有未终态/preliminary tool part 收口为官方
+  `output-error`，并把未完成 todo 改为 `cancelled`；取消接口等待本地 run finalizer，
+  因而重新进入会话不会把已取消卡片恢复成 loading。
 - `write_plan` 创建 plan，`update_plan` 以 CAS tool output 保存后续完整 snapshot；
   下一 run 注入最新 active plan，冲突不会中断 SSE。
 
@@ -47,6 +52,8 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 MySQL；
   本地（不需要模型调用，不需要持久化执行状态）。
 - 用户取消 chat run 会通过 tool AbortSignal 取消当前前台等待的 executor task；进程
   故障不会取消 durable task。
+- executor 先持久化并通知 task `cancelled`，再取消 Workflow，并按 task type 补偿
+  外部状态：HTML 取消 Knowledge generation，video 删除已记录的 Ark segment task。
 
 ## Tool contracts
 
@@ -55,7 +62,7 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 MySQL；
 - `manifest.ts` 统一生成 mode availability、审批策略、Plan capability projection
   和前端 `toolMetadata.agent.uiKind`。
 - Plan mode 只加载研究、交互和计划工具，同时获得执行能力摘要，因此能规划
-  `write_file`、`generate_image`、`generate_video`，但不能提前执行。
+  `write_file`、`generate_images`、`generate_video`，但不能提前执行。
 
 跨服务调用必须经过 `@backend/transport-ts`；provider 配置归 admin，artifact 存储
 归 knowledge，长任务执行归 executor。架构决策见 ADR-0011、ADR-0012、ADR-0013、

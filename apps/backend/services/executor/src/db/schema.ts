@@ -1,4 +1,5 @@
 import { datetime, index, json, mysqlTable, text, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import type { TaskProgress } from "../tasks/types.js";
 
 export const tasks = mysqlTable(
   "tasks",
@@ -11,7 +12,7 @@ export const tasks = mysqlTable(
     workflowRunId: varchar("workflow_run_id", { length: 64 }),
     payload: json("payload").$type<unknown>().notNull(),
     result: json("result").$type<unknown>(),
-    progress: json("progress").$type<{ done: number; total: number } | null>(),
+    progress: json("progress").$type<TaskProgress | null>(),
     error: text("error"),
     createdAt: datetime("created_at", { mode: "date", fsp: 6 }).notNull(),
     updatedAt: datetime("updated_at", { mode: "date", fsp: 6 }).notNull(),

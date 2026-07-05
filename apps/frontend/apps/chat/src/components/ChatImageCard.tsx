@@ -56,10 +56,12 @@ export function ChatImageCard({
   conversationId,
   output,
   state,
+  errorText,
 }: {
   conversationId: string;
   output: unknown;
   state: string;
+  errorText?: string;
 }) {
   const openImagePreview = useChatStore((s) => s.openImagePreview);
   const parsed = parseGenerateImageOutput(output);
@@ -68,7 +70,7 @@ export function ChatImageCard({
   if (failed) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">
-        {parsed?.error?.trim() || "图片生成失败。"}
+        {errorText?.trim() || parsed?.error?.trim() || "图片生成失败。"}
       </div>
     );
   }

@@ -1,9 +1,14 @@
 import { getWorkflowMetadata } from "workflow";
 import { z } from "zod";
 
-import { reportTaskProgress } from "../src/tasks/notify.js";
+import {
+  isTaskCancelled,
+  recordArtifactGeneration,
+  reportTaskProgress,
+} from "../src/tasks/notify.js";
 import {
   failArtifactGeneration,
+  cancelArtifactGeneration,
   listArtifactBlocks,
   publishArtifactRevision,
   reserveArtifactGeneration,
@@ -21,6 +26,7 @@ import {
   type ArtifactMode,
   type ArtifactTheme,
 } from "../src/artifacts/generator.js";
+import { observeTaskCancellation } from "../src/tasks/cancellation.js";
 
 export const htmlArtifactInputSchema = z.object({
   userId: z.string().min(1),
@@ -60,48 +66,57 @@ function parseStoredBlockHtml(content: string): string | null {
 async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
   "use step";
   const tools = await buildArtifactTextModel(input.userId, input.providerId);
-  const signal = AbortSignal.timeout(5 * 60_000);
+  const { workflowRunId } = getWorkflowMetadata();
+  const cancellation = observeTaskCancellation(workflowRunId);
+  const signal = AbortSignal.any([
+    cancellation.signal,
+    AbortSignal.timeout(5 * 60_000),
+  ]);
 
-  if (!input.documentId) {
-    const outline = await planArtifact({
-      title: input.title,
-      mode: input.mode,
-      brief: input.brief,
-      pageCount: input.pageCount,
-      model: tools.model,
-      abortSignal: signal,
-    });
-    return { mode: input.mode, theme: outline.theme, blocks: outline.blocks };
+  try {
+    if (!input.documentId) {
+      const outline = await planArtifact({
+        title: input.title,
+        mode: input.mode,
+        brief: input.brief,
+        pageCount: input.pageCount,
+        model: tools.model,
+        abortSignal: signal,
+      });
+      return { mode: input.mode, theme: outline.theme, blocks: outline.blocks };
+    }
+
+    const workspace = await getLatestArtifactWorkspace(input.userId, input.documentId);
+    const manifest = workspace.manifest as Record<string, unknown>;
+    const manifestBlocks = Array.isArray(manifest.blocks) ? (manifest.blocks as ArtifactBlock[]) : [];
+    const metaById = new Map(manifestBlocks.map((block) => [block.id, block]));
+    const sourceHtmlById: Record<string, string> = {};
+    const existing = workspace.blocks
+      .map((stored) => {
+        const html = parseStoredBlockHtml(stored.content);
+        if (html == null) return null;
+        sourceHtmlById[stored.id] = html;
+        const meta = metaById.get(stored.id);
+        return { id: stored.id, type: meta?.type ?? stored.type, title: meta?.title ?? stored.id, brief: meta?.brief ?? "" };
+      })
+      .filter((block): block is ArtifactBlock => block != null);
+
+    const selected = input.blockIds?.length ? new Set(input.blockIds) : null;
+    const blocks = existing;
+    const blockStrategies: BlockStrategy[] = existing.map((block) => ({
+      id: block.id,
+      action: selected && !selected.has(block.id) ? "reuse" : "revise",
+      sourceId: block.id,
+    }));
+    const themeParsed = manifest.theme as ArtifactTheme | undefined;
+    const theme: ArtifactTheme = themeParsed?.visualDirection
+      ? themeParsed
+      : { visualDirection: "Keep the existing document's established visual direction.", accent: "#2563eb" };
+    const mode = manifest.mode === "presentation" || manifest.mode === "dashboard" ? manifest.mode : "document";
+    return { mode, theme, blocks, blockStrategies, sourceHtmlById };
+  } finally {
+    cancellation.dispose();
   }
-
-  const workspace = await getLatestArtifactWorkspace(input.userId, input.documentId);
-  const manifest = workspace.manifest as Record<string, unknown>;
-  const manifestBlocks = Array.isArray(manifest.blocks) ? (manifest.blocks as ArtifactBlock[]) : [];
-  const metaById = new Map(manifestBlocks.map((block) => [block.id, block]));
-  const sourceHtmlById: Record<string, string> = {};
-  const existing = workspace.blocks
-    .map((stored) => {
-      const html = parseStoredBlockHtml(stored.content);
-      if (html == null) return null;
-      sourceHtmlById[stored.id] = html;
-      const meta = metaById.get(stored.id);
-      return { id: stored.id, type: meta?.type ?? stored.type, title: meta?.title ?? stored.id, brief: meta?.brief ?? "" };
-    })
-    .filter((block): block is ArtifactBlock => block != null);
-
-  const selected = input.blockIds?.length ? new Set(input.blockIds) : null;
-  const blocks = existing;
-  const blockStrategies: BlockStrategy[] = existing.map((block) => ({
-    id: block.id,
-    action: selected && !selected.has(block.id) ? "reuse" : "revise",
-    sourceId: block.id,
-  }));
-  const themeParsed = manifest.theme as ArtifactTheme | undefined;
-  const theme: ArtifactTheme = themeParsed?.visualDirection
-    ? themeParsed
-    : { visualDirection: "Keep the existing document's established visual direction.", accent: "#2563eb" };
-  const mode = manifest.mode === "presentation" || manifest.mode === "dashboard" ? manifest.mode : "document";
-  return { mode, theme, blocks, blockStrategies, sourceHtmlById };
 }
 
 async function reserveStep(input: HtmlArtifactInput, plan: ArtifactPlan, idempotencyKey: string) {
@@ -122,6 +137,12 @@ async function reserveStep(input: HtmlArtifactInput, plan: ArtifactPlan, idempot
     manifest: { schemaVersion: 2, mode: plan.mode, theme: plan.theme, blocks: plan.blocks },
     blocks: plan.blocks.map((block) => ({ id: block.id, type: block.type, brief: block.brief })),
   });
+  const { workflowRunId } = getWorkflowMetadata();
+  await recordArtifactGeneration(workflowRunId, generation.id);
+  if (await isTaskCancelled(workflowRunId)) {
+    await cancelArtifactGeneration({ userId: input.userId, generationId: generation.id });
+    throw new DOMException("task cancelled", "AbortError");
+  }
   return generation.id;
 }
 
@@ -138,50 +159,64 @@ async function generateBlockStep(input: {
   sourceHtml?: string;
 }): Promise<{ id: string; ok: boolean }> {
   "use step";
-  let payload: string;
-  let failed = false;
+  const { workflowRunId } = getWorkflowMetadata();
+  const cancellation = observeTaskCancellation(workflowRunId);
   try {
-    let html: string;
-    if (input.strategy?.action === "reuse") {
-      if (!input.sourceHtml) throw new Error(`reuse block ${input.block.id} has no source html`);
-      html = input.sourceHtml;
-    } else {
-      const tools = await buildArtifactTextModel(input.userId, input.providerId);
-      try {
-        html = await generateBlock({
-          block: input.block,
-          mode: input.mode,
-          theme: input.theme,
-          outline: input.outline,
-          artifactBrief: input.artifactBrief,
-          tools,
-          abortSignal: AbortSignal.timeout(5 * 60_000),
-          currentHtml: input.strategy?.action === "revise" ? input.sourceHtml : undefined,
-          changeBrief: input.artifactBrief,
-        });
-      } catch (error) {
-        if (input.strategy?.action === "revise" && input.sourceHtml) {
-          console.error("[executor] revise failed, keeping original block", { blockId: input.block.id, error });
-          html = input.sourceHtml;
-        } else {
-          throw error;
+    let payload: string;
+    let failed = false;
+    try {
+      let html: string;
+      if (input.strategy?.action === "reuse") {
+        if (!input.sourceHtml) throw new Error(`reuse block ${input.block.id} has no source html`);
+        html = input.sourceHtml;
+      } else {
+        const tools = await buildArtifactTextModel(input.userId, input.providerId);
+        try {
+          html = await generateBlock({
+            block: input.block,
+            mode: input.mode,
+            theme: input.theme,
+            outline: input.outline,
+            artifactBrief: input.artifactBrief,
+            tools,
+            abortSignal: AbortSignal.any([
+              cancellation.signal,
+              AbortSignal.timeout(5 * 60_000),
+            ]),
+            currentHtml: input.strategy?.action === "revise" ? input.sourceHtml : undefined,
+            changeBrief: input.artifactBrief,
+          });
+        } catch (error) {
+          if (cancellation.signal.aborted) throw error;
+          if (input.strategy?.action === "revise" && input.sourceHtml) {
+            console.error("[executor] revise failed, keeping original block", { blockId: input.block.id, error });
+            html = input.sourceHtml;
+          } else {
+            throw error;
+          }
         }
       }
+      payload = JSON.stringify({ title: input.block.title, html });
+    } catch (error) {
+      if (cancellation.signal.aborted) throw error;
+      console.error("[executor] block failed, degrading to error section", { blockId: input.block.id, error });
+      payload = JSON.stringify({ title: input.block.title, error: String(error).slice(0, 500) });
+      failed = true;
     }
-    payload = JSON.stringify({ title: input.block.title, html });
-  } catch (error) {
-    console.error("[executor] block failed, degrading to error section", { blockId: input.block.id, error });
-    payload = JSON.stringify({ title: input.block.title, error: String(error).slice(0, 500) });
-    failed = true;
+    if (cancellation.signal.aborted || await isTaskCancelled(workflowRunId)) {
+      throw new DOMException("task cancelled", "AbortError");
+    }
+    await saveArtifactBlock({
+      userId: input.userId,
+      generationId: input.generationId,
+      blockId: input.block.id,
+      content: payload,
+      failed,
+    });
+    return { id: input.block.id, ok: !failed };
+  } finally {
+    cancellation.dispose();
   }
-  await saveArtifactBlock({
-    userId: input.userId,
-    generationId: input.generationId,
-    blockId: input.block.id,
-    content: payload,
-    failed,
-  });
-  return { id: input.block.id, ok: !failed };
 }
 
 async function compileAndPublishStep(input: {
@@ -193,6 +228,10 @@ async function compileAndPublishStep(input: {
   blocks: ArtifactBlock[];
 }) {
   "use step";
+  const { workflowRunId } = getWorkflowMetadata();
+  if (await isTaskCancelled(workflowRunId)) {
+    throw new DOMException("task cancelled", "AbortError");
+  }
   const stored = await listArtifactBlocks(input.userId, input.generationId);
   const compiled = compileArtifactHtml({
     title: input.title,
@@ -203,6 +242,9 @@ async function compileAndPublishStep(input: {
   });
   if (compiled.partsOk === 0) {
     throw new Error(`artifact generation produced no usable blocks (${compiled.partsFailed} failed)`);
+  }
+  if (await isTaskCancelled(workflowRunId)) {
+    throw new DOMException("task cancelled", "AbortError");
   }
   const published = await publishArtifactRevision({
     userId: input.userId,

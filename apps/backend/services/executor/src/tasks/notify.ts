@@ -25,7 +25,9 @@ function notifyOwner(row: TaskRow): void {
     ownerRef: row.ownerRef,
     type: row.type,
     status: row.status as TaskEventNotification["status"],
-    progress: row.progress ?? null,
+    progress: row.progress
+      ? { done: row.progress.done, total: row.progress.total }
+      : null,
     result: row.result ?? null,
     error: row.error ?? null,
   };
@@ -48,11 +50,72 @@ export async function reportTaskProgress(
   progress: TaskProgress,
 ): Promise<void> {
   const db = getDb();
-  const [row] = await db.select().from(tasks).where(eq(tasks.workflowRunId, workflowRunId));
-  if (!row) return;
-  await db
-    .update(tasks)
-    .set({ progress, updatedAt: new Date() })
-    .where(eq(tasks.id, row.id));
-  notifyOwner({ ...row, progress });
+  let taskId: string | null = null;
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(tasks)
+      .where(eq(tasks.workflowRunId, workflowRunId))
+      .for("update");
+    if (!row) return;
+    taskId = row.id;
+    await tx
+      .update(tasks)
+      .set({
+        progress: { ...(row.progress ?? {}), done: progress.done, total: progress.total },
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, row.id));
+  });
+  if (taskId) await notifyOwnerById(taskId);
+}
+
+export async function recordArtifactGeneration(
+  workflowRunId: string,
+  generationId: string,
+): Promise<void> {
+  await updateRuntimeProgress(workflowRunId, (progress) => ({
+    ...progress,
+    artifactGenerationId: generationId,
+  }));
+}
+
+export async function recordExternalTask(
+  workflowRunId: string,
+  externalTaskId: string,
+): Promise<void> {
+  await updateRuntimeProgress(workflowRunId, (progress) => ({
+    ...progress,
+    externalTaskIds: [...new Set([...(progress.externalTaskIds ?? []), externalTaskId])],
+  }));
+}
+
+export async function isTaskCancelled(workflowRunId: string): Promise<boolean> {
+  const [row] = await getDb()
+    .select({ status: tasks.status })
+    .from(tasks)
+    .where(eq(tasks.workflowRunId, workflowRunId));
+  return row?.status === "cancelled";
+}
+
+async function updateRuntimeProgress(
+  workflowRunId: string,
+  update: (progress: TaskProgress) => TaskProgress,
+): Promise<void> {
+  const db = getDb();
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(tasks)
+      .where(eq(tasks.workflowRunId, workflowRunId))
+      .for("update");
+    if (!row) return;
+    await tx
+      .update(tasks)
+      .set({
+        progress: update(row.progress ?? { done: 0, total: 0 }),
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, row.id));
+  });
 }

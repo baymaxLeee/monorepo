@@ -31,7 +31,9 @@ function toSnapshot(row: TaskRow): TaskSnapshot {
     ownerService: row.ownerService,
     ownerRef: row.ownerRef,
     result: row.result ?? null,
-    progress: row.progress ?? null,
+    progress: row.progress
+      ? { done: row.progress.done, total: row.progress.total }
+      : null,
     error: row.error,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -59,7 +61,7 @@ function watchCompletion(taskId: string, workflowRunId: string): void {
       await getDb()
         .update(tasks)
         .set({ status: "completed", result, updatedAt: new Date(), finishedAt: new Date() })
-        .where(eq(tasks.id, taskId));
+        .where(and(eq(tasks.id, taskId), inArray(tasks.status, ["queued", "running"])));
       await notifyOwnerById(taskId);
     })
     .catch(async (error: unknown) => {
@@ -72,7 +74,7 @@ function watchCompletion(taskId: string, workflowRunId: string): void {
           updatedAt: new Date(),
           finishedAt: new Date(),
         })
-        .where(eq(tasks.id, taskId));
+        .where(and(eq(tasks.id, taskId), inArray(tasks.status, ["queued", "running"])));
       await notifyOwnerById(taskId);
     });
 }
@@ -129,12 +131,37 @@ export async function getTask(id: string): Promise<TaskSnapshot> {
 export async function cancelTask(id: string): Promise<TaskSnapshot> {
   const row = await findById(id);
   if (!row) throw new NotFoundError(`task ${id} not found`);
-  if (row.workflowRunId) {
-    await getRun(row.workflowRunId)
-      .cancel()
-      .catch(() => undefined);
+  if (row.status === "completed" || row.status === "failed" || row.status === "cancelled") {
+    return toSnapshot(row);
   }
-  return toSnapshot(row);
+
+  const now = new Date();
+  await getDb()
+    .update(tasks)
+    .set({ status: "cancelled", updatedAt: now, finishedAt: now })
+    .where(and(eq(tasks.id, id), inArray(tasks.status, ["queued", "running"])));
+  await notifyOwnerById(id);
+
+  const taskType = getTaskType(row.type);
+  const parsed = taskType?.inputSchema.safeParse(row.payload);
+  const operations: Array<Promise<void>> = [];
+  if (row.workflowRunId) operations.push(getRun(row.workflowRunId).cancel());
+  if (taskType?.cancel && parsed?.success) {
+    operations.push(taskType.cancel(parsed.data, row.progress ?? null));
+  }
+  const results = await Promise.allSettled(operations);
+  for (const result of results) {
+    if (result.status === "rejected") {
+      console.error("[executor] task cancellation cleanup failed", {
+        taskId: id,
+        error: result.reason,
+      });
+    }
+  }
+
+  const cancelled = await findById(id);
+  if (!cancelled) throw new NotFoundError(`task ${id} not found after cancellation`);
+  return toSnapshot(cancelled);
 }
 
 export async function reconcilePendingTasks(): Promise<void> {

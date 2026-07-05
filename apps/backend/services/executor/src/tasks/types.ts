@@ -4,6 +4,7 @@ export interface TaskTypeDefinition<TInput = unknown, TOutput = unknown> {
   readonly name: string;
   readonly inputSchema: z.ZodType<TInput, z.ZodTypeDef, any>;
   readonly workflow: (input: TInput) => Promise<TOutput>;
+  readonly cancel?: (input: TInput, progress: TaskProgress | null) => Promise<void>;
 }
 
 export type TaskStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
@@ -11,6 +12,8 @@ export type TaskStatus = "queued" | "running" | "completed" | "failed" | "cancel
 export interface TaskProgress {
   done: number;
   total: number;
+  artifactGenerationId?: string;
+  externalTaskIds?: string[];
 }
 
 export interface TaskSnapshot {

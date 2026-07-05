@@ -250,6 +250,24 @@ export async function getArkVideoTask(input: {
   };
 }
 
+export async function deleteArkVideoTask(input: {
+  baseUrl: string;
+  apiKey: string;
+  taskId: string;
+  signal?: AbortSignal;
+}): Promise<void> {
+  const url = `${arkApiRoot(input.baseUrl)}${VIDEO_TASKS_PATH}/${encodeURIComponent(input.taskId)}`;
+  const response = await secureProviderFetch(url, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${input.apiKey}` },
+    signal: input.signal,
+  });
+  if (!response.ok && response.status !== 404) {
+    const detail = (await response.text().catch(() => "")).slice(0, 300);
+    throw new Error(`ark cancel video task failed: ${response.status} ${detail}`);
+  }
+}
+
 export async function downloadArkVideo(input: {
   videoUrl: string;
   signal?: AbortSignal;
