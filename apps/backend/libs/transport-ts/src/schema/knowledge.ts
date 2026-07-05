@@ -69,11 +69,14 @@ export interface paths {
         put?: never;
         /**
          * Batch Delete My Documents
-         * @description Delete several of the caller's documents in one transaction.
+         * @description Delete several documents in one transaction.
          *
-         *     Any member of the org may delete the team's documents (ids outside the org
-         *     are silently ignored). Object-store blobs are best-effort purged and the
-         *     RAG `document_chunks` are dropped via the FK `ON DELETE CASCADE`.
+         *     Same policy as single delete: an org_admin may delete any of the org's
+         *     documents; a member may delete only their own uploads. If ANY requested id
+         *     is outside the org or not deletable by the caller, the whole batch is
+         *     rejected with 403 — no silent partial success that would mislead the caller.
+         *     Object-store blobs are best-effort purged and RAG `document_chunks` drop via
+         *     the FK `ON DELETE CASCADE`.
          */
         post: operations["batch_delete_my_documents_documents_batch_delete_post"];
         delete?: never;
@@ -776,6 +779,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -816,6 +820,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -850,6 +855,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -888,6 +894,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
             };
             path: {
                 document_id: string;
@@ -924,6 +931,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
             };
             path: {
                 document_id: string;
@@ -958,6 +966,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
             };
             path: {
                 document_id: string;
@@ -998,6 +1007,7 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
             };
             path: {
                 document_id: string;

@@ -29,6 +29,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 import { z } from "zod";
 import { useShallow } from "zustand/react/shallow";
+import { landingPath } from "../../onboarding";
 
 const loginSchema = z.object({
   account: z.string().min(1, "请输入账号").max(64, "账号最多 64 位"),
@@ -85,7 +86,7 @@ export function LoginPage() {
   }
 
   if (user) {
-    return <Navigate to="/platform/home" replace />;
+    return <Navigate to={landingPath(user)} replace />;
   }
 
   async function onSubmit(values: LoginValues) {
@@ -97,7 +98,7 @@ export function LoginPage() {
         username: session.user.displayName,
       });
       toast.success("登录成功");
-      navigate("/platform/home", { replace: true });
+      navigate(landingPath(session.user), { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : "登录失败";
       toast.error(message);

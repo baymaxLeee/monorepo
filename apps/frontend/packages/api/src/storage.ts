@@ -1,5 +1,10 @@
-/** Coarse identity class used by the platform shell to gate app visibility. */
-export type UserType = "admin" | "normal";
+/** One org membership from the caller's own point of view. */
+export type Membership = {
+  orgId: string;
+  orgName: string;
+  role: "org_admin" | "member";
+  status: "pending" | "active" | "rejected";
+};
 
 export type AuthUser = {
   id: string;
@@ -12,11 +17,12 @@ export type AuthUser = {
   theme: "system" | "light" | "dark" | string;
   marketingOptIn: boolean;
   emailVerified: boolean;
-  /** From iam auth response; absent in pre-upgrade cached sessions → treat as "normal". */
-  type?: UserType;
-  /** Active organization (team) this session is scoped to; absent in pre-org cached sessions. */
-  orgId?: string;
-  orgName?: string;
+  /** Platform roles (e.g. "super_admin"); orthogonal to org roles. */
+  roles: string[];
+  /** The single org this session is bound to, or null when unscoped. */
+  activeOrg: Membership | null;
+  /** Every org the user belongs to, in any status. */
+  memberships: Membership[];
 };
 
 export type AuthSession = {

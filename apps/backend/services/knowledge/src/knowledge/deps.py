@@ -17,6 +17,11 @@ class AuthContext:
     username: str
     email: str
     org_id: str
+    org_role: str = ""
+
+    @property
+    def is_org_admin(self) -> bool:
+        return self.org_role == "org_admin"
 
 
 async def db_session() -> AsyncGenerator[AsyncSession]:
@@ -41,9 +46,17 @@ def auth_org_id(
     return x_auth_org_id
 
 
+def auth_org_role(
+    x_auth_org_role: Annotated[str | None, Header(alias="X-Auth-Org-Role")] = None,
+) -> str:
+    """Org role for the active org propagated by gateway (org_admin|member)."""
+    return x_auth_org_role or ""
+
+
 def auth_context(
     user_id: Annotated[str, Depends(auth_user_id)],
     org_id: Annotated[str, Depends(auth_org_id)],
+    org_role: Annotated[str, Depends(auth_org_role)],
     x_auth_name: Annotated[str | None, Header(alias="X-Auth-Name")] = None,
     x_auth_email: Annotated[str | None, Header(alias="X-Auth-Email")] = None,
 ) -> AuthContext:
@@ -52,6 +65,7 @@ def auth_context(
         username=x_auth_name or user_id,
         email=x_auth_email or "",
         org_id=org_id,
+        org_role=org_role,
     )
 
 

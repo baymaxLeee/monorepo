@@ -1,4 +1,4 @@
-import { logout } from "api";
+import { logout, switchActiveOrg } from "api";
 import {
   Avatar,
   AvatarFallback,
@@ -15,11 +15,14 @@ import {
   HeaderSection,
   Layout as LayoutFrame,
   Main,
+  toast,
 } from "components";
 import {
   ActivityIcon,
   BoxesIcon,
   BrainIcon,
+  CheckIcon,
+  ChevronsUpDownIcon,
   LogOutIcon,
   UserIcon,
   UsersIcon,
@@ -39,6 +42,7 @@ import {
 } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
+import { activeMemberships, isSuperAdmin, landingPath } from "../../onboarding";
 import { resetApps, useAppsStore } from "../../store/apps";
 
 function getUserInitials(name: string) {
@@ -72,12 +76,34 @@ export function Layout() {
   }, [user]);
 
   if (!user) return <Navigate to="/login" replace />;
+  // Org-scoped shell: an unbound non-super_admin can't use org resources yet;
+  // route them to select-org / waiting room instead of an empty shell.
+  if (!user.activeOrg && !isSuperAdmin(user)) {
+    return <Navigate to={landingPath(user)} replace />;
+  }
+
+  const orgs = activeMemberships(user);
+  const canSwitchOrg = orgs.length > 1;
 
   async function handleLogout() {
     await logout();
     setUser(null);
     resetApps();
     clearObservabilityUser();
+  }
+
+  async function handleSwitchOrg(orgId: string) {
+    if (orgId === user?.activeOrg?.orgId) return;
+    try {
+      const session = await switchActiveOrg(orgId);
+      // Persist the rescoped identity into the store BEFORE reloading — the
+      // full reload then rehydrates the new org and drops all in-memory
+      // org-scoped state (platform apps + each MFE's query cache).
+      setUser(session.user);
+      window.location.assign("/platform/home");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "切换团队失败");
+    }
   }
 
   return (
@@ -115,16 +141,59 @@ export function Layout() {
         </nav>
 
         <HeaderSection className="justify-end">
-          {user.orgName && (
-            <Badge
-              variant="outline"
-              className="hidden max-w-40 gap-1 md:inline-flex"
-              title={`当前团队：${user.orgName}`}
-            >
-              <UsersIcon aria-hidden="true" className="size-3 shrink-0" />
-              <span className="truncate">{user.orgName}</span>
-            </Badge>
-          )}
+          {user.activeOrg &&
+            (canSwitchOrg ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="hidden max-w-48 gap-1.5 md:inline-flex"
+                    title={`当前团队：${user.activeOrg.orgName}`}
+                  >
+                    <UsersIcon
+                      aria-hidden="true"
+                      className="size-3.5 shrink-0"
+                    />
+                    <span className="truncate">{user.activeOrg.orgName}</span>
+                    <ChevronsUpDownIcon
+                      aria-hidden="true"
+                      className="size-3.5 shrink-0 opacity-60"
+                    />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>切换团队</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {orgs.map((m) => (
+                    <DropdownMenuItem
+                      key={m.orgId}
+                      onSelect={() => handleSwitchOrg(m.orgId)}
+                    >
+                      <CheckIcon
+                        aria-hidden="true"
+                        className={`mr-2 size-4 ${
+                          m.orgId === user.activeOrg?.orgId
+                            ? "opacity-100"
+                            : "opacity-0"
+                        }`}
+                      />
+                      <span className="truncate">{m.orgName}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Badge
+                variant="outline"
+                className="hidden max-w-40 gap-1 md:inline-flex"
+                title={`当前团队：${user.activeOrg.orgName}`}
+              >
+                <UsersIcon aria-hidden="true" className="size-3 shrink-0" />
+                <span className="truncate">{user.activeOrg.orgName}</span>
+              </Badge>
+            ))}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -148,9 +217,9 @@ export function Layout() {
               <DropdownMenuLabel className="truncate">
                 {user.displayName}
               </DropdownMenuLabel>
-              {user.orgName && (
+              {user.activeOrg && (
                 <DropdownMenuLabel className="truncate text-xs font-normal text-muted-foreground">
-                  团队：{user.orgName}
+                  团队：{user.activeOrg.orgName}
                 </DropdownMenuLabel>
               )}
               <DropdownMenuSeparator />

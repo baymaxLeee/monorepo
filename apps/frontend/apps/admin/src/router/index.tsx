@@ -6,7 +6,10 @@ import { BotListPage } from "../pages/BotListPage";
 import { ComponentsDemoPage } from "../pages/ComponentsDemoPage";
 import { IntentionsPage } from "../pages/IntentionsPage";
 import { KnowledgeBasePage } from "../pages/KnowledgeBasePage";
+import { MembersPage } from "../pages/MembersPage";
+import { OrganizationsPage } from "../pages/OrganizationsPage";
 import { OperationsObservabilityPage } from "../pages/observability/OperationsObservabilityPage";
+import { PlatformRolesPage } from "../pages/PlatformRolesPage";
 import { ProvidersPage } from "../pages/ProvidersPage";
 import { ScenesPage } from "../pages/ScenesPage";
 
@@ -26,6 +29,9 @@ export const routes: RouteObject[] = [
       { path: "providers", element: <ProvidersPage /> },
       { path: "knowledge", element: <KnowledgeBasePage /> },
       { path: "apps", element: <AppsRegistryPage /> },
+      { path: "organizations", element: <OrganizationsPage /> },
+      { path: "members", element: <MembersPage /> },
+      { path: "platform-roles", element: <PlatformRolesPage /> },
       { path: "observability", element: <OperationsObservabilityPage /> },
       { path: "demo", element: <ComponentsDemoPage /> },
     ],

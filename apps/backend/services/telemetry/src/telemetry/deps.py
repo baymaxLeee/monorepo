@@ -10,9 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import get_db_session
 
-# Role names (issued by iam, propagated via X-Auth-Roles). Admins get the
-# fleet-wide telemetry dashboards; everyone else only sees their own events.
-ADMIN_ROLES = frozenset({"super_admin", "admin"})
+# Platform role (issued by iam, propagated via X-Auth-Roles). Only super_admin
+# gets the fleet-wide telemetry dashboards; everyone else sees only their own
+# events. There is no org-scoped telemetry view this phase.
+ADMIN_ROLES = frozenset({"super_admin"})
 
 
 @dataclass(frozen=True)

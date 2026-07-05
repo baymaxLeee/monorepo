@@ -8,13 +8,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from admin.models.apps import AppRow
 
 
-async def list_apps(session: AsyncSession, is_admin: bool) -> list[AppRow]:
-    """Admin sees every app (incl. disabled, for management). Normal users see
-    only enabled, non-admin-only apps — server-side enforcement so admin-only
-    app metadata never leaves the service for normal callers."""
+async def list_apps(
+    session: AsyncSession,
+    *,
+    include_disabled: bool,
+    include_admin_only: bool,
+) -> list[AppRow]:
+    """Server-side visibility filter so admin-only/disabled app metadata never
+    leaves the service for callers without the privilege. `include_disabled` is
+    for super_admin management; `include_admin_only` also covers org_admins who
+    must mount the admin MFE."""
     stmt = select(AppRow).order_by(AppRow.sort_order.asc(), AppRow.created_at.asc())
-    if not is_admin:
-        stmt = stmt.where(AppRow.is_enabled.is_(True), AppRow.requires_admin.is_(False))
+    if not include_disabled:
+        stmt = stmt.where(AppRow.is_enabled.is_(True))
+    if not include_admin_only:
+        stmt = stmt.where(AppRow.requires_admin.is_(False))
     result = await session.scalars(stmt)
     return list(result.all())
 

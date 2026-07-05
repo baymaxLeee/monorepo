@@ -172,7 +172,7 @@ async def seed_demo_bots() -> None:
                     SceneRow(
                         id=scene_id,
                         user_id="demo-super-admin",
-                        org_id="demo-org",
+                        org_id="guest-org",
                         username="admin",
                         name=name,
                         description=description,
@@ -199,7 +199,7 @@ async def seed_demo_bots() -> None:
                     IntentionRow(
                         id=intention_id,
                         user_id="demo-super-admin",
-                        org_id="demo-org",
+                        org_id="guest-org",
                         username="admin",
                         name=name,
                         description="",
@@ -220,7 +220,7 @@ async def seed_demo_bots() -> None:
                 BotRow(
                     id=bot_id,
                     user_id="demo-super-admin",
-                    org_id="demo-org",
+                    org_id="guest-org",
                     name=name,
                     system_prompt=system_prompt,
                     status=status,

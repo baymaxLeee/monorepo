@@ -1005,6 +1005,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1039,6 +1041,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1077,6 +1081,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 bot_id: string;
@@ -1113,6 +1119,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 bot_id: string;
@@ -1147,6 +1155,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 bot_id: string;
@@ -1187,6 +1197,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1221,6 +1233,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1259,6 +1273,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 scene_id: string;
@@ -1295,6 +1311,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 scene_id: string;
@@ -1329,6 +1347,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 scene_id: string;
@@ -1369,6 +1389,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1407,6 +1429,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1441,6 +1465,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1479,6 +1505,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 intention_id: string;
@@ -1515,6 +1543,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 intention_id: string;
@@ -1549,6 +1579,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 intention_id: string;
@@ -1589,6 +1621,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1627,6 +1661,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1661,6 +1697,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1699,6 +1737,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 provider_id: string;
@@ -1735,6 +1775,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 provider_id: string;
@@ -1769,6 +1811,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 provider_id: string;
@@ -1809,6 +1853,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1847,6 +1893,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 provider_id: string;
@@ -1883,6 +1931,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 provider_id: string;
@@ -2064,6 +2114,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2098,6 +2150,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2136,6 +2190,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 app_id: string;
@@ -2172,6 +2228,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 app_id: string;
@@ -2206,6 +2264,8 @@ export interface operations {
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
             };
             path: {
                 app_id: string;

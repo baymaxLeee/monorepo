@@ -10,7 +10,7 @@ import (
 	"github.com/example/monorepo/iam/internal/security"
 )
 
-func SeedDemoSuperAdmin(ctx context.Context, store *crud.Store, cfg config.Config) error {
+func EnsureSystemBootstrap(ctx context.Context, store *crud.Store, cfg config.Config) error {
 	passwordHash, err := security.HashPassword(cfg.SuperAdminPassword)
 	if err != nil {
 		return err
@@ -28,36 +28,48 @@ func SeedDemoSuperAdmin(ctx context.Context, store *crud.Store, cfg config.Confi
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
-	if err := store.EnsureUserWithPassword(ctx, user, passwordHash); err != nil {
-		return err
-	}
 	role := model.Role{
 		ID:          "role-super-admin",
 		Name:        "super_admin",
-		Description: "Demo super administrator",
+		Description: "System super administrator",
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	if err := store.EnsureRole(ctx, role); err != nil {
-		return err
-	}
-	storedRole, err := store.RoleByName(ctx, role.Name)
-	if err != nil {
-		return err
-	}
-	if err := store.AssignRole(ctx, user.ID, storedRole.ID); err != nil {
-		return err
-	}
+	guestSystemKey := "guest-org"
 	org := model.Organization{
-		ID:          cfg.DemoOrgID,
-		Name:        cfg.DemoOrgName,
-		Slug:        cfg.DemoOrgSlug,
-		OwnerUserID: user.ID,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:            cfg.GuestOrgID,
+		Name:          cfg.GuestOrgName,
+		Slug:          cfg.GuestOrgSlug,
+		OwnerUserID:   user.ID,
+		SystemManaged: true,
+		SystemKey:     &guestSystemKey,
+		JoinPolicy:    "open",
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
-	if err := store.EnsureOrganization(ctx, org); err != nil {
-		return err
-	}
-	return store.EnsureOrgMember(ctx, org.ID, user.ID, "owner")
+	return mutateWithAudit(ctx, store, auditEntry{
+		Action: "system.bootstrap", Target: user.ID, Org: org.ID,
+		After: map[string]any{"superAdminId": user.ID, "guestOrgId": org.ID},
+	}, func(txStore *crud.Store) error {
+		if err := txStore.EnsureUserWithPassword(ctx, user, passwordHash); err != nil {
+			return err
+		}
+		if err := txStore.EnsureRole(ctx, role); err != nil {
+			return err
+		}
+		storedRole, err := txStore.RoleByName(ctx, role.Name)
+		if err != nil {
+			return err
+		}
+		if err := txStore.AssignRole(ctx, user.ID, storedRole.ID); err != nil {
+			return err
+		}
+		if err := txStore.EnsureOrganization(ctx, org); err != nil {
+			return err
+		}
+		if err := txStore.EnsureOrgMember(ctx, org.ID, user.ID, "org_admin", "active"); err != nil {
+			return err
+		}
+		return txStore.EnsureAllUsersInGuestOrg(ctx, org.ID)
+	})
 }

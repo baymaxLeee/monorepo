@@ -11,14 +11,19 @@ export const ARTIFACT_CSP = [
   "font-src data:",
   "connect-src 'none'",
 ].join("; ");
+// "ResizeObserver loop ..." is a benign browser notification, not a real error.
 export const ARTIFACT_ERROR_BOUNDARY = [
   "  <script>",
   "    window.addEventListener('error', function (event) {",
+  "      const message = (event && event.message) || (event && event.error && event.error.message) || '';",
+  "      if (message.indexOf('ResizeObserver loop') === 0) return;",
+  "      const isRealError = !!(event && (event.error || (event.message && event.target === window)));",
+  "      if (!isRealError) return;",
   "      if (document.getElementById('__artifact_runtime_error__')) return;",
   "      const panel = document.createElement('pre');",
   "      panel.id = '__artifact_runtime_error__';",
   "      panel.style.cssText = 'position:fixed;inset:auto 16px 16px;z-index:2147483647;max-height:40vh;overflow:auto;margin:0;padding:12px;border:1px solid #fecaca;border-radius:8px;background:#fff1f2;color:#9f1239;font:12px/1.5 monospace;white-space:pre-wrap';",
-  "      panel.textContent = 'Artifact script error: ' + (event.message || 'Unknown runtime error');",
+  "      panel.textContent = 'Artifact script error: ' + (message || 'Unknown runtime error');",
   "      document.body.appendChild(panel);",
   "    });",
   "  </script>",

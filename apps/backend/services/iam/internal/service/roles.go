@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -9,6 +10,11 @@ import (
 	"github.com/example/monorepo/iam/internal/model"
 	"github.com/example/monorepo/iam/internal/schema"
 )
+
+// RoleName is the single platform role. Platform authority (org lifecycle,
+// global registry, platform dashboards) is granted only by holding it; it is
+// orthogonal to org-scoped roles (org_admin/member).
+const RoleSuperAdmin = "super_admin"
 
 type RoleService struct {
 	store *crud.Store
@@ -18,18 +24,15 @@ func NewRoleService(store *crud.Store) *RoleService {
 	return &RoleService{store: store}
 }
 
-var adminRoleNames = map[string]struct{}{
-	"super_admin": {},
-	"admin":       {},
-}
-
-func (s *RoleService) IsAdmin(ctx context.Context, userID string) (bool, error) {
+// IsSuperAdmin reports whether the user holds the platform super_admin role.
+// Queried against the DB so a freshly revoked role takes effect immediately.
+func (s *RoleService) IsSuperAdmin(ctx context.Context, userID string) (bool, error) {
 	roles, err := s.store.UserRoles(ctx, userID)
 	if err != nil {
 		return false, err
 	}
 	for _, role := range roles {
-		if _, ok := adminRoleNames[role.Name]; ok {
+		if role.Name == RoleSuperAdmin {
 			return true, nil
 		}
 	}
@@ -44,25 +47,6 @@ func (s *RoleService) List(ctx context.Context) ([]schema.RoleResponse, error) {
 	return RoleResponses(roles), nil
 }
 
-func (s *RoleService) Create(ctx context.Context, req schema.RoleRequest) (schema.RoleResponse, error) {
-	name := NormalizeRoleName(req.Name)
-	if !ValidRoleName(name) {
-		return schema.RoleResponse{}, ErrInvalidRole
-	}
-	now := time.Now().UTC()
-	role := model.Role{
-		ID:          NewID(),
-		Name:        name,
-		Description: strings.TrimSpace(req.Description),
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
-	if err := s.store.CreateRole(ctx, role); err != nil {
-		return schema.RoleResponse{}, ErrConflict
-	}
-	return RoleResponse(role), nil
-}
-
 func (s *RoleService) ListUserRoles(ctx context.Context, userID string) ([]schema.RoleResponse, error) {
 	roles, err := s.store.UserRoles(ctx, userID)
 	if err != nil {
@@ -71,19 +55,53 @@ func (s *RoleService) ListUserRoles(ctx context.Context, userID string) ([]schem
 	return RoleResponses(roles), nil
 }
 
-func (s *RoleService) Assign(ctx context.Context, userID, roleID string) error {
+func (s *RoleService) Assign(ctx context.Context, userID, roleID string, meta AuditMeta) error {
 	roleID = strings.TrimSpace(roleID)
 	if roleID == "" {
 		return ErrInvalidRole
 	}
-	if err := s.store.AssignRole(ctx, userID, roleID); err != nil {
+	roleName := ""
+	if role, e := s.store.RoleByID(ctx, roleID); e == nil {
+		roleName = role.Name
+	}
+	err := mutateWithAudit(ctx, s.store, auditEntry{
+		Action: "platform.role.assign",
+		Actor:  meta.ActorUserID,
+		Target: userID,
+		After:  map[string]any{"roleId": roleID, "role": roleName},
+		Trace:  meta.TraceID,
+	}, func(txStore *crud.Store) error {
+		if err := txStore.AssignRole(ctx, userID, roleID); err != nil {
+			return err
+		}
+		return txStore.RevokeUserRefreshTokens(ctx, userID)
+	})
+	if err != nil {
 		return ErrRoleAssignmentFailed
 	}
 	return nil
 }
 
-func (s *RoleService) Remove(ctx context.Context, userID, roleID string) error {
-	if err := s.store.RemoveRole(ctx, userID, roleID); err != nil {
+// Remove revokes a platform role. Revoking the last super_admin is rejected so
+// the platform never ends up without an administrator.
+func (s *RoleService) Remove(ctx context.Context, userID, roleID string, meta AuditMeta) error {
+	role, err := s.store.RoleByID(ctx, roleID)
+	if err != nil {
+		return ErrRoleAssignmentAbsent
+	}
+	removeErr := mutateWithAudit(ctx, s.store, auditEntry{
+		Action: "platform.role.remove",
+		Actor:  meta.ActorUserID,
+		Target: userID,
+		Before: map[string]any{"roleId": roleID, "role": role.Name},
+		Trace:  meta.TraceID,
+	}, func(txStore *crud.Store) error {
+		return txStore.RemoveRolePreservingSuperAdmin(ctx, userID, roleID)
+	})
+	if errors.Is(removeErr, crud.ErrInvariant) {
+		return ErrLastSuperAdmin
+	}
+	if removeErr != nil {
 		return ErrRoleAssignmentAbsent
 	}
 	return nil
@@ -104,12 +122,4 @@ func RoleResponses(roles []model.Role) []schema.RoleResponse {
 		out = append(out, RoleResponse(role))
 	}
 	return out
-}
-
-func NormalizeRoleName(name string) string {
-	return strings.ToLower(strings.TrimSpace(name))
-}
-
-func ValidRoleName(name string) bool {
-	return name != "" && len(name) <= 64 && !strings.ContainsAny(name, " \t\r\n")
 }

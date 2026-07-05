@@ -134,7 +134,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
       IAM_MYSQL_DATABASE: iam
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:?ACCESS_TOKEN_SECRET is required}
-      ACCESS_TOKEN_TTL: "15m"
+      ACCESS_TOKEN_TTL: "5m"
       REFRESH_TOKEN_TTL: "720h"
       REFRESH_COOKIE_NAME: refresh_token
       # HTTP same-origin → Secure must be false, SameSite=Lax works fine.
@@ -142,10 +142,13 @@ services:
       REFRESH_COOKIE_SAMESITE: lax
       # Host-only (no Domain attr); good for single-host IP-based deploy.
       REFRESH_COOKIE_DOMAIN: ""
-      SUPER_ADMIN_ACCOUNT: ${SUPER_ADMIN_ACCOUNT:-admin}
-      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-admin@example.com}
-      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-admin123}
+      SUPER_ADMIN_ACCOUNT: ${SUPER_ADMIN_ACCOUNT:?SUPER_ADMIN_ACCOUNT is required}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:?SUPER_ADMIN_EMAIL is required}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:?SUPER_ADMIN_PASSWORD is required}
       SUPER_ADMIN_DISPLAY_NAME: ${SUPER_ADMIN_DISPLAY_NAME:-Super Admin}
+      GUEST_ORG_ID: ${GUEST_ORG_ID:-guest-org}
+      GUEST_ORG_NAME: ${GUEST_ORG_NAME:-游客组织}
+      GUEST_ORG_SLUG: ${GUEST_ORG_SLUG:-guest-org}
     <<: *restart_policy
 
   gateway:

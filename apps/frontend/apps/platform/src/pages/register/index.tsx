@@ -1,5 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { checkAccountAvailability, register } from "api";
+import {
+  checkAccountAvailability,
+  fetchPublicOrgs,
+  type OrgSummary,
+  register,
+} from "api";
 import {
   Button,
   Card,
@@ -15,15 +20,21 @@ import {
   FormControl,
   FormField,
   Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   toast,
 } from "components";
 import { setUser as setObservabilityUser } from "observability";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 import { z } from "zod";
 import { useShallow } from "zustand/react/shallow";
+import { landingPath } from "../../onboarding";
 
 const registerSchema = z.object({
   name: z
@@ -32,6 +43,7 @@ const registerSchema = z.object({
     .max(64, "名称最多 64 位")
     .regex(/^[^\s@]+$/, "名称不能包含空格或 @"),
   password: z.string().min(6, "密码至少 6 位"),
+  orgId: z.string().optional(),
   avatar: z.string().url("请输入有效头像 URL").optional().or(z.literal("")),
   email: z.string().email("请输入有效邮箱"),
   phoneNumber: z
@@ -52,11 +64,14 @@ export function RegisterPage() {
     })),
   );
   const lastCheckedName = useRef<string | null>(null);
+  const [orgs, setOrgs] = useState<OrgSummary[]>([]);
+  const [orgsError, setOrgsError] = useState<string | null>(null);
   const form = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema as never),
     defaultValues: {
       name: "",
       password: "",
+      orgId: "guest-only",
       avatar: "",
       email: "",
       phoneNumber: "",
@@ -64,8 +79,24 @@ export function RegisterPage() {
     mode: "onBlur",
   });
 
+  useEffect(() => {
+    let alive = true;
+    fetchPublicOrgs()
+      .then((list) => {
+        if (alive) setOrgs(list);
+      })
+      .catch((err: unknown) => {
+        if (alive) {
+          setOrgsError(err instanceof Error ? err.message : "无法加载组织列表");
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   if (user) {
-    return <Navigate to="/platform/home" replace />;
+    return <Navigate to={landingPath(user)} replace />;
   }
 
   async function validateNameAvailable(name: string) {
@@ -105,6 +136,7 @@ export function RegisterPage() {
       const session = await register({
         account: normalizedName,
         password: values.password,
+        orgId: values.orgId === "guest-only" ? undefined : values.orgId,
         displayName: values.name.trim(),
         avatarUrl: values.avatar || undefined,
         email: values.email,
@@ -115,8 +147,12 @@ export function RegisterPage() {
         userId: session.user.id,
         username: session.user.displayName,
       });
-      toast.success("注册成功");
-      navigate("/platform/home", { replace: true });
+      toast.success(
+        values.orgId === "guest-only"
+          ? "注册成功，已进入游客组织"
+          : "注册成功，已进入游客组织；目标组织等待审批",
+      );
+      navigate(landingPath(session.user), { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : "注册失败";
       toast.error(message);
@@ -174,6 +210,42 @@ export function RegisterPage() {
                         />
                       </FormControl>
                       <FieldError errors={[form.formState.errors.password]} />
+                    </Field>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="orgId"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel htmlFor="orgId">
+                        申请加入其他组织（可选）
+                      </FieldLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <FormControl>
+                          <SelectTrigger id="orgId" className="w-full">
+                            <SelectValue
+                              placeholder={
+                                orgsError ? "组织列表加载失败" : "选择目标组织"
+                              }
+                            />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="guest-only">
+                            暂不申请，直接体验
+                          </SelectItem>
+                          {orgs.map((org) => (
+                            <SelectItem key={org.id} value={org.id}>
+                              {org.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FieldError errors={[form.formState.errors.orgId]} />
                     </Field>
                   )}
                 />

@@ -42,7 +42,7 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.BodyLimit(cfg.MaxRequestBodyBytes))
 	r.Use(middleware.CORS(cfg.AllowedOrigins, !cfg.IsProduction()))
-	r.Use(middleware.IdentityPropagation(cfg.AccessTokenSecret, cfg.PublicPathPrefixes, cfg.OptionalAuthPathPrefixes))
+	r.Use(middleware.IdentityPropagation(cfg.AccessTokenSecret, cfg.PublicPathPrefixes, cfg.PublicExactPaths, cfg.OptionalAuthPathPrefixes))
 
 	r.Get("/livez", handlers.Livez)
 	r.Get("/readyz", handlers.Healthz(st))

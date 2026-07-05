@@ -34,15 +34,13 @@ func main() {
 	}
 	defer st.Close()
 
-	if !cfg.IsProduction() {
-		ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-		if err := service.SeedDemoSuperAdmin(ctx, st, cfg); err != nil {
-			cancel()
-			slog.Error("failed to seed super admin", "err", err)
-			os.Exit(1)
-		}
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	if err := service.EnsureSystemBootstrap(ctx, st, cfg); err != nil {
 		cancel()
+		slog.Error("failed to bootstrap system identity", "err", err)
+		os.Exit(1)
 	}
+	cancel()
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

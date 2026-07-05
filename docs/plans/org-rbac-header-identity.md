@@ -1,8 +1,11 @@
 # Org 归属 + RBAC + 身份 header 化 落地方案
 
-> 状态：**待实施**（决策已定稿）。本方案在进行中的 iam org 化分支之上，补齐
-> 「移除超管数据聚合后门 + 配置资源 org 共享 + admin 写权限 + 身份全 header 化」。
-> 持久决策将落 `docs/ADR/0027-*`，并更新 ADR-0026 的 provider later-phase 决策。
+> 状态：**已实现 / 被 [ADR-0027](../ADR/0027-platform-org-scoped-rbac.md) 取代**。
+> Phase 1/2（role 进 JWT → gateway `X-Auth-Roles`/`X-Auth-Org-Role` header、下游按
+> role 授权、删硬编码 email 判定、admin 写门控、`/internal` header 身份化、admin
+> `v1.8.0` org 化迁移）已落地；Phase 3（skills/mcps 配置存储）仍未做。最终身份/RBAC
+> 形态（平台 super_admin ⟂ 组织 org_admin/member + pending/active/rejected 状态机、
+> 显式 active-org session、组织与成员管理、审计）以 ADR-0027 为准。
 
 ## 背景与问题
 
@@ -105,7 +108,7 @@ gateway: propagateClaims 注入 X-Auth-Roles（并继续剥离入站伪造头）
 
 **migration（admin）**
 - 新建 `migrations/versions/v1.8.0.sql`：`scenes/intentions/model_providers` 加 `org_id`
-  列 + 索引 + 回填 `demo-org`（model 已声明 `org_id nullable=False`，DB 需补列对齐）。
+  列 + 索引 + 回填 `guest-org`（model 已声明 `org_id nullable=False`，DB 需补列对齐）。
 
 ### Phase 2 — 内部接口 header 化
 

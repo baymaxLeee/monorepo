@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base32"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -27,8 +28,21 @@ func NewAuthService(store *crud.Store, cfg config.Config) *AuthService {
 func (s *AuthService) Register(ctx context.Context, req schema.AuthRequest, meta RequestMeta) (schema.AuthResponse, string, time.Time, error) {
 	req.Account = NormalizeAccount(req.Account)
 	req.Email = NormalizeEmail(req.Email)
-	if !ValidAccount(req.Account) || len(req.Password) < 6 {
+	orgID := strings.TrimSpace(req.OrgID)
+	if !ValidAccount(req.Account) || !ValidEmail(req.Email) || len(req.Password) < 6 {
 		return schema.AuthResponse{}, "", time.Time{}, ErrInvalidRegistration
+	}
+	if orgID != "" && orgID != s.cfg.GuestOrgID {
+		org, err := s.store.OrganizationByID(ctx, orgID)
+		if err == nil && (org.SystemManaged || org.JoinPolicy != "approval") {
+			return schema.AuthResponse{}, "", time.Time{}, ErrInvalidOrg
+		}
+		if errors.Is(err, crud.ErrNotFound) {
+			return schema.AuthResponse{}, "", time.Time{}, ErrOrgNotFound
+		}
+		if err != nil {
+			return schema.AuthResponse{}, "", time.Time{}, err
+		}
 	}
 	displayName := strings.TrimSpace(req.DisplayName)
 	if displayName == "" {
@@ -53,12 +67,9 @@ func (s *AuthService) Register(ctx context.Context, req schema.AuthRequest, meta
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
-	if err := s.store.CreateUserWithPassword(ctx, user, passwordHash); err != nil {
+	if err := s.store.CreateRegisteredUser(ctx, user, passwordHash, s.cfg.GuestOrgID, orgID); err != nil {
 		return schema.AuthResponse{}, "", time.Time{}, ErrConflict
 	}
-	// MVP: every user joins the seeded demo team so the shared knowledge base
-	// works out of the box. Personal-org separation is a later phase.
-	_ = s.store.EnsureOrgMember(ctx, s.cfg.DemoOrgID, user.ID, "member")
 	return s.IssueSession(ctx, user, meta)
 }
 
@@ -85,11 +96,53 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string, meta Req
 		ExpiresAt: expiresAt,
 		CreatedAt: time.Now().UTC(),
 	}
-	user, err := s.store.RotateRefreshToken(ctx, security.DigestToken(refreshToken), next)
+	user, activeOrgID, err := s.store.RotateRefreshToken(ctx, security.DigestToken(refreshToken), next)
 	if err != nil {
 		return schema.AuthResponse{}, "", time.Time{}, ErrInvalidRefreshToken
 	}
-	response, err := s.AuthResponse(ctx, user)
+	response, err := s.AuthResponse(ctx, user, activeOrgID)
+	if err != nil {
+		return schema.AuthResponse{}, "", time.Time{}, err
+	}
+	return response, plain, expiresAt, nil
+}
+
+// SwitchActiveOrg rotates the session onto a different active org after
+// verifying the caller has an active membership there.
+func (s *AuthService) SwitchActiveOrg(ctx context.Context, refreshToken, orgID, expectedUserID string, meta RequestMeta, auditMeta AuditMeta) (schema.AuthResponse, string, time.Time, error) {
+	orgID = strings.TrimSpace(orgID)
+	if orgID == "" {
+		return schema.AuthResponse{}, "", time.Time{}, ErrInvalidOrg
+	}
+	plain, digest, err := security.NewOpaqueToken()
+	if err != nil {
+		return schema.AuthResponse{}, "", time.Time{}, err
+	}
+	expiresAt := time.Now().UTC().Add(s.cfg.RefreshTokenTTL)
+	next := model.RefreshToken{
+		ID:        NewID(),
+		TokenHash: digest,
+		UserAgent: meta.UserAgent,
+		IPAddress: meta.IPAddress,
+		ExpiresAt: expiresAt,
+		CreatedAt: time.Now().UTC(),
+	}
+	var user model.User
+	err = mutateWithAudit(ctx, s.store, auditEntry{
+		Action: "session.active_org.switch", Actor: expectedUserID, Target: expectedUserID,
+		Org: orgID, After: map[string]any{"activeOrgId": orgID}, Trace: auditMeta.TraceID,
+	}, func(txStore *crud.Store) error {
+		var rotateErr error
+		user, rotateErr = txStore.RotateRefreshTokenToOrg(ctx, security.DigestToken(refreshToken), next, orgID, expectedUserID)
+		return rotateErr
+	})
+	if errors.Is(err, crud.ErrNotActiveMember) {
+		return schema.AuthResponse{}, "", time.Time{}, ErrNotActiveMember
+	}
+	if err != nil {
+		return schema.AuthResponse{}, "", time.Time{}, ErrInvalidRefreshToken
+	}
+	response, err := s.AuthResponse(ctx, user, &orgID)
 	if err != nil {
 		return schema.AuthResponse{}, "", time.Time{}, err
 	}
@@ -102,12 +155,26 @@ func (s *AuthService) Logout(ctx context.Context, refreshToken string) {
 	}
 }
 
-func (s *AuthService) Me(ctx context.Context, userID string) (schema.UserResponse, error) {
+// Me reflects the current session's active org (from the access-token claim)
+// plus the latest memberships — the waiting page polls it to observe approval.
+func (s *AuthService) Me(ctx context.Context, userID, activeOrgID string) (schema.UserResponse, error) {
 	user, err := s.store.UserByID(ctx, userID)
 	if err != nil {
 		return schema.UserResponse{}, ErrInvalidSubject
 	}
-	return s.userResponse(ctx, user), nil
+	var active *string
+	if activeOrgID != "" {
+		active = &activeOrgID
+	}
+	return s.buildUserResponse(ctx, user, active), nil
+}
+
+func (s *AuthService) Memberships(ctx context.Context, userID string) ([]schema.Membership, error) {
+	rows, err := s.store.ListUserMemberships(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return membershipsFromRows(rows), nil
 }
 
 func (s *AuthService) IssueSession(ctx context.Context, user model.User, meta RequestMeta) (schema.AuthResponse, string, time.Time, error) {
@@ -115,69 +182,109 @@ func (s *AuthService) IssueSession(ctx context.Context, user model.User, meta Re
 	if err != nil {
 		return schema.AuthResponse{}, "", time.Time{}, err
 	}
+	activeOrgID := s.resolveInitialActiveOrg(ctx, user.ID)
 	refreshExpiresAt := time.Now().UTC().Add(s.cfg.RefreshTokenTTL)
 	token := model.RefreshToken{
-		ID:        NewID(),
-		UserID:    user.ID,
-		TokenHash: digest,
-		UserAgent: meta.UserAgent,
-		IPAddress: meta.IPAddress,
-		ExpiresAt: refreshExpiresAt,
-		CreatedAt: time.Now().UTC(),
+		ID:          NewID(),
+		UserID:      user.ID,
+		ActiveOrgID: activeOrgID,
+		TokenHash:   digest,
+		UserAgent:   meta.UserAgent,
+		IPAddress:   meta.IPAddress,
+		ExpiresAt:   refreshExpiresAt,
+		CreatedAt:   time.Now().UTC(),
 	}
 	if err := s.store.CreateRefreshToken(ctx, token); err != nil {
 		return schema.AuthResponse{}, "", time.Time{}, err
 	}
-	response, err := s.AuthResponse(ctx, user)
+	response, err := s.AuthResponse(ctx, user, activeOrgID)
 	if err != nil {
 		return schema.AuthResponse{}, "", time.Time{}, err
 	}
 	return response, plain, refreshExpiresAt, nil
 }
 
-func (s *AuthService) AuthResponse(ctx context.Context, user model.User) (schema.AuthResponse, error) {
+// resolveInitialActiveOrg binds the session at login/register: 0 active
+// memberships → unscoped; exactly 1 → that org; more than 1 → unscoped so the
+// frontend forces an explicit choice. The DB never picks on the user's behalf.
+func (s *AuthService) resolveInitialActiveOrg(ctx context.Context, userID string) *string {
+	rows, err := s.store.ListUserMemberships(ctx, userID)
+	if err != nil {
+		return nil
+	}
+	var active []string
+	for _, row := range rows {
+		if row.Status == "active" {
+			active = append(active, row.OrgID)
+		}
+	}
+	if len(active) == 1 {
+		id := active[0]
+		return &id
+	}
+	return nil
+}
+
+func (s *AuthService) AuthResponse(ctx context.Context, user model.User, activeOrgID *string) (schema.AuthResponse, error) {
 	expiresAt := time.Now().UTC().Add(s.cfg.AccessTokenTTL)
-	resp := s.userResponse(ctx, user)
-	token, err := security.SignAccessToken(s.cfg.AccessTokenSecret, security.Claims{
+	resp := s.buildUserResponse(ctx, user, activeOrgID)
+	claims := security.Claims{
 		Subject: user.ID,
 		Email:   user.Email,
 		Name:    user.DisplayName,
-		OrgID:   resp.OrgID,
-		Roles:   s.userRoleNames(ctx, user.ID),
+		Roles:   resp.Roles,
 		Issued:  time.Now().UTC().Unix(),
 		Expiry:  expiresAt.Unix(),
-	})
+	}
+	if resp.ActiveOrg != nil {
+		claims.OrgID = resp.ActiveOrg.OrgID
+		claims.OrgRole = resp.ActiveOrg.Role
+	}
+	token, err := security.SignAccessToken(s.cfg.AccessTokenSecret, claims)
 	if err != nil {
 		return schema.AuthResponse{}, err
 	}
 	return schema.AuthResponse{AccessToken: token, ExpiresAt: expiresAt, User: resp}, nil
 }
 
-const (
-	UserTypeAdmin  = "admin"
-	UserTypeNormal = "normal"
-)
-
-func (s *AuthService) userResponse(ctx context.Context, user model.User) schema.UserResponse {
-	resp := UserResponse(user)
-	resp.Type = UserTypeNormal
-	if roles, err := s.store.UserRoles(ctx, user.ID); err == nil {
-		for _, role := range roles {
-			if _, ok := adminRoleNames[role.Name]; ok {
-				resp.Type = UserTypeAdmin
-				break
+// buildUserResponse assembles the two-dimensional identity: platform roles,
+// every membership, and the single activeOrg the session is bound to (only when
+// that membership is still active).
+func (s *AuthService) buildUserResponse(ctx context.Context, user model.User, activeOrgID *string) schema.UserResponse {
+	resp := schema.UserResponse{
+		ID:             user.ID,
+		Account:        user.Account,
+		Email:          user.Email,
+		DisplayName:    user.DisplayName,
+		AvatarURL:      user.AvatarURL,
+		Locale:         user.Locale,
+		Timezone:       user.Timezone,
+		Theme:          user.Theme,
+		MarketingOptIn: user.MarketingOptIn,
+		EmailVerified:  user.EmailVerifiedAt != nil,
+		Roles:          s.userRoleNames(ctx, user.ID),
+	}
+	rows, err := s.store.ListUserMemberships(ctx, user.ID)
+	if err == nil {
+		resp.Memberships = membershipsFromRows(rows)
+		if activeOrgID != nil {
+			for _, m := range resp.Memberships {
+				if m.OrgID == *activeOrgID && m.Status == "active" {
+					active := m
+					resp.ActiveOrg = &active
+					break
+				}
 			}
 		}
 	}
-	if org, err := s.store.PrimaryOrgForUser(ctx, user.ID); err == nil {
-		resp.OrgID = org.ID
-		resp.OrgName = org.Name
+	if resp.Memberships == nil {
+		resp.Memberships = []schema.Membership{}
 	}
 	return resp
 }
 
-// userRoleNames returns the user's role names for the access-token `roles`
-// claim; downstream services derive admin/authorization from it (no service
+// userRoleNames returns the user's platform role names for the access-token
+// `roles` claim; downstream services derive authorization from it (no service
 // re-queries iam).
 func (s *AuthService) userRoleNames(ctx context.Context, userID string) []string {
 	roles, err := s.store.UserRoles(ctx, userID)
@@ -191,20 +298,17 @@ func (s *AuthService) userRoleNames(ctx context.Context, userID string) []string
 	return names
 }
 
-func UserResponse(user model.User) schema.UserResponse {
-	return schema.UserResponse{
-		ID:             user.ID,
-		Account:        user.Account,
-		Email:          user.Email,
-		DisplayName:    user.DisplayName,
-		AvatarURL:      user.AvatarURL,
-		Locale:         user.Locale,
-		Timezone:       user.Timezone,
-		Theme:          user.Theme,
-		MarketingOptIn: user.MarketingOptIn,
-		EmailVerified:  user.EmailVerifiedAt != nil,
-		Type:           UserTypeNormal,
+func membershipsFromRows(rows []crud.MembershipRow) []schema.Membership {
+	out := make([]schema.Membership, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, schema.Membership{
+			OrgID:   row.OrgID,
+			OrgName: row.OrgName,
+			Role:    row.Role,
+			Status:  row.Status,
+		})
 	}
+	return out
 }
 
 type RequestMeta struct {
@@ -222,6 +326,11 @@ func NormalizeEmail(email string) string {
 
 func NormalizeAccount(account string) string {
 	return strings.ToLower(strings.TrimSpace(account))
+}
+
+func ValidEmail(email string) bool {
+	local, domain, ok := strings.Cut(email, "@")
+	return ok && local != "" && domain != "" && !strings.ContainsAny(email, " \t\r\n") && !strings.Contains(domain, "@")
 }
 
 func ValidAccount(account string) bool {

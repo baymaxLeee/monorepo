@@ -6,7 +6,6 @@ import {
   listKnowledgeDocuments,
   uploadKnowledgeDocuments,
 } from "api";
-import { randomId } from "shared";
 import {
   Alert,
   AlertDescription,
@@ -37,6 +36,7 @@ import {
 } from "components";
 import { DownloadIcon, PencilIcon, Trash2Icon, UploadIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { randomId } from "shared";
 import { KnowledgeDocumentDialog } from "../components/KnowledgeDocumentDialog";
 
 function formatBytes(size: number): string {

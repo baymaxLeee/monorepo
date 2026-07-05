@@ -3,14 +3,18 @@ import {
   AppWindowIcon,
   BotIcon,
   BrainCircuitIcon,
+  Building2Icon,
   ComponentIcon,
   LibraryBigIcon,
   ListTreeIcon,
   type LucideIcon,
   NetworkIcon,
   RadarIcon,
+  ShieldCheckIcon,
+  UsersIcon,
 } from "lucide-react";
 import { Link, Outlet, useLocation } from "react-router-dom";
+import { useAdminIdentity } from "../identity";
 
 type AdminMenuItem = {
   title: string;
@@ -31,11 +35,6 @@ const adminMenus: AdminMenuItem[] = [
     title: "知识库管理",
     href: "/platform/admin/knowledge",
     icon: LibraryBigIcon,
-  },
-  {
-    title: "应用入口管理",
-    href: "/platform/admin/apps",
-    icon: AppWindowIcon,
   },
 ];
 
@@ -78,6 +77,36 @@ function MenuList({ items }: { items: AdminMenuItem[] }) {
 }
 
 export function AdminLayout() {
+  const { isSuperAdmin, canViewMembers } = useAdminIdentity();
+
+  const governanceMenus: AdminMenuItem[] = [];
+  if (isSuperAdmin) {
+    governanceMenus.push({
+      title: "应用入口管理",
+      href: "/platform/admin/apps",
+      icon: AppWindowIcon,
+    });
+    governanceMenus.push({
+      title: "组织管理",
+      href: "/platform/admin/organizations",
+      icon: Building2Icon,
+    });
+  }
+  if (canViewMembers) {
+    governanceMenus.push({
+      title: "成员管理",
+      href: "/platform/admin/members",
+      icon: UsersIcon,
+    });
+  }
+  if (isSuperAdmin) {
+    governanceMenus.push({
+      title: "平台角色",
+      href: "/platform/admin/platform-roles",
+      icon: ShieldCheckIcon,
+    });
+  }
+
   return (
     <Layout className="min-h-[calc(100svh-3.5rem)] flex-row">
       <Aside className="w-52 shrink-0 gap-6 p-3">
@@ -87,6 +116,14 @@ export function AdminLayout() {
           </div>
           <MenuList items={adminMenus} />
         </Section>
+        {governanceMenus.length > 0 && (
+          <Section>
+            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+              组织与权限
+            </div>
+            <MenuList items={governanceMenus} />
+          </Section>
+        )}
         <Section>
           <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
             开发

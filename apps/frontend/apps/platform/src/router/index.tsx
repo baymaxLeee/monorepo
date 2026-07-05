@@ -134,6 +134,14 @@ export const routes: RouteObject[] = [
         lazy: lazyPage(() => import("../pages/register")),
       },
       {
+        path: "pending",
+        lazy: lazyPage(() => import("../pages/pending")),
+      },
+      {
+        path: "select-org",
+        lazy: lazyPage(() => import("../pages/select-org")),
+      },
+      {
         path: "platform",
         lazy: lazyPage(() => import("../pages/layout")),
         children: [

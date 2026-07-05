@@ -12,9 +12,12 @@ data:
   ENVIRONMENT: "development"
   MYSQL_PORT: "3306"
   IAM_MYSQL_DATABASE: "iam"
-  ACCESS_TOKEN_TTL: "15m"
+  ACCESS_TOKEN_TTL: "5m"
   REFRESH_TOKEN_TTL: "720h"
   REFRESH_COOKIE_NAME: "refresh_token"
   REFRESH_COOKIE_SECURE: "false"
   REFRESH_COOKIE_SAMESITE: "lax"
+  GUEST_ORG_ID: "guest-org"
+  GUEST_ORG_NAME: "游客组织"
+  GUEST_ORG_SLUG: "guest-org"
   # Overlay sets REFRESH_COOKIE_DOMAIN to e.g. .your-domain.com for prod.

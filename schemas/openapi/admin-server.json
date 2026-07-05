@@ -150,6 +150,22 @@
             }
           },
           {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
+            }
+          },
+          {
             "name": "X-Auth-Roles",
             "in": "header",
             "required": false,
@@ -262,6 +278,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {
@@ -397,6 +429,22 @@
             }
           },
           {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
+            }
+          },
+          {
             "name": "X-Auth-Roles",
             "in": "header",
             "required": false,
@@ -514,6 +562,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {
@@ -647,6 +711,22 @@
             }
           },
           {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
+            }
+          },
+          {
             "name": "X-Auth-Roles",
             "in": "header",
             "required": false,
@@ -750,6 +830,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {
@@ -865,6 +961,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {
@@ -1000,6 +1112,22 @@
             }
           },
           {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
+            }
+          },
+          {
             "name": "X-Auth-Roles",
             "in": "header",
             "required": false,
@@ -1117,6 +1245,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {
@@ -1250,6 +1394,22 @@
             }
           },
           {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
+            }
+          },
+          {
             "name": "X-Auth-Roles",
             "in": "header",
             "required": false,
@@ -1353,6 +1513,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {
@@ -1479,6 +1655,22 @@
             }
           },
           {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
+            }
+          },
+          {
             "name": "X-Auth-Roles",
             "in": "header",
             "required": false,
@@ -1591,6 +1783,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {
@@ -1726,6 +1934,22 @@
             }
           },
           {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
+            }
+          },
+          {
             "name": "X-Auth-Roles",
             "in": "header",
             "required": false,
@@ -1843,6 +2067,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {
@@ -1976,6 +2216,22 @@
             }
           },
           {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
+            }
+          },
+          {
             "name": "X-Auth-Roles",
             "in": "header",
             "required": false,
@@ -2079,6 +2335,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {
@@ -2205,6 +2477,22 @@
             }
           },
           {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
+            }
+          },
+          {
             "name": "X-Auth-Roles",
             "in": "header",
             "required": false,
@@ -2317,6 +2605,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {
@@ -2452,6 +2756,22 @@
             }
           },
           {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
+            }
+          },
+          {
             "name": "X-Auth-Roles",
             "in": "header",
             "required": false,
@@ -2569,6 +2889,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {
@@ -2702,6 +3038,22 @@
             }
           },
           {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
+            }
+          },
+          {
             "name": "X-Auth-Roles",
             "in": "header",
             "required": false,
@@ -2805,6 +3157,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {
@@ -2940,6 +3308,22 @@
             }
           },
           {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
+            }
+          },
+          {
             "name": "X-Auth-Roles",
             "in": "header",
             "required": false,
@@ -3059,6 +3443,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {
@@ -3458,6 +3858,22 @@
             }
           },
           {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
+            }
+          },
+          {
             "name": "X-Auth-Roles",
             "in": "header",
             "required": false,
@@ -3570,6 +3986,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {
@@ -3705,6 +4137,22 @@
             }
           },
           {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
+            }
+          },
+          {
             "name": "X-Auth-Roles",
             "in": "header",
             "required": false,
@@ -3822,6 +4270,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {
@@ -3952,6 +4416,22 @@
                 }
               ],
               "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
             }
           },
           {

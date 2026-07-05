@@ -36,8 +36,8 @@ SET @ddl := IF(
 );
 PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
--- Backfill existing bots into the seeded demo org (matches iam DEMO_ORG_ID
--- default 'demo-org') so current bots stay visible to the team.
-UPDATE `bots` SET `org_id` = 'demo-org' WHERE `org_id` IS NULL;
+-- Backfill existing bots into the seeded guest org (matches iam GUEST_ORG_ID
+-- default 'guest-org') so current bots stay visible to the team.
+UPDATE `bots` SET `org_id` = 'guest-org' WHERE `org_id` IS NULL;
 
 UPDATE `migration` SET `version` = 'v1.7.0', `update_time` = NOW() WHERE `id` = 1;

@@ -46,7 +46,7 @@ future-work list and builds the minimum multi-tenancy foundation to support it.
 
 3. **Team knowledge is org-scoped.** `documents` and `document_chunks` gain
    `org_id` (knowledge migration `v1.5.0.sql`, composite indexes, backfilled to
-   `demo-org`). Ingest stamps `org_id`; `dense_search` / `sparse_search` and the
+   `guest-org`). Ingest stamps `org_id`; `dense_search` / `sparse_search` and the
    user-facing document APIs filter by `org_id` (retaining `user_id` only for
    ownership/attribution). `RetrieveInput` and `/internal/retrieve` carry
    `org_id`, threaded from chat's `AuthContext` through the `knowledge_search`
@@ -70,7 +70,7 @@ future-work list and builds the minimum multi-tenancy foundation to support it.
    above it.
 
 6. **The oncall RCA persona ships as a seeded bot.** A demo bot `bot-oncall`
-   (published, owned by the demo super-admin, org `demo-org`) is seeded with a
+   (published, owned by the demo super-admin, org `guest-org`) is seeded with a
    four-section Chinese persona: 根因 / 排查 / 验证 / 修复建议, each with 出处 +
    置信度, and a read-only safety boundary (advise only; never claim to have
    executed changes; require human confirmation for high-risk actions). No new
@@ -85,7 +85,7 @@ future-work list and builds the minimum multi-tenancy foundation to support it.
 8. **All admin resource-management tables are org-scoped; model providers are
    team-shared.** Extending decision 1 beyond knowledge/bots, `scenes`,
    `intentions`, and `model_providers` gain `org_id` (admin migration
-   `v1.8.0.sql`; each column added nullable → backfilled to `demo-org` →
+   `v1.8.0.sql`; each column added nullable → backfilled to `guest-org` →
    `NOT NULL`). Their CRUD/service layers filter by `org_id` for non-admins and
    stamp the caller's org on create. `apps` stays **global** (platform config,
    not team-owned), and chat `conversations`/`messages`/`memories` stay
@@ -120,7 +120,7 @@ shared team knowledge base), not a new hard-coded chat mode.
 - The frontend surfaces the active team read-only (platform header + user menu),
   and the admin bot dialog edits the persona; no cross-MFE plumbing was needed.
 - Existing user-scoped rows across all affected tables are backfilled to
-  `demo-org`; pre-org cached frontend sessions simply lack `orgId`/`orgName`
+  `guest-org`; pre-org cached frontend sessions simply lack `orgId`/`orgName`
   (optional fields) until the next login/refresh. The demo phase permits this
   destructive backfill (no forward-compat obligation), so migrations add the
   column nullable, backfill, then enforce `NOT NULL` rather than shipping a

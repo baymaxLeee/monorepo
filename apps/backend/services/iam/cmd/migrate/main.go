@@ -30,9 +30,9 @@ func main() {
 	}
 	defer st.Close()
 
-	if err := service.SeedDemoSuperAdmin(ctx, st, cfg); err != nil {
+	if err := service.EnsureSystemBootstrap(ctx, st, cfg); err != nil {
 		slog.Error("failed to seed super admin", "err", err)
 		os.Exit(1)
 	}
-	slog.Info("iam demo seed ready")
+	slog.Info("iam system bootstrap ready")
 }

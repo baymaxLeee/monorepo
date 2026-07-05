@@ -14,7 +14,7 @@ Phase 1 的 oncall 画像链路，还额外落地了一层 org 多租户基座�
   `AuthResponse.user` 回传 `orgId`/`orgName`；注册用户自动加入 demo 团队 org。
 - **Gateway 透传**：`propagateClaims` 注入 `X-Auth-Org-ID`，并剥离入站伪造头。
 - **知识库 org 化**：`documents` / `document_chunks` 加 `org_id`（migration `v1.5.0.sql` + 复合索引 +
-  回填 `demo-org`）；检索 `dense_search` / `sparse_search` 与写入/ingest/ACL 全部改按 `org_id`，
+  回填 `guest-org`）；检索 `dense_search` / `sparse_search` 与写入/ingest/ACL 全部改按 `org_id`，
   同一团队成员共享同一知识库。`RetrieveInput` + `/internal/retrieve` 携带 `org_id`。
 - **admin bot org 化 + 画像**：`bots` 加 `org_id` + `system_prompt`（migration `v1.7.0.sql`，
   `org_id` 在 `v1.8.0.sql` 收紧为 `NOT NULL`）；`create` 盖章 org，`list`/`get` 按 org 成员可见；
@@ -22,7 +22,7 @@ Phase 1 的 oncall 画像链路，还额外落地了一层 org 多租户基座�
   provider）。早期草案借 bot owner 用户凭证解析,provider 团队化后该 hack 已移除。
 - **全资源表 org 隔离 + providers 团队共享**（按用户诉求"所有资源管理类 tables 都加 org_id 做隔离"）：
   `scenes` / `intentions` / `model_providers` 加 `org_id`（admin migration `v1.8.0.sql`，
-  逐列 nullable → 回填 `demo-org` → `NOT NULL`）；对应 crud/services 非管理员按 `org_id` 过滤、
+  逐列 nullable → 回填 `guest-org` → `NOT NULL`）；对应 crud/services 非管理员按 `org_id` 过滤、
   create 盖章调用方 org。`apps` 保持**全局**（平台配置，非团队资产），chat
   `conversations`/`messages`/`memories` 保持**用户私有**运行时数据,二者都不属"共享资源"故不加
   `org_id`。provider 团队化意味着 **LLM 凭证在团队内共享**;内部解析采用混合信任模型:按 id 查
@@ -32,7 +32,7 @@ Phase 1 的 oncall 画像链路，还额外落地了一层 org 多租户基座�
 - **chat 画像链路**：`getAgent`/`ResolvedAgent` 带 `system_prompt` → `routes/agents.ts` 经
   `RunAgentInput.persona` → `createAgentRunResponse` → `buildAgentInstructions` 注入
   `<agent_persona>` section（在 BASE + mode 指令之后，安全/工具规则不被覆盖）。
-- **oncall RCA 画像**：作为 demo 种子 bot `bot-oncall`（`admin/db.py`，published，归属 `demo-org`）
+- **oncall RCA 画像**：作为 demo 种子 bot `bot-oncall`（`admin/db.py`，published，归属 `guest-org`）
   写入四段式画像（根因 / 排查 / 验证 / 修复建议 + 出处 + 置信度 + 只读边界）。
 - **前端**：platform 顶栏 + 用户菜单展示活跃团队（`AuthUser`/`PlatformUser` 加 `orgId`/`orgName`）；
   admin bot 配置对话框加「人设 / 系统提示词」多行编辑；chat 复用既有智能体选择器即可选中 oncall bot。
@@ -185,7 +185,7 @@ chat 消费入口：
 - [x] Phase 1：编写 oncall 结构化 RCA 画像文案，作为种子 bot `bot-oncall` 写入 `bot.system_prompt`
 - [x] Phase 1：admin 前端 bot 配置加「人设/系统提示词」编辑；chat 端复用既有智能体选择器选中 oncall bot
 - [x] 团队共享（原 Phase 2 决策 2，提前落地）：org 多租户基座（IAM organizations + JWT + gateway header）+ 知识库 `org_id` 检索/ACL + admin bot org 化
-- [x] 全资源表 org 隔离（用户追加诉求，破坏性迁移已获准）：`scenes`/`intentions`/`model_providers` 加 `org_id` + migration `v1.8.0.sql`（回填 `demo-org` → `NOT NULL`）+ `bots.org_id` 收紧 `NOT NULL`；provider 团队共享 + 内部 by-id 解析不带 org（Option Y）；`gen-openapi` + `just sync` 回流
+- [x] 全资源表 org 隔离（用户追加诉求，破坏性迁移已获准）：`scenes`/`intentions`/`model_providers` 加 `org_id` + migration `v1.8.0.sql`（回填 `guest-org` → `NOT NULL`）+ `bots.org_id` 收紧 `NOT NULL`；provider 团队共享 + 内部 by-id 解析不带 org（Option Y）；`gen-openapi` + `just sync` 回流
 - [ ] Phase 2：documents 新鲜度元数据字段（`source_url`/`last_reviewed_at`/`version`/`authority`）+ migration + 检索透出 + 画像降权
 - [ ] Phase 2：批量导入接口/脚本（`create_document` + `index_document`）
 - [ ] 完整 org 管理 UI（建组/邀请成员）+ IAM org CRUD 端点（当前仅 demo 单 org 种子）

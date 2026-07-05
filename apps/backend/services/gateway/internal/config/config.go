@@ -36,6 +36,7 @@ type Config struct {
 	AccessTokenSecret        string
 	OptionalAuthPathPrefixes []string
 	PublicPathPrefixes       []string
+	PublicExactPaths         []string
 	MaxRequestBodyBytes      int64
 	ReadTimeout              time.Duration
 	WriteTimeout             time.Duration
@@ -84,6 +85,12 @@ func Load() (Config, error) {
 			"/api/iam-server/register",
 			"/api/iam-server/refresh",
 			"/api/iam-server/logout",
+		}),
+		// Method-aware exact publics: the register page must read the applyable
+		// org list before authenticating, but POST /orgs and /orgs/{id}/... stay
+		// protected — so this is GET-only and exact, never a prefix.
+		PublicExactPaths: csvOr("PUBLIC_EXACT_PATHS", []string{
+			"GET /api/iam-server/orgs",
 		}),
 		OptionalAuthPathPrefixes: csvOr("OPTIONAL_AUTH_PATH_PREFIXES", []string{
 			"/api/telemetry-server/rum",

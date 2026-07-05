@@ -16,6 +16,7 @@ type Claims struct {
 	Email   string   `json:"email"`
 	Name    string   `json:"name"`
 	OrgID   string   `json:"org_id,omitempty"`
+	OrgRole string   `json:"org_role,omitempty"`
 	Roles   []string `json:"roles,omitempty"`
 	Issued  int64    `json:"iat"`
 	Expiry  int64    `json:"exp"`

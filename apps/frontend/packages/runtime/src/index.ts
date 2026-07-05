@@ -3,9 +3,9 @@
  * MFEs SHOULD NOT import from each other; cross-MFE signaling goes here.
  */
 export {
+  type PlatformMembership,
   type PlatformState,
   type PlatformUser,
-  type PlatformUserType,
   usePlatformStore,
 } from "./store/usePlatformStore";
 

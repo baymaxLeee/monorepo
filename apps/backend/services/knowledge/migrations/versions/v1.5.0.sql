@@ -7,10 +7,10 @@
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS org_id varchar(26);
 ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS org_id varchar(26);
 
--- Backfill existing team knowledge into the seeded demo org (the only org at
--- this point; matches iam DEMO_ORG_ID default 'demo-org').
-UPDATE documents SET org_id = 'demo-org' WHERE org_id IS NULL AND kind = 'source';
-UPDATE document_chunks SET org_id = 'demo-org' WHERE org_id IS NULL;
+-- Backfill existing team knowledge into the seeded guest org (the only org at
+-- this point; matches iam GUEST_ORG_ID default 'guest-org').
+UPDATE documents SET org_id = 'guest-org' WHERE org_id IS NULL AND kind = 'source';
+UPDATE document_chunks SET org_id = 'guest-org' WHERE org_id IS NULL;
 
 -- Team-scoped access leads with org_id.
 CREATE INDEX IF NOT EXISTS ix_documents_org_created ON documents (org_id, created_at DESC);

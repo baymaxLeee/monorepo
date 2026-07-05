@@ -2,15 +2,26 @@ import { ErrorBoundary, Toaster, TooltipProvider } from "components";
 import { useEffect } from "react";
 import { RouterProvider } from "react-router-dom";
 import { usePlatformStore } from "runtime";
+import { isSuperAdmin } from "./onboarding";
 import { router } from "./router";
-import { loadApps } from "./store/apps";
+import { loadApps, resetApps } from "./store/apps";
 
 export function App() {
   const user = usePlatformStore((state) => state.user);
+  // App visibility is org-scoped: only fetch entitlements once the session is
+  // bound to an org (or the caller is a platform super_admin). Re-fetch when the
+  // active org changes so a switch never shows the previous org's apps.
+  const canEnter = !!user && (!!user.activeOrg || isSuperAdmin(user));
+  const activeOrgId = user?.activeOrg?.orgId ?? null;
 
   useEffect(() => {
-    if (user) loadApps();
-  }, [user]);
+    if (!canEnter) {
+      resetApps();
+      return;
+    }
+    resetApps();
+    loadApps();
+  }, [canEnter, activeOrgId]);
 
   return (
     <ErrorBoundary

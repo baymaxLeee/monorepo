@@ -111,7 +111,13 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
     return () => {
       active = false;
     };
-  }, [artifact?.mime_type, artifact?.updated_at, conversationId, documentId, open]);
+  }, [
+    artifact?.mime_type,
+    artifact?.updated_at,
+    conversationId,
+    documentId,
+    open,
+  ]);
 
   const previewLoading =
     loading ||

@@ -1,9 +1,16 @@
 """App registry business service.
 
-The app registry is the operator-managed catalog of micro-frontends. Reads are
-role-filtered (admin sees all; normal users see only enabled, non-admin-only
-apps). Writes are admin-only — this catalog governs what every user can reach,
-so a normal user must never mutate it.
+The app registry is a GLOBAL platform catalog of micro-frontends. Reads are
+role-filtered; writes are super_admin-only — this catalog governs what every
+user can reach, so no org-level role may mutate it. Visibility tiers:
+
+- super_admin: every app, including disabled ones (management view).
+- org_admin: enabled apps incl. admin-only ones (so they can mount the admin
+  MFE for member approval / org config).
+- member/normal: only enabled, non-admin-only apps.
+
+`get` applies the SAME visibility as `list` so a normal user cannot probe an
+admin-only or disabled app by id.
 """
 
 from __future__ import annotations
@@ -47,14 +54,23 @@ class AppService:
         self._current_user = current_user
 
     async def list(self) -> list[App]:
-        rows = await app_crud.list_apps(self._session, self._current_user.is_admin)
+        rows = await app_crud.list_apps(
+            self._session,
+            include_disabled=self._current_user.is_super_admin,
+            include_admin_only=self._can_see_admin_apps(),
+        )
         return [to_schema(row) for row in rows]
 
     async def get(self, app_id: str) -> App:
-        return to_schema(await self._get_row(app_id))
+        row = await self._get_row(app_id)
+        if not self._can_see(row):
+            # Hide existence: a non-visible app is indistinguishable from a
+            # missing one for callers without the privilege to see it.
+            raise NotFoundError(f"app {app_id} not found")
+        return to_schema(row)
 
     async def create(self, payload: CreateAppInput) -> App:
-        self._require_admin()
+        self._require_super_admin()
         if await app_crud.get_app(self._session, payload.id) is not None:
             raise ConflictError(f"app {payload.id} already exists")
         row = await app_crud.create_app(
@@ -72,18 +88,28 @@ class AppService:
         return to_schema(row)
 
     async def update(self, app_id: str, payload: UpdateAppInput) -> App:
-        self._require_admin()
+        self._require_super_admin()
         row = await self._get_row(app_id)
         values = payload.model_dump(exclude_unset=True)
         return to_schema(await app_crud.update_app(self._session, row, values))
 
     async def delete(self, app_id: str) -> None:
-        self._require_admin()
+        self._require_super_admin()
         await app_crud.delete_app(self._session, await self._get_row(app_id))
 
-    def _require_admin(self) -> None:
-        if not self._current_user.is_admin:
-            raise ForbiddenError("only admins may manage the app registry")
+    def _can_see_admin_apps(self) -> bool:
+        return self._current_user.is_super_admin or self._current_user.is_org_admin
+
+    def _can_see(self, row: AppRow) -> bool:
+        if self._current_user.is_super_admin:
+            return True
+        if not row.is_enabled:
+            return False
+        return not (row.requires_admin and not self._current_user.is_org_admin)
+
+    def _require_super_admin(self) -> None:
+        if not self._current_user.is_super_admin:
+            raise ForbiddenError("only super_admin may manage the app registry")
 
     async def _get_row(self, app_id: str) -> AppRow:
         row = await app_crud.get_app(self._session, app_id)

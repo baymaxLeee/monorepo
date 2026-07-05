@@ -10,23 +10,28 @@ import (
 )
 
 const (
-	HeaderAuthUserID = "X-Auth-User-ID"
-	HeaderAuthEmail  = "X-Auth-Email"
-	HeaderAuthName   = "X-Auth-Name"
-	HeaderAuthOrgID  = "X-Auth-Org-ID"
-	HeaderAuthRoles  = "X-Auth-Roles"
+	HeaderAuthUserID  = "X-Auth-User-ID"
+	HeaderAuthEmail   = "X-Auth-Email"
+	HeaderAuthName    = "X-Auth-Name"
+	HeaderAuthOrgID   = "X-Auth-Org-ID"
+	HeaderAuthOrgRole = "X-Auth-Org-Role"
+	HeaderAuthRoles   = "X-Auth-Roles"
 )
 
-func IdentityPropagation(secret string, publicPathPrefixes []string, optionalAuthPathPrefixes []string) func(http.Handler) http.Handler {
+func IdentityPropagation(secret string, publicPathPrefixes, publicExactPaths, optionalAuthPathPrefixes []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r.Header.Del(HeaderAuthUserID)
 			r.Header.Del(HeaderAuthEmail)
 			r.Header.Del(HeaderAuthName)
 			r.Header.Del(HeaderAuthOrgID)
+			r.Header.Del(HeaderAuthOrgRole)
 			r.Header.Del(HeaderAuthRoles)
 
-			if isPublicPath(r.URL.Path, publicPathPrefixes) {
+			// Prefix publics cover whole subtrees; method-aware exact publics
+			// open a single route (e.g. GET /api/iam-server/orgs) WITHOUT
+			// exposing sibling management routes under the same prefix.
+			if isPublicPath(r.URL.Path, publicPathPrefixes) || isPublicExact(r.Method, r.URL.Path, publicExactPaths) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -72,6 +77,9 @@ func propagateClaims(r *http.Request, claims security.Claims) {
 	if claims.OrgID != "" {
 		r.Header.Set(HeaderAuthOrgID, claims.OrgID)
 	}
+	if claims.OrgRole != "" {
+		r.Header.Set(HeaderAuthOrgRole, claims.OrgRole)
+	}
 	if len(claims.Roles) > 0 {
 		r.Header.Set(HeaderAuthRoles, strings.Join(claims.Roles, ","))
 	}
@@ -94,6 +102,22 @@ func isPublicPath(path string, prefixes []string) bool {
 			return true
 		}
 		if p != "/" && strings.HasPrefix(path, p+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+// isPublicExact matches method-aware exact public routes, entries formatted as
+// "METHOD /exact/path". Unlike prefix publics it never matches subpaths or a
+// different method, so a public GET can coexist with a protected POST/subtree.
+func isPublicExact(method, path string, entries []string) bool {
+	for _, e := range entries {
+		m, p, ok := strings.Cut(strings.TrimSpace(e), " ")
+		if !ok {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(m), method) && strings.TrimSpace(p) == path {
 			return true
 		}
 	}

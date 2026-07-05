@@ -38,9 +38,9 @@ type Config struct {
 	SuperAdminEmail       string
 	SuperAdminPassword    string
 	SuperAdminDisplayName string
-	DemoOrgID             string
-	DemoOrgName           string
-	DemoOrgSlug           string
+	GuestOrgID            string
+	GuestOrgName          string
+	GuestOrgSlug          string
 }
 
 func (c Config) IsProduction() bool { return c.Environment == EnvProduction }
@@ -64,7 +64,7 @@ func Load() (Config, error) {
 			mysqlUser, mysqlPassword, mysqlHost, mysqlPort, mysqlDatabase,
 		),
 		AccessTokenSecret:     envOr("ACCESS_TOKEN_SECRET", devAccessTokenSecret),
-		AccessTokenTTL:        durationOr("ACCESS_TOKEN_TTL", 30*time.Minute),
+		AccessTokenTTL:        durationOr("ACCESS_TOKEN_TTL", 5*time.Minute),
 		RefreshTokenTTL:       durationOr("REFRESH_TOKEN_TTL", 7*24*time.Hour),
 		RefreshCookieName:     envOr("REFRESH_COOKIE_NAME", "refresh_token"),
 		RefreshCookieSecure:   envOr("REFRESH_COOKIE_SECURE", "false") == "true",
@@ -75,9 +75,9 @@ func Load() (Config, error) {
 		SuperAdminEmail:       envOr("SUPER_ADMIN_EMAIL", "admin@example.com"),
 		SuperAdminPassword:    envOr("SUPER_ADMIN_PASSWORD", "admin123"),
 		SuperAdminDisplayName: envOr("SUPER_ADMIN_DISPLAY_NAME", "Super Admin"),
-		DemoOrgID:             envOr("DEMO_ORG_ID", "demo-org"),
-		DemoOrgName:           envOr("DEMO_ORG_NAME", "Demo Team"),
-		DemoOrgSlug:           envOr("DEMO_ORG_SLUG", "demo-team"),
+		GuestOrgID:            envOr("GUEST_ORG_ID", "guest-org"),
+		GuestOrgName:          envOr("GUEST_ORG_NAME", "游客组织"),
+		GuestOrgSlug:          envOr("GUEST_ORG_SLUG", "guest-org"),
 	}
 
 	if err := cfg.validate(mysqlHost, mysqlPassword); err != nil {
@@ -102,6 +102,9 @@ func (c Config) validate(mysqlHost, mysqlPassword string) error {
 	}
 	if !c.RefreshCookieSecure {
 		missing = append(missing, "REFRESH_COOKIE_SECURE=true")
+	}
+	if os.Getenv("SUPER_ADMIN_ACCOUNT") == "" || os.Getenv("SUPER_ADMIN_EMAIL") == "" || os.Getenv("SUPER_ADMIN_PASSWORD") == "" || c.SuperAdminPassword == "admin123" {
+		missing = append(missing, "SUPER_ADMIN_ACCOUNT/EMAIL/PASSWORD")
 	}
 	if strings.EqualFold(c.RefreshCookieSameSite, "lax") && c.RefreshCookieDomain == "" {
 		missing = append(missing, "REFRESH_COOKIE_SAMESITE=none + REFRESH_COOKIE_DOMAIN")

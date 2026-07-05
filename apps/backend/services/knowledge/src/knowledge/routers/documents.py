@@ -2,9 +2,10 @@
 
 from fastapi import APIRouter, Query
 from fastapi.responses import Response
-from kernel.errors import NotFoundError
+from kernel.errors import ForbiddenError, NotFoundError
 from knowledge.crud import documents as document_crud
-from knowledge.deps import CurrentUser, DbSession
+from knowledge.deps import AuthContext, CurrentUser, DbSession
+from knowledge.models.document import DocumentRow
 from knowledge.schemas.document import Document
 from knowledge.services.documents import document_to_schema
 from knowledge.services.indexing import index_document
@@ -44,13 +45,24 @@ async def batch_delete_my_documents(
     current_user: CurrentUser,
     session: DbSession,
 ) -> BatchDeleteResult:
-    """Delete several of the caller's documents in one transaction.
+    """Delete several documents in one transaction.
 
-    Any member of the org may delete the team's documents (ids outside the org
-    are silently ignored). Object-store blobs are best-effort purged and the
-    RAG `document_chunks` are dropped via the FK `ON DELETE CASCADE`.
+    Same policy as single delete: an org_admin may delete any of the org's
+    documents; a member may delete only their own uploads. If ANY requested id
+    is outside the org or not deletable by the caller, the whole batch is
+    rejected with 403 — no silent partial success that would mislead the caller.
+    Object-store blobs are best-effort purged and RAG `document_chunks` drop via
+    the FK `ON DELETE CASCADE`.
     """
-    rows = await document_crud.list_org_documents_by_ids(session, org_id=current_user.org_id, document_ids=payload.ids)
+    unique_ids = list(dict.fromkeys(payload.ids))
+    rows = await document_crud.list_org_documents_by_ids(
+        session, org_id=current_user.org_id, document_ids=unique_ids
+    )
+    by_id = {row.id: row for row in rows}
+    for doc_id in unique_ids:
+        row = by_id.get(doc_id)
+        if row is None or not _may_manage(current_user, row):
+            raise ForbiddenError("you may only delete your own documents")
     store = ObjectStore()
     for row in rows:
         if row.object_bucket and row.object_key:
@@ -82,6 +94,8 @@ async def update_my_document(
     row = await document_crud.get_org_document(session, document_id, current_user.org_id)
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
+    if not _may_manage(current_user, row):
+        raise ForbiddenError("you may only update your own documents")
     values = payload.model_dump(exclude_unset=True, exclude_none=True)
     if values:
         row = await document_crud.update_document(session, row, values)
@@ -119,7 +133,14 @@ async def delete_my_document(
     row = await document_crud.get_org_document(session, document_id, current_user.org_id)
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
+    if not _may_manage(current_user, row):
+        raise ForbiddenError("you may only delete your own documents")
     if row.object_bucket and row.object_key:
         ObjectStore().delete(bucket=row.object_bucket, key=row.object_key)
     await document_crud.delete_document(session, row)
     await session.commit()
+
+
+def _may_manage(current_user: AuthContext, row: DocumentRow) -> bool:
+    """An org_admin manages any org doc; a member manages only their uploads."""
+    return current_user.is_org_admin or row.user_id == current_user.user_id

@@ -7,10 +7,11 @@ import {
   getCurrentUser,
   getToken,
   isAccessTokenValid,
+  type Membership,
   syncSessionFromStorage,
 } from "./storage";
 
-export type { AuthSession, AuthUser, UserType } from "./storage";
+export type { AuthSession, AuthUser, Membership } from "./storage";
 
 export type AuthCredentials = {
   account: string;
@@ -18,6 +19,8 @@ export type AuthCredentials = {
 };
 
 export type RegisterInput = AuthCredentials & {
+  /** Optional additional org application; guest-org membership is automatic. */
+  orgId?: string;
   avatarUrl?: string;
   email?: string;
   displayName?: string;
@@ -90,6 +93,31 @@ export async function refreshSession(): Promise<AuthSession | null> {
       refreshPromise = null;
     });
   return refreshPromise;
+}
+
+/** Current identity, reflecting the latest roles + memberships + activeOrg.
+ * The waiting page polls this to observe an approval landing. */
+export async function fetchMe(): Promise<AuthUser> {
+  return request<AuthUser>({ url: "/api/iam-server/me", method: "GET" });
+}
+
+export async function fetchMemberships(): Promise<Membership[]> {
+  return request<Membership[]>({
+    url: "/api/iam-server/me/memberships",
+    method: "GET",
+  });
+}
+
+/** Bind the session to a different active org (must be an active membership).
+ * Rotates the refresh token and returns a freshly scoped session. */
+export async function switchActiveOrg(orgId: string): Promise<AuthSession> {
+  return commitSession(
+    await request<AuthSession>({
+      url: "/api/iam-server/session/active-org",
+      method: "POST",
+      data: { orgId },
+    }),
+  );
 }
 
 export async function bootstrapSession(): Promise<AuthUser | null> {
