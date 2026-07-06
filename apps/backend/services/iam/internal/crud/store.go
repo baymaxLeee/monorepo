@@ -205,7 +205,8 @@ func (s *Store) UserByAccount(ctx context.Context, account string) (model.User, 
 	var credential model.UserCredential
 	err := s.db.WithContext(ctx).
 		Joins("User").
-		Where("User.account = ? AND User.disabled_at IS NULL", account).
+		// "User" must stay quoted: USER is a reserved word in PostgreSQL.
+		Where(`"User".account = ? AND "User".disabled_at IS NULL`, account).
 		First(&credential).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return model.User{}, "", ErrNotFound
