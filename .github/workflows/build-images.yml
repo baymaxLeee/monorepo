@@ -46,7 +46,7 @@ jobs:
       matrix:
         # gateway / iam / knowledge / admin / chat / executor / telemetry → backend service images
         # web                                      → nginx + bundled frontend SPA dist
-        # db-init                                  → one-shot MySQL schema bootstrap
+        # db-init                                  → one-shot Postgres schema bootstrap
         service: [gateway, iam, knowledge, admin, chat, executor, telemetry, web, db-init]
     env:
       # Surfaced into the shell of every step so the "Compute tags" script

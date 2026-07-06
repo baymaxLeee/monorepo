@@ -1,4 +1,4 @@
-"""MySQL reads for error events."""
+"""PostgreSQL reads for error events."""
 
 from typing import Any
 

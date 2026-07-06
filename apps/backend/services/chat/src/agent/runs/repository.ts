@@ -206,7 +206,8 @@ export async function startAgentStep(input: {
     summary: input.summary ?? null,
     metadata: input.metadata ?? null,
     createdAt: new Date(),
-  }).onDuplicateKeyUpdate({
+  }).onConflictDoUpdate({
+    target: agentSteps.id,
     set: {
       status: "running",
       summary: input.summary ?? null,
@@ -258,7 +259,8 @@ export async function recordToolCallStart(input: {
       inputJson: asJsonValue(input.toolInput),
       createdAt: new Date(),
     })
-    .onDuplicateKeyUpdate({
+    .onConflictDoUpdate({
+      target: agentToolCalls.id,
       set: {
         runId: input.runId,
         stepIndex: input.stepIndex ?? null,

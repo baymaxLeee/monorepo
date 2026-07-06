@@ -5,8 +5,8 @@ metadata:
 data:
   PORT: "8011"
   ENVIRONMENT: "production"
-  MYSQL_PORT: "3306"
-  MYSQL_DATABASE: "executor"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DATABASE: "executor"
   # A deployed environment MUST use the durable Postgres World — the
   # filesystem-backed Local World isn't shared across replicas or restarts.
   # WORKFLOW_POSTGRES_URL (the real connection string, with credentials)

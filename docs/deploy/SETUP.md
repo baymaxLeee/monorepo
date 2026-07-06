@@ -130,11 +130,15 @@ Custom domain: `mfe-admin.your-domain.com`
 | 1 | **私有网络 VPC** | 默认 | 后续所有资源都建在这个 VPC 内 |
 | 2 | **VKE 容器服务** | 集群版本 1.28+,2~3 个 4C8G ECS 节点 | 选标准版,Kubernetes 控制平面火山免费托管 |
 | 3 | **CR 容器镜像** | 个人版(免费) | 创建 namespace `monorepo` |
-| 4 | **云数据库 MySQL** | 1C2G,40GB | 建在和 VKE 同 VPC,白名单只放集群 |
+| 4 | **云数据库 PostgreSQL** | 1C2G,40GB | 需支持 `pgvector` 扩展;建在和 VKE 同 VPC,白名单只放集群 |
 | 5 | **缓存数据库 Redis** | 256MB 主从 | 同上 |
 
-把 2 个 endpoint(MySQL host、Redis host)+ 各自账号密码记录下来。
-telemetry 服务复用同一个 MySQL,只用自己的 `telemetry` database。
+把 2 个 endpoint(PostgreSQL host、Redis host)+ 各自账号密码记录下来。
+所有后端业务服务复用同一个 PostgreSQL 实例,各用自己的 database(iam / admin /
+chat / executor / knowledge / telemetry)和同名登录 role。`workflow` database/role
+只供 Workflow World 与实例初始化使用。首次部署前用云数据库管理员创建这些 role
+和 database,将 database owner 设为同名 role,撤销 `PUBLIC` 的 database 权限和
+`public` schema CREATE 权限;仅在 `knowledge` database 启用 `vector` 扩展。
 
 ### 3.2 集群一次性初始化
 
@@ -155,28 +159,25 @@ kubectl -n ingress-nginx get svc ingress-nginx-controller -w
 kubectl create ns monorepo-prod
 
 kubectl -n monorepo-prod create secret generic gateway-secrets \
-  --from-literal=MYSQL_HOST=<rds-endpoint> \
-  --from-literal=MYSQL_USER=gateway \
-  --from-literal=MYSQL_PASSWORD=<from-1Password> \
   --from-literal=REDIS_HOST=<redis-endpoint> \
   --from-literal=ACCESS_TOKEN_SECRET=$(openssl rand -hex 32)
 
 kubectl -n monorepo-prod create secret generic iam-secrets \
-  --from-literal=MYSQL_HOST=<rds-endpoint> \
-  --from-literal=MYSQL_USER=iam \
-  --from-literal=MYSQL_PASSWORD=<from-1Password> \
+  --from-literal=POSTGRES_HOST=<rds-endpoint> \
+  --from-literal=POSTGRES_USER=iam \
+  --from-literal=POSTGRES_PASSWORD=<from-1Password> \
   --from-literal=ACCESS_TOKEN_SECRET=<SAME as gateway above>
 
 kubectl -n monorepo-prod create secret generic admin-secrets \
-  --from-literal=MYSQL_HOST=<rds-endpoint> \
-  --from-literal=MYSQL_USER=admin \
-  --from-literal=MYSQL_PASSWORD=<from-1Password> \
+  --from-literal=POSTGRES_HOST=<rds-endpoint> \
+  --from-literal=POSTGRES_USER=admin \
+  --from-literal=POSTGRES_PASSWORD=<from-1Password> \
   --from-literal=REDIS_HOST=<redis-endpoint>
 
 kubectl -n monorepo-prod create secret generic telemetry-secrets \
-  --from-literal=MYSQL_HOST=<rds-endpoint> \
-  --from-literal=MYSQL_USER=telemetry \
-  --from-literal=MYSQL_PASSWORD=<from-1Password>
+  --from-literal=POSTGRES_HOST=<rds-endpoint> \
+  --from-literal=POSTGRES_USER=telemetry \
+  --from-literal=POSTGRES_PASSWORD=<from-1Password>
 
 # 上传 Cloudflare Origin CA cert(阶段 1.3 下载的)
 kubectl -n monorepo-prod create secret tls api-tls \

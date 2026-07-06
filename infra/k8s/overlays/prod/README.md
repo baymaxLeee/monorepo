@@ -17,15 +17,22 @@ this without first completing the checklist below.
    ```bash
    kubectl create ns monorepo-prod
    kubectl -n monorepo-prod create secret generic gateway-secrets \
-     --from-literal=MYSQL_HOST=<rds-host> \
-     --from-literal=MYSQL_USER=<svc-user> \
-     --from-literal=MYSQL_PASSWORD=<from-1Password> \
      --from-literal=REDIS_HOST=<redis-host> \
      --from-literal=ACCESS_TOKEN_SECRET=<256-bit-random>
-   # repeat for iam-secrets, admin-secrets, telemetry-secrets
+   # gateway is Redis-only; DB-backed services also need Postgres creds, e.g.:
+   kubectl -n monorepo-prod create secret generic iam-secrets \
+     --from-literal=POSTGRES_HOST=<pg-host> \
+     --from-literal=POSTGRES_USER=<svc-user> \
+     --from-literal=POSTGRES_PASSWORD=<from-1Password> \
+     --from-literal=ACCESS_TOKEN_SECRET=<256-bit-random>
+   # repeat for admin-secrets, chat-secrets, executor-secrets, telemetry-secrets
    ```
    For real ops, switch to ExternalSecrets Operator pointing at
    火山引擎 KMS or Vault, or use sealed-secrets.
+   Before deploying, provision one same-named PostgreSQL database/owner role
+   for `iam`, `admin`, `chat`, `executor`, `knowledge`, and `telemetry`; reserve
+   the `workflow` role/database for Workflow World. Enable `vector` only in
+   `knowledge`.
 3. **Set up TLS**: create the `api-tls` Secret either via cert-manager
    (Let's Encrypt issuer) or upload a Cloudflare Origin CA cert manually:
    ```bash

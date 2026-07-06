@@ -1,11 +1,11 @@
-import { datetime, index, int, json, mysqlTable, text, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 
 export interface PersistedMessageContent {
   version: number;
   parts: unknown[];
 }
 
-export const conversations = mysqlTable(
+export const conversations = pgTable(
   "conversations",
   {
     id: varchar("id", { length: 32 }).primaryKey(),
@@ -15,48 +15,48 @@ export const conversations = mysqlTable(
     providerId: varchar("provider_id", { length: 32 }).notNull().default(""),
     agentMode: varchar("agent_mode", { length: 16 }).notNull().default("normal"),
     activePlanDocumentId: varchar("active_plan_document_id", { length: 32 }),
-    createdAt: datetime("created_at", { mode: "date", fsp: 6 }).notNull(),
-    updatedAt: datetime("updated_at", { mode: "date", fsp: 6 }).notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },
   (t) => [index("ix_conversations_user_id").on(t.userId)],
 );
 
-export const conversationContexts = mysqlTable("conversation_contexts", {
+export const conversationContexts = pgTable("conversation_contexts", {
   conversationId: varchar("conversation_id", { length: 32 }).primaryKey(),
-  revision: int("revision").notNull().default(1),
+  revision: integer("revision").notNull().default(1),
   coveredThroughMessageId: varchar("covered_through_message_id", { length: 32 }),
   summary: text("summary").notNull(),
-  stateJson: json("state_json").$type<Record<string, unknown>>().notNull(),
-  estimatedTokens: int("estimated_tokens").notNull().default(0),
-  createdAt: datetime("created_at", { mode: "date", fsp: 6 }).notNull(),
-  updatedAt: datetime("updated_at", { mode: "date", fsp: 6 }).notNull(),
+  stateJson: jsonb("state_json").$type<Record<string, unknown>>().notNull(),
+  estimatedTokens: integer("estimated_tokens").notNull().default(0),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
 });
 
-export const conversationRunLeases = mysqlTable(
+export const conversationRunLeases = pgTable(
   "conversation_run_leases",
   {
     conversationId: varchar("conversation_id", { length: 32 }).primaryKey(),
     runId: varchar("run_id", { length: 32 }).notNull(),
-    heartbeatAt: datetime("heartbeat_at", { mode: "date", fsp: 6 }).notNull(),
-    expiresAt: datetime("expires_at", { mode: "date", fsp: 6 }).notNull(),
+    heartbeatAt: timestamp("heartbeat_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    expiresAt: timestamp("expires_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },
   (t) => [uniqueIndex("ux_conversation_run_leases_run_id").on(t.runId)],
 );
 
-export const messages = mysqlTable(
+export const messages = pgTable(
   "messages",
   {
     id: varchar("id", { length: 32 }).primaryKey(),
     conversationId: varchar("conversation_id", { length: 32 }).notNull(),
     role: varchar("role", { length: 20 }).notNull(),
-    content: json("content").$type<PersistedMessageContent>().notNull(),
+    content: jsonb("content").$type<PersistedMessageContent>().notNull(),
     status: varchar("status", { length: 20 }).notNull().default("ok"),
-    createdAt: datetime("created_at", { mode: "date", fsp: 6 }).notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },
   (t) => [index("ix_messages_conversation_id").on(t.conversationId)],
 );
 
-export const agentRuns = mysqlTable(
+export const agentRuns = pgTable(
   "agent_runs",
   {
     id: varchar("id", { length: 32 }).primaryKey(),
@@ -68,10 +68,10 @@ export const agentRuns = mysqlTable(
     error: text("error"),
     inputMessageId: varchar("input_message_id", { length: 32 }),
     outputMessageId: varchar("output_message_id", { length: 32 }),
-    totalTokens: int("total_tokens"),
-    createdAt: datetime("created_at", { mode: "date", fsp: 6 }).notNull(),
-    startedAt: datetime("started_at", { mode: "date", fsp: 6 }).notNull(),
-    finishedAt: datetime("finished_at", { mode: "date", fsp: 6 }),
+    totalTokens: integer("total_tokens"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    startedAt: timestamp("started_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    finishedAt: timestamp("finished_at", { mode: "date", withTimezone: true, precision: 6 }),
   },
   (t) => [
     index("ix_agent_runs_conversation_id").on(t.conversationId),
@@ -79,21 +79,21 @@ export const agentRuns = mysqlTable(
   ],
 );
 
-export const agentSteps = mysqlTable(
+export const agentSteps = pgTable(
   "agent_steps",
   {
     id: varchar("id", { length: 32 }).primaryKey(),
     runId: varchar("run_id", { length: 32 }).notNull(),
-    stepIndex: int("step_index").notNull(),
+    stepIndex: integer("step_index").notNull(),
     kind: varchar("kind", { length: 32 }).notNull(),
     status: varchar("status", { length: 20 }).notNull(),
     summary: text("summary"),
-    metadata: json("metadata").$type<Record<string, unknown> | null>(),
-    inputTokens: int("input_tokens"),
-    outputTokens: int("output_tokens"),
-    totalTokens: int("total_tokens"),
-    createdAt: datetime("created_at", { mode: "date", fsp: 6 }).notNull(),
-    finishedAt: datetime("finished_at", { mode: "date", fsp: 6 }),
+    metadata: jsonb("metadata").$type<Record<string, unknown> | null>(),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    totalTokens: integer("total_tokens"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    finishedAt: timestamp("finished_at", { mode: "date", withTimezone: true, precision: 6 }),
   },
   (t) => [
     index("ix_agent_steps_run_id").on(t.runId),
@@ -101,20 +101,20 @@ export const agentSteps = mysqlTable(
   ],
 );
 
-export const agentToolCalls = mysqlTable(
+export const agentToolCalls = pgTable(
   "agent_tool_calls",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
     runId: varchar("run_id", { length: 32 }).notNull(),
-    stepIndex: int("step_index"),
+    stepIndex: integer("step_index"),
     toolName: varchar("tool_name", { length: 80 }).notNull(),
     status: varchar("status", { length: 20 }).notNull(),
-    inputJson: json("input_json").$type<unknown>(),
-    outputJson: json("output_json").$type<unknown>(),
+    inputJson: jsonb("input_json").$type<unknown>(),
+    outputJson: jsonb("output_json").$type<unknown>(),
     error: text("error"),
-    durationMs: int("duration_ms"),
-    createdAt: datetime("created_at", { mode: "date", fsp: 6 }).notNull(),
-    finishedAt: datetime("finished_at", { mode: "date", fsp: 6 }),
+    durationMs: integer("duration_ms"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    finishedAt: timestamp("finished_at", { mode: "date", withTimezone: true, precision: 6 }),
   },
   (t) => [
     index("ix_agent_tool_calls_run_id").on(t.runId),
@@ -122,7 +122,7 @@ export const agentToolCalls = mysqlTable(
   ],
 );
 
-export const userMemories = mysqlTable(
+export const userMemories = pgTable(
   "user_memories",
   {
     id: varchar("id", { length: 32 }).primaryKey(),
@@ -130,13 +130,13 @@ export const userMemories = mysqlTable(
     category: varchar("category", { length: 40 }).notNull(),
     content: text("content").notNull(),
     source: varchar("source", { length: 80 }).notNull().default("agent"),
-    confidence: int("confidence").notNull().default(80),
+    confidence: integer("confidence").notNull().default(80),
     status: varchar("status", { length: 20 }).notNull().default("active"),
     reason: text("reason"),
     originRunId: varchar("origin_run_id", { length: 32 }),
     supersedesId: varchar("supersedes_id", { length: 32 }),
-    createdAt: datetime("created_at", { mode: "date", fsp: 6 }).notNull(),
-    updatedAt: datetime("updated_at", { mode: "date", fsp: 6 }).notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },
   (t) => [
     index("ix_user_memories_user_id").on(t.userId),

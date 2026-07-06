@@ -42,10 +42,13 @@ required_keys=(
     IMAGE_REGISTRY
     IMAGE_TAG
     PUBLIC_PORT
-    MYSQL_ROOT_PASSWORD
-    MYSQL_USER
-    MYSQL_PASSWORD
     WORKFLOW_POSTGRES_PASSWORD
+    IAM_POSTGRES_PASSWORD
+    ADMIN_POSTGRES_PASSWORD
+    CHAT_POSTGRES_PASSWORD
+    EXECUTOR_POSTGRES_PASSWORD
+    KNOWLEDGE_POSTGRES_PASSWORD
+    TELEMETRY_POSTGRES_PASSWORD
     TAVILY_API_KEY
     ACCESS_TOKEN_SECRET
     SUPER_ADMIN_ACCOUNT
@@ -86,7 +89,7 @@ echo "→ syncing infra/single-vps → ${REMOTE}:${DEPLOY_DIR}"
 ssh "${REMOTE}" "mkdir -p ${DEPLOY_DIR}"
 
 # We ONLY ship the small ops directory. All actual code (including the
-# nginx.conf and mysql-init.sh scripts) is baked into container images
+# nginx.conf and postgres-init.sh scripts) is baked into container images
 # pulled from the registry. Excludes:
 #   .env.example — template only, the real .env is below
 rsync -avz --delete \

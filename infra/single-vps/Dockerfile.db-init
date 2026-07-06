@@ -1,31 +1,34 @@
-# A one-shot container that creates per-service MySQL databases and applies
-# their schema migrations. It runs once per `docker compose up`; downstream
-# services gate on `service_completed_successfully`. Re-deploys skip applied
-# migration versions (see mysql-init.sh).
+# A one-shot container that creates each service's Postgres database and applies
+# its schema migrations on the shared Postgres instance, then loads prod seed
+# rows. Runs once per `docker compose up`; downstream services gate on
+# `service_completed_successfully`. Re-deploys skip applied migration versions
+# (see postgres-init.sh, which delegates to scripts/db-migrate.sh).
 #
-# Build context: monorepo root (to COPY across service directories).
+# Build context: monorepo root (to COPY across service dirs + scripts).
 # Build command in CI:
 #   docker buildx build \
 #     -f infra/single-vps/Dockerfile.db-init \
 #     -t ghcr.io/<owner>/<repo>/db-init:<tag> \
 #     .
 
-FROM mysql:8.4
+# bookworm ships bash + psql; db-migrate.sh relies on bash [[ ]] regex + find/awk.
+FROM postgres:16-bookworm
 
-COPY infra/single-vps/mysql-init.sh /init.sh
+COPY scripts/db-migrate.sh /db-migrate.sh
+COPY infra/single-vps/postgres-init.sh /init.sh
+RUN chmod +x /db-migrate.sh /init.sh
 
-# Mirror the layout mysql-init.sh expects: /schema/<db>/*.sql in alphabetical
-# (== semver) order. Names of these directories MUST match the service →
-# database mapping in mysql-init.sh's DATABASES list.
-COPY apps/backend/services/iam/migrations/versions       /schema/iam
-COPY apps/backend/services/admin/migrations/versions     /schema/admin
-COPY apps/backend/services/chat/migrations/versions      /schema/chat
-COPY apps/backend/services/executor/migrations/versions  /schema/executor
-COPY apps/backend/services/gateway/migrations/versions   /schema/gateway
-COPY apps/backend/services/telemetry/migrations/versions /schema/telemetry
+# db-migrate.sh expects <service-dir>/migrations/versions/*.sql. Directory names
+# MUST match the service → database mapping in postgres-init.sh's SERVICES list.
+COPY apps/backend/services/iam/migrations/versions       /schema/iam/migrations/versions
+COPY apps/backend/services/admin/migrations/versions     /schema/admin/migrations/versions
+COPY apps/backend/services/chat/migrations/versions      /schema/chat/migrations/versions
+COPY apps/backend/services/executor/migrations/versions  /schema/executor/migrations/versions
+COPY apps/backend/services/knowledge/migrations/versions /schema/knowledge/migrations/versions
+COPY apps/backend/services/telemetry/migrations/versions /schema/telemetry/migrations/versions
 
 # Prod-only seed data (env-specific config rows, e.g. the app-registry with
 # same-origin MFE manifest URLs). Layout: /seed/<db>/*.sql, applied AFTER schema.
 COPY infra/single-vps/seed /seed
 
-ENTRYPOINT ["sh", "/init.sh"]
+ENTRYPOINT ["/init.sh"]

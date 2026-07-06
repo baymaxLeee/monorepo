@@ -6,6 +6,9 @@
 -- adds the RAG `document_chunks` table. Demo phase: prior MySQL knowledge data
 -- is not migrated (documents are re-ingested).
 
+-- Runs under the non-superuser `knowledge` role; this is a no-op because
+-- scripts/db-migrate.sh already installs `vector` as the admin superuser
+-- before applying migrations (the only place extensions are created).
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Business documents: source uploads + agent artifacts (per user).

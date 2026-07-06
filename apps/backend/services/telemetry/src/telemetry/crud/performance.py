@@ -1,4 +1,4 @@
-"""MySQL reads for performance events."""
+"""PostgreSQL reads for performance events."""
 
 from typing import Any
 

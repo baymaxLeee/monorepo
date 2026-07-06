@@ -21,7 +21,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Telemetry Service",
         version="0.1.0",
-        description="自托管前端 RUM 采集与查询服务(MySQL 后端)",
+        description="自托管前端 RUM 采集与查询服务(PostgreSQL 后端)",
         lifespan=lifespan,
     )
     app.add_middleware(TraceIDMiddleware)

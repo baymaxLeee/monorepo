@@ -1,30 +1,18 @@
--- Re-deploy safe: convert messages.content to a native JSON column.
--- Matches the Vercel AI SDK persistence shape (message parts stored as
--- structured JSON, validated on write) instead of a serialized string in TEXT.
--- Any legacy non-JSON (plain text) row is first wrapped into the
--- {version, parts:[{type:text,text:...}]} envelope so the type conversion below
--- never rejects existing data.
+-- v2.2.0: 将 messages.content 转为原生 jsonb,对齐 Vercel AI SDK 的持久化形态(消息 parts
+-- 以结构化 JSON 存储、写入时校验),取代 TEXT 里的序列化字符串。
+-- PostgreSQL 无 MySQL 的 JSON_VALID 函数:存量若不是以 '{' / '[' 开头(即历史纯文本行),
+-- 先包裹进 {version, parts:[{type:text,text:...}]} 信封,使随后的 text→jsonb 类型转换
+-- 不会因非 JSON 存量而失败。
 
-UPDATE `messages`
-SET `content` = JSON_OBJECT(
+UPDATE messages
+SET content = jsonb_build_object(
   'version', 1,
-  'parts', JSON_ARRAY(JSON_OBJECT('type', 'text', 'text', `content`))
-)
-WHERE NOT JSON_VALID(`content`);
+  'parts', jsonb_build_array(jsonb_build_object('type', 'text', 'text', content))
+)::text
+WHERE content IS NOT NULL
+  AND left(btrim(content), 1) NOT IN ('{', '[');
 
-SET @content_type := (
-  SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
-  WHERE TABLE_SCHEMA = DATABASE()
-    AND TABLE_NAME = 'messages'
-    AND COLUMN_NAME = 'content'
-);
-SET @ddl := IF(
-  @content_type <> 'json',
-  'ALTER TABLE `messages` MODIFY COLUMN `content` json NOT NULL',
-  'SELECT 1'
-);
-PREPARE stmt FROM @ddl;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
+ALTER TABLE messages
+  ALTER COLUMN content TYPE jsonb USING content::jsonb;
 
-UPDATE `migration` SET `version` = 'v2.2.0', `update_time` = NOW() WHERE `id` = 1;
+UPDATE migration SET version = 'v2.2.0', update_time = NOW() WHERE id = 1;

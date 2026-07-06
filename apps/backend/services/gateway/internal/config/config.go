@@ -19,7 +19,6 @@ const (
 
 const (
 	devAccessTokenSecret = "dev-only-change-me"
-	devMysqlPassword     = "dev"
 )
 
 type Config struct {
@@ -31,7 +30,6 @@ type Config struct {
 	KnowledgeServiceURL      string
 	TelemetryServiceURL      string
 	AllowedOrigins           []string
-	DatabaseURL              string
 	RedisURL                 string
 	AccessTokenSecret        string
 	OptionalAuthPathPrefixes []string
@@ -50,12 +48,6 @@ func (c Config) IsSingleVPS() bool { return c.Environment == EnvSingleVPS }
 func Load() (Config, error) {
 	_ = godotenv.Overload()
 
-	mysqlHost := envOr("MYSQL_HOST", "localhost")
-	mysqlPort := envOr("MYSQL_PORT", "3306")
-	mysqlUser := envOr("MYSQL_USER", "dev")
-	mysqlPassword := envOr("MYSQL_PASSWORD", devMysqlPassword)
-	mysqlDatabase := envOr("MYSQL_DATABASE", "gateway")
-
 	redisHost := envOr("REDIS_HOST", "localhost")
 	redisPort := envOr("REDIS_PORT", "6379")
 	redisDB := envOr("REDIS_DB", "1")
@@ -69,10 +61,6 @@ func Load() (Config, error) {
 		KnowledgeServiceURL: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
 		TelemetryServiceURL: envOr("TELEMETRY_SERVICE_URL", "http://localhost:8008"),
 		AllowedOrigins:      csvOr("ALLOWED_FRONTEND_ORIGINS", []string{"http://localhost:3000", "http://localhost:3001"}),
-		DatabaseURL: fmt.Sprintf(
-			"%s:%s@tcp(%s:%s)/%s?parseTime=true",
-			mysqlUser, mysqlPassword, mysqlHost, mysqlPort, mysqlDatabase,
-		),
 		RedisURL:          fmt.Sprintf("redis://%s:%s/%s", redisHost, redisPort, redisDB),
 		AccessTokenSecret: envOr("ACCESS_TOKEN_SECRET", devAccessTokenSecret),
 		PublicPathPrefixes: csvOr("PUBLIC_PATH_PREFIXES", []string{
@@ -101,25 +89,19 @@ func Load() (Config, error) {
 		IdleTimeout:         durationOr("HTTP_IDLE_TIMEOUT", 120*time.Second),
 	}
 
-	if err := cfg.validate(mysqlHost, mysqlPassword); err != nil {
+	if err := cfg.validate(); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
 }
 
-func (c Config) validate(mysqlHost, mysqlPassword string) error {
+func (c Config) validate() error {
 	if !c.IsProduction() {
 		return nil
 	}
 	var missing []string
 	if c.AccessTokenSecret == "" || c.AccessTokenSecret == devAccessTokenSecret {
 		missing = append(missing, "ACCESS_TOKEN_SECRET")
-	}
-	if mysqlPassword == "" || mysqlPassword == devMysqlPassword {
-		missing = append(missing, "MYSQL_PASSWORD")
-	}
-	if mysqlHost == "localhost" || mysqlHost == "127.0.0.1" {
-		missing = append(missing, "MYSQL_HOST")
 	}
 	if len(c.AllowedOrigins) == 0 {
 		missing = append(missing, "ALLOWED_FRONTEND_ORIGINS")

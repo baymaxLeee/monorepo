@@ -1,7 +1,7 @@
 # chat service (TypeScript)
 
 Conversation + agent runtime service. It owns conversation/message/run
-observability in MySQL and consumes admin (providers), knowledge
+observability in PostgreSQL and consumes admin (providers), knowledge
 (documents/artifacts), and executor (durable background tasks) through
 `@backend/transport-ts`.
 

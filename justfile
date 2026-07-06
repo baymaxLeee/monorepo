@@ -8,13 +8,11 @@ default:
 # ─── Lifecycle ──────────────────────────────────────────────
 # Start local infra: Docker, create DBs, apply service-owned dev schemas.
 up:
-    docker compose up -d
-    @./scripts/wait-for-mysql.sh
-    @./scripts/db-bootstrap.sh
+    docker compose up -d --remove-orphans
     @./scripts/wait-for-workflow-postgres.sh
     @./scripts/workflow-postgres-bootstrap.sh
-    @./scripts/db-migrate.sh apps/backend/services/knowledge
-    @echo "OK Infra up - MySQL :3306, Redis :6379, Postgres :5432 (workflow + knowledge)"
+    @./scripts/db-bootstrap.sh
+    @echo "OK Infra up - Redis :6379, Postgres :5432 (workflow + service DBs + knowledge vectors)"
 
 reset-demo-data:
     @./scripts/reset-demo-data.sh

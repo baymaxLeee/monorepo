@@ -10,7 +10,7 @@ revision 存储，不新增服务或 Workflow host。
 - `begin_artifact` 创建 generation 和 manifest。
 - `write_artifact_part` 对语义 HTML fragment 清洗后单独持久化。
 - `publish_artifact` 确定性编译、发布 revision，SSE/tool output 不携带全文。
-- 主 Agent 等待所有 tool 完成；完成的 fragment 从后续模型 context 与 MySQL
+- 主 Agent 等待所有 tool 完成；完成的 fragment 从后续模型 context 与 PostgreSQL
   message/trace 中裁剪或脱敏。
 - 前端右侧 panel 按 source URL 预览，外层只保留一个 header。
 

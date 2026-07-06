@@ -1,7 +1,7 @@
 [project]
 name = "telemetry"
 version = "0.1.0"
-description = "Telemetry ingestion and query service (MySQL backend)"
+description = "Telemetry ingestion and query service (PostgreSQL backend)"
 requires-python = ">=3.14.5,<3.15"
 dependencies = [
     "fastapi>=0.115",
@@ -9,7 +9,7 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.7",
     "sqlalchemy[asyncio]>=2.0",
-    "asyncmy>=0.2",
+    "asyncpg>=0.29",
     "cryptography>=42",
     "kernel",
 ]

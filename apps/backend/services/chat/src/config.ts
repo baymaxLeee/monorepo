@@ -5,11 +5,11 @@ const DEV_INTERNAL_TOKEN = "dev-internal-token";
 export interface Settings {
   environment: Environment;
   port: number;
-  mysqlHost: string;
-  mysqlPort: number;
-  mysqlUser: string;
-  mysqlPassword: string;
-  mysqlDatabase: string;
+  postgresHost: string;
+  postgresPort: number;
+  postgresUser: string;
+  postgresPassword: string;
+  postgresDatabase: string;
   redisHost: string;
   redisPort: number;
   redisDb: number;
@@ -33,14 +33,19 @@ function envInt(key: string, fallback: number): number {
 }
 
 export function getSettings(): Settings {
+  const environment = envOr("ENVIRONMENT", "development") as Environment;
+  const postgresPassword = envOr("POSTGRES_PASSWORD", "chat");
+  if (environment === "production" && (!postgresPassword || postgresPassword === "chat")) {
+    throw new Error("POSTGRES_PASSWORD must be set explicitly in production");
+  }
   return {
-    environment: envOr("ENVIRONMENT", "development") as Environment,
+    environment,
     port: envInt("PORT", 8009),
-    mysqlHost: envOr("MYSQL_HOST", "localhost"),
-    mysqlPort: envInt("MYSQL_PORT", 3306),
-    mysqlUser: envOr("MYSQL_USER", "dev"),
-    mysqlPassword: envOr("MYSQL_PASSWORD", "dev"),
-    mysqlDatabase: envOr("MYSQL_DATABASE", "chat"),
+    postgresHost: envOr("POSTGRES_HOST", "localhost"),
+    postgresPort: envInt("POSTGRES_PORT", 5432),
+    postgresUser: envOr("POSTGRES_USER", "chat"),
+    postgresPassword,
+    postgresDatabase: envOr("POSTGRES_DATABASE", "chat"),
     redisHost: envOr("REDIS_HOST", "localhost"),
     redisPort: envInt("REDIS_PORT", 6379),
     redisDb: envInt("REDIS_DB", 2),
@@ -53,9 +58,9 @@ export function getSettings(): Settings {
   };
 }
 
-export function mysqlUrl(settings: Settings = getSettings()): string {
+export function postgresUrl(settings: Settings = getSettings()): string {
   const enc = encodeURIComponent;
-  return `mysql://${enc(settings.mysqlUser)}:${enc(settings.mysqlPassword)}@${settings.mysqlHost}:${settings.mysqlPort}/${settings.mysqlDatabase}`;
+  return `postgresql://${enc(settings.postgresUser)}:${enc(settings.postgresPassword)}@${settings.postgresHost}:${settings.postgresPort}/${settings.postgresDatabase}`;
 }
 
 export function redisUrl(settings: Settings = getSettings()): string {

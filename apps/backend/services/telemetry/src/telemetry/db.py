@@ -1,7 +1,7 @@
 """Async SQLAlchemy engine and session factory.
 
 Mirrors apps/backend/services/admin/src/admin/db.py so both Python services
-share the same MySQL lifecycle model.
+share the same PostgreSQL lifecycle model.
 """
 
 from collections.abc import AsyncGenerator

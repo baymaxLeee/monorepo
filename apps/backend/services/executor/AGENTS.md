@@ -29,7 +29,7 @@ for the full rationale.
   any `running` task's workflow run on every boot — safe to call every time,
   it replays against the durable run rather than re-executing anything.
 - Business truth (who started what, for what, is it done) lives in this
-  service's own MySQL `tasks` table. Execution truth (steps, retries, replay)
+  service's own PostgreSQL `tasks` table. Execution truth (steps, retries, replay)
   lives in the Workflow World (self-hosted Postgres via
   `@workflow/world-postgres`). **Dev/prod parity is an explicit product
   decision here**: local dev runs the same `workflow-postgres` container as

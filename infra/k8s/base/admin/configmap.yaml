@@ -5,7 +5,7 @@ metadata:
 data:
   PORT: "8001"
   ENVIRONMENT: "development"
-  MYSQL_PORT: "3306"
-  MYSQL_DATABASE: "admin"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DATABASE: "admin"
   REDIS_PORT: "6379"
   REDIS_DB: "0"

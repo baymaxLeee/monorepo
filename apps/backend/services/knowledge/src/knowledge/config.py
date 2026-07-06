@@ -8,7 +8,9 @@ from pydantic import computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "staging", "single-vps", "production"]
-_INSECURE_PASSWORDS: frozenset[str] = frozenset({"", "dev", "password", "admin", "workflow", "postgres"})
+_INSECURE_PASSWORDS: frozenset[str] = frozenset(
+    {"", "dev", "password", "admin", "workflow", "postgres", "knowledge"}
+)
 _DEV_INTERNAL_API_TOKEN = "dev-internal-token"
 
 
@@ -20,8 +22,8 @@ class Settings(BaseSettings):
 
     postgres_host: str = "localhost"
     postgres_port: int = 5432
-    postgres_user: str = "workflow"
-    postgres_password: str = "workflow"
+    postgres_user: str = "knowledge"
+    postgres_password: str = "knowledge"
     postgres_database: str = "knowledge"
 
     admin_service_url: str = "http://localhost:8001"

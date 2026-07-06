@@ -96,28 +96,25 @@ create_secret_if_missing() {
 # Placeholders use values that satisfy the prod fail-fast validators but are
 # only meaningful inside this local cluster. NEVER copy these to the cloud.
 create_secret_if_missing gateway-secrets \
-  --from-literal=MYSQL_HOST=mysql.kind.local \
-  --from-literal=MYSQL_USER=gateway \
-  --from-literal=MYSQL_PASSWORD=kind-only-not-a-real-password \
   --from-literal=REDIS_HOST=redis.kind.local \
   --from-literal=ACCESS_TOKEN_SECRET="$(openssl rand -hex 32 2>/dev/null || echo deadbeef-deadbeef-deadbeef-deadbeef-deadbeef-deadbeef-deadbeef-deadbeef)"
 
 create_secret_if_missing iam-secrets \
-  --from-literal=MYSQL_HOST=mysql.kind.local \
-  --from-literal=MYSQL_USER=iam \
-  --from-literal=MYSQL_PASSWORD=kind-only-not-a-real-password \
+  --from-literal=POSTGRES_HOST=postgres.kind.local \
+  --from-literal=POSTGRES_USER=iam \
+  --from-literal=POSTGRES_PASSWORD=kind-only-not-a-real-password \
   --from-literal=ACCESS_TOKEN_SECRET="$(openssl rand -hex 32 2>/dev/null || echo deadbeef-deadbeef-deadbeef-deadbeef-deadbeef-deadbeef-deadbeef-deadbeef)"
 
 create_secret_if_missing admin-secrets \
-  --from-literal=MYSQL_HOST=mysql.kind.local \
-  --from-literal=MYSQL_USER=admin \
-  --from-literal=MYSQL_PASSWORD=kind-only-not-a-real-password \
+  --from-literal=POSTGRES_HOST=postgres.kind.local \
+  --from-literal=POSTGRES_USER=admin \
+  --from-literal=POSTGRES_PASSWORD=kind-only-not-a-real-password \
   --from-literal=REDIS_HOST=redis.kind.local
 
 create_secret_if_missing telemetry-secrets \
-  --from-literal=MYSQL_HOST=mysql.kind.local \
-  --from-literal=MYSQL_USER=telemetry \
-  --from-literal=MYSQL_PASSWORD=kind-only-not-a-real-password
+  --from-literal=POSTGRES_HOST=postgres.kind.local \
+  --from-literal=POSTGRES_USER=telemetry \
+  --from-literal=POSTGRES_PASSWORD=kind-only-not-a-real-password
 
 # Self-signed TLS so Ingress accepts HTTPS termination (not actually trusted).
 if ! kubectl -n "${NAMESPACE}" get secret api-tls >/dev/null 2>&1; then

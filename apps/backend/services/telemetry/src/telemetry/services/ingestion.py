@@ -1,7 +1,7 @@
-"""RUM write-path validation, redaction, sampling, and MySQL inserts.
+"""RUM write-path validation, redaction, sampling, and PostgreSQL inserts.
 
 All event tables are append-only via ORM `session.add_all`. The `sessions`
-table uses `INSERT ... ON DUPLICATE KEY UPDATE` to replicate the ClickHouse
+table uses `INSERT ... ON CONFLICT DO UPDATE` to replicate the ClickHouse
 ReplacingMergeTree semantics: multiple batches for the same `(app, session_id)`
 merge into one row whose `event_count` accumulates.
 """
@@ -12,7 +12,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from telemetry.config import get_settings
@@ -90,7 +90,7 @@ async def ingest_batch(session: AsyncSession, batch: RumBatch, auth: OptionalAut
 
     if batch.events:
         last = batch.events[-1]
-        stmt = mysql_insert(SessionRow).values(
+        stmt = pg_insert(SessionRow).values(
             app=batch.app,
             session_id=batch.session_id,
             ts_server=now,
@@ -104,14 +104,17 @@ async def ingest_batch(session: AsyncSession, batch: RumBatch, auth: OptionalAut
             user_agent=batch.user_agent or auth.user_agent,
             event_count=len(batch.events),
         )
-        stmt = stmt.on_duplicate_key_update(
-            ts_server=stmt.inserted.ts_server,
-            user_id=stmt.inserted.user_id,
-            username=stmt.inserted.username,
-            is_admin=stmt.inserted.is_admin,
-            route=stmt.inserted.route,
-            user_agent=stmt.inserted.user_agent,
-            event_count=SessionRow.event_count + stmt.inserted.event_count,
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["app", "session_id"],
+            set_={
+                "ts_server": stmt.excluded.ts_server,
+                "user_id": stmt.excluded.user_id,
+                "username": stmt.excluded.username,
+                "is_admin": stmt.excluded.is_admin,
+                "route": stmt.excluded.route,
+                "user_agent": stmt.excluded.user_agent,
+                "event_count": SessionRow.event_count + stmt.excluded.event_count,
+            },
         )
         await session.execute(stmt)
 

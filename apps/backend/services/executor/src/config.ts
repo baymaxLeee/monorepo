@@ -5,11 +5,11 @@ const DEV_INTERNAL_TOKEN = "dev-internal-token";
 export interface Settings {
   environment: Environment;
   port: number;
-  mysqlHost: string;
-  mysqlPort: number;
-  mysqlUser: string;
-  mysqlPassword: string;
-  mysqlDatabase: string;
+  postgresHost: string;
+  postgresPort: number;
+  postgresUser: string;
+  postgresPassword: string;
+  postgresDatabase: string;
   internalApiToken: string;
   adminServiceUrl: string;
   knowledgeServiceUrl: string;
@@ -31,17 +31,21 @@ function envInt(key: string, fallback: number): number {
 export function getSettings(): Settings {
   const environment = envOr("ENVIRONMENT", "development") as Environment;
   const internalApiToken = envOr("INTERNAL_API_TOKEN", DEV_INTERNAL_TOKEN);
+  const postgresPassword = envOr("POSTGRES_PASSWORD", "executor");
   if (environment === "production" && internalApiToken === DEV_INTERNAL_TOKEN) {
     throw new Error("INTERNAL_API_TOKEN must be set explicitly in production");
+  }
+  if (environment === "production" && (!postgresPassword || postgresPassword === "executor")) {
+    throw new Error("POSTGRES_PASSWORD must be set explicitly in production");
   }
   return {
     environment,
     port: envInt("PORT", 8011),
-    mysqlHost: envOr("MYSQL_HOST", "localhost"),
-    mysqlPort: envInt("MYSQL_PORT", 3306),
-    mysqlUser: envOr("MYSQL_USER", "dev"),
-    mysqlPassword: envOr("MYSQL_PASSWORD", "dev"),
-    mysqlDatabase: envOr("MYSQL_DATABASE", "executor"),
+    postgresHost: envOr("POSTGRES_HOST", "localhost"),
+    postgresPort: envInt("POSTGRES_PORT", 5432),
+    postgresUser: envOr("POSTGRES_USER", "executor"),
+    postgresPassword,
+    postgresDatabase: envOr("POSTGRES_DATABASE", "executor"),
     internalApiToken,
     adminServiceUrl: envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
     knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),

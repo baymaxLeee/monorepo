@@ -1,11 +1,11 @@
 # telemetry service
 
-Telemetry ingestion and query microservice. Owns MySQL-backed RUM event
+Telemetry ingestion and query microservice. Owns PostgreSQL-backed RUM event
 storage and dashboard query APIs.
 
 ## Owns
 
-- MySQL database: `telemetry`
+- PostgreSQL database: `telemetry`
 - HTTP API: `/rum/*`, `/errors/*`, `/healthz`
 - Private RUM write protocol used by `@packages/observability`
 
@@ -29,7 +29,7 @@ storage and dashboard query APIs.
 
 Telemetry was originally specced for ClickHouse (column store, MergeTree,
 materialized views). For the demo phase we collapsed it onto the shared
-MySQL instance so the single-VPS footprint stays under 1 GB RAM and so we
+Postgres instance so the single-VPS footprint stays under 1 GB RAM and so we
 have one DB to back up.
 
 Trade-offs we accepted:

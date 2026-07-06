@@ -1,6 +1,6 @@
 # chat service
 
-TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 MySQL；
+TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreSQL；
 文档和 artifact 由 knowledge 持久化。运行时由 `@hono/node-server` 托管；用 `tsx`
 直接运行 TypeScript 源码（`@backend/transport-ts` 是源码包，tsc 产物会留下无法
 解析的裸 import），`tsc --noEmit` 仅做类型检查。
@@ -17,7 +17,7 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 MySQL；
 - 主链使用 `ToolLoopAgent`。服务端 run controller 的 AbortSignal 贯穿模型、web
   search、图片分析和 artifact 内部模型调用；只有显式 Stop/cancel 才终止生成。
 - AI SDK 原生 UIMessage SSE 由 Redis 临时保存。刷新、网络断开或切换会话只断开
-  subscriber，GET 可从头重放活动 run；完成后清除 active 标记并由 MySQL 消息接管。
+  subscriber，GET 可从头重放活动 run；完成后清除 active 标记并由 PostgreSQL 消息接管。
 - subscriber 断开会中断对应的 Redis blocking read 并关闭 duplicate connection，
   不影响继续写 Redis Stream 的 run producer。
 - 该能力不恢复 ToolLoopAgent 的进程栈：服务进程丢失后仍依靠已持久化消息、plan

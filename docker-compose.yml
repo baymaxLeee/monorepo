@@ -1,21 +1,4 @@
 services:
-  mysql:
-    image: mysql:8.4
-    container_name: monorepo-mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: dev
-      MYSQL_USER: dev
-      MYSQL_PASSWORD: dev
-      MYSQL_DATABASE: admin
-    ports: ["3306:3306"]
-    volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pdev"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   redis:
     image: redis:7-alpine
     container_name: monorepo-redis
@@ -26,13 +9,13 @@ services:
       timeout: 3s
       retries: 5
 
-  # Shared Postgres instance (one instance, many databases):
-  #   - `workflow` DB   → executor's Workflow DevKit World (@workflow/world-postgres)
-  #   - `knowledge` DB  → knowledge service business + RAG vectors (pgvector)
+  # Single shared Postgres instance (one instance, many databases):
+  #   - `workflow`  → executor's Workflow DevKit World (@workflow/world-postgres)
+  #   - `knowledge` → knowledge service business rows + RAG vectors (pgvector)
+  #   - `iam` / `admin` / `chat` / `executor` / `telemetry` → each service's own
+  #     business schema (all migrated off MySQL — see docs/ADR/0029)
   # Image is pgvector/pgvector (a superset of the official postgres image) so the
-  # knowledge DB can `CREATE EXTENSION vector`; the workflow DB is unaffected.
-  # Kept the `workflow-postgres` service name to avoid re-wiring executor's env;
-  # full MySQL→PG consolidation of other services is a separate later task.
+  # knowledge DB can `CREATE EXTENSION vector`; the other DBs are unaffected.
   #
   # Dev/prod parity (explicit product decision — see docs/微服务/executor.md):
   # every deployed environment runs executor against the self-hosted Postgres
@@ -58,5 +41,4 @@ services:
       retries: 10
 
 volumes:
-  mysql_data:
   workflow_postgres_data:

@@ -21,14 +21,14 @@ async def livez() -> dict[str, str]:
 async def readyz(session: DbSession, response: Response) -> dict[str, object]:
     try:
         await session.execute(text("SELECT 1"))
-        mysql_ok = True
+        db_ok = True
     except Exception:
-        mysql_ok = False
+        db_ok = False
 
-    response.status_code = status.HTTP_200_OK if mysql_ok else status.HTTP_503_SERVICE_UNAVAILABLE
+    response.status_code = status.HTTP_200_OK if db_ok else status.HTTP_503_SERVICE_UNAVAILABLE
     return {
-        "status": "ok" if mysql_ok else "degraded",
-        "mysql": "up" if mysql_ok else "down",
+        "status": "ok" if db_ok else "degraded",
+        "postgres": "up" if db_ok else "down",
     }
 
 

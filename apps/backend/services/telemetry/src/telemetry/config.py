@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "staging", "single-vps", "production"]
 
-_INSECURE_PASSWORDS: frozenset[str] = frozenset({"", "dev", "password", "admin"})
+_INSECURE_PASSWORDS: frozenset[str] = frozenset({"", "dev", "password", "admin", "telemetry"})
 
 
 class Settings(BaseSettings):
@@ -22,11 +22,11 @@ class Settings(BaseSettings):
     environment: Environment = "development"
     port: int = 8008
 
-    mysql_host: str = "localhost"
-    mysql_port: int = 3306
-    mysql_user: str = "dev"
-    mysql_password: str = "dev"
-    mysql_database: str = "telemetry"
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
+    postgres_user: str = "telemetry"
+    postgres_password: str = "telemetry"
+    postgres_database: str = "telemetry"
 
     sample_rate_perform: float = 1.0
     sample_rate_event: float = 1.0
@@ -34,9 +34,9 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url(self) -> str:
-        user = quote_plus(self.mysql_user)
-        password = quote_plus(self.mysql_password)
-        return f"mysql+asyncmy://{user}:{password}@{self.mysql_host}:{self.mysql_port}/{self.mysql_database}"
+        user = quote_plus(self.postgres_user)
+        password = quote_plus(self.postgres_password)
+        return f"postgresql+asyncpg://{user}:{password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_database}"
 
     @property
     def is_production(self) -> bool:
@@ -47,10 +47,10 @@ class Settings(BaseSettings):
         if self.environment != "production":
             return self
         missing: list[str] = []
-        if self.mysql_password.strip().lower() in _INSECURE_PASSWORDS:
-            missing.append("MYSQL_PASSWORD")
-        if self.mysql_host in {"localhost", "127.0.0.1"}:
-            missing.append("MYSQL_HOST")
+        if self.postgres_password.strip().lower() in _INSECURE_PASSWORDS:
+            missing.append("POSTGRES_PASSWORD")
+        if self.postgres_host in {"localhost", "127.0.0.1"}:
+            missing.append("POSTGRES_HOST")
         if missing:
             raise ValueError("production environment requires explicit values for: " + ", ".join(missing))
         return self

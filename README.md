@@ -37,7 +37,7 @@ just dev
 - 从 `.env.example` 复制缺失的 `.env`
 
 `just up` 帮你做了:
-- `docker compose up -d`(MySQL 8 + Redis + workflow-postgres)
+- `docker compose up -d`(Redis + Postgres/pgvector — 业务库 + Workflow World + knowledge 向量)
 - 业务建库和 admin schema/种子数据,以及 `executor` 用的 Workflow World
   （`@workflow/world-postgres`）schema——本地和每个部署环境(single-vps /
   k8s)跑同一个 Postgres World,不默认退化成文件系统 Local World,保持
@@ -98,7 +98,7 @@ just down    # 收工,关 docker
 | `just dev` | **起全套服务**,Ctrl+C 全停 ⭐ |
 | `just dev-shell` | 同上,但用纯 shell 模式(无 overmind 时的 fallback) |
 | `just dev-urls` | 列出所有服务的 URL |
-| `just up` / `just down` | 起 / 关 docker(MySQL + Redis + workflow-postgres) |
+| `just up` / `just down` | 起 / 关 docker(Redis + Postgres/pgvector) |
 | `just install` | 装所有依赖(前端 + 后端 Py + Go) |
 | `just build` | **全栈构建**(前端 dist + Go 二进制) |
 | `just build <target>` | 单目标构建:`shell` / `mfe-bot` / `gateway` / `frontend` / `backend` |
@@ -165,7 +165,7 @@ overmind kill                  # 全部干掉
 - ✅ **工具版本锁定**:`mise.toml` 一文件锁住 node/pnpm/python/uv/go/just,任何人/CI clone 下来 `mise install` 就是同一套环境
 - ✅ **统一命令入口**:`justfile` 顶层 + 每个子 monorepo,`just <动词> [对象]` 一致语法,agent 不用猜命令
 - ✅ **一条命令起全栈**:`just dev` 自动检测 overmind/mprocs/hivemind,没有则回退到纯 shell,Ctrl+C 干净退出
-- ✅ **本地依赖一把起**:`docker compose up -d` 起 MySQL 8 + Redis,带初始化脚本自动建多个 DB
+- ✅ **本地依赖一把起**:`docker compose up -d` 起 Postgres + Redis,带初始化脚本自动建多个 DB
 
 ### 跨栈协作
 
@@ -418,11 +418,11 @@ uv sync --all-packages
 lsof -ti :3000 | xargs kill -9
 ```
 
-### Docker 起不来 / MySQL 端口冲突
+### Docker 起不来 / Postgres 端口冲突
 
 ```bash
 just down            # 关掉本仓库的 docker
-docker ps            # 看是不是有别的项目占了 3306 / 6379
+docker ps            # 看是不是有别的项目占了 5432 / 6379
 # 必要时改 docker-compose.yml 的 ports
 ```
 

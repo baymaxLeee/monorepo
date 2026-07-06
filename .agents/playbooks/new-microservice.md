@@ -14,7 +14,7 @@
 
 ```
 [ ] apps/backend/services/<name>/pyproject.toml
-[ ] apps/backend/services/<name>/.env.example          # PORT、MYSQL_DB、REDIS_DB、其他上游凭据
+[ ] apps/backend/services/<name>/.env.example          # PORT、POSTGRES_*、REDIS_DB、其他上游凭据
 [ ] apps/backend/services/<name>/Dockerfile
 [ ] apps/backend/services/<name>/AGENTS.md
 [ ] apps/backend/services/<name>/src/<name>/
@@ -86,11 +86,11 @@ ADR-0015 的教训：`executor` 加入 `NODE_SERVICES` 后这个洞踩了一整�
 ```
 [ ] infra/single-vps/docker-compose.prod.yml       # 新增 <name> 服务；gateway env 加 <NAME>_SERVICE_URL；顶部架构注释更新
 [ ] infra/single-vps/Dockerfile.db-init            # COPY services/<name>/migrations/versions 到 /schema/<name>
-[ ] infra/single-vps/mysql-init.sh                 # DATABASES 加 <name>
+[ ] infra/single-vps/postgres-init.sh              # SERVICES 加 <name>
 [ ] infra/single-vps/.env.example                  # 新服务需要的 env 模板（可选）
 ```
 
-如果新服务需要一个 MySQL 之外的专用存储（例如 executor 的 Workflow
+如果新服务需要业务 PostgreSQL 之外的专用存储（例如 executor 的 Workflow
 World Postgres），默认把它也加进根目录共享的本地 `docker-compose.yml`
 （和 `docker-compose.prod.yml`/k8s manifest 一起），让本地和部署环境跑
 同一套依赖——**本地/生产一致是默认选项，不是"更轻量"的降级方案说了算**。

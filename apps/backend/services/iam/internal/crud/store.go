@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/example/monorepo/iam/internal/model"
-	"gorm.io/driver/mysql"
+	"github.com/jackc/pgx/v5/pgconn"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -36,9 +36,9 @@ func (s *Store) Transaction(ctx context.Context, fn func(*Store) error) error {
 }
 
 func Connect(_ context.Context, databaseURL string) (*Store, error) {
-	db, err := gorm.Open(mysql.Open(databaseURL), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{})
 	if err != nil {
-		return nil, fmt.Errorf("open mysql: %w", err)
+		return nil, fmt.Errorf("open postgres: %w", err)
 	}
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -177,7 +177,7 @@ func (s *Store) EnsureUserWithPassword(ctx context.Context, user model.User, pas
 			Columns:   []clause.Column{{Name: "id"}},
 			DoUpdates: clause.AssignmentColumns([]string{"email", "email_normalized", "display_name", "updated_at"}),
 		}).Create(&user).Error
-		if err != nil && strings.Contains(err.Error(), "uq_users_email_normalized") {
+		if err != nil && isUniqueViolation(err, "uq_users_email_normalized") {
 			err = tx.Model(&model.User{}).
 				Where("email_normalized = ?", user.EmailNormalized).
 				Updates(map[string]any{
@@ -875,4 +875,10 @@ func revokeRefreshTokens(tx *gorm.DB, userID string) error {
 // (including ID); this never updates or deletes existing rows.
 func (s *Store) RecordAudit(ctx context.Context, event model.IamAuditEvent) error {
 	return s.db.WithContext(ctx).Create(&event).Error
+}
+
+// Match SQLSTATE + constraint name because driver error text is locale-dependent.
+func isUniqueViolation(err error, constraint string) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == constraint
 }

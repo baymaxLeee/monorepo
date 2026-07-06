@@ -19,7 +19,7 @@ const (
 
 const (
 	devAccessTokenSecret = "dev-only-change-me"
-	devMysqlPassword     = "dev"
+	devPostgresPassword  = "iam"
 )
 
 type Config struct {
@@ -50,18 +50,19 @@ func (c Config) IsSingleVPS() bool { return c.Environment == EnvSingleVPS }
 func Load() (Config, error) {
 	_ = godotenv.Overload()
 
-	mysqlHost := envOr("MYSQL_HOST", "localhost")
-	mysqlPort := envOr("MYSQL_PORT", "3306")
-	mysqlUser := envOr("MYSQL_USER", "dev")
-	mysqlPassword := envOr("MYSQL_PASSWORD", devMysqlPassword)
-	mysqlDatabase := envOr("IAM_MYSQL_DATABASE", "iam")
+	pgHost := envOr("POSTGRES_HOST", "localhost")
+	pgPort := envOr("POSTGRES_PORT", "5432")
+	pgUser := envOr("POSTGRES_USER", "iam")
+	pgPassword := envOr("POSTGRES_PASSWORD", devPostgresPassword)
+	pgDatabase := envOr("IAM_POSTGRES_DATABASE", "iam")
+	pgSSLMode := envOr("POSTGRES_SSLMODE", "disable")
 
 	cfg := Config{
 		Environment: envOr("ENVIRONMENT", EnvDevelopment),
 		Port:        envOr("PORT", "8002"),
 		DatabaseURL: fmt.Sprintf(
-			"%s:%s@tcp(%s:%s)/%s?parseTime=true&multiStatements=true",
-			mysqlUser, mysqlPassword, mysqlHost, mysqlPort, mysqlDatabase,
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+			pgHost, pgPort, pgUser, pgPassword, pgDatabase, pgSSLMode,
 		),
 		AccessTokenSecret:     envOr("ACCESS_TOKEN_SECRET", devAccessTokenSecret),
 		AccessTokenTTL:        durationOr("ACCESS_TOKEN_TTL", 5*time.Minute),
@@ -80,13 +81,13 @@ func Load() (Config, error) {
 		GuestOrgSlug:          envOr("GUEST_ORG_SLUG", "guest-org"),
 	}
 
-	if err := cfg.validate(mysqlHost, mysqlPassword); err != nil {
+	if err := cfg.validate(pgHost, pgPassword); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
 }
 
-func (c Config) validate(mysqlHost, mysqlPassword string) error {
+func (c Config) validate(pgHost, pgPassword string) error {
 	if !c.IsProduction() {
 		return nil
 	}
@@ -94,11 +95,11 @@ func (c Config) validate(mysqlHost, mysqlPassword string) error {
 	if c.AccessTokenSecret == "" || c.AccessTokenSecret == devAccessTokenSecret {
 		missing = append(missing, "ACCESS_TOKEN_SECRET")
 	}
-	if mysqlPassword == "" || mysqlPassword == devMysqlPassword {
-		missing = append(missing, "MYSQL_PASSWORD")
+	if pgPassword == "" || pgPassword == devPostgresPassword {
+		missing = append(missing, "POSTGRES_PASSWORD")
 	}
-	if mysqlHost == "localhost" || mysqlHost == "127.0.0.1" {
-		missing = append(missing, "MYSQL_HOST")
+	if pgHost == "localhost" || pgHost == "127.0.0.1" {
+		missing = append(missing, "POSTGRES_HOST")
 	}
 	if !c.RefreshCookieSecure {
 		missing = append(missing, "REFRESH_COOKIE_SECURE=true")

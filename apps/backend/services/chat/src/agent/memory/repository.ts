@@ -139,9 +139,7 @@ export async function createMemoryCandidate(input: {
   await getDb()
     .insert(userMemories)
     .values(row)
-    .onDuplicateKeyUpdate({
-      set: { id: row.id },
-    });
+    .onConflictDoNothing();
   const [stored] = await getDb()
     .select()
     .from(userMemories)

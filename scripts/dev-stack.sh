@@ -81,7 +81,7 @@ track_last_pid
 track_last_pid
 (
   cd apps/backend/services/iam
-  PORT=8002 IAM_MYSQL_DATABASE=iam go run ./cmd/server 2>&1 | sed 's/^/[iam]  /'
+  PORT=8002 IAM_POSTGRES_DATABASE=iam go run ./cmd/server 2>&1 | sed 's/^/[iam]  /'
 ) &
 track_last_pid
 (

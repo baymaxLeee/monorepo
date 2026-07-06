@@ -3,41 +3,14 @@
 --   system_prompt the agent persona/instructions (e.g. the oncall RCA playbook),
 --                 injected by chat as an <agent_persona> section.
 
-SET @has_org := (
-  SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bots' AND COLUMN_NAME = 'org_id'
-);
-SET @ddl := IF(
-  @has_org = 0,
-  'ALTER TABLE `bots` ADD COLUMN `org_id` varchar(26) NULL AFTER `user_id`',
-  'SELECT 1'
-);
-PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+ALTER TABLE bots
+  ADD COLUMN IF NOT EXISTS org_id varchar(26),
+  ADD COLUMN IF NOT EXISTS system_prompt text;
 
-SET @has_prompt := (
-  SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bots' AND COLUMN_NAME = 'system_prompt'
-);
-SET @ddl := IF(
-  @has_prompt = 0,
-  'ALTER TABLE `bots` ADD COLUMN `system_prompt` text NULL AFTER `name`',
-  'SELECT 1'
-);
-PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @has_org_idx := (
-  SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
-  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bots' AND INDEX_NAME = 'ix_bots_org_id'
-);
-SET @ddl := IF(
-  @has_org_idx = 0,
-  'CREATE INDEX `ix_bots_org_id` ON `bots` (`org_id`)',
-  'SELECT 1'
-);
-PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+CREATE INDEX IF NOT EXISTS ix_bots_org_id ON bots (org_id);
 
 -- Backfill existing bots into the seeded guest org (matches iam GUEST_ORG_ID
 -- default 'guest-org') so current bots stay visible to the team.
-UPDATE `bots` SET `org_id` = 'guest-org' WHERE `org_id` IS NULL;
+UPDATE bots SET org_id = 'guest-org' WHERE org_id IS NULL;
 
-UPDATE `migration` SET `version` = 'v1.7.0', `update_time` = NOW() WHERE `id` = 1;
+UPDATE migration SET version = 'v1.7.0', update_time = NOW() WHERE id = 1;

@@ -1,7 +1,7 @@
-import { datetime, index, json, mysqlTable, text, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { index, jsonb, pgTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 import type { TaskProgress } from "../tasks/types.js";
 
-export const tasks = mysqlTable(
+export const tasks = pgTable(
   "tasks",
   {
     id: varchar("id", { length: 32 }).primaryKey(),
@@ -10,13 +10,13 @@ export const tasks = mysqlTable(
     ownerService: varchar("owner_service", { length: 40 }).notNull(),
     ownerRef: varchar("owner_ref", { length: 80 }).notNull(),
     workflowRunId: varchar("workflow_run_id", { length: 64 }),
-    payload: json("payload").$type<unknown>().notNull(),
-    result: json("result").$type<unknown>(),
-    progress: json("progress").$type<TaskProgress | null>(),
+    payload: jsonb("payload").$type<unknown>().notNull(),
+    result: jsonb("result").$type<unknown>(),
+    progress: jsonb("progress").$type<TaskProgress | null>(),
     error: text("error"),
-    createdAt: datetime("created_at", { mode: "date", fsp: 6 }).notNull(),
-    updatedAt: datetime("updated_at", { mode: "date", fsp: 6 }).notNull(),
-    finishedAt: datetime("finished_at", { mode: "date", fsp: 6 }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    finishedAt: timestamp("finished_at", { mode: "date", withTimezone: true, precision: 6 }),
   },
   (t) => [
     uniqueIndex("ux_tasks_owner").on(t.ownerService, t.ownerRef),

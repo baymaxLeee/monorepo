@@ -1,40 +1,40 @@
-import { drizzle, type MySql2Database } from "drizzle-orm/mysql2";
-import mysql from "mysql2/promise";
+import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 
 import { getSettings } from "../config.js";
 import * as schema from "./schema.js";
 
-type ExecutorDb = MySql2Database<typeof schema>;
+type ExecutorDb = PostgresJsDatabase<typeof schema>;
 
-let pool: mysql.Pool | null = null;
+let sql: postgres.Sql | null = null;
 let db: ExecutorDb | null = null;
 
-export function getPool(): mysql.Pool {
-  if (!pool) {
+export function getSql(): postgres.Sql {
+  if (!sql) {
     const s = getSettings();
-    pool = mysql.createPool({
-      host: s.mysqlHost,
-      port: s.mysqlPort,
-      user: s.mysqlUser,
-      password: s.mysqlPassword,
-      database: s.mysqlDatabase,
-      connectionLimit: 8,
+    sql = postgres({
+      host: s.postgresHost,
+      port: s.postgresPort,
+      user: s.postgresUser,
+      password: s.postgresPassword,
+      database: s.postgresDatabase,
+      max: 8,
     });
   }
-  return pool;
+  return sql;
 }
 
 export function getDb(): ExecutorDb {
   if (!db) {
-    db = drizzle(getPool(), { schema, mode: "default" });
+    db = drizzle(getSql(), { schema });
   }
   return db;
 }
 
 export async function closeDb(): Promise<void> {
-  if (pool) {
-    await pool.end();
-    pool = null;
+  if (sql) {
+    await sql.end();
+    sql = null;
     db = null;
   }
 }

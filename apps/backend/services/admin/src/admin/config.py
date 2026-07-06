@@ -25,11 +25,11 @@ class Settings(BaseSettings):
     environment: Environment = "development"
     port: int = 8001
 
-    mysql_host: str = "localhost"
-    mysql_port: int = 3306
-    mysql_user: str = "dev"
-    mysql_password: str = "dev"
-    mysql_database: str = "admin"
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
+    postgres_user: str = "admin"
+    postgres_password: str = "admin"
+    postgres_database: str = "admin"
 
     redis_host: str = "localhost"
     redis_port: int = 6379
@@ -42,9 +42,9 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url(self) -> str:
-        user = quote_plus(self.mysql_user)
-        password = quote_plus(self.mysql_password)
-        return f"mysql+asyncmy://{user}:{password}@{self.mysql_host}:{self.mysql_port}/{self.mysql_database}"
+        user = quote_plus(self.postgres_user)
+        password = quote_plus(self.postgres_password)
+        return f"postgresql+asyncpg://{user}:{password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_database}"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -60,10 +60,10 @@ class Settings(BaseSettings):
         if self.environment != "production":
             return self
         missing: list[str] = []
-        if self.mysql_password.strip().lower() in _INSECURE_PASSWORDS:
-            missing.append("MYSQL_PASSWORD")
-        if self.mysql_host in {"localhost", "127.0.0.1"}:
-            missing.append("MYSQL_HOST")
+        if self.postgres_password.strip().lower() in _INSECURE_PASSWORDS:
+            missing.append("POSTGRES_PASSWORD")
+        if self.postgres_host in {"localhost", "127.0.0.1"}:
+            missing.append("POSTGRES_HOST")
         if self.redis_host in {"localhost", "127.0.0.1"}:
             missing.append("REDIS_HOST")
         if self.admin_secret_key == _DEV_ADMIN_SECRET_KEY:

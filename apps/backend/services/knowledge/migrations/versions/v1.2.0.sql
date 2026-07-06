@@ -12,6 +12,8 @@
 -- Future-first: the dead `simple` tsvector column and its GIN index are dropped
 -- rather than left behind; crud/chunks.py `sparse_search` now uses pg_trgm.
 
+-- No-op under the non-superuser `knowledge` role: db-migrate.sh pre-installs
+-- pg_trgm as the admin superuser before migrations run.
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 DROP INDEX IF EXISTS ix_document_chunks_tsv;

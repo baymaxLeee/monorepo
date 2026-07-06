@@ -4,25 +4,18 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SERVICES_DIR="$ROOT/apps/backend/services"
 
+PG_CONTAINER="${POSTGRES_CONTAINER:-monorepo-workflow-postgres}"
+PG_ADMIN_USER="${POSTGRES_ADMIN_USER:-workflow}"
+PG_ADMIN_PASSWORD="${POSTGRES_ADMIN_PASSWORD:-workflow}"
+
 service_has_sql_migrations() {
   compgen -G "$1/migrations/versions/*.sql" >/dev/null
 }
 
-# Non-MySQL services (e.g. knowledge on Postgres) opt out of this MySQL
-# bootstrap with a `migrations/engine` marker; they are migrated separately
-# once their engine's container is up (see justfile `up`).
-service_migration_engine() {
-  if [ -f "$1/migrations/engine" ]; then
-    tr -d '[:space:]' < "$1/migrations/engine"
-  else
-    echo "mysql"
-  fi
-}
-
-echo "→ discovering service-owned database migrations (MySQL)"
+echo "→ discovering service-owned database migrations"
 SERVICE_DIRS=()
 while IFS= read -r service_dir; do
-  if service_has_sql_migrations "$service_dir" && [ "$(service_migration_engine "$service_dir")" = "mysql" ]; then
+  if service_has_sql_migrations "$service_dir"; then
     SERVICE_DIRS+=("$service_dir")
   fi
 done < <(find "$SERVICES_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
@@ -36,16 +29,11 @@ if [ "${RESET_DEMO_DATA:-false}" = "true" ]; then
   echo "→ resetting service databases"
   for service_dir in "${SERVICE_DIRS[@]}"; do
     db="$(basename "$service_dir" | tr '-' '_')"
-    docker exec -i "${MYSQL_CONTAINER:-monorepo-mysql}" mysql \
-      -u"${MYSQL_ROOT_USER:-root}" -p"${MYSQL_ROOT_PASSWORD:-dev}" \
-      -e "DROP DATABASE IF EXISTS \`$db\`;"
+    docker exec -i -e PGPASSWORD="$PG_ADMIN_PASSWORD" "$PG_CONTAINER" \
+      psql -v ON_ERROR_STOP=1 -U "$PG_ADMIN_USER" -d postgres \
+      -c "DROP DATABASE IF EXISTS \"$db\" WITH (FORCE);"
   done
 fi
-
-echo "→ dropping legacy database: identity"
-docker exec -i "${MYSQL_CONTAINER:-monorepo-mysql}" mysql \
-  -u"${MYSQL_ROOT_USER:-root}" -p"${MYSQL_ROOT_PASSWORD:-dev}" \
-  -e "DROP DATABASE IF EXISTS \`identity\`;"
 
 for service_dir in "${SERVICE_DIRS[@]}"; do
   service="$(basename "$service_dir")"
@@ -104,5 +92,5 @@ fi
 
 echo "→ Seeding iam demo data..."
 cd "$IAM_DIR"
-IAM_MYSQL_DATABASE=iam go run ./cmd/migrate
+POSTGRES_USER=iam POSTGRES_PASSWORD=iam IAM_POSTGRES_DATABASE=iam go run ./cmd/migrate
 echo "✓ iam demo data ready"

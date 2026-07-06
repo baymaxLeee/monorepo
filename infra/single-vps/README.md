@@ -1,8 +1,8 @@
 # Single-VPS Deployment
 
-Run the entire monorepo (frontend SPA + backend services + MySQL/Redis/PostgreSQL) on **one VPS**, behind **one port** (no domain, no HTTPS, no Kubernetes). Browsers hit `http://<vps-ip>:8080` and get a fully-functional app.
+Run the entire monorepo (frontend SPA + backend services + Postgres/Redis) on **one VPS**, behind **one port** (no domain, no HTTPS, no Kubernetes). Browsers hit `http://<vps-ip>:8080` and get a fully-functional app.
 
-> Telemetry storage was migrated from ClickHouse to MySQL in 2026-05 to keep the single-VPS footprint under 1 GB RAM. See `apps/backend/services/telemetry/AGENTS.md` for the trade-offs.
+> Telemetry storage started on ClickHouse, moved to MySQL (2026-05), and now shares the single Postgres instance (every service DB consolidated onto it) to keep the single-VPS footprint under 1 GB RAM. See `apps/backend/services/telemetry/AGENTS.md` for the trade-offs.
 
 This path is intentionally **separate** from `infra/k8s/` — the K8s setup is for "future, when there are real users". Both coexist; pick one to deploy from.
 
@@ -44,7 +44,7 @@ browser
 │      ├─ chat:8009 / knowledge:8010                        │
 │      └─ executor:8011                                     │
 │                                                           │
-│  mysql:3306    redis:6379    postgres+pgvector:5432       │
+│  redis:6379    postgres+pgvector:5432 (all service DBs)   │
 │  (volumes: /var/lib/docker/volumes/monorepo_*)            │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -61,7 +61,7 @@ All images are pulled from GHCR (or any custom registry); the VPS only stores co
 | `nginx.conf` | Web server config (baked into `web` image) |
 | `Dockerfile.web` | Builds the nginx + frontend dist image |
 | `Dockerfile.db-init` | Builds the one-shot schema migrator image |
-| `mysql-init.sh` | Shell script run by `db-init` container (baked into image) |
+| `postgres-init.sh` | Shell script run by `db-init` container (baked into image) |
 | `.env.example` | Configuration template (copy to `.env`) |
 | `bootstrap.sh` | Install Docker on a fresh VPS (run once, on VPS) |
 | `deploy.sh` | Push config + restart containers (run from laptop / CI) |
@@ -104,8 +104,7 @@ $EDITOR infra/single-vps/.env
 
 Fill in (minimum):
 - `IMAGE_REGISTRY` — your GHCR path, e.g. `ghcr.io/yourname/yourrepo` (lowercase!)
-- `MYSQL_ROOT_PASSWORD` — `openssl rand -base64 24`
-- `MYSQL_PASSWORD` — different from root
+- `WORKFLOW_POSTGRES_PASSWORD` and each `*_POSTGRES_PASSWORD` — independent values from `openssl rand -hex 24`
 - `ACCESS_TOKEN_SECRET` — `openssl rand -hex 32`
 - `SUPER_ADMIN_PASSWORD` — your initial login password
 
@@ -252,10 +251,10 @@ docker compose -f docker-compose.prod.yml restart gateway
 docker compose -f docker-compose.prod.yml down -v
 ```
 
-### Backup MySQL
+### Backup Postgres
 
 ```bash
-docker exec monorepo-mysql sh -c 'exec mysqldump --all-databases -uroot -p"$MYSQL_ROOT_PASSWORD"' > backup-$(date +%F).sql
+docker exec monorepo-workflow-postgres sh -c 'exec pg_dumpall -U workflow' > backup-$(date +%F).sql
 ```
 
 ### Backup all data volumes (cold backup; stop stack first)
@@ -263,7 +262,7 @@ docker exec monorepo-mysql sh -c 'exec mysqldump --all-databases -uroot -p"$MYSQ
 ```bash
 docker compose -f docker-compose.prod.yml stop
 tar czf /backup/monorepo-$(date +%F).tar.gz -C /var/lib/docker/volumes \
-    monorepo_mysql_data monorepo_redis_data monorepo_knowledge_data
+    monorepo_workflow_postgres_data monorepo_redis_data monorepo_knowledge_data
 docker compose -f docker-compose.prod.yml start
 ```
 
@@ -275,18 +274,18 @@ docker compose -f docker-compose.prod.yml start
 |---|---|---|
 | `connection refused` from your laptop | Cloud security group port not open | Open `PUBLIC_PORT` in the cloud console |
 | `502 Bad Gateway` from nginx | Backend pod still booting / crashed | `docker compose logs gateway` |
-| `db-init` stuck | MySQL still initializing | First boot can take 30–60 s; if longer, check `docker compose logs mysql` |
-| 4 backend pods CrashLoopBackoff | Probably bad MYSQL_PASSWORD in `.env` | Re-edit `.env`, `docker compose up -d` |
+| `db-init` stuck | Postgres still initializing | First boot can take 30–60 s; if longer, check `docker compose logs workflow-postgres` |
+| Backend containers CrashLoopBackoff | A service-specific `*_POSTGRES_PASSWORD` is missing or stale | Re-edit `.env`, rerun `docker compose up -d` so `db-init` reconciles roles |
 | Frontend loads but API returns 401 forever | `ACCESS_TOKEN_SECRET` differs between gateway and iam (impossible if `.env` is shared) | `docker compose exec gateway env \| grep ACCESS_TOKEN`, ditto for iam |
 | Pulling images is slow / fails | GHCR rate limit (free tier) | Sign in: `docker login ghcr.io -u <github-user>` (use a PAT with `read:packages`) |
-| Out of memory under load | 4G RAM tight | Drop MySQL `--innodb-buffer-pool-size`; lower telemetry SAMPLE_RATE_*; or upgrade to 4C8G |
+| Out of memory under load | 4G RAM tight | Drop Postgres `shared_buffers`; lower telemetry SAMPLE_RATE_*; or upgrade to 4C8G |
 
 ---
 
 ## Migrating off
 
 The persistent data is in three named Docker volumes:
-- `monorepo_mysql_data`
+- `monorepo_workflow_postgres_data`
 - `monorepo_redis_data`
 - `monorepo_knowledge_data`
 

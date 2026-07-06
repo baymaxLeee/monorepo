@@ -19,8 +19,10 @@ Deployment artifacts for all services and MFEs.
   databases) live in `Secret` resources, never in ConfigMap. Real values are
   injected out-of-band (CI / `kubectl create secret` / ExternalSecrets), not
   committed to git.
+- Every database-backed service uses a same-named PostgreSQL database and login
+  role. Never give application containers the `workflow` bootstrap superuser.
 - Liveness probe hits `/livez` (process only); readiness probe hits `/readyz`
-  (dependency-aware). Never tie liveness to MySQL/Redis health.
+  (dependency-aware). Never tie liveness to Postgres/Redis health.
 - Every Deployment sets resource requests + limits, topologySpreadConstraints
   across hostnames, and a 30s graceful shutdown window.
 

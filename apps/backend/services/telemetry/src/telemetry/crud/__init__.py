@@ -1,1 +1,1 @@
-"""MySQL read helpers (per-table query functions)."""
+"""PostgreSQL read helpers (per-table query functions)."""

@@ -6,12 +6,12 @@ via internal HTTP; a future knowledge MFE manages lifecycle independently of
 conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 
 ## Runtime / storage (ADR-0019)
-- Runs on **Postgres + pgvector** (NOT MySQL), on the shared instance
+- Runs on **Postgres + pgvector**, on the shared instance
   (docker-compose `workflow-postgres`, image `pgvector/pgvector:pg16`): the
   `knowledge` database sits alongside executor's `workflow` database.
-- Migrations use the Postgres path: a `migrations/engine` file (`postgres`)
-  routes `scripts/db-migrate.sh` to psql; `just up` migrates it after Postgres
-  is ready; the MySQL bootstrap skips it.
+- Migrations run through the shared Postgres path: `scripts/db-migrate.sh`
+  applies `migrations/versions/*.sql` via psql, and `just up` migrates it once
+  Postgres is ready.
 
 ## Owns
 - DB tables: `documents` (source uploads + agent artifacts, per user),

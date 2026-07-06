@@ -14,10 +14,14 @@
 #                                     ├─ iam:8002
 #                                     ├─ admin:8001
 #                                     ├─ chat:8009
-#                                     ├─ knowledge:8010 (Postgres + pgvector)
+#                                     ├─ knowledge:8010
 #                                     └─ telemetry:8008
 #                                         ↓
-#                                    mysql + redis (internal)
+#                                    postgres + redis (internal)
+#
+# One shared Postgres instance (pgvector image) holds every service database
+# (iam / admin / chat / executor / telemetry business schemas, knowledge rows +
+# RAG vectors, and executor's Workflow DevKit World) — see docs/ADR/0029.
 #
 # Image source: ghcr.io/<owner>/<repo>/<service>:<tag>
 # Images are built and pushed by .github/workflows/build-images.yml.
@@ -32,28 +36,6 @@ x-restart: &restart_policy
   restart: unless-stopped
 
 services:
-  mysql:
-    image: mysql:8.4
-    container_name: monorepo-mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
-      MYSQL_USER: ${MYSQL_USER:-app}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
-    command:
-      # Tune for ~1GB available RAM after OS + Docker + apps.
-      - --innodb-buffer-pool-size=256M
-      - --max-connections=200
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_0900_ai_ci
-    volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-    <<: *restart_policy
-
   redis:
     image: redis:7-alpine
     container_name: monorepo-redis
@@ -74,11 +56,12 @@ services:
       retries: 10
     <<: *restart_policy
 
-  # Self-hosted Workflow World for `executor` (@workflow/world-postgres).
-  # Separate from the business `mysql` container by design: run/step/event log
-  # state is Workflow DevKit's own bookkeeping, not application business data.
-  # Local dev runs the same container (root docker-compose.yml) for dev/prod
-  # parity — see docs/微服务/executor.md.
+  # Single shared Postgres instance (pgvector superset image). Holds:
+  #   - `workflow`  → executor's Workflow DevKit World (@workflow/world-postgres)
+  #   - `knowledge` → knowledge service rows + RAG vectors (CREATE EXTENSION vector)
+  #   - `iam` / `admin` / `chat` / `executor` / `telemetry` → business schemas
+  # All migrated off MySQL (docs/ADR/0029). Local dev runs the same container
+  # (root docker-compose.yml) for dev/prod parity — see docs/微服务/executor.md.
   workflow-postgres:
     image: pgvector/pgvector:pg16
     container_name: monorepo-workflow-postgres
@@ -86,27 +69,42 @@ services:
       POSTGRES_USER: workflow
       POSTGRES_PASSWORD: ${WORKFLOW_POSTGRES_PASSWORD:?WORKFLOW_POSTGRES_PASSWORD is required}
       POSTGRES_DB: workflow
+    command:
+      # Tune for ~1GB available RAM after OS + Docker + apps.
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - max_connections=200
     volumes:
       - workflow_postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U workflow"]
       interval: 5s
       timeout: 3s
-      retries: 10
+      retries: 30
     <<: *restart_policy
 
-  # Custom image (built by build-images.yml) bundles mysql-init.sh + MySQL
-  # services' migration SQL. Knowledge has its own PostgreSQL migration job.
+  # Custom image (built by build-images.yml) bundles postgres-init.sh, the
+  # canonical scripts/db-migrate.sh, and each service's migration SQL. Creates
+  # the per-service databases and applies pending migrations against the shared
+  # Postgres instance over TCP, creating one database and login role per service.
   db-init:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/db-init:${IMAGE_TAG:-main}
     container_name: monorepo-db-init
     depends_on:
-      mysql:
+      workflow-postgres:
         condition: service_healthy
     environment:
-      MYSQL_HOST: mysql
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
-      APP_USER: ${MYSQL_USER:-app}
+      POSTGRES_HOST: workflow-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_ADMIN_USER: workflow
+      POSTGRES_ADMIN_PASSWORD: ${WORKFLOW_POSTGRES_PASSWORD:?WORKFLOW_POSTGRES_PASSWORD is required}
+      IAM_POSTGRES_PASSWORD: ${IAM_POSTGRES_PASSWORD:?IAM_POSTGRES_PASSWORD is required}
+      ADMIN_POSTGRES_PASSWORD: ${ADMIN_POSTGRES_PASSWORD:?ADMIN_POSTGRES_PASSWORD is required}
+      CHAT_POSTGRES_PASSWORD: ${CHAT_POSTGRES_PASSWORD:?CHAT_POSTGRES_PASSWORD is required}
+      EXECUTOR_POSTGRES_PASSWORD: ${EXECUTOR_POSTGRES_PASSWORD:?EXECUTOR_POSTGRES_PASSWORD is required}
+      KNOWLEDGE_POSTGRES_PASSWORD: ${KNOWLEDGE_POSTGRES_PASSWORD:?KNOWLEDGE_POSTGRES_PASSWORD is required}
+      TELEMETRY_POSTGRES_PASSWORD: ${TELEMETRY_POSTGRES_PASSWORD:?TELEMETRY_POSTGRES_PASSWORD is required}
     restart: "no"
 
   workflow-db-init:
@@ -123,16 +121,16 @@ services:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/iam:${IMAGE_TAG:-main}
     container_name: monorepo-iam
     depends_on:
-      mysql: { condition: service_healthy }
+      workflow-postgres: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8002"
-      MYSQL_HOST: mysql
-      MYSQL_PORT: "3306"
-      MYSQL_USER: ${MYSQL_USER:-app}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
-      IAM_MYSQL_DATABASE: iam
+      POSTGRES_HOST: workflow-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: iam
+      POSTGRES_PASSWORD: ${IAM_POSTGRES_PASSWORD:?IAM_POSTGRES_PASSWORD is required}
+      IAM_POSTGRES_DATABASE: iam
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:?ACCESS_TOKEN_SECRET is required}
       ACCESS_TOKEN_TTL: "5m"
       REFRESH_TOKEN_TTL: "720h"
@@ -155,17 +153,10 @@ services:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/gateway:${IMAGE_TAG:-main}
     container_name: monorepo-gateway
     depends_on:
-      mysql: { condition: service_healthy }
       redis: { condition: service_healthy }
-      db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8000"
-      MYSQL_HOST: mysql
-      MYSQL_PORT: "3306"
-      MYSQL_USER: ${MYSQL_USER:-app}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
-      MYSQL_DATABASE: gateway
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "1"
@@ -186,17 +177,17 @@ services:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/admin:${IMAGE_TAG:-main}
     container_name: monorepo-admin
     depends_on:
-      mysql: { condition: service_healthy }
+      workflow-postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8001"
-      MYSQL_HOST: mysql
-      MYSQL_PORT: "3306"
-      MYSQL_USER: ${MYSQL_USER:-app}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
-      MYSQL_DATABASE: admin
+      POSTGRES_HOST: workflow-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${ADMIN_POSTGRES_PASSWORD:?ADMIN_POSTGRES_PASSWORD is required}
+      POSTGRES_DATABASE: admin
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "0"
@@ -210,17 +201,17 @@ services:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/chat:${IMAGE_TAG:-main}
     container_name: monorepo-chat
     depends_on:
-      mysql: { condition: service_healthy }
+      workflow-postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8009"
-      MYSQL_HOST: mysql
-      MYSQL_PORT: "3306"
-      MYSQL_USER: ${MYSQL_USER:-app}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
-      MYSQL_DATABASE: chat
+      POSTGRES_HOST: workflow-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: chat
+      POSTGRES_PASSWORD: ${CHAT_POSTGRES_PASSWORD:?CHAT_POSTGRES_PASSWORD is required}
+      POSTGRES_DATABASE: chat
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "2"
@@ -236,18 +227,17 @@ services:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/executor:${IMAGE_TAG:-main}
     container_name: monorepo-executor
     depends_on:
-      mysql: { condition: service_healthy }
       workflow-postgres: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
       workflow-db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8011"
-      MYSQL_HOST: mysql
-      MYSQL_PORT: "3306"
-      MYSQL_USER: ${MYSQL_USER:-app}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
-      MYSQL_DATABASE: executor
+      POSTGRES_HOST: workflow-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: executor
+      POSTGRES_PASSWORD: ${EXECUTOR_POSTGRES_PASSWORD:?EXECUTOR_POSTGRES_PASSWORD is required}
+      POSTGRES_DATABASE: executor
       # No default World here (unlike executor/.env.example's commented-out
       # local-dev hint): a deployed environment MUST use the durable Postgres
       # World, never the filesystem-backed Local World (it isn't shared
@@ -264,33 +254,18 @@ services:
       CHAT_SERVICE_URL: http://chat:8009
     <<: *restart_policy
 
-  knowledge-db-init:
-    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/knowledge:${IMAGE_TAG:-main}
-    container_name: monorepo-knowledge-db-init
-    depends_on:
-      workflow-postgres: { condition: service_healthy }
-    command: ["python", "-m", "knowledge.migrate"]
-    environment:
-      ENVIRONMENT: single-vps
-      POSTGRES_HOST: workflow-postgres
-      POSTGRES_PORT: "5432"
-      POSTGRES_USER: workflow
-      POSTGRES_PASSWORD: ${WORKFLOW_POSTGRES_PASSWORD:?WORKFLOW_POSTGRES_PASSWORD is required}
-      POSTGRES_DATABASE: knowledge
-    restart: "no"
-
   knowledge:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/knowledge:${IMAGE_TAG:-main}
     container_name: monorepo-knowledge
     depends_on:
-      knowledge-db-init: { condition: service_completed_successfully }
+      db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8010"
       POSTGRES_HOST: workflow-postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_USER: workflow
-      POSTGRES_PASSWORD: ${WORKFLOW_POSTGRES_PASSWORD:?WORKFLOW_POSTGRES_PASSWORD is required}
+      POSTGRES_USER: knowledge
+      POSTGRES_PASSWORD: ${KNOWLEDGE_POSTGRES_PASSWORD:?KNOWLEDGE_POSTGRES_PASSWORD is required}
       POSTGRES_DATABASE: knowledge
       ADMIN_SERVICE_URL: http://admin:8001
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
@@ -304,16 +279,16 @@ services:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/telemetry:${IMAGE_TAG:-main}
     container_name: monorepo-telemetry
     depends_on:
-      mysql: { condition: service_healthy }
+      workflow-postgres: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8008"
-      MYSQL_HOST: mysql
-      MYSQL_PORT: "3306"
-      MYSQL_USER: ${MYSQL_USER:-app}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
-      MYSQL_DATABASE: telemetry
+      POSTGRES_HOST: workflow-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: telemetry
+      POSTGRES_PASSWORD: ${TELEMETRY_POSTGRES_PASSWORD:?TELEMETRY_POSTGRES_PASSWORD is required}
+      POSTGRES_DATABASE: telemetry
     <<: *restart_policy
 
   # The `web` image is built by .github/workflows/build-images.yml
@@ -332,7 +307,6 @@ services:
     <<: *restart_policy
 
 volumes:
-  mysql_data:
   redis_data:
   knowledge_data:
   workflow_postgres_data:

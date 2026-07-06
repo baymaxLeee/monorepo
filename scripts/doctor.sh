@@ -21,10 +21,10 @@ done
 
 echo ""
 echo "── Docker services ──"
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -q monorepo-mysql; then
-  ok "mysql running"
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -q monorepo-workflow-postgres; then
+  ok "postgres running"
 else
-  miss "mysql NOT running (try: just up)"
+  miss "postgres NOT running (try: just up)"
 fi
 if docker ps --format '{{.Names}}' 2>/dev/null | grep -q monorepo-redis; then
   ok "redis running"

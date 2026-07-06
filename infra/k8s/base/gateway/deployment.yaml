@@ -37,7 +37,7 @@ spec:
             requests: { cpu: 100m,  memory: 128Mi }
             limits:   { cpu: 1000m, memory: 512Mi }
           # Liveness only checks the HTTP server itself. Failure RESTARTS
-          # the pod, so we never tie it to MySQL/Redis health.
+          # the pod, so we never tie it to Redis health.
           livenessProbe:
             httpGet: { path: /livez, port: http }
             initialDelaySeconds: 5

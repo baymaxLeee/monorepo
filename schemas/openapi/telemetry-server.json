@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Telemetry Service",
-    "description": "自托管前端 RUM 采集与查询服务(MySQL 后端)",
+    "description": "自托管前端 RUM 采集与查询服务(PostgreSQL 后端)",
     "version": "0.1.0"
   },
   "paths": {

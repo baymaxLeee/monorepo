@@ -28,7 +28,7 @@ func main() {
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	st, err := store.Connect(ctx, cfg.DatabaseURL, cfg.RedisURL)
+	st, err := store.Connect(ctx, cfg.RedisURL)
 	cancel()
 	if err != nil {
 		slog.Error("failed to connect dependencies", "err", err)
@@ -92,7 +92,6 @@ func main() {
 			"iam_upstream", cfg.IAMServiceURL,
 			"knowledge_upstream", cfg.KnowledgeServiceURL,
 			"telemetry_upstream", cfg.TelemetryServiceURL,
-			"mysql", "connected",
 			"redis", "connected",
 		)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

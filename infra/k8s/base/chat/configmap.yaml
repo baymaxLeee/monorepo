@@ -5,8 +5,8 @@ metadata:
 data:
   PORT: "8009"
   ENVIRONMENT: "production"
-  MYSQL_PORT: "3306"
-  MYSQL_DATABASE: "chat"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DATABASE: "chat"
   REDIS_PORT: "6379"
   REDIS_DB: "2"
   # Admin owns LLM credentials. chat calls

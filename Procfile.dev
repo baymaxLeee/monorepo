@@ -12,7 +12,7 @@ svc-chat:  cd apps/backend/services/chat && PORT=8009 pnpm dev
 executor:  cd apps/backend/services/executor && PORT=8011 pnpm dev
 knowledge: cd apps/backend/services/knowledge && uv run uvicorn knowledge.main:app --reload --port 8010
 telemetry: cd apps/backend/services/telemetry && uv run uvicorn telemetry.main:app --reload --port 8008
-iam:  cd apps/backend/services/iam && PORT=8002 IAM_MYSQL_DATABASE=iam go run ./cmd/server
+iam:  cd apps/backend/services/iam && PORT=8002 IAM_POSTGRES_DATABASE=iam go run ./cmd/server
 gateway:   cd apps/backend/services/gateway && PORT=8000 go run ./cmd/server
 mfe-admin: cd apps/frontend && PORT=3001 pnpm -F admin dev
 mfe-chat:  cd apps/frontend && PORT=3005 pnpm -F chat dev

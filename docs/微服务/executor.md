@@ -33,11 +33,11 @@ session）的替换点——只需要新增一种执行引擎实现，Task API �
 
 ## 持久化边界
 
-- 业务真相（谁起的任务、什么类型、完没完成）在 executor 自己的 MySQL `tasks`
+- 业务真相（谁起的任务、什么类型、完没完成）在 executor 自己的 PostgreSQL `tasks`
   表——和 chat 的 `agent_runs` 是同一种"业务表 vs 执行态"划分。
 - 执行/重放真相（run、step、重试、event log）在 Workflow World：**本地和每个
   部署环境都用自建 Postgres World**（`@workflow/world-postgres`，独立的
-  `workflow-postgres` docker 服务，和 MySQL 分开）——本地/生产一致是明确的
+  `workflow-postgres` 实例上，和 executor 业务库同实例、不同库）——本地/生产一致是明确的
   产品决策，不默认退化成文件系统 Local World（仍然可以通过注释掉 `.env` 里的
   `WORKFLOW_TARGET_WORLD`/`WORKFLOW_POSTGRES_URL` 手动切回 Local World，比如
   离线开发）。`just up` 会起这个容器并跑一次 schema 初始化
@@ -49,7 +49,7 @@ session）的替换点——只需要新增一种执行引擎实现，Task API �
   改成本地/生产一致后才在开发过程中自然暴露出来——这也是"本地要和部署环境
   一致"这条原则本身最有说服力的例证。
 - single-VPS 用两个 one-shot job 阻塞 executor 启动：`db-init` 创建并迁移
-  MySQL `executor` 业务库，`workflow-db-init` 运行官方 Postgres World setup
+  PostgreSQL `executor` 业务库，`workflow-db-init` 运行官方 Postgres World setup
   CLI。两者任何一个失败，executor 都不会接受任务。
 - `reconcilePendingTasks()` 在进程启动时重新挂载所有 `running` 状态任务的完成
   监听——对 Workflow 的 durable run 重新 `await` 是安全的，不会重新执行任何

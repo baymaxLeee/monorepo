@@ -4,23 +4,11 @@ set -euo pipefail
 SERVICE_DIR="${1:?Usage: db-migrate.sh <service-dir> [target-version]}"
 TARGET_VERSION="${2:-}"
 
-# Engine selection: a service opts into Postgres with a `migrations/engine`
-# marker file containing "postgres"; everything else defaults to MySQL.
-ENGINE="mysql"
-if [ -f "$SERVICE_DIR/migrations/engine" ]; then
-  ENGINE="$(tr -d '[:space:]' < "$SERVICE_DIR/migrations/engine")"
-fi
-
-# MySQL connection (shared business instance)
-MYSQL_CONTAINER_NAME="${MYSQL_CONTAINER:-monorepo-mysql}"
-MYSQL_APP_USER="${MYSQL_USER:-dev}"
-MYSQL_ROOT_USER_NAME="${MYSQL_ROOT_USER:-root}"
-MYSQL_ROOT_PASS="${MYSQL_ROOT_PASSWORD:-dev}"
-
-# Postgres connection (shared instance: workflow DB + knowledge DB)
+# Single shared Postgres instance: workflow DB + per-service business DBs +
+# knowledge vectors all live here since the MySQL→PG consolidation (ADR 0029).
 PG_CONTAINER_NAME="${POSTGRES_CONTAINER:-monorepo-workflow-postgres}"
-PG_USER_NAME="${POSTGRES_USER:-workflow}"
-PG_PASSWORD_VALUE="${POSTGRES_PASSWORD:-workflow}"
+PG_ADMIN_USER="${POSTGRES_ADMIN_USER:-${POSTGRES_USER:-workflow}}"
+PG_ADMIN_PASSWORD="${POSTGRES_ADMIN_PASSWORD:-${POSTGRES_PASSWORD:-workflow}}"
 
 service_database_name() {
   basename "$1" | tr '-' '_'
@@ -54,6 +42,8 @@ migration_version_from_file() {
 }
 
 DB="$(service_database_name "$SERVICE_DIR")"
+DB_USER="${DATABASE_USER:-$DB}"
+DB_PASSWORD="${DATABASE_PASSWORD:-$DB}"
 VERSIONS_DIR="$SERVICE_DIR/migrations/versions"
 
 if [ ! -d "$VERSIONS_DIR" ]; then
@@ -66,23 +56,45 @@ if [ -n "$TARGET_VERSION" ] && ! validate_version "$TARGET_VERSION"; then
   exit 1
 fi
 
-# ── engine-specific primitives ─────────────────────────────────────────
-mysql_root() {
-  docker exec -i "$MYSQL_CONTAINER_NAME" mysql -u"$MYSQL_ROOT_USER_NAME" -p"$MYSQL_ROOT_PASS" "$@"
+pg_with_credentials() {
+  local user="$1" password="$2"
+  shift 2
+  # Local dev reaches the container via `docker exec` (no host-mapped name);
+  # the prod db-init image sets DB_MIGRATE_TRANSPORT=tcp to run psql straight
+  # against the Postgres service, where no docker socket is available.
+  if [ "${DB_MIGRATE_TRANSPORT:-docker}" = "tcp" ]; then
+    PGPASSWORD="$password" psql -v ON_ERROR_STOP=1 \
+      -h "${POSTGRES_HOST:-localhost}" -p "${POSTGRES_PORT:-5432}" -U "$user" "$@"
+  else
+    docker exec -i -e PGPASSWORD="$password" "$PG_CONTAINER_NAME" \
+      psql -v ON_ERROR_STOP=1 -U "$user" "$@"
+  fi
 }
 
-pg() {
-  docker exec -i -e PGPASSWORD="$PG_PASSWORD_VALUE" "$PG_CONTAINER_NAME" \
-    psql -v ON_ERROR_STOP=1 -U "$PG_USER_NAME" "$@"
+pg_admin() {
+  pg_with_credentials "$PG_ADMIN_USER" "$PG_ADMIN_PASSWORD" "$@"
+}
+
+pg_service() {
+  pg_with_credentials "$DB_USER" "$DB_PASSWORD" "$@"
 }
 
 ensure_db_and_migration_table() {
-  if [ "$ENGINE" = "postgres" ]; then
-    if ! pg -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB';" | grep -q 1; then
-      pg -d postgres -c "CREATE DATABASE \"$DB\";"
-    fi
-    pg -d "$DB" -c "CREATE EXTENSION IF NOT EXISTS vector;"
-    pg -d "$DB" <<'SQL'
+  pg_admin -d postgres --set=db_name="$DB" --set=db_user="$DB_USER" --set=db_password="$DB_PASSWORD" <<'SQL'
+SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'db_user', :'db_password')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'db_user') \gexec
+SELECT format('ALTER ROLE %I LOGIN PASSWORD %L', :'db_user', :'db_password') \gexec
+SELECT format('CREATE DATABASE %I OWNER %I', :'db_name', :'db_user')
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'db_name') \gexec
+SELECT format('ALTER DATABASE %I OWNER TO %I', :'db_name', :'db_user') \gexec
+SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'db_name') \gexec
+SELECT format('GRANT CONNECT ON DATABASE %I TO %I', :'db_name', :'db_user') \gexec
+SQL
+  if [ "$DB" = "knowledge" ]; then
+    pg_admin -d "$DB" -c "CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+  fi
+  pg_service -d "$DB" <<'SQL'
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 CREATE TABLE IF NOT EXISTS migration (
   id smallint NOT NULL PRIMARY KEY,
   version varchar(32) NOT NULL,
@@ -92,48 +104,25 @@ INSERT INTO migration (id, version, update_time)
 VALUES (1, 'v0.0.0', NOW())
 ON CONFLICT (id) DO NOTHING;
 SQL
-  else
-    mysql_root -e "CREATE DATABASE IF NOT EXISTS \`$DB\`; GRANT ALL PRIVILEGES ON \`$DB\`.* TO '$MYSQL_APP_USER'@'%'; FLUSH PRIVILEGES;"
-    mysql_root "$DB" <<'SQL'
-CREATE TABLE IF NOT EXISTS `migration` (
-  `id` TINYINT NOT NULL COMMENT '主键, 只允许为 1',
-  `version` VARCHAR(32) NOT NULL COMMENT '当前数据库表结构版本',
-  `update_time` DATETIME NOT NULL COMMENT '更新时间',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-INSERT IGNORE INTO `migration` (`id`, `version`, `update_time`)
-VALUES (1, 'v0.0.0', NOW());
-SQL
-  fi
 }
 
 read_current_version() {
-  if [ "$ENGINE" = "postgres" ]; then
-    pg -d "$DB" -tA -c "SELECT version FROM migration WHERE id = 1;" | tail -n 1 | tr -d '[:space:]'
-  else
-    mysql_root "$DB" -N -B -e "SELECT version FROM migration WHERE id = 1;" | tail -n 1
-  fi
+  pg_service -d "$DB" -tA -c "SELECT version FROM migration WHERE id = 1;" | tail -n 1 | tr -d '[:space:]'
 }
 
-apply_migration_file() {
-  if [ "$ENGINE" = "postgres" ]; then
-    pg -d "$DB" < "$1"
-  else
-    mysql_root "$DB" < "$1"
-  fi
+apply_migration() {
+  local file="$1" version="$2"
+  # DDL + version bump in ONE transaction (--single-transaction + ON_ERROR_STOP):
+  # a failed migration rolls back both, so migration.version can never drift
+  # ahead of the schema it claims to describe.
+  {
+    cat "$file"
+    printf "\nUPDATE migration SET version = '%s', update_time = NOW() WHERE id = 1;\n" "$version"
+  } | pg_service -d "$DB" --single-transaction
 }
 
-set_migration_version() {
-  if [ "$ENGINE" = "postgres" ]; then
-    pg -d "$DB" -c "UPDATE migration SET version = '$1', update_time = NOW() WHERE id = 1;"
-  else
-    mysql_root "$DB" -e "UPDATE migration SET version = '$1', update_time = NOW() WHERE id = 1;"
-  fi
-}
-
-# ── shared migration flow ──────────────────────────────────────────────
-echo "→ ($ENGINE) preparing database: $DB"
+# ── migration flow ─────────────────────────────────────────────────────
+echo "→ preparing database: $DB"
 ensure_db_and_migration_table
 
 CURRENT_VERSION="$(read_current_version)"
@@ -188,8 +177,7 @@ for migration in "${MIGRATIONS[@]}"; do
   file="$(cut -d' ' -f3- <<<"$migration")"
   if version_gt "$version" "$CURRENT_VERSION" && version_le "$version" "$TARGET_VERSION"; then
     echo "  → applying $(basename "$file")"
-    apply_migration_file "$file"
-    set_migration_version "$version"
+    apply_migration "$file" "$version"
   fi
 done
 

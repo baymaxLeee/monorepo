@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Does NOT start Docker — run `just up` for MySQL/Redis and schemas.
+# Does NOT start Docker — run `just up` for Postgres/Redis and schemas.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
