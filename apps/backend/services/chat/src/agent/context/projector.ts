@@ -6,6 +6,7 @@ import { getDb } from "../../db/index.js";
 import { conversationContexts } from "../../db/schema.js";
 import { latestCompletedToolOutput } from "../runs/repository.js";
 import { buildCompactionState, type CompactionState } from "./compaction-state.js";
+import type { InstructionContextBlock } from "./instructions/index.js";
 import {
   documentIdFromFilePart,
   isImageMediaType,
@@ -205,7 +206,7 @@ export async function projectModelContext(input: {
   maxOutputTokens: number;
   supportsImageInput: boolean;
   messages: AnyUIMessage[];
-}): Promise<{ messages: ModelMessage[]; instructionContext: string[] }> {
+}): Promise<{ messages: ModelMessage[]; instructionContext: InstructionContextBlock[] }> {
   const inputTokenBudget = Math.max(
     512,
     input.contextWindow - input.maxOutputTokens - CONTEXT_OVERHEAD_TOKENS,
@@ -263,24 +264,19 @@ export async function projectModelContext(input: {
     }
   }
 
-  const instructionContext: string[] = [];
+  const instructionContext: InstructionContextBlock[] = [];
   if (summary) {
-    instructionContext.push(`<conversation_summary>\n${summary}\n</conversation_summary>`);
+    instructionContext.push({ kind: "conversation_summary", body: summary });
   }
   if (state) {
-    const serializedState = JSON.stringify(state);
-    instructionContext.push(
-      `<conversation_state>\n${serializedState}\n</conversation_state>`,
-    );
+    instructionContext.push({ kind: "conversation_state", body: JSON.stringify(state) });
   }
 
   const todoSnapshot = parseTodoSnapshot(
     await latestCompletedToolOutput(input.conversationId, "update_todos"),
   );
   if (todoSnapshot) {
-    instructionContext.push(
-      `<current_todo_list>\n${JSON.stringify(todoSnapshot)}\n</current_todo_list>`,
-    );
+    instructionContext.push({ kind: "current_todo_list", body: JSON.stringify(todoSnapshot) });
   }
 
   if (input.mode === "plan" && input.activePlanDocumentId) {
@@ -288,9 +284,12 @@ export async function projectModelContext(input: {
       const plan = await getDocument(input.userId, input.activePlanDocumentId);
       if (plan.conversation_id === input.conversationId && plan.mime_type === "text/markdown") {
         const maxPlanChars = Math.min(MAX_PLAN_CHARS, Math.floor(inputTokenBudget * 1.5));
-        instructionContext.push(
-          `<active_plan_artifact document_id="${plan.id}" revision_id="${plan.updated_at}">\n${(plan.content_md ?? "").slice(0, maxPlanChars)}\n</active_plan_artifact>`,
-        );
+        instructionContext.push({
+          kind: "active_plan_artifact",
+          documentId: plan.id,
+          revisionId: String(plan.updated_at),
+          body: (plan.content_md ?? "").slice(0, maxPlanChars),
+        });
       }
     } catch (error) {
       console.error("[chat-context] failed to load active plan", error);

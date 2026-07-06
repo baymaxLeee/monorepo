@@ -5,6 +5,7 @@ import {
   type AdminResolvedAgent,
 } from "@backend/transport-ts";
 import { getSettings } from "../config.js";
+import type { BotProfileSnapshot } from "../agent/context/instructions/index.js";
 import { AdminUnavailableError, ProviderNotConfiguredError } from "../lib/errors.js";
 import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
 
@@ -27,7 +28,7 @@ export interface ProviderSnapshot {
 export interface ResolvedAgentProviders {
   agentId: string;
   agentName: string;
-  systemPrompt: string | null;
+  profile: BotProfileSnapshot;
   text: ProviderSnapshot | null;
   image: ProviderSnapshot | null;
   video: ProviderSnapshot | null;
@@ -106,7 +107,13 @@ export async function getAgent(
   return {
     agentId: data.id,
     agentName: data.name,
-    systemPrompt: data.system_prompt ?? null,
+    profile: {
+      name: data.name,
+      roleDescription: data.role_description ?? null,
+      domainDescription: data.domain_description ?? null,
+      audience: data.audience ?? null,
+      tone: data.tone ?? null,
+    },
     text: await resolve(data.text_provider),
     image: await resolve(data.image_provider),
     video: await resolve(data.video_provider),

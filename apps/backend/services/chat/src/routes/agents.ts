@@ -4,6 +4,7 @@ import { z } from "zod";
 import { UI_MESSAGE_STREAM_HEADERS } from "ai";
 
 import { getAgent, getProvider, type ProviderSnapshot } from "../clients/admin.js";
+import type { BotProfileSnapshot } from "../agent/context/instructions/index.js";
 import { getTask } from "../clients/executor.js";
 import { getAuth } from "../middleware/auth.js";
 import {
@@ -43,13 +44,13 @@ agentsRoutes.post(
     let textProvider: ProviderSnapshot;
     let imageProvider: ProviderSnapshot | null = null;
     let videoProviderId: string | null = null;
-    let persona: string | null = null;
+    let botProfile: BotProfileSnapshot | null = null;
     if (payload.agent_id) {
       const agent = await getAgent(auth.userId, payload.agent_id, auth.orgId);
       textProvider = agent.text ?? (await getProvider(auth.orgId, null));
       imageProvider = agent.image;
       videoProviderId = agent.video?.id ?? null;
-      persona = agent.systemPrompt;
+      botProfile = agent.profile;
     } else {
       textProvider = await getProvider(auth.orgId, null);
     }
@@ -62,7 +63,7 @@ agentsRoutes.post(
       {
         imageProvider,
         videoProviderId,
-        persona,
+        botProfile,
       },
     );
   },

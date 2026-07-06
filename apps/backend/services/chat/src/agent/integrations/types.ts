@@ -11,7 +11,6 @@ export interface AgentExtensionContext {
 
 export interface AgentExtensionContribution {
   tools?: ToolSet;
-  instructions?: string[];
   dispose?: () => void | Promise<void>;
 }
 

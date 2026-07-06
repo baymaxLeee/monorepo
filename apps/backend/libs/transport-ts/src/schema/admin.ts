@@ -445,8 +445,22 @@ export interface components {
             username: string;
             /** Name */
             name: string;
-            /** System Prompt */
-            system_prompt?: string | null;
+            /** Role Description */
+            role_description?: string | null;
+            /** Domain Description */
+            domain_description?: string | null;
+            /** Audience */
+            audience?: string | null;
+            /**
+             * Tone
+             * @default professional
+             * @enum {string}
+             */
+            tone: "professional" | "concise" | "friendly" | "empathetic";
+            /** Welcome Message */
+            welcome_message?: string | null;
+            /** Suggested Questions */
+            suggested_questions?: string[];
             /**
              * Status
              * @enum {string}
@@ -757,14 +771,28 @@ export interface components {
          *     run and passes providers through — never re-fetching inside tools/steps.
          *     A capability is null when the agent has not configured it (or it was
          *     disabled/removed).
+         *
+         *     Carries only the structured identity fields the model actually needs;
+         *     welcome_message / suggested_questions are UI-only and deliberately excluded
+         *     so bot presentation copy never enters the model context.
          */
         ResolvedAgent: {
             /** Id */
             id: string;
             /** Name */
             name: string;
-            /** System Prompt */
-            system_prompt?: string | null;
+            /** Role Description */
+            role_description?: string | null;
+            /** Domain Description */
+            domain_description?: string | null;
+            /** Audience */
+            audience?: string | null;
+            /**
+             * Tone
+             * @default professional
+             * @enum {string}
+             */
+            tone: "professional" | "concise" | "friendly" | "empathetic";
             text_provider?: components["schemas"]["InternalModelProvider"] | null;
             image_provider?: components["schemas"]["InternalModelProvider"] | null;
             video_provider?: components["schemas"]["InternalModelProvider"] | null;
@@ -845,8 +873,18 @@ export interface components {
         UpdateBotInput: {
             /** Name */
             name?: string | null;
-            /** System Prompt */
-            system_prompt?: string | null;
+            /** Role Description */
+            role_description?: string | null;
+            /** Domain Description */
+            domain_description?: string | null;
+            /** Audience */
+            audience?: string | null;
+            /** Tone */
+            tone?: ("professional" | "concise" | "friendly" | "empathetic") | null;
+            /** Welcome Message */
+            welcome_message?: string | null;
+            /** Suggested Questions */
+            suggested_questions?: string[] | null;
             /** Status */
             status?: ("draft" | "published" | "archived") | null;
             /** Text Provider Id */

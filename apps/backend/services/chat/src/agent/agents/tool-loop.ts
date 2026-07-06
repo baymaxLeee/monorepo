@@ -9,6 +9,7 @@ import {
   startModelStep,
 } from "../observability/lifecycle.js";
 import { createProviderModel } from "@backend/transport-ts/provider-model";
+import { assembleInstructions } from "../context/instructions/index.js";
 import { ToolCatalog } from "../tools/catalog.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
 import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
@@ -63,7 +64,7 @@ export async function createToolLoopAgent(
     model: createProviderModel(provider, {
       parallelToolCalls: true,
     }),
-    instructions: [input.instructions, ...resolvedTools.instructions].join("\n\n"),
+    instructions: assembleInstructions(input.instructionInput, resolvedTools.contributions),
     maxOutputTokens: provider.maxOutputTokens,
     tools,
     activeTools: resolvedTools.activeTools,

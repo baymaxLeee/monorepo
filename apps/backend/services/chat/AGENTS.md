@@ -77,8 +77,9 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 - `web_search` uses Tavily. Freshness is handled two ways so the model never
   falls back to its training-cutoff year: (1) the current date is injected into
   the agent instructions as a trailing `<environment>` block (single source of
-  truth — see `buildEnvironmentSection` in `context/instructions.ts`; kept last
-  so the static prompt prefix stays cache-stable); (2) the tool exposes Tavily's
+  truth — `renderEnvironment` in `context/instructions/assembler.ts`, assembled
+  last so the static prompt prefix stays cache-stable); (2) the tool exposes
+  Tavily's
   native `topic`/`time_range`/`start_date`/`end_date` filters so recency is a
   structured, server-side filter rather than a year stuffed into the query.
   `create_memory`/`update_memory` stage a candidate; user approval remains

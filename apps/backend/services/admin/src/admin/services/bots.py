@@ -35,7 +35,12 @@ def to_schema(row: BotRow) -> Bot:
         org_id=row.org_id,
         username=row.user_id,
         name=row.name,
-        system_prompt=row.system_prompt,
+        role_description=row.role_description,
+        domain_description=row.domain_description,
+        audience=row.audience,
+        tone=row.tone,  # type: ignore[arg-type]
+        welcome_message=row.welcome_message,
+        suggested_questions=list(row.suggested_questions or []),
         status=row.status,  # type: ignore[arg-type]
         text_provider_id=row.text_provider_id,
         image_provider_id=row.image_provider_id,
@@ -92,8 +97,14 @@ class BotService:
         values: dict[str, object] = {}
         if "name" in fields_set and payload.name is not None:
             values["name"] = payload.name
-        if "system_prompt" in fields_set:
-            values["system_prompt"] = payload.system_prompt
+        for field in ("role_description", "domain_description", "audience", "welcome_message"):
+            if field in fields_set:
+                values[field] = getattr(payload, field)
+        if "suggested_questions" in fields_set:
+            # Column is NOT NULL; a cleared list normalizes to [].
+            values["suggested_questions"] = payload.suggested_questions or []
+        if "tone" in fields_set and payload.tone is not None:
+            values["tone"] = payload.tone
         if "status" in fields_set and payload.status is not None:
             values["status"] = payload.status
         for field, expected_kind in (
@@ -125,7 +136,10 @@ class BotService:
         return ResolvedAgent(
             id=row.id,
             name=row.name,
-            system_prompt=row.system_prompt,
+            role_description=row.role_description,
+            domain_description=row.domain_description,
+            audience=row.audience,
+            tone=row.tone,  # type: ignore[arg-type]
             text_provider=await self._resolve_provider(row.text_provider_id, row.org_id),
             image_provider=await self._resolve_provider(row.image_provider_id, row.org_id),
             video_provider=await self._resolve_provider(row.video_provider_id, row.org_id),

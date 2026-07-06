@@ -20,6 +20,16 @@ export interface App {
   updated_at: string;
 }
 
+export type BotTone = typeof BotTone[keyof typeof BotTone];
+
+
+export const BotTone = {
+  professional: 'professional',
+  concise: 'concise',
+  friendly: 'friendly',
+  empathetic: 'empathetic',
+} as const;
+
 export type BotStatus = typeof BotStatus[keyof typeof BotStatus];
 
 
@@ -35,7 +45,12 @@ export interface Bot {
   org_id: string;
   username: string;
   name: string;
-  system_prompt?: string | null;
+  role_description?: string | null;
+  domain_description?: string | null;
+  audience?: string | null;
+  tone?: BotTone;
+  welcome_message?: string | null;
+  suggested_questions?: string[];
   status: BotStatus;
   text_provider_id?: string | null;
   image_provider_id?: string | null;
@@ -324,17 +339,34 @@ export interface ModelProvider {
   updated_at: string;
 }
 
+export type ResolvedAgentTone = typeof ResolvedAgentTone[keyof typeof ResolvedAgentTone];
+
+
+export const ResolvedAgentTone = {
+  professional: 'professional',
+  concise: 'concise',
+  friendly: 'friendly',
+  empathetic: 'empathetic',
+} as const;
+
 /**
  * An agent with its per-capability model providers fully resolved to
  * (decrypted) provider snapshots. Internal-only: chat resolves this once per
  * run and passes providers through — never re-fetching inside tools/steps.
  * A capability is null when the agent has not configured it (or it was
  * disabled/removed).
+ *
+ * Carries only the structured identity fields the model actually needs;
+ * welcome_message / suggested_questions are UI-only and deliberately excluded
+ * so bot presentation copy never enters the model context.
  */
 export interface ResolvedAgent {
   id: string;
   name: string;
-  system_prompt?: string | null;
+  role_description?: string | null;
+  domain_description?: string | null;
+  audience?: string | null;
+  tone?: ResolvedAgentTone;
   text_provider?: InternalModelProvider | null;
   image_provider?: InternalModelProvider | null;
   video_provider?: InternalModelProvider | null;
@@ -389,6 +421,16 @@ export interface UpdateAppInput {
   sort_order?: number | null;
 }
 
+export type UpdateBotInputTone = typeof UpdateBotInputTone[keyof typeof UpdateBotInputTone] | null;
+
+
+export const UpdateBotInputTone = {
+  professional: 'professional',
+  concise: 'concise',
+  friendly: 'friendly',
+  empathetic: 'empathetic',
+} as const;
+
 export type UpdateBotInputStatus = typeof UpdateBotInputStatus[keyof typeof UpdateBotInputStatus] | null;
 
 
@@ -404,7 +446,12 @@ export const UpdateBotInputStatus = {
  */
 export interface UpdateBotInput {
   name?: string | null;
-  system_prompt?: string | null;
+  role_description?: string | null;
+  domain_description?: string | null;
+  audience?: string | null;
+  tone?: UpdateBotInputTone;
+  welcome_message?: string | null;
+  suggested_questions?: string[] | null;
   status?: UpdateBotInputStatus;
   text_provider_id?: string | null;
   image_provider_id?: string | null;

@@ -1,6 +1,7 @@
 import type { ModelMessage } from "ai";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
 import type { ProviderSnapshot } from "../../clients/admin.js";
+import type { InstructionInput } from "../context/instructions/index.js";
 
 export type AgentMode = "normal" | "plan";
 
@@ -23,5 +24,5 @@ export interface ChatAgentInput {
   imageProvider?: ProviderSnapshot | null;
   videoProviderId?: string | null;
   modelMessages: ModelMessage[];
-  instructions: string;
+  instructionInput: InstructionInput;
 }

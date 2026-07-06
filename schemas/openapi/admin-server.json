@@ -4556,7 +4556,7 @@
             "type": "string",
             "title": "Name"
           },
-          "system_prompt": {
+          "role_description": {
             "anyOf": [
               {
                 "type": "string"
@@ -4565,7 +4565,58 @@
                 "type": "null"
               }
             ],
-            "title": "System Prompt"
+            "title": "Role Description"
+          },
+          "domain_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain Description"
+          },
+          "audience": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audience"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "professional",
+              "concise",
+              "friendly",
+              "empathetic"
+            ],
+            "title": "Tone",
+            "default": "professional"
+          },
+          "welcome_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Welcome Message"
+          },
+          "suggested_questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Suggested Questions"
           },
           "status": {
             "type": "string",
@@ -5246,7 +5297,7 @@
             "type": "string",
             "title": "Name"
           },
-          "system_prompt": {
+          "role_description": {
             "anyOf": [
               {
                 "type": "string"
@@ -5255,7 +5306,40 @@
                 "type": "null"
               }
             ],
-            "title": "System Prompt"
+            "title": "Role Description"
+          },
+          "domain_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain Description"
+          },
+          "audience": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audience"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "professional",
+              "concise",
+              "friendly",
+              "empathetic"
+            ],
+            "title": "Tone",
+            "default": "professional"
           },
           "text_provider": {
             "anyOf": [
@@ -5294,7 +5378,7 @@
           "name"
         ],
         "title": "ResolvedAgent",
-        "description": "An agent with its per-capability model providers fully resolved to\n(decrypted) provider snapshots. Internal-only: chat resolves this once per\nrun and passes providers through — never re-fetching inside tools/steps.\nA capability is null when the agent has not configured it (or it was\ndisabled/removed)."
+        "description": "An agent with its per-capability model providers fully resolved to\n(decrypted) provider snapshots. Internal-only: chat resolves this once per\nrun and passes providers through — never re-fetching inside tools/steps.\nA capability is null when the agent has not configured it (or it was\ndisabled/removed).\n\nCarries only the structured identity fields the model actually needs;\nwelcome_message / suggested_questions are UI-only and deliberately excluded\nso bot presentation copy never enters the model context."
       },
       "Scene": {
         "properties": {
@@ -5567,17 +5651,85 @@
             ],
             "title": "Name"
           },
-          "system_prompt": {
+          "role_description": {
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 20000
+                "maxLength": 2000
               },
               {
                 "type": "null"
               }
             ],
-            "title": "System Prompt"
+            "title": "Role Description"
+          },
+          "domain_description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain Description"
+          },
+          "audience": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audience"
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "professional",
+                  "concise",
+                  "friendly",
+                  "empathetic"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone"
+          },
+          "welcome_message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Welcome Message"
+          },
+          "suggested_questions": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 6
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested Questions"
           },
           "status": {
             "anyOf": [

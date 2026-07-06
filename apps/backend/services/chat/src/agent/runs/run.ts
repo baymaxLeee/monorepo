@@ -41,7 +41,8 @@ import {
   referencedDocumentIdsFromParts,
 } from "../context/file-parts.js";
 import { projectModelContext } from "../context/projector.js";
-import { buildAgentInstructions } from "../context/instructions.js";
+import { loadInstructionContext } from "../context/instruction-loader.js";
+import type { BotProfileSnapshot } from "../context/instructions/index.js";
 import { acquireRunLease, registerRunController, releaseRun } from "./lease.js";
 import {
   activateAgentStream,
@@ -52,7 +53,7 @@ import {
 export interface RunAgentInput {
   imageProvider?: ProviderSnapshot | null;
   videoProviderId?: string | null;
-  persona?: string | null;
+  botProfile?: BotProfileSnapshot | null;
 }
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
@@ -218,14 +219,14 @@ export async function createAgentRunResponse(
 
   let disposeAgentResources: (() => Promise<void>) | null = null;
   try {
-    const [persistedMessages, instructions] = await Promise.all([
+    const [persistedMessages, instructionInput] = await Promise.all([
       listMessages(conversation.id),
-      buildAgentInstructions({
+      loadInstructionContext({
         userId: conversation.userId,
         conversationId: conversation.id,
         documentIds: requestedDocumentIds,
         mode: conversation.agentMode === "plan" ? "plan" : "normal",
-        persona: input.persona ?? null,
+        botProfile: input.botProfile,
       }),
       updateConversationProvider(conversation.id, provider.id, provider.model),
     ]);
@@ -286,6 +287,7 @@ export async function createAgentRunResponse(
       messages: await validateUIMessages<AnyUIMessage>({ messages: modelUiMessages }),
     });
     const modelMessages = projected.messages;
+    instructionInput.extraContext = projected.instructionContext;
     const assistantMessageId = randomBytes(8).toString("hex");
     const agentInstance = await createAgent({
       runId,
@@ -297,7 +299,7 @@ export async function createAgentRunResponse(
       imageProvider: input.imageProvider,
       videoProviderId: input.videoProviderId,
       modelMessages,
-      instructions: [instructions, ...projected.instructionContext].join("\n\n"),
+      instructionInput,
     });
     const agent = agentInstance.agent;
     disposeAgentResources = agentInstance.dispose;

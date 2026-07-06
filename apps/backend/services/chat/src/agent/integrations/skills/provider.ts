@@ -5,6 +5,7 @@ import { tool } from "ai";
 import { z } from "zod";
 
 import type { AgentMode } from "../../agents/types.js";
+import type { SkillListing } from "../../context/instructions/index.js";
 import { defineAgentTool } from "../../tools/manifest.js";
 import type { AgentToolManifest } from "../../tools/types.js";
 
@@ -41,15 +42,6 @@ const loadSkillOutputSchema = z.object({
   instructions: z.string(),
 });
 
-function availableSkillsInstruction(): string {
-  return [
-    "<available_skills>",
-    "Load a skill before substantive work when the user's request clearly matches its description. Do not load skills for unrelated requests.",
-    ...SYSTEM_SKILLS.map((skill) => `- ${skill.name}: ${skill.description}`),
-    "</available_skills>",
-  ].join("\n");
-}
-
 async function loadSystemSkill(name: string): Promise<z.infer<typeof loadSkillOutputSchema>> {
   const skill = SYSTEM_SKILLS.find((candidate) => candidate.name === name);
   if (!skill) throw new Error(`unknown system skill: ${name}`);
@@ -59,12 +51,12 @@ async function loadSystemSkill(name: string): Promise<z.infer<typeof loadSkillOu
 
 export function resolveSystemSkills(mode: AgentMode): {
   manifests: AgentToolManifest[];
-  instructions: string[];
+  skills: SkillListing[];
 } {
-  if (mode !== "normal") return { manifests: [], instructions: [] };
+  if (mode !== "normal") return { manifests: [], skills: [] };
 
   return {
-    instructions: [availableSkillsInstruction()],
+    skills: SYSTEM_SKILLS.map((skill) => ({ name: skill.name, description: skill.description })),
     manifests: [
       defineAgentTool(
         "load_skill",

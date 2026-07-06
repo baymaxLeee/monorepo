@@ -2,6 +2,7 @@ import type { ToolSet } from "ai";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
 
 import type { ProviderSnapshot } from "../../clients/admin.js";
+import type { InstructionContributions } from "../context/instructions/index.js";
 import type { AgentMode } from "../agents/types.js";
 import type {
   AgentExtension,
@@ -85,12 +86,12 @@ export class ToolCatalog {
     tools: ToolSet;
     activeTools: string[];
     manifests: AgentToolManifest[];
-    instructions: string[];
+    contributions: InstructionContributions;
     dispose: () => Promise<void>;
   }> {
     const systemSkills = resolveSystemSkills(context.mode);
     const manifests = [...builtinManifests(context.mode, providers), ...systemSkills.manifests];
-    const instructions: string[] = [...systemSkills.instructions];
+    const skills = [...systemSkills.skills];
     const disposers: Array<() => void | Promise<void>> = [];
 
     for (const extension of [...this.#extensions]) {
@@ -120,7 +121,6 @@ export class ToolCatalog {
           ),
         );
       }
-      instructions.push(...(contribution.instructions ?? []));
       if (contribution.dispose) disposers.push(contribution.dispose);
     }
 
@@ -130,10 +130,10 @@ export class ToolCatalog {
       names.add(manifest.name);
     }
 
-    if (context.mode === "plan") {
-      const capabilityProjection = renderExecutionCapabilities(manifests);
-      if (capabilityProjection) instructions.push(capabilityProjection);
-    }
+    // Capability projection is code-generated from resolved manifests and only
+    // in plan mode; normal mode relies on the callable tool schemas directly.
+    const capabilities =
+      context.mode === "plan" ? renderExecutionCapabilities(manifests) || null : null;
 
     const activeManifests = manifests.filter(
       (manifest) => manifest.tool && manifest.policy.modes.includes(context.mode),
@@ -145,7 +145,7 @@ export class ToolCatalog {
       tools,
       activeTools,
       manifests,
-      instructions,
+      contributions: { capabilities, skills },
       dispose: async () => {
         await Promise.allSettled(disposers.reverse().map((dispose) => dispose()));
       },

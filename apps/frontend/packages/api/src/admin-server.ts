@@ -2,13 +2,20 @@ import { request } from "./http";
 
 export type BotStatus = "draft" | "published" | "archived";
 
+export type BotTone = "professional" | "concise" | "friendly" | "empathetic";
+
 export interface Bot {
   id: string;
   user_id: string;
   org_id: string | null;
   username: string;
   name: string;
-  system_prompt: string | null;
+  role_description: string | null;
+  domain_description: string | null;
+  audience: string | null;
+  tone: BotTone;
+  welcome_message: string | null;
+  suggested_questions: string[];
   status: BotStatus;
   text_provider_id: string | null;
   image_provider_id: string | null;
@@ -23,7 +30,12 @@ export interface CreateBotInput {
 
 export interface UpdateBotInput {
   name?: string;
-  system_prompt?: string | null;
+  role_description?: string | null;
+  domain_description?: string | null;
+  audience?: string | null;
+  tone?: BotTone;
+  welcome_message?: string | null;
+  suggested_questions?: string[];
   status?: BotStatus;
   text_provider_id?: string | null;
   image_provider_id?: string | null;
