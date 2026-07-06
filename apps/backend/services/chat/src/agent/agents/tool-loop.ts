@@ -9,7 +9,7 @@ import {
   startModelStep,
 } from "../observability/lifecycle.js";
 import { createProviderModel } from "@backend/transport-ts/provider-model";
-import { defaultToolCatalog, type ToolCatalog } from "../tools/catalog.js";
+import { ToolCatalog } from "../tools/catalog.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
 import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
 
@@ -21,7 +21,7 @@ function observe(label: string, operation: Promise<void>): Promise<void> {
 
 export async function createToolLoopAgent(
   input: ChatAgentInput,
-  toolCatalog: ToolCatalog = defaultToolCatalog,
+  toolCatalog: ToolCatalog = new ToolCatalog(),
 ) {
   const provider = input.provider;
   const resolvedTools = await toolCatalog.resolve(

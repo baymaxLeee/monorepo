@@ -292,10 +292,17 @@ export class KnowledgeInternalClient {
    * selects the embedding/rerank provider config. Returns chunks with their
    * source document for citation.
    */
-  retrieve(input: { userId: string; orgId: string; query: string; topK?: number }): Promise<RetrieveResult> {
+  retrieve(input: {
+    userId: string;
+    orgId: string;
+    query: string;
+    topK?: number;
+    signal?: AbortSignal;
+  }): Promise<RetrieveResult> {
     return this.unwrap(
       this.client.POST("/internal/retrieve", {
         body: { user_id: input.userId, org_id: input.orgId, query: input.query, top_k: input.topK },
+        signal: input.signal,
       }),
     );
   }

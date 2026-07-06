@@ -38,6 +38,8 @@ agent/
 - `tools/` 只放模型调用边界；artifact、memory、plan 的业务实现属于各自 subsystem。
 - `ToolCatalog` 是可实例化对象。默认 catalog 只作为应用 composition root，禁止模块级数组泄漏租户状态。
 - Skills 可以贡献 instructions 和 tools；MCP 必须显式筛选工具/schema，不能直接暴露远端全集。
+- 系统 Skill 采用渐进披露：初始 prompt 只含 name/description，命中后由通用 `load_skill`
+  读取代码版本化的 `SKILL.md`。纯工作流、证据规则和输出模板属于 Skill，不为此新增垂直业务 tool。
 - Subagent 通过 tool delegation 运行独立 context，并将压缩后的 `toModelOutput` 返回主模型。
 
 ## Persistence boundaries

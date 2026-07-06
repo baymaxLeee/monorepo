@@ -16,8 +16,7 @@ export {
   taskSeedFrames,
   type TaskEventInput,
 } from "./streams/task-progress.js";
-export { registerMcpTools } from "./integrations/mcp/provider.js";
-export { registerSkillTools } from "./integrations/skills/provider.js";
+export { createMcpExtension } from "./integrations/mcp/provider.js";
 export type {
   AgentExtension,
   AgentExtensionContribution,

@@ -14,6 +14,7 @@ import { createMediaToolManifests } from "./builtins/media.js";
 import { createMemoryToolManifests } from "./builtins/memory.js";
 import { createPlanningToolManifests } from "./builtins/planning.js";
 import { createSearchToolManifests } from "./builtins/search.js";
+import { resolveSystemSkills } from "../integrations/skills/provider.js";
 import {
   defineAgentTool,
   manifestsToTools,
@@ -87,8 +88,9 @@ export class ToolCatalog {
     instructions: string[];
     dispose: () => Promise<void>;
   }> {
-    const manifests = builtinManifests(context.mode, providers);
-    const instructions: string[] = [];
+    const systemSkills = resolveSystemSkills(context.mode);
+    const manifests = [...builtinManifests(context.mode, providers), ...systemSkills.manifests];
+    const instructions: string[] = [...systemSkills.instructions];
     const disposers: Array<() => void | Promise<void>> = [];
 
     for (const extension of [...this.#extensions]) {
@@ -150,5 +152,3 @@ export class ToolCatalog {
     };
   }
 }
-
-export const defaultToolCatalog = new ToolCatalog();

@@ -1,8 +1,14 @@
 # Oncall Agent 落地方案
 
-> 状态：**已落地**（Phase 1 画像链路 + org 团队知识共享，均已合入）。持久决策见
-> `docs/ADR/0026-oncall-agent-org-knowledge-sharing.md`。本文件保留作为设计脉络与 as-built
-> 记录；后续 Phase 2/3 未做项见文末清单。
+> 状态：**已落地并演进**。Phase 1 画像链路 + org 团队知识共享见
+> `docs/ADR/0026-oncall-agent-org-knowledge-sharing.md`。
+>
+> **架构演进（ADR-0028）**：面向 to-B 前场支持场景，能力沉淀为系统内置
+> `field-support` Skill。Chat 初始上下文只暴露名称与描述，命中场景后由通用
+> `load_skill` 按需载入完整工作流；主 `ToolLoopAgent` 继续使用 `ask_user`、
+> `knowledge_search`、`web_search` 和 `write_file` 等通用工具，不增加专用 oncall tool、
+> 嵌套 agent 或手写模型 pipeline。持久决策见
+> `docs/ADR/0028-field-support-system-skill.md`。
 
 ## 落地状态（as-built）
 
@@ -38,7 +44,11 @@ Phase 1 的 oncall 画像链路，还额外落地了一层 org 多租户基座�
   admin bot 配置对话框加「人设 / 系统提示词」多行编辑；chat 复用既有智能体选择器即可选中 oncall bot。
 
 未做（明确留后）：完整 org 管理 UI（建组/邀请成员，后端暂无 org CRUD 端点，MVP 单活跃 org）；
-文档新鲜度元数据（Phase 2）；批量导入接口（Phase 2）；MCP 现场只读工具（Phase 3）。
+批量导入接口（Phase 2）；MCP 现场只读工具（Phase 3，作为 Skill 可调用的只读数据源，
+按 org/环境可配）；文档治理元数据（只有出现明确的运营、过滤或排序需求时再做完整竖切）。
+
+已落地（ADR-0028）：系统内置 `field-support` Skill + 渐进披露 `load_skill`；
+Knowledge 继续聚焦 chunking、embedding、BM25、RRF、rerank、org ACL 与可验证 chunk 引用。
 
 ## 概述
 
@@ -154,11 +164,10 @@ chat 消费入口：
   (`apps/backend/services/chat/src/routes/agents.ts` 的 `runSchema.agent_id` 已支持)；
   确认/补齐前端「选择 bot」入口。
 
-## Phase 2 — 知识治理与团队共享（决策点，MVP 后）
+## Phase 2 — 检索质量与团队共享（决策点，MVP 后）
 
-- 文档新鲜度元数据：`apps/backend/services/knowledge/src/knowledge/models/document.py` 的
-  documents 表加 `source_url` / `last_reviewed_at` / `version` / `authority` + migration；
-  检索结果透出这些字段；画像对过时 runbook 降权并提示。
+- 优先持续改进文档解析、chunking、embedding、BM25、RRF 与 rerank。新鲜度、版本或
+  authority 元数据只在出现明确的运营维护流程和检索策略后再设计，不预埋自由文本字段。
 - 批量迁移：新增内部导入接口/脚本，基于 `create_document(content_md)` + `index_document`，
   从 Confluence/飞书导出批量灌入（当前只能单文件 UI 上传）。
 - 团队共享 ACL：当前知识 user-scoped
@@ -186,7 +195,8 @@ chat 消费入口：
 - [x] Phase 1：admin 前端 bot 配置加「人设/系统提示词」编辑；chat 端复用既有智能体选择器选中 oncall bot
 - [x] 团队共享（原 Phase 2 决策 2，提前落地）：org 多租户基座（IAM organizations + JWT + gateway header）+ 知识库 `org_id` 检索/ACL + admin bot org 化
 - [x] 全资源表 org 隔离（用户追加诉求，破坏性迁移已获准）：`scenes`/`intentions`/`model_providers` 加 `org_id` + migration `v1.8.0.sql`（回填 `guest-org` → `NOT NULL`）+ `bots.org_id` 收紧 `NOT NULL`；provider 团队共享 + 内部 by-id 解析不带 org（Option Y）；`gen-openapi` + `just sync` 回流
-- [ ] Phase 2：documents 新鲜度元数据字段（`source_url`/`last_reviewed_at`/`version`/`authority`）+ migration + 检索透出 + 画像降权
+- [x] 前场支持能力演进（ADR-0028）：系统内置 `field-support` Skill；L1 名称/描述常驻，`load_skill` 按需加载 L2 正文；主 agent 复用 `ask_user` / `knowledge_search` / `web_search` / `write_file`
+- [ ] Phase 2 知识治理元数据：仅在出现明确的运营流程与检索策略后再做，不预埋 `knowledge_version` 等无人消费字段
 - [ ] Phase 2：批量导入接口/脚本（`create_document` + `index_document`）
 - [ ] 完整 org 管理 UI（建组/邀请成员）+ IAM org CRUD 端点（当前仅 demo 单 org 种子）
 - [ ] Phase 3（可选）：MCP 接 metrics/logs/tracing 只读工具
@@ -200,5 +210,8 @@ chat 消费入口：
    tables 都加 org_id"的追加诉求，`scenes`/`intentions`/`model_providers` 一并 org 化，且
    `model_providers` 定为**团队共享**（LLM 凭证团队内共用），内部 by-id 解析不带 org（Option Y，
    见 ADR-0026 决策 8）。`apps`（全局平台配置）与 chat 会话/消息/记忆（用户私有运行时数据）不纳入。
-3. 新鲜度元数据：**留 Phase 2**（未做）。
-4. 交付范围：Phase 1 可跑 MVP + org 团队共享基座（已交付）；Phase 2 治理与完整 org 管理 UI 后续。
+3. 新鲜度/版本元数据：**继续留后**；当前先把 embedding、混合检索和 rerank 做好。
+4. 交付范围：Phase 1 可跑 MVP + org 团队共享基座（已交付）；系统内置前场支持 Skill
+   （ADR-0028，已交付）；批量导入、完整 org 管理 UI、Phase 3 MCP 现场只读工具后续。
+5. 前场支持形态：**Skill 渐进披露**。名称/描述帮助主 agent 发现能力，完整模板与约束只在
+   命中后载入；不存在专用 tool、第二个模型 pipeline 或 persona 多 agent。

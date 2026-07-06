@@ -1,7 +1,7 @@
 # Agent 扩展体系：MCP / Skill / SubAgent（admin 管理 · chat 消费）
 
-> 状态：方案阶段（未写代码）。本文件是完整实施计划；面向决策的精简版将在动工时固化为
-> `docs/ADR/0018-agent-extensions-mcp-skill-subagent.md`。
+> 状态：部分落地。ADR-0028 已交付 per-run `ToolCatalog` 与代码版本化系统 Skill 的
+> L1/L2 渐进披露；本文件剩余部分继续描述 admin 可配置 Skill、MCP 与 SubAgent 的后续方案。
 >
 > 已拍板决策：范围 = Phase 0 地基 + Phase 1 Skill；挂载 = **Bot 聚合根**；
 > SubAgent = **内联短时**（不碰 executor）；MCP = **首次调用需审批**。
@@ -15,7 +15,7 @@
 - **MCP**：接入外部系统的工具集（远端 server）。
 - **SubAgent**：把子任务委派给拥有独立 context 的专才，回传压缩摘要。
 
-核心判断：**这不是从零搭建，而是"设计已定、脚手架已埋、实现未落"**。扩展缝隙
+核心判断：**这不是从零搭建，而是"设计已定、系统 Skill 已落地、管理面待补"**。扩展缝隙
 （`AgentExtension` / `ToolCatalog`）、运行时（AI SDK v7 `ToolLoopAgent`）、长任务载体
 （executor + `TaskType`）、admin→chat 消费范式（provider 加密下发）、前端管理/消费范式
 （ScenesPage / provider 选择）全部就位。三者接入是"顺着骨架填肉"。
@@ -24,11 +24,12 @@
 
 ### 已就位（省钱根源）
 
-- **扩展缝隙已预埋但无人调用**：
+- **扩展缝隙与系统 Skill 已落地**：
   - `agent/integrations/types.ts` 的 `AgentExtensionContribution` 三字段
     `{ tools?, instructions?, dispose? }` 精准匹配 MCP（tools+close）、Skill（instructions+tools）。
-  - `agent/integrations/mcp/provider.ts`、`agent/integrations/skills/provider.ts` 已导出
-    `registerMcpTools/registerSkillTools`，但**全仓无人调用**（纯占位）。
+  - `agent/integrations/skills/provider.ts` 注册代码版本化系统 Skill；普通 run 只注入
+    name+description，通用 `load_skill` 按需读取 `SKILL.md` 全文。
+  - `agent/integrations/mcp/provider.ts` 保留 run-scoped extension 工厂，真实 MCP client 待 Phase 2。
 - **工具目录按 run 解析**：`agent/tools/catalog.ts` 的 `ToolCatalog.resolve(context)` 拿到
   `{mode, runId, userId, conversationId}`，是正确接入点。
 - **运行时**：`agent/agents/tool-loop.ts` 使用 backend workspace catalog 管理的
@@ -44,11 +45,10 @@
 - **前端范式**：admin CRUD 参考 `ScenesPage.tsx`（含 is_enabled/status/批量删除）；
   chat 消费参考 `useChatStore` + `ChatComposerControls` + `ModelSelector` + `requestBody` 注入。
 
-### 关键隐患（Phase 0 必修）
+### 已消除的关键隐患（ADR-0028）
 
-`agent/tools/catalog.ts` 导出的 `defaultToolCatalog` 是**进程级模块单例**，而
-`agent/README.md` 明令"**禁止模块级数组泄漏租户状态**"。现有 `registerMcpTools/registerSkillTools`
-往这个全局单例注册，恰好违反自身设计——多租户会串工具。**不修它，其余一切都不安全。**
+原 `defaultToolCatalog` 是进程级模块单例，违反 `agent/README.md` 的租户隔离要求。
+ADR-0028 已删除该单例和全局注册 API；每次 `createToolLoopAgent` 默认构造独立 `ToolCatalog`。
 
 ### 官方 / benchmark 对齐（已查证，非记忆）
 
@@ -250,23 +250,24 @@ skills (
 | M2 | Phase 2 MCP（含审批/降级/加密） | ~5–7 人日 |
 | M3 | Phase 3 内联 SubAgent | ~3–4 人日 |
 
-> 本轮交付 M0 + M1；M2/M3 方案已定，按需排期。
+> ADR-0028 已交付 M0 与系统内置 Skill 竖切；admin 可配置、按 bot 挂载的 M1 管理面以及
+> M2/M3 按需排期。
 
 ## 风险与回滚
 
 - **Phase 0 触及热路径**：改动小，extensions 为空时行为等价；回滚还原相关文件即可。
-- **chat 首次消费 bot**：`bot_id` 全程可空 → 不选 bot 时完全等价于今天，天然向后兼容（非破坏式）。
-- **迁移**：admin `v1.6.0` + chat conversation `bot_id`，均为加列/加表，可安全前滚。
+- **chat 首次消费 bot**：后续管理面若落地，`bot_id` 全程可空；当前系统 Skill 不依赖 bot 选择。
+- **迁移**：当前系统 Skill 不需要数据库迁移；后续 admin 可配置 Skill 再单独评审表结构。
 - **上下文预算**：严格渐进披露 + 快照只带 L1，规避技能全文堆积。
 
 ## plan skill 六步自检
 
-1. 批判性复核：确认扩展缝隙为"设计定、实现空"；`defaultToolCatalog` 单例违反自身 README → Phase 0 必修。
+1. 批判性复核：`defaultToolCatalog` 单例违反自身 README，已由 ADR-0028 删除。
 2. 官方对齐：`@ai-sdk/mcp` 现行 API、Skill 渐进披露、`toolApproval` 均查证源码/官方文档，非记忆。
 3. Benchmark：Skill/SubAgent/MCP 边界照 Claude Code。
 4. 单 agent 优先：主 agent 不变，SubAgent 仅 tool delegation，无 persona 剧场。
 5. 直接重构：单例改 per-run，不加兼容层。
-6. 收口：动工时补 ADR-0018 + `just sync` / `just lint`。
+6. 收口：系统 Skill 决策见 ADR-0028；`just sync` / `just lint` 已纳入 DoD。
 
 ## 相关阅读
 

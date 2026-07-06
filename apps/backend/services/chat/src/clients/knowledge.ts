@@ -94,8 +94,9 @@ export async function retrieveKnowledge(
   orgId: string,
   query: string,
   topK?: number,
+  signal?: AbortSignal,
 ): Promise<RetrieveResult> {
-  return knowledgeClient().retrieve({ userId, orgId, query, topK });
+  return knowledgeClient().retrieve({ userId, orgId, query, topK, signal });
 }
 
 export async function createArtifact(input: {
@@ -140,4 +141,3 @@ export async function updateArtifact(input: {
     throw err;
   }
 }
-
