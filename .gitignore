@@ -59,6 +59,9 @@ pgdata/
 
 # Go
 vendor/
+# `just build-go-svc` local dev artifact (Docker builds compile from source
+# independently; see apps/backend/services/*/Dockerfile), never commit it.
+apps/backend/services/*/bin/
 
 # Knowledge service local object storage (runtime uploads)
 apps/backend/services/knowledge/data/
