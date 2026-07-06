@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted.
+Accepted. **Partially superseded by ADR-0032**: decisions 4–6 below (the
+free-text `bots.system_prompt` persona and its `<agent_persona>` instruction
+section) are replaced by a code-governed, layered prompt with a structured Bot
+profile. The org-tenancy and team-knowledge-sharing decisions (1–3, 7, 8) remain
+in force.
 
 ## Context
 

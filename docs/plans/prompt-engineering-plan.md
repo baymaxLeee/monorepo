@@ -195,7 +195,7 @@ admin ResolvedAgent
 ## 任务
 
 - [x] 最终确定 Bot profile schema（role/domain/audience/tone/welcome/suggested）；取得 admin migration 授权。
-- [ ] 新增 ADR，并将 ADR-0026 的自由文本 persona 决策标记为被替代。
+- [x] 新增 ADR-0032，并将 ADR-0026 的自由文本 persona 决策（4–6）标记为被替代。
 - [x] 在 admin Bot model/schema/CRUD/service 中删除 `system_prompt`，新增结构化 profile 与 UI 字段；更新 demo seed（`v1.9.0.sql`）。
 - [x] 生成 admin OpenAPI 并同步 transport-ts / 前端 client，扩展现有 `ResolvedAgent`，不新增第二套 Bot snapshot API。
 - [x] chat instructions 已是固定层级的 typed assembler + XML renderer，含 XML escaping 与 data-only 标记。
