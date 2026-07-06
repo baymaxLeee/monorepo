@@ -21,7 +21,7 @@ done
 
 echo ""
 echo "── Docker services ──"
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -q monorepo-workflow-postgres; then
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -q monorepo-postgres; then
   ok "postgres running"
 else
   miss "postgres NOT running (try: just up)"

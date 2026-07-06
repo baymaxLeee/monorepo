@@ -9,7 +9,7 @@ default:
 # Start local infra: Docker, create DBs, apply service-owned dev schemas.
 up:
     docker compose up -d --remove-orphans
-    @./scripts/wait-for-workflow-postgres.sh
+    @./scripts/wait-for-postgres.sh
     @./scripts/workflow-postgres-bootstrap.sh
     @./scripts/db-bootstrap.sh
     @echo "OK Infra up - Redis :6379, Postgres :5432 (workflow + service DBs + knowledge vectors)"

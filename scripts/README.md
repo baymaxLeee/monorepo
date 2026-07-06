@@ -20,7 +20,7 @@ running `just <recipe>` from the repository root.
 
 - `build-target.sh`: dispatches root `just build [target]` to frontend/backend
   build recipes.
-- `wait-for-workflow-postgres.sh`: waits until the local PostgreSQL container accepts pings.
+- `wait-for-postgres.sh`: waits until the local PostgreSQL container accepts pings.
 - `wait-for-url.sh`: waits for an HTTP endpoint, used for MFE startup ordering.
 
 ## Scaffolding

@@ -7,7 +7,7 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 
 ## Runtime / storage (ADR-0019)
 - Runs on **Postgres + pgvector**, on the shared instance
-  (docker-compose `workflow-postgres`, image `pgvector/pgvector:pg16`): the
+  (docker-compose `postgres`, image `pgvector/pgvector:pg16`): the
   `knowledge` database sits alongside executor's `workflow` database.
 - Migrations run through the shared Postgres path: `scripts/db-migrate.sh`
   applies `migrations/versions/*.sql` via psql, and `just up` migrates it once

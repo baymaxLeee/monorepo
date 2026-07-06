@@ -6,7 +6,7 @@ TARGET_VERSION="${2:-}"
 
 # Single shared Postgres instance: workflow DB + per-service business DBs +
 # knowledge vectors all live here since the MySQL→PG consolidation (ADR 0029).
-PG_CONTAINER_NAME="${POSTGRES_CONTAINER:-monorepo-workflow-postgres}"
+PG_CONTAINER_NAME="${POSTGRES_CONTAINER:-monorepo-postgres}"
 PG_ADMIN_USER="${POSTGRES_ADMIN_USER:-${POSTGRES_USER:-workflow}}"
 PG_ADMIN_PASSWORD="${POSTGRES_ADMIN_PASSWORD:-${POSTGRES_PASSWORD:-workflow}}"
 

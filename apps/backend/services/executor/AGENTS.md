@@ -32,8 +32,8 @@ for the full rationale.
   service's own PostgreSQL `tasks` table. Execution truth (steps, retries, replay)
   lives in the Workflow World (self-hosted Postgres via
   `@workflow/world-postgres`). **Dev/prod parity is an explicit product
-  decision here**: local dev runs the same `workflow-postgres` container as
-  every deployed environment (`docker-compose.yml`'s `workflow-postgres`
+  decision here**: local dev runs the same `postgres` container as
+  every deployed environment (`docker-compose.yml`'s `postgres`
   service, started by `just up`) rather than defaulting to the
   filesystem-backed Local World — see "Known operational notes" #3, which
   this parity choice is what actually surfaced. Local World still exists as
@@ -162,7 +162,7 @@ All fixed, all re-check-worthy whenever `nitro`/`workflow`/`ai` are bumped:
    `WORKFLOW_TARGET_WORLD` alone does not start the graphile-worker queue
    that processes them) — silently, since `POST /tasks` still returns
    `"running"` immediately either way. Empirically verified end to end
-   against a real `workflow-postgres` container (`workflow.workflow_runs`
+   against a real `postgres` container (`workflow.workflow_runs`
    gained a row, `.workflow-data/` was never created, task reached
    `completed`) — this had never actually been tested before, only assumed
    from reading the docs.

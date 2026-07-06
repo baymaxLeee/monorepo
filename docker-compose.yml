@@ -24,16 +24,16 @@ services:
   # `getWorld().start()` call (see executor/AGENTS.md "Known operational
   # notes" #3) was caught in the first place — Local World would have hidden
   # it in every local run.
-  workflow-postgres:
+  postgres:
     image: pgvector/pgvector:pg16
-    container_name: monorepo-workflow-postgres
+    container_name: monorepo-postgres
     environment:
       POSTGRES_USER: workflow
       POSTGRES_PASSWORD: workflow
       POSTGRES_DB: workflow
     ports: ["5432:5432"]
     volumes:
-      - workflow_postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U workflow"]
       interval: 5s
@@ -41,4 +41,4 @@ services:
       retries: 10
 
 volumes:
-  workflow_postgres_data:
+  postgres_data:

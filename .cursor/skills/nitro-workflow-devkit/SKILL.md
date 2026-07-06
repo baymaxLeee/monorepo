@@ -128,7 +128,7 @@ on that, not `error.name === "AbortError"`.
 
 This repo's first instinct was "Local World locally, Postgres World only in
 deployed environments" (less container weight for local dev). That was
-reverted: local dev now runs the same `workflow-postgres` container as every
+reverted: local dev now runs the same `postgres` container as every
 deployed environment (`docker-compose.yml`, started by `just up`, schema
 bootstrapped by `scripts/workflow-postgres-bootstrap.sh`), and Local World is
 only a manual fallback (comment out `WORKFLOW_TARGET_WORLD`/

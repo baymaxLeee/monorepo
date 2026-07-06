@@ -62,9 +62,9 @@ services:
   #   - `iam` / `admin` / `chat` / `executor` / `telemetry` → business schemas
   # All migrated off MySQL (docs/ADR/0029). Local dev runs the same container
   # (root docker-compose.yml) for dev/prod parity — see docs/微服务/executor.md.
-  workflow-postgres:
+  postgres:
     image: pgvector/pgvector:pg16
-    container_name: monorepo-workflow-postgres
+    container_name: monorepo-postgres
     environment:
       POSTGRES_USER: workflow
       POSTGRES_PASSWORD: ${WORKFLOW_POSTGRES_PASSWORD:?WORKFLOW_POSTGRES_PASSWORD is required}
@@ -76,7 +76,7 @@ services:
       - -c
       - max_connections=200
     volumes:
-      - workflow_postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U workflow"]
       interval: 5s
@@ -92,10 +92,10 @@ services:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/db-init:${IMAGE_TAG:-main}
     container_name: monorepo-db-init
     depends_on:
-      workflow-postgres:
+      postgres:
         condition: service_healthy
     environment:
-      POSTGRES_HOST: workflow-postgres
+      POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_ADMIN_USER: workflow
       POSTGRES_ADMIN_PASSWORD: ${WORKFLOW_POSTGRES_PASSWORD:?WORKFLOW_POSTGRES_PASSWORD is required}
@@ -111,22 +111,22 @@ services:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/executor:${IMAGE_TAG:-main}
     container_name: monorepo-workflow-db-init
     depends_on:
-      workflow-postgres: { condition: service_healthy }
+      postgres: { condition: service_healthy }
     command: ["node", "node_modules/@workflow/world-postgres/bin/setup.js"]
     environment:
-      WORKFLOW_POSTGRES_URL: postgres://workflow:${WORKFLOW_POSTGRES_PASSWORD}@workflow-postgres:5432/workflow
+      WORKFLOW_POSTGRES_URL: postgres://workflow:${WORKFLOW_POSTGRES_PASSWORD}@postgres:5432/workflow
     restart: "no"
 
   iam:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/iam:${IMAGE_TAG:-main}
     container_name: monorepo-iam
     depends_on:
-      workflow-postgres: { condition: service_healthy }
+      postgres: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8002"
-      POSTGRES_HOST: workflow-postgres
+      POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_USER: iam
       POSTGRES_PASSWORD: ${IAM_POSTGRES_PASSWORD:?IAM_POSTGRES_PASSWORD is required}
@@ -177,13 +177,13 @@ services:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/admin:${IMAGE_TAG:-main}
     container_name: monorepo-admin
     depends_on:
-      workflow-postgres: { condition: service_healthy }
+      postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8001"
-      POSTGRES_HOST: workflow-postgres
+      POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: ${ADMIN_POSTGRES_PASSWORD:?ADMIN_POSTGRES_PASSWORD is required}
@@ -201,13 +201,13 @@ services:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/chat:${IMAGE_TAG:-main}
     container_name: monorepo-chat
     depends_on:
-      workflow-postgres: { condition: service_healthy }
+      postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8009"
-      POSTGRES_HOST: workflow-postgres
+      POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_USER: chat
       POSTGRES_PASSWORD: ${CHAT_POSTGRES_PASSWORD:?CHAT_POSTGRES_PASSWORD is required}
@@ -227,13 +227,13 @@ services:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/executor:${IMAGE_TAG:-main}
     container_name: monorepo-executor
     depends_on:
-      workflow-postgres: { condition: service_healthy }
+      postgres: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
       workflow-db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8011"
-      POSTGRES_HOST: workflow-postgres
+      POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_USER: executor
       POSTGRES_PASSWORD: ${EXECUTOR_POSTGRES_PASSWORD:?EXECUTOR_POSTGRES_PASSWORD is required}
@@ -243,7 +243,7 @@ services:
       # World, never the filesystem-backed Local World (it isn't shared
       # across replicas or container restarts).
       WORKFLOW_TARGET_WORLD: "@workflow/world-postgres"
-      WORKFLOW_POSTGRES_URL: postgres://workflow:${WORKFLOW_POSTGRES_PASSWORD}@workflow-postgres:5432/workflow
+      WORKFLOW_POSTGRES_URL: postgres://workflow:${WORKFLOW_POSTGRES_PASSWORD}@postgres:5432/workflow
       # Shared secret with chat/admin for `/internal/*`-style calls.
       # Must match chat-secrets.INTERNAL_API_TOKEN exactly.
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
@@ -262,7 +262,7 @@ services:
     environment:
       ENVIRONMENT: single-vps
       PORT: "8010"
-      POSTGRES_HOST: workflow-postgres
+      POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_USER: knowledge
       POSTGRES_PASSWORD: ${KNOWLEDGE_POSTGRES_PASSWORD:?KNOWLEDGE_POSTGRES_PASSWORD is required}
@@ -279,12 +279,12 @@ services:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/telemetry:${IMAGE_TAG:-main}
     container_name: monorepo-telemetry
     depends_on:
-      workflow-postgres: { condition: service_healthy }
+      postgres: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8008"
-      POSTGRES_HOST: workflow-postgres
+      POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_USER: telemetry
       POSTGRES_PASSWORD: ${TELEMETRY_POSTGRES_PASSWORD:?TELEMETRY_POSTGRES_PASSWORD is required}
@@ -309,4 +309,4 @@ services:
 volumes:
   redis_data:
   knowledge_data:
-  workflow_postgres_data:
+  postgres_data:

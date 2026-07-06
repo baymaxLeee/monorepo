@@ -9,7 +9,7 @@ if ! docker ps >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^monorepo-workflow-postgres$'; then
+if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^monorepo-postgres$'; then
   echo "✗ Postgres not running. Run: just up" >&2
   exit 1
 fi

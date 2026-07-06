@@ -254,7 +254,7 @@ docker compose -f docker-compose.prod.yml down -v
 ### Backup Postgres
 
 ```bash
-docker exec monorepo-workflow-postgres sh -c 'exec pg_dumpall -U workflow' > backup-$(date +%F).sql
+docker exec monorepo-postgres sh -c 'exec pg_dumpall -U workflow' > backup-$(date +%F).sql
 ```
 
 ### Backup all data volumes (cold backup; stop stack first)
@@ -262,7 +262,7 @@ docker exec monorepo-workflow-postgres sh -c 'exec pg_dumpall -U workflow' > bac
 ```bash
 docker compose -f docker-compose.prod.yml stop
 tar czf /backup/monorepo-$(date +%F).tar.gz -C /var/lib/docker/volumes \
-    monorepo_workflow_postgres_data monorepo_redis_data monorepo_knowledge_data
+    monorepo_postgres_data monorepo_redis_data monorepo_knowledge_data
 docker compose -f docker-compose.prod.yml start
 ```
 
@@ -274,7 +274,7 @@ docker compose -f docker-compose.prod.yml start
 |---|---|---|
 | `connection refused` from your laptop | Cloud security group port not open | Open `PUBLIC_PORT` in the cloud console |
 | `502 Bad Gateway` from nginx | Backend pod still booting / crashed | `docker compose logs gateway` |
-| `db-init` stuck | Postgres still initializing | First boot can take 30–60 s; if longer, check `docker compose logs workflow-postgres` |
+| `db-init` stuck | Postgres still initializing | First boot can take 30–60 s; if longer, check `docker compose logs postgres` |
 | Backend containers CrashLoopBackoff | A service-specific `*_POSTGRES_PASSWORD` is missing or stale | Re-edit `.env`, rerun `docker compose up -d` so `db-init` reconciles roles |
 | Frontend loads but API returns 401 forever | `ACCESS_TOKEN_SECRET` differs between gateway and iam (impossible if `.env` is shared) | `docker compose exec gateway env \| grep ACCESS_TOKEN`, ditto for iam |
 | Pulling images is slow / fails | GHCR rate limit (free tier) | Sign in: `docker login ghcr.io -u <github-user>` (use a PAT with `read:packages`) |
@@ -285,7 +285,7 @@ docker compose -f docker-compose.prod.yml start
 ## Migrating off
 
 The persistent data is in three named Docker volumes:
-- `monorepo_workflow_postgres_data`
+- `monorepo_postgres_data`
 - `monorepo_redis_data`
 - `monorepo_knowledge_data`
 

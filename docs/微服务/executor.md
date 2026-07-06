@@ -37,7 +37,7 @@ session）的替换点——只需要新增一种执行引擎实现，Task API �
   表——和 chat 的 `agent_runs` 是同一种"业务表 vs 执行态"划分。
 - 执行/重放真相（run、step、重试、event log）在 Workflow World：**本地和每个
   部署环境都用自建 Postgres World**（`@workflow/world-postgres`，独立的
-  `workflow-postgres` 实例上，和 executor 业务库同实例、不同库）——本地/生产一致是明确的
+  `postgres` 实例上，和 executor 业务库同实例、不同库）——本地/生产一致是明确的
   产品决策，不默认退化成文件系统 Local World（仍然可以通过注释掉 `.env` 里的
   `WORKFLOW_TARGET_WORLD`/`WORKFLOW_POSTGRES_URL` 手动切回 Local World，比如
   离线开发）。`just up` 会起这个容器并跑一次 schema 初始化

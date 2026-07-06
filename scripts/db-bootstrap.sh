@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SERVICES_DIR="$ROOT/apps/backend/services"
 
-PG_CONTAINER="${POSTGRES_CONTAINER:-monorepo-workflow-postgres}"
+PG_CONTAINER="${POSTGRES_CONTAINER:-monorepo-postgres}"
 PG_ADMIN_USER="${POSTGRES_ADMIN_USER:-workflow}"
 PG_ADMIN_PASSWORD="${POSTGRES_ADMIN_PASSWORD:-workflow}"
 
