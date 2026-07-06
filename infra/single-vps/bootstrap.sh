@@ -41,33 +41,55 @@ chmod 750 "${DEPLOY_DIR}"
 echo "  ✓ ${DEPLOY_DIR} ready"
 
 # --- sops + age: needed to decrypt operator secrets on this box (ADR 0031) ---
+# China-hosted VPS note: GitHub release CDN is often blocked/slow. We therefore
+# prefer distro packages, cap every GitHub download with a timeout, and honor an
+# optional GH_PROXY (e.g. GH_PROXY=https://mirror.ghproxy.com/) so downloads can
+# be routed through a mirror instead of hanging forever.
 ARCH="$(uname -m)"
 case "${ARCH}" in
     x86_64|amd64) GOARCH=amd64 ;;
     aarch64|arm64) GOARCH=arm64 ;;
     *) echo "✗ unsupported arch ${ARCH} for sops/age auto-install" >&2; exit 1 ;;
 esac
+AGE_VER=v1.2.1
+SOPS_VER=v3.9.4
+GH_PROXY="${GH_PROXY:-}"
+gh_dl() { url="$1"; shift; curl -fsSL --connect-timeout 20 --retry 2 --retry-delay 2 "$@" "${GH_PROXY}${url}"; }
 
-if ! command -v age-keygen >/dev/null 2>&1; then
-    echo "→ installing age (${GOARCH})"
-    AGE_VER=v1.2.1
-    tmp="$(mktemp -d)"
-    curl -fsSL "https://github.com/FiloSottile/age/releases/download/${AGE_VER}/age-${AGE_VER}-linux-${GOARCH}.tar.gz" \
-        | tar -xz -C "${tmp}"
-    install -m 0755 "${tmp}/age/age" "${tmp}/age/age-keygen" /usr/local/bin/
-    rm -rf "${tmp}"
-else
+if command -v age-keygen >/dev/null 2>&1; then
     echo "  ✓ age already installed: $(age --version 2>/dev/null || echo present)"
+else
+    echo "→ installing age"
+    if command -v apt-get >/dev/null 2>&1 && \
+       { apt-get install -y age >/dev/null 2>&1 || \
+         { apt-get update -qq >/dev/null 2>&1 && apt-get install -y age >/dev/null 2>&1; }; } && \
+       command -v age-keygen >/dev/null 2>&1; then
+        echo "  ✓ age via apt"
+    else
+        echo "  apt unavailable; downloading age ${AGE_VER} from GitHub${GH_PROXY:+ via proxy}"
+        tmp="$(mktemp -d)"
+        gh_dl "https://github.com/FiloSottile/age/releases/download/${AGE_VER}/age-${AGE_VER}-linux-${GOARCH}.tar.gz" \
+            | tar -xz -C "${tmp}"
+        install -m 0755 "${tmp}/age/age" "${tmp}/age/age-keygen" /usr/local/bin/
+        rm -rf "${tmp}"
+        echo "  ✓ age installed to /usr/local/bin"
+    fi
 fi
 
-if ! command -v sops >/dev/null 2>&1; then
-    echo "→ installing sops (${GOARCH})"
-    SOPS_VER=v3.9.4
-    curl -fsSL -o /usr/local/bin/sops \
-        "https://github.com/getsops/sops/releases/download/${SOPS_VER}/sops-${SOPS_VER}.linux.${GOARCH}"
-    chmod 0755 /usr/local/bin/sops
-else
+if command -v sops >/dev/null 2>&1; then
     echo "  ✓ sops already installed: $(sops --version 2>/dev/null | head -1)"
+else
+    echo "→ installing sops ${SOPS_VER} from GitHub${GH_PROXY:+ via proxy}"
+    if gh_dl "https://github.com/getsops/sops/releases/download/${SOPS_VER}/sops-${SOPS_VER}.linux.${GOARCH}" \
+         -o /usr/local/bin/sops; then
+        chmod 0755 /usr/local/bin/sops
+        echo "  ✓ sops installed to /usr/local/bin"
+    else
+        echo "✗ failed to download sops from GitHub." >&2
+        echo "  Re-run with a mirror, e.g.:" >&2
+        echo "    sudo env GH_PROXY=https://mirror.ghproxy.com/ bash /tmp/bootstrap.sh" >&2
+        exit 1
+    fi
 fi
 
 # Age keypair: private key stays ONLY on this box; public key goes into
