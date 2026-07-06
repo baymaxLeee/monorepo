@@ -26,8 +26,8 @@ for svc in chat knowledge telemetry; do
 done
 
 if [ -d "$ROOT/apps/backend/services/iam" ]; then
-  echo "→ re-seeding iam demo data (accounts preserved in iam DB)"
-  (cd "$ROOT/apps/backend/services/iam" && POSTGRES_USER=iam POSTGRES_PASSWORD=iam IAM_POSTGRES_DATABASE=iam go run ./cmd/migrate)
+  echo "→ re-running iam identity bootstrap (accounts preserved in iam DB)"
+  (cd "$ROOT/apps/backend/services/iam" && POSTGRES_USER=iam POSTGRES_PASSWORD=iam IAM_POSTGRES_DATABASE=iam go run ./cmd/server seed)
 fi
 
 echo "✓ demo DB reset complete (admin data untouched)"

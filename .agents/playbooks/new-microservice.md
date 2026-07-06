@@ -87,7 +87,8 @@ ADR-0015 的教训：`executor` 加入 `NODE_SERVICES` 后这个洞踩了一整�
 [ ] infra/single-vps/docker-compose.prod.yml       # 新增 <name> 服务；gateway env 加 <NAME>_SERVICE_URL；顶部架构注释更新
 [ ] infra/single-vps/Dockerfile.db-init            # COPY services/<name>/migrations/versions 到 /schema/<name>
 [ ] infra/single-vps/postgres-init.sh              # SERVICES 加 <name>
-[ ] infra/single-vps/.env.example                  # 新服务需要的 env 模板（可选）
+[ ] infra/single-vps/render-env.sh                 # INTERNAL_KEYS 加 <NAME>_POSTGRES_PASSWORD（VPS 自动生成，见 ADR 0031）
+[ ] infra/single-vps/secrets.sops.env.example      # 仅当新服务需要「运维/外部」密钥（第三方 API key 等）才加
 ```
 
 如果新服务需要业务 PostgreSQL 之外的专用存储（例如 executor 的 Workflow

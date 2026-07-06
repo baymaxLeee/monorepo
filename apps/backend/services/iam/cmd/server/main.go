@@ -25,6 +25,44 @@ func main() {
 		slog.Error("failed to load configuration", "err", err)
 		os.Exit(1)
 	}
+
+	// `server seed` is the one-shot identity bootstrap, run as an explicit
+	// deploy-time step (compose one-shot container / k8s Job) after migrations.
+	// The server path deliberately does NOT seed, so N replicas never race the
+	// bootstrap on every start. Any other subcommand exits non-zero rather than
+	// silently starting the HTTP server — a stale `migrate` arg (removed in
+	// ADR-0029) would otherwise spawn a phantom server that never completes.
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "seed":
+			runSeed(cfg)
+			return
+		default:
+			slog.Error("unknown subcommand; supported: seed", "arg", os.Args[1])
+			os.Exit(2)
+		}
+	}
+
+	runServer(cfg)
+}
+
+func runSeed(cfg config.Config) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	st, err := crud.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		slog.Error("failed to connect database", "err", err)
+		os.Exit(1)
+	}
+	defer st.Close()
+	if err := service.EnsureSystemBootstrap(ctx, st, cfg); err != nil {
+		slog.Error("failed to bootstrap system identity", "err", err)
+		os.Exit(1)
+	}
+	slog.Info("iam system bootstrap complete")
+}
+
+func runServer(cfg config.Config) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	st, err := crud.Connect(ctx, cfg.DatabaseURL)
 	cancel()
@@ -33,14 +71,6 @@ func main() {
 		os.Exit(1)
 	}
 	defer st.Close()
-
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-	if err := service.EnsureSystemBootstrap(ctx, st, cfg); err != nil {
-		cancel()
-		slog.Error("failed to bootstrap system identity", "err", err)
-		os.Exit(1)
-	}
-	cancel()
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

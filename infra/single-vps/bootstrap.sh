@@ -40,6 +40,48 @@ mkdir -p "${DEPLOY_DIR}"
 chmod 750 "${DEPLOY_DIR}"
 echo "  ✓ ${DEPLOY_DIR} ready"
 
+# --- sops + age: needed to decrypt operator secrets on this box (ADR 0031) ---
+ARCH="$(uname -m)"
+case "${ARCH}" in
+    x86_64|amd64) GOARCH=amd64 ;;
+    aarch64|arm64) GOARCH=arm64 ;;
+    *) echo "✗ unsupported arch ${ARCH} for sops/age auto-install" >&2; exit 1 ;;
+esac
+
+if ! command -v age-keygen >/dev/null 2>&1; then
+    echo "→ installing age (${GOARCH})"
+    AGE_VER=v1.2.1
+    tmp="$(mktemp -d)"
+    curl -fsSL "https://github.com/FiloSottile/age/releases/download/${AGE_VER}/age-${AGE_VER}-linux-${GOARCH}.tar.gz" \
+        | tar -xz -C "${tmp}"
+    install -m 0755 "${tmp}/age/age" "${tmp}/age/age-keygen" /usr/local/bin/
+    rm -rf "${tmp}"
+else
+    echo "  ✓ age already installed: $(age --version 2>/dev/null || echo present)"
+fi
+
+if ! command -v sops >/dev/null 2>&1; then
+    echo "→ installing sops (${GOARCH})"
+    SOPS_VER=v3.9.4
+    curl -fsSL -o /usr/local/bin/sops \
+        "https://github.com/getsops/sops/releases/download/${SOPS_VER}/sops-${SOPS_VER}.linux.${GOARCH}"
+    chmod 0755 /usr/local/bin/sops
+else
+    echo "  ✓ sops already installed: $(sops --version 2>/dev/null | head -1)"
+fi
+
+# Age keypair: private key stays ONLY on this box; public key goes into
+# .sops.yaml so the encrypted secrets.sops.env can be decrypted here.
+AGE_KEY_FILE="${DEPLOY_DIR}/age.key"
+if [ ! -f "${AGE_KEY_FILE}" ]; then
+    echo "→ generating age key at ${AGE_KEY_FILE}"
+    age-keygen -o "${AGE_KEY_FILE}" >/dev/null 2>&1
+    chmod 600 "${AGE_KEY_FILE}"
+else
+    echo "  ✓ age key already present at ${AGE_KEY_FILE}"
+fi
+AGE_PUBKEY="$(age-keygen -y "${AGE_KEY_FILE}")"
+
 # Cloud providers (Aliyun / 火山 / Tencent) ALSO require opening this port
 # in the web console's "安全组 / Security Group" — this script can only
 # manage the OS-level firewall.
@@ -57,9 +99,25 @@ fi
 echo ""
 echo "✓ bootstrap complete."
 echo ""
+echo "─────────────────────────────────────────────────────────"
+echo "This VPS's age PUBLIC key (safe to share/commit):"
+echo ""
+echo "    ${AGE_PUBKEY}"
+echo ""
+echo "─────────────────────────────────────────────────────────"
+echo ""
 echo "Next steps (on your laptop, NOT here):"
-echo "  1. Edit infra/single-vps/.env.example → save as infra/single-vps/.env"
-echo "  2. Run: ./infra/single-vps/deploy.sh <user>@<this-vps-ip>"
+echo "  1. Put the age public key above into .sops.yaml (repo root)."
+echo "  2. Create the encrypted operator secrets from the template:"
+echo "       cp infra/single-vps/secrets.sops.env.example /tmp/s.env"
+echo "       \$EDITOR /tmp/s.env    # fill in super-admin + Tavily + crypto keys"
+echo "       sops --encrypt --input-type dotenv --output-type dotenv /tmp/s.env \\"
+echo "         > infra/single-vps/secrets.sops.env"
+echo "       shred -u /tmp/s.env"
+echo "     Then commit infra/single-vps/secrets.sops.env (it is encrypted)."
+echo "  3. Deploy:"
+echo "       IMAGE_REGISTRY=ghcr.io/<owner>/<repo> \\"
+echo "         ./infra/single-vps/deploy.sh <user>@<this-vps-ip>"
 echo ""
 echo "Then in your cloud console (Aliyun / 火山引擎 etc.):"
 echo "  • Open port ${PUBLIC_PORT}/tcp in the Security Group"

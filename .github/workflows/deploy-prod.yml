@@ -89,23 +89,26 @@ jobs:
         working-directory: infra/k8s/overlays/prod
         run: kustomize build --load-restrictor=LoadRestrictionsNone . | head -200
 
-      # Per-service DB migration Job: run BEFORE rolling the Deployments.
-      # If any migration fails, the deploy aborts and existing pods keep
-      # serving traffic on the old schema.
-      - name: Run DB migrations (iam only for now)
+      # One-shot identity bootstrap Job: run BEFORE rolling the Deployments so the
+      # super-admin + guest-org exist before any iam replica serves traffic. The
+      # bootstrap is idempotent — safe to re-run every deploy. If it fails, the
+      # deploy aborts and existing pods keep serving on the current data.
+      - name: Bootstrap iam identity (super-admin + guest-org)
         working-directory: infra/k8s
         run: |
-          # iam owns Go migrations (cmd/migrate). Admin / telemetry add their
-          # own here once they grow alembic / ddl tooling.
+          # iam's SQL schema is applied out-of-band (managed Postgres, see
+          # overlays/prod/README). This Job ONLY runs iam's `seed` subcommand —
+          # the sole carrier of the password-hashed identity bootstrap, lifted
+          # out of the server start path so replicas don't each re-seed.
           REG="${{ steps.vars.outputs.registry }}"
           TAG="${{ steps.vars.outputs.tag }}"
-          JOB_NAME="iam-migrate-$(date +%s)"
+          JOB_NAME="iam-bootstrap-$(date +%s)"
           cat <<EOF | kubectl apply -n monorepo-prod -f -
           apiVersion: batch/v1
           kind: Job
           metadata:
             name: ${JOB_NAME}
-            labels: { app: iam-migrate }
+            labels: { app: iam-bootstrap }
           spec:
             backoffLimit: 0
             ttlSecondsAfterFinished: 86400
@@ -113,7 +116,7 @@ jobs:
               spec:
                 restartPolicy: Never
                 containers:
-                  - name: migrator
+                  - name: seed
                     image: ${REG}/iam:${TAG}
                     envFrom:
                       - configMapRef: { name: iam-config }
@@ -121,7 +124,7 @@ jobs:
                     env:
                       - { name: ENVIRONMENT, value: production }
                     command: ["/server"]
-                    args: ["migrate"]
+                    args: ["seed"]
           EOF
           kubectl -n monorepo-prod wait --for=condition=complete \
             --timeout=5m job/${JOB_NAME}

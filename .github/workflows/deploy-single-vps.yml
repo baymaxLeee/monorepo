@@ -6,14 +6,17 @@ name: deploy-single-vps
 #   • Auto: when build-images workflow completes on main (so images are ready)
 #   • Manual: workflow_dispatch with a specific image tag
 #
+# Secrets model: the VPS assembles its own compose `.env` (see docs/ADR/0031),
+# so CI ships NO application secrets — it only needs SSH access. Postgres
+# passwords are generated on the VPS; operator secrets are decrypted on the VPS
+# from the committed, SOPS-encrypted infra/single-vps/secrets.sops.env.
+#
 # Prerequisites (set ONCE in repo Settings → Secrets and variables → Actions):
 #   secrets.VPS_HOST         — public IP or hostname of the VPS
 #   secrets.VPS_USER         — SSH user (e.g. root)
 #   secrets.VPS_SSH_KEY      — full private key matching ~/.ssh/authorized_keys
 #                              on the VPS (OpenSSH format, including the
 #                              BEGIN/END lines)
-#   secrets.VPS_ENV_FILE     — the entire contents of infra/single-vps/.env
-#                              (multi-line secret; GitHub UI handles it)
 #   vars.PUBLIC_PORT         — port the host exposes (default 8080)
 #   vars.DEPLOY_DIR          — remote dir (default /opt/monorepo)
 #   vars.IMAGE_REGISTRY      — (optional) override default ghcr.io path
@@ -92,82 +95,20 @@ jobs:
           EOF
           chmod 600 ~/.ssh/config
 
-      - name: Stage .env file
-        env:
-          ENV_BODY: ${{ secrets.VPS_ENV_FILE }}
-          REGISTRY: ${{ steps.vars.outputs.registry }}
-          TAG: ${{ steps.vars.outputs.tag }}
-          PORT: ${{ steps.vars.outputs.port }}
-        run: |
-          # The repo secret holds the user-managed knobs (passwords, JWT
-          # secret, etc.) — we override IMAGE_REGISTRY / IMAGE_TAG /
-          # PUBLIC_PORT here so they always match what CI just built.
-          printf '%s\n' "${ENV_BODY}" > infra/single-vps/.env
-          # Strip any prior values for the three keys we're forcing.
-          sed -i -E '/^(IMAGE_REGISTRY|IMAGE_TAG|PUBLIC_PORT)=/d' infra/single-vps/.env
-          {
-              echo "IMAGE_REGISTRY=${REGISTRY}"
-              echo "IMAGE_TAG=${TAG}"
-              echo "PUBLIC_PORT=${PORT}"
-          } >> infra/single-vps/.env
-
-      - name: Verify .env completeness
-        # Catch missing keys BEFORE shipping to the VPS — gives a readable
-        # error pointing at the GitHub `VPS_ENV_FILE` secret, instead of
-        # an obscure `docker compose pull` interpolation failure on the
-        # remote shell. When new required variables are added (e.g. the
-        # admin/chat ADMIN_SECRET_KEY pair from the LLM provider feature),
-        # this is the line to append them to.
-        run: |
-          required_keys=(
-            IMAGE_REGISTRY
-            IMAGE_TAG
-            PUBLIC_PORT
-            WORKFLOW_POSTGRES_PASSWORD
-            IAM_POSTGRES_PASSWORD
-            ADMIN_POSTGRES_PASSWORD
-            CHAT_POSTGRES_PASSWORD
-            EXECUTOR_POSTGRES_PASSWORD
-            KNOWLEDGE_POSTGRES_PASSWORD
-            TELEMETRY_POSTGRES_PASSWORD
-            TAVILY_API_KEY
-            ACCESS_TOKEN_SECRET
-            SUPER_ADMIN_ACCOUNT
-            SUPER_ADMIN_EMAIL
-            SUPER_ADMIN_PASSWORD
-            ADMIN_SECRET_KEY
-            INTERNAL_API_TOKEN
-          )
-          missing=()
-          for key in "${required_keys[@]}"; do
-            # Match `KEY=` at start of line with non-empty value (allow
-            # quoted values too). Empty / unset / commented entries fail.
-            if ! grep -qE "^${key}=[^[:space:]\"']*[^[:space:]\"'#]" infra/single-vps/.env; then
-              missing+=("${key}")
-            fi
-          done
-          if [ "${#missing[@]}" -gt 0 ]; then
-            echo "::error::Missing required keys in VPS_ENV_FILE secret:"
-            for k in "${missing[@]}"; do echo "  - ${k}"; done
-            echo ""
-            echo "Fix: GitHub repo → Settings → Secrets and variables → Actions"
-            echo "     → edit VPS_ENV_FILE → append the missing keys."
-            echo "See infra/single-vps/.env.example for the template + how to generate each value."
-            exit 1
-          fi
-          docker compose \
-            --env-file infra/single-vps/.env \
-            -f infra/single-vps/docker-compose.prod.yml \
-            config --quiet
-          echo "✓ all required keys present"
-
       - name: Deploy
         env:
+          IMAGE_REGISTRY: ${{ steps.vars.outputs.registry }}
+          IMAGE_TAG: ${{ steps.vars.outputs.tag }}
+          PUBLIC_PORT: ${{ steps.vars.outputs.port }}
           DEPLOY_DIR: ${{ steps.vars.outputs.deploy_dir }}
         run: |
+          # deploy.sh rsyncs the ops files (incl. the SOPS-encrypted
+          # secrets.sops.env) and runs render-env.sh on the VPS, which
+          # generates the internal Postgres passwords and decrypts the
+          # operator secrets with the VPS-local age key. No secrets here.
           ./infra/single-vps/deploy.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}"
 
       - name: Cleanup secrets
         if: always()
         run: |
-          rm -f ~/.ssh/id_deploy infra/single-vps/.env
+          rm -f ~/.ssh/id_deploy

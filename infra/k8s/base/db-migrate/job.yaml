@@ -1,48 +1,47 @@
-# DB schema migration Job — runs BEFORE the application Deployment is rolled.
+# One-shot deploy-time Job — runs BEFORE the application Deployment is rolled.
+#
+# Since ADR-0029, service SQL schema is NOT applied by a per-service `/server
+# migrate` entrypoint (that subcommand was removed). Schema is applied via the
+# shared migrator (scripts/db-migrate.sh) or, in prod, out-of-band against the
+# managed Postgres (see overlays/prod/README). The remaining deploy-time Job is
+# iam's idempotent identity bootstrap (`seed`) — the sole carrier of the
+# password-hashed super-admin + guest-org, lifted out of the server start path
+# so replicas never race the bootstrap on every start. See docs/ADR/0030.
 #
 # Strategy:
-#   1. CI deploys this Job first (kubectl apply --wait)
-#   2. Once Job succeeds, CI applies the Deployment update
-#   3. If Job fails, deploy is aborted (rollback)
+#   1. CI applies this Job first (kubectl apply --wait)
+#   2. Once the Job succeeds, CI applies the Deployment update
+#   3. If the Job fails, the deploy is aborted (rollback)
 #
-# Each service owns its own migrations under
-# apps/backend/services/<svc>/migrations/versions/*.sql, baked into the
-# service image. The Job uses the same image and runs the migrator binary.
-#
-# This file is a TEMPLATE — one Job per service per deploy. CI patches:
-#   - metadata.name      (db-migrate-<svc>-<git-sha>)
-#   - image              (svc image @ the new tag)
-#   - SERVICE_NAME / TARGET_VERSION
+# This file is a TEMPLATE. CI (see .github/workflows/deploy-prod.yml) patches:
+#   - metadata.name      (iam-bootstrap-<timestamp>)
+#   - image              (iam image @ the new tag)
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: db-migrate
-  labels: { app: db-migrate }
+  name: iam-bootstrap
+  labels: { app: iam-bootstrap }
 spec:
-  backoffLimit: 2
+  backoffLimit: 0
   # Auto-clean Job records 1 day after completion to avoid clutter.
   ttlSecondsAfterFinished: 86400
   template:
     metadata:
-      labels: { app: db-migrate }
+      labels: { app: iam-bootstrap }
     spec:
       restartPolicy: Never
       containers:
-        - name: migrator
+        - name: seed
           image: ghcr.io/example/iam:latest
           imagePullPolicy: IfNotPresent
           env:
             - { name: ENVIRONMENT, value: production }
           envFrom:
-            # Reuse the same Secret the service uses, so credentials match.
+            # Reuse the same Secret/Config the service uses, so credentials match.
             - secretRef: { name: iam-secrets }
             - configMapRef: { name: iam-config }
           command: ["/server"]
-          # Each service image's migrator entrypoint differs:
-          #   iam:     /server migrate
-          #   admin:   alembic upgrade head
-          #   ... CI patches `args` accordingly.
-          args: ["migrate"]
+          args: ["seed"]
           resources:
             requests: { cpu: 50m,  memory: 64Mi }
             limits:   { cpu: 500m, memory: 256Mi }

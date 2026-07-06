@@ -62,9 +62,22 @@ All images are pulled from GHCR (or any custom registry); the VPS only stores co
 | `Dockerfile.web` | Builds the nginx + frontend dist image |
 | `Dockerfile.db-init` | Builds the one-shot schema migrator image |
 | `postgres-init.sh` | Shell script run by `db-init` container (baked into image) |
-| `.env.example` | Configuration template (copy to `.env`) |
-| `bootstrap.sh` | Install Docker on a fresh VPS (run once, on VPS) |
+| `secrets.sops.env.example` | Template for the operator secrets you hand-manage |
+| `secrets.sops.env` | SOPS-encrypted operator secrets (committed; you create it once) |
+| `render-env.sh` | Runs on the VPS: generates internal secrets + decrypts operator secrets → `.env` |
+| `bootstrap.sh` | Install Docker + sops/age + generate age key on a fresh VPS (run once, on VPS) |
 | `deploy.sh` | Push config + restart containers (run from laptop / CI) |
+
+### Secrets model (see docs/ADR/0031)
+
+The VPS assembles its own compose `.env` from three disjoint sources — you only
+hand-manage the middle-column "operator" secrets:
+
+| Bucket | Who sets it | Where it lives |
+|---|---|---|
+| `IMAGE_REGISTRY` / `IMAGE_TAG` / `PUBLIC_PORT` | CI / `deploy.sh` | passed in the environment |
+| Postgres passwords + `INTERNAL_API_TOKEN` | **auto-generated on the VPS** | `.env.secrets` (0600, VPS-only, never in git) |
+| super-admin login, `TAVILY_API_KEY`, `ACCESS_TOKEN_SECRET`, `ADMIN_SECRET_KEY` | **you** | `secrets.sops.env` (SOPS-encrypted, committed) |
 
 ---
 
@@ -83,7 +96,9 @@ ssh root@<vps-ip>
 curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/infra/single-vps/bootstrap.sh | bash
 ```
 
-This installs Docker, opens the OS firewall for port 8080. Idempotent.
+This installs Docker + `sops` + `age`, opens the OS firewall for port 8080, and
+generates the VPS's age keypair. It prints the **age public key** at the end —
+copy it, you'll need it in step 3. Idempotent.
 
 ### 2. Open the port in the cloud security group
 
@@ -94,19 +109,40 @@ OS firewall ≠ cloud security group. Go to your cloud console:
 - **火山引擎 ECS** → 安全组 → 入方向 → TCP 8080
 - **Vultr / Hetzner** → no security group by default; OS firewall is enough
 
-### 3. Configure .env (run on your laptop)
+### 3. Configure operator secrets (run on your laptop, ONE time)
+
+You only manage a handful of secrets; Postgres passwords etc. are generated on
+the VPS automatically. Install `sops` + `age` locally (`brew install sops age`),
+then:
 
 ```bash
 cd /path/to/monorepo
-cp infra/single-vps/.env.example infra/single-vps/.env
-$EDITOR infra/single-vps/.env
+
+# a) Generate an OFFLINE recovery key (keep recovery.key somewhere safe — a
+#    password manager / offsite backup — NOT in this repo). Lets you rebuild a
+#    lost VPS and still decrypt ADMIN_SECRET_KEY etc.:
+age-keygen -o recovery.key            # prints its public key; back up recovery.key
+
+# b) Put BOTH public keys into .sops.yaml — the VPS key (printed by bootstrap.sh)
+#    and the recovery key from step (a):
+$EDITOR .sops.yaml                    # replace the two age1REPLACE... placeholders
+
+# c) Create the encrypted operator secrets from the template:
+cp infra/single-vps/secrets.sops.env.example /tmp/s.env
+$EDITOR /tmp/s.env        # fill in SUPER_ADMIN_PASSWORD, TAVILY_API_KEY, etc.
+sops --encrypt --input-type dotenv --output-type dotenv /tmp/s.env \
+  > infra/single-vps/secrets.sops.env
+shred -u /tmp/s.env
+
+# d) Commit it — it's encrypted, safe in git (recovery.key stays OUT of git):
+git add .sops.yaml infra/single-vps/secrets.sops.env
+git commit -m "chore(single-vps): operator secrets"
 ```
 
-Fill in (minimum):
-- `IMAGE_REGISTRY` — your GHCR path, e.g. `ghcr.io/yourname/yourrepo` (lowercase!)
-- `WORKFLOW_POSTGRES_PASSWORD` and each `*_POSTGRES_PASSWORD` — independent values from `openssl rand -hex 24`
-- `ACCESS_TOKEN_SECRET` — `openssl rand -hex 32`
-- `SUPER_ADMIN_PASSWORD` — your initial login password
+Edit later anytime with: `sops infra/single-vps/secrets.sops.env`.
+
+> `IMAGE_REGISTRY` is not a secret — you pass it to `deploy.sh` (step 5) or CI
+> derives it automatically.
 
 ### 4. Trigger CI to build the images (if not already)
 
@@ -120,7 +156,7 @@ You should see 9 images in your registry: `gateway`, `iam`, `admin`, `chat`, `ex
 ### 5. Deploy (run on your laptop)
 
 ```bash
-./infra/single-vps/deploy.sh root@<vps-ip>
+IMAGE_REGISTRY=ghcr.io/<owner>/<repo> ./infra/single-vps/deploy.sh root@<vps-ip>
 ```
 
 Output ends with the URL to open in a browser.
@@ -164,24 +200,18 @@ ssh ubuntu@<vps-ip>
 docker login ccr.ccs.tencentyun.com -u <tencent-account-id> -p '<tcr-password>'
 ```
 
-### 4. Point .env to TCR
+### 4. Point deploys at TCR
 
-Edit `infra/single-vps/.env`:
-
-```diff
-- IMAGE_REGISTRY=ghcr.io/baymaxleee/monorepo
-+ IMAGE_REGISTRY=ccr.ccs.tencentyun.com/baymaxleee
-```
-
-And re-deploy:
+`IMAGE_REGISTRY` is a deploy-time argument, so just change it when you deploy:
 
 ```bash
-./infra/single-vps/deploy.sh ubuntu@<vps-ip>
+IMAGE_REGISTRY=ccr.ccs.tencentyun.com/baymaxleee \
+  ./infra/single-vps/deploy.sh ubuntu@<vps-ip>
 ```
 
-The next `docker compose pull` hits TCR instead of GHCR — first pull will finish in 1-3 minutes instead of 30.
+The next `docker compose pull` hits TCR instead of GHCR — first pull will finish in 1-3 minutes instead of 30. For CI, set the `IMAGE_REGISTRY` repo **Variable** to the TCR path.
 
-> **Rollback**: if TCR ever has an outage, switch `.env` back to `IMAGE_REGISTRY=ghcr.io/<owner>/<repo>` and re-deploy. GHCR is always still being pushed to as a fallback.
+> **Rollback**: if TCR ever has an outage, deploy again with `IMAGE_REGISTRY=ghcr.io/<owner>/<repo>`. GHCR is always still being pushed to as a fallback.
 
 ---
 
@@ -198,7 +228,10 @@ Set these GitHub **Secrets** once (Settings → Secrets and variables → Action
 | `VPS_HOST` | `<vps-ip>` |
 | `VPS_USER` | `root` (or whichever user) |
 | `VPS_SSH_KEY` | Full private key (multi-line, starts with `-----BEGIN OPENSSH PRIVATE KEY-----`) |
-| `VPS_ENV_FILE` | Full content of your `infra/single-vps/.env` (paste as-is, multi-line) |
+
+> No `VPS_ENV_FILE` and no age key in CI: the encrypted `secrets.sops.env` rides
+> along in the repo and is decrypted **on the VPS** (which owns the age private
+> key). CI only needs SSH access.
 
 And optionally these **Variables**:
 
@@ -219,7 +252,7 @@ The CI overrides `IMAGE_TAG` to the just-built `sha-<short>` so each deploy is p
 ```bash
 git pull origin main
 # wait for build-images.yml to finish on GitHub
-./infra/single-vps/deploy.sh root@<vps-ip>
+IMAGE_REGISTRY=ghcr.io/<owner>/<repo> ./infra/single-vps/deploy.sh root@<vps-ip>
 ```
 
 ### C. Manual deploy of a specific tag
@@ -275,8 +308,10 @@ docker compose -f docker-compose.prod.yml start
 | `connection refused` from your laptop | Cloud security group port not open | Open `PUBLIC_PORT` in the cloud console |
 | `502 Bad Gateway` from nginx | Backend pod still booting / crashed | `docker compose logs gateway` |
 | `db-init` stuck | Postgres still initializing | First boot can take 30–60 s; if longer, check `docker compose logs postgres` |
-| Backend containers CrashLoopBackoff | A service-specific `*_POSTGRES_PASSWORD` is missing or stale | Re-edit `.env`, rerun `docker compose up -d` so `db-init` reconciles roles |
-| Frontend loads but API returns 401 forever | `ACCESS_TOKEN_SECRET` differs between gateway and iam (impossible if `.env` is shared) | `docker compose exec gateway env \| grep ACCESS_TOKEN`, ditto for iam |
+| Backend containers CrashLoopBackoff | Postgres role password out of sync with `.env.secrets` | Re-run `deploy.sh` (or `bash render-env.sh && docker compose up -d`) so `db-init` reconciles roles from the persisted `.env.secrets` |
+| Frontend loads but API returns 401 forever | `ACCESS_TOKEN_SECRET` differs between gateway and iam (impossible — both read the one rendered `.env`) | `docker compose exec gateway env \| grep ACCESS_TOKEN`, ditto for iam |
+| `render-env.sh` fails: age key not found | VPS not bootstrapped / key deleted | Re-run `bootstrap.sh` on the VPS; it regenerates `age.key` and reprints the public key (re-encrypt `secrets.sops.env` if the key changed) |
+| `render-env.sh` fails: sops decrypt error | `.sops.yaml` public key ≠ the VPS's age key | Ensure `.sops.yaml` has the exact public key from `bootstrap.sh`, then `sops updatekeys infra/single-vps/secrets.sops.env` and redeploy |
 | Pulling images is slow / fails | GHCR rate limit (free tier) | Sign in: `docker login ghcr.io -u <github-user>` (use a PAT with `read:packages`) |
 | Out of memory under load | 4G RAM tight | Drop Postgres `shared_buffers`; lower telemetry SAMPLE_RATE_*; or upgrade to 4C8G |
 

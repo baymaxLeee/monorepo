@@ -1,107 +1,72 @@
 #!/usr/bin/env bash
 # Deploy / update the single-VPS stack from a local checkout.
 #
+# Secrets model (docs/ADR/0031): the VPS assembles its own compose `.env`, so
+# this script ships NO plaintext secrets. It only:
+#   - passes IMAGE_REGISTRY / IMAGE_TAG / PUBLIC_PORT through the environment
+#   - rsyncs the ops files (compose + render-env.sh + the SOPS-encrypted
+#     secrets.sops.env) to the VPS
+#   - runs render-env.sh on the VPS (generates internal secrets, decrypts the
+#     operator secrets with the VPS-local age key) then `docker compose up`
+#
 # Usage:
-#   ./infra/single-vps/deploy.sh <user>@<vps-ip>
-#   ./infra/single-vps/deploy.sh root@1.2.3.4
+#   IMAGE_REGISTRY=ghcr.io/<owner>/<repo> ./infra/single-vps/deploy.sh <user>@<host>
+#   IMAGE_REGISTRY=ghcr.io/acme/monorepo  ./infra/single-vps/deploy.sh root@1.2.3.4
 #
 # Prereqs:
-#   - infra/single-vps/.env exists locally (copy .env.example, fill values)
-#   - VPS has been bootstrapped (see bootstrap.sh)
-#   - SSH key auth set up (we don't prompt for passwords)
-#   - GHCR images for IMAGE_TAG have been built and pushed
+#   - VPS bootstrapped (bootstrap.sh: installs docker + sops/age + age key)
+#   - infra/single-vps/secrets.sops.env exists and is committed (see .example)
+#   - SSH key auth to the VPS
+#   - images for IMAGE_TAG built and pushed
 #
-# Env (optional overrides):
-#   DEPLOY_DIR   — remote path (default: /opt/monorepo)
-#   PUBLIC_PORT  — health-check port (default: read from .env)
+# Env:
+#   IMAGE_REGISTRY  (required)     registry path images were pushed to
+#   IMAGE_TAG       (default main) which tag to deploy
+#   PUBLIC_PORT     (default 8080) host port nginx binds
+#   DEPLOY_DIR      (default /opt/monorepo) remote path
 
 set -euo pipefail
 
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <user>@<host>" >&2
-    echo "Example: $0 root@1.2.3.4" >&2
+    echo "Usage: IMAGE_REGISTRY=... $0 <user>@<host>" >&2
+    echo "Example: IMAGE_REGISTRY=ghcr.io/acme/monorepo $0 root@1.2.3.4" >&2
     exit 1
 fi
 
 REMOTE="$1"
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/monorepo}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
-
-ENV_FILE="${HERE}/.env"
-if [ ! -f "${ENV_FILE}" ]; then
-    echo "✗ ${ENV_FILE} missing." >&2
-    echo "  Copy infra/single-vps/.env.example → infra/single-vps/.env and fill in." >&2
-    exit 1
-fi
-
-# Check every required key is present + non-empty. Failing here is much
-# nicer than letting `docker compose pull` blow up on the remote with a
-# cryptic "required variable X is missing a value" message. When the
-# compose file grows a new `${KEY:?...}` reference, append the key here.
-required_keys=(
-    IMAGE_REGISTRY
-    IMAGE_TAG
-    PUBLIC_PORT
-    WORKFLOW_POSTGRES_PASSWORD
-    IAM_POSTGRES_PASSWORD
-    ADMIN_POSTGRES_PASSWORD
-    CHAT_POSTGRES_PASSWORD
-    EXECUTOR_POSTGRES_PASSWORD
-    KNOWLEDGE_POSTGRES_PASSWORD
-    TELEMETRY_POSTGRES_PASSWORD
-    TAVILY_API_KEY
-    ACCESS_TOKEN_SECRET
-    SUPER_ADMIN_ACCOUNT
-    SUPER_ADMIN_EMAIL
-    SUPER_ADMIN_PASSWORD
-    ADMIN_SECRET_KEY
-    INTERNAL_API_TOKEN
-)
-missing=()
-for key in "${required_keys[@]}"; do
-    if ! grep -qE "^${key}=[^[:space:]\"']*[^[:space:]\"'#]" "${ENV_FILE}"; then
-        missing+=("${key}")
-    fi
-done
-if [ "${#missing[@]}" -gt 0 ]; then
-    echo "✗ ${ENV_FILE} is missing required keys:" >&2
-    for k in "${missing[@]}"; do echo "    - ${k}" >&2; done
-    echo "" >&2
-    echo "  See infra/single-vps/.env.example for the template + the command to" >&2
-    echo "  generate each value (e.g. Fernet for ADMIN_SECRET_KEY)." >&2
-    exit 1
-fi
-
-# Let Compose validate every required interpolation as the final source of
-# truth. The friendly list above explains common omissions; this prevents that
-# list from silently drifting when the Compose contract gains another key.
-docker compose \
-    --env-file "${ENV_FILE}" \
-    -f "${HERE}/docker-compose.prod.yml" \
-    config --quiet
-
-PUBLIC_PORT="$(grep -E '^PUBLIC_PORT=' "${ENV_FILE}" | tail -1 | cut -d= -f2 | tr -d '"' || true)"
+IMAGE_REGISTRY="${IMAGE_REGISTRY:?set IMAGE_REGISTRY, e.g. ghcr.io/owner/repo}"
+IMAGE_TAG="${IMAGE_TAG:-main}"
 PUBLIC_PORT="${PUBLIC_PORT:-8080}"
-
 REMOTE_HOST="${REMOTE#*@}"
+
+if [ ! -f "${HERE}/secrets.sops.env" ]; then
+    echo "✗ ${HERE}/secrets.sops.env missing." >&2
+    echo "  Create it once with sops (see secrets.sops.env.example), then commit it." >&2
+    exit 1
+fi
 
 echo "→ syncing infra/single-vps → ${REMOTE}:${DEPLOY_DIR}"
 ssh "${REMOTE}" "mkdir -p ${DEPLOY_DIR}"
 
-# We ONLY ship the small ops directory. All actual code (including the
-# nginx.conf and postgres-init.sh scripts) is baked into container images
-# pulled from the registry. Excludes:
-#   .env.example — template only, the real .env is below
+# Ship only the small ops files. All service code (nginx.conf, postgres-init.sh)
+# is baked into the images. The VPS-local age.key and generated .env.secrets are
+# NOT in the source dir, so --exclude='*' protects them from --delete.
 rsync -avz --delete \
     --include='docker-compose.prod.yml' \
+    --include='render-env.sh' \
+    --include='secrets.sops.env' \
     --include='README.md' \
     --exclude='*' \
     "${HERE}/" "${REMOTE}:${DEPLOY_DIR}/"
 
-# Ship the actual .env separately so its 0600 perms are preserved.
-echo "→ uploading .env (0600 on remote)"
-scp -q "${ENV_FILE}" "${REMOTE}:${DEPLOY_DIR}/.env"
-ssh "${REMOTE}" "chmod 600 ${DEPLOY_DIR}/.env"
+echo "→ rendering .env on remote (generate internal secrets + decrypt operator secrets)"
+ssh "${REMOTE}" "cd ${DEPLOY_DIR} && IMAGE_REGISTRY='${IMAGE_REGISTRY}' IMAGE_TAG='${IMAGE_TAG}' PUBLIC_PORT='${PUBLIC_PORT}' bash render-env.sh"
+
+# Compose validates every required interpolation as the final source of truth.
+echo "→ validating compose config on remote"
+ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env config --quiet"
 
 echo "→ pulling latest images on remote"
 ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env pull"
@@ -120,9 +85,8 @@ while [ ${SECONDS} -lt ${deadline} ]; do
         echo "  Open in browser:"
         echo "    http://${REMOTE_HOST}:${PUBLIC_PORT}"
         echo ""
-        echo "  Login (initial demo super admin from .env):"
-        echo "    account:  $(grep -E '^SUPER_ADMIN_ACCOUNT=' "${ENV_FILE}" | cut -d= -f2 || echo admin)"
-        echo "    password: (in your .env: SUPER_ADMIN_PASSWORD)"
+        echo "  Login: super-admin account/password are in secrets.sops.env"
+        echo "         (edit with: sops infra/single-vps/secrets.sops.env)"
         echo ""
         echo "  Inspect:  ssh ${REMOTE} 'cd ${DEPLOY_DIR} && docker compose ps'"
         echo "  Logs:     ssh ${REMOTE} 'cd ${DEPLOY_DIR} && docker compose logs -f gateway'"

@@ -1,0 +1,26 @@
+# SOPS creation rules — which age recipients can decrypt which files.
+#
+# The single-VPS operator secrets are encrypted to MULTIPLE age recipients so
+# losing any one machine never orphans the ciphertext (SOPS natively supports
+# multiple recipients — https://github.com/getsops/sops):
+#
+#   1. the VPS's own key  — so render-env.sh can decrypt on the box at deploy time
+#   2. a recovery/operator key — kept OFFLINE (password manager / offsite), so a
+#      lost VPS can be rebuilt and the ciphertext (and any must-stay-stable key
+#      like ADMIN_SECRET_KEY) is still recoverable
+#
+# One-time setup:
+#   1. Run infra/single-vps/bootstrap.sh on the VPS — it prints the VPS age
+#      PUBLIC key. Put it below (first recipient).
+#   2. Generate a recovery key on a trusted machine and store the PRIVATE half
+#      offline:  age-keygen -o recovery.key  (then back up recovery.key safely).
+#      Put its public key below (second recipient).
+#   3. Encrypt the operator secrets (see infra/single-vps/secrets.sops.env.example).
+#
+# After changing recipients, re-encrypt existing files:
+#   sops updatekeys infra/single-vps/secrets.sops.env
+creation_rules:
+  - path_regex: infra/single-vps/secrets\.sops\.env$
+    age: >-
+      age1REPLACE_WITH_VPS_PUBLIC_KEY_FROM_BOOTSTRAP,
+      age1REPLACE_WITH_OFFLINE_RECOVERY_PUBLIC_KEY

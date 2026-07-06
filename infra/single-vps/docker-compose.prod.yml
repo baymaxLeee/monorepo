@@ -35,6 +35,24 @@
 x-restart: &restart_policy
   restart: unless-stopped
 
+# iam identity + DB env, shared by the one-shot bootstrap (`seed`) and the server.
+# One source of truth stops the super-admin / guest-org values from drifting between
+# the container that WRITES them (iam-bootstrap) and the one that only reads them.
+x-iam-env: &iam-env
+  ENVIRONMENT: single-vps
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: iam
+  POSTGRES_PASSWORD: ${IAM_POSTGRES_PASSWORD:?IAM_POSTGRES_PASSWORD is required}
+  IAM_POSTGRES_DATABASE: iam
+  SUPER_ADMIN_ACCOUNT: ${SUPER_ADMIN_ACCOUNT:?SUPER_ADMIN_ACCOUNT is required}
+  SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:?SUPER_ADMIN_EMAIL is required}
+  SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:?SUPER_ADMIN_PASSWORD is required}
+  SUPER_ADMIN_DISPLAY_NAME: ${SUPER_ADMIN_DISPLAY_NAME:-Super Admin}
+  GUEST_ORG_ID: ${GUEST_ORG_ID:-guest-org}
+  GUEST_ORG_NAME: ${GUEST_ORG_NAME:-游客组织}
+  GUEST_ORG_SLUG: ${GUEST_ORG_SLUG:-guest-org}
+
 services:
   redis:
     image: redis:7-alpine
@@ -117,20 +135,30 @@ services:
       WORKFLOW_POSTGRES_URL: postgres://workflow:${WORKFLOW_POSTGRES_PASSWORD}@postgres:5432/workflow
     restart: "no"
 
+  # One-shot identity bootstrap: idempotently creates the super-admin + guest-org
+  # (password hashing + multi-table domain rules a SQL seed can't express), then
+  # exits. Runs AFTER schema migrations (db-init) and gates the iam server, so
+  # server replicas never each re-run the bootstrap on start. See docs/ADR/0030.
+  iam-bootstrap:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/iam:${IMAGE_TAG:-main}
+    container_name: monorepo-iam-bootstrap
+    depends_on:
+      db-init: { condition: service_completed_successfully }
+    command: ["seed"]
+    environment:
+      <<: *iam-env
+    restart: "no"
+
   iam:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/iam:${IMAGE_TAG:-main}
     container_name: monorepo-iam
     depends_on:
       postgres: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
+      iam-bootstrap: { condition: service_completed_successfully }
     environment:
-      ENVIRONMENT: single-vps
+      <<: *iam-env
       PORT: "8002"
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: "5432"
-      POSTGRES_USER: iam
-      POSTGRES_PASSWORD: ${IAM_POSTGRES_PASSWORD:?IAM_POSTGRES_PASSWORD is required}
-      IAM_POSTGRES_DATABASE: iam
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:?ACCESS_TOKEN_SECRET is required}
       ACCESS_TOKEN_TTL: "5m"
       REFRESH_TOKEN_TTL: "720h"
@@ -140,13 +168,6 @@ services:
       REFRESH_COOKIE_SAMESITE: lax
       # Host-only (no Domain attr); good for single-host IP-based deploy.
       REFRESH_COOKIE_DOMAIN: ""
-      SUPER_ADMIN_ACCOUNT: ${SUPER_ADMIN_ACCOUNT:?SUPER_ADMIN_ACCOUNT is required}
-      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:?SUPER_ADMIN_EMAIL is required}
-      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:?SUPER_ADMIN_PASSWORD is required}
-      SUPER_ADMIN_DISPLAY_NAME: ${SUPER_ADMIN_DISPLAY_NAME:-Super Admin}
-      GUEST_ORG_ID: ${GUEST_ORG_ID:-guest-org}
-      GUEST_ORG_NAME: ${GUEST_ORG_NAME:-游客组织}
-      GUEST_ORG_SLUG: ${GUEST_ORG_SLUG:-guest-org}
     <<: *restart_policy
 
   gateway:
