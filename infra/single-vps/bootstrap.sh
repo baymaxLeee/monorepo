@@ -17,8 +17,12 @@ fi
 
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/monorepo}"
 PUBLIC_PORT="${PUBLIC_PORT:-8080}"
+# deploy.sh / CI connect over SSH as a normal login user and run render-env.sh
+# as THAT user, so the deploy dir + age key must be owned by them (not root).
+# When invoked via `sudo`, SUDO_USER is that login user.
+DEPLOY_OWNER="${SUDO_USER:-root}"
 
-echo "→ bootstrapping single-VPS deployment to ${DEPLOY_DIR} (port ${PUBLIC_PORT})"
+echo "→ bootstrapping single-VPS deployment to ${DEPLOY_DIR} (port ${PUBLIC_PORT}, owner ${DEPLOY_OWNER})"
 
 if ! command -v docker >/dev/null 2>&1; then
     echo "→ installing Docker (via get.docker.com)"
@@ -36,9 +40,19 @@ else
     echo "  ✓ docker compose plugin available: $(docker compose version)"
 fi
 
+# deploy.sh / CI run `docker compose` as the SSH login user (not root), so that
+# user must be in the docker group — otherwise every deploy hits a permission
+# denied on /var/run/docker.sock. Idempotent; takes effect on the next login
+# (deploy opens a fresh SSH session each time, so it applies immediately there).
+if [ "${DEPLOY_OWNER}" != "root" ] && getent group docker >/dev/null 2>&1; then
+    usermod -aG docker "${DEPLOY_OWNER}" 2>/dev/null || true
+    echo "  ✓ ${DEPLOY_OWNER} is in the docker group"
+fi
+
 mkdir -p "${DEPLOY_DIR}"
+chown "${DEPLOY_OWNER}" "${DEPLOY_DIR}" 2>/dev/null || true
 chmod 750 "${DEPLOY_DIR}"
-echo "  ✓ ${DEPLOY_DIR} ready"
+echo "  ✓ ${DEPLOY_DIR} ready (owner ${DEPLOY_OWNER})"
 
 # --- sops + age: needed to decrypt operator secrets on this box (ADR 0031) ---
 # China-hosted VPS note: GitHub release CDN is often blocked/slow. We therefore
@@ -98,10 +112,12 @@ AGE_KEY_FILE="${DEPLOY_DIR}/age.key"
 if [ ! -f "${AGE_KEY_FILE}" ]; then
     echo "→ generating age key at ${AGE_KEY_FILE}"
     age-keygen -o "${AGE_KEY_FILE}" >/dev/null 2>&1
-    chmod 600 "${AGE_KEY_FILE}"
 else
     echo "  ✓ age key already present at ${AGE_KEY_FILE}"
 fi
+# render-env.sh runs as the SSH login user, so it must be able to read this.
+chown "${DEPLOY_OWNER}" "${AGE_KEY_FILE}" 2>/dev/null || true
+chmod 600 "${AGE_KEY_FILE}"
 AGE_PUBKEY="$(age-keygen -y "${AGE_KEY_FILE}")"
 
 # Cloud providers (Aliyun / 火山 / Tencent) ALSO require opening this port
