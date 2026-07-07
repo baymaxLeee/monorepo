@@ -13,6 +13,7 @@
   "dependencies": {
     "@ai-sdk/provider": "catalog:",
     "@ai-sdk/provider-utils": "catalog:",
+    "@backend/kernel-ts": "workspace:*",
     "@backend/transport-ts": "workspace:*",
     "@hono/node-server": "^1.19.14",
     "@hono/zod-validator": "^0.4.0",

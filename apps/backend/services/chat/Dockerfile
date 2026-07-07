@@ -4,6 +4,7 @@ ENV NODE_ENV=production
 RUN corepack enable
 COPY package.json ./package.json
 COPY apps/backend/package.json apps/backend/pnpm-workspace.yaml apps/backend/pnpm-lock.yaml ./apps/backend/
+COPY apps/backend/libs/kernel-ts/package.json ./apps/backend/libs/kernel-ts/package.json
 COPY apps/backend/libs/transport-ts/package.json ./apps/backend/libs/transport-ts/package.json
 COPY apps/backend/services/chat/package.json ./apps/backend/services/chat/package.json
 WORKDIR /app/apps/backend
@@ -11,6 +12,7 @@ WORKDIR /app/apps/backend
 # at runtime. Install chat plus that workspace dep with a hoisted layout so
 # openapi-fetch sits at the top level where the source import resolves it.
 RUN pnpm install --filter chat... --prod --frozen-lockfile --config.node-linker=hoisted
+COPY apps/backend/libs/kernel-ts ./libs/kernel-ts
 COPY apps/backend/libs/transport-ts ./libs/transport-ts
 COPY apps/backend/services/chat/tsconfig.json ./services/chat/
 COPY apps/backend/services/chat/src ./services/chat/src

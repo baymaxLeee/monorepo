@@ -54,7 +54,12 @@
 
 ## 可观测性
 
-- Logs: 结构化 JSON(Python: stdlib logging, Go: slog)
-- Traces: gateway 统一处理 `X-Trace-Id`,写回响应、透传下游,并在日志中使用
-  `trace_id`; OpenTelemetry/W3C TraceContext 后续接入时从该边界扩展
+- Logs: 全栈统一结构化 JSON(stdout / NDJSON),保留字段 `time`/`level`/`msg`/
+  `service` + 可选 `trace_id`。各语言用原生结构化 logger——Python `structlog`、
+  Go `log/slog`、Node `pino`——不引入 OTel SDK。契约见
+  `schemas/observability/logging.md`(ADR-0026)
+- Traces: `X-Trace-Id`(兼容 W3C `traceparent`)由 gateway 边缘生成/规范化,
+  写回响应、透传下游;每个服务入站中间件把 `trace_id` 存入原生请求上下文,
+  logger 自动注入每条日志,出站客户端回填头部,实现全链路串联。后续接
+  OpenTelemetry Collector 时按契约字段表 transform,无需改服务代码
 - Metrics: Prometheus

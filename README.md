@@ -200,7 +200,7 @@ overmind kill                  # 全部干掉
 
 ### 可观测 / 可维护
 
-- ✅ **结构化日志骨架**:Python 用 stdlib logging,Go 用 slog,JSON 输出统一
+- ✅ **统一结构化日志**:Python `structlog` / Go `log/slog` / Node `pino`,全栈 stdout JSON 同一线格式;`trace_id` 经 `X-Trace-Id` 全链路串联(契约 `schemas/observability/logging.md`,ADR-0026)
 - ✅ **统一错误处理**:`libs/kernel/errors.py` 提供 `RequestError/NotFoundError/...`,服务禁止裸 HTTPException
 - ✅ **审计 SDK**:`libs/audit_sdk` 提供 `record(...)`,关键变更动作统一记录
 - ✅ **OTel 接入点**:`libs/observability/setup()`,后续接 Jaeger/Tempo/OTLP 改一处即可

@@ -19,6 +19,7 @@ import {
   updateArtifact,
 } from "../../../clients/knowledge.js";
 import { type Task } from "../../../clients/executor.js";
+import { logger } from "../../../lib/logger.js";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
 import { artifactToolContextSchema, type ArtifactToolContext } from "../context.js";
 import {
@@ -468,7 +469,7 @@ export async function* writeFileTool(
     yield* streamHtmlArtifactTask(task, { title: input.title, filename }, abortSignal);
   } catch (error) {
     if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
-    console.error("[chat-agent] write_file failed", { toolCallId, error });
+    logger.error({ toolCallId, err: error }, "write_file failed");
     throw error;
   }
 }
@@ -551,7 +552,7 @@ export async function* editFileTool(
     yield* streamHtmlArtifactTask(task, { title, filename }, abortSignal);
   } catch (error) {
     if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
-    console.error("[chat-agent] edit_file failed", { toolCallId, documentId: input.document_id, error });
+    logger.error({ toolCallId, documentId: input.document_id, err: error }, "edit_file failed");
     throw error;
   }
 }

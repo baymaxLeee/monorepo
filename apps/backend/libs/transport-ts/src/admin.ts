@@ -13,6 +13,7 @@ export interface AdminClientOptions {
   baseUrl: string;
   internalToken: string;
   timeoutMs?: number;
+  propagatedHeaders?: () => Record<string, string> | undefined;
 }
 
 export class AdminInternalClient {

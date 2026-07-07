@@ -18,6 +18,7 @@ export interface InternalClientOptions {
   service: string;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
+  propagatedHeaders?: () => Record<string, string> | undefined;
 }
 
 export interface RequestOptions {
@@ -62,6 +63,12 @@ export class InternalHttpClient {
   }
 
   async fetch(request: Request): Promise<Response> {
+    const extra = this.options.propagatedHeaders?.();
+    if (extra) {
+      for (const [key, value] of Object.entries(extra)) {
+        if (!request.headers.has(key)) request.headers.set(key, value);
+      }
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
@@ -113,11 +120,13 @@ export class InternalHttpClient {
       if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
     }
 
+    const extra = this.options.propagatedHeaders?.() ?? {};
     try {
       return await this.fetchImpl(url, {
         method: options.method ?? "GET",
         headers: {
           "X-Internal-Token": this.options.internalToken,
+          ...extra,
           ...(options.body === undefined ? {} : { "Content-Type": "application/json" }),
           ...options.headers,
         },

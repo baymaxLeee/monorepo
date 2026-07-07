@@ -18,8 +18,7 @@ import (
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
+	middleware.SetupLogging("gateway")
 
 	cfg, err := config.Load()
 	if err != nil {

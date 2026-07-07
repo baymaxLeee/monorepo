@@ -10,6 +10,7 @@ import (
 
 	"github.com/example/monorepo/iam/internal/config"
 	"github.com/example/monorepo/iam/internal/crud"
+	"github.com/example/monorepo/iam/internal/middleware"
 	"github.com/example/monorepo/iam/internal/schema"
 	"github.com/example/monorepo/iam/internal/security"
 	"github.com/example/monorepo/iam/internal/service"
@@ -33,6 +34,9 @@ func New(store *crud.Store, cfg config.Config) http.Handler {
 		org:   service.NewOrgService(store, cfg),
 	}
 	r := chi.NewRouter()
+	r.Use(middleware.TraceId)
+	r.Use(middleware.RequestLogger)
+	r.Use(middleware.Recoverer)
 	r.Get("/livez", rt.livez)
 	r.Get("/readyz", rt.readyz)
 	r.Get("/healthz", rt.readyz)

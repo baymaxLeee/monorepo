@@ -1,6 +1,7 @@
 import { isStepCount, ToolLoopAgent } from "ai";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 
+import { logger } from "../../lib/logger.js";
 import { MAX_AGENT_STEPS } from "./config.js";
 import {
   finishModelStep,
@@ -16,7 +17,7 @@ import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {
   return operation.catch((error) => {
-    console.error(`[chat-agent] ${label} failed`, error);
+    logger.error({ err: error }, `${label} failed`);
   });
 }
 

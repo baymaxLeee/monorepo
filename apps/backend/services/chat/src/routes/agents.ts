@@ -15,6 +15,7 @@ import {
   isRunActive,
   replayAgentSseStream,
 } from "../agent/index.js";
+import { logger } from "../lib/logger.js";
 import { getConversationRow } from "../services/conversations.js";
 
 export const agentsRoutes = new Hono();
@@ -31,7 +32,7 @@ agentsRoutes.post(
   "/:conversationId/agents/run/stream",
   zValidator("json", runSchema, (result) => {
     if (!result.success) {
-      console.warn("[chat-agent] invalid run request", result.error.flatten());
+      logger.warn({ issues: result.error.flatten() }, "invalid run request");
     }
   }),
   async (c) => {

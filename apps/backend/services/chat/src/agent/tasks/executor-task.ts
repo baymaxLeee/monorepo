@@ -2,6 +2,7 @@ import { TransportError } from "@backend/transport-ts";
 
 import { cancelTask, getTask, startTask, type Task } from "../../clients/executor.js";
 import { NotFoundError } from "../../lib/errors.js";
+import { logger } from "../../lib/logger.js";
 
 export const TASK_POLL_MS = 1_500;
 
@@ -75,11 +76,10 @@ export async function* pollTaskSnapshots(
       if (!isTransientPollError(error)) throw error;
       consecutiveFailures += 1;
       if (consecutiveFailures >= MAX_CONSECUTIVE_POLL_FAILURES) throw error;
-      console.warn("[chat-agent] task poll transient failure, retrying", {
-        taskId,
-        consecutiveFailures,
-        error: String(error).slice(0, 200),
-      });
+      logger.warn(
+        { taskId, consecutiveFailures, err: String(error).slice(0, 200) },
+        "task poll transient failure, retrying",
+      );
     }
     await abortableSleep(TASK_POLL_MS, signal);
   }
@@ -97,11 +97,10 @@ export async function startTaskResilient(
     } catch (error) {
       attempts += 1;
       if (!isTransientPollError(error) || attempts >= 5) throw error;
-      console.warn("[chat-agent] task dispatch transient failure, retrying", {
-        ownerRef: input.ownerRef,
-        attempts,
-        error: String(error).slice(0, 200),
-      });
+      logger.warn(
+        { ownerRef: input.ownerRef, attempts, err: String(error).slice(0, 200) },
+        "task dispatch transient failure, retrying",
+      );
       await abortableSleep(TASK_POLL_MS, signal);
     }
   }

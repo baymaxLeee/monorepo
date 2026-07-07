@@ -13,6 +13,7 @@
     "gen-openapi": "tsx src/gen-openapi.ts"
   },
   "dependencies": {
+    "@backend/kernel-ts": "workspace:*",
     "@backend/transport-ts": "workspace:*",
     "@hono/zod-validator": "^0.4.0",
     "@workflow/world-postgres": "catalog:",

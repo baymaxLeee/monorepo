@@ -12,13 +12,13 @@ import (
 
 	"github.com/example/monorepo/iam/internal/config"
 	"github.com/example/monorepo/iam/internal/crud"
+	"github.com/example/monorepo/iam/internal/middleware"
 	"github.com/example/monorepo/iam/internal/router"
 	"github.com/example/monorepo/iam/internal/service"
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
+	middleware.SetupLogging("iam")
 
 	cfg, err := config.Load()
 	if err != nil {

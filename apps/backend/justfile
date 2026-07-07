@@ -24,7 +24,7 @@ dev service:
             cd services/{{ service }} && PORT=$PORT pnpm dev; \
         else \
             echo "→ Python service {{ service }} on :$PORT" && \
-            cd services/{{ service }} && uv run uvicorn {{ service }}.main:app --reload --port $PORT; \
+            cd services/{{ service }} && uv run uvicorn {{ service }}.main:app --reload --port $PORT --no-access-log; \
         fi; \
     else echo "✗ Unknown service: {{ service }}"; exit 1; fi
 

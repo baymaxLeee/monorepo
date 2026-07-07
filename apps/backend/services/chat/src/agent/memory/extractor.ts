@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { extractJsonMiddleware, generateText, Output, wrapLanguageModel } from "ai";
 
+import { logger } from "../../lib/logger.js";
 import { createProviderModel, JSON_OBJECT_MODE_INSTRUCTION } from "@backend/transport-ts/provider-model";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
 import {
@@ -112,7 +113,7 @@ export async function extractMemoryCandidates(input: ExtractMemoryInput): Promis
     });
     candidates = result.output?.candidates ?? [];
   } catch (err) {
-    console.error("[chat-agent] memory extraction failed", err);
+    logger.error({ err }, "memory extraction failed");
     return { created: 0 };
   }
 

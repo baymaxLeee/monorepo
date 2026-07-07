@@ -27,6 +27,7 @@ export interface KnowledgeClientOptions {
   baseUrl: string;
   internalToken: string;
   timeoutMs?: number;
+  propagatedHeaders?: () => Record<string, string> | undefined;
 }
 
 export class KnowledgeInternalClient {

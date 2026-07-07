@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from cachetools import TTLCache
 from kernel.errors import BaseError
+from kernel.tracing import propagation_headers
 from knowledge.config import Settings, get_settings
 
 
@@ -59,20 +60,20 @@ class AdminClient:
         if provider_id:
             cache_key = ("id", provider_id)
             if (cached := self._cache.get(cache_key)) is not None:
-                return cached
+                return cast(ProviderSnapshot, cached)
             async with self._cache_lock:
                 if (cached := self._cache.get(cache_key)) is not None:
-                    return cached
+                    return cast(ProviderSnapshot, cached)
                 snapshot = await self._fetch(f"/internal/providers/{provider_id}", params=None)
                 self._cache[cache_key] = snapshot
                 return snapshot
 
         cache_key = ("org", org_id)
         if (cached := self._cache.get(cache_key)) is not None:
-            return cached
+            return cast(ProviderSnapshot, cached)
         async with self._cache_lock:
             if (cached := self._cache.get(cache_key)) is not None:
-                return cached
+                return cast(ProviderSnapshot, cached)
             snapshot = await self._fetch("/internal/providers/default", params={"org_id": org_id})
             self._cache[cache_key] = snapshot
             self._cache[("id", snapshot.id)] = snapshot
@@ -86,17 +87,17 @@ class AdminClient:
         """
         cache_key = ("org", f"{org_id}:kind:{kind}")
         if (cached := self._cache.get(cache_key)) is not None:
-            return cached
+            return cast(ProviderSnapshot, cached)
         async with self._cache_lock:
             if (cached := self._cache.get(cache_key)) is not None:
-                return cached
+                return cast(ProviderSnapshot, cached)
             snapshot = await self._fetch(f"/internal/providers/by-kind/{kind}", params={"org_id": org_id})
             self._cache[cache_key] = snapshot
             return snapshot
 
     async def _fetch(self, url: str, *, params: dict[str, str] | None) -> ProviderSnapshot:
         try:
-            response = await self._http.get(url, params=params)
+            response = await self._http.get(url, params=params, headers=propagation_headers())
         except httpx.HTTPError as exc:
             raise AdminUnavailableError(f"admin unreachable: {exc}") from exc
         if response.status_code == 404:

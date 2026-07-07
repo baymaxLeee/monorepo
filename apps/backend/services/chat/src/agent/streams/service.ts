@@ -1,5 +1,6 @@
 import { Redis } from "ioredis";
 
+import { logger } from "../../lib/logger.js";
 import { getSettings } from "../../config.js";
 
 type XReadRedis = Redis & {
@@ -67,14 +68,14 @@ export async function consumeAgentSseStream(
       } catch (error) {
         if (!redisErrorLogged) {
           redisErrorLogged = true;
-          console.error("[chat-agent] resumable stream persistence failed", error);
+          logger.error({ err: error }, "resumable stream persistence failed");
         }
       }
     }
   } finally {
     reader.releaseLock();
     await deactivateAgentStream(conversationId, runId).catch((error) =>
-      console.error("[chat-agent] failed to clear resumable stream", error),
+      logger.error({ err: error }, "failed to clear resumable stream"),
     );
   }
 }

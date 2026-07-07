@@ -4,6 +4,7 @@ import {
   type AdminProviderSnapshot,
   type AdminResolvedAgent,
 } from "@backend/transport-ts";
+import { propagationHeaders } from "@backend/kernel-ts";
 import { getSettings } from "../config.js";
 import type { BotProfileSnapshot } from "../agent/context/instructions/index.js";
 import { AdminUnavailableError, ProviderNotConfiguredError, RequestError } from "../lib/errors.js";
@@ -48,6 +49,7 @@ function adminClient(): AdminInternalClient {
   return new AdminInternalClient({
     baseUrl: settings.adminServiceUrl,
     internalToken: settings.internalApiToken,
+    propagatedHeaders: propagationHeaders,
   });
 }
 

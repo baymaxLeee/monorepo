@@ -3,6 +3,7 @@ import { and, eq, lte } from "drizzle-orm";
 import { getDb } from "../../db/index.js";
 import { conversationRunLeases } from "../../db/schema.js";
 import { ConflictError } from "../../lib/errors.js";
+import { logger } from "../../lib/logger.js";
 import { deactivateAgentStream } from "../streams/service.js";
 import {
   finishAgentRun,
@@ -75,7 +76,7 @@ export function registerRunController(runId: string): AbortSignal {
       heartbeatAt: now,
       expiresAt: new Date(now.getTime() + LEASE_MS),
     }).where(eq(conversationRunLeases.runId, runId)).catch((error) =>
-      console.error("[chat-agent] run lease heartbeat failed", error),
+      logger.error({ err: error }, "run lease heartbeat failed"),
     );
   }, 60_000));
   cancellationPolls.set(runId, setInterval(() => {
@@ -85,7 +86,7 @@ export function registerRunController(runId: string): AbortSignal {
           controller.abort(new DOMException("agent run cancelled", "AbortError"));
         }
       })
-      .catch((error) => console.error("[chat-agent] cancellation poll failed", error));
+      .catch((error) => logger.error({ err: error }, "cancellation poll failed"));
   }, CANCELLATION_POLL_MS));
   return controller.signal;
 }
@@ -120,10 +121,10 @@ export async function reconcileOrphanedRuns(): Promise<void> {
   await Promise.all(
     orphaned.map((run) =>
       deactivateAgentStream(run.conversationId, run.id).catch((error) =>
-        console.error("[chat-agent] failed to clear stream flag for orphaned run", run.id, error),
+        logger.error({ runId: run.id, err: error }, "failed to clear stream flag for orphaned run"),
       ),
     ),
   );
   await getDb().delete(conversationRunLeases);
-  console.info(`[chat-agent] reconciled ${orphaned.length} orphaned run(s) on boot`);
+  logger.info({ count: orphaned.length }, "reconciled orphaned runs on boot");
 }

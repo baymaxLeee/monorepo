@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { getDocument, getDocumentSource } from "../../clients/knowledge.js";
 import { getDb } from "../../db/index.js";
 import { conversationContexts } from "../../db/schema.js";
+import { logger } from "../../lib/logger.js";
 import { latestCompletedToolOutput } from "../runs/repository.js";
 import { buildCompactionState, type CompactionState } from "./compaction-state.js";
 import type { InstructionContextBlock } from "./instructions/index.js";
@@ -157,7 +158,7 @@ async function transformUserFilePartsForModel(
           mediaType: source.mimeType || "application/octet-stream",
         });
       } catch (error) {
-        console.error("[chat-context] failed to load image attachment", error);
+        logger.error({ err: error }, "failed to load image attachment");
       }
     }));
   }
@@ -259,7 +260,7 @@ export async function projectModelContext(input: {
         previous: storedState,
       });
       void saveSnapshot(input.conversationId, older.at(-1)?.id ?? null, summary, state as unknown as Record<string, unknown>).catch((error) =>
-        console.error("[chat-context] failed to persist snapshot", error),
+        logger.error({ err: error }, "failed to persist snapshot"),
       );
     }
   }
@@ -292,7 +293,7 @@ export async function projectModelContext(input: {
         });
       }
     } catch (error) {
-      console.error("[chat-context] failed to load active plan", error);
+      logger.error({ err: error }, "failed to load active plan");
     }
   }
 

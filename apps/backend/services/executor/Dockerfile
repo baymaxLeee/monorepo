@@ -4,11 +4,13 @@ ENV NODE_ENV=production
 RUN corepack enable
 COPY package.json ./package.json
 COPY apps/backend/package.json apps/backend/pnpm-workspace.yaml apps/backend/pnpm-lock.yaml ./apps/backend/
+COPY apps/backend/libs/kernel-ts/package.json ./apps/backend/libs/kernel-ts/package.json
 COPY apps/backend/libs/transport-ts/package.json ./apps/backend/libs/transport-ts/package.json
 COPY apps/backend/services/executor/package.json ./apps/backend/services/executor/package.json
 WORKDIR /app/apps/backend
 # Full install (incl. devDeps: nitro/rollup are needed to build).
 RUN pnpm install --filter executor... --frozen-lockfile
+COPY apps/backend/libs/kernel-ts ./libs/kernel-ts
 COPY apps/backend/libs/transport-ts ./libs/transport-ts
 COPY apps/backend/services/executor ./services/executor
 WORKDIR /app/apps/backend/services/executor

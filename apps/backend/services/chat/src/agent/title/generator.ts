@@ -1,5 +1,6 @@
 import { generateText } from "ai";
 
+import { logger } from "../../lib/logger.js";
 import { createProviderModel } from "@backend/transport-ts/provider-model";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
 
@@ -44,7 +45,7 @@ export async function generateConversationTitle(input: {
     const title = sanitizeTitle(result.text ?? "");
     return title.length ? title : null;
   } catch (error) {
-    console.error("[chat-agent] title generation failed (non-fatal)", error);
+    logger.error({ err: error }, "title generation failed (non-fatal)");
     return null;
   }
 }

@@ -2,6 +2,7 @@ import { generateImage, NoImageGeneratedError, tool, type JSONValue } from "ai";
 import { z } from "zod";
 
 import { createProviderImageModel } from "@backend/transport-ts/provider-model";
+import { logger } from "../../../lib/logger.js";
 import type { ProviderSnapshot } from "../../../clients/admin.js";
 import type { Task } from "../../../clients/executor.js";
 import { createMediaDocument } from "../../../clients/knowledge.js";
@@ -177,7 +178,7 @@ async function* generateImages(
     };
   } catch (error) {
     if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
-    console.error("[chat-agent] generate_images failed", { toolCallId, error });
+    logger.error({ toolCallId, err: error }, "generate_image failed");
     throw imageError(error);
   }
 }
@@ -261,7 +262,7 @@ async function* generateVideo(
     };
   } catch (error) {
     if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
-    console.error("[chat-agent] generate_video failed", { toolCallId, error });
+    logger.error({ toolCallId, err: error }, "generate_video failed");
     throw error;
   }
 }

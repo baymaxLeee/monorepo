@@ -9,6 +9,7 @@ from .errors import (
     UnauthorizedError,
     register_exception_handlers,
 )
+from .logging import RequestLoggingMiddleware, configure_logging, get_logger
 from .tracing import TraceIDMiddleware, get_trace_id
 
 __all__ = [
@@ -17,8 +18,11 @@ __all__ = [
     "ForbiddenError",
     "NotFoundError",
     "RequestError",
+    "RequestLoggingMiddleware",
     "TraceIDMiddleware",
     "UnauthorizedError",
+    "configure_logging",
+    "get_logger",
     "get_trace_id",
     "register_exception_handlers",
 ]

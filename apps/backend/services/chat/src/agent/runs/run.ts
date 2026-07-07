@@ -13,6 +13,7 @@ import { getSkillBody } from "../../clients/admin.js";
 import { getDocument } from "../../clients/knowledge.js";
 import type { PersistedMessageContent } from "../../db/schema.js";
 import { NotFoundError, RequestError } from "../../lib/errors.js";
+import { logger } from "../../lib/logger.js";
 import type { AuthContext } from "../../middleware/auth.js";
 import {
   createMessage,
@@ -222,7 +223,7 @@ export async function createAgentRunResponse(
     await activateAgentStream(conversation.id, runId);
     resumable = true;
   } catch (error) {
-    console.error("[chat-agent] failed to activate resumable stream", error);
+    logger.error({ err: error }, "failed to activate resumable stream");
   }
 
   let disposeAgentResources: (() => Promise<void>) | null = null;
@@ -356,11 +357,10 @@ export async function createAgentRunResponse(
     const agent = agentInstance.agent;
     disposeAgentResources = agentInstance.dispose;
     const result = await agent.stream({ messages: modelMessages, abortSignal: runSignal });
-    console.info("[chat-agent] run accepted", {
-      conversationId: conversation.id,
-      runId,
-      setupMs: Math.round(performance.now() - startedAt),
-    });
+    logger.info(
+      { conversationId: conversation.id, runId, setupMs: Math.round(performance.now() - startedAt) },
+      "run accepted",
+    );
     const agentUiStream = toUIMessageStream({
       stream: result.stream,
       tools: agent.tools,
@@ -368,7 +368,7 @@ export async function createAgentRunResponse(
       generateMessageId: () => assistantMessageId,
       sendSources: true,
       onError: (error) => {
-        console.error("[chat-agent] stream failed", error);
+        logger.error({ err: error }, "stream failed");
         return describeStreamError(error);
       },
       onEnd: async ({ responseMessage, isContinuation, isAborted, finishReason }) => {
@@ -425,13 +425,13 @@ export async function createAgentRunResponse(
               provider,
               userText: memorySourceText,
             }).catch((error) =>
-              console.error("[chat-agent] memory extraction failed (non-fatal)", error),
+              logger.error({ err: error }, "memory extraction failed (non-fatal)"),
             );
           }
         } catch (error) {
-          console.error("[chat-agent] stream completion persistence failed", error);
+          logger.error({ err: error }, "stream completion persistence failed");
           await failAgentRun({ runId, error }).catch((finishError) =>
-            console.error("[chat-agent] failed to mark run failed", finishError),
+            logger.error({ err: finishError }, "failed to mark run failed"),
           );
           await releaseRun(runId).catch(() => undefined);
         } finally {
@@ -456,7 +456,7 @@ export async function createAgentRunResponse(
                 transient: true,
               });
             })().catch((error) =>
-              console.error("[chat-agent] conversation title update failed (non-fatal)", error),
+              logger.error({ err: error }, "conversation title update failed (non-fatal)"),
             );
             writer.merge(agentUiStream);
             await titlePromise;
@@ -476,7 +476,7 @@ export async function createAgentRunResponse(
     await disposeAgentResources?.();
     if (resumable) {
       await deactivateAgentStream(conversation.id, runId).catch((streamError) =>
-        console.error("[chat-agent] failed to clear resumable stream", streamError),
+        logger.error({ err: streamError }, "failed to clear resumable stream"),
       );
     }
     await failAgentRun({ runId, error });

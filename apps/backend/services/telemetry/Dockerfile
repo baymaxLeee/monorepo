@@ -26,4 +26,4 @@ COPY --from=builder /app /app
 ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8008
-CMD ["uvicorn", "telemetry.main:app", "--host", "0.0.0.0", "--port", "8008"]
+CMD ["uvicorn", "telemetry.main:app", "--host", "0.0.0.0", "--port", "8008", "--no-access-log"]

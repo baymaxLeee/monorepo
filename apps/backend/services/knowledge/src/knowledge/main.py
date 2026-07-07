@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from kernel.errors import register_exception_handlers
+from kernel.logging import RequestLoggingMiddleware, configure_logging
 from kernel.tracing import TraceIDMiddleware
 
 from knowledge.db import close_db
@@ -37,6 +38,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
+    configure_logging("knowledge")
     app = FastAPI(
         title="Knowledge Service",
         version="0.1.0",
@@ -44,6 +46,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     register_exception_handlers(app)
+    app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(TraceIDMiddleware)
     app.include_router(health.router)
     app.include_router(ingest.router)

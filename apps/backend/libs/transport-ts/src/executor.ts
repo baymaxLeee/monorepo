@@ -12,6 +12,7 @@ export interface ExecutorClientOptions {
   baseUrl: string;
   internalToken: string;
   timeoutMs?: number;
+  propagatedHeaders?: () => Record<string, string> | undefined;
 }
 
 export class ExecutorInternalClient {

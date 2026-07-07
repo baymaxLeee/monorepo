@@ -7,6 +7,7 @@ import {
   type RetrieveResult,
   type StoredArtifactBlock,
 } from "@backend/transport-ts";
+import { propagationHeaders } from "@backend/kernel-ts";
 import { getSettings } from "../config.js";
 import { NotFoundError } from "../lib/errors.js";
 
@@ -23,6 +24,7 @@ function knowledgeClient(): KnowledgeInternalClient {
   return new KnowledgeInternalClient({
     baseUrl: s.knowledgeServiceUrl,
     internalToken: s.internalApiToken,
+    propagatedHeaders: propagationHeaders,
   });
 }
 

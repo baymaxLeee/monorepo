@@ -22,4 +22,4 @@ COPY --from=builder /app /app
 ENV PATH="/app/.venv/bin:$PATH"
 RUN mkdir -p /data/objects
 EXPOSE 8010
-CMD ["uvicorn", "knowledge.main:app", "--host", "0.0.0.0", "--port", "8010"]
+CMD ["uvicorn", "knowledge.main:app", "--host", "0.0.0.0", "--port", "8010", "--no-access-log"]

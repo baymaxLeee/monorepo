@@ -1,4 +1,5 @@
 import { ExecutorInternalClient, TransportError, type Task } from "@backend/transport-ts";
+import { propagationHeaders } from "@backend/kernel-ts";
 
 import { getSettings } from "../config.js";
 import { NotFoundError } from "../lib/errors.js";
@@ -10,6 +11,7 @@ function executorClient(): ExecutorInternalClient {
   return new ExecutorInternalClient({
     baseUrl: s.executorServiceUrl,
     internalToken: s.internalApiToken,
+    propagatedHeaders: propagationHeaders,
   });
 }
 
