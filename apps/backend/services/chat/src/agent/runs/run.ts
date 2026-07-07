@@ -59,6 +59,9 @@ export interface RunAgentInput {
   botProfile?: BotProfileSnapshot | null;
   /** Bot-bound skills (L1) advertised to the model via `<available_skills>`. */
   botSkills?: AgentSkillRef[];
+  /** Per-run behavior selector carried in the run request body (ADR-0035);
+   *  ephemeral, never persisted. Defaults to normal. */
+  mode?: "normal" | "plan";
 }
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
@@ -224,13 +227,14 @@ export async function createAgentRunResponse(
 
   let disposeAgentResources: (() => Promise<void>) | null = null;
   try {
+    const mode = input.mode === "plan" ? "plan" : "normal";
     const [persistedMessages, instructionInput] = await Promise.all([
       listMessages(conversation.id),
       loadInstructionContext({
         userId: conversation.userId,
         conversationId: conversation.id,
         documentIds: requestedDocumentIds,
-        mode: conversation.agentMode === "plan" ? "plan" : "normal",
+        mode,
         botProfile: input.botProfile,
       }),
       updateConversationProvider(conversation.id, provider.id, provider.model),
@@ -280,7 +284,6 @@ export async function createAgentRunResponse(
     const memorySourceText = memorySourceUser ? textFromUiMessage(memorySourceUser) : "";
 
     const runSignal = registerRunController(runId);
-    const mode = conversation.agentMode === "plan" ? "plan" : "normal";
     const projected = await projectModelContext({
       conversationId: conversation.id,
       userId: conversation.userId,

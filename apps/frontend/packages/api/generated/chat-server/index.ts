@@ -6,20 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import { apiMutator } from '../../src/orval-mutator';
-export type ConversationModeInputMode = typeof ConversationModeInputMode[keyof typeof ConversationModeInputMode];
-
-
-export const ConversationModeInputMode = {
-  normal: 'normal',
-  plan: 'plan',
-} as const;
-
-export interface ConversationModeInput {
-  mode: ConversationModeInputMode;
-  /** @nullable */
-  active_plan_document_id?: string | null;
-}
-
 export interface RunCancellation {
   cancelled: boolean;
   status?: string;
@@ -188,18 +174,6 @@ const postConversationsConversationIdAgentsRunStream = (
       options);
     }
 
-const patchConversationsConversationIdMode = (
-    conversationId: string,
-    conversationModeInput: ConversationModeInput,
- options?: SecondParameter<typeof apiMutator<void>>,) => {
-      return apiMutator<void>(
-      {url: `/conversations/${conversationId}/mode`, method: 'PATCH',
-      headers: {'Content-Type': 'application/json', },
-      data: conversationModeInput
-    },
-      options);
-    }
-
 const getConversationsConversationIdDocumentsDocumentId = (
     conversationId: string,
     documentId: string,
@@ -320,7 +294,7 @@ const deleteMemoriesId = (
       options);
     }
 
-return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,patchConversationsConversationIdMode,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdTasksTaskId,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
+return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdTasksTaskId,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -334,7 +308,6 @@ export type PatchConversationsConversationIdResult = NonNullable<Awaited<ReturnT
 export type DeleteConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['deleteConversationsConversationId']>>>
 export type GetConversationsConversationIdAgentsRunStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdAgentsRunStream']>>>
 export type PostConversationsConversationIdAgentsRunStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunStream']>>>
-export type PatchConversationsConversationIdModeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchConversationsConversationIdMode']>>>
 export type GetConversationsConversationIdDocumentsDocumentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdDocumentsDocumentId']>>>
 export type PatchConversationsConversationIdDocumentsDocumentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchConversationsConversationIdDocumentsDocumentId']>>>
 export type GetConversationsConversationIdDocumentsDocumentIdSourceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdDocumentsDocumentIdSource']>>>

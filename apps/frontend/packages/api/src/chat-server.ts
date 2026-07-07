@@ -42,7 +42,6 @@ export interface Conversation {
   title: string;
   model: string;
   provider_id: string;
-  agent_mode: "normal" | "plan";
   active_plan_document_id: string | null;
   created_at: string;
   updated_at: string;
@@ -151,23 +150,6 @@ export function updateConversation(
     url: `${BASE}/${encodeURIComponent(id)}`,
     method: "PATCH",
     data: input,
-  });
-}
-
-export function updateConversationMode(
-  id: string,
-  mode: "normal" | "plan",
-  activePlanDocumentId?: string | null,
-): Promise<Conversation> {
-  return request<Conversation>({
-    url: `${BASE}/${encodeURIComponent(id)}/mode`,
-    method: "PATCH",
-    data: {
-      mode,
-      ...(activePlanDocumentId !== undefined
-        ? { active_plan_document_id: activePlanDocumentId }
-        : {}),
-    },
   });
 }
 

@@ -13,7 +13,6 @@ export const conversations = pgTable(
     title: varchar("title", { length: 200 }).notNull().default("新对话"),
     model: varchar("model", { length: 120 }).notNull().default(""),
     providerId: varchar("provider_id", { length: 32 }).notNull().default(""),
-    agentMode: varchar("agent_mode", { length: 16 }).notNull().default("normal"),
     activePlanDocumentId: varchar("active_plan_document_id", { length: 32 }),
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),

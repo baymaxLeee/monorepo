@@ -93,16 +93,6 @@ const openapi = {
         },
       },
     },
-    "/conversations/{conversation_id}/mode": {
-      patch: {
-        parameters: [pathParam],
-        requestBody: {
-          required: true,
-          content: { "application/json": { schema: ref("ConversationModeInput") } },
-        },
-        responses: { "200": { description: "update conversation agent mode" } },
-      },
-    },
     "/conversations/{conversation_id}/documents/{document_id}": {
       get: {
         parameters: [pathParam, documentPathParam],
@@ -200,14 +190,6 @@ const openapi = {
   },
   components: {
     schemas: {
-      ConversationModeInput: {
-        type: "object",
-        required: ["mode"],
-        properties: {
-          mode: { type: "string", enum: ["normal", "plan"] },
-          active_plan_document_id: { type: ["string", "null"] },
-        },
-      },
       RunCancellation: {
         type: "object",
         required: ["cancelled"],

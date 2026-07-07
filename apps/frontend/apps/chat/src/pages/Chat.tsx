@@ -16,7 +16,6 @@ import {
   fetchConversation,
   type SkillSummary,
   streamKnowledgeIngest,
-  updateConversationMode,
 } from "api";
 import { toast } from "components";
 import {
@@ -142,8 +141,9 @@ export function Chat() {
   const requestBody = useMemo(
     () => ({
       agent_id: selectedAgentId ?? null,
+      mode,
     }),
-    [selectedAgentId],
+    [selectedAgentId, mode],
   );
 
   useEffect(() => {
@@ -309,7 +309,6 @@ export function Chat() {
       .then((next) => {
         if (!active) return;
         setDetail(next);
-        setMode(next.agent_mode ?? "normal");
         setMessages(next.messages.map(messageToUiMessage));
       })
       .catch(() => {})
@@ -427,11 +426,11 @@ export function Chat() {
     }
   }
 
-  async function changeMode(nextMode: "normal" | "plan") {
-    if (!id || busy || nextMode === mode) return;
-    const updated = await updateConversationMode(id, nextMode);
-    setMode(updated.agent_mode);
-    setDetail((current) => (current ? { ...current, ...updated } : current));
+  function changeMode(nextMode: "normal" | "plan") {
+    if (busy || nextMode === mode) return;
+    // Mode is an ephemeral per-run input carried in the run request body
+    // (`requestBody.mode`); it is not persisted server-side (ADR-0035).
+    setMode(nextMode);
   }
 
   async function stopRun() {
@@ -452,9 +451,10 @@ export function Chat() {
 
   async function executePlan(documentId: string) {
     if (!id || busy || executedPlanDocumentIds.has(documentId)) return;
-    const updated = await updateConversationMode(id, "normal", documentId);
     setMode("normal");
-    setDetail((current) => (current ? { ...current, ...updated } : current));
+    // Execute in normal mode this turn. `requestBody` still reflects the
+    // pre-update render (mode may be "plan"), so pin mode explicitly; the plan
+    // reference travels as the persisted `data-plan-execution` part.
     const sent = sendMessage(
       {
         parts: [
@@ -462,7 +462,7 @@ export function Chat() {
           { type: "data-plan-execution", data: { document_id: documentId } },
         ] as ChatUIMessage["parts"],
       },
-      { body: requestBody },
+      { body: { ...requestBody, mode: "normal" as const } },
     );
     conversationScrollRef.current?.scrollToBottom();
     await sent;
@@ -636,7 +636,7 @@ export function Chat() {
               activatedSkillName={activatedSkillName}
               onClearSkill={() => setActivatedSkillName(null)}
               mode={mode}
-              onModeChange={(next) => void changeMode(next).catch(() => {})}
+              onModeChange={changeMode}
               disabled={busy}
             />
           )}

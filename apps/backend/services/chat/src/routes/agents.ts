@@ -23,6 +23,8 @@ const runSchema = z.object({
   id: z.string().optional(),
   message: z.unknown(),
   agent_id: z.string().max(32).optional().nullable(),
+  // Ephemeral per-run behavior selector (ADR-0035); not persisted.
+  mode: z.enum(["normal", "plan"]).optional(),
 });
 
 agentsRoutes.post(
@@ -63,6 +65,7 @@ agentsRoutes.post(
         videoProviderId,
         botProfile,
         botSkills,
+        mode: payload.mode,
       },
     );
   },
