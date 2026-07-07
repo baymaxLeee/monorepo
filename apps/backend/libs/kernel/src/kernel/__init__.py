@@ -10,6 +10,7 @@ from .errors import (
     register_exception_handlers,
 )
 from .logging import RequestLoggingMiddleware, configure_logging, get_logger
+from .observability import configure_opentelemetry
 from .tracing import TraceIDMiddleware, get_trace_id
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "TraceIDMiddleware",
     "UnauthorizedError",
     "configure_logging",
+    "configure_opentelemetry",
     "get_logger",
     "get_trace_id",
     "register_exception_handlers",

@@ -6,6 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 import { apiMutator } from '../../src/orval-mutator';
+export interface ClickHouseStatus {
+  configured: boolean;
+  healthy: boolean;
+  spans_last_hour: number;
+  latest_span_at?: string | null;
+  error?: string | null;
+}
+
 export type ErrorEventPayload = { [key: string]: unknown };
 
 export interface ErrorEvent {
@@ -42,6 +50,20 @@ export interface ValidationError {
 
 export interface HTTPValidationError {
   detail?: ValidationError[];
+}
+
+export interface ObservabilityCapability {
+  key: string;
+  label: string;
+  status: string;
+  detail: string;
+}
+
+export interface ObservabilityStatusResponse {
+  otlp_endpoint: string | null;
+  trace_retention_days: number;
+  clickhouse: ClickHouseStatus;
+  capabilities: ObservabilityCapability[];
 }
 
 export type PerformanceEventPayload = { [key: string]: unknown };
@@ -115,6 +137,43 @@ export interface RumBatch {
   events: RumEvent[];
 }
 
+export type TraceSpanSpanAttributes = {[key: string]: string};
+
+export interface TraceSpan {
+  trace_id: string;
+  span_id: string;
+  parent_span_id: string;
+  timestamp: string;
+  span_name: string;
+  span_kind: string;
+  service_name: string;
+  duration_ms: number;
+  status_code: string;
+  status_message: string;
+  span_attributes: TraceSpanSpanAttributes;
+}
+
+export interface TraceDetailResponse {
+  trace_id: string;
+  spans: TraceSpan[];
+}
+
+export interface TraceSummary {
+  trace_id: string;
+  started_at: string;
+  ended_at: string;
+  duration_ms: number;
+  span_count: number;
+  error_count: number;
+  services: string[];
+  root_span_name?: string | null;
+  run_id?: string | null;
+}
+
+export interface TraceListResponse {
+  items: TraceSummary[];
+}
+
 export type LivezLivezGet200 = {[key: string]: string};
 
 export type ReadyzReadyzGet200 = { [key: string]: unknown };
@@ -135,6 +194,19 @@ export type ListPerformanceEventsPerformanceGetParams = {
  * @maximum 1000
  */
 limit?: number;
+};
+
+export type RecentTracesOpsTracesGetParams = {
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 5
+ * @maximum 1440
+ */
+minutes?: number;
 };
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
@@ -217,7 +289,44 @@ const listPerformanceEventsPerformanceGet = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,batchRumBatchPost,listErrorEventsErrorsGet,listPerformanceEventsPerformanceGet}};
+/**
+ * @summary Observability Status
+ */
+const observabilityStatusOpsObservabilityGet = (
+
+ options?: SecondParameter<typeof apiMutator<ObservabilityStatusResponse>>,) => {
+      return apiMutator<ObservabilityStatusResponse>(
+      {url: `/ops/observability`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * @summary Recent Traces
+ */
+const recentTracesOpsTracesGet = (
+    params?: RecentTracesOpsTracesGetParams,
+ options?: SecondParameter<typeof apiMutator<TraceListResponse>>,) => {
+      return apiMutator<TraceListResponse>(
+      {url: `/ops/traces`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+/**
+ * @summary Trace Detail
+ */
+const traceDetailOpsTracesTraceIdGet = (
+    traceId: string,
+ options?: SecondParameter<typeof apiMutator<TraceDetailResponse>>,) => {
+      return apiMutator<TraceDetailResponse>(
+      {url: `/ops/traces/${traceId}`, method: 'GET'
+    },
+      options);
+    }
+
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,batchRumBatchPost,listErrorEventsErrorsGet,listPerformanceEventsPerformanceGet,observabilityStatusOpsObservabilityGet,recentTracesOpsTracesGet,traceDetailOpsTracesTraceIdGet}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -229,3 +338,6 @@ export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<
 export type BatchRumBatchPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTelemetryService>['batchRumBatchPost']>>>
 export type ListErrorEventsErrorsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTelemetryService>['listErrorEventsErrorsGet']>>>
 export type ListPerformanceEventsPerformanceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTelemetryService>['listPerformanceEventsPerformanceGet']>>>
+export type ObservabilityStatusOpsObservabilityGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTelemetryService>['observabilityStatusOpsObservabilityGet']>>>
+export type RecentTracesOpsTracesGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTelemetryService>['recentTracesOpsTracesGet']>>>
+export type TraceDetailOpsTracesTraceIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTelemetryService>['traceDetailOpsTracesTraceIdGet']>>>

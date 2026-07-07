@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from kernel.errors import register_exception_handlers
 from kernel.logging import RequestLoggingMiddleware, configure_logging
+from kernel.observability import configure_opentelemetry
 from kernel.tracing import TraceIDMiddleware
 
 from .config import get_settings
@@ -37,6 +38,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     configure_logging("admin")
+    configure_opentelemetry("admin")
     app = FastAPI(
         title="Admin Service",
         version="0.1.0",

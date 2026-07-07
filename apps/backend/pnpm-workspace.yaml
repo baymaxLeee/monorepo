@@ -17,6 +17,7 @@ allowBuilds:
   "@swc/core": false
   cbor-extract: false
   esbuild: false
+  protobufjs: false
 
 minimumReleaseAgeExclude:
   - '@ai-sdk/openai-compatible@3.0.5'

@@ -8,3 +8,13 @@ export {
   type RequestContext,
 } from "./trace.js";
 export { requestLogger, traceMiddleware } from "./middleware.js";
+export {
+  configureOpenTelemetry,
+  finishSpan,
+  getTracer,
+  markSpanError,
+  runWithActiveSpan,
+  shutdownOpenTelemetry,
+  spanAttributes,
+  startSpan,
+} from "./observability.js";

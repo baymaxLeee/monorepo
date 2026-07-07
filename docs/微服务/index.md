@@ -34,11 +34,14 @@
 ## Gateway
 
 - 服务目录和服务名统一为 `gateway`。
-- gateway 负责路由、认证边界、CORS、结构化请求日志、反向代理和 trace
-  传播。
-- 统一 trace header 为 `X-Trace-Id`; 不使用 `X-Request-Id`。
-- gateway 生成或透传 `X-Trace-Id`,写回响应 header,继续传给下游服务,
-  并在日志中记录为 `trace_id`。
+- gateway 负责路由、认证边界、CORS、结构化请求日志、反向代理、边缘限流
+  和 trace 传播。
+- 日志相关 ID 继续使用 `X-Trace-Id`; 不使用 `X-Request-Id`。标准分布式
+  trace 使用 W3C `traceparent`，gateway 生成或透传后写回响应并继续传给
+  下游服务。
+- 单 VPS 观测底座为 ClickHouse + OpenTelemetry Collector（ADR-0038）。
+  第一版 trace 优先、7 天 TTL，不逐条保存 SSE token chunk，不默认保存完整
+  prompt / response 正文。
 
 ## 添加新服务
 

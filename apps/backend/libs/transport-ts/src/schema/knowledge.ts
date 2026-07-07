@@ -138,6 +138,27 @@ export interface paths {
         patch: operations["update_my_document_documents__document_id__patch"];
         trace?: never;
     };
+    "/documents/{document_id}/reindex": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reindex My Document
+         * @description Re-queue a document for background RAG indexing (retry a skipped/failed
+         *     index, or rebuild after provider changes).
+         */
+        post: operations["reindex_my_document_documents__document_id__reindex_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/{document_id}/source": {
         parameters: {
             query?: never;
@@ -585,6 +606,14 @@ export interface components {
             ingest_progress: number;
             /** Ingest Error */
             ingest_error?: string | null;
+            /**
+             * Index Status
+             * @default skipped
+             * @enum {string}
+             */
+            index_status: "pending" | "indexing" | "indexed" | "skipped" | "failed";
+            /** Index Error */
+            index_error?: string | null;
             /** Created At */
             created_at: string;
             /** Updated At */
@@ -1056,6 +1085,43 @@ export interface operations {
                 "application/json": components["schemas"]["UpdateDocumentInput"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Document"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reindex_my_document_documents__document_id__reindex_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

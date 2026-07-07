@@ -40,5 +40,43 @@ services:
       timeout: 3s
       retries: 10
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.6.1.1193
+    container_name: monorepo-clickhouse
+    profiles: ["observability"]
+    mem_limit: 1200m
+    environment:
+      CLICKHOUSE_DB: otel
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: clickhouse
+    ports: ["8123:8123", "9000:9000"]
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+      - ./infra/single-vps/clickhouse-low-memory.xml:/etc/clickhouse-server/config.d/low-memory.xml:ro
+      - ./infra/single-vps/clickhouse-users.xml:/etc/clickhouse-server/users.d/low-memory.xml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.155.0
+    container_name: monorepo-otel-collector
+    profiles: ["observability"]
+    mem_limit: 256m
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    environment:
+      CLICKHOUSE_PASSWORD: clickhouse
+    volumes:
+      - ./infra/single-vps/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports: ["4317:4317", "4318:4318"]
+
 volumes:
   postgres_data:
+  clickhouse_data:
+  clickhouse_logs:

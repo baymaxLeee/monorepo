@@ -1,10 +1,13 @@
 import { isStepCount, ToolLoopAgent } from "ai";
+import type { ToolSet } from "ai";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
+import { finishSpan, runWithActiveSpan, startSpan } from "@backend/kernel-ts";
 
 import { logger } from "../../lib/logger.js";
 import { MAX_AGENT_STEPS } from "./config.js";
 import {
   finishModelStep,
+  extractUsageTokens,
   recordToolEnd,
   recordToolStart,
   startModelStep,
@@ -19,6 +22,47 @@ function observe(label: string, operation: Promise<void>): Promise<void> {
   return operation.catch((error) => {
     logger.error({ err: error }, `${label} failed`);
   });
+}
+
+type ExecutableTool = ToolSet[string] & {
+  execute: (...args: unknown[]) => unknown;
+};
+
+function toolCallIdFromOptions(options: unknown): string | undefined {
+  if (!options || typeof options !== "object") return undefined;
+  const value = options as { toolCall?: unknown; toolCallId?: unknown };
+  if (typeof value.toolCallId === "string") return value.toolCallId;
+  if (value.toolCall && typeof value.toolCall === "object") {
+    const toolCallId = (value.toolCall as { toolCallId?: unknown }).toolCallId;
+    if (typeof toolCallId === "string") return toolCallId;
+  }
+  return undefined;
+}
+
+function withActiveToolSpans(
+  tools: ToolSet,
+  toolSpans: Map<string, ReturnType<typeof startSpan>>,
+): ToolSet {
+  return Object.fromEntries(
+    Object.entries(tools).map(([name, definition]) => {
+      if (!("execute" in definition) || typeof definition.execute !== "function") {
+        return [name, definition];
+      }
+      const execute = definition.execute as (...args: unknown[]) => unknown;
+      return [
+        name,
+        {
+          ...definition,
+          execute: (...args: unknown[]) => {
+            const toolCallId = toolCallIdFromOptions(args[1]);
+            const span = toolCallId ? toolSpans.get(toolCallId) : undefined;
+            if (!span) return execute(...args);
+            return runWithActiveSpan(span, () => execute(...args));
+          },
+        } satisfies ExecutableTool,
+      ];
+    }),
+  ) as ToolSet;
 }
 
 export async function createToolLoopAgent(
@@ -59,6 +103,9 @@ export async function createToolLoopAgent(
       .map(([name]) => [name, toolContext]),
   ) as unknown as InferToolSetContext<typeof tools>;
   let currentStepNumber = 0;
+  const modelStepSpans = new Map<number, ReturnType<typeof startSpan>>();
+  const toolSpans = new Map<string, ReturnType<typeof startSpan>>();
+  const instrumentedTools = withActiveToolSpans(tools, toolSpans);
 
   const runtimeContext: AgentRuntimeContext = {
     runId: input.runId,
@@ -74,7 +121,7 @@ export async function createToolLoopAgent(
     }),
     instructions: assembleInstructions(input.instructionInput, resolvedTools.contributions),
     maxOutputTokens: provider.maxOutputTokens,
-    tools,
+    tools: instrumentedTools,
     activeTools: resolvedTools.activeTools,
     toolOrder: [...resolvedTools.activeTools].sort(),
     toolApproval: createToolApprovalPolicy(input.mode),
@@ -83,6 +130,16 @@ export async function createToolLoopAgent(
     stopWhen: isStepCount(MAX_AGENT_STEPS),
     onStepStart: (event) => {
       currentStepNumber = event.stepNumber;
+      modelStepSpans.set(
+        currentStepNumber,
+        startSpan("agent.model_step", {
+          "agent.run_id": input.runId,
+          "agent.conversation_id": input.conversationId,
+          "agent.profile": input.mode,
+          "agent.step_number": currentStepNumber,
+          "gen_ai.request.model": provider.model,
+        }),
+      );
       return observe(
         "start model step",
         startModelStep({
@@ -92,8 +149,25 @@ export async function createToolLoopAgent(
         }),
       );
     },
-    onStepEnd: (event) =>
-      observe(
+    onStepEnd: (event) => {
+      const span = modelStepSpans.get(currentStepNumber);
+      if (span) {
+        modelStepSpans.delete(currentStepNumber);
+        const tokens = extractUsageTokens(event.usage);
+        const performance =
+          event.performance && typeof event.performance === "object"
+            ? (event.performance as Record<string, unknown>)
+            : {};
+        finishSpan(span, {
+          "gen_ai.response.finish_reasons": [event.finishReason],
+          "gen_ai.usage.input_tokens": tokens.inputTokens,
+          "gen_ai.usage.output_tokens": tokens.outputTokens,
+          "gen_ai.usage.total_tokens": tokens.totalTokens,
+          "agent.tool_call_count": event.toolCalls.length,
+          "agent.model_step.duration_ms": performance.totalDurationMs,
+        });
+      }
+      return observe(
         "finish model step",
         finishModelStep({
           runId: input.runId,
@@ -103,9 +177,19 @@ export async function createToolLoopAgent(
           toolCallCount: event.toolCalls.length,
           performance: event.performance,
         }),
-      ),
-    onToolExecutionStart: (event) =>
-      observe(
+      );
+    },
+    onToolExecutionStart: (event) => {
+      toolSpans.set(
+        event.toolCall.toolCallId,
+        startSpan("agent.tool_call", {
+          "agent.run_id": input.runId,
+          "agent.step_number": currentStepNumber,
+          "agent.tool_call_id": event.toolCall.toolCallId,
+          "agent.tool_name": event.toolCall.toolName,
+        }),
+      );
+      return observe(
         "start tool",
         recordToolStart({
           runId: input.runId,
@@ -114,9 +198,22 @@ export async function createToolLoopAgent(
           toolName: event.toolCall.toolName,
           toolInput: event.toolCall.input,
         }),
-      ),
+      );
+    },
     onToolExecutionEnd: (event) => {
       const success = event.toolOutput.type === "tool-result";
+      const span = toolSpans.get(event.toolCall.toolCallId);
+      if (span) {
+        toolSpans.delete(event.toolCall.toolCallId);
+        finishSpan(
+          span,
+          {
+            "agent.tool_success": success,
+            "agent.tool_duration_ms": event.toolExecutionMs,
+          },
+          success ? undefined : event.toolOutput.error,
+        );
+      }
       return observe(
         "finish tool",
         recordToolEnd({

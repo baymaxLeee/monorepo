@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/example/monorepo/gateway/internal/middleware"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func Index(w http.ResponseWriter, _ *http.Request) {
@@ -29,6 +30,7 @@ func newReverseProxy(upstream, service, externalPrefix string) http.Handler {
 		panic("invalid " + service + " upstream url: " + err.Error())
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy.Transport = otelhttp.NewTransport(http.DefaultTransport)
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		incomingPath := req.URL.Path

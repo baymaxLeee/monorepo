@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   bulkDeleteIntentions,
   createIntention,
@@ -50,10 +51,12 @@ import {
   Textarea,
   toast,
 } from "components";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { getErrorMessage } from "shared";
 import { z } from "zod";
+
+const INTENTIONS_KEY = ["admin", "intentions"] as const;
 
 const intentionSchema = z.object({
   name: z.string().trim().min(1, "请输入名称").max(100),
@@ -86,35 +89,63 @@ function statusBadge(item: Intention) {
 }
 
 export function IntentionsPage() {
-  const [intentions, setIntentions] = useState<Intention[] | null>(null);
+  const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editing, setEditing] = useState<Intention | null>(null);
   const [detail, setDetail] = useState<Intention | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const form = useForm<IntentionValues>({
     resolver: zodResolver(intentionSchema as never),
     defaultValues: defaults,
   });
 
-  const load = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    fetchIntentions({ skipErrorNotify: true })
-      .then((rows) => {
-        setIntentions(rows);
-        setSelectedIds((ids) =>
-          ids.filter((id) => rows.some((row) => row.id === id)),
-        );
-      })
-      .catch((e) => setError(getErrorMessage(e)))
-      .finally(() => setLoading(false));
-  }, []);
+  const query = useQuery({
+    queryKey: INTENTIONS_KEY,
+    queryFn: () => fetchIntentions({ skipErrorNotify: true }),
+  });
+  const intentions = query.data ?? null;
+  const loading = query.isPending;
+  const error = query.isError ? getErrorMessage(query.error) : null;
 
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: INTENTIONS_KEY });
+
+  // Drop selections whose rows disappeared after a refetch.
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!query.data) return;
+    setSelectedIds((ids) =>
+      ids.filter((id) => query.data.some((row) => row.id === id)),
+    );
+  }, [query.data]);
+
+  const saveMutation = useMutation({
+    mutationFn: (values: IntentionValues) =>
+      editing ? updateIntention(editing.id, values) : createIntention(values),
+    onSuccess: async () => {
+      toast.success(editing ? "意图已更新" : "意图已创建");
+      setEditing(null);
+      setCreateOpen(false);
+      form.reset(defaults);
+      await invalidate();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteIntention(id),
+    onSuccess: async () => {
+      toast.success("意图已删除");
+      await invalidate();
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => bulkDeleteIntentions(ids),
+    onSuccess: async (result) => {
+      toast.success(`已删除 ${result.deleted} 条意图`);
+      setSelectedIds([]);
+      await invalidate();
+    },
+  });
 
   function openCreate() {
     setEditing(null);
@@ -135,37 +166,20 @@ export function IntentionsPage() {
     });
   }
 
-  async function save(values: IntentionValues) {
-    try {
-      if (editing) {
-        await updateIntention(editing.id, values);
-        toast.success("意图已更新");
-        setEditing(null);
-      } else {
-        await createIntention(values);
-        toast.success("意图已创建");
-        setCreateOpen(false);
-      }
-      form.reset(defaults);
-      load();
-    } catch {}
+  function save(values: IntentionValues) {
+    saveMutation.mutate(values);
   }
 
-  async function remove(intention: Intention) {
+  function remove(intention: Intention) {
     if (!window.confirm(`确认删除「${intention.name}」？`)) return;
-    await deleteIntention(intention.id);
-    toast.success("意图已删除");
-    load();
+    deleteMutation.mutate(intention.id);
   }
 
-  async function removeSelected() {
+  function removeSelected() {
     if (selectedIds.length === 0) return;
     if (!window.confirm(`确认删除选中的 ${selectedIds.length} 条意图？`))
       return;
-    const result = await bulkDeleteIntentions(selectedIds);
-    toast.success(`已删除 ${result.deleted} 条意图`);
-    setSelectedIds([]);
-    load();
+    bulkDeleteMutation.mutate(selectedIds);
   }
 
   function toggle(id: string) {
@@ -184,13 +198,17 @@ export function IntentionsPage() {
           </PageDescription>
         </PageHeaderContent>
         <PageActions>
-          <Button variant="outline" onClick={load} disabled={loading}>
+          <Button
+            variant="outline"
+            onClick={() => query.refetch()}
+            disabled={query.isFetching}
+          >
             刷新
           </Button>
           <Button
             variant="destructive"
             onClick={removeSelected}
-            disabled={selectedIds.length === 0}
+            disabled={selectedIds.length === 0 || bulkDeleteMutation.isPending}
           >
             批量删除
           </Button>
@@ -289,6 +307,7 @@ export function IntentionsPage() {
         open={createOpen || Boolean(editing)}
         title={editing ? "编辑意图" : "新建意图"}
         form={form}
+        submitting={saveMutation.isPending}
         onOpenChange={(open) => {
           if (!open) {
             setCreateOpen(false);
@@ -331,12 +350,14 @@ function IntentionFormDialog({
   onOpenChange,
   onSubmit,
   open,
+  submitting,
   title,
 }: {
   form: ReturnType<typeof useForm<IntentionValues>>;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: IntentionValues) => void;
   open: boolean;
+  submitting: boolean;
   title: string;
 }) {
   return (
@@ -461,11 +482,7 @@ function IntentionFormDialog({
           >
             取消
           </Button>
-          <Button
-            type="submit"
-            form="intention-form"
-            disabled={form.formState.isSubmitting}
-          >
+          <Button type="submit" form="intention-form" disabled={submitting}>
             保存
           </Button>
         </DialogFooter>

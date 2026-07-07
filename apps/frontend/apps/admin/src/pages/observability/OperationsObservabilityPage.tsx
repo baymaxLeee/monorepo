@@ -1,4 +1,10 @@
-import { fetchTelemetryErrors, type TelemetryErrorEvent } from "api";
+import { useQuery } from "@tanstack/react-query";
+import {
+  fetchObservabilityStatus,
+  fetchTelemetryErrors,
+  type ObservabilityStatus,
+  type TelemetryErrorEvent,
+} from "api";
 import {
   Alert,
   AlertDescription,
@@ -26,7 +32,7 @@ import {
   TableRow,
 } from "components";
 import { telemetry } from "observability";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { getErrorMessage } from "shared";
 
 const adminTelemetry = telemetry.scope({
@@ -48,32 +54,17 @@ function shortId(value: string | null) {
 }
 
 export function OperationsObservabilityPage() {
-  const [items, setItems] = useState<TelemetryErrorEvent[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    fetchTelemetryErrors(200, { skipErrorNotify: true })
-      .then((data) => {
-        setItems(data.items);
-        adminTelemetry.event("observability_errors_loaded", {
-          count: data.items.length,
-        });
-      })
-      .catch((err) => {
-        setError(getErrorMessage(err));
-        adminTelemetry.captureException(err, {
-          area: "admin_observability",
-        });
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const errorsQuery = useQuery({
+    queryKey: ["telemetry", "errors", 200],
+    queryFn: () => fetchTelemetryErrors(200, { skipErrorNotify: true }),
+  });
+  const statusQuery = useQuery({
+    queryKey: ["telemetry", "observability-status"],
+    queryFn: () => fetchObservabilityStatus({ skipErrorNotify: true }),
+    refetchInterval: 30_000,
+  });
+  const items = errorsQuery.data?.items ?? [];
+  const error = errorsQuery.error ?? statusQuery.error;
 
   const summary = useMemo(() => {
     const users = new Set(items.map((item) => item.user_id).filter(Boolean));
@@ -87,17 +78,41 @@ export function OperationsObservabilityPage() {
     };
   }, [items]);
 
+  useEffect(() => {
+    if (errorsQuery.data) {
+      adminTelemetry.event("observability_errors_loaded", {
+        count: errorsQuery.data.items.length,
+      });
+    }
+  }, [errorsQuery.data]);
+
+  useEffect(() => {
+    const queryError = errorsQuery.error ?? statusQuery.error;
+    if (queryError) {
+      adminTelemetry.captureException(queryError, {
+        area: "admin_observability",
+      });
+    }
+  }, [errorsQuery.error, statusQuery.error]);
+
   return (
     <Page>
       <PageHeader>
         <PageHeaderContent>
           <PageTitle>可观测运维</PageTitle>
           <PageDescription>
-            面向运维与技术人员的全量错误、用户、release 与 trace 视图
+            面向运维与技术人员的全量错误、用户、release 与 Trace 基座状态
           </PageDescription>
         </PageHeaderContent>
         <PageActions>
-          <Button variant="outline" onClick={load} disabled={loading}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              void errorsQuery.refetch();
+              void statusQuery.refetch();
+            }}
+            disabled={errorsQuery.isFetching || statusQuery.isFetching}
+          >
             刷新
           </Button>
         </PageActions>
@@ -106,7 +121,7 @@ export function OperationsObservabilityPage() {
       {error ? (
         <Alert variant="destructive">
           <AlertTitle>加载失败</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{getErrorMessage(error)}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -117,6 +132,11 @@ export function OperationsObservabilityPage() {
         <MetricCard label="版本数" value={summary.releases} />
       </div>
 
+      <ObservabilityStatusPanel
+        status={statusQuery.data}
+        loading={statusQuery.isLoading}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>错误事件流</CardTitle>
@@ -126,7 +146,7 @@ export function OperationsObservabilityPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading && items.length === 0 ? (
+          {errorsQuery.isLoading && items.length === 0 ? (
             <div className="space-y-2">
               <Skeleton className="h-9 w-full" />
               <Skeleton className="h-9 w-full" />
@@ -138,6 +158,81 @@ export function OperationsObservabilityPage() {
         </CardContent>
       </Card>
     </Page>
+  );
+}
+
+function ObservabilityStatusPanel({
+  status,
+  loading,
+}: {
+  status?: ObservabilityStatus;
+  loading: boolean;
+}) {
+  if (loading && !status) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Trace 基座</CardTitle>
+          <CardDescription>
+            ClickHouse + OpenTelemetry Collector
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-2/3" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!status) return null;
+  const clickhouseState = status.clickhouse.healthy ? "正常" : "异常";
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Trace 基座</CardTitle>
+        <CardDescription>
+          ClickHouse + OTel Collector，明细保留 {status.trace_retention_days} 天
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 lg:grid-cols-[280px_1fr]">
+        <div className="space-y-3 rounded-lg border p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">ClickHouse</span>
+            <Badge
+              variant={status.clickhouse.healthy ? "default" : "destructive"}
+            >
+              {clickhouseState}
+            </Badge>
+          </div>
+          <div>
+            <div className="text-2xl font-semibold">
+              {status.clickhouse.spans_last_hour}
+            </div>
+            <div className="text-xs text-muted-foreground">近一小时 spans</div>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            OTLP: {status.otlp_endpoint ?? "未配置"}
+          </div>
+          {status.clickhouse.error ? (
+            <div className="text-xs text-destructive">
+              {status.clickhouse.error}
+            </div>
+          ) : null}
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          {status.capabilities.map((item) => (
+            <div key={item.key} className="rounded-lg border p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="font-medium">{item.label}</div>
+                <Badge variant="outline">{item.status}</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">{item.detail}</p>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

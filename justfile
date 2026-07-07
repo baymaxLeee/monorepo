@@ -14,6 +14,13 @@ up:
     @./scripts/db-bootstrap.sh
     @echo "OK Infra up - Redis :6379, Postgres :5432 (workflow + service DBs + knowledge vectors)"
 
+up-observability:
+    docker compose --profile observability up -d --remove-orphans
+    @./scripts/wait-for-postgres.sh
+    @./scripts/workflow-postgres-bootstrap.sh
+    @./scripts/db-bootstrap.sh
+    @echo "OK Infra + observability up - Redis :6379, Postgres :5432, ClickHouse :8123, OTLP :4318"
+
 reset-demo-data:
     @./scripts/reset-demo-data.sh
 

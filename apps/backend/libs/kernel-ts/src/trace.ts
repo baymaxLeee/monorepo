@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 export interface RequestContext {
   traceId: string;
+  traceParent?: string;
   userId?: string;
   workspaceId?: string;
   tenantId?: string;
@@ -15,6 +16,7 @@ export interface RequestContext {
  */
 export const PROPAGATED_FIELDS = [
   { header: "X-Trace-Id", ctxKey: "traceId", logKey: "trace_id" },
+  { header: "traceparent", ctxKey: "traceParent", logKey: "traceparent" },
   { header: "X-Auth-User-ID", ctxKey: "userId", logKey: "user_id" },
   { header: "X-Workspace-Id", ctxKey: "workspaceId", logKey: "workspace_id" },
   { header: "X-Tenant-Id", ctxKey: "tenantId", logKey: "tenant_id" },

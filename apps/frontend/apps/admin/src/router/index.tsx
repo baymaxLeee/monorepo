@@ -9,6 +9,7 @@ import { KnowledgeBasePage } from "../pages/KnowledgeBasePage";
 import { MembersPage } from "../pages/MembersPage";
 import { OrganizationsPage } from "../pages/OrganizationsPage";
 import { OperationsObservabilityPage } from "../pages/observability/OperationsObservabilityPage";
+import { TraceExplorerPage } from "../pages/observability/TraceExplorerPage";
 import { PlatformRolesPage } from "../pages/PlatformRolesPage";
 import { ProvidersPage } from "../pages/ProvidersPage";
 import { ScenesPage } from "../pages/ScenesPage";
@@ -35,6 +36,7 @@ export const routes: RouteObject[] = [
       { path: "members", element: <MembersPage /> },
       { path: "platform-roles", element: <PlatformRolesPage /> },
       { path: "observability", element: <OperationsObservabilityPage /> },
+      { path: "traces", element: <TraceExplorerPage /> },
       { path: "demo", element: <ComponentsDemoPage /> },
     ],
   },

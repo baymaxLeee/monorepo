@@ -6,10 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from kernel.errors import register_exception_handlers
 from kernel.logging import RequestLoggingMiddleware, configure_logging
+from kernel.observability import configure_opentelemetry
 from kernel.tracing import TraceIDMiddleware
 
 from .db import close_db
-from .routers import errors, health, performance, rum
+from .routers import errors, health, ops, performance, rum
 
 
 @asynccontextmanager
@@ -20,6 +21,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
 
 def create_app() -> FastAPI:
     configure_logging("telemetry")
+    configure_opentelemetry("telemetry")
     app = FastAPI(
         title="Telemetry Service",
         version="0.1.0",
@@ -33,6 +35,7 @@ def create_app() -> FastAPI:
     app.include_router(rum.router)
     app.include_router(errors.router)
     app.include_router(performance.router)
+    app.include_router(ops.router)
     return app
 
 

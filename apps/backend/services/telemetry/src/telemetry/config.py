@@ -30,13 +30,19 @@ class Settings(BaseSettings):
 
     sample_rate_perform: float = 1.0
     sample_rate_event: float = 1.0
+    clickhouse_http_url: str = ""
+    clickhouse_user: str = "default"
+    clickhouse_password: str = ""
+    otel_exporter_otlp_endpoint: str = ""
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url(self) -> str:
         user = quote_plus(self.postgres_user)
         password = quote_plus(self.postgres_password)
-        return f"postgresql+asyncpg://{user}:{password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_database}"
+        return (
+            f"postgresql+asyncpg://{user}:{password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_database}"
+        )
 
     @property
     def is_production(self) -> bool:

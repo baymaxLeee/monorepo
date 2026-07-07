@@ -40,7 +40,7 @@ const jsonResponse = (description: string, schema: object) => ({
 });
 
 const openapi = {
-  openapi: "3.1.0",
+  openapi: "3.0.3",
   info: { title: "Chat Service", version: "0.1.0", description: "对话 / Agent 微服务 (TypeScript)" },
   paths: {
     "/healthz": { get: { responses: { "200": { description: "ok" } } } },
@@ -210,11 +210,11 @@ const openapi = {
           status: { type: "string", enum: ["queued", "running", "completed", "failed", "cancelled"] },
           ownerService: { type: "string" },
           ownerRef: { type: "string" },
-          result: {},
-          error: { type: ["string", "null"] },
+          result: { type: "object", nullable: true, additionalProperties: true },
+          error: { type: "string", nullable: true },
           createdAt: { type: "string" },
           updatedAt: { type: "string" },
-          finishedAt: { type: ["string", "null"] },
+          finishedAt: { type: "string", nullable: true },
         },
       },
       MemoryCategory: {
@@ -238,8 +238,8 @@ const openapi = {
           id: { type: "string" },
           category: ref("MemoryCategory"),
           content: { type: "string" },
-          reason: { type: ["string", "null"] },
-          supersedesId: { type: ["string", "null"] },
+          reason: { type: "string", nullable: true },
+          supersedesId: { type: "string", nullable: true },
           createdAt: { type: "string", format: "date-time" },
         },
       },

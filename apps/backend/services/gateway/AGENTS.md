@@ -3,20 +3,21 @@
 Go-based BFF / API gateway. Sits between frontend and backend Python services.
 
 ## Responsibilities
-- Route external HTTP requests to internal services
-- Handle authentication (JWT verification, token refresh)
+- Route external HTTP requests to internal services (prefix reverse proxy)
+- Handle authentication (JWT verification, identity header propagation)
 - Cross-cutting concerns: rate limiting, request logging, tracing
-- Aggregation: combine multiple internal calls into BFF responses
 
 ## Does NOT do
 - Business logic (delegate to domain services)
 - Persist its own state (stateless)
+- BFF aggregation / typed downstream clients (not implemented; gateway is a
+  pure streaming reverse proxy today — there is no `internal/clients/`)
 
 ## Layout
-- `cmd/server/main.go` — entry point
-- `internal/handlers/` — route handlers
-- `internal/middleware/` — auth, logging, tracing
-- `internal/clients/` — typed clients for downstream services
+- `cmd/server/main.go` — entry point + middleware chain
+- `internal/handlers/` — reverse proxy + health handlers
+- `internal/middleware/` — trace id, logging, recover, body limit, CORS,
+  identity propagation, rate limit (`rate_limit.go`, `go-chi/httprate`)
 
 ## Conventions
 - Use `chi` router (already standard)
@@ -31,5 +32,12 @@ Go-based BFF / API gateway. Sits between frontend and backend Python services.
 - RUM ingestion uses optional auth: `/api/telemetry-server/rum/*` allows
   anonymous writes, but propagates `X-Auth-*` when a valid access token is
   present. Do not add this path to public prefixes.
-- All downstream calls have timeout + retry via `internal/clients/`
+- Downstream requests are proxied via `httputil.ReverseProxy` with deadlines
+  cleared for SSE/streaming. Gateway does NOT retry proxied/streaming requests
+  (replaying a consumed/streamed body is unsafe); downstream retry belongs in the
+  calling service's transport client, limited to idempotent, non-streaming,
+  connection-level failures.
+- Edge rate limiting via `go-chi/httprate` (keyed per user, IP fallback; over
+  limit → 429 problem+json + `Retry-After`; health probes exempt). In-memory /
+  single-instance; move the counter to Redis for multi-replica.
 - Errors map to RFC 7807 problem-details JSON

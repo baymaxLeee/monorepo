@@ -87,6 +87,14 @@ const TIER3 = {
     requiredVersion: "^5.0.0",
     strictVersion: false,
   },
+  // Server-state cache. Its QueryClient lives in a React context created by the
+  // host; a duplicated copy would give each remote its own context and cache,
+  // so it must be a singleton like zustand.
+  "@tanstack/react-query": {
+    singleton: true,
+    requiredVersion: "^5.0.0",
+    strictVersion: false,
+  },
 };
 
 const EDITOR_SINGLETON_SPEC = {

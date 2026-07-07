@@ -65,9 +65,7 @@ def _add_timestamp(_logger: WrappedLogger, _method_name: str, event_dict: EventD
     # Contract mandates millisecond precision with a trailing Z; structlog's iso
     # TimeStamper emits microseconds and +00:00, which would diverge from the
     # pino/slog lines, so format explicitly (schemas/observability/logging.md).
-    event_dict["time"] = (
-        datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    )
+    event_dict["time"] = datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
     return event_dict
 
 

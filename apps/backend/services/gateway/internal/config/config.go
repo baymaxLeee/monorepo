@@ -39,6 +39,9 @@ type Config struct {
 	ReadTimeout              time.Duration
 	WriteTimeout             time.Duration
 	IdleTimeout              time.Duration
+	RateLimitEnabled         bool
+	RateLimitRequests        int
+	RateLimitWindow          time.Duration
 }
 
 func (c Config) IsProduction() bool { return c.Environment == EnvProduction }
@@ -61,8 +64,8 @@ func Load() (Config, error) {
 		KnowledgeServiceURL: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
 		TelemetryServiceURL: envOr("TELEMETRY_SERVICE_URL", "http://localhost:8008"),
 		AllowedOrigins:      csvOr("ALLOWED_FRONTEND_ORIGINS", []string{"http://localhost:3000", "http://localhost:3001"}),
-		RedisURL:          fmt.Sprintf("redis://%s:%s/%s", redisHost, redisPort, redisDB),
-		AccessTokenSecret: envOr("ACCESS_TOKEN_SECRET", devAccessTokenSecret),
+		RedisURL:            fmt.Sprintf("redis://%s:%s/%s", redisHost, redisPort, redisDB),
+		AccessTokenSecret:   envOr("ACCESS_TOKEN_SECRET", devAccessTokenSecret),
 		PublicPathPrefixes: csvOr("PUBLIC_PATH_PREFIXES", []string{
 			"/",
 			"/healthz",
@@ -87,6 +90,9 @@ func Load() (Config, error) {
 		ReadTimeout:         durationOr("HTTP_READ_TIMEOUT", 15*time.Second),
 		WriteTimeout:        durationOr("HTTP_WRITE_TIMEOUT", 30*time.Second),
 		IdleTimeout:         durationOr("HTTP_IDLE_TIMEOUT", 120*time.Second),
+		RateLimitEnabled:    boolOr("RATE_LIMIT_ENABLED", true),
+		RateLimitRequests:   intOr("RATE_LIMIT_REQUESTS", 600),
+		RateLimitWindow:     durationOr("RATE_LIMIT_WINDOW", time.Minute),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -135,6 +141,30 @@ func durationOr(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return d
+}
+
+func boolOr(key string, fallback bool) bool {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+	b, err := strconv.ParseBool(raw)
+	if err != nil {
+		return fallback
+	}
+	return b
+}
+
+func intOr(key string, fallback int) int {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return fallback
+	}
+	return n
 }
 
 func bytesOr(key string, fallback int64) int64 {

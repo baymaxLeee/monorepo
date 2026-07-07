@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 import httpx
 from cachetools import TTLCache
@@ -60,20 +60,20 @@ class AdminClient:
         if provider_id:
             cache_key = ("id", provider_id)
             if (cached := self._cache.get(cache_key)) is not None:
-                return cast(ProviderSnapshot, cached)
+                return cached
             async with self._cache_lock:
                 if (cached := self._cache.get(cache_key)) is not None:
-                    return cast(ProviderSnapshot, cached)
+                    return cached
                 snapshot = await self._fetch(f"/internal/providers/{provider_id}", params=None)
                 self._cache[cache_key] = snapshot
                 return snapshot
 
         cache_key = ("org", org_id)
         if (cached := self._cache.get(cache_key)) is not None:
-            return cast(ProviderSnapshot, cached)
+            return cached
         async with self._cache_lock:
             if (cached := self._cache.get(cache_key)) is not None:
-                return cast(ProviderSnapshot, cached)
+                return cached
             snapshot = await self._fetch("/internal/providers/default", params={"org_id": org_id})
             self._cache[cache_key] = snapshot
             self._cache[("id", snapshot.id)] = snapshot
@@ -87,10 +87,10 @@ class AdminClient:
         """
         cache_key = ("org", f"{org_id}:kind:{kind}")
         if (cached := self._cache.get(cache_key)) is not None:
-            return cast(ProviderSnapshot, cached)
+            return cached
         async with self._cache_lock:
             if (cached := self._cache.get(cache_key)) is not None:
-                return cast(ProviderSnapshot, cached)
+                return cached
             snapshot = await self._fetch(f"/internal/providers/by-kind/{kind}", params={"org_id": org_id})
             self._cache[cache_key] = snapshot
             return snapshot

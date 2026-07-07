@@ -76,7 +76,7 @@ hand-manage the middle-column "operator" secrets:
 | Bucket | Who sets it | Where it lives |
 |---|---|---|
 | `IMAGE_REGISTRY` / `IMAGE_TAG` / `PUBLIC_PORT` | CI / `deploy.sh` | passed in the environment |
-| Postgres passwords + `INTERNAL_API_TOKEN` | **auto-generated on the VPS** | `.env.secrets` (0600, VPS-only, never in git) |
+| Database passwords + `INTERNAL_API_TOKEN` | **auto-generated on the VPS** | `.env.secrets` (0600, VPS-only, never in git) |
 | super-admin login, `TAVILY_API_KEY`, `ACCESS_TOKEN_SECRET`, `ADMIN_SECRET_KEY` | **you** | `secrets.sops.env` (SOPS-encrypted, committed) |
 
 ---
@@ -111,7 +111,7 @@ OS firewall ≠ cloud security group. Go to your cloud console:
 
 ### 3. Configure operator secrets (run on your laptop, ONE time)
 
-You only manage a handful of secrets; Postgres passwords etc. are generated on
+You only manage a handful of secrets; database passwords etc. are generated on
 the VPS automatically. Install `sops` + `age` locally (`brew install sops age`),
 then:
 

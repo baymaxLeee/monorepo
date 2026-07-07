@@ -102,6 +102,39 @@ services:
       retries: 30
     <<: *restart_policy
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.6.1.1193
+    container_name: monorepo-clickhouse
+    mem_limit: 1200m
+    environment:
+      CLICKHOUSE_DB: otel
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD is required}
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+      - ./clickhouse-low-memory.xml:/etc/clickhouse-server/config.d/low-memory.xml:ro
+      - ./clickhouse-users.xml:/etc/clickhouse-server/users.d/low-memory.xml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    <<: *restart_policy
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.155.0
+    container_name: monorepo-otel-collector
+    mem_limit: 256m
+    depends_on:
+      clickhouse: { condition: service_healthy }
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD is required}
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    <<: *restart_policy
+
   # Custom image (built by build-images.yml) bundles postgres-init.sh, the
   # canonical scripts/db-migrate.sh, and each service's migration SQL. Creates
   # the per-service databases and applies pending migrations against the shared
@@ -175,8 +208,12 @@ services:
     container_name: monorepo-gateway
     depends_on:
       redis: { condition: service_healthy }
+      otel-collector: { condition: service_started }
     environment:
       ENVIRONMENT: single-vps
+      OTEL_SERVICE_NAME: gateway
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       PORT: "8000"
       REDIS_HOST: redis
       REDIS_PORT: "6379"
@@ -203,6 +240,8 @@ services:
       db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
+      OTEL_SERVICE_NAME: admin
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       PORT: "8001"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
@@ -227,6 +266,8 @@ services:
       db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
+      OTEL_SERVICE_NAME: chat
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       PORT: "8009"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
@@ -253,6 +294,8 @@ services:
       workflow-db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
+      OTEL_SERVICE_NAME: executor
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       PORT: "8011"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
@@ -285,6 +328,8 @@ services:
       db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
+      OTEL_SERVICE_NAME: knowledge
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       PORT: "8010"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
@@ -307,6 +352,11 @@ services:
       db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
+      OTEL_SERVICE_NAME: telemetry
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      CLICKHOUSE_HTTP_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD is required}
       PORT: "8008"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
@@ -334,3 +384,5 @@ volumes:
   redis_data:
   knowledge_data:
   postgres_data:
+  clickhouse_data:
+  clickhouse_logs:

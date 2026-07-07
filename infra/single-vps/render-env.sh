@@ -7,9 +7,9 @@
 #
 #   1. Runtime vars from the environment (set by deploy.sh / CI):
 #        IMAGE_REGISTRY, IMAGE_TAG, PUBLIC_PORT
-#   2. Machine-internal secrets — Postgres passwords + INTERNAL_API_TOKEN —
+#   2. Machine-internal secrets — database passwords + INTERNAL_API_TOKEN —
 #      auto-generated ONCE and persisted in ./.env.secrets. Humans never see
-#      or type them. Regenerating is safe only on a fresh DB volume, so we
+#      or type them. Regenerating is safe only on a fresh data volume, so we
 #      generate-if-missing and otherwise reuse.
 #   3. Operator secrets decrypted from the committed, SOPS-encrypted
 #      ./secrets.sops.env (super-admin login, Tavily key, and the two
@@ -27,8 +27,8 @@ OUT="${HERE}/.env"
 AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-${HERE}/age.key}"
 
 # Internal secrets: 24 random bytes hex each. Order is irrelevant; compose reads
-# them by name. WORKFLOW_POSTGRES_PASSWORD doubles as the Postgres superuser
-# password, hence the "stable after first init" rule above.
+# them by name. Database passwords must stay stable after their first data
+# volume init.
 INTERNAL_KEYS=(
   WORKFLOW_POSTGRES_PASSWORD
   IAM_POSTGRES_PASSWORD
@@ -37,6 +37,7 @@ INTERNAL_KEYS=(
   EXECUTOR_POSTGRES_PASSWORD
   KNOWLEDGE_POSTGRES_PASSWORD
   TELEMETRY_POSTGRES_PASSWORD
+  CLICKHOUSE_PASSWORD
   INTERNAL_API_TOKEN
 )
 

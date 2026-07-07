@@ -13,8 +13,10 @@ import (
 	"github.com/example/monorepo/gateway/internal/config"
 	"github.com/example/monorepo/gateway/internal/handlers"
 	"github.com/example/monorepo/gateway/internal/middleware"
+	"github.com/example/monorepo/gateway/internal/observability"
 	"github.com/example/monorepo/gateway/internal/store"
 	"github.com/go-chi/chi/v5"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func main() {
@@ -25,6 +27,16 @@ func main() {
 		slog.Error("failed to load configuration", "err", err)
 		os.Exit(1)
 	}
+	shutdownTelemetry, err := observability.Configure(context.Background(), "gateway")
+	if err != nil {
+		slog.Error("failed to configure telemetry", "err", err)
+		shutdownTelemetry = func(context.Context) error { return nil }
+	}
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		_ = shutdownTelemetry(shutdownCtx)
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	st, err := store.Connect(ctx, cfg.RedisURL)
@@ -37,11 +49,22 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Use(middleware.TraceId)
+	r.Use(otelhttp.NewMiddleware("gateway", otelhttp.WithFilter(func(r *http.Request) bool {
+		switch r.URL.Path {
+		case "/livez", "/readyz", "/healthz":
+			return false
+		default:
+			return true
+		}
+	})))
 	r.Use(middleware.RequestLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.BodyLimit(cfg.MaxRequestBodyBytes))
 	r.Use(middleware.CORS(cfg.AllowedOrigins, !cfg.IsProduction()))
 	r.Use(middleware.IdentityPropagation(cfg.AccessTokenSecret, cfg.PublicPathPrefixes, cfg.PublicExactPaths, cfg.OptionalAuthPathPrefixes))
+	if cfg.RateLimitEnabled {
+		r.Use(middleware.RateLimit(cfg.RateLimitRequests, cfg.RateLimitWindow))
+	}
 
 	r.Get("/livez", handlers.Livez)
 	r.Get("/readyz", handlers.Healthz(st))

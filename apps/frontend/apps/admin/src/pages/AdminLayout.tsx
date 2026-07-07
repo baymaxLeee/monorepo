@@ -5,6 +5,7 @@ import {
   BrainCircuitIcon,
   Building2Icon,
   ComponentIcon,
+  GitBranchIcon,
   LibraryBigIcon,
   ListTreeIcon,
   type LucideIcon,
@@ -45,6 +46,11 @@ const utilityMenus: AdminMenuItem[] = [
     title: "可观测运维",
     href: "/platform/admin/observability",
     icon: RadarIcon,
+  },
+  {
+    title: "Trace 查询",
+    href: "/platform/admin/traces",
+    icon: GitBranchIcon,
   },
   { title: "组件演示", href: "/platform/admin/demo", icon: ComponentIcon },
 ];

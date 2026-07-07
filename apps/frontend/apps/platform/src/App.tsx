@@ -1,8 +1,10 @@
+import { QueryClientProvider } from "@tanstack/react-query";
 import { ErrorBoundary, Toaster, TooltipProvider } from "components";
 import { useEffect } from "react";
 import { RouterProvider } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 import { isSuperAdmin } from "./onboarding";
+import { queryClient } from "./query-client";
 import { router } from "./router";
 import { loadApps, resetApps } from "./store/apps";
 
@@ -29,10 +31,15 @@ export function App() {
         console.error("[platform] render error", error, info);
       }}
     >
-      <TooltipProvider>
-        <RouterProvider router={router} future={{ v7_startTransition: true }} />
-        <Toaster richColors closeButton position="top-right" />
-      </TooltipProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <RouterProvider
+            router={router}
+            future={{ v7_startTransition: true }}
+          />
+          <Toaster richColors closeButton position="top-right" />
+        </TooltipProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }

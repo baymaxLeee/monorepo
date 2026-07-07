@@ -22,13 +22,19 @@ export const TaskStatus = {
   cancelled: 'cancelled',
 } as const;
 
+/**
+ * @nullable
+ */
+export type TaskResult = { [key: string]: unknown } | null;
+
 export interface Task {
   id: string;
   type: string;
   status: TaskStatus;
   ownerService: string;
   ownerRef: string;
-  result: unknown;
+  /** @nullable */
+  result: TaskResult;
   /** @nullable */
   error: string | null;
   createdAt: string;
