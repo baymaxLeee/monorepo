@@ -371,28 +371,6 @@ export function fetchConversationTask(
   });
 }
 
-export function conversationTaskStreamUrl(
-  conversationId: string,
-  taskId: string,
-): string {
-  return `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/tasks/${encodeURIComponent(taskId)}/stream`;
-}
-
-export async function openConversationTaskStream(
-  conversationId: string,
-  taskId: string,
-  signal?: AbortSignal,
-): Promise<Response> {
-  const response = await authFetch(
-    conversationTaskStreamUrl(conversationId, taskId),
-    { signal },
-  );
-  if (!response.ok || !response.body) {
-    throw new Error(`task stream failed: ${response.status}`);
-  }
-  return response;
-}
-
 export type UpdateMemoryCandidateInput = UpdateMemoryCandidate;
 
 const memoryClient = getChatService();

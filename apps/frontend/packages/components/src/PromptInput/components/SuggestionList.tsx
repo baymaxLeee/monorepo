@@ -20,6 +20,7 @@ export interface SuggestionOption {
 export interface SuggestionListProps {
   options: SuggestionOption[];
   loading?: boolean;
+  emptyLabel?: string;
   onPick: (index: number) => void;
 }
 
@@ -32,7 +33,7 @@ export interface SuggestionListProps {
 export const SuggestionList = forwardRef<
   SuggestionListHandle,
   SuggestionListProps
->(function SuggestionList({ options, loading, onPick }, ref) {
+>(function SuggestionList({ options, loading, emptyLabel, onPick }, ref) {
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -71,7 +72,7 @@ export const SuggestionList = forwardRef<
     return (
       <div className="prompt-input-suggestion">
         <div className="prompt-input-suggestion-empty">
-          {loading ? "搜索中…" : "无匹配项"}
+          {loading ? "搜索中…" : (emptyLabel ?? "无匹配项")}
         </div>
       </div>
     );

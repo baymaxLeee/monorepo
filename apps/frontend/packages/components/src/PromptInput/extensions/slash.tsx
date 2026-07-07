@@ -73,6 +73,7 @@ export function buildSlashExtension(options: {
     char: "/",
     pluginKey: slashPluginKey,
     allowSpaces: false,
+    emptyLabel: "没有可用技能（请在智能体设置中启用技能）",
     items: (query) => {
       const source = options.getSource();
       const list = typeof source === "function" ? source(query) : source;
@@ -84,12 +85,14 @@ export function buildSlashExtension(options: {
         <span className="prompt-input-suggestion-icon">
           {command.icon ?? <Sparkles className="size-4" />}
         </span>
-        <span className="prompt-input-suggestion-label">{command.title}</span>
-        {command.description ? (
-          <span className="prompt-input-suggestion-desc">
-            {command.description}
-          </span>
-        ) : null}
+        <span className="prompt-input-suggestion-text">
+          <span className="prompt-input-suggestion-label">{command.title}</span>
+          {command.description ? (
+            <span className="prompt-input-suggestion-desc">
+              {command.description}
+            </span>
+          ) : null}
+        </span>
       </>
     ),
     onSelect: (editor, range, command) => {

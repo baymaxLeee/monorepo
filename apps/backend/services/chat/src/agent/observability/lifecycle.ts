@@ -15,19 +15,44 @@ export async function startModelStep(input: { runId: string; stepNumber: number;
   await startAgentStep({ stepId: stepId(input.runId, input.stepNumber), runId: input.runId, stepIndex: input.stepNumber, kind: "model", summary: "model step started", metadata: { model: input.model } });
 }
 
+export interface UsageTokens {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cachedInputTokens: number | null;
+  reasoningTokens: number | null;
+  totalTokens: number | null;
+}
+
+/** Flatten AI SDK `LanguageModelUsage` (step `event.usage` or run `result.totalUsage`,
+ *  same shape) into the billable columns we persist. Cache-hit input and reasoning
+ *  output live in the nested `*Details` objects; everything else is top-level. */
+export function extractUsageTokens(usage: unknown): UsageTokens {
+  const source = usage && typeof usage === "object" ? (usage as Record<string, unknown>) : {};
+  const inputDetails = source.inputTokenDetails as { cacheReadTokens?: unknown } | undefined;
+  const outputDetails = source.outputTokenDetails as { reasoningTokens?: unknown } | undefined;
+  const token = (value: unknown) => (typeof value === "number" ? value : null);
+  return {
+    inputTokens: token(source.inputTokens),
+    outputTokens: token(source.outputTokens),
+    cachedInputTokens: token(inputDetails?.cacheReadTokens),
+    reasoningTokens: token(outputDetails?.reasoningTokens),
+    totalTokens: token(source.totalTokens),
+  };
+}
+
 export async function finishModelStep(input: { runId: string; stepNumber: number; finishReason: string; usage: unknown; toolCallCount: number; performance?: unknown }): Promise<void> {
-  const usage = input.usage && typeof input.usage === "object"
-    ? input.usage as { inputTokens?: unknown; outputTokens?: unknown; totalTokens?: unknown }
-    : {};
-  const token = (value: unknown) => typeof value === "number" ? value : null;
+  const tokens = extractUsageTokens(input.usage);
+  // Cache/reasoning breakdown is not promoted to step columns: the full usage
+  // (incl. inputTokenDetails/outputTokenDetails) is kept in metadata.usage, and
+  // billing aggregates at the run level, not per step.
   await finishAgentStep({
     stepId: stepId(input.runId, input.stepNumber),
     status: "completed",
     summary: `finish reason: ${input.finishReason}`,
     metadata: { usage: input.usage, tool_call_count: input.toolCallCount, performance: input.performance },
-    inputTokens: token(usage.inputTokens),
-    outputTokens: token(usage.outputTokens),
-    totalTokens: token(usage.totalTokens),
+    inputTokens: tokens.inputTokens,
+    outputTokens: tokens.outputTokens,
+    totalTokens: tokens.totalTokens,
   });
 }
 

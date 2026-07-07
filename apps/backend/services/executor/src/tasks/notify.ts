@@ -1,56 +1,17 @@
 import { eq } from "drizzle-orm";
 
-import { notifyTaskEvent, type TaskEventNotification } from "../clients/chat.js";
 import { getDb } from "../db/index.js";
 import { tasks } from "../db/schema.js";
 import type { TaskProgress } from "./types.js";
 
-type TaskRow = typeof tasks.$inferSelect;
-
-function extractConversationId(payload: unknown): string | null {
-  if (payload && typeof payload === "object" && "conversationId" in payload) {
-    const value = (payload as { conversationId?: unknown }).conversationId;
-    if (typeof value === "string" && value) return value;
-  }
-  return null;
-}
-
-function notifyOwner(row: TaskRow): void {
-  if (row.ownerService !== "chat") return;
-  const conversationId = extractConversationId(row.payload);
-  if (!conversationId) return;
-  const event: TaskEventNotification = {
-    taskId: row.id,
-    conversationId,
-    ownerRef: row.ownerRef,
-    type: row.type,
-    status: row.status as TaskEventNotification["status"],
-    progress: row.progress
-      ? { done: row.progress.done, total: row.progress.total }
-      : null,
-    result: row.result ?? null,
-    error: row.error ?? null,
-  };
-  void notifyTaskEvent(event).catch((error) => {
-    console.error("[executor] task notification failed (non-fatal)", {
-      taskId: row.id,
-      status: row.status,
-      error,
-    });
-  });
-}
-
-export async function notifyOwnerById(taskId: string): Promise<void> {
-  const [row] = await getDb().select().from(tasks).where(eq(tasks.id, taskId));
-  if (row) notifyOwner(row);
-}
-
+// The owning service (chat) reads progress/terminal state by polling
+// `GET /tasks/:id`; there is no outbound push (ADR-0035). Progress is written
+// to `tasks.progress` here purely so that poll can surface it.
 export async function reportTaskProgress(
   workflowRunId: string,
   progress: TaskProgress,
 ): Promise<void> {
   const db = getDb();
-  let taskId: string | null = null;
   await db.transaction(async (tx) => {
     const [row] = await tx
       .select()
@@ -58,7 +19,6 @@ export async function reportTaskProgress(
       .where(eq(tasks.workflowRunId, workflowRunId))
       .for("update");
     if (!row) return;
-    taskId = row.id;
     await tx
       .update(tasks)
       .set({
@@ -67,7 +27,6 @@ export async function reportTaskProgress(
       })
       .where(eq(tasks.id, row.id));
   });
-  if (taskId) await notifyOwnerById(taskId);
 }
 
 export async function recordArtifactGeneration(

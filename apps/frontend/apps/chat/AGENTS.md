@@ -26,6 +26,6 @@ Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 
 - `src/pages/Chat.tsx` — chat, tool continuation, artifact panel
 - `src/components/ChatMessageView.tsx` — native message-part rendering
-- `src/components/ChatPlanCard.tsx` — persisted plan UI
+- `src/components/ChatArtifactCard.tsx` — persisted plan / artifact card UI
 - `src/components/ChatTracePanel.tsx` — run observability
 - `src/store/useChatStore.ts` — private UI state

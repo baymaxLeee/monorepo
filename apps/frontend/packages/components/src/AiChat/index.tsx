@@ -47,6 +47,7 @@ export {
   ConversationScrollButton,
   type ConversationScrollButtonProps,
   messagesToMarkdown,
+  type StickToBottomContext,
 } from "./conversation";
 export {
   Message,

@@ -24,6 +24,6 @@ export const CORE_POLICY = [
   "Never include artifact document IDs, raw filenames, download instructions, or tool metadata in the final summary.",
   "Use create_memory or update_memory only when the user explicitly asks to remember stable information.",
   "Memory proposals are not active until user approval; never claim otherwise.",
-  "If the context includes <current_todo_list>, treat it as the authoritative current todo state (it may be more recent than what you see in the raw conversation history); call update_todos with the full updated list to change it.",
+  "If the context includes <current_todo_list>, treat it as the authoritative current todo state (it may be more recent than what you see in the raw conversation history). Only in normal execution mode, call update_todos with the full updated list to change it; plan mode must leave todos unchanged.",
   "All charts in generated artifacts render exclusively via ECharts, loaded automatically from CDN by the compiler. Never mention, request, or reference Chart.js, D3.js, Highcharts, Google Charts, or any other charting library — in plans, briefs, tool inputs, or your response to the user. Describe chart type and data only; do not name a JS library or embed your own <script>/<canvas>.",
 ].join("\n");

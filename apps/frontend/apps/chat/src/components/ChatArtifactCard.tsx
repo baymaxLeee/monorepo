@@ -1,15 +1,4 @@
-import {
-  parseJsonEventStream,
-  readUIMessageStream,
-  type UIMessage,
-  type UIMessageChunk,
-  uiMessageChunkSchema,
-} from "ai";
-import {
-  type ConversationDocument,
-  openConversationTaskStream,
-  type TaskStatus,
-} from "api";
+import type { ConversationDocument, TaskStatus } from "api";
 import { Button } from "components";
 import {
   Artifact,
@@ -19,7 +8,6 @@ import {
   ArtifactTitle,
 } from "components/ai-chat";
 import { FileTextIcon, Loader2Icon } from "lucide-react";
-import { useEffect, useState } from "react";
 
 export type ArtifactOutput = {
   documentId: string;
@@ -51,21 +39,13 @@ export type ArtifactTaskOutput = {
   filename: string;
   kind: string;
   status?: TaskStatus;
+  blocksDone?: number;
+  blocksTotal?: number;
   documentId?: string;
   totalChars?: number;
   blocksFailed?: number;
   error?: string;
 };
-
-const TERMINAL_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set([
-  "completed",
-  "failed",
-  "cancelled",
-]);
-
-function isTerminalTaskStatus(status: TaskStatus | undefined): boolean {
-  return status !== undefined && TERMINAL_TASK_STATUSES.has(status);
-}
 
 export function parseArtifactTaskOutput(
   output: unknown,
@@ -80,6 +60,10 @@ export function parseArtifactTaskOutput(
     kind: typeof raw.kind === "string" ? raw.kind : "html",
     status:
       typeof raw.status === "string" ? (raw.status as TaskStatus) : undefined,
+    blocksDone:
+      typeof raw.blocks_done === "number" ? raw.blocks_done : undefined,
+    blocksTotal:
+      typeof raw.blocks_total === "number" ? raw.blocks_total : undefined,
     documentId:
       typeof raw.document_id === "string" ? raw.document_id : undefined,
     totalChars:
@@ -90,109 +74,37 @@ export function parseArtifactTaskOutput(
   };
 }
 
-type ProgressSnapshot = {
-  status: TaskStatus;
-  progress: { done: number; total: number } | null;
-  documentId: string | null;
-  totalChars: number | null;
-  blocksTotal: number | null;
-  blocksDone: number | null;
-  blocksFailed: number | null;
-  error: string | null;
-};
-
-type JsonEventResult<T> = { success: true; value: T } | { success: false };
-
-function latestProgress(message: UIMessage): ProgressSnapshot | null {
-  for (let i = message.parts.length - 1; i >= 0; i -= 1) {
-    const part = message.parts[i];
-    if (part && part.type === "data-artifact-progress" && "data" in part) {
-      return part.data as ProgressSnapshot;
-    }
-  }
-  return null;
-}
-
-function terminalSnapshot(task: ArtifactTaskOutput): ProgressSnapshot | null {
-  if (!isTerminalTaskStatus(task.status)) return null;
-  return {
-    status: task.status as TaskStatus,
-    progress: null,
-    documentId: task.documentId ?? null,
-    totalChars: task.totalChars ?? null,
-    blocksTotal: null,
-    blocksDone: null,
-    blocksFailed: task.blocksFailed ?? null,
-    error: task.error ?? null,
-  };
-}
-
+/**
+ * Renders the live HTML-artifact task card directly from the streaming
+ * `tool-write_file` output (preliminary → terminal). Progress rides the main
+ * useChat stream (ADR-0035); there is no separate task SSE subscription.
+ */
 export function ArtifactTaskCard({
   task,
-  conversationId,
   documents,
   onOpen,
 }: {
   task: ArtifactTaskOutput;
-  conversationId: string;
   documents: Map<string, ConversationDocument>;
   onOpen: (documentId: string) => void;
 }) {
-  const [snapshot, setSnapshot] = useState<ProgressSnapshot | null>(() =>
-    terminalSnapshot(task),
-  );
+  const status = task.status ?? "queued";
 
-  useEffect(() => {
-    if (isTerminalTaskStatus(task.status)) return;
-    const controller = new AbortController();
-    let active = true;
-    (async () => {
-      try {
-        const response = await openConversationTaskStream(
-          conversationId,
-          task.taskId,
-          controller.signal,
-        );
-        const chunks = parseJsonEventStream({
-          stream: response.body!,
-          schema: uiMessageChunkSchema,
-        }).pipeThrough(
-          new TransformStream<JsonEventResult<UIMessageChunk>, UIMessageChunk>({
-            transform(part, ctrl) {
-              if (part.success) ctrl.enqueue(part.value);
-            },
-          }),
-        );
-        for await (const message of readUIMessageStream({ stream: chunks })) {
-          if (!active) break;
-          const data = latestProgress(message);
-          if (data) setSnapshot(data);
-        }
-      } catch {}
-    })();
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [conversationId, task.taskId, task.status]);
-
-  const status = snapshot?.status ?? "queued";
-
-  if (status === "completed" && snapshot?.documentId) {
+  if (status === "completed" && task.documentId) {
     return (
       <ArtifactDocumentCard
-        document={documents.get(snapshot.documentId)}
-        documentId={snapshot.documentId}
+        document={documents.get(task.documentId)}
+        documentId={task.documentId}
         fallback={{
-          documentId: snapshot.documentId,
+          documentId: task.documentId,
           status: "persisted",
           title: task.title,
           filename: task.filename,
           kind: task.kind,
-          totalChars: snapshot.totalChars ?? undefined,
+          totalChars: task.totalChars ?? undefined,
         }}
-        blocksFailed={snapshot.blocksFailed ?? undefined}
-        onOpen={() => onOpen(snapshot.documentId!)}
+        blocksFailed={task.blocksFailed ?? undefined}
+        onOpen={() => onOpen(task.documentId!)}
       />
     );
   }
@@ -209,17 +121,17 @@ export function ArtifactTaskCard({
             </ArtifactDescription>
           </div>
         </ArtifactHeader>
-        {status === "failed" && snapshot?.error ? (
+        {status === "failed" && task.error ? (
           <ArtifactContent className="px-4 py-3 text-xs text-destructive">
-            {snapshot.error}
+            {task.error}
           </ArtifactContent>
         ) : null}
       </Artifact>
     );
   }
 
-  const done = snapshot?.progress?.done ?? snapshot?.blocksDone ?? 0;
-  const total = snapshot?.progress?.total ?? snapshot?.blocksTotal ?? 0;
+  const done = task.blocksDone ?? 0;
+  const total = task.blocksTotal ?? 0;
   const hasBlockProgress = total > 0;
   return (
     <Artifact>
@@ -242,18 +154,21 @@ export function ArtifactDocumentCard({
   documentId,
   fallback,
   blocksFailed,
+  planExecuted,
+  planBusy,
   onOpen,
-  onContinuePlan,
   onExecutePlan,
 }: {
   document: ConversationDocument | undefined;
   documentId: string;
   fallback?: ArtifactOutput;
   blocksFailed?: number;
+  planExecuted?: boolean;
+  planBusy?: boolean;
   onOpen: () => void;
-  onContinuePlan?: () => void;
   onExecutePlan?: () => void;
 }) {
+  const isPlan = fallback?.kind === "plan";
   return (
     <Artifact>
       <ArtifactHeader>
@@ -272,22 +187,17 @@ export function ArtifactDocumentCard({
           </ArtifactDescription>
         </div>
         <Button type="button" size="sm" variant="outline" onClick={onOpen}>
-          预览
+          {isPlan ? "编辑" : "预览"}
         </Button>
-        {fallback?.kind === "plan" ? (
-          <>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={onContinuePlan}
-            >
-              继续完善
-            </Button>
-            <Button type="button" size="sm" onClick={onExecutePlan}>
-              开始执行
-            </Button>
-          </>
+        {isPlan ? (
+          <Button
+            type="button"
+            size="sm"
+            disabled={planExecuted || planBusy}
+            onClick={onExecutePlan}
+          >
+            {planExecuted ? "已执行" : "立即执行"}
+          </Button>
         ) : null}
       </ArtifactHeader>
       <ArtifactContent className="px-4 py-3 text-xs text-muted-foreground">

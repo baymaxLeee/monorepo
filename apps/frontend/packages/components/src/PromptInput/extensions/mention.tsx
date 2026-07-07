@@ -33,12 +33,14 @@ export function buildMentionExtension(source: PromptMentionSource) {
             <FileText className="size-4" />
           )}
         </span>
-        <span className="prompt-input-suggestion-label">{item.label}</span>
-        {item.description ? (
-          <span className="prompt-input-suggestion-desc">
-            {item.description}
-          </span>
-        ) : null}
+        <span className="prompt-input-suggestion-text">
+          <span className="prompt-input-suggestion-label">{item.label}</span>
+          {item.description ? (
+            <span className="prompt-input-suggestion-desc">
+              {item.description}
+            </span>
+          ) : null}
+        </span>
       </>
     ),
     onSelect: (editor, range, item) => {

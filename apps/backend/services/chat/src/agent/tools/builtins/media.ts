@@ -6,9 +6,9 @@ import type { ProviderSnapshot } from "../../../clients/admin.js";
 import type { Task } from "../../../clients/executor.js";
 import { createMediaDocument } from "../../../clients/knowledge.js";
 import {
+  pollTaskSnapshots,
   startTaskResilient,
   TaskWaitTimeoutError,
-  waitForTaskTerminal,
 } from "../../tasks/executor-task.js";
 import { mediaToolContextSchema, type MediaToolContext } from "../context.js";
 import { defineAgentTool, defineUnavailableCapability } from "../manifest.js";
@@ -28,7 +28,10 @@ const imageOutputSchema = z.union([
 ]);
 
 const videoOutputSchema = z.object({
-  ok: z.literal(true),
+  // `ok:false` carries an executor-reported terminal failure/cancellation as a
+  // structured output so ChatVideoCard renders the failed state off the tool
+  // part (ADR-0035); poll errors/timeout/abort still throw.
+  ok: z.boolean(),
   status: z.string(),
   kind: z.literal("video"),
   title: z.string(),
@@ -36,8 +39,11 @@ const videoOutputSchema = z.object({
   prompt: z.string(),
   duration: z.number().optional(),
   task_id: z.string(),
+  progress_done: z.number().optional(),
+  progress_total: z.number().optional(),
   document_id: z.string().optional(),
   media_type: z.literal("video/mp4").optional(),
+  error: z.string().optional(),
 });
 
 const IMAGE_OWNED_KEYS = new Set(["response_format", "prompt", "model", "n", "test_prompt"]);
@@ -215,15 +221,36 @@ async function* generateVideo(
     );
     const base = { kind: "video" as const, title, filename, prompt: input.prompt, duration: input.duration, task_id: task.id };
     yield { ok: true, status: task.status, ...base };
-    let terminal: Task;
+    let terminal: Task | null = null;
     try {
-      terminal = await waitForTaskTerminal(task.id, abortSignal);
+      for await (const snapshot of pollTaskSnapshots(task.id, abortSignal)) {
+        if (snapshot.status === "completed" || snapshot.status === "failed" || snapshot.status === "cancelled") {
+          terminal = snapshot;
+          break;
+        }
+        yield {
+          ok: true,
+          status: snapshot.status,
+          progress_done: snapshot.progress?.done,
+          progress_total: snapshot.progress?.total,
+          ...base,
+        };
+      }
     } catch (error) {
       if (error instanceof TaskWaitTimeoutError) throw new Error("视频生成超时：超过 30 分钟未完成，已取消任务。");
       throw error;
     }
-    if (terminal.status !== "completed") {
-      throw new Error(terminal.error ?? (terminal.status === "cancelled" ? "视频生成已取消" : "视频生成失败"));
+    if (terminal?.status === "failed" || terminal?.status === "cancelled") {
+      yield {
+        ok: false,
+        status: terminal.status,
+        error: terminal.error ?? (terminal.status === "cancelled" ? "视频生成已取消" : "视频生成失败"),
+        ...base,
+      };
+      return;
+    }
+    if (terminal?.status !== "completed") {
+      throw new Error("视频生成失败");
     }
     yield {
       ok: true,

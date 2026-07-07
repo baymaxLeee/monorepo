@@ -4,7 +4,9 @@
 
 Accepted. Extends ADR-0028 (system Skill / progressive disclosure) and ADR-0032
 (code-governed prompt layering + structured Bot profile). MCP is reserved, not
-implemented (see "MCP reservation").
+implemented (see "MCP reservation"). §4's `/` activation channel is refined by
+ADR-0036 (activation persists as a `data-skill-activation` message part instead
+of a side-band `skill_name` request field; injection semantics unchanged).
 
 ## Context
 

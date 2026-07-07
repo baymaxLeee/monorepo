@@ -6,7 +6,6 @@ import { WorkflowRunCancelledError } from "workflow/errors";
 import { getDb } from "../db/index.js";
 import { tasks } from "../db/schema.js";
 import { ConflictError, NotFoundError, RequestError } from "../lib/errors.js";
-import { notifyOwnerById } from "./notify.js";
 import { getTaskType } from "./registry.js";
 import type { TaskSnapshot } from "./types.js";
 
@@ -62,7 +61,6 @@ function watchCompletion(taskId: string, workflowRunId: string): void {
         .update(tasks)
         .set({ status: "completed", result, updatedAt: new Date(), finishedAt: new Date() })
         .where(and(eq(tasks.id, taskId), inArray(tasks.status, ["queued", "running"])));
-      await notifyOwnerById(taskId);
     })
     .catch(async (error: unknown) => {
       const cancelled = WorkflowRunCancelledError.is(error);
@@ -75,7 +73,6 @@ function watchCompletion(taskId: string, workflowRunId: string): void {
           finishedAt: new Date(),
         })
         .where(and(eq(tasks.id, taskId), inArray(tasks.status, ["queued", "running"])));
-      await notifyOwnerById(taskId);
     });
 }
 
@@ -140,7 +137,6 @@ export async function cancelTask(id: string): Promise<TaskSnapshot> {
     .update(tasks)
     .set({ status: "cancelled", updatedAt: now, finishedAt: now })
     .where(and(eq(tasks.id, id), inArray(tasks.status, ["queued", "running"])));
-  await notifyOwnerById(id);
 
   const taskType = getTaskType(row.type);
   const parsed = taskType?.inputSchema.safeParse(row.payload);
@@ -184,7 +180,6 @@ export async function reconcilePendingTasks(): Promise<void> {
           finishedAt: now,
         })
         .where(and(eq(tasks.id, row.id), isNull(tasks.workflowRunId)));
-      await notifyOwnerById(row.id);
     }
   }
 }

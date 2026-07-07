@@ -85,25 +85,32 @@ part already expresses is redundant — delete it.
 
 ## 3. Our custom `data-*` registry (audited — all justified, none redundant)
 
-Two separate streams carry these:
+There is **one** stream — the main chat stream:
 
 - **Main chat stream** — `POST .../agents/run/stream`, typed as
   `ChatUIMessage = UIMessage<unknown, ChatUIDataTypes>`
   (`apps/frontend/apps/chat/src/lib/chat-message.ts`).
-- **Task progress stream** — a task-scoped SSE stream consumed by
-  `ChatArtifactCard` for fine-grained artifact-generation progress.
+
+There is no separate task-progress SSE stream. HTML-artifact and video progress
+now ride the main stream as **preliminary `tool-*` results** (see ADR-0035): the
+`write_file`/`edit_file` and `generate_video` tools poll executor
+`GET /tasks/:id` and `yield` running snapshots (`blocks_done`/`blocks_total`,
+`progress_done`/`progress_total`) that the SDK emits as preliminary tool
+outputs, then a terminal `yield` with `document_id`. `ChatArtifactCard` /
+`ChatVideoCard` read progress straight off the tool part — no second connection,
+no `data-artifact-progress`.
 
 | `data-*` type              | Stream | Persistence | Reconciled by id | Direction        | Producer                                                       | Consumer                                                    | Why not an official part                                                                                   |
 | -------------------------- | ------ | ----------- | ---------------- | ---------------- | ------------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `data-conversation-title`  | main   | transient   | no               | server → client  | `agent/runs/run.ts` (`writer.write`, first turn)              | `pages/Chat.tsx` `onData` → header + sidebar               | No official "conversation title" part; title is conversation-level, not message-level, so metadata is wrong too. Transient + `onData` is the documented pattern. |
-| `data-artifact-progress`   | task   | persistent  | **yes** (`id`)   | server → client  | `agent/streams/task-progress.ts` (`ARTIFACT_PROGRESS_DATA_TYPE`) | `components/ChatArtifactCard.tsx`                          | No official "progress" part; id-reconciled data part is the documented pattern for live progressive updates. |
 | `data-plan-execution`      | main   | persistent  | no               | **client → server** (+ persisted) | `pages/Chat.tsx` (`executePlan`, added to the user message)  | `agent/context/file-parts.ts` + `agent/context/projector.ts` | No official "reference/execute this document" part. The docs list "references to content the model refers to" as a data-part use case. Persisted so later turns still show which plan was executed. |
+| `data-skill-activation`    | main   | persistent  | no               | **client → server** (+ persisted) | `pages/Chat.tsx` (`submit`, added to the user message when a `/` skill is active) | `agent/context/file-parts.ts` (`activatedSkillNameFromParts` → server injects `<activated_skill>` body for that turn) + `components/ChatMessageView.tsx` (renders a skill badge) | No official "invoke this skill" part. Mirrors `data-plan-execution` (client→server reference): the L2 body never rides the part — only the skill `name`. Persisted so history/continuation show which skill drove the turn; the projector's `convertDataPart` returns `undefined` for it, so older turns are dropped from model context and the body is injected server-side only for the turn its message triggers (ADR-0033 §4, ADR-0036). |
 
 ### Verdict on redundancy
 
-- **None of the three duplicate an official part.** Each carries app-specific
+- **None of these duplicate an official part.** Each carries app-specific
   data the protocol has no part for, using the official mechanism correctly
-  (transient+`onData`; id-reconciliation; persisted reference part).
+  (transient+`onData`; persisted reference part).
 - We already use official parts everywhere one exists: `text`, `reasoning`,
   `tool-*`, `file`, and `source-*` (`sendSources: true`). Do not wrap any of
   these in `data-*`.
@@ -115,9 +122,12 @@ Two separate streams carry these:
     loading, and the same parts *persist* the references into history for future
     turns. There is no separate `document_ids` request field (removed) — one
     channel, two roles.
-  - The artifact tool returns coarse control-flow (`task_id` → `document_id`) as
-    **tool output**, while `data-artifact-progress` streams fine per-block
-    progress. Deliberately separate granularities — do not collapse them.
+  - The HTML-artifact tool (`write_file`/`edit_file`) carries BOTH coarse
+    control-flow (`task_id` → `document_id`) and fine per-block progress
+    (`blocks_done`/`blocks_total`) on the SAME `tool-*` part: preliminary
+    `yield`s while polling executor `GET /tasks/:id`, then a terminal `yield`.
+    There is no separate progress channel (ADR-0035 collapsed the old
+    task-progress SSE into these preliminary tool results).
   - `generate_images` (media generation) returns its result **as tool output**,
     not a custom part: an inline async-generator tool yields
     `{ status: "generating", count }` then a terminal

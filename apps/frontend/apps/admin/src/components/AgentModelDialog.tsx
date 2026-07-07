@@ -1,5 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type Bot, type BotTone, type ModelProvider, updateBot } from "api";
+import {
+  type Bot,
+  type BotStatus,
+  type BotTone,
+  type ModelProvider,
+  updateBot,
+} from "api";
 import {
   Button,
   Dialog,
@@ -10,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
   Field,
+  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -22,12 +29,17 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   Textarea,
   toast,
 } from "components";
 import { useEffect } from "react";
 import { type Control, useForm } from "react-hook-form";
 import { z } from "zod";
+import { BotSkillsPanel } from "./BotSkillsPanel";
 
 const NONE = "__none__";
 
@@ -38,8 +50,15 @@ const TONE_OPTIONS: { value: BotTone; label: string }[] = [
   { value: "empathetic", label: "共情耐心" },
 ];
 
+const STATUS_OPTIONS: { value: BotStatus; label: string }[] = [
+  { value: "draft", label: "草稿" },
+  { value: "published", label: "已发布" },
+  { value: "archived", label: "已归档" },
+];
+
 const schema = z.object({
   name: z.string().trim().min(1, "请输入名称"),
+  status: z.enum(["draft", "published", "archived"]),
   role_description: z.string().max(2000, "最多 2000 字"),
   domain_description: z.string().max(2000, "最多 2000 字"),
   audience: z.string().max(200, "最多 200 字"),
@@ -120,6 +139,7 @@ export function AgentModelDialog({
     resolver: zodResolver(schema as never),
     defaultValues: {
       name: "",
+      status: "draft",
       role_description: "",
       domain_description: "",
       audience: "",
@@ -136,6 +156,7 @@ export function AgentModelDialog({
     if (!bot) return;
     form.reset({
       name: bot.name,
+      status: bot.status ?? "draft",
       role_description: bot.role_description ?? "",
       domain_description: bot.domain_description ?? "",
       audience: bot.audience ?? "",
@@ -156,6 +177,7 @@ export function AgentModelDialog({
     try {
       await updateBot(bot.id, {
         name: values.name.trim(),
+        status: values.status,
         role_description: values.role_description.trim() || null,
         domain_description: values.domain_description.trim() || null,
         audience: values.audience.trim() || null,
@@ -174,191 +196,268 @@ export function AgentModelDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>配置智能体</DialogTitle>
           <DialogDescription>
-            设置该智能体的结构化身份（角色 / 领域 / 受众 /
-            语气）、欢迎语与推荐问题，以及文本 / 图片 / 视频模型 provider。角色
-            / 领域 / 受众 /
-            语气会进入模型上下文；欢迎语与推荐问题仅用于前端展示。模型留空表示不启用该能力。
+            分「身份 / 模型 / 技能 /
+            展示」四组配置。身份进入模型上下文，模型决定可用能力，技能可在对话中通过
+            / 唤起，展示项仅用于前端。
           </DialogDescription>
         </DialogHeader>
-        <DialogBody>
-          <Form {...form}>
-            <form id="agent-model-form" onSubmit={form.handleSubmit(onSubmit)}>
-              <FieldGroup>
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel htmlFor="agent-name">名称</FieldLabel>
-                      <FormControl>
-                        <Input id="agent-name" {...field} />
-                      </FormControl>
-                      <FieldError errors={[form.formState.errors.name]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="role_description"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel htmlFor="agent-role">角色描述</FieldLabel>
-                      <FormControl>
-                        <Textarea
-                          id="agent-role"
-                          rows={4}
-                          placeholder="这个智能体扮演什么角色、负责什么、如何作答。例如：团队 Oncall 事故排查助手，按 根因 / 排查 / 验证 / 修复 四段作答。"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FieldError
-                        errors={[form.formState.errors.role_description]}
-                      />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="domain_description"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel htmlFor="agent-domain">领域范围</FieldLabel>
-                      <FormControl>
-                        <Textarea
-                          id="agent-domain"
-                          rows={3}
-                          placeholder="这个智能体覆盖的知识领域。例如：团队线上事故排查、SOP、Runbook、架构与配置知识。"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FieldError
-                        errors={[form.formState.errors.domain_description]}
-                      />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="audience"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel htmlFor="agent-audience">目标受众</FieldLabel>
-                      <FormControl>
-                        <Input
-                          id="agent-audience"
-                          placeholder="例如：一线值班与运维工程师"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FieldError errors={[form.formState.errors.audience]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="tone"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>语气</FieldLabel>
-                      <FormControl>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {TONE_OPTIONS.map((option) => (
-                              <SelectItem
-                                key={option.value}
-                                value={option.value}
-                              >
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </FormControl>
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="welcome_message"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel htmlFor="agent-welcome">
-                        欢迎语（仅前端展示）
-                      </FieldLabel>
-                      <FormControl>
-                        <Textarea
-                          id="agent-welcome"
-                          rows={2}
-                          placeholder="用户进入对话时看到的开场白。"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FieldError
-                        errors={[form.formState.errors.welcome_message]}
-                      />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="suggested_questions"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel htmlFor="agent-questions">
-                        推荐问题（每行一条，最多 6 条，仅前端展示）
-                      </FieldLabel>
-                      <FormControl>
-                        <Textarea
-                          id="agent-questions"
-                          rows={4}
-                          placeholder={
-                            "服务 5xx 突然升高，如何快速定位根因？\n数据库连接池被打满，怎么一步步排查？"
-                          }
-                          {...field}
-                        />
-                      </FormControl>
-                    </Field>
-                  )}
-                />
-                <ModelField
-                  control={form.control}
-                  name="text_provider_id"
-                  label="文本模型"
-                  options={byKind("chat")}
-                />
-                <ModelField
-                  control={form.control}
-                  name="image_provider_id"
-                  label="图片模型"
-                  options={byKind("image")}
-                />
-                <ModelField
-                  control={form.control}
-                  name="video_provider_id"
-                  label="视频模型"
-                  options={byKind("video")}
-                />
-              </FieldGroup>
-            </form>
-          </Form>
-        </DialogBody>
+        <Tabs defaultValue="identity" className="min-h-0 flex-1 gap-3">
+          <TabsList className="w-full">
+            <TabsTrigger value="identity">身份</TabsTrigger>
+            <TabsTrigger value="models">模型</TabsTrigger>
+            <TabsTrigger value="skills">技能</TabsTrigger>
+            <TabsTrigger value="presentation">展示</TabsTrigger>
+          </TabsList>
+          <DialogBody>
+            <Form {...form}>
+              <form
+                id="agent-model-form"
+                onSubmit={form.handleSubmit(onSubmit)}
+              >
+                <TabsContent value="identity" className="mt-0">
+                  <FieldGroup>
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <Field>
+                          <FieldLabel htmlFor="agent-name">名称</FieldLabel>
+                          <FormControl>
+                            <Input id="agent-name" {...field} />
+                          </FormControl>
+                          <FieldError errors={[form.formState.errors.name]} />
+                        </Field>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="status"
+                      render={({ field }) => (
+                        <Field>
+                          <FieldLabel>发布状态</FieldLabel>
+                          <FormControl>
+                            <Select
+                              value={field.value}
+                              onValueChange={field.onChange}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {STATUS_OPTIONS.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormControl>
+                          <FieldDescription>
+                            仅「已发布」的智能体会对终端用户可见。
+                          </FieldDescription>
+                        </Field>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="role_description"
+                      render={({ field }) => (
+                        <Field>
+                          <FieldLabel htmlFor="agent-role">角色描述</FieldLabel>
+                          <FormControl>
+                            <Textarea
+                              id="agent-role"
+                              rows={4}
+                              placeholder="这个智能体扮演什么角色、负责什么、如何作答。例如：团队 Oncall 事故排查助手，按 根因 / 排查 / 验证 / 修复 四段作答。"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FieldError
+                            errors={[form.formState.errors.role_description]}
+                          />
+                        </Field>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="domain_description"
+                      render={({ field }) => (
+                        <Field>
+                          <FieldLabel htmlFor="agent-domain">
+                            领域范围
+                          </FieldLabel>
+                          <FormControl>
+                            <Textarea
+                              id="agent-domain"
+                              rows={3}
+                              placeholder="这个智能体覆盖的知识领域。例如：团队线上事故排查、SOP、Runbook、架构与配置知识。"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FieldError
+                            errors={[form.formState.errors.domain_description]}
+                          />
+                        </Field>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="audience"
+                      render={({ field }) => (
+                        <Field>
+                          <FieldLabel htmlFor="agent-audience">
+                            目标受众
+                          </FieldLabel>
+                          <FormControl>
+                            <Input
+                              id="agent-audience"
+                              placeholder="例如：一线值班与运维工程师"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FieldError
+                            errors={[form.formState.errors.audience]}
+                          />
+                        </Field>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="tone"
+                      render={({ field }) => (
+                        <Field>
+                          <FieldLabel>语气</FieldLabel>
+                          <FormControl>
+                            <Select
+                              value={field.value}
+                              onValueChange={field.onChange}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {TONE_OPTIONS.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormControl>
+                        </Field>
+                      )}
+                    />
+                  </FieldGroup>
+                </TabsContent>
+
+                <TabsContent value="models" className="mt-0">
+                  <FieldGroup>
+                    <ModelField
+                      control={form.control}
+                      name="text_provider_id"
+                      label="文本模型"
+                      options={byKind("chat")}
+                    />
+                    <ModelField
+                      control={form.control}
+                      name="image_provider_id"
+                      label="图片模型"
+                      options={byKind("image")}
+                    />
+                    <ModelField
+                      control={form.control}
+                      name="video_provider_id"
+                      label="视频模型"
+                      options={byKind("video")}
+                    />
+                    <FieldDescription>
+                      模型留空表示不启用该能力。仅列出已启用的 provider。
+                    </FieldDescription>
+                  </FieldGroup>
+                </TabsContent>
+
+                <TabsContent value="presentation" className="mt-0">
+                  <FieldGroup>
+                    <FormField
+                      control={form.control}
+                      name="welcome_message"
+                      render={({ field }) => (
+                        <Field>
+                          <FieldLabel htmlFor="agent-welcome">
+                            欢迎语
+                          </FieldLabel>
+                          <FormControl>
+                            <Textarea
+                              id="agent-welcome"
+                              rows={2}
+                              placeholder="用户进入对话时看到的开场白。"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FieldError
+                            errors={[form.formState.errors.welcome_message]}
+                          />
+                        </Field>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="suggested_questions"
+                      render={({ field }) => (
+                        <Field>
+                          <FieldLabel htmlFor="agent-questions">
+                            推荐问题
+                          </FieldLabel>
+                          <FormControl>
+                            <Textarea
+                              id="agent-questions"
+                              rows={4}
+                              placeholder={
+                                "服务 5xx 突然升高，如何快速定位根因？\n数据库连接池被打满，怎么一步步排查？"
+                              }
+                              {...field}
+                            />
+                          </FormControl>
+                          <FieldDescription>
+                            每行一条，最多 6
+                            条。欢迎语与推荐问题仅用于前端展示。
+                          </FieldDescription>
+                        </Field>
+                      )}
+                    />
+                  </FieldGroup>
+                </TabsContent>
+              </form>
+            </Form>
+
+            <TabsContent value="skills" className="mt-0">
+              {bot ? (
+                <BotSkillsPanel botId={bot.id} />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  请先保存智能体后再配置技能。
+                </p>
+              )}
+            </TabsContent>
+          </DialogBody>
+        </Tabs>
         <DialogFooter>
           <Button
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
           >
-            取消
+            关闭
           </Button>
           <Button
             type="submit"

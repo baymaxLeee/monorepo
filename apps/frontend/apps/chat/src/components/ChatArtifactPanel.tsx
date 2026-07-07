@@ -1,8 +1,9 @@
 import type { ConversationDocumentDetail } from "api";
-import { fetchConversationDocument } from "api";
-import { Button } from "components";
+import { fetchConversationDocument, updateConversationDocument } from "api";
+import { Button, toast } from "components";
 import { ArtifactPreview } from "components/ai-chat";
-import { XIcon } from "lucide-react";
+import { MarkdownEditor } from "components/markdown-editor";
+import { PencilIcon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -17,6 +18,14 @@ function needsBinarySource(mimeType: string | undefined) {
       mimeType?.startsWith("video/") ||
       mimeType?.startsWith("audio/") ||
       mimeType?.includes("pdf"),
+  );
+}
+
+// Only agent-authored Markdown artifacts (plans, notes, ...) are editable in
+// place; uploaded sources stay read-only and binary previews have no text body.
+function isEditableMarkdown(artifact: ConversationDocumentDetail | null) {
+  return (
+    artifact?.kind === "artifact" && artifact.mime_type === "text/markdown"
   );
 }
 
@@ -36,7 +45,11 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
   const [sourceLoading, setSourceLoading] = useState(false);
   const [sourceError, setSourceError] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
   const binarySource = needsBinarySource(artifact?.mime_type);
+  const editable = isEditableMarkdown(artifact);
   const {
     blobUrl: previewSrc,
     loading: blobLoading,
@@ -59,6 +72,7 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
     setArtifact(null);
     setPreviewHtml(null);
     setSourceError(false);
+    setEditing(false);
     void fetchConversationDocument(conversationId, documentId)
       .then((document) => {
         if (!active) return;
@@ -125,6 +139,30 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
     Boolean(artifact && binarySource && blobLoading);
   const previewFailed = sourceError || Boolean(blobError);
 
+  function startEditing() {
+    if (!artifact) return;
+    setDraft(artifact.content_md ?? "");
+    setEditing(true);
+  }
+
+  async function saveDraft() {
+    if (!artifact || !conversationId || !documentId) return;
+    setSaving(true);
+    try {
+      const updated = await updateConversationDocument(
+        conversationId,
+        documentId,
+        { content_md: draft },
+      );
+      setArtifact(updated);
+      setEditing(false);
+      toast.success("已保存");
+    } catch {
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
       <div className="flex h-11 shrink-0 items-center gap-2 px-3">
@@ -138,6 +176,40 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
             </p>
           ) : null}
         </div>
+        {editing ? (
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              disabled={saving}
+              onClick={() => setEditing(false)}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="shrink-0"
+              disabled={saving}
+              onClick={() => void saveDraft()}
+            >
+              {saving ? "保存中…" : "保存"}
+            </Button>
+          </>
+        ) : editable ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0"
+            aria-label="编辑"
+            onClick={startEditing}
+          >
+            <PencilIcon className="size-4" />
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="ghost"
@@ -150,7 +222,17 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
         </Button>
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {previewLoading ? (
+        {editing && artifact ? (
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+            <MarkdownEditor
+              value={draft}
+              contentType="markdown"
+              editable
+              onChange={setDraft}
+              className="h-full w-full"
+            />
+          </div>
+        ) : previewLoading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             加载中…
           </div>

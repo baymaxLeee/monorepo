@@ -13,14 +13,16 @@ for the full rationale.
   immediately (`status: "queued"` or `"running"`). Callers never block an
   HTTP request on task completion. `GET /tasks/:id` is the durable read
   (snapshot incl. `progress`). There is deliberately **no** streaming endpoint
-  on executor — instead executor *pushes* events to the owning service (see
-  "Outbound task notifications"); the owner, not executor, decides how to
-  surface them to a browser. Keep it that way: a task's business shape stays a
-  plain snapshot here, streaming/replay stays the owner's concern.
+  and **no** outbound push on executor (ADR-0035 removed the old
+  executor→chat notify): the owner polls `GET /tasks/:id` and decides how to
+  surface progress to a browser. Keep it that way: a task's business shape stays
+  a plain snapshot here, streaming/replay stays the owner's concern.
 - Progress: a task's `progress` column is a `{ done, total }` counter the
   workflow reports per completed unit of work (see `reportTaskProgress` in
   `src/tasks/notify.ts`, called from `reportProgressStep` in the workflow). It
-  is best-effort UI sugar, never a correctness signal.
+  is written to the DB and read by the owner's `GET /tasks/:id` poll (chat
+  surfaces it as preliminary tool-results on the main useChat stream). It is
+  best-effort UI sugar, never a correctness signal.
 - `owner_service` + `owner_ref` is the idempotency key. Retrying a start
   request with the same pair returns the existing task, never starts a
   second workflow run.
@@ -108,17 +110,13 @@ for the full rationale.
 
 ## Outbound task notifications
 
-- On every progress update and on the terminal transition, executor fires a
-  fire-and-forget `POST /internal/tasks/notify` at the owning service
-  (`ChatInternalClient.notifyTaskEvent` via `@backend/transport-ts`, base URL
-  `CHAT_SERVICE_URL`). This is the reverse of chat's `EXECUTOR_SERVICE_URL`.
-- It is **best-effort by contract**: a failed/dropped notification is logged
-  and swallowed, never fails or slows a task. The durable truth is always
-  `GET /tasks/:id`; the notification only saves the owner a poll. Today the
-  only owner is `chat` (routed by `conversationId` on the task payload); a
-  task with no known owner/route is simply not notified.
-- Routing keys ride on the task payload (chat puts `conversationId` there).
-  Executor does not model owner-specific concepts beyond reading that key.
+- **Removed (ADR-0035).** Executor no longer pushes task events to any owner.
+  There is no `POST /internal/tasks/notify` call, no `ChatInternalClient`, and
+  no `src/clients/chat.ts`. The owner (chat) polls `GET /tasks/:id` and reads the
+  `progress`/`status`/`result` columns; `reportTaskProgress` still writes
+  `tasks.progress` for that poll to read. Do not reintroduce an outbound push —
+  progress belongs on the owner's own stream (chat surfaces it as preliminary
+  tool-results on the main useChat stream).
 
 ## Entry points
 
@@ -128,8 +126,7 @@ for the full rationale.
 - `src/app.ts` — route wiring, auth, error mapping.
 - `src/routes/tasks.ts` — Task API (start/get/cancel).
 - `src/tasks/service.ts` — task lifecycle, idempotency, completion watching.
-- `src/tasks/notify.ts` — progress recording + outbound owner notifications.
-- `src/clients/chat.ts` — `notifyTaskEvent` wrapper over `ChatInternalClient`.
+- `src/tasks/notify.ts` — progress recording into `tasks.progress` (no push).
 - `src/tasks/registry.ts` — TaskType registry.
 - `workflows/*.ts` — one file per TaskType's actual `"use workflow"`/`"use step"`
   implementation.

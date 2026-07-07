@@ -1,6 +1,6 @@
 import { getToolName, isFileUIPart, isToolUIPart, type UIMessage } from "ai";
 import type { ConversationDocument } from "api";
-import { Button, Checkbox, Input } from "components";
+import { Badge, Button, Checkbox, Input } from "components";
 import {
   Message as AiMessage,
   MessageContent,
@@ -15,6 +15,7 @@ import {
   ToolJsonBlock,
   withoutReasoningParts,
 } from "components/ai-chat";
+import { SparklesIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { cn } from "shared";
 import { documentIdFromFilePart } from "../lib/file-parts";
@@ -49,8 +50,9 @@ export interface ChatMessageViewProps {
     output: unknown,
   ) => void;
   onToolApproval: (approvalId: string, approved: boolean) => void;
-  onContinuePlan: (documentId: string) => void;
   onExecutePlan: (documentId: string) => void;
+  planExecutedIds: ReadonlySet<string>;
+  planBusy: boolean;
 }
 
 export function ChatMessageView({
@@ -63,8 +65,9 @@ export function ChatMessageView({
   onOpenArtifact,
   onAnswerClientTool,
   onToolApproval,
-  onContinuePlan,
   onExecutePlan,
+  planExecutedIds,
+  planBusy,
 }: ChatMessageViewProps) {
   const reasoning = mergeReasoningParts(message.parts, {
     isMessageStreaming: streaming,
@@ -126,8 +129,9 @@ export function ChatMessageView({
               onOpenImage={onOpenImage}
               onAnswerClientTool={onAnswerClientTool}
               onToolApproval={onToolApproval}
-              onContinuePlan={onContinuePlan}
               onExecutePlan={onExecutePlan}
+              planExecutedIds={planExecutedIds}
+              planBusy={planBusy}
             />
           ))}
         </div>
@@ -157,8 +161,9 @@ function MessagePartView({
   onOpenImage,
   onAnswerClientTool,
   onToolApproval,
-  onContinuePlan,
   onExecutePlan,
+  planExecutedIds,
+  planBusy,
 }: {
   part: UIMessage["parts"][number];
   conversationId: string;
@@ -175,8 +180,9 @@ function MessagePartView({
     output: unknown,
   ) => void;
   onToolApproval: (approvalId: string, approved: boolean) => void;
-  onContinuePlan: (documentId: string) => void;
   onExecutePlan: (documentId: string) => void;
+  planExecutedIds: ReadonlySet<string>;
+  planBusy: boolean;
 }) {
   if (part.type === "text") {
     if (variant === "user") {
@@ -191,6 +197,20 @@ function MessagePartView({
 
   if (part.type === "reasoning") {
     return null;
+  }
+
+  if (part.type === "data-skill-activation") {
+    const name = (part.data as { name?: unknown } | undefined)?.name;
+    if (typeof name !== "string" || !name) return null;
+    return (
+      <Badge
+        variant="secondary"
+        className="h-6 gap-1 rounded-full px-2 font-mono text-xs"
+      >
+        <SparklesIcon className="size-3" />
+        {name}
+      </Badge>
+    );
   }
 
   if (part.type === "source-url") {
@@ -228,8 +248,9 @@ function MessagePartView({
         onOpenArtifact={onOpenArtifact}
         onAnswerClientTool={onAnswerClientTool}
         onToolApproval={onToolApproval}
-        onContinuePlan={onContinuePlan}
         onExecutePlan={onExecutePlan}
+        planExecutedIds={planExecutedIds}
+        planBusy={planBusy}
       />
     );
   }
@@ -246,8 +267,9 @@ function ToolPartView({
   onOpenArtifact,
   onAnswerClientTool,
   onToolApproval,
-  onContinuePlan,
   onExecutePlan,
+  planExecutedIds,
+  planBusy,
 }: {
   part: Extract<UIMessage["parts"][number], { toolCallId: string }>;
   conversationId: string;
@@ -261,8 +283,9 @@ function ToolPartView({
     output: unknown,
   ) => void;
   onToolApproval: (approvalId: string, approved: boolean) => void;
-  onContinuePlan: (documentId: string) => void;
   onExecutePlan: (documentId: string) => void;
+  planExecutedIds: ReadonlySet<string>;
+  planBusy: boolean;
 }) {
   const toolName = getToolName(part);
   const kind = toolUiKind(part);
@@ -362,8 +385,9 @@ function ToolPartView({
         document={documents.get(artifact.documentId)}
         documentId={artifact.documentId}
         fallback={artifact}
+        planExecuted={planExecutedIds.has(artifact.documentId)}
+        planBusy={planBusy}
         onOpen={() => onOpenArtifact(artifact.documentId)}
-        onContinuePlan={() => onContinuePlan(artifact.documentId)}
         onExecutePlan={() => onExecutePlan(artifact.documentId)}
       />
     );
@@ -373,7 +397,6 @@ function ToolPartView({
     return (
       <ArtifactTaskCard
         task={artifactTask}
-        conversationId={conversationId}
         documents={documents}
         onOpen={onOpenArtifact}
       />
@@ -406,6 +429,12 @@ function ToolPartView({
             }
           />
         ) : null}
+        {kind === "ask-user" && part.state === "output-available" ? (
+          <AskUserAnsweredCard
+            question={askUserInput?.question}
+            output={output}
+          />
+        ) : null}
         {hasError ? (
           <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">
             {errorText?.trim() ||
@@ -418,7 +447,7 @@ function ToolPartView({
             todos={todoList.todos}
             deliverableCompletion={deliverableCompletion}
           />
-        ) : (
+        ) : kind === "ask-user" ? null : (
           <>
             {askUserInput == null && input !== undefined ? (
               <ToolJsonBlock value={input} />
@@ -514,12 +543,63 @@ function parseAskUserInput(input: unknown): AskUserInput | null {
   };
 }
 
+function parseAskUserAnswer(output: unknown): string {
+  // ask_user now returns the answer as plain text (multiple selections are
+  // joined on submit). The object branch only tolerates conversations
+  // persisted before that change.
+  if (typeof output === "string") return output.trim();
+  if (!output || typeof output !== "object") return "";
+  const raw = output as {
+    answer?: unknown;
+    label?: unknown;
+    answers?: unknown;
+    labels?: unknown;
+    other?: unknown;
+  };
+  if (Array.isArray(raw.labels) || Array.isArray(raw.answers)) {
+    const source = Array.isArray(raw.labels) ? raw.labels : raw.answers;
+    const values = (source as unknown[]).filter(
+      (item): item is string => typeof item === "string" && item.trim() !== "",
+    );
+    if (typeof raw.other === "string" && raw.other.trim()) {
+      values.push(raw.other.trim());
+    }
+    return values.join("、");
+  }
+  if (raw.other !== true && typeof raw.label === "string" && raw.label.trim()) {
+    return raw.label.trim();
+  }
+  if (typeof raw.answer === "string" && raw.answer.trim()) {
+    return raw.answer.trim();
+  }
+  return typeof raw.label === "string" ? raw.label.trim() : "";
+}
+
+function AskUserAnsweredCard({
+  question,
+  output,
+}: {
+  question?: string;
+  output: unknown;
+}) {
+  const answer = parseAskUserAnswer(output);
+  if (!answer) return <ToolJsonBlock value={output} />;
+  return (
+    <div className="space-y-1.5 rounded-md border bg-muted/30 p-3">
+      {question ? (
+        <div className="text-xs text-muted-foreground">{question}</div>
+      ) : null}
+      <div className="whitespace-pre-wrap break-words text-sm">{answer}</div>
+    </div>
+  );
+}
+
 function AskUserToolCard({
   input,
   onSubmit,
 }: {
   input: AskUserInput;
-  onSubmit: (output: unknown) => void;
+  onSubmit: (answer: string) => void;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [other, setOther] = useState("");
@@ -533,16 +613,13 @@ function AskUserToolCard({
     const labels = input.choices
       .filter((choice) => selected.includes(choice.value))
       .map((choice) => choice.label);
-    onSubmit({
-      answers: selected,
-      labels,
-      ...(trimmedOther ? { other: trimmedOther } : {}),
-    });
+    if (trimmedOther) labels.push(trimmedOther);
+    onSubmit(labels.join("、"));
   }
 
   function submitOther() {
     if (!trimmedOther) return;
-    onSubmit({ answer: trimmedOther, label: input.freeformLabel, other: true });
+    onSubmit(trimmedOther);
     setOther("");
   }
 
@@ -587,9 +664,7 @@ function AskUserToolCard({
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() =>
-                  onSubmit({ answer: choice.value, label: choice.label })
-                }
+                onClick={() => onSubmit(choice.label)}
               >
                 {choice.label}
               </Button>

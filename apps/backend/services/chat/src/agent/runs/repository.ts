@@ -76,6 +76,10 @@ export async function finishAgentRun(input: {
   status: AgentRunStatus;
   error?: unknown;
   outputMessageId?: string | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  cachedInputTokens?: number | null;
+  reasoningTokens?: number | null;
   totalTokens?: number | null;
 }): Promise<void> {
   await getDb()
@@ -84,6 +88,10 @@ export async function finishAgentRun(input: {
       status: input.status,
       error: input.error == null ? null : errorText(input.error).slice(0, 4000),
       outputMessageId: input.outputMessageId ?? undefined,
+      inputTokens: input.inputTokens ?? undefined,
+      outputTokens: input.outputTokens ?? undefined,
+      cachedInputTokens: input.cachedInputTokens ?? undefined,
+      reasoningTokens: input.reasoningTokens ?? undefined,
       totalTokens: input.totalTokens ?? undefined,
       finishedAt: new Date(),
     })
@@ -140,6 +148,10 @@ export interface AgentRunTrace {
   runId: string;
   status: AgentRunStatus;
   model: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cachedInputTokens: number | null;
+  reasoningTokens: number | null;
   totalTokens: number | null;
   steps: AgentTraceStep[];
   toolCalls: AgentTraceToolCall[];
@@ -167,6 +179,10 @@ export async function getRunTrace(runId: string): Promise<AgentRunTrace | null> 
     runId: run.id,
     status: run.status as AgentRunStatus,
     model: run.model,
+    inputTokens: run.inputTokens ?? null,
+    outputTokens: run.outputTokens ?? null,
+    cachedInputTokens: run.cachedInputTokens ?? null,
+    reasoningTokens: run.reasoningTokens ?? null,
     totalTokens: run.totalTokens ?? null,
     steps: steps.map((s) => ({
       id: s.id,

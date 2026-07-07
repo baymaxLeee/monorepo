@@ -20,14 +20,11 @@ const askUserInputSchema = z.object({
   freeform_label: z.string().min(1).max(40).default("其他"),
 });
 
-const askUserOutputSchema = z.union([
-  z.object({ answer: z.string(), label: z.string(), other: z.boolean().optional() }),
-  z.object({
-    answers: z.array(z.string()),
-    labels: z.array(z.string()),
-    other: z.string().optional(),
-  }),
-]);
+// The interactive UI (single / multiple / freeform) lives entirely on the
+// client; what the model and history need is only the user's answer as plain
+// text. Multiple selections are joined into one string on submit, so the
+// persisted output stays a single request→response string regardless of mode.
+const askUserOutputSchema = z.string();
 
 export function createInteractionToolManifests(mode: AgentMode) {
   return [

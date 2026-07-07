@@ -36,8 +36,9 @@ import {
 import { finalizeCancelledParts } from "./cancellation.js";
 import { createAgent } from "../agents/factory.js";
 import { extractMemoryCandidates } from "../memory/extractor.js";
-import { failAgentRun } from "../observability/lifecycle.js";
+import { extractUsageTokens, failAgentRun } from "../observability/lifecycle.js";
 import {
+  activatedSkillNameFromParts,
   hasUntrustedFilePart,
   referencedDocumentIdsFromParts,
 } from "../context/file-parts.js";
@@ -58,9 +59,6 @@ export interface RunAgentInput {
   botProfile?: BotProfileSnapshot | null;
   /** Bot-bound skills (L1) advertised to the model via `<available_skills>`. */
   botSkills?: AgentSkillRef[];
-  /** Skill name the user explicitly invoked via `/`; its full body is injected
-   *  into this turn's context so the model consumes it deterministically. */
-  activatedSkillName?: string | null;
 }
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
@@ -311,13 +309,20 @@ export async function createAgentRunResponse(
 
     // Explicit `/` skill activation: inject the picked skill's full body into
     // this turn so it is consumed deterministically, independent of whether the
-    // model also chooses to call load_skill. The user explicitly asked for this
-    // skill, so any failure here fails the run with a visible error rather than
-    // silently degrading to a plain chat.
-    if (input.activatedSkillName) {
-      const picked = botSkills.find((skill) => skill.name === input.activatedSkillName);
+    // model also chooses to call load_skill. The activation rides the latest
+    // user message as a `data-skill-activation` part (persisted, so reload and
+    // tool continuation keep it); older turns' parts are dropped from model
+    // context by the projector, so the body is only ever injected for the turn
+    // that message triggers. The user explicitly asked for this skill, so any
+    // failure here fails the run with a visible error rather than silently
+    // degrading to a plain chat.
+    const activatedSkillName = latestUser
+      ? activatedSkillNameFromParts(latestUser.parts)
+      : null;
+    if (activatedSkillName) {
+      const picked = botSkills.find((skill) => skill.name === activatedSkillName);
       if (!picked) {
-        throw new RequestError(`skill "${input.activatedSkillName}" is not available for this agent`);
+        throw new RequestError(`skill "${activatedSkillName}" is not available for this agent`);
       }
       // getSkillBody throws RequestError (404) / AdminUnavailableError (502);
       // let those propagate so the client sees why the skill could not load.
@@ -396,12 +401,17 @@ export async function createAgentRunResponse(
             }
           }
           const usage = await Promise.resolve(result.totalUsage).catch(() => null);
+          const tokens = extractUsageTokens(usage);
           if (aborted) await finalizeCancelledRunToolCalls(runId);
           await finishAgentRun({
             runId,
             status: aborted ? "cancelled" : failed ? "failed" : "completed",
             outputMessageId,
-            totalTokens: usage?.totalTokens ?? null,
+            inputTokens: tokens.inputTokens,
+            outputTokens: tokens.outputTokens,
+            cachedInputTokens: tokens.cachedInputTokens,
+            reasoningTokens: tokens.reasoningTokens,
+            totalTokens: tokens.totalTokens,
           });
           await touchConversation(conversation.id);
           await releaseRun(runId);

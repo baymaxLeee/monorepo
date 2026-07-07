@@ -62,7 +62,10 @@ export function manifestsToTools(manifests: AgentToolManifest[]): ToolSet {
 
 export function renderExecutionCapabilities(manifests: AgentToolManifest[]): string {
   const executionCapabilities = manifests.filter(
-    (manifest) => manifest.policy.modes.includes("normal") && !manifest.policy.modes.includes("plan"),
+    (manifest) =>
+      manifest.policy.modes.includes("normal") &&
+      !manifest.policy.modes.includes("plan") &&
+      manifest.policy.capability !== "planning",
   );
   if (executionCapabilities.length === 0) return "";
 

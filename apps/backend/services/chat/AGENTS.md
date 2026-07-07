@@ -29,8 +29,25 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 
 ## Tools and artifacts
 
+- Tool orchestration (ADR-0035): **thin harness — no runtime scheduler/lock, no
+  `concurrency` policy.** The SDK owns the tool loop; the prompt supplies policy.
+  plan/todos-before-deliverables ordering is carried by the prompt
+  (`renderRuntimeContract` "barrier step": `update_todos` called alone, then
+  deliverables dispatched together in the NEXT step) plus the SDK step boundary.
+  Todos are not mandatory for every query: plan mode may research, then must
+  produce only `write_plan`/`update_plan`; it must not call `update_todos` or any
+  content-generation tool. After switching to normal/agent execution mode,
+  `update_todos` is an optional visible execution checklist — call it only when
+  the task cannot be completed directly (large decomposition, multiple dependent
+  steps, coordinated deliverables, or long-running work where user-visible
+  progress matters); simple requests directly produce the output without todos.
+  Keep tool `execute` non-blocking so the event loop overlaps IO; never
+  serialize independent deliverables (md/html/image/video run concurrently via
+  the SDK's per-step `Promise.all`). Rare co-emission of todos with a deliverable
+  is an accepted cosmetic glitch, not a bug to guard at runtime.
 - `update_plan` snapshots are persisted in native UIMessage tool parts.
-- `update_todos` (both modes) is a stateless, side-effect-free tool: it
+- `update_todos` (normal/agent execution mode only) is a stateless,
+  side-effect-free tool: it
   always replaces the full `{id, content, status, deliverable?}` list and has
   no `contextSchema`, no knowledge writes, and no revision/CAS. State lives only
   in the `tool-update_todos` UIMessage part, same as every other tool output.
@@ -50,20 +67,19 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   synchronously in this tool call (a single `streamText`, no durability
   needed). **HTML dispatches to the `executor` service and foreground-blocks
   this turn** (`agent_task_执行时服务` plan, Phase 2; ADR-0015 revision). The
-  tool `execute` is an async generator: it yields a preliminary
-  `{ status, task_id }` (so the card mounts at once), then polls
-  `GET /tasks/:id` until the task is terminal, then yields
-  `{ status: "completed", document_id, ... }`. The ToolLoopAgent waits for the
-  document before its next step — this is what stops the model from dispatching
-  a second competing edit for an artifact still being written. Live per-block
-  progress reaches the browser over `GET /conversations/:id/tasks/:taskId/stream`
-  — a native AI SDK UIMessage SSE stream (data part `data-artifact-progress`)
-  on the same resumable Redis Streams transport as agent runs — fed by executor
-  pushing progress/terminal events to chat's `/internal/tasks/notify`. That push
-  is the **UX channel only**; the tool's `GET /tasks/:id` poll is the
-  authoritative completion signal, so a dropped best-effort notify never hangs
-  the blocking tool. `GET .../tasks/:taskId` stays as a plain JSON read for
-  cold-start/debug. Knowledge/ObjectStore owns full content; chat history and
+  tool `execute` is an async generator that consumes `pollTaskSnapshots`
+  (`agent/tasks/executor-task.ts`): it yields a preliminary `{ status, task_id }`
+  (so the card mounts at once), then polls `GET /tasks/:id`, yielding running
+  `{ status: "running", blocks_done, blocks_total }` snapshots, and finally
+  `{ status: "completed", document_id, ... }`. Progress rides the **main**
+  useChat UIMessage stream as preliminary `tool-*` results — there is NO separate
+  task-progress SSE, no `data-artifact-progress`, and no executor→chat push
+  (ADR-0035). The ToolLoopAgent waits for the document before its next step —
+  this is what stops the model from dispatching a second competing edit for an
+  artifact still being written. The `GET /tasks/:id` poll is the authoritative
+  completion signal (executor's `tasks.progress` column is the only progress
+  source; Knowledge is not). `GET .../tasks/:taskId` stays as a plain JSON read
+  for cold-start/debug. Knowledge/ObjectStore owns full content; chat history and
   traces never carry HTML fragments.
 - `html_validate` validates and inspects an already-published HTML artifact;
   it stays local to chat since it needs no LLM call and no durability.

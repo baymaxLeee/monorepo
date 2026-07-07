@@ -24,6 +24,7 @@ import {
   ConversationContent,
   ConversationEmptyState,
   ConversationScrollButton,
+  type StickToBottomContext,
 } from "components/ai-chat";
 import {
   type PromptInputRef,
@@ -60,6 +61,32 @@ function isRunning(
   return status === "streaming" || status === "submitted";
 }
 
+function hasPendingClientTool(messages: ChatUIMessage[]): boolean {
+  const last = messages.at(-1);
+  if (last?.role !== "assistant") return false;
+  return last.parts.some(
+    (part) =>
+      part.type.startsWith("tool-") &&
+      "state" in part &&
+      (part.state === "input-available" || part.state === "approval-requested"),
+  );
+}
+
+function collectExecutedPlanDocumentIds(
+  messages: ChatUIMessage[],
+): Set<string> {
+  const executed = new Set<string>();
+  for (const message of messages) {
+    for (const part of message.parts) {
+      if (part.type !== "data-plan-execution") continue;
+      const documentId = (part.data as { document_id?: unknown } | undefined)
+        ?.document_id;
+      if (typeof documentId === "string") executed.add(documentId);
+    }
+  }
+  return executed;
+}
+
 function isPendingAssistantMessage(message: ChatUIMessage | undefined) {
   if (message?.role !== "assistant") return false;
   return message.parts.every((part) => {
@@ -80,8 +107,10 @@ export function Chat() {
     null,
   );
   const promptRef = useRef<PromptInputRef>(null);
+  const conversationScrollRef = useRef<StickToBottomContext | null>(null);
   const resumedConversationRef = useRef<string | null>(null);
   const reconnectAbortRef = useRef<AbortController | null>(null);
+  const messagesRef = useRef<ChatUIMessage[]>([]);
   const {
     agents,
     selectedAgentId,
@@ -113,9 +142,8 @@ export function Chat() {
   const requestBody = useMemo(
     () => ({
       agent_id: selectedAgentId ?? null,
-      skill_name: activatedSkillName,
     }),
-    [selectedAgentId, activatedSkillName],
+    [selectedAgentId],
   );
 
   useEffect(() => {
@@ -220,6 +248,11 @@ export function Chat() {
     onFinish: () => {
       bumpTraceRefresh();
       if (!id) return;
+      // A client tool (ask_user) pause fires onFinish too. Re-syncing messages
+      // from the DB here would clobber the in-memory tool output the user is
+      // about to submit (or just submitted) before the auto-continuation POST
+      // reads it, dropping the answer. Skip the resync while an answer is pending.
+      if (hasPendingClientTool(messagesRef.current)) return;
       void fetchConversation(id).then((next) => {
         setDetail({ ...next, active_run_id: null });
         setMessages(next.messages.map(messageToUiMessage));
@@ -253,6 +286,14 @@ export function Chat() {
     () => collectDeliverableCompletion(messages, latestTodoCallId),
     [messages, latestTodoCallId],
   );
+  const executedPlanDocumentIds = useMemo(
+    () => collectExecutedPlanDocumentIds(messages),
+    [messages],
+  );
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     closeArtifactPreview();
@@ -334,9 +375,23 @@ export function Chat() {
     if (!parts.some((part) => part.type === "text")) {
       parts.push({ type: "text", text });
     }
+    // `/` skill activation travels as a persisted message part (one channel,
+    // two roles like data-plan-execution): the backend derives the activated
+    // skill from this part, and it durably records which skill drove the turn.
+    if (activatedSkillName) {
+      parts.push({
+        type: "data-skill-activation",
+        data: { name: activatedSkillName },
+      });
+    }
     promptRef.current?.clear();
     try {
-      await sendMessage({ parts }, { body: requestBody });
+      const sent = sendMessage({ parts }, { body: requestBody });
+      // Sending always jumps to the latest message even if the user scrolled up
+      // to read history (matches ChatGPT/Claude); stick-to-bottom only auto-
+      // follows when already pinned, so kick the scroll explicitly here.
+      conversationScrollRef.current?.scrollToBottom();
+      await sent;
       setActivatedSkillName(null);
     } catch (error) {
       promptRef.current?.setValue(value);
@@ -395,20 +450,12 @@ export function Chat() {
     } catch {}
   }
 
-  async function continuePlan(documentId: string) {
-    if (!id || busy) return;
-    const updated = await updateConversationMode(id, "plan", documentId);
-    setMode("plan");
-    setDetail((current) => (current ? { ...current, ...updated } : current));
-    promptRef.current?.focus();
-  }
-
   async function executePlan(documentId: string) {
-    if (!id || busy) return;
+    if (!id || busy || executedPlanDocumentIds.has(documentId)) return;
     const updated = await updateConversationMode(id, "normal", documentId);
     setMode("normal");
     setDetail((current) => (current ? { ...current, ...updated } : current));
-    await sendMessage(
+    const sent = sendMessage(
       {
         parts: [
           { type: "text", text: "请按照这个计划开始执行。" },
@@ -417,6 +464,8 @@ export function Chat() {
       },
       { body: requestBody },
     );
+    conversationScrollRef.current?.scrollToBottom();
+    await sent;
   }
 
   async function answerClientTool(
@@ -445,7 +494,10 @@ export function Chat() {
         </h1>
       </header>
 
-      <Conversation className="min-h-0 flex-1 basis-0">
+      <Conversation
+        className="min-h-0 flex-1 basis-0"
+        contextRef={conversationScrollRef}
+      >
         <ConversationContent className="mx-auto w-full max-w-4xl gap-6 px-4 py-2">
           {loading && messages.length === 0 ? (
             <ConversationEmptyState
@@ -480,12 +532,11 @@ export function Chat() {
                     options: { body: requestBody },
                   });
                 }}
-                onContinuePlan={(documentId) =>
-                  void continuePlan(documentId).catch(() => {})
-                }
                 onExecutePlan={(documentId) =>
                   void executePlan(documentId).catch(() => {})
                 }
+                planExecutedIds={executedPlanDocumentIds}
+                planBusy={busy}
               />
             ))
           )}

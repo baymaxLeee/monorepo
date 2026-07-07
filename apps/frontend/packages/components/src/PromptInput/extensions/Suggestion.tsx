@@ -19,6 +19,8 @@ export interface SuggestionExtensionConfig<T> {
   getItemKey: (item: T) => string;
   renderItem: (item: T) => ReactNode;
   onSelect: (editor: Editor, range: Range, item: T) => void;
+  /** Shown when the (non-loading) result set is empty. Defaults to "无匹配项". */
+  emptyLabel?: string;
 }
 
 /**
@@ -41,6 +43,7 @@ export function createSuggestionExtension<T>(
           ref={ref}
           options={options}
           loading={props.loading}
+          emptyLabel={config.emptyLabel}
           onPick={(index) => {
             const item = props.items[index];
             if (item) props.command(item);
@@ -61,6 +64,11 @@ export function createSuggestionExtension<T>(
           allowSpaces: config.allowSpaces ?? false,
           debounce: config.debounce ?? 150,
           minQueryLength: config.minQueryLength ?? 0,
+          // The popup is mounted onto `document.body`, which escapes the chat's
+          // inner scroll containers and `transform`ed layout wrappers. `fixed`
+          // anchors it to the caret's viewport rect directly (no offsetParent
+          // math), so it lands under the caret instead of drifting to a corner.
+          floatingUi: { strategy: "fixed" },
           items: ({ query, signal }) => config.items(query, signal),
           command: ({ editor, range, props }) =>
             config.onSelect(editor, range, props),
@@ -72,6 +80,7 @@ export function createSuggestionExtension<T>(
                 renderer = new ReactRenderer(List, {
                   props,
                   editor: props.editor,
+                  className: "prompt-input-suggestion-renderer",
                 });
                 unmount = props.mount(renderer.element as HTMLElement);
               },

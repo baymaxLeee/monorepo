@@ -185,7 +185,12 @@
 
 /* Suggestion popup. Mounted to `document.body` by the plugin, so these are
    global classes styled off the shared theme tokens. */
+.prompt-input-suggestion-renderer {
+  z-index: 80;
+}
+
 .prompt-input-suggestion {
+  position: relative;
   z-index: 60;
   min-width: 14rem;
   max-width: 22rem;
@@ -203,7 +208,7 @@
 .prompt-input-suggestion-item {
   display: flex;
   width: 100%;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
   padding: 0.375rem 0.5rem;
   border: 0;
@@ -222,6 +227,7 @@
 .prompt-input-suggestion-icon {
   display: inline-flex;
   flex-shrink: 0;
+  margin-top: 0.125rem;
   color: var(--muted-foreground);
 }
 
@@ -229,8 +235,17 @@
   color: inherit;
 }
 
-.prompt-input-suggestion-label {
+/* Label + description stack. `min-width: 0` lets the children truncate instead
+   of forcing the row wider than the popup (skill descriptions are long prose). */
+.prompt-input-suggestion-text {
+  display: flex;
   min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.0625rem;
+}
+
+.prompt-input-suggestion-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -238,12 +253,12 @@
 }
 
 .prompt-input-suggestion-desc {
-  margin-left: auto;
-  padding-left: 0.75rem;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-size: 0.6875rem;
+  line-height: 1.35;
   color: var(--muted-foreground);
 }
 

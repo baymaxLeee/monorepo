@@ -39,7 +39,22 @@ export function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> 
   });
 }
 
-export async function waitForTaskTerminal(taskId: string, signal?: AbortSignal): Promise<Task> {
+function isTerminalStatus(status: Task["status"]): boolean {
+  return status === "completed" || status === "failed" || status === "cancelled";
+}
+
+/**
+ * Poll a durable executor task, yielding every fresh snapshot (including the
+ * live `progress` counter) and returning once terminal. The final terminal
+ * snapshot is BOTH the last `yield` and the return value, so a generator tool
+ * wrapper can surface progress as preliminary tool-results and still expose the
+ * terminal state. This is the single progress source for executor-backed
+ * deliverables (HTML artifact / video) — there is no separate SSE channel.
+ */
+export async function* pollTaskSnapshots(
+  taskId: string,
+  signal?: AbortSignal,
+): AsyncGenerator<Task, Task> {
   const deadline = Date.now() + MAX_TASK_WAIT_MS;
   let consecutiveFailures = 0;
   while (true) {
@@ -54,9 +69,8 @@ export async function waitForTaskTerminal(taskId: string, signal?: AbortSignal):
     try {
       const task = await getTask(taskId);
       consecutiveFailures = 0;
-      if (task.status === "completed" || task.status === "failed" || task.status === "cancelled") {
-        return task;
-      }
+      yield task;
+      if (isTerminalStatus(task.status)) return task;
     } catch (error) {
       if (!isTransientPollError(error)) throw error;
       consecutiveFailures += 1;

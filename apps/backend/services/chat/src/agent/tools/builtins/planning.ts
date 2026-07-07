@@ -111,7 +111,7 @@ export function createPlanningToolManifests() {
         effect: "none",
         trust: "closed",
         execution: "inline",
-        modes: ["normal", "plan"],
+        modes: ["normal"],
         uiKind: "todo-list",
       },
       { summary: "Maintain the current task's visible todo snapshot." },

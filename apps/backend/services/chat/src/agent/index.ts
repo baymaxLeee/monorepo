@@ -6,16 +6,6 @@ export {
   replayAgentSseStream,
   type ReplayAgentStreamOptions,
 } from "./streams/service.js";
-export {
-  markTaskStreamActive,
-  replayTaskSseStream,
-  SSE_DONE_FRAME,
-} from "./streams/service.js";
-export {
-  publishArtifactTaskEvent,
-  taskSeedFrames,
-  type TaskEventInput,
-} from "./streams/task-progress.js";
 export { createMcpExtension } from "./integrations/mcp/provider.js";
 export type {
   AgentExtension,

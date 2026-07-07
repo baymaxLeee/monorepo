@@ -7,6 +7,9 @@ export type ChatUIDataTypes = {
   "conversation-title": {
     title: string;
   };
+  "skill-activation": {
+    name: string;
+  };
 };
 
 export type ChatUIMessage = UIMessage<unknown, ChatUIDataTypes>;

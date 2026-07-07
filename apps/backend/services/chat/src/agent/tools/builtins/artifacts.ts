@@ -23,9 +23,9 @@ import type { ChatProvider } from "@backend/transport-ts/provider-model";
 import { artifactToolContextSchema, type ArtifactToolContext } from "../context.js";
 import {
   MAX_TASK_WAIT_MS,
+  pollTaskSnapshots,
   startTaskResilient,
   TaskWaitTimeoutError,
-  waitForTaskTerminal,
 } from "../../tasks/executor-task.js";
 import { streamText } from "ai";
 import { defineAgentTool } from "../manifest.js";
@@ -47,6 +47,8 @@ const artifactTaskOutputSchema = z.object({
   filename: z.string(),
   kind: z.literal("html"),
   task_id: z.string(),
+  blocks_done: z.number().optional(),
+  blocks_total: z.number().optional(),
   document_id: z.string().optional(),
   total_chars: z.number().optional(),
   blocks_failed: z.number().optional(),
@@ -59,9 +61,23 @@ const artifactBlockedOutputSchema = z.object({
   error: z.string(),
 });
 
+// Executor-reported terminal failure/cancellation is a structured tool output
+// (not a thrown error) so the artifact card renders its failed/cancelled state
+// off the tool part (ADR-0035). Poll errors/timeout/abort still throw.
+const artifactTaskFailedOutputSchema = z.object({
+  ok: z.literal(false),
+  status: z.enum(["failed", "cancelled"]),
+  kind: z.literal("html"),
+  task_id: z.string(),
+  title: z.string(),
+  filename: z.string(),
+  error: z.string().optional(),
+});
+
 const artifactToolOutputSchema = z.union([
   artifactPersistedOutputSchema,
   artifactTaskOutputSchema,
+  artifactTaskFailedOutputSchema,
   artifactBlockedOutputSchema,
 ]);
 
@@ -137,16 +153,28 @@ async function* streamHtmlArtifactTask(
     task_id: task.id,
   };
   yield { ok: true, status: task.status, ...base };
-  let terminal: Task;
+  let terminal: Task | null = null;
   try {
-    terminal = await waitForTaskTerminal(task.id, signal);
+    for await (const snapshot of pollTaskSnapshots(task.id, signal)) {
+      if (snapshot.status === "completed" || snapshot.status === "failed" || snapshot.status === "cancelled") {
+        terminal = snapshot;
+        break;
+      }
+      yield {
+        ok: true,
+        status: "running",
+        blocks_done: snapshot.progress?.done,
+        blocks_total: snapshot.progress?.total,
+        ...base,
+      };
+    }
   } catch (error) {
     if (error instanceof TaskWaitTimeoutError) {
       throw new Error(`生成超时：超过 ${Math.round(MAX_TASK_WAIT_MS / 60_000)} 分钟未完成，已取消任务。`);
     }
     throw error;
   }
-  if (terminal.status === "completed") {
+  if (terminal?.status === "completed") {
     const { documentId, totalChars, blocksFailed } = taskResultFields(terminal.result);
     yield {
       ok: true,
@@ -158,7 +186,16 @@ async function* streamHtmlArtifactTask(
     };
     return;
   }
-  throw new Error(terminal.error ?? (terminal.status === "cancelled" ? "已取消" : "生成失败"));
+  if (terminal?.status === "failed" || terminal?.status === "cancelled") {
+    yield {
+      ok: false,
+      status: terminal.status,
+      error: terminal.error ?? (terminal.status === "cancelled" ? "已取消" : "生成失败"),
+      ...base,
+    };
+    return;
+  }
+  throw new Error("生成失败");
 }
 
 async function validateHtml(
