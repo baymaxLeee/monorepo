@@ -42,7 +42,8 @@ export type InstructionContextBlock =
   | { kind: "conversation_summary"; body: string }
   | { kind: "conversation_state"; body: string }
   | { kind: "current_todo_list"; body: string }
-  | { kind: "active_plan_artifact"; documentId: string; revisionId: string; body: string };
+  | { kind: "active_plan_artifact"; documentId: string; revisionId: string; body: string }
+  | { kind: "activated_skill"; name: string; body: string };
 
 /** Non-tool-derived inputs to the instruction assembler, gathered per run. */
 export interface InstructionInput {

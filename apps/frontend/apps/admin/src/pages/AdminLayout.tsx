@@ -11,6 +11,7 @@ import {
   NetworkIcon,
   RadarIcon,
   ShieldCheckIcon,
+  SparklesIcon,
   UsersIcon,
 } from "lucide-react";
 import { Link, Outlet, useLocation } from "react-router-dom";
@@ -24,6 +25,7 @@ type AdminMenuItem = {
 
 const adminMenus: AdminMenuItem[] = [
   { title: "智能体", href: "/platform/admin/bots", icon: BotIcon },
+  { title: "技能", href: "/platform/admin/skills", icon: SparklesIcon },
   { title: "场景", href: "/platform/admin/scenes", icon: ListTreeIcon },
   { title: "意图", href: "/platform/admin/intentions", icon: NetworkIcon },
   {

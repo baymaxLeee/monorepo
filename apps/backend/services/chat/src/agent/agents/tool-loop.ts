@@ -25,6 +25,12 @@ export async function createToolLoopAgent(
   toolCatalog: ToolCatalog = new ToolCatalog(),
 ) {
   const provider = input.provider;
+  const botSkills = input.botSkills ?? [];
+  const loadSkillBody = input.loadSkillBody;
+  const skillSource =
+    botSkills.length > 0 && loadSkillBody
+      ? { skills: botSkills, loadBody: loadSkillBody }
+      : null;
   const resolvedTools = await toolCatalog.resolve(
     {
       mode: input.mode,
@@ -37,6 +43,7 @@ export async function createToolLoopAgent(
       imageProvider: input.imageProvider ?? null,
       videoProviderId: input.videoProviderId ?? null,
     },
+    skillSource,
   );
   const { tools } = resolvedTools;
   const toolContext = {

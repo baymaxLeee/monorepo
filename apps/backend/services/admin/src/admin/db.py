@@ -15,9 +15,11 @@ from .config import get_settings
 from .models.apps import AppRow
 from .models.base import Base
 from .models.bot import BotRow
+from .models.bot_skill import BotSkillRow
 from .models.intention import IntentionRow
 from .models.provider import ModelProviderRow  # noqa: F401 — registers with Base.metadata
 from .models.scene import SceneRow
+from .models.skill import SkillRow
 
 _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
@@ -123,15 +125,45 @@ _DEMO_ONCALL_BOT = {
     "domain_description": "团队线上事故排查、SOP、Runbook、架构与配置知识库。",
     "audience": "一线值班与运维工程师",
     "tone": "professional",
-    "welcome_message": (
-        "描述你遇到的线上问题，我会结合团队复盘与文档，给出根因分析、排查步骤、验证方法与修复建议。"
-    ),
+    "welcome_message": ("描述你遇到的线上问题，我会结合团队复盘与文档，给出根因分析、排查步骤、验证方法与修复建议。"),
     "suggested_questions": [
         "服务 5xx 突然升高，如何快速定位根因？",
         "数据库连接池被打满，怎么一步步排查？",
         "发布后接口大面积超时，回滚前应先确认什么？",
     ],
     "status": "published",
+    "created_at": "2026-05-20T09:00:00+00:00",
+}
+
+
+# The full RCA workflow the v1.9.0 bot-profile migration deferred to "a
+# code-versioned skill later". It lives as an admin Skill (L2 body) bound to the
+# oncall bot; only its name/description enter the prompt until load_skill fires.
+_DEMO_ONCALL_SKILL = {
+    "id": "skill-oncall-rca",
+    "name": "oncall-rca",
+    "description": (
+        "线上事故根因分析（RCA）作战手册：当用户描述线上故障、报错、性能劣化或需要排查/复盘时使用。"
+        "给出结构化的根因假设、排查步骤、验证方法与修复建议。"
+    ),
+    "body": (
+        "# 线上事故根因分析（RCA）作战手册\n\n"
+        "当用户描述线上问题时，严格按以下四段输出，每段用二级标题。\n\n"
+        "## 根因（Root Cause）\n"
+        "- 先给最可能的 1-3 个根因假设，按可能性排序，每条标注置信度（高/中/低）与依据来源。\n"
+        "- 依据优先级：团队历史复盘 > Runbook/SOP > 架构与配置文档 > 通用经验。\n"
+        "- 用 search / read_file 检索团队知识后再下结论，不要臆断。\n\n"
+        "## 排查（Investigation）\n"
+        "- 给出可执行的排查步骤（命令/看板/日志查询），从代价最小、最快证伪的开始。\n"
+        "- 每一步说明「预期看到什么」以及「看到什么说明命中该根因」。\n\n"
+        "## 验证（Verification）\n"
+        "- 如何确认根因成立：需要的指标、日志或复现实验。\n\n"
+        "## 修复（Remediation）\n"
+        "- 先给止血/缓解措施，再给根治方案；标注回滚前必须确认的前置条件。\n"
+        "- 只读建议：涉及高危变更（重启、扩缩容、改配置、回滚）时，明确写出但不代替人工执行，"
+        "提示由值班同学确认后操作。\n"
+    ),
+    "status": "active",
     "created_at": "2026-05-20T09:00:00+00:00",
 }
 
@@ -230,6 +262,33 @@ async def seed_demo_bots() -> None:
                     status=bot["status"],
                     created_at=created,
                     updated_at=created,
+                )
+            )
+
+        existing_skill = await session.scalar(select(SkillRow.id).limit(1))
+        if existing_skill is None:
+            skill = _DEMO_ONCALL_SKILL
+            created = datetime.fromisoformat(str(skill["created_at"]))
+            session.add(
+                SkillRow(
+                    id=skill["id"],
+                    user_id="demo-super-admin",
+                    org_id="guest-org",
+                    username="admin",
+                    name=skill["name"],
+                    description=skill["description"],
+                    body=skill["body"],
+                    status=skill["status"],
+                    is_enabled=True,
+                    created_at=created,
+                    updated_at=created,
+                )
+            )
+            session.add(
+                BotSkillRow(
+                    bot_id=_DEMO_ONCALL_BOT["id"],
+                    skill_id=skill["id"],
+                    sort=0,
                 )
             )
 

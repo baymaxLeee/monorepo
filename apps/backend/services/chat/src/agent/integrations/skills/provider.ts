@@ -37,56 +37,86 @@ const SYSTEM_SKILLS: SystemSkill[] = SKILL_RESOURCES.map((resource) => {
   return { name, description, resource };
 });
 
+/** Per-run admin (bot-bound) skill source: L1 listings + an on-demand body
+ *  loader keyed by skill id. Threaded from the run orchestrator so the single
+ *  `load_skill` tool can resolve both built-in and configured skills. */
+export interface AdminSkillSource {
+  skills: { id: string; name: string; description: string }[];
+  loadBody: (skillId: string) => Promise<string>;
+}
+
 const loadSkillOutputSchema = z.object({
   name: z.string(),
   instructions: z.string(),
 });
 
-async function loadSystemSkill(name: string): Promise<z.infer<typeof loadSkillOutputSchema>> {
-  const skill = SYSTEM_SKILLS.find((candidate) => candidate.name === name);
-  if (!skill) throw new Error(`unknown system skill: ${name}`);
+async function loadSystemSkillBody(skill: SystemSkill): Promise<string> {
   const raw = await readFile(skill.resource, "utf8");
-  return { name: skill.name, instructions: parseSkillFrontmatter(raw, skill.resource).body };
+  return parseSkillFrontmatter(raw, skill.resource).body;
 }
 
-export function resolveSystemSkills(mode: AgentMode): {
-  manifests: AgentToolManifest[];
-  skills: SkillListing[];
-} {
+/**
+ * Resolves the skills a run advertises and the single `load_skill` tool that
+ * pulls their bodies. System skills (filesystem) and admin skills (bot-bound,
+ * loaded via admin) are merged by name; on a name collision the bot's admin
+ * skill wins and shadows the built-in. `load_skill` refuses any name not in the
+ * advertised set, so the model can only load skills this bot actually offers.
+ */
+export function resolveSkills(
+  mode: AgentMode,
+  adminSource?: AdminSkillSource | null,
+): { manifests: AgentToolManifest[]; skills: SkillListing[] } {
   if (mode !== "normal") return { manifests: [], skills: [] };
 
-  return {
-    skills: SYSTEM_SKILLS.map((skill) => ({ name: skill.name, description: skill.description })),
-    manifests: [
-      defineAgentTool(
-        "load_skill",
-        tool({
-          description:
-            "Load the full instructions for one system skill listed in <available_skills>. Call this before following a matching skill workflow.",
-          inputSchema: z.object({
-            name: z.string().min(1).max(100),
-          }),
-          outputSchema: loadSkillOutputSchema,
-          execute: ({ name }) => loadSystemSkill(name),
-          toModelOutput: ({ output }) => ({
-            type: "text",
-            value: `<loaded_skill name="${output.name}">\n${output.instructions}\n</loaded_skill>`,
-          }),
-        }),
-        {
-          capability: "external",
-          effect: "read",
-          trust: "closed",
-          execution: "inline",
-          modes: ["normal"],
-          source: "skill",
-        },
-        {
-          summary: "Load detailed instructions for a matching system skill on demand.",
-          constraints: ["Load only skills advertised in <available_skills>."],
-          parallelizable: false,
-        },
-      ),
-    ],
-  };
+  // name -> body loader. System first, admin overrides on collision.
+  const loaders = new Map<string, () => Promise<string>>();
+  const listings = new Map<string, SkillListing>();
+
+  for (const skill of SYSTEM_SKILLS) {
+    loaders.set(skill.name, () => loadSystemSkillBody(skill));
+    listings.set(skill.name, { name: skill.name, description: skill.description });
+  }
+  for (const skill of adminSource?.skills ?? []) {
+    if (loaders.has(skill.name)) {
+      console.warn(`[chat-agent] bot skill "${skill.name}" shadows a built-in skill of the same name`);
+    }
+    loaders.set(skill.name, () => adminSource!.loadBody(skill.id));
+    listings.set(skill.name, { name: skill.name, description: skill.description });
+  }
+
+  if (loaders.size === 0) return { manifests: [], skills: [] };
+
+  const loadSkill = defineAgentTool(
+    "load_skill",
+    tool({
+      description:
+        "Load the full instructions for one skill listed in <available_skills>. Call this before following a matching skill workflow.",
+      inputSchema: z.object({ name: z.string().min(1).max(64) }),
+      outputSchema: loadSkillOutputSchema,
+      execute: async ({ name }) => {
+        const loader = loaders.get(name);
+        if (!loader) throw new Error(`unknown skill: ${name}`);
+        return { name, instructions: await loader() };
+      },
+      toModelOutput: ({ output }) => ({
+        type: "text",
+        value: `<loaded_skill name="${output.name}">\n${output.instructions}\n</loaded_skill>`,
+      }),
+    }),
+    {
+      capability: "external",
+      effect: "read",
+      trust: "closed",
+      execution: "inline",
+      modes: ["normal"],
+      source: "skill",
+    },
+    {
+      summary: "Load detailed instructions for a matching skill on demand.",
+      constraints: ["Load only skills advertised in <available_skills>."],
+      parallelizable: false,
+    },
+  );
+
+  return { manifests: [loadSkill], skills: [...listings.values()] };
 }

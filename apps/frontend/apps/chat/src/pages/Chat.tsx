@@ -12,7 +12,9 @@ import {
   cancelConversationAgentRun,
   conversationAgentStreamUrl,
   type DocumentIngestStreamEvent,
+  fetchBotSkills,
   fetchConversation,
+  type SkillSummary,
   streamKnowledgeIngest,
   updateConversationMode,
 } from "api";
@@ -72,6 +74,10 @@ export function Chat() {
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<"normal" | "plan">("normal");
+  const [agentSkills, setAgentSkills] = useState<SkillSummary[]>([]);
+  const [activatedSkillName, setActivatedSkillName] = useState<string | null>(
+    null,
+  );
   const promptRef = useRef<PromptInputRef>(null);
   const resumedConversationRef = useRef<string | null>(null);
   const reconnectAbortRef = useRef<AbortController | null>(null);
@@ -106,13 +112,46 @@ export function Chat() {
   const requestBody = useMemo(
     () => ({
       agent_id: selectedAgentId ?? null,
+      skill_name: activatedSkillName,
     }),
-    [selectedAgentId],
+    [selectedAgentId, activatedSkillName],
   );
 
   useEffect(() => {
     if (!agents) void loadAgents();
   }, [agents, loadAgents]);
+
+  // Only active + enabled skills are advertised to the model, so those are the
+  // only ones the `/` picker offers (matches the backend's advertised set).
+  useEffect(() => {
+    setActivatedSkillName(null);
+    if (!selectedAgentId) {
+      setAgentSkills([]);
+      return;
+    }
+    let alive = true;
+    fetchBotSkills(selectedAgentId)
+      .then((list) => {
+        if (alive)
+          setAgentSkills(
+            list.filter((s) => s.is_enabled && s.status === "active"),
+          );
+      })
+      .catch(() => alive && setAgentSkills([]));
+    return () => {
+      alive = false;
+    };
+  }, [selectedAgentId]);
+
+  const skillCommands = useMemo(
+    () =>
+      agentSkills.map((skill) => ({
+        id: skill.name,
+        title: skill.name,
+        description: skill.description,
+      })),
+    [agentSkills],
+  );
 
   const transport = useMemo(
     () =>
@@ -296,6 +335,7 @@ export function Chat() {
     promptRef.current?.clear();
     try {
       await sendMessage({ parts }, { body: requestBody });
+      setActivatedSkillName(null);
     } catch (error) {
       promptRef.current?.setValue(value);
       throw error;
@@ -536,12 +576,18 @@ export function Chat() {
                 meta: { artifactId: document.id },
               }));
           }}
-          onSlashCommand={(command) => toast(`技能占位：${command.title}`)}
+          slashCommands={skillCommands}
+          onSlashCommand={(command) => {
+            setActivatedSkillName(command.id);
+            toast(`已选择技能：${command.title}`);
+          }}
           footerRender={() => (
             <ChatComposerControls
               agents={agents ?? []}
               selectedAgentId={selectedAgentId}
               onSelectAgent={setSelectedAgentId}
+              activatedSkillName={activatedSkillName}
+              onClearSkill={() => setActivatedSkillName(null)}
               mode={mode}
               onModeChange={(next) =>
                 void changeMode(next).catch((error) =>

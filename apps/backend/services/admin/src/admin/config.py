@@ -44,7 +44,9 @@ class Settings(BaseSettings):
     def database_url(self) -> str:
         user = quote_plus(self.postgres_user)
         password = quote_plus(self.postgres_password)
-        return f"postgresql+asyncpg://{user}:{password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_database}"
+        return (
+            f"postgresql+asyncpg://{user}:{password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_database}"
+        )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

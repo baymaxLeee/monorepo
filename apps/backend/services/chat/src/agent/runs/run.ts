@@ -8,7 +8,8 @@ import {
   validateUIMessages,
 } from "ai";
 
-import type { ProviderSnapshot } from "../../clients/admin.js";
+import type { AgentSkillRef, ProviderSnapshot } from "../../clients/admin.js";
+import { getSkillBody } from "../../clients/admin.js";
 import { getDocument } from "../../clients/knowledge.js";
 import type { PersistedMessageContent } from "../../db/schema.js";
 import { NotFoundError, RequestError } from "../../lib/errors.js";
@@ -54,6 +55,11 @@ export interface RunAgentInput {
   imageProvider?: ProviderSnapshot | null;
   videoProviderId?: string | null;
   botProfile?: BotProfileSnapshot | null;
+  /** Bot-bound skills (L1) advertised to the model via `<available_skills>`. */
+  botSkills?: AgentSkillRef[];
+  /** Skill name the user explicitly invoked via `/`; its full body is injected
+   *  into this turn's context so the model consumes it deterministically. */
+  activatedSkillName?: string | null;
 }
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
@@ -288,6 +294,28 @@ export async function createAgentRunResponse(
     });
     const modelMessages = projected.messages;
     instructionInput.extraContext = projected.instructionContext;
+
+    // Explicit `/` skill activation: inject the picked skill's full body into
+    // this turn so it is consumed deterministically, independent of whether the
+    // model also chooses to call load_skill. Only skills this bot advertises can
+    // be activated.
+    const botSkills = input.botSkills ?? [];
+    if (input.activatedSkillName) {
+      const picked = botSkills.find((skill) => skill.name === input.activatedSkillName);
+      if (picked) {
+        try {
+          const { body } = await getSkillBody(picked.id);
+          if (body.trim()) {
+            instructionInput.extraContext = [
+              ...instructionInput.extraContext,
+              { kind: "activated_skill", name: picked.name, body },
+            ];
+          }
+        } catch (error) {
+          console.error("[chat-agent] failed to load activated skill", error);
+        }
+      }
+    }
     const assistantMessageId = randomBytes(8).toString("hex");
     const agentInstance = await createAgent({
       runId,
@@ -300,6 +328,8 @@ export async function createAgentRunResponse(
       videoProviderId: input.videoProviderId,
       modelMessages,
       instructionInput,
+      botSkills,
+      loadSkillBody: async (skillId: string) => (await getSkillBody(skillId)).body,
     });
     const agent = agentInstance.agent;
     disposeAgentResources = agentInstance.dispose;

@@ -1,13 +1,11 @@
 # Agent 扩展体系：MCP / Skill / SubAgent（admin 管理 · chat 消费）
 
-> 状态：部分落地 + 后续工作。ADR-0028 已交付 per-run `ToolCatalog` 与代码版本化系统 Skill 的
-> L1/L2 渐进披露。
+> 状态：**Skill 已端到端落地，以 `docs/plans/skill-mcp-assembly-plan.md` + ADR-0033 为准**（本文件的
+> Skill 段落已过时）。**MCP 预留**（同上文档）。**本文件仅 SubAgent 部分仍有效**。
 >
-> **归属边界**：`docs/plans/prompt-engineering-plan.md` 只负责提示词分层装配与**薄 router 扩展缝**
-> （`InstructionContributions`：capability/workflow 的类型化贡献口），并已明确**本期不做 Skill/MCP
-> 的管理与装配**。admin 可配置 Skill / MCP / SubAgent 的端到端全栈落地**以本文件为准**——它顺着那条
-> 薄 router 缝把 Skill/MCP 贡献接进指令层（把 `workflow: string[]` 升级为 `SkillListing` 等类型化贡献
-> 由 renderer 生成固定结构，也在本计划范围内）。
+> 历史归属边界：`docs/plans/prompt-engineering-plan.md` 负责提示词分层与薄 router 缝（ADR-0032，
+> 结构化 Bot profile + `InstructionContributions` 已落地）。Skill 已把 `workflow: string[]` 升级为
+> renderer 生成的 `<available_skills>`（`SkillListing`），并统一系统 + admin 技能到单一 `load_skill`。
 >
 > 已拍板决策：挂载 = **Bot 聚合根**；SubAgent = **内联短时**（不碰 executor）；MCP = **首次调用需审批**。
 

@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from admin.deps import AdminUser, CurrentUser, DbSession, RedisClient
 from admin.schemas.bot import Bot, CreateBotInput, UpdateBotInput
+from admin.schemas.skill import AttachSkillInput, SkillSummary
 from admin.services.bots import BotService
 
 router = APIRouter(prefix="/bot", tags=["bot"])
@@ -46,3 +47,32 @@ async def delete_bot(
     session: DbSession,
 ) -> None:
     await BotService(session, current_user).delete(bot_id)
+
+
+@router.get("/{bot_id}/skills", response_model=list[SkillSummary])
+async def list_bot_skills(
+    bot_id: str,
+    current_user: CurrentUser,
+    session: DbSession,
+) -> list[SkillSummary]:
+    return await BotService(session, current_user).list_skills(bot_id)
+
+
+@router.post("/{bot_id}/skills", response_model=list[SkillSummary])
+async def attach_bot_skill(
+    bot_id: str,
+    payload: AttachSkillInput,
+    current_user: AdminUser,
+    session: DbSession,
+) -> list[SkillSummary]:
+    return await BotService(session, current_user).attach_skill(bot_id, payload.skill_id)
+
+
+@router.delete("/{bot_id}/skills/{skill_id}", response_model=list[SkillSummary])
+async def detach_bot_skill(
+    bot_id: str,
+    skill_id: str,
+    current_user: AdminUser,
+    session: DbSession,
+) -> list[SkillSummary]:
+    return await BotService(session, current_user).detach_skill(bot_id, skill_id)

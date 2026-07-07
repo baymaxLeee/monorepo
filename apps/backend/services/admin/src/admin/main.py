@@ -19,6 +19,8 @@ from .routers import (
     providers,
     providers_internal,
     scenes,
+    skills,
+    skills_internal,
 )
 
 
@@ -45,6 +47,8 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(bots.router)
     app.include_router(scenes.router)
+    app.include_router(skills.router)
+    app.include_router(skills_internal.router)
     app.include_router(intentions.router)
     app.include_router(providers.router)
     app.include_router(providers_internal.router)

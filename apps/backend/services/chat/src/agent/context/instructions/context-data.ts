@@ -79,5 +79,15 @@ function renderContextBlock(block: InstructionContextBlock): string | null {
         document_id: block.documentId,
         revision_id: block.revisionId,
       });
+    case "activated_skill":
+      // The user explicitly invoked this skill via `/`; its full instructions
+      // are injected for this turn so the model follows it without needing to
+      // call load_skill. Trusted config (authored by the bot owner), so — unlike
+      // referenced documents — its content is a directive, not untrusted data.
+      return xmlSection(
+        "activated_skill",
+        escapeXmlText(block.body),
+        { name: block.name },
+      );
   }
 }

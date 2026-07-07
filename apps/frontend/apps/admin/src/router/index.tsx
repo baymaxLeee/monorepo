@@ -12,6 +12,7 @@ import { OperationsObservabilityPage } from "../pages/observability/OperationsOb
 import { PlatformRolesPage } from "../pages/PlatformRolesPage";
 import { ProvidersPage } from "../pages/ProvidersPage";
 import { ScenesPage } from "../pages/ScenesPage";
+import { SkillsPage } from "../pages/SkillsPage";
 
 /**
  * Mounted by platform at `/platform/admin/*`.
@@ -25,6 +26,7 @@ export const routes: RouteObject[] = [
       { path: "bots", element: <BotListPage /> },
       { path: "bots/:id", element: <BotDetailPage /> },
       { path: "scenes", element: <ScenesPage /> },
+      { path: "skills", element: <SkillsPage /> },
       { path: "intentions", element: <IntentionsPage /> },
       { path: "providers", element: <ProvidersPage /> },
       { path: "knowledge", element: <KnowledgeBasePage /> },

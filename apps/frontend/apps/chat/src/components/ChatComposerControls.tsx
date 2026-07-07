@@ -1,12 +1,14 @@
 import type { Bot } from "api";
-import { Button } from "components";
+import { Badge, Button } from "components";
 import { ModelSelector } from "components/ai-chat";
-import { BotIcon, ListChecksIcon } from "lucide-react";
+import { BotIcon, ListChecksIcon, SparklesIcon, XIcon } from "lucide-react";
 
 export interface ChatComposerControlsProps {
   agents: Bot[];
   selectedAgentId: string | null;
   onSelectAgent: (id: string) => void;
+  activatedSkillName?: string | null;
+  onClearSkill?: () => void;
   disabled?: boolean;
   mode: "normal" | "plan";
   onModeChange: (mode: "normal" | "plan") => void;
@@ -16,6 +18,8 @@ export function ChatComposerControls({
   agents,
   selectedAgentId,
   onSelectAgent,
+  activatedSkillName,
+  onClearSkill,
   disabled,
   mode,
   onModeChange,
@@ -49,6 +53,23 @@ export function ChatComposerControls({
         placeholder="选择智能体"
         disabled={options.length === 0}
       />
+      {activatedSkillName ? (
+        <Badge
+          variant="secondary"
+          className="h-8 gap-1 rounded-full pl-2.5 pr-1.5"
+        >
+          <SparklesIcon className="size-3.5" />
+          <span className="font-mono text-xs">{activatedSkillName}</span>
+          <button
+            type="button"
+            aria-label="取消技能"
+            className="ml-0.5 rounded-full p-0.5 hover:bg-muted-foreground/20"
+            onClick={onClearSkill}
+          >
+            <XIcon className="size-3" />
+          </button>
+        </Badge>
+      ) : null}
     </>
   );
 }

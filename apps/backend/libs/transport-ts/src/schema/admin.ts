@@ -92,6 +92,41 @@ export interface paths {
         patch: operations["update_bot_bot__bot_id__patch"];
         trace?: never;
     };
+    "/bot/{bot_id}/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Bot Skills */
+        get: operations["list_bot_skills_bot__bot_id__skills_get"];
+        put?: never;
+        /** Attach Bot Skill */
+        post: operations["attach_bot_skill_bot__bot_id__skills_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bot/{bot_id}/skills/{skill_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Detach Bot Skill */
+        delete: operations["detach_bot_skill_bot__bot_id__skills__skill_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/scenes": {
         parameters: {
             query?: never;
@@ -140,6 +175,77 @@ export interface paths {
         put?: never;
         /** Bulk Delete Scenes */
         post: operations["bulk_delete_scenes_scenes_bulk_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Skills */
+        get: operations["list_skills_skills_get"];
+        put?: never;
+        /** Create Skill */
+        post: operations["create_skill_skills_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skills/{skill_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Skill */
+        get: operations["get_skill_skills__skill_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Skill */
+        delete: operations["delete_skill_skills__skill_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Skill */
+        patch: operations["update_skill_skills__skill_id__patch"];
+        trace?: never;
+    };
+    "/skills/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bulk Delete Skills */
+        post: operations["bulk_delete_skills_skills_bulk_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/skills/{skill_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Skill Internal */
+        get: operations["get_skill_internal_internal_skills__skill_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -408,6 +514,20 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AgentSkill
+         * @description L1 discovery view carried on ResolvedAgent — name + description only, no
+         *     body. Chat advertises these in `<available_skills>` and pulls the body via
+         *     `/internal/skills/{id}` only when `load_skill` fires.
+         */
+        AgentSkill: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
+        };
         /** App */
         App: {
             /** Id */
@@ -432,6 +552,11 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
+        };
+        /** AttachSkillInput */
+        AttachSkillInput: {
+            /** Skill Id */
+            skill_id: string;
         };
         /** Bot */
         Bot: {
@@ -504,6 +629,16 @@ export interface components {
         };
         /** BulkDeleteScenesResult */
         BulkDeleteScenesResult: {
+            /** Deleted */
+            deleted: number;
+        };
+        /** BulkDeleteSkillsInput */
+        BulkDeleteSkillsInput: {
+            /** Ids */
+            ids: string[];
+        };
+        /** BulkDeleteSkillsResult */
+        BulkDeleteSkillsResult: {
             /** Deleted */
             deleted: number;
         };
@@ -649,6 +784,32 @@ export interface components {
              */
             is_enabled: boolean;
         };
+        /** CreateSkillInput */
+        CreateSkillInput: {
+            /** Name */
+            name: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /**
+             * Status
+             * @default draft
+             * @enum {string}
+             */
+            status: "draft" | "active" | "disabled";
+            /**
+             * Is Enabled
+             * @default true
+             */
+            is_enabled: boolean;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -720,6 +881,20 @@ export interface components {
             is_default: boolean;
             /** Is Enabled */
             is_enabled: boolean;
+        };
+        /**
+         * InternalSkill
+         * @description Internal (service-to-service) view including the full body.
+         */
+        InternalSkill: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
+            /** Body */
+            body: string;
         };
         /**
          * ModelProvider
@@ -796,9 +971,71 @@ export interface components {
             text_provider?: components["schemas"]["InternalModelProvider"] | null;
             image_provider?: components["schemas"]["InternalModelProvider"] | null;
             video_provider?: components["schemas"]["InternalModelProvider"] | null;
+            /** Skills */
+            skills?: components["schemas"]["AgentSkill"][];
         };
         /** Scene */
         Scene: {
+            /** Id */
+            id: string;
+            /** User Id */
+            user_id: string;
+            /** Org Id */
+            org_id: string;
+            /** Username */
+            username: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "active" | "disabled";
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /** Skill */
+        Skill: {
+            /** Id */
+            id: string;
+            /** User Id */
+            user_id: string;
+            /** Org Id */
+            org_id: string;
+            /** Username */
+            username: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "active" | "disabled";
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /** Body */
+            body: string;
+        };
+        /**
+         * SkillSummary
+         * @description L1 list view: everything except the L2 `body`. Used by every listing
+         *     surface (the skills table and a bot's bound skills) so the browser never
+         *     downloads skill bodies in bulk — the body is fetched only when editing a
+         *     single skill (`GET /skills/{id}`) or when a skill is actually loaded.
+         */
+        SkillSummary: {
             /** Id */
             id: string;
             /** User Id */
@@ -942,6 +1179,19 @@ export interface components {
             name?: string | null;
             /** Description */
             description?: string | null;
+            /** Status */
+            status?: ("draft" | "active" | "disabled") | null;
+            /** Is Enabled */
+            is_enabled?: boolean | null;
+        };
+        /** UpdateSkillInput */
+        UpdateSkillInput: {
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Body */
+            body?: string | null;
             /** Status */
             status?: ("draft" | "active" | "disabled") | null;
             /** Is Enabled */
@@ -1227,6 +1477,125 @@ export interface operations {
             };
         };
     };
+    list_bot_skills_bot__bot_id__skills_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    attach_bot_skill_bot__bot_id__skills_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachSkillInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    detach_bot_skill_bot__bot_id__skills__skill_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                bot_id: string;
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_scenes_scenes_get: {
         parameters: {
             query?: never;
@@ -1446,6 +1815,271 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BulkDeleteScenesResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_skills_skills_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_skill_skills_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSkillInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Skill"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_skill_skills__skill_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Skill"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_skill_skills__skill_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_skill_skills__skill_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSkillInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Skill"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_delete_skills_skills_bulk_delete_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkDeleteSkillsInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkDeleteSkillsResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_skill_internal_internal_skills__skill_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalSkill"];
                 };
             };
             /** @description Validation Error */

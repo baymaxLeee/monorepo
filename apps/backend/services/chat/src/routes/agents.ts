@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { UI_MESSAGE_STREAM_HEADERS } from "ai";
 
-import { getAgent, getProvider, type ProviderSnapshot } from "../clients/admin.js";
+import { type AgentSkillRef, getAgent, getProvider, type ProviderSnapshot } from "../clients/admin.js";
 import type { BotProfileSnapshot } from "../agent/context/instructions/index.js";
 import { getTask } from "../clients/executor.js";
 import { getAuth } from "../middleware/auth.js";
@@ -27,6 +27,7 @@ const runSchema = z.object({
   id: z.string().optional(),
   message: z.unknown(),
   agent_id: z.string().max(32).optional().nullable(),
+  skill_name: z.string().max(64).optional().nullable(),
 });
 
 agentsRoutes.post(
@@ -45,12 +46,14 @@ agentsRoutes.post(
     let imageProvider: ProviderSnapshot | null = null;
     let videoProviderId: string | null = null;
     let botProfile: BotProfileSnapshot | null = null;
+    let botSkills: AgentSkillRef[] = [];
     if (payload.agent_id) {
       const agent = await getAgent(auth.userId, payload.agent_id, auth.orgId);
       textProvider = agent.text ?? (await getProvider(auth.orgId, null));
       imageProvider = agent.image;
       videoProviderId = agent.video?.id ?? null;
       botProfile = agent.profile;
+      botSkills = agent.skills;
     } else {
       textProvider = await getProvider(auth.orgId, null);
     }
@@ -64,6 +67,8 @@ agentsRoutes.post(
         imageProvider,
         videoProviderId,
         botProfile,
+        botSkills,
+        activatedSkillName: payload.skill_name ?? null,
       },
     );
   },

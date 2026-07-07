@@ -1,6 +1,6 @@
 import type { ModelMessage } from "ai";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
-import type { ProviderSnapshot } from "../../clients/admin.js";
+import type { AgentSkillRef, ProviderSnapshot } from "../../clients/admin.js";
 import type { InstructionInput } from "../context/instructions/index.js";
 
 export type AgentMode = "normal" | "plan";
@@ -25,4 +25,8 @@ export interface ChatAgentInput {
   videoProviderId?: string | null;
   modelMessages: ModelMessage[];
   instructionInput: InstructionInput;
+  /** Bot-bound skills advertised to the model (L1). Empty when no bot / no skills. */
+  botSkills?: AgentSkillRef[];
+  /** Pulls a skill's full body by id, for the shared `load_skill` tool. */
+  loadSkillBody?: (skillId: string) => Promise<string>;
 }

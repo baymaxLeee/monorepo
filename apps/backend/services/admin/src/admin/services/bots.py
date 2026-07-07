@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import builtins
 from datetime import UTC, datetime
 
 from kernel.errors import NotFoundError, RequestError
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from admin.crud import bot_skills as bot_skill_crud
 from admin.crud import bots as bot_crud
 from admin.crud import providers as provider_crud
+from admin.crud import skills as skill_crud
 from admin.deps import AuthContext
 from admin.models.bot import BotRow
 from admin.models.provider import (
@@ -19,7 +22,9 @@ from admin.models.provider import (
 )
 from admin.schemas.bot import Bot, ResolvedAgent, UpdateBotInput
 from admin.schemas.provider import InternalModelProvider
+from admin.schemas.skill import AgentSkill, SkillSummary
 from admin.services.providers import to_internal_schema as provider_to_internal_schema
+from admin.services.skills import to_summary as skill_to_summary
 
 
 def _iso(dt: datetime) -> str:
@@ -133,6 +138,7 @@ class BotService:
             raise NotFoundError(f"bot {bot_id} not found")
         # Providers are team-shared: resolve against the bot's OWN org so a
         # teammate running the team oncall bot uses the team's model config.
+        skill_rows = await bot_skill_crud.list_active_skills_for_bot(self._session, row.id)
         return ResolvedAgent(
             id=row.id,
             name=row.name,
@@ -143,7 +149,34 @@ class BotService:
             text_provider=await self._resolve_provider(row.text_provider_id, row.org_id),
             image_provider=await self._resolve_provider(row.image_provider_id, row.org_id),
             video_provider=await self._resolve_provider(row.video_provider_id, row.org_id),
+            skills=[AgentSkill(id=s.id, name=s.name, description=s.description) for s in skill_rows],
         )
+
+    # `builtins.list` because the `list` method above shadows the builtin inside
+    # this class namespace, which breaks deferred `list[...]` annotations.
+    async def list_skills(self, bot_id: str) -> builtins.list[SkillSummary]:
+        await self._get_row(bot_id)
+        rows = await bot_skill_crud.list_skills_for_bot(self._session, bot_id)
+        return [skill_to_summary(row) for row in rows]
+
+    async def attach_skill(self, bot_id: str, skill_id: str) -> builtins.list[SkillSummary]:
+        await self._get_row(bot_id)
+        skill = await skill_crud.get_skill(self._session, skill_id, self._current_user.org_id)
+        if skill is None:
+            raise RequestError(f"skill {skill_id} not found")
+        await bot_skill_crud.attach_skill(self._session, bot_id, skill_id)
+        return await self.list_skills(bot_id)
+
+    async def detach_skill(self, bot_id: str, skill_id: str) -> builtins.list[SkillSummary]:
+        await self._get_row(bot_id)
+        await bot_skill_crud.detach_skill(self._session, bot_id, skill_id)
+        return await self.list_skills(bot_id)
+
+    async def _get_row(self, bot_id: str) -> BotRow:
+        row = await bot_crud.get_bot(self._session, bot_id, self._current_user.org_id)
+        if row is None:
+            raise NotFoundError(f"bot {bot_id} not found")
+        return row
 
     async def _resolve_provider(self, provider_id: str | None, org_id: str) -> InternalModelProvider | None:
         if not provider_id:

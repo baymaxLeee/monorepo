@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 from admin.schemas.provider import InternalModelProvider
+from admin.schemas.skill import AgentSkill
 
 BotStatus = Literal["draft", "published", "archived"]
 BotTone = Literal["professional", "concise", "friendly", "empathetic"]
@@ -103,3 +104,4 @@ class ResolvedAgent(BaseModel):
     text_provider: InternalModelProvider | None = None
     image_provider: InternalModelProvider | None = None
     video_provider: InternalModelProvider | None = None
+    skills: list[AgentSkill] = Field(default_factory=list)

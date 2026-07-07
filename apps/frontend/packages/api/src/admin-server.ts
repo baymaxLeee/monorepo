@@ -79,6 +79,93 @@ export function deleteBot(id: string): Promise<void> {
   });
 }
 
+export type SkillStatus = "draft" | "active" | "disabled";
+
+// L1 list view: no `body`. Every listing surface (skills table, a bot's bound
+// skills, the chat `/` picker) uses this so bodies are never fetched in bulk.
+export interface SkillSummary {
+  id: string;
+  user_id: string;
+  org_id: string;
+  username: string;
+  name: string;
+  description: string;
+  status: SkillStatus;
+  is_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// L2 detail: the summary plus the `body`, fetched one skill at a time.
+export interface Skill extends SkillSummary {
+  body: string;
+}
+
+export interface CreateSkillInput {
+  name: string;
+  description?: string;
+  body?: string;
+  status?: SkillStatus;
+  is_enabled?: boolean;
+}
+
+export type UpdateSkillInput = Partial<CreateSkillInput>;
+
+function skillPath(id?: string) {
+  return id ? `/api/admin-server/skills/${id}` : "/api/admin-server/skills";
+}
+
+export function fetchSkills(): Promise<SkillSummary[]> {
+  return request<SkillSummary[]>({ url: skillPath(), method: "GET" });
+}
+
+export function fetchSkill(id: string): Promise<Skill> {
+  return request<Skill>({ url: skillPath(id), method: "GET" });
+}
+
+export function createSkill(input: CreateSkillInput): Promise<Skill> {
+  return request<Skill>({ url: skillPath(), method: "POST", data: input });
+}
+
+export function updateSkill(
+  id: string,
+  input: UpdateSkillInput,
+): Promise<Skill> {
+  return request<Skill>({ url: skillPath(id), method: "PATCH", data: input });
+}
+
+export function deleteSkill(id: string): Promise<void> {
+  return request<void>({ url: skillPath(id), method: "DELETE" });
+}
+
+export function fetchBotSkills(botId: string): Promise<SkillSummary[]> {
+  return request<SkillSummary[]>({
+    url: `/api/admin-server/bot/${botId}/skills`,
+    method: "GET",
+  });
+}
+
+export function attachBotSkill(
+  botId: string,
+  skillId: string,
+): Promise<SkillSummary[]> {
+  return request<SkillSummary[]>({
+    url: `/api/admin-server/bot/${botId}/skills`,
+    method: "POST",
+    data: { skill_id: skillId },
+  });
+}
+
+export function detachBotSkill(
+  botId: string,
+  skillId: string,
+): Promise<SkillSummary[]> {
+  return request<SkillSummary[]>({
+    url: `/api/admin-server/bot/${botId}/skills/${skillId}`,
+    method: "DELETE",
+  });
+}
+
 export type AdminResourceStatus = "draft" | "active" | "disabled";
 
 export interface AdminResource {

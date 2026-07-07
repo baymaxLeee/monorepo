@@ -6,7 +6,7 @@ import {
 } from "@backend/transport-ts";
 import { getSettings } from "../config.js";
 import type { BotProfileSnapshot } from "../agent/context/instructions/index.js";
-import { AdminUnavailableError, ProviderNotConfiguredError } from "../lib/errors.js";
+import { AdminUnavailableError, ProviderNotConfiguredError, RequestError } from "../lib/errors.js";
 import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
 
 export interface ProviderSnapshot {
@@ -25,6 +25,14 @@ export interface ProviderSnapshot {
   isEnabled: boolean;
 }
 
+/** L1 skill listing resolved for a bot: name/description advertised in
+ *  `<available_skills>`, `id` used to pull the body via `getSkillBody`. */
+export interface AgentSkillRef {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export interface ResolvedAgentProviders {
   agentId: string;
   agentName: string;
@@ -32,6 +40,7 @@ export interface ResolvedAgentProviders {
   text: ProviderSnapshot | null;
   image: ProviderSnapshot | null;
   video: ProviderSnapshot | null;
+  skills: AgentSkillRef[];
 }
 
 function adminClient(): AdminInternalClient {
@@ -117,5 +126,25 @@ export async function getAgent(
     text: await resolve(data.text_provider),
     image: await resolve(data.image_provider),
     video: await resolve(data.video_provider),
+    skills: (data.skills ?? []).map((skill) => ({
+      id: skill.id,
+      name: skill.name,
+      description: skill.description,
+    })),
   };
+}
+
+/** Pulls a skill's full L2 body on demand (progressive disclosure). Called by
+ *  `load_skill` and by explicit `/` activation — never at prompt-assembly time. */
+export async function getSkillBody(skillId: string): Promise<{ id: string; name: string; body: string }> {
+  let data;
+  try {
+    data = await adminClient().getSkill(skillId);
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      throw new RequestError(`skill ${skillId} not found`);
+    }
+    throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
+  }
+  return { id: data.id, name: data.name, body: data.body };
 }

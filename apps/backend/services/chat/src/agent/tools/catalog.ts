@@ -15,7 +15,7 @@ import { createMediaToolManifests } from "./builtins/media.js";
 import { createMemoryToolManifests } from "./builtins/memory.js";
 import { createPlanningToolManifests } from "./builtins/planning.js";
 import { createSearchToolManifests } from "./builtins/search.js";
-import { resolveSystemSkills } from "../integrations/skills/provider.js";
+import { type AdminSkillSource, resolveSkills } from "../integrations/skills/provider.js";
 import {
   defineAgentTool,
   manifestsToTools,
@@ -82,6 +82,7 @@ export class ToolCatalog {
   async resolve(
     context: AgentExtensionContext,
     providers: AgentToolProviders,
+    skillSource?: AdminSkillSource | null,
   ): Promise<{
     tools: ToolSet;
     activeTools: string[];
@@ -89,9 +90,9 @@ export class ToolCatalog {
     contributions: InstructionContributions;
     dispose: () => Promise<void>;
   }> {
-    const systemSkills = resolveSystemSkills(context.mode);
-    const manifests = [...builtinManifests(context.mode, providers), ...systemSkills.manifests];
-    const skills = [...systemSkills.skills];
+    const resolvedSkills = resolveSkills(context.mode, skillSource);
+    const manifests = [...builtinManifests(context.mode, providers), ...resolvedSkills.manifests];
+    const skills = [...resolvedSkills.skills];
     const disposers: Array<() => void | Promise<void>> = [];
 
     for (const extension of [...this.#extensions]) {

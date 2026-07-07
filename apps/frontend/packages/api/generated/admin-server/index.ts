@@ -6,6 +6,17 @@
  * OpenAPI spec version: 0.1.0
  */
 import { apiMutator } from '../../src/orval-mutator';
+/**
+ * L1 discovery view carried on ResolvedAgent — name + description only, no
+ * body. Chat advertises these in `<available_skills>` and pulls the body via
+ * `/internal/skills/{id}` only when `load_skill` fires.
+ */
+export interface AgentSkill {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export interface App {
   id: string;
   title: string;
@@ -18,6 +29,14 @@ export interface App {
   sort_order: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface AttachSkillInput {
+  /**
+     * @minLength 1
+     * @maxLength 32
+     */
+  skill_id: string;
 }
 
 export type BotTone = typeof BotTone[keyof typeof BotTone];
@@ -92,6 +111,18 @@ export interface BulkDeleteScenesInput {
 }
 
 export interface BulkDeleteScenesResult {
+  deleted: number;
+}
+
+export interface BulkDeleteSkillsInput {
+  /**
+     * @minItems 1
+     * @maxItems 100
+     */
+  ids: string[];
+}
+
+export interface BulkDeleteSkillsResult {
   deleted: number;
 }
 
@@ -234,6 +265,29 @@ export interface CreateSceneInput {
   is_enabled?: boolean;
 }
 
+export type CreateSkillInputStatus = typeof CreateSkillInputStatus[keyof typeof CreateSkillInputStatus];
+
+
+export const CreateSkillInputStatus = {
+  draft: 'draft',
+  active: 'active',
+  disabled: 'disabled',
+} as const;
+
+export interface CreateSkillInput {
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  name: string;
+  /** @maxLength 1024 */
+  description?: string;
+  /** @maxLength 20000 */
+  body?: string;
+  status?: CreateSkillInputStatus;
+  is_enabled?: boolean;
+}
+
 export type ValidationErrorCtx = { [key: string]: unknown };
 
 export interface ValidationError {
@@ -304,6 +358,16 @@ export interface InternalModelProvider {
   is_enabled: boolean;
 }
 
+/**
+ * Internal (service-to-service) view including the full body.
+ */
+export interface InternalSkill {
+  id: string;
+  name: string;
+  description: string;
+  body: string;
+}
+
 export type ModelProviderProviderKind = typeof ModelProviderProviderKind[keyof typeof ModelProviderProviderKind];
 
 
@@ -370,6 +434,7 @@ export interface ResolvedAgent {
   text_provider?: InternalModelProvider | null;
   image_provider?: InternalModelProvider | null;
   video_provider?: InternalModelProvider | null;
+  skills?: AgentSkill[];
 }
 
 export type SceneStatus = typeof SceneStatus[keyof typeof SceneStatus];
@@ -389,6 +454,57 @@ export interface Scene {
   name: string;
   description: string;
   status: SceneStatus;
+  is_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SkillStatus = typeof SkillStatus[keyof typeof SkillStatus];
+
+
+export const SkillStatus = {
+  draft: 'draft',
+  active: 'active',
+  disabled: 'disabled',
+} as const;
+
+export interface Skill {
+  id: string;
+  user_id: string;
+  org_id: string;
+  username: string;
+  name: string;
+  description: string;
+  status: SkillStatus;
+  is_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+  body: string;
+}
+
+export type SkillSummaryStatus = typeof SkillSummaryStatus[keyof typeof SkillSummaryStatus];
+
+
+export const SkillSummaryStatus = {
+  draft: 'draft',
+  active: 'active',
+  disabled: 'disabled',
+} as const;
+
+/**
+ * L1 list view: everything except the L2 `body`. Used by every listing
+ * surface (the skills table and a bot's bound skills) so the browser never
+ * downloads skill bodies in bulk — the body is fetched only when editing a
+ * single skill (`GET /skills/{id}`) or when a skill is actually loaded.
+ */
+export interface SkillSummary {
+  id: string;
+  user_id: string;
+  org_id: string;
+  username: string;
+  name: string;
+  description: string;
+  status: SkillSummaryStatus;
   is_enabled: boolean;
   created_at: string;
   updated_at: string;
@@ -516,6 +632,23 @@ export interface UpdateSceneInput {
   name?: string | null;
   description?: string | null;
   status?: UpdateSceneInputStatus;
+  is_enabled?: boolean | null;
+}
+
+export type UpdateSkillInputStatus = typeof UpdateSkillInputStatus[keyof typeof UpdateSkillInputStatus] | null;
+
+
+export const UpdateSkillInputStatus = {
+  draft: 'draft',
+  active: 'active',
+  disabled: 'disabled',
+} as const;
+
+export interface UpdateSkillInput {
+  name?: string | null;
+  description?: string | null;
+  body?: string | null;
+  status?: UpdateSkillInputStatus;
   is_enabled?: boolean | null;
 }
 
@@ -659,6 +792,46 @@ const deleteBotBotBotIdDelete = (
     }
 
 /**
+ * @summary List Bot Skills
+ */
+const listBotSkillsBotBotIdSkillsGet = (
+    botId: string,
+ options?: SecondParameter<typeof apiMutator<SkillSummary[]>>,) => {
+      return apiMutator<SkillSummary[]>(
+      {url: `/bot/${botId}/skills`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * @summary Attach Bot Skill
+ */
+const attachBotSkillBotBotIdSkillsPost = (
+    botId: string,
+    attachSkillInput: AttachSkillInput,
+ options?: SecondParameter<typeof apiMutator<SkillSummary[]>>,) => {
+      return apiMutator<SkillSummary[]>(
+      {url: `/bot/${botId}/skills`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: attachSkillInput
+    },
+      options);
+    }
+
+/**
+ * @summary Detach Bot Skill
+ */
+const detachBotSkillBotBotIdSkillsSkillIdDelete = (
+    botId: string,
+    skillId: string,
+ options?: SecondParameter<typeof apiMutator<SkillSummary[]>>,) => {
+      return apiMutator<SkillSummary[]>(
+      {url: `/bot/${botId}/skills/${skillId}`, method: 'DELETE'
+    },
+      options);
+    }
+
+/**
  * @summary List Scenes
  */
 const listScenesScenesGet = (
@@ -733,6 +906,97 @@ const bulkDeleteScenesScenesBulkDeletePost = (
       {url: `/scenes/bulk-delete`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: bulkDeleteScenesInput
+    },
+      options);
+    }
+
+/**
+ * @summary List Skills
+ */
+const listSkillsSkillsGet = (
+
+ options?: SecondParameter<typeof apiMutator<SkillSummary[]>>,) => {
+      return apiMutator<SkillSummary[]>(
+      {url: `/skills`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * @summary Create Skill
+ */
+const createSkillSkillsPost = (
+    createSkillInput: CreateSkillInput,
+ options?: SecondParameter<typeof apiMutator<Skill>>,) => {
+      return apiMutator<Skill>(
+      {url: `/skills`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createSkillInput
+    },
+      options);
+    }
+
+/**
+ * @summary Get Skill
+ */
+const getSkillSkillsSkillIdGet = (
+    skillId: string,
+ options?: SecondParameter<typeof apiMutator<Skill>>,) => {
+      return apiMutator<Skill>(
+      {url: `/skills/${skillId}`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * @summary Update Skill
+ */
+const updateSkillSkillsSkillIdPatch = (
+    skillId: string,
+    updateSkillInput: UpdateSkillInput,
+ options?: SecondParameter<typeof apiMutator<Skill>>,) => {
+      return apiMutator<Skill>(
+      {url: `/skills/${skillId}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: updateSkillInput
+    },
+      options);
+    }
+
+/**
+ * @summary Delete Skill
+ */
+const deleteSkillSkillsSkillIdDelete = (
+    skillId: string,
+ options?: SecondParameter<typeof apiMutator<void>>,) => {
+      return apiMutator<void>(
+      {url: `/skills/${skillId}`, method: 'DELETE'
+    },
+      options);
+    }
+
+/**
+ * @summary Bulk Delete Skills
+ */
+const bulkDeleteSkillsSkillsBulkDeletePost = (
+    bulkDeleteSkillsInput: BulkDeleteSkillsInput,
+ options?: SecondParameter<typeof apiMutator<BulkDeleteSkillsResult>>,) => {
+      return apiMutator<BulkDeleteSkillsResult>(
+      {url: `/skills/bulk-delete`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: bulkDeleteSkillsInput
+    },
+      options);
+    }
+
+/**
+ * @summary Get Skill Internal
+ */
+const getSkillInternalInternalSkillsSkillIdGet = (
+    skillId: string,
+ options?: SecondParameter<typeof apiMutator<InternalSkill>>,) => {
+      return apiMutator<InternalSkill>(
+      {url: `/internal/skills/${skillId}`, method: 'GET'
     },
       options);
     }
@@ -1047,7 +1311,7 @@ const deleteAppAppsAppIdDelete = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listScenesScenesGet,createSceneScenesPost,getSceneScenesSceneIdGet,updateSceneScenesSceneIdPatch,deleteSceneScenesSceneIdDelete,bulkDeleteScenesScenesBulkDeletePost,listIntentionsIntentionsGet,createIntentionIntentionsPost,getIntentionIntentionsIntentionIdGet,updateIntentionIntentionsIntentionIdPatch,deleteIntentionIntentionsIntentionIdDelete,bulkDeleteIntentionsIntentionsBulkDeletePost,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderByKindInternalInternalProvidersByKindKindGet,getProviderInternalInternalProvidersProviderIdGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listBotSkillsBotBotIdSkillsGet,attachBotSkillBotBotIdSkillsPost,detachBotSkillBotBotIdSkillsSkillIdDelete,listScenesScenesGet,createSceneScenesPost,getSceneScenesSceneIdGet,updateSceneScenesSceneIdPatch,deleteSceneScenesSceneIdDelete,bulkDeleteScenesScenesBulkDeletePost,listSkillsSkillsGet,createSkillSkillsPost,getSkillSkillsSkillIdGet,updateSkillSkillsSkillIdPatch,deleteSkillSkillsSkillIdDelete,bulkDeleteSkillsSkillsBulkDeletePost,getSkillInternalInternalSkillsSkillIdGet,listIntentionsIntentionsGet,createIntentionIntentionsPost,getIntentionIntentionsIntentionIdGet,updateIntentionIntentionsIntentionIdPatch,deleteIntentionIntentionsIntentionIdDelete,bulkDeleteIntentionsIntentionsBulkDeletePost,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderByKindInternalInternalProvidersByKindKindGet,getProviderInternalInternalProvidersProviderIdGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -1061,12 +1325,22 @@ export type CreateBotBotPostResult = NonNullable<Awaited<ReturnType<ReturnType<t
 export type GetBotBotBotIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getBotBotBotIdGet']>>>
 export type UpdateBotBotBotIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateBotBotBotIdPatch']>>>
 export type DeleteBotBotBotIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['deleteBotBotBotIdDelete']>>>
+export type ListBotSkillsBotBotIdSkillsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listBotSkillsBotBotIdSkillsGet']>>>
+export type AttachBotSkillBotBotIdSkillsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['attachBotSkillBotBotIdSkillsPost']>>>
+export type DetachBotSkillBotBotIdSkillsSkillIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['detachBotSkillBotBotIdSkillsSkillIdDelete']>>>
 export type ListScenesScenesGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listScenesScenesGet']>>>
 export type CreateSceneScenesPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createSceneScenesPost']>>>
 export type GetSceneScenesSceneIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getSceneScenesSceneIdGet']>>>
 export type UpdateSceneScenesSceneIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateSceneScenesSceneIdPatch']>>>
 export type DeleteSceneScenesSceneIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['deleteSceneScenesSceneIdDelete']>>>
 export type BulkDeleteScenesScenesBulkDeletePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['bulkDeleteScenesScenesBulkDeletePost']>>>
+export type ListSkillsSkillsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listSkillsSkillsGet']>>>
+export type CreateSkillSkillsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createSkillSkillsPost']>>>
+export type GetSkillSkillsSkillIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getSkillSkillsSkillIdGet']>>>
+export type UpdateSkillSkillsSkillIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateSkillSkillsSkillIdPatch']>>>
+export type DeleteSkillSkillsSkillIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['deleteSkillSkillsSkillIdDelete']>>>
+export type BulkDeleteSkillsSkillsBulkDeletePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['bulkDeleteSkillsSkillsBulkDeletePost']>>>
+export type GetSkillInternalInternalSkillsSkillIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getSkillInternalInternalSkillsSkillIdGet']>>>
 export type ListIntentionsIntentionsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listIntentionsIntentionsGet']>>>
 export type CreateIntentionIntentionsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createIntentionIntentionsPost']>>>
 export type GetIntentionIntentionsIntentionIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getIntentionIntentionsIntentionIdGet']>>>
