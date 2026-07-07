@@ -83,10 +83,15 @@ for the full rationale.
     that one segment; 429/5xx/network **rethrow** so Workflow DevKit retries the
     step. Before assembly a quality bar requires the **hook** (segment 0) plus
     ≥60% of segments, else the run fails rather than shipping a plot with holes.
-  - `continuity`: `cut` (default) references the character sheet and fans segments
-    out in parallel (hard cuts); `chain` runs serially, each segment continuing
-    from the previous one's `return_last_frame`. Seed is per-segment derived
-    (soft reproducibility on 2.x).
+  - **Assembly is hard-cut ONLY, always parallel.** Every segment references the
+    character sheet and fans out via `mapConcurrent` (`SEGMENT_CONCURRENCY`), then
+    concatenates with hard cuts. Seed is per-segment derived (soft reproducibility
+    on 2.x). There is NO serial/seamless mode: the `continuity: "chain"` option
+    (last-frame → next first-frame chaining) was removed — it was serial, so an
+    N-segment reel took ≈N × per-segment render time and blew past chat's 30-min
+    `waitForTaskTerminal` cap, getting the task cancelled (see ADR-0018 final
+    update). Do NOT reintroduce chaining, `return_last_frame`, `first_frame`
+    segment input, or any `continuity` knob.
   - Do NOT reintroduce multi-shot-per-segment prompting, in-prompt timecodes, or a
     fixed `seconds`/`duration` admin default without re-reading ADR-0018.
 

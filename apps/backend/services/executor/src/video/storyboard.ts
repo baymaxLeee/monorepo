@@ -177,8 +177,7 @@ export function buildSegmentContent(
   script: Script,
   opts: {
     characterRefs: CharacterRef[];
-    mode: "reference" | "first-frame" | "text";
-    firstFrameUrl?: string;
+    mode: "reference" | "text";
   },
 ): { prompt: string; images: ArkImageRef[] } {
   const appearing =
@@ -218,9 +217,7 @@ export function buildSegmentContent(
   const images: ArkImageRef[] =
     opts.mode === "reference"
       ? appearing.map((r) => ({ url: r.url, role: "reference_image" as const }))
-      : opts.mode === "first-frame" && opts.firstFrameUrl
-        ? [{ url: opts.firstFrameUrl, role: "first_frame" as const }]
-        : [];
+      : [];
 
   return { prompt: lines.join("\n"), images };
 }

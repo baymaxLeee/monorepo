@@ -4,15 +4,17 @@
 
 Accepted — **current, validated in use (2026-07-03), and retained** as the
 short-drama video-generation pipeline for now. The authoritative design is the
-last section, **Update (2026-07b): single-action segments + wire-format
-corrections**, which supersedes the *multi-shot-per-segment* decision of the
-prior update (one segment is now ONE continuous action, not a multi-shot clip)
-and corrects two wire-format claims that were wrong (reference mode DOES accept
-an integer `duration`; Seedance 2.0 DOES support `seed`). What survives from
-earlier: the durable plan→generate→assemble skeleton, the two-stage
+last section, **Update (2026-07c): remove the `chain` continuity option**, which
+supersedes item 6 of the Seedance 2.0-native rebuild: the pipeline is now
+**hard-cut only, always parallel** — there is no seamless/serial mode. The
+immediately prior section, **Update (2026-07b): single-action segments +
+wire-format corrections**, remains authoritative for everything else (one
+segment is ONE continuous action, not a multi-shot clip; reference mode DOES
+accept an integer `duration`; Seedance 2.0 DOES support `seed`). What survives
+from earlier: the durable plan→generate→assemble skeleton, the two-stage
 **script→storyboard** planning (the real fix for 剧情重复), character-sheet
 `@reference`, per-segment seed, and the "loose consistency, hard cuts are the
-投流 language" stance. Read the last section first; the two middle updates are
+投流 language" stance. Read the last two sections first; the earlier updates are
 kept for history only (each is superseded, not current).
 
 Refactors the `video-generation` task type introduced alongside
@@ -339,3 +341,54 @@ official BytePlus ModelArk API reference (create task, prompt guide), 火山方�
 Seedance 2.0 apifox 原生格式 (`seed`/`duration` int), reAPI/QWave native mirrors
 (reference-mode `duration` examples), MindStudio/Studiolist Seedance 2.0 prompt
 guides (single-take per generation; concat for true cuts).
+
+## Update (2026-07c): remove the `chain` continuity option (serial-timeout regression)
+
+### What went wrong
+
+Item 6 of the Seedance 2.0-native rebuild reintroduced last-frame chaining as an
+opt-in `continuity: "cut" | "chain"` tool argument (default `cut`). It was
+opt-in, but the chat model *chose* `chain` on its own for 爽感短剧 premises, and
+`chain` is **inherently serial**: each segment must fully render before the next
+can start (it feeds the previous segment's `return_last_frame` into the next
+segment's `first_frame`). So total wall-clock ≈ **N × per-segment render time**
+(~3–4 min/segment against Ark). A 60s reel is ~10 segments and an 80s reel ~12,
+so a chained run needs ~40–48 min.
+
+Chat blocks the `generate_video` tool on `waitForTaskTerminal`, which has a hard
+**30-minute** cap (`MAX_TASK_WAIT_MS`); at the deadline it calls
+`POST /tasks/:id/cancel` and throws. Observed in production data (conversation
+`980dc486aa96` and two siblings): three `continuity: "chain"` video tasks, all
+`cancelled` at **exactly ~1801s**, having completed only 7–9 of 10–12 segments.
+The 60s timeout was not an Ark slowness bug — it was the serial chain path
+colliding with the 30-min front-of-turn cap. This directly contradicts the
+retained "hard cuts are the 投流 language, cut density comes from MORE short
+segments" stance (Update 2026-07b), under which seamless chaining has no place.
+
+### Decision (current)
+
+Remove the `chain` path and all its plumbing entirely; the pipeline is
+**hard-cut only, always parallel**:
+
+1. **chat `generate_video`**: `continuity` removed from the tool `inputSchema`,
+   the `generateVideo` signature, and the executor task payload.
+2. **executor `videoGenerationInputSchema`**: `continuity` field removed.
+3. **`videoGenerationWorkflow`**: the `if (continuity === "chain")` serial branch
+   is deleted; every run fans out through `mapConcurrent(SEGMENT_CONCURRENCY)`
+   with mode `reference` (falls back to `text` when no character sheet).
+4. **Chaining primitives removed**: `SegmentMode` drops `"first-frame"`;
+   `createSegmentStep`/`buildSegmentContent` drop `firstFrameUrl`/`returnLastFrame`;
+   `SegmentResult`/`ArkVideoSnapshot` drop `lastFrameUrl`; `ark.ts` drops the
+   `returnLastFrame` cap + param + `return_last_frame` body field + allowlist
+   entry, and `ArkImageRole` narrows to `"reference_image"` only (no
+   `first_frame`/`last_frame`).
+
+Parallel `cut` keeps total wall-clock at roughly `ceil(N / SEGMENT_CONCURRENCY) ×
+per-segment render` (~14 min for a 10-segment 60s reel), comfortably inside the
+30-min cap — the timeout disappears by construction, without touching the cap.
+
+Frame-level seamless continuity (last-frame chaining) is once again **out of
+scope**, as it was in the original `## Decision`. If it ever returns it must NOT
+be a synchronous, turn-blocking tool call: revisit the async-delivery direction
+(task runs in the background, completion pushed / persisted) before re-adding any
+mode whose runtime scales linearly with segment count.

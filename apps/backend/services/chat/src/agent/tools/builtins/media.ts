@@ -183,7 +183,7 @@ function videoDocumentId(result: unknown): string | undefined {
 }
 
 async function* generateVideo(
-  input: { prompt: string; duration?: number; continuity?: "cut" | "chain" },
+  input: { prompt: string; duration?: number },
   {
     context,
     toolCallId,
@@ -206,7 +206,6 @@ async function* generateVideo(
           imageProviderId: providers.imageProvider?.id,
           prompt: input.prompt,
           targetDurationSec: input.duration,
-          continuity: input.continuity,
           title,
           filename,
           idempotencyKey: toolCallId,
@@ -294,7 +293,6 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
           inputSchema: z.object({
             prompt: z.string().min(1).max(4_000),
             duration: z.number().int().min(VIDEO_TARGET_MIN_S).max(VIDEO_TARGET_MAX_S).optional(),
-            // continuity: z.enum(["cut", "chain"]).optional(),
           }),
           outputSchema: videoOutputSchema,
           contextSchema: mediaToolContextSchema,

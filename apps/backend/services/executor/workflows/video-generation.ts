@@ -44,7 +44,6 @@ export const videoGenerationInputSchema = z.object({
   imageProviderId: z.string().optional(),
   prompt: z.string().min(1).max(4000),
   targetDurationSec: z.number().int().min(MIN_TARGET_DURATION_S).max(MAX_TARGET_DURATION_S).optional(),
-  continuity: z.enum(["cut", "chain"]).optional(),
   title: z.string().min(1).max(120),
   filename: z.string().min(1).max(160),
   idempotencyKey: z.string().min(1).max(120).optional(),
@@ -64,12 +63,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-type SegmentMode = "reference" | "first-frame" | "text";
+type SegmentMode = "reference" | "text";
 type SegmentResult = {
   order: number;
   ok: boolean;
   videoUrl?: string;
-  lastFrameUrl?: string;
   error?: string;
 };
 
@@ -137,9 +135,7 @@ async function createSegmentStep(input: {
   script: Script;
   characterRefs: CharacterRef[];
   mode: SegmentMode;
-  firstFrameUrl?: string;
   seed: number;
-  returnLastFrame: boolean;
 }): Promise<{ taskId?: string; error?: string }> {
   "use step";
   const { workflowRunId } = getWorkflowMetadata();
@@ -149,7 +145,6 @@ async function createSegmentStep(input: {
     const { prompt, images } = buildSegmentContent(input.segment, input.script, {
       characterRefs: input.characterRefs,
       mode: input.mode,
-      firstFrameUrl: input.firstFrameUrl,
     });
     const taskId = await createArkVideoTask({
       baseUrl: provider.baseUrl,
@@ -159,7 +154,6 @@ async function createSegmentStep(input: {
       images,
       seconds: input.segment.seconds,
       seed: input.seed,
-      returnLastFrame: input.returnLastFrame,
       extraBody: provider.extraBody,
       signal: AbortSignal.any([
         cancellation.signal,
@@ -306,78 +300,34 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
   const { script, segments, characterRefs, baseSeed } = await planStep(input);
   const total = segments.length;
   const hasRefs = characterRefs.length > 0;
-  const continuity = input.continuity ?? "cut";
   let done = 0;
   await reportProgressStep(done, total);
 
-  let results: SegmentResult[];
-
-  if (continuity === "chain") {
-    results = [];
-    let prevLastFrame: string | undefined;
-    for (const segment of segments) {
-      const isLast = segment.order === total - 1;
-      const mode: SegmentMode = prevLastFrame ? "first-frame" : hasRefs ? "reference" : "text";
-      const created = await createSegmentStep({
-        providerId: input.providerId,
-        segment,
-        script,
-        characterRefs,
-        mode,
-        firstFrameUrl: prevLastFrame,
-        seed: deriveSegmentSeed(baseSeed, segment.order),
-        returnLastFrame: !isLast,
-      });
-      let result: SegmentResult;
-      if (!created.taskId) {
-        result = { order: segment.order, ok: false, error: created.error };
-      } else {
-        const snapshot = await waitSegmentStep({
-          providerId: input.providerId,
-          taskId: created.taskId,
-        });
-        const ok = snapshot.status === "succeeded" && Boolean(snapshot.videoUrl);
-        result = {
-          order: segment.order,
-          ok,
-          videoUrl: snapshot.videoUrl,
-          lastFrameUrl: snapshot.lastFrameUrl,
-          error: snapshot.error,
-        };
-        prevLastFrame = ok ? snapshot.lastFrameUrl : undefined;
-      }
-      done += 1;
-      await reportProgressStep(done, total);
-      results.push(result);
-    }
-  } else {
-    const mode: SegmentMode = hasRefs ? "reference" : "text";
-    results = await mapConcurrent(segments, SEGMENT_CONCURRENCY, async (segment: Segment) => {
-      const created = await createSegmentStep({
-        providerId: input.providerId,
-        segment,
-        script,
-        characterRefs,
-        mode,
-        seed: deriveSegmentSeed(baseSeed, segment.order),
-        returnLastFrame: false,
-      });
-      let result: SegmentResult;
-      if (!created.taskId) {
-        result = { order: segment.order, ok: false, error: created.error };
-      } else {
-        const snapshot = await waitSegmentStep({
-          providerId: input.providerId,
-          taskId: created.taskId,
-        });
-        const ok = snapshot.status === "succeeded" && Boolean(snapshot.videoUrl);
-        result = { order: segment.order, ok, videoUrl: snapshot.videoUrl, error: snapshot.error };
-      }
-      done += 1;
-      await reportProgressStep(done, total);
-      return result;
+  const mode: SegmentMode = hasRefs ? "reference" : "text";
+  const results = await mapConcurrent(segments, SEGMENT_CONCURRENCY, async (segment: Segment) => {
+    const created = await createSegmentStep({
+      providerId: input.providerId,
+      segment,
+      script,
+      characterRefs,
+      mode,
+      seed: deriveSegmentSeed(baseSeed, segment.order),
     });
-  }
+    let result: SegmentResult;
+    if (!created.taskId) {
+      result = { order: segment.order, ok: false, error: created.error };
+    } else {
+      const snapshot = await waitSegmentStep({
+        providerId: input.providerId,
+        taskId: created.taskId,
+      });
+      const ok = snapshot.status === "succeeded" && Boolean(snapshot.videoUrl);
+      result = { order: segment.order, ok, videoUrl: snapshot.videoUrl, error: snapshot.error };
+    }
+    done += 1;
+    await reportProgressStep(done, total);
+    return result;
+  });
 
   const urls = results
     .filter((r) => r.ok && r.videoUrl)

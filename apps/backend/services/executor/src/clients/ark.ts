@@ -8,7 +8,6 @@ export interface SeedanceCaps {
   maxClipSeconds: number;
   durationField: "duration" | "seconds";
   multiImageReference: boolean;
-  returnLastFrame: boolean;
 }
 
 export function seedanceCaps(model: string): SeedanceCaps {
@@ -18,14 +17,12 @@ export function seedanceCaps(model: string): SeedanceCaps {
       maxClipSeconds: 15,
       durationField: "duration",
       multiImageReference: true,
-      returnLastFrame: true,
     };
   }
   return {
     maxClipSeconds: 10,
     durationField: "seconds",
     multiImageReference: false,
-    returnLastFrame: false,
   };
 }
 
@@ -45,7 +42,6 @@ const ARK_VIDEO_PARAMS = new Set([
   "resolution",
   "framespersecond",
   "watermark",
-  "return_last_frame",
   "generate_audio",
   "seed",
   "size",
@@ -68,11 +64,10 @@ export type ArkVideoStatus =
 export interface ArkVideoSnapshot {
   status: ArkVideoStatus;
   videoUrl?: string;
-  lastFrameUrl?: string;
   error?: string;
 }
 
-export type ArkImageRole = "reference_image" | "first_frame" | "last_frame";
+export type ArkImageRole = "reference_image";
 export interface ArkImageRef {
   url: string;
   role: ArkImageRole;
@@ -117,7 +112,6 @@ export async function createArkVideoTask(input: {
   images?: ArkImageRef[];
   seconds?: number;
   seed?: number;
-  returnLastFrame?: boolean;
   extraBody: Record<string, unknown>;
   signal?: AbortSignal;
 }): Promise<string> {
@@ -142,7 +136,6 @@ export async function createArkVideoTask(input: {
     ...videoBodyOptions(input.extraBody),
     ...(input.seed != null ? { seed: input.seed } : {}),
     [caps.durationField]: durationValue,
-    ...(input.returnLastFrame && caps.returnLastFrame ? { return_last_frame: true } : {}),
   };
 
   const response = await secureProviderFetch(url, {
@@ -165,11 +158,7 @@ export async function createArkVideoTask(input: {
     requestedSeconds: input.seconds ?? null,
     durationSent: durationValue,
     referenceImages: images.filter((i) => i.role === "reference_image").length,
-    mode: inReferenceMode
-      ? "reference"
-      : images.some((i) => i.role === "first_frame")
-        ? "first-last-frame"
-        : "text",
+    mode: inReferenceMode ? "reference" : "text",
   });
   return data.id;
 }
@@ -224,7 +213,7 @@ export async function getArkVideoTask(input: {
   }
   const data = (await response.json()) as {
     status?: string;
-    content?: { video_url?: string; last_frame_url?: string } | null;
+    content?: { video_url?: string } | null;
     duration?: number;
     error?: unknown;
   };
@@ -239,13 +228,11 @@ export async function getArkVideoTask(input: {
     console.log("[executor] ark video task succeeded", {
       taskId: input.taskId,
       actualDuration: data.duration ?? null,
-      hasLastFrame: Boolean(data.content?.last_frame_url),
     });
   }
   return {
     status,
     videoUrl: data.content?.video_url,
-    lastFrameUrl: data.content?.last_frame_url,
     error,
   };
 }
