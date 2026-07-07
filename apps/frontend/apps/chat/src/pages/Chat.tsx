@@ -32,6 +32,7 @@ import {
 } from "components/prompt-input";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { getErrorMessage } from "shared";
 import { useShallow } from "zustand/react/shallow";
 import { ChatComposerControls } from "../components/ChatComposerControls";
 import { ChatImagePreview } from "../components/ChatImagePreview";
@@ -270,7 +271,7 @@ export function Chat() {
         setMode(next.agent_mode ?? "normal");
         setMessages(next.messages.map(messageToUiMessage));
       })
-      .catch((error) => toast.error(String(error)))
+      .catch(() => {})
       .finally(() => {
         if (active) setLoading(false);
       });
@@ -296,8 +297,9 @@ export function Chat() {
     }
     resumedConversationRef.current = id;
     void resumeStream().catch((error) => {
-      const message = String(error);
+      const message = getErrorMessage(error);
       if (/204|no active|not found/i.test(message)) return;
+      // resumeStream 走 SSE(不经 axios 拦截器),错误在此提示
       toast.error(message);
     });
   }, [busy, detail?.id, detail?.active_run_id, id, loading, resumeStream]);
@@ -390,9 +392,7 @@ export function Chat() {
       const next = await fetchConversation(id);
       setDetail({ ...next, active_run_id: null });
       setMessages(next.messages.map(messageToUiMessage));
-    } catch (error) {
-      toast.error(`终止执行失败：${String(error)}`);
-    }
+    } catch {}
   }
 
   async function continuePlan(documentId: string) {
@@ -470,7 +470,7 @@ export function Chat() {
                 onOpenArtifact={openArtifact}
                 onAnswerClientTool={(toolName, toolCallId, output) => {
                   void answerClientTool(toolName, toolCallId, output).catch(
-                    (error) => toast.error(String(error)),
+                    () => {},
                   );
                 }}
                 onToolApproval={(approvalId, approved) => {
@@ -481,14 +481,10 @@ export function Chat() {
                   });
                 }}
                 onContinuePlan={(documentId) =>
-                  void continuePlan(documentId).catch((error) =>
-                    toast.error(String(error)),
-                  )
+                  void continuePlan(documentId).catch(() => {})
                 }
                 onExecutePlan={(documentId) =>
-                  void executePlan(documentId).catch((error) =>
-                    toast.error(String(error)),
-                  )
+                  void executePlan(documentId).catch(() => {})
                 }
               />
             ))
@@ -540,20 +536,20 @@ export function Chat() {
                     ?.text_provider_id ?? undefined,
               },
             ).catch((error) => {
+              const message = getErrorMessage(error);
               for (const { token } of items) {
                 promptRef.current?.updateToken(token.id, {
                   meta: {
                     ingestStatus: "failed",
-                    ingestError: String(error),
+                    ingestError: message,
                   },
                 });
               }
-              toast.error(String(error));
+              // 上传走 fetch/SSE 流(不经 axios 拦截器),错误在此提示
+              toast.error(message);
             });
           }}
-          onSubmit={(value) =>
-            void submit(value).catch((error) => toast.error(String(error)))
-          }
+          onSubmit={(value) => void submit(value).catch(() => {})}
           mentionSource={(query) => {
             const q = query.trim().toLowerCase();
             return (detail?.documents ?? [])
@@ -589,11 +585,7 @@ export function Chat() {
               activatedSkillName={activatedSkillName}
               onClearSkill={() => setActivatedSkillName(null)}
               mode={mode}
-              onModeChange={(next) =>
-                void changeMode(next).catch((error) =>
-                  toast.error(String(error)),
-                )
-              }
+              onModeChange={(next) => void changeMode(next).catch(() => {})}
               disabled={busy}
             />
           )}

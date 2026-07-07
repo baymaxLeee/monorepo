@@ -62,6 +62,7 @@ import {
 } from "components";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { getErrorMessage } from "shared";
 import { z } from "zod";
 
 const providerSchema = z
@@ -203,9 +204,9 @@ export function ProvidersPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchModelProviders()
+    fetchModelProviders({ skipErrorNotify: true })
       .then(setProviders)
-      .catch((e) => setError(String(e)))
+      .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -281,9 +282,7 @@ export function ProvidersPage() {
       }
       form.reset(defaults);
       load();
-    } catch (e) {
-      toast.error(String(e));
-    }
+    } catch {}
   }
 
   async function remove(provider: ModelProvider) {
@@ -298,9 +297,7 @@ export function ProvidersPage() {
       await setDefaultModelProvider(provider.id);
       toast.success(`「${provider.name}」已设为默认`);
       load();
-    } catch (e) {
-      toast.error(String(e));
-    }
+    } catch {}
   }
 
   async function runTest(provider: ModelProvider) {
@@ -314,8 +311,7 @@ export function ProvidersPage() {
       } else {
         toast.error(`连通失败：${result.error ?? "unknown"}`);
       }
-    } catch (e) {
-      toast.error(String(e));
+    } catch {
     } finally {
       setTestingId(null);
     }

@@ -36,7 +36,7 @@ import {
 } from "components";
 import { DownloadIcon, PencilIcon, Trash2Icon, UploadIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { randomId } from "shared";
+import { getErrorMessage, randomId } from "shared";
 import { KnowledgeDocumentDialog } from "../components/KnowledgeDocumentDialog";
 
 function formatBytes(size: number): string {
@@ -65,12 +65,12 @@ export function KnowledgeBasePage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    listKnowledgeDocuments({ kind: "source" })
+    listKnowledgeDocuments({ kind: "source" }, { skipErrorNotify: true })
       .then((rows) => {
         setDocs(rows);
         setSelected(new Set());
       })
-      .catch((e) => setError(String(e)))
+      .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -97,7 +97,8 @@ export function KnowledgeBasePage() {
       });
       if (succeeded > 0) toast.success(`成功导入 ${succeeded} 个文档`);
     } catch (e) {
-      toast.error(String(e));
+      // 上传走 fetch/SSE 流(不经 axios 拦截器),错误在此提示
+      toast.error(getErrorMessage(e));
     } finally {
       setUploading(false);
       load();
@@ -115,9 +116,7 @@ export function KnowledgeBasePage() {
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
-    } catch (e) {
-      toast.error(String(e));
-    }
+    } catch {}
   }
 
   async function remove(doc: KnowledgeDocument) {
@@ -126,9 +125,7 @@ export function KnowledgeBasePage() {
       await deleteKnowledgeDocument(doc.id);
       toast.success("已删除");
       load();
-    } catch (e) {
-      toast.error(String(e));
-    }
+    } catch {}
   }
 
   async function removeSelected() {
@@ -143,9 +140,7 @@ export function KnowledgeBasePage() {
       const res = await batchDeleteKnowledgeDocuments(ids);
       toast.success(`已删除 ${res.deleted} 个文档`);
       load();
-    } catch (e) {
-      toast.error(String(e));
-    }
+    } catch {}
   }
 
   const allSelected =

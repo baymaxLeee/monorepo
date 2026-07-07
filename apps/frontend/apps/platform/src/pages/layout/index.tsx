@@ -15,7 +15,6 @@ import {
   HeaderSection,
   Layout as LayoutFrame,
   Main,
-  toast,
 } from "components";
 import {
   ActivityIcon,
@@ -101,9 +100,7 @@ export function Layout() {
       // org-scoped state (platform apps + each MFE's query cache).
       setUser(session.user);
       window.location.assign("/platform/home");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "切换团队失败");
-    }
+    } catch {}
   }
 
   return (

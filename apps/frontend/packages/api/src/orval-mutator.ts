@@ -1,9 +1,9 @@
 import type { AxiosRequestConfig } from "axios";
-import { request } from "./http";
+import { type ApiRequestConfig, request } from "./http";
 
 export function apiMutator<T>(
   config: AxiosRequestConfig,
-  options?: AxiosRequestConfig,
+  options?: ApiRequestConfig,
 ): Promise<T> {
   return request<T>({
     ...config,

@@ -52,6 +52,7 @@ import {
 } from "components";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { getErrorMessage } from "shared";
 import { z } from "zod";
 
 const intentionSchema = z.object({
@@ -100,14 +101,14 @@ export function IntentionsPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchIntentions()
+    fetchIntentions({ skipErrorNotify: true })
       .then((rows) => {
         setIntentions(rows);
         setSelectedIds((ids) =>
           ids.filter((id) => rows.some((row) => row.id === id)),
         );
       })
-      .catch((e) => setError(String(e)))
+      .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -147,9 +148,7 @@ export function IntentionsPage() {
       }
       form.reset(defaults);
       load();
-    } catch (e) {
-      toast.error(String(e));
-    }
+    } catch {}
   }
 
   async function remove(intention: Intention) {

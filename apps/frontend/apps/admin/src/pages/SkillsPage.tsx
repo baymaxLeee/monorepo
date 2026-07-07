@@ -53,6 +53,7 @@ import {
 } from "components";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { getErrorMessage } from "shared";
 import { z } from "zod";
 
 const skillSchema = z.object({
@@ -105,9 +106,9 @@ export function SkillsPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchSkills()
+    fetchSkills({ skipErrorNotify: true })
       .then(setSkills)
-      .catch((e) => setError(String(e)))
+      .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -134,9 +135,7 @@ export function SkillsPage() {
         status: skill.status,
         is_enabled: skill.is_enabled,
       });
-    } catch (e) {
-      toast.error(String(e));
-    }
+    } catch {}
   }
 
   async function save(values: SkillValues) {
@@ -152,9 +151,7 @@ export function SkillsPage() {
       }
       form.reset(defaults);
       load();
-    } catch (e) {
-      toast.error(String(e));
-    }
+    } catch {}
   }
 
   async function remove(skill: SkillSummary) {

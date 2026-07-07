@@ -52,6 +52,7 @@ import {
 } from "components";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { getErrorMessage } from "shared";
 import { z } from "zod";
 
 const sceneSchema = z.object({
@@ -96,14 +97,14 @@ export function ScenesPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchScenes()
+    fetchScenes({ skipErrorNotify: true })
       .then((rows) => {
         setScenes(rows);
         setSelectedIds((ids) =>
           ids.filter((id) => rows.some((row) => row.id === id)),
         );
       })
-      .catch((e) => setError(String(e)))
+      .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -141,9 +142,7 @@ export function ScenesPage() {
       }
       form.reset(defaults);
       load();
-    } catch (e) {
-      toast.error(String(e));
-    }
+    } catch {}
   }
 
   async function remove(scene: AdminResource) {

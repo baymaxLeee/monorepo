@@ -9,6 +9,7 @@ import {
   type UserMemory,
   updateMemoryCandidate,
 } from "api";
+import { getErrorMessage } from "shared";
 import { create } from "zustand";
 
 export interface MemoryState {
@@ -48,7 +49,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
         loaded: true,
       });
     } catch (error) {
-      set({ error: String(error) });
+      set({ error: getErrorMessage(error) });
     } finally {
       set({ loading: false });
     }
@@ -59,7 +60,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
       const { candidates } = await fetchMemoryCandidates();
       set({ candidates });
     } catch (error) {
-      set({ error: String(error) });
+      set({ error: getErrorMessage(error) });
     }
   },
 

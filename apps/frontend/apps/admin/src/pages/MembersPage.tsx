@@ -40,6 +40,7 @@ import {
   toast,
 } from "components";
 import { useCallback, useEffect, useState } from "react";
+import { getErrorMessage } from "shared";
 import { useAdminIdentity } from "../identity";
 
 type StatusFilter = "" | "pending" | "active" | "rejected";
@@ -83,7 +84,7 @@ export function MembersPage() {
 
   useEffect(() => {
     if (!isSuperAdmin) return;
-    listOrgsForAdmin()
+    listOrgsForAdmin({ skipErrorNotify: true })
       .then((orgs) => {
         setOrgOptions(orgs);
         setPickedOrgId((prev) => prev ?? activeOrgId ?? orgs[0]?.id ?? null);
@@ -100,9 +101,9 @@ export function MembersPage() {
     }
     setLoading(true);
     setError(null);
-    listOrgMembers(orgId, status || undefined)
+    listOrgMembers(orgId, status || undefined, { skipErrorNotify: true })
       .then(setMembers)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
   }, [orgId, status]);
 
@@ -135,8 +136,7 @@ export function MembersPage() {
       await fn();
       toast.success(ok);
       load();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+    } catch {
     } finally {
       setBusyUser(null);
     }

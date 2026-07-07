@@ -1,4 +1,6 @@
-import { request } from "./http";
+import { type ApiRequestConfig, request } from "./http";
+
+type RequestOptions = Pick<ApiRequestConfig, "skipErrorNotify">;
 
 export type BotStatus = "draft" | "published" | "archived";
 
@@ -42,17 +44,19 @@ export interface UpdateBotInput {
   video_provider_id?: string | null;
 }
 
-export function fetchBots(): Promise<Bot[]> {
+export function fetchBots(options?: RequestOptions): Promise<Bot[]> {
   return request<Bot[]>({
     url: "/api/admin-server/bot",
     method: "GET",
+    ...options,
   });
 }
 
-export function fetchBot(id: string): Promise<Bot> {
+export function fetchBot(id: string, options?: RequestOptions): Promise<Bot> {
   return request<Bot>({
     url: `/api/admin-server/bot/${id}`,
     method: "GET",
+    ...options,
   });
 }
 
@@ -115,8 +119,12 @@ function skillPath(id?: string) {
   return id ? `/api/admin-server/skills/${id}` : "/api/admin-server/skills";
 }
 
-export function fetchSkills(): Promise<SkillSummary[]> {
-  return request<SkillSummary[]>({ url: skillPath(), method: "GET" });
+export function fetchSkills(options?: RequestOptions): Promise<SkillSummary[]> {
+  return request<SkillSummary[]>({
+    url: skillPath(),
+    method: "GET",
+    ...options,
+  });
 }
 
 export function fetchSkill(id: string): Promise<Skill> {
@@ -199,10 +207,13 @@ function resourcePath(resource: "intentions" | "scenes", id?: string) {
     : `/api/admin-server/${resource}`;
 }
 
-export function fetchScenes(): Promise<AdminResource[]> {
+export function fetchScenes(
+  options?: RequestOptions,
+): Promise<AdminResource[]> {
   return request<AdminResource[]>({
     url: resourcePath("scenes"),
     method: "GET",
+    ...options,
   });
 }
 
@@ -247,10 +258,13 @@ export function bulkDeleteScenes(ids: string[]): Promise<{ deleted: number }> {
   });
 }
 
-export function fetchIntentions(): Promise<Intention[]> {
+export function fetchIntentions(
+  options?: RequestOptions,
+): Promise<Intention[]> {
   return request<Intention[]>({
     url: resourcePath("intentions"),
     method: "GET",
+    ...options,
   });
 }
 
@@ -364,8 +378,14 @@ function providerPath(id?: string) {
     : "/api/admin-server/providers";
 }
 
-export function fetchModelProviders(): Promise<ModelProvider[]> {
-  return request<ModelProvider[]>({ url: providerPath(), method: "GET" });
+export function fetchModelProviders(
+  options?: RequestOptions,
+): Promise<ModelProvider[]> {
+  return request<ModelProvider[]>({
+    url: providerPath(),
+    method: "GET",
+    ...options,
+  });
 }
 
 export function fetchModelProvider(id: string): Promise<ModelProvider> {
@@ -449,8 +469,12 @@ function appPath(id?: string) {
 }
 
 /** Apps the current user may mount (server-filtered by user type). */
-export function fetchApps(): Promise<AppEntry[]> {
-  return request<AppEntry[]>({ url: appPath(), method: "GET" });
+export function fetchApps(options?: RequestOptions): Promise<AppEntry[]> {
+  return request<AppEntry[]>({
+    url: appPath(),
+    method: "GET",
+    ...options,
+  });
 }
 
 export function createApp(input: CreateAppInput): Promise<AppEntry> {

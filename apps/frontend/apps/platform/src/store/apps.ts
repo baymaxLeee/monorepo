@@ -1,5 +1,6 @@
 import { registerRemotes } from "@module-federation/enhanced/runtime";
 import { type AppEntry, fetchApps } from "api";
+import { getErrorMessage } from "shared";
 import { create } from "zustand";
 
 export type { AppEntry } from "api";
@@ -26,7 +27,7 @@ let loadPromise: Promise<void> | null = null;
 
 export function loadApps(): Promise<void> {
   if (loadPromise) return loadPromise;
-  loadPromise = fetchApps()
+  loadPromise = fetchApps({ skipErrorNotify: true })
     .then((apps) => {
       registerRemotes(
         apps.map((app) => ({ name: app.remote_name, entry: app.entry })),
@@ -35,9 +36,7 @@ export function loadApps(): Promise<void> {
       useAppsStore.getState().setApps(apps);
     })
     .catch((error) => {
-      useAppsStore
-        .getState()
-        .setError(error instanceof Error ? error.message : String(error));
+      useAppsStore.getState().setError(getErrorMessage(error));
     });
   return loadPromise;
 }

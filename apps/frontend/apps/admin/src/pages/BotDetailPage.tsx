@@ -23,6 +23,7 @@ import {
 } from "components";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+import { getErrorMessage } from "shared";
 
 export function BotDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -34,9 +35,9 @@ export function BotDetailPage() {
     if (!id) return;
     let alive = true;
     setLoading(true);
-    fetchBot(id)
+    fetchBot(id, { skipErrorNotify: true })
       .then((data) => alive && setBot(data))
-      .catch((e) => alive && setError(String(e)))
+      .catch((e) => alive && setError(getErrorMessage(e)))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
@@ -113,7 +114,7 @@ function BotSkillsCard({ botId }: { botId: string }) {
         setAttached(bound);
         setAll(every);
       })
-      .catch((e) => toast.error(String(e)));
+      .catch(() => {});
     return () => {
       alive = false;
     };
@@ -131,8 +132,7 @@ function BotSkillsCard({ botId }: { botId: string }) {
       setAttached(await attachBotSkill(botId, pickId));
       setPickId("");
       toast.success("已挂载技能");
-    } catch (e) {
-      toast.error(String(e));
+    } catch {
     } finally {
       setBusy(false);
     }
@@ -143,8 +143,7 @@ function BotSkillsCard({ botId }: { botId: string }) {
     try {
       setAttached(await detachBotSkill(botId, skillId));
       toast.success("已移除技能");
-    } catch (e) {
-      toast.error(String(e));
+    } catch {
     } finally {
       setBusy(false);
     }

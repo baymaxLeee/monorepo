@@ -61,6 +61,7 @@ import {
 } from "components";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { getErrorMessage } from "shared";
 import { z } from "zod";
 import { useShallow } from "zustand/react/shallow";
 import { AgentModelDialog } from "../components/AgentModelDialog";
@@ -108,12 +109,15 @@ export function BotListPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    Promise.all([fetchBots(), fetchModelProviders().catch(() => [])])
+    Promise.all([
+      fetchBots({ skipErrorNotify: true }),
+      fetchModelProviders({ skipErrorNotify: true }).catch(() => []),
+    ])
       .then(([botList, providerList]) => {
         setBots(botList);
         setProviders(providerList);
       })
-      .catch((e) => setError(String(e)))
+      .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -136,9 +140,7 @@ export function BotListPage() {
       toast.success("智能体已删除");
       setDeleting(null);
       load();
-    } catch (e) {
-      toast.error(String(e));
-    }
+    } catch {}
   }
 
   async function onCreate(values: CreateBotValues) {
@@ -149,9 +151,7 @@ export function BotListPage() {
       setCreateOpen(false);
       load();
     } catch (e) {
-      const message = String(e);
-      toast.error(message);
-      setError(message);
+      setError(getErrorMessage(e));
     }
   }
 

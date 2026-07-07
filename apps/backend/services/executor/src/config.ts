@@ -15,6 +15,7 @@ export interface Settings {
   knowledgeServiceUrl: string;
   chatServiceUrl: string;
   ffmpegPath: string;
+  htmlBlockConcurrency: number;
 }
 
 function envOr(key: string, fallback: string): string {
@@ -26,6 +27,10 @@ function envInt(key: string, fallback: number): number {
   if (!raw) return fallback;
   const n = Number(raw);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function envIntClamped(key: string, fallback: number, min: number, max: number): number {
+  return Math.max(min, Math.min(envInt(key, fallback), max));
 }
 
 export function getSettings(): Settings {
@@ -51,5 +56,8 @@ export function getSettings(): Settings {
     knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
     chatServiceUrl: envOr("CHAT_SERVICE_URL", "http://localhost:8009"),
     ffmpegPath: envOr("FFMPEG_PATH", "ffmpeg"),
+    // Bounded above by WORKFLOW_POSTGRES_WORKER_CONCURRENCY (the WDK step pool)
+    // and the provider's rate limit; transient 429/5xx are absorbed by retries.
+    htmlBlockConcurrency: envIntClamped("HTML_BLOCK_CONCURRENCY", 8, 1, 32),
   };
 }

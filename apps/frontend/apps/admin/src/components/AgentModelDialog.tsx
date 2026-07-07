@@ -169,9 +169,7 @@ export function AgentModelDialog({
       toast.success("配置已保存");
       onOpenChange(false);
       onSaved();
-    } catch (e) {
-      toast.error(String(e));
-    }
+    } catch {}
   }
 
   return (

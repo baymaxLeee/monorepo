@@ -82,8 +82,7 @@ export function PlatformRolesPage() {
     try {
       setUserRoles(await listUserPlatformRoles(id));
       setQueried(id);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+    } catch {
       setUserRoles(null);
       setQueried(null);
     } finally {
@@ -103,8 +102,7 @@ export function PlatformRolesPage() {
         toast.success("已授予 super_admin");
       }
       setUserRoles(await listUserPlatformRoles(queried));
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+    } catch {
     } finally {
       setBusy(false);
     }

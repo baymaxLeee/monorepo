@@ -41,6 +41,7 @@ import { type EChartsType, init, use } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePlatformStore } from "runtime";
+import { getErrorMessage } from "shared";
 
 use([
   BarChart,
@@ -111,13 +112,16 @@ export function HomePage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    Promise.all([fetchTelemetryErrors(200), fetchTelemetryPerformance(500)])
+    Promise.all([
+      fetchTelemetryErrors(200, { skipErrorNotify: true }),
+      fetchTelemetryPerformance(500, { skipErrorNotify: true }),
+    ])
       .then(([errors, performance]) => {
         setItems(errors.items);
         setPerformanceItems(performance.items);
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(getErrorMessage(err));
       })
       .finally(() => setLoading(false));
   }, []);

@@ -47,7 +47,7 @@ export function KnowledgeDocumentDialog({
         setFilename(doc.filename);
         setContent(doc.content_md ?? "");
       })
-      .catch((e) => toast.error(String(e)))
+      .catch(() => {})
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -67,8 +67,7 @@ export function KnowledgeDocumentDialog({
       toast.success("文档已保存，知识库索引已更新");
       onSaved();
       onOpenChange(false);
-    } catch (e) {
-      toast.error(String(e));
+    } catch {
     } finally {
       setSaving(false);
     }

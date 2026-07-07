@@ -1,4 +1,6 @@
-import { request } from "./http";
+import { type ApiRequestConfig, request } from "./http";
+
+type RequestOptions = Pick<ApiRequestConfig, "skipErrorNotify">;
 
 export interface TelemetryErrorEvent {
   app: string;
@@ -34,22 +36,30 @@ export interface TelemetryPerformanceEvent {
   value: number;
 }
 
-export function fetchTelemetryErrors(limit = 100): Promise<{
+export function fetchTelemetryErrors(
+  limit = 100,
+  options?: RequestOptions,
+): Promise<{
   items: TelemetryErrorEvent[];
 }> {
   return request({
     url: "/api/telemetry-server/errors",
     method: "GET",
     params: { limit },
+    ...options,
   });
 }
 
-export function fetchTelemetryPerformance(limit = 200): Promise<{
+export function fetchTelemetryPerformance(
+  limit = 200,
+  options?: RequestOptions,
+): Promise<{
   items: TelemetryPerformanceEvent[];
 }> {
   return request({
     url: "/api/telemetry-server/performance",
     method: "GET",
     params: { limit },
+    ...options,
   });
 }

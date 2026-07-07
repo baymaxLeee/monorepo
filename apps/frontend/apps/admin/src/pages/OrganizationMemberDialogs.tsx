@@ -54,8 +54,7 @@ export function CreateOrgAdminDialog({ onClose, onDone, org }: DialogProps) {
       toast.success("组织管理员已创建");
       onClose();
       onDone();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+    } catch {
     } finally {
       setBusy(false);
     }
@@ -136,8 +135,7 @@ export function TransferOwnerDialog({ onClose, onDone, org }: DialogProps) {
       toast.success("负责人已转让");
       onClose();
       onDone();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+    } catch {
     } finally {
       setBusy(false);
     }

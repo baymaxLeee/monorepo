@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "components";
 import { useCallback, useEffect, useState } from "react";
+import { getErrorMessage } from "shared";
 import { useAdminIdentity } from "../identity";
 import { CreateOrganizationDialog } from "./CreateOrganizationDialog";
 import {
@@ -44,9 +45,9 @@ export function OrganizationsPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    listOrgsForAdmin()
+    listOrgsForAdmin({ skipErrorNotify: true })
       .then(setOrgs)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
   }, []);
 

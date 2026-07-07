@@ -54,6 +54,7 @@ export async function checkAccountAvailability(account: string): Promise<{
     url: "/api/iam-server/account-availability",
     method: "GET",
     params: { account },
+    skipErrorNotify: true,
   });
 }
 
@@ -83,6 +84,7 @@ export async function refreshSession(): Promise<AuthSession | null> {
   refreshPromise = request<AuthSession>({
     url: "/api/iam-server/refresh",
     method: "POST",
+    skipErrorNotify: true,
   })
     .then(commitSession)
     .catch(() => {

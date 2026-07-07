@@ -45,6 +45,7 @@ import {
 } from "components";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { getErrorMessage } from "shared";
 import { z } from "zod";
 
 const appSchema = z.object({
@@ -92,9 +93,9 @@ export function AppsRegistryPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchApps()
+    fetchApps({ skipErrorNotify: true })
       .then(setApps)
-      .catch((e) => setError(String(e)))
+      .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -146,18 +147,14 @@ export function AppsRegistryPage() {
       }
       form.reset(defaults);
       load();
-    } catch (e) {
-      toast.error(String(e));
-    }
+    } catch {}
   }
 
   async function patch(app: AppEntry, values: Partial<AppEntry>) {
     try {
       await updateApp(app.id, values);
       load();
-    } catch (e) {
-      toast.error(String(e));
-    }
+    } catch {}
   }
 
   async function remove(app: AppEntry) {

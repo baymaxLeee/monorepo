@@ -71,7 +71,7 @@ export function PendingPage() {
   );
 
   useEffect(() => {
-    fetchPublicOrgs()
+    fetchPublicOrgs({ skipErrorNotify: true })
       .then(setOrgs)
       .catch(() => {
         /* directory is best-effort on this screen */
@@ -133,9 +133,7 @@ export function PendingPage() {
       await applyToOrg(orgId);
       toast.success("已重新提交申请");
       await refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "重新申请失败");
-    }
+    } catch {}
   }
 
   async function handleApplyOther() {
@@ -146,8 +144,7 @@ export function PendingPage() {
       toast.success("申请已提交");
       setSelectedOrg("");
       await refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "申请失败");
+    } catch {
     } finally {
       setApplying(false);
     }

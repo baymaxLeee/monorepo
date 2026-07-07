@@ -4,7 +4,6 @@ import {
   type AgentTraceToolCall,
   fetchConversationAgentTrace,
 } from "api";
-import { toast } from "components";
 import {
   Plan,
   PlanContent,
@@ -55,7 +54,7 @@ export function ChatTracePanel({
       .then((next) => {
         if (active) setTrace(next);
       })
-      .catch((error) => toast.error(String(error)))
+      .catch(() => {})
       .finally(() => {
         if (active) setLoading(false);
       });

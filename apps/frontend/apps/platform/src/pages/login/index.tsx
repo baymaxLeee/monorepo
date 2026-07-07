@@ -99,10 +99,7 @@ export function LoginPage() {
       });
       toast.success("登录成功");
       navigate(landingPath(session.user), { replace: true });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "登录失败";
-      toast.error(message);
-    }
+    } catch {}
   }
 
   return (

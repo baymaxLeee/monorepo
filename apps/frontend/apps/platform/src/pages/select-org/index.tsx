@@ -6,7 +6,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  toast,
 } from "components";
 import { UsersIcon } from "lucide-react";
 import { clearUser as clearObservabilityUser } from "observability";
@@ -38,8 +37,7 @@ export function SelectOrgPage() {
       // cleanly bound to the chosen org.
       setUser(session.user);
       window.location.assign("/platform/home");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "进入团队失败");
+    } catch {
       setSwitching(null);
     }
   }

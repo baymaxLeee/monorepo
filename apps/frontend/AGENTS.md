@@ -74,8 +74,16 @@ deployed asset bundles, but platform is the only user-facing entry.
 
 - ALWAYS via `api` (typed wrappers / generated clients re-exported
   from package entry)
-- NEVER raw `fetch()` in MFE code
-- Error handling via shared `useApiError()` hook from `shared`
+- 所有非流式请求走**唯一 axios 单例** `apiHttp`（`packages/api/src/http.ts`）：
+  request 拦截器注入 `Bearer` token，response 拦截器统一做 401 refresh-retry +
+  通用错误处理，并把后端 RFC7807 错误信息（`detail`/`message`/`title`）`toast.error`
+  出来。业务层 `catch` **不要再手动 toast**——那会重复提示。
+- 唯一例外是 **SSE / 流式 / raw-fetch**（AI SDK `DefaultChatTransport`、上传 SSE、
+  blob 源）：它们无法过 axios，改用 `authFetch`（同样镜像 401 refresh 策略），错误在
+  调用点自行 `toast.error(getErrorMessage(err))`。
+- 需要**抑制**拦截器全局 toast（后台探针、或页面自渲染内联错误 UI）时，给该请求传
+  `skipErrorNotify: true`（`ApiRequestConfig`）；内联错误文案统一用 `shared` 的
+  `getErrorMessage(err, fallback)` 提取。
 
 ### shadcn / Tailwind v4
 

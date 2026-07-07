@@ -6,7 +6,9 @@
  * management calls are gated server-side (super_admin / active org_admin) — the
  * UI only hides what the caller can't do; the API is the real boundary.
  */
-import { request } from "./http";
+import { type ApiRequestConfig, request } from "./http";
+
+type RequestOptions = Pick<ApiRequestConfig, "skipErrorNotify">;
 
 export type OrgSummary = { id: string; name: string };
 
@@ -46,8 +48,14 @@ const base = "/api/iam-server";
 // --- Public directory + self-service ------------------------------------
 
 /** Public, applyable org list ({id,name} only). No auth required. */
-export async function fetchPublicOrgs(): Promise<OrgSummary[]> {
-  return request<OrgSummary[]>({ url: `${base}/orgs`, method: "GET" });
+export async function fetchPublicOrgs(
+  options?: RequestOptions,
+): Promise<OrgSummary[]> {
+  return request<OrgSummary[]>({
+    url: `${base}/orgs`,
+    method: "GET",
+    ...options,
+  });
 }
 
 /** (Re)apply to join an org from none/rejected → pending. */
@@ -70,8 +78,14 @@ export type CreateOrgInput = {
   ownerDisplayName?: string;
 };
 
-export async function listOrgsForAdmin(): Promise<OrgAdminView[]> {
-  return request<OrgAdminView[]>({ url: `${base}/orgs/admin`, method: "GET" });
+export async function listOrgsForAdmin(
+  options?: RequestOptions,
+): Promise<OrgAdminView[]> {
+  return request<OrgAdminView[]>({
+    url: `${base}/orgs/admin`,
+    method: "GET",
+    ...options,
+  });
 }
 
 export async function createOrg(input: CreateOrgInput): Promise<OrgAdminView> {
@@ -116,11 +130,13 @@ export async function transferOrgOwner(
 export async function listOrgMembers(
   orgId: string,
   status?: "pending" | "active" | "rejected",
+  options?: RequestOptions,
 ): Promise<OrgMemberView[]> {
   return request<OrgMemberView[]>({
     url: `${base}/orgs/${encodeURIComponent(orgId)}/members`,
     method: "GET",
     params: status ? { status } : undefined,
+    ...options,
   });
 }
 

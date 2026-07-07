@@ -27,6 +27,7 @@ import {
 } from "components";
 import { telemetry } from "observability";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getErrorMessage } from "shared";
 
 const adminTelemetry = telemetry.scope({
   app: "mfe-admin",
@@ -54,7 +55,7 @@ export function OperationsObservabilityPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchTelemetryErrors(200)
+    fetchTelemetryErrors(200, { skipErrorNotify: true })
       .then((data) => {
         setItems(data.items);
         adminTelemetry.event("observability_errors_loaded", {
@@ -62,8 +63,7 @@ export function OperationsObservabilityPage() {
         });
       })
       .catch((err) => {
-        const message = err instanceof Error ? err.message : String(err);
-        setError(message);
+        setError(getErrorMessage(err));
         adminTelemetry.captureException(err, {
           area: "admin_observability",
         });

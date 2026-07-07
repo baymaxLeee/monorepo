@@ -26,6 +26,7 @@ import {
   TableRow,
 } from "components";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getErrorMessage } from "shared";
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -48,10 +49,10 @@ export function ObservabilityPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchTelemetryErrors(100)
+    fetchTelemetryErrors(100, { skipErrorNotify: true })
       .then((data) => setItems(data.items))
       .catch((err) => {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(getErrorMessage(err));
       })
       .finally(() => setLoading(false));
   }, []);

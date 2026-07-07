@@ -1,5 +1,5 @@
 import type { MemoryCandidate, MemoryCategory, UserMemory } from "api";
-import { Badge, Button, Textarea, toast } from "components";
+import { Badge, Button, Textarea } from "components";
 import { MessageResponse } from "components/ai-chat";
 import { useEffect, useState } from "react";
 import { useMemoryStore } from "../store/useMemoryStore";
@@ -46,8 +46,7 @@ export function MemoryPanel({ open }: MemoryPanelProps) {
     setPendingActionId(id);
     try {
       await approve(id);
-    } catch (err) {
-      toast.error(String(err));
+    } catch {
     } finally {
       setPendingActionId(null);
     }
@@ -57,8 +56,7 @@ export function MemoryPanel({ open }: MemoryPanelProps) {
     setPendingActionId(id);
     try {
       await reject(id);
-    } catch (err) {
-      toast.error(String(err));
+    } catch {
     } finally {
       setPendingActionId(null);
     }
@@ -68,8 +66,7 @@ export function MemoryPanel({ open }: MemoryPanelProps) {
     setPendingActionId(id);
     try {
       await remove(id);
-    } catch (err) {
-      toast.error(String(err));
+    } catch {
     } finally {
       setPendingActionId(null);
     }
@@ -81,7 +78,7 @@ export function MemoryPanel({ open }: MemoryPanelProps) {
   ) => {
     void edit(id, patch)
       .then(() => setEditingId(null))
-      .catch((err) => toast.error(String(err)));
+      .catch(() => {});
   };
 
   const renderCandidate = (candidate: MemoryCandidate) => {

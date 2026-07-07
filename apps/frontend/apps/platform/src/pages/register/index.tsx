@@ -32,6 +32,7 @@ import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { usePlatformStore } from "runtime";
+import { getErrorMessage } from "shared";
 import { z } from "zod";
 import { useShallow } from "zustand/react/shallow";
 import { landingPath } from "../../onboarding";
@@ -81,13 +82,13 @@ export function RegisterPage() {
 
   useEffect(() => {
     let alive = true;
-    fetchPublicOrgs()
+    fetchPublicOrgs({ skipErrorNotify: true })
       .then((list) => {
         if (alive) setOrgs(list);
       })
       .catch((err: unknown) => {
         if (alive) {
-          setOrgsError(err instanceof Error ? err.message : "无法加载组织列表");
+          setOrgsError(getErrorMessage(err, "无法加载组织列表"));
         }
       });
     return () => {
@@ -119,8 +120,7 @@ export function RegisterPage() {
       form.clearErrors("name");
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "名称校验失败";
-      form.setError("name", { message });
+      form.setError("name", { message: getErrorMessage(err, "名称校验失败") });
       return false;
     }
   }
@@ -153,10 +153,7 @@ export function RegisterPage() {
           : "注册成功，已进入游客组织；目标组织等待审批",
       );
       navigate(landingPath(session.user), { replace: true });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "注册失败";
-      toast.error(message);
-    }
+    } catch {}
   }
 
   return (

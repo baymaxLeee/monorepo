@@ -1,6 +1,8 @@
 import { getWorkflowMetadata } from "workflow";
 import { z } from "zod";
 
+import { getSettings } from "../src/config.js";
+
 import {
   isTaskCancelled,
   recordArtifactGeneration,
@@ -20,6 +22,7 @@ import { compileArtifactHtml } from "../src/artifacts/compiler.js";
 import {
   buildArtifactTextModel,
   generateBlock,
+  isRetryableProviderError,
   planArtifact,
   type ArtifactBlock,
   type ArtifactMode,
@@ -232,6 +235,10 @@ async function generateBlockStep(input: {
       payload = JSON.stringify({ title: input.block.title, html });
     } catch (error) {
       if (cancellation.signal.aborted) throw error;
+      // Transient provider failures (429 / 5xx / network) must reach the WDK
+      // step retry instead of being frozen into an error section — otherwise
+      // raising concurrency just turns rate limits into permanent broken blocks.
+      if (isRetryableProviderError(error)) throw error;
       console.error("[executor] block failed, degrading to error section", { blockId: input.block.id, error });
       payload = JSON.stringify({ title: input.block.title, error: String(error).slice(0, 500) });
       failed = true;
@@ -311,6 +318,11 @@ async function failStep(input: { userId: string; generationId: string; error: st
   }).catch(() => undefined);
 }
 
+async function getHtmlBlockConcurrencyStep(): Promise<number> {
+  "use step";
+  return getSettings().htmlBlockConcurrency;
+}
+
 async function mapConcurrent<T, R>(
   values: readonly T[],
   concurrency: number,
@@ -328,10 +340,9 @@ async function mapConcurrent<T, R>(
   return results;
 }
 
-const BLOCK_CONCURRENCY = 4;
-
 export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
   "use workflow";
+  const blockConcurrency = await getHtmlBlockConcurrencyStep();
   const plan = await planStep(input);
   const generationId = await reserveStep(
     input,
@@ -342,9 +353,14 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
   try {
     const strategiesById = new Map((plan.blockStrategies ?? []).map((s) => [s.id, s]));
     const total = plan.blocks.length;
+    // Progress is best-effort UX, but each report is a durable step competing for
+    // the same worker pool as block generation. Cap it to ~20 reports regardless
+    // of block count so raising concurrency doesn't flood the queue with progress
+    // jobs; the terminal block always reports.
+    const progressEvery = Math.max(1, Math.ceil(total / 20));
     let done = 0;
     await reportProgressStep(done, total);
-    await mapConcurrent(plan.blocks, BLOCK_CONCURRENCY, async (block) => {
+    await mapConcurrent(plan.blocks, blockConcurrency, async (block) => {
       const result = await generateBlockStep({
         userId: input.userId,
         providerId: input.providerId,
@@ -358,7 +374,9 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
         sourceHtml: plan.sourceHtmlById?.[block.id],
       });
       done += 1;
-      await reportProgressStep(done, total);
+      if (done === total || done % progressEvery === 0) {
+        await reportProgressStep(done, total);
+      }
       return result;
     });
 

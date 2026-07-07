@@ -398,14 +398,22 @@ export type UpdateMemoryCandidateInput = UpdateMemoryCandidate;
 const memoryClient = getChatService();
 const memoryClientOptions = { baseURL: `${API_BASE_URL}/api/chat-server` };
 
+// Memory reads feed the panel's inline error state, so they opt out of the
+// interceptor toast; the mutations below keep the default toast.
 export function fetchActiveMemories(): Promise<{ memories: UserMemory[] }> {
-  return memoryClient.getMemories(memoryClientOptions);
+  return memoryClient.getMemories({
+    ...memoryClientOptions,
+    skipErrorNotify: true,
+  });
 }
 
 export function fetchMemoryCandidates(): Promise<{
   candidates: MemoryCandidate[];
 }> {
-  return memoryClient.getMemoriesCandidates(memoryClientOptions);
+  return memoryClient.getMemoriesCandidates({
+    ...memoryClientOptions,
+    skipErrorNotify: true,
+  });
 }
 
 export function approveMemoryCandidate(

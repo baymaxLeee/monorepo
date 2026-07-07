@@ -113,9 +113,7 @@ export function CreateOrganizationDialog({
       form.reset(defaults);
       onOpenChange(false);
       onDone();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
-    }
+    } catch {}
   }
 
   return (

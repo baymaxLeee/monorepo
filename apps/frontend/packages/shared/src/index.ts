@@ -5,6 +5,20 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Safe error-message extractor for UI display / inline error state.
+ *
+ * Kept as a pure module-level helper on purpose: an inline
+ * `err instanceof Error ? err.message : ...` inside an async `try/catch` is
+ * miscompiled by React Compiler v1 (the `catch` binding is dropped), so the
+ * ternary must live outside component bodies.
+ */
+export function getErrorMessage(error: unknown, fallback = "操作失败"): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string" && error) return error;
+  return fallback;
+}
+
 declare const process: { env: { API_BASE_URL?: string } } | undefined;
 
 export const API_BASE_URL =

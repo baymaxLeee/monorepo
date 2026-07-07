@@ -1,4 +1,5 @@
 import { type Bot, fetchBots } from "api";
+import { getErrorMessage } from "shared";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -85,7 +86,7 @@ export const useChatStore = create<ChatUIState>()(
         if (get().isLoadingAgents) return;
         set({ isLoadingAgents: true, agentsError: null });
         try {
-          const list = await fetchBots();
+          const list = await fetchBots({ skipErrorNotify: true });
           const selected = get().selectedAgentId;
           const stillExists = selected
             ? list.some((a) => a.id === selected)
@@ -95,7 +96,7 @@ export const useChatStore = create<ChatUIState>()(
             selectedAgentId: stillExists ? selected : (list[0]?.id ?? null),
           });
         } catch (error) {
-          set({ agents: [], agentsError: String(error) });
+          set({ agents: [], agentsError: getErrorMessage(error) });
         } finally {
           set({ isLoadingAgents: false });
         }

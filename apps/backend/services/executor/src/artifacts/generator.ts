@@ -1,4 +1,4 @@
-import { Output, extractJsonMiddleware, generateText, streamText, wrapLanguageModel } from "ai";
+import { APICallError, Output, extractJsonMiddleware, generateText, streamText, wrapLanguageModel } from "ai";
 import { z } from "zod";
 
 import { getProvider } from "../clients/admin.js";
@@ -30,6 +30,18 @@ const blockSchema = z.object({
   title: z.string().min(1).max(160),
   brief: z.string().min(1).max(4000),
 });
+
+// Same retryable class as the video pipeline's ArkRequestError: rate limits and
+// upstream 5xx are transient, so we rethrow them to let the WDK step retry
+// instead of degrading a block. 4xx (bad params / moderation) is terminal.
+export function isRetryableProviderError(error: unknown): boolean {
+  if (APICallError.isInstance(error)) {
+    if (error.isRetryable) return true;
+    const status = error.statusCode;
+    return status === 429 || (status != null && status >= 500);
+  }
+  return false;
+}
 
 export async function buildArtifactTextModel(providerId: string) {
   const provider: ChatProvider = await getProvider(providerId);

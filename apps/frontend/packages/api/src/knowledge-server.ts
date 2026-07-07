@@ -7,9 +7,10 @@ import type {
   StreamEventOptions,
   UpdateConversationDocumentInput,
 } from "./chat-server";
-import { API_BASE_URL, apiHttp, request } from "./http";
+import { API_BASE_URL, type ApiRequestConfig, apiHttp, request } from "./http";
 
 const BASE = "/api/knowledge-server";
+type RequestOptions = Pick<ApiRequestConfig, "skipErrorNotify">;
 
 export type KnowledgeDocument = Omit<
   ConversationDocument,
@@ -149,13 +150,17 @@ export async function updateKnowledgeDocument(
  * (operator-uploaded enterprise docs) so agent-generated artifacts don't leak
  * into the management view.
  */
-export async function listKnowledgeDocuments(params?: {
-  kind?: ConversationDocumentKind;
-}): Promise<KnowledgeDocument[]> {
+export async function listKnowledgeDocuments(
+  params?: {
+    kind?: ConversationDocumentKind;
+  },
+  options?: RequestOptions,
+): Promise<KnowledgeDocument[]> {
   const query = params?.kind ? `?kind=${encodeURIComponent(params.kind)}` : "";
   const docs = await request<Array<Record<string, unknown>>>({
     url: `${BASE}/documents${query}`,
     method: "GET",
+    ...options,
   });
   return docs.map((doc) => ({
     ...toConversationDocument(doc, String(doc.conversation_id ?? "")),
