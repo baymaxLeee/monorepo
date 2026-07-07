@@ -45,9 +45,8 @@ async def attach_skill(session: AsyncSession, bot_id: str, skill_id: str) -> Non
     if await get_binding(session, bot_id, skill_id) is not None:
         return
     session.add(BotSkillRow(bot_id=bot_id, skill_id=skill_id, sort=0))
-    await session.commit()
+    await session.flush()
 
 
 async def detach_skill(session: AsyncSession, bot_id: str, skill_id: str) -> None:
     await session.execute(delete(BotSkillRow).where(BotSkillRow.bot_id == bot_id, BotSkillRow.skill_id == skill_id))
-    await session.commit()

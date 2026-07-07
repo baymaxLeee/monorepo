@@ -9,6 +9,7 @@ from kernel.errors import NotFoundError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from admin.crud import intentions as intention_crud
+from admin.db import write_tx
 from admin.deps import AuthContext
 from admin.models.intention import IntentionRow
 from admin.schemas.intention import CreateIntentionInput, Intention, UpdateIntentionInput
@@ -53,37 +54,41 @@ class IntentionService:
         return to_schema(await self._get_row(intention_id))
 
     async def create(self, payload: CreateIntentionInput) -> Intention:
-        row = await intention_crud.create_intention(
-            self._session,
-            description=payload.description,
-            examples=payload.examples,
-            is_enabled=payload.is_enabled,
-            name=payload.name,
-            scene_name=payload.scene_name,
-            status=payload.status,
-            user_id=self._current_user.user_id,
-            org_id=self._current_user.org_id,
-            username=self._current_user.username,
-        )
+        async with write_tx(self._session):
+            row = await intention_crud.create_intention(
+                self._session,
+                description=payload.description,
+                examples=payload.examples,
+                is_enabled=payload.is_enabled,
+                name=payload.name,
+                scene_name=payload.scene_name,
+                status=payload.status,
+                user_id=self._current_user.user_id,
+                org_id=self._current_user.org_id,
+                username=self._current_user.username,
+            )
         return to_schema(row)
 
     async def update(self, intention_id: str, payload: UpdateIntentionInput) -> Intention:
-        row = await self._get_row(intention_id)
-        values = payload.model_dump(exclude_unset=True)
-        return to_schema(await intention_crud.update_intention(self._session, row, values))
+        async with write_tx(self._session):
+            row = await self._get_row(intention_id)
+            values = payload.model_dump(exclude_unset=True)
+            return to_schema(await intention_crud.update_intention(self._session, row, values))
 
     async def delete(self, intention_id: str) -> None:
-        await intention_crud.delete_intention(
-            self._session,
-            await self._get_row(intention_id),
-        )
+        async with write_tx(self._session):
+            await intention_crud.delete_intention(
+                self._session,
+                await self._get_row(intention_id),
+            )
 
     async def bulk_delete(self, ids: Sequence[str]) -> int:
-        return await intention_crud.bulk_delete_intentions(
-            self._session,
-            list(ids),
-            self._current_user.org_id,
-        )
+        async with write_tx(self._session):
+            return await intention_crud.bulk_delete_intentions(
+                self._session,
+                list(ids),
+                self._current_user.org_id,
+            )
 
     async def _get_row(self, intention_id: str) -> IntentionRow:
         row = await intention_crud.get_intention(

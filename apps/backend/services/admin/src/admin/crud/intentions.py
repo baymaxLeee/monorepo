@@ -59,8 +59,7 @@ async def create_intention(
         updated_at=now,
     )
     session.add(row)
-    await session.commit()
-    await session.refresh(row)
+    await session.flush()
     return row
 
 
@@ -72,14 +71,12 @@ async def update_intention(
     for key, value in values.items():
         setattr(row, key, value)
     row.updated_at = datetime.now(UTC)
-    await session.commit()
-    await session.refresh(row)
+    await session.flush()
     return row
 
 
 async def delete_intention(session: AsyncSession, row: IntentionRow) -> None:
     await session.delete(row)
-    await session.commit()
 
 
 async def bulk_delete_intentions(
@@ -89,5 +86,4 @@ async def bulk_delete_intentions(
 ) -> int:
     stmt = delete(IntentionRow).where(IntentionRow.id.in_(ids), IntentionRow.org_id == org_id)
     result = await session.execute(stmt)
-    await session.commit()
     return cast(CursorResult[object], result).rowcount or 0

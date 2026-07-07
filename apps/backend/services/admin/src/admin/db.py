@@ -1,6 +1,7 @@
 """Async SQLAlchemy engine and session factory."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -49,6 +50,14 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
 async def get_db_session() -> AsyncGenerator[AsyncSession]:
     factory = get_session_factory()
     async with factory() as session:
+        yield session
+
+
+@asynccontextmanager
+async def write_tx(session: AsyncSession) -> AsyncIterator[AsyncSession]:
+    if session.in_transaction():
+        raise RuntimeError("write_tx must be entered before any session IO")
+    async with session.begin():
         yield session
 
 
@@ -118,7 +127,7 @@ async def seed_demo_bots() -> None:
         "chat": "/mfe-chat/mf-manifest.json",
     }
     factory = get_session_factory()
-    async with factory() as session:
+    async with factory() as session, write_tx(session):
         existing_app = await session.scalar(select(AppRow.id).limit(1))
         if existing_app is None:
             for app_id, title, base_path, remote_name, requires_admin, sort_order in _DEMO_APPS:
@@ -186,5 +195,3 @@ async def seed_demo_bots() -> None:
                         updated_at=created,
                     )
                 )
-
-        await session.commit()

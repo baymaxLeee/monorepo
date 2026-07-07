@@ -107,6 +107,9 @@ for the full rationale.
   `ExecutorInternalClient`; it never imports this service's source.
 - This service owns no chat/artifact domain concepts (conversation, message,
   document). It only knows about tasks, types, and payloads.
+- DB transactions (ADR-0037): same-DB multi-step writes use
+  `getDb().transaction(async (tx) => ...)` (as `tasks/notify.ts` already does);
+  Workflow starts / HTTP calls are external side effects and stay OUTSIDE the tx.
 
 ## Outbound task notifications
 

@@ -21,6 +21,8 @@ storage and dashboard query APIs.
 - Write-path validation, redaction, sampling, fingerprinting, and dispatch
   live in `services/ingestion.py`.
 - ORM models live in `models/`; query helpers in `crud/`.
+- Transactions (ADR-0037): the write path wraps its `add_all` + session upsert
+  in `async with write_tx(session):`; no manual `commit()`.
 - Query endpoints must require `X-Auth-*`; anonymous writes are allowed only
   on `/rum/batch`.
 - Never trust frontend `user_id`, `username`, `email`, or `is_admin` fields.

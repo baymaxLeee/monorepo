@@ -22,35 +22,43 @@ const CANCELLATION_POLL_MS = 1_000;
 export async function acquireRunLease(conversationId: string, runId: string): Promise<void> {
   const db = getDb();
   const now = new Date();
-  const expired = await db
-    .select()
-    .from(conversationRunLeases)
-    .where(and(eq(conversationRunLeases.conversationId, conversationId), lte(conversationRunLeases.expiresAt, now)));
-  await db
-    .delete(conversationRunLeases)
-    .where(and(eq(conversationRunLeases.conversationId, conversationId), lte(conversationRunLeases.expiresAt, now)));
+  // Reap expired leases, verify no active lease, and claim in one transaction so
+  // the read-then-write is atomic (Drizzle rolls back on any throw). A lost race
+  // rolls back the reap too; the next acquire re-reaps — expired rows are inert.
+  const expired = await db.transaction(async (tx) => {
+    const expiredLeases = await tx
+      .select()
+      .from(conversationRunLeases)
+      .where(and(eq(conversationRunLeases.conversationId, conversationId), lte(conversationRunLeases.expiresAt, now)));
+    await tx
+      .delete(conversationRunLeases)
+      .where(and(eq(conversationRunLeases.conversationId, conversationId), lte(conversationRunLeases.expiresAt, now)));
+    const [active] = await tx
+      .select()
+      .from(conversationRunLeases)
+      .where(eq(conversationRunLeases.conversationId, conversationId));
+    if (active) {
+      throw new ConflictError("this conversation already has an active run", "active_run_exists", {
+        run_id: active.runId,
+      });
+    }
+    try {
+      await tx.insert(conversationRunLeases).values({
+        conversationId,
+        runId,
+        heartbeatAt: now,
+        expiresAt: new Date(now.getTime() + LEASE_MS),
+      });
+    } catch {
+      throw new ConflictError("this conversation already has an active run", "active_run_exists");
+    }
+    return expiredLeases;
+  });
+  // Cross-table run finalization for the leases we just reclaimed runs outside
+  // the lease transaction — a slow/failed run update must not widen the window.
   await Promise.all(expired.map((lease) =>
     finishAgentRun({ runId: lease.runId, status: "interrupted" }).catch(() => undefined),
   ));
-  const [active] = await db
-    .select()
-    .from(conversationRunLeases)
-    .where(eq(conversationRunLeases.conversationId, conversationId));
-  if (active) {
-    throw new ConflictError("this conversation already has an active run", "active_run_exists", {
-      run_id: active.runId,
-    });
-  }
-  try {
-    await db.insert(conversationRunLeases).values({
-      conversationId,
-      runId,
-      heartbeatAt: now,
-      expiresAt: new Date(now.getTime() + LEASE_MS),
-    });
-  } catch {
-    throw new ConflictError("this conversation already has an active run", "active_run_exists");
-  }
 }
 
 export function registerRunController(runId: string): AbortSignal {

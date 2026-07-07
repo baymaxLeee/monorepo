@@ -138,8 +138,7 @@ async def create_provider(
         updated_at=now,
     )
     session.add(row)
-    await session.commit()
-    await session.refresh(row)
+    await session.flush()
     return row
 
 
@@ -151,14 +150,12 @@ async def update_provider(
     for key, value in values.items():
         setattr(row, key, value)
     row.updated_at = datetime.now(UTC)
-    await session.commit()
-    await session.refresh(row)
+    await session.flush()
     return row
 
 
 async def delete_provider(session: AsyncSession, row: ModelProviderRow) -> None:
     await session.delete(row)
-    await session.commit()
 
 
 async def bulk_delete_providers(
@@ -171,5 +168,4 @@ async def bulk_delete_providers(
         ModelProviderRow.org_id == org_id,
     )
     result = await session.execute(stmt)
-    await session.commit()
     return cast(CursorResult[object], result).rowcount or 0

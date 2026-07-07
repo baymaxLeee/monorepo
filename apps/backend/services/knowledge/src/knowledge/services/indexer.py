@@ -25,8 +25,9 @@ import hashlib
 import logging
 
 from knowledge.config import get_settings
+from knowledge.crud import chunks as chunk_crud
 from knowledge.crud import documents as document_crud
-from knowledge.db import get_engine, get_session_factory
+from knowledge.db import get_engine, get_session_factory, write_tx
 from knowledge.models.document import DocumentRow
 from knowledge.services.indexing import index_document
 from sqlalchemy import select, text, update
@@ -100,24 +101,26 @@ async def _index_with_lock(document_id: str) -> None:
 async def _index_once(document_id: str) -> None:
     factory = get_session_factory()
     async with factory() as session:
-        row = await document_crud.get_document_by_id(session, document_id)
-        if row is None:
-            return
-        captured_updated_at = row.updated_at  # content version guard for the final write
-        await document_crud.set_index_status(session, document_id, status="indexing")
-        await session.commit()
+        async with write_tx(session):
+            row = await document_crud.get_document_by_id(session, document_id)
+            if row is None:
+                return
+            captured_updated_at = row.updated_at  # content version guard for the final write
+            await document_crud.set_index_status(session, document_id, status="indexing")
 
-        result = await index_document(session, document_id=document_id)
+        result, new_rows = await index_document(row)
 
-        error = result.reason if result.status == "failed" else None
-        wrote = await document_crud.finalize_index_status(
-            session,
-            document_id,
-            status=result.status,
-            error=error[:500] if error else None,
-            expected_updated_at=captured_updated_at,
-        )
-        await session.commit()
+        async with write_tx(session):
+            fresh = await session.scalar(select(DocumentRow).where(DocumentRow.id == document_id).with_for_update())
+            if fresh is None or fresh.updated_at != captured_updated_at:
+                wrote = False
+            else:
+                await chunk_crud.delete_document_chunks(session, document_id)
+                await chunk_crud.insert_chunks(session, new_rows)
+                wrote = True
+            error = result.reason if result.status == "failed" else None
+            if wrote:
+                await document_crud.set_index_status(session, document_id, status=result.status, error=error[:500] if error else None)
         if not wrote:
             # An edit landed while we indexed; the stale result is discarded. The
             # edit's schedule set us dirty, so _run re-indexes the new content.
@@ -127,9 +130,8 @@ async def _index_once(document_id: str) -> None:
 async def _mark_failed(document_id: str, message: str) -> None:
     try:
         factory = get_session_factory()
-        async with factory() as session:
+        async with factory() as session, write_tx(session):
             await document_crud.set_index_status(session, document_id, status="failed", error=message[:500])
-            await session.commit()
     except Exception:  # best-effort status write
         logger.exception("failed to mark index failure for %s", document_id)
 
@@ -140,10 +142,10 @@ async def sweep_claim() -> int:
     replicas sweep at once."""
     factory = get_session_factory()
     async with factory() as session:
-        await session.execute(
-            update(DocumentRow).where(DocumentRow.index_status == "indexing").values(index_status="pending")
-        )
-        await session.commit()
+        async with write_tx(session):
+            await session.execute(
+                update(DocumentRow).where(DocumentRow.index_status == "indexing").values(index_status="pending")
+            )
         rows = await session.execute(select(DocumentRow.id).where(DocumentRow.index_status == "pending"))
         ids = [row_id for (row_id,) in rows.all()]
     for document_id in ids:

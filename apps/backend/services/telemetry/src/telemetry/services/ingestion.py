@@ -16,6 +16,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from telemetry.config import get_settings
+from telemetry.db import write_tx
 from telemetry.deps import OptionalAuthContext
 from telemetry.models import (
     EventBusinessRow,
@@ -85,40 +86,39 @@ async def ingest_batch(session: AsyncSession, batch: RumBatch, auth: OptionalAut
                 )
             )
 
-    if rows:
-        session.add_all(rows)
+    async with write_tx(session):
+        if rows:
+            session.add_all(rows)
 
-    if batch.events:
-        last = batch.events[-1]
-        stmt = pg_insert(SessionRow).values(
-            app=batch.app,
-            session_id=batch.session_id,
-            ts_server=now,
-            env=settings.environment,
-            release=batch.release,
-            user_id=auth.user_id,
-            username=auth.username,
-            is_admin=1 if auth.is_admin else 0,
-            device_id=batch.device_id,
-            route=last.route,
-            user_agent=batch.user_agent or auth.user_agent,
-            event_count=len(batch.events),
-        )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["app", "session_id"],
-            set_={
-                "ts_server": stmt.excluded.ts_server,
-                "user_id": stmt.excluded.user_id,
-                "username": stmt.excluded.username,
-                "is_admin": stmt.excluded.is_admin,
-                "route": stmt.excluded.route,
-                "user_agent": stmt.excluded.user_agent,
-                "event_count": SessionRow.event_count + stmt.excluded.event_count,
-            },
-        )
-        await session.execute(stmt)
-
-    await session.commit()
+        if batch.events:
+            last = batch.events[-1]
+            stmt = pg_insert(SessionRow).values(
+                app=batch.app,
+                session_id=batch.session_id,
+                ts_server=now,
+                env=settings.environment,
+                release=batch.release,
+                user_id=auth.user_id,
+                username=auth.username,
+                is_admin=1 if auth.is_admin else 0,
+                device_id=batch.device_id,
+                route=last.route,
+                user_agent=batch.user_agent or auth.user_agent,
+                event_count=len(batch.events),
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["app", "session_id"],
+                set_={
+                    "ts_server": stmt.excluded.ts_server,
+                    "user_id": stmt.excluded.user_id,
+                    "username": stmt.excluded.username,
+                    "is_admin": stmt.excluded.is_admin,
+                    "route": stmt.excluded.route,
+                    "user_agent": stmt.excluded.user_agent,
+                    "event_count": SessionRow.event_count + stmt.excluded.event_count,
+                },
+            )
+            await session.execute(stmt)
 
 
 def _common_kwargs(

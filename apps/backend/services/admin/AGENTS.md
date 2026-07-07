@@ -27,6 +27,11 @@ The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing
 - Routers are thin: request/response wiring only.
 - Business rules live in `services/`.
 - DB access lives in `crud/`; routers never touch SQLAlchemy directly.
+- Transactions (ADR-0037): `crud/` only reads/stages (`add`/`flush`/`delete`/
+  `select`) and NEVER commits. The `services/` method that owns a write unit of
+  work opens `async with write_tx(session):` before any DB access and does all
+  its reads + writes inside that block (autobegin-first). Keep external IO (DNS
+  validation, Redis) outside the block.
 - Pydantic API shapes live in `schemas/`; SQLAlchemy table definitions live in `models/`.
 - Keep business resources separated end-to-end. Each table/resource gets its
   own `models/<resource>.py`, `schemas/<resource>.py`, `crud/<resource>.py`,

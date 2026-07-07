@@ -9,6 +9,7 @@ from kernel.errors import NotFoundError, RequestError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from admin.crud import skills as skill_crud
+from admin.db import write_tx
 from admin.deps import AuthContext
 from admin.models.skill import SkillRow
 from admin.schemas.skill import CreateSkillInput, InternalSkill, Skill, SkillSummary, UpdateSkillInput
@@ -68,32 +69,36 @@ class SkillService:
         return to_schema(await self._get_row(skill_id))
 
     async def create(self, payload: CreateSkillInput) -> Skill:
-        await self._assert_name_free(payload.name)
-        row = await skill_crud.create_skill(
-            self._session,
-            name=payload.name,
-            description=payload.description,
-            body=payload.body,
-            status=payload.status,
-            is_enabled=payload.is_enabled,
-            user_id=self._current_user.user_id,
-            org_id=self._current_user.org_id,
-            username=self._current_user.username,
-        )
+        async with write_tx(self._session):
+            await self._assert_name_free(payload.name)
+            row = await skill_crud.create_skill(
+                self._session,
+                name=payload.name,
+                description=payload.description,
+                body=payload.body,
+                status=payload.status,
+                is_enabled=payload.is_enabled,
+                user_id=self._current_user.user_id,
+                org_id=self._current_user.org_id,
+                username=self._current_user.username,
+            )
         return to_schema(row)
 
     async def update(self, skill_id: str, payload: UpdateSkillInput) -> Skill:
-        row = await self._get_row(skill_id)
-        values = payload.model_dump(exclude_unset=True)
-        if "name" in values and values["name"] != row.name:
-            await self._assert_name_free(values["name"])
-        return to_schema(await skill_crud.update_skill(self._session, row, values))
+        async with write_tx(self._session):
+            row = await self._get_row(skill_id)
+            values = payload.model_dump(exclude_unset=True)
+            if "name" in values and values["name"] != row.name:
+                await self._assert_name_free(values["name"])
+            return to_schema(await skill_crud.update_skill(self._session, row, values))
 
     async def delete(self, skill_id: str) -> None:
-        await skill_crud.delete_skill(self._session, await self._get_row(skill_id))
+        async with write_tx(self._session):
+            await skill_crud.delete_skill(self._session, await self._get_row(skill_id))
 
     async def bulk_delete(self, ids: Sequence[str]) -> int:
-        return await skill_crud.bulk_delete_skills(self._session, list(ids), self._current_user.org_id)
+        async with write_tx(self._session):
+            return await skill_crud.bulk_delete_skills(self._session, list(ids), self._current_user.org_id)
 
     async def get_internal(self, skill_id: str) -> InternalSkill:
         row = await skill_crud.get_skill_internal(self._session, skill_id)

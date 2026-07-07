@@ -114,6 +114,12 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   chat-local clients only add cache/error mapping.
 - User identity belongs to iam, provider configuration to admin, and document /
   artifact storage to knowledge.
+- DB transactions (ADR-0037): multi-step / multi-table writes use
+  `getDb().transaction(async (tx) => ...)` (auto commit/rollback), threading
+  `tx` through every read/write; single-statement writes stay bare. Cross-table
+  finalization and external side effects stay OUTSIDE the tx — e.g.
+  `acquireRunLease` reaps + claims the lease in one tx, then runs `finishAgentRun`
+  after it.
 
 ## Entry points
 

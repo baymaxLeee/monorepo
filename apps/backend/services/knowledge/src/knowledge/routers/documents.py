@@ -4,6 +4,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import Response
 from kernel.errors import ForbiddenError, NotFoundError
 from knowledge.crud import documents as document_crud
+from knowledge.db import write_tx
 from knowledge.deps import AuthContext, CurrentUser, DbSession
 from knowledge.models.document import DocumentRow
 from knowledge.schemas.document import Document
@@ -55,21 +56,26 @@ async def batch_delete_my_documents(
     the FK `ON DELETE CASCADE`.
     """
     unique_ids = list(dict.fromkeys(payload.ids))
-    rows = await document_crud.list_org_documents_by_ids(
-        session, org_id=current_user.org_id, document_ids=unique_ids
-    )
-    by_id = {row.id: row for row in rows}
-    for doc_id in unique_ids:
-        row = by_id.get(doc_id)
-        if row is None or not _may_manage(current_user, row):
-            raise ForbiddenError("you may only delete your own documents")
+    async with write_tx(session):
+        rows = await document_crud.list_org_documents_by_ids(
+            session, org_id=current_user.org_id, document_ids=unique_ids
+        )
+        by_id = {row.id: row for row in rows}
+        for doc_id in unique_ids:
+            row = by_id.get(doc_id)
+            if row is None or not _may_manage(current_user, row):
+                raise ForbiddenError("you may only delete your own documents")
+        # Capture blob refs before the rows are gone; object purge is a best-effort
+        # side effect that runs AFTER the DB delete commits (a failed purge only
+        # orphans blobs, never leaves rows pointing at deleted objects).
+        object_refs = [(r.object_bucket, r.object_key) for r in rows if r.object_bucket and r.object_key]
+        for row in rows:
+            await document_crud.delete_document(session, row)
+        deleted = len(rows)
     store = ObjectStore()
-    for row in rows:
-        if row.object_bucket and row.object_key:
-            store.delete(bucket=row.object_bucket, key=row.object_key)
-        await document_crud.delete_document(session, row)
-    await session.commit()
-    return BatchDeleteResult(requested=len(payload.ids), deleted=len(rows))
+    for bucket, key in object_refs:
+        store.delete(bucket=bucket, key=key)
+    return BatchDeleteResult(requested=len(payload.ids), deleted=deleted)
 
 
 @router.get("/{document_id}", response_model=Document)
@@ -91,19 +97,20 @@ async def update_my_document(
     current_user: CurrentUser,
     session: DbSession,
 ) -> Document:
-    row = await document_crud.get_org_document(session, document_id, current_user.org_id)
-    if row is None:
-        raise NotFoundError(f"document {document_id} not found")
-    if not _may_manage(current_user, row):
-        raise ForbiddenError("you may only update your own documents")
-    values = payload.model_dump(exclude_unset=True, exclude_none=True)
-    if values:
-        if "content_md" in values:
-            values["index_status"] = "pending"
-        row = await document_crud.update_document(session, row, values)
-        await session.commit()
-        if "content_md" in values:
-            schedule_index(row.id)
+    async with write_tx(session):
+        row = await document_crud.get_org_document(session, document_id, current_user.org_id)
+        if row is None:
+            raise NotFoundError(f"document {document_id} not found")
+        if not _may_manage(current_user, row):
+            raise ForbiddenError("you may only update your own documents")
+        values = payload.model_dump(exclude_unset=True, exclude_none=True)
+        content_changed = "content_md" in values
+        if values:
+            if content_changed:
+                values["index_status"] = "pending"
+            row = await document_crud.update_document(session, row, values)
+    if values and content_changed:
+        schedule_index(row.id)
     return document_to_schema(row, include_content=True)
 
 
@@ -115,13 +122,13 @@ async def reindex_my_document(
 ) -> Document:
     """Re-queue a document for background RAG indexing (retry a skipped/failed
     index, or rebuild after provider changes)."""
-    row = await document_crud.get_org_document(session, document_id, current_user.org_id)
-    if row is None:
-        raise NotFoundError(f"document {document_id} not found")
-    if not _may_manage(current_user, row):
-        raise ForbiddenError("you may only reindex your own documents")
-    await document_crud.set_index_status(session, row.id, status="pending")
-    await session.commit()
+    async with write_tx(session):
+        row = await document_crud.get_org_document(session, document_id, current_user.org_id)
+        if row is None:
+            raise NotFoundError(f"document {document_id} not found")
+        if not _may_manage(current_user, row):
+            raise ForbiddenError("you may only reindex your own documents")
+        await document_crud.set_index_status(session, row.id, status="pending")
     schedule_index(row.id)
     row = await document_crud.get_org_document(session, document_id, current_user.org_id)
     assert row is not None
@@ -150,15 +157,18 @@ async def delete_my_document(
     current_user: CurrentUser,
     session: DbSession,
 ) -> None:
-    row = await document_crud.get_org_document(session, document_id, current_user.org_id)
-    if row is None:
-        raise NotFoundError(f"document {document_id} not found")
-    if not _may_manage(current_user, row):
-        raise ForbiddenError("you may only delete your own documents")
-    if row.object_bucket and row.object_key:
-        ObjectStore().delete(bucket=row.object_bucket, key=row.object_key)
-    await document_crud.delete_document(session, row)
-    await session.commit()
+    async with write_tx(session):
+        row = await document_crud.get_org_document(session, document_id, current_user.org_id)
+        if row is None:
+            raise NotFoundError(f"document {document_id} not found")
+        if not _may_manage(current_user, row):
+            raise ForbiddenError("you may only delete your own documents")
+        object_ref = (
+            (row.object_bucket, row.object_key) if row.object_bucket and row.object_key else None
+        )
+        await document_crud.delete_document(session, row)
+    if object_ref is not None:
+        ObjectStore().delete(bucket=object_ref[0], key=object_ref[1])
 
 
 def _may_manage(current_user: AuthContext, row: DocumentRow) -> bool:

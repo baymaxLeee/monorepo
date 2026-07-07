@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 from kernel.errors import BaseError
 from knowledge.config import get_settings
 from knowledge.crud import documents as document_crud
-from knowledge.db import get_session_factory
+from knowledge.db import get_session_factory, write_tx
 from knowledge.deps import AuthContext
 from knowledge.models.document import DocumentRow
 from knowledge.services.admin_client import get_admin_client
@@ -92,22 +92,22 @@ async def stream_ingest_events(
                             details={"max_bytes": settings.attachment_max_upload_bytes},
                         )
 
-                    row = await document_crud.create_document(
-                        worker_session,
-                        user_id=current_user.user_id,
-                        org_id=current_user.org_id,
-                        conversation_id=conversation_id,
-                        kind="source",
-                        title=item.filename,
-                        filename=item.filename,
-                        mime_type="text/markdown",
-                        source_size=len(item.content),
-                        source_mime_type=item.mime_type,
-                        source_filename=item.filename,
-                        ingest_status="storing",
-                        ingest_progress=10,
-                    )
-                    await worker_session.commit()
+                    async with write_tx(worker_session):
+                        row = await document_crud.create_document(
+                            worker_session,
+                            user_id=current_user.user_id,
+                            org_id=current_user.org_id,
+                            conversation_id=conversation_id,
+                            kind="source",
+                            title=item.filename,
+                            filename=item.filename,
+                            mime_type="text/markdown",
+                            source_size=len(item.content),
+                            source_mime_type=item.mime_type,
+                            source_filename=item.filename,
+                            ingest_status="storing",
+                            ingest_progress=10,
+                        )
                     await emit(
                         {
                             "type": "file_progress",
@@ -129,18 +129,18 @@ async def stream_ingest_events(
                     )
                     stored_bucket = stored.bucket
                     stored_key = stored.key
-                    row = await document_crud.update_document(
-                        worker_session,
-                        row,
-                        {
-                            "object_bucket": stored.bucket,
-                            "object_key": stored.key,
-                            "object_sha256": stored.sha256,
-                            "ingest_status": "converting",
-                            "ingest_progress": 50,
-                        },
-                    )
-                    await worker_session.commit()
+                    async with write_tx(worker_session):
+                        row = await document_crud.update_document(
+                            worker_session,
+                            row,
+                            {
+                                "object_bucket": stored.bucket,
+                                "object_key": stored.key,
+                                "object_sha256": stored.sha256,
+                                "ingest_status": "converting",
+                                "ingest_progress": 50,
+                            },
+                        )
                     await emit(
                         {
                             "type": "file_progress",
@@ -174,19 +174,19 @@ async def stream_ingest_events(
                             f"conversion timed out after {convert_timeout}s",
                             details={"filename": item.filename},
                         ) from exc
-                    row = await document_crud.update_document(
-                        worker_session,
-                        row,
-                        {
-                            "content_md": markdown,
-                            "mime_type": "text/markdown",
-                            "ingest_status": "ready",
-                            "ingest_progress": 100,
-                            "ingest_error": None,
-                            "index_status": "pending",
-                        },
-                    )
-                    await worker_session.commit()
+                    async with write_tx(worker_session):
+                        row = await document_crud.update_document(
+                            worker_session,
+                            row,
+                            {
+                                "content_md": markdown,
+                                "mime_type": "text/markdown",
+                                "ingest_status": "ready",
+                                "ingest_progress": 100,
+                                "ingest_error": None,
+                                "index_status": "pending",
+                            },
+                        )
                     succeeded += 1
                     doc = document_to_schema(row)
                     await emit(
@@ -203,21 +203,23 @@ async def stream_ingest_events(
                     # only reflects "received + stored + converted", not RAG index.
                     schedule_index(row.id)
                 except Exception as exc:
-                    await worker_session.rollback()
+                    # A stage that failed inside its own begin block already rolled
+                    # back; failures during external IO ran between transactions, so
+                    # the session is clean and can write the terminal failed status.
                     failed += 1
                     code = exc.code if isinstance(exc, BaseError) else None
                     message = str(exc)
                     if row is not None:
-                        row = await document_crud.update_document(
-                            worker_session,
-                            row,
-                            {
-                                "ingest_status": "failed",
-                                "ingest_progress": 0,
-                                "ingest_error": message[:500],
-                            },
-                        )
-                        await worker_session.commit()
+                        async with write_tx(worker_session):
+                            row = await document_crud.update_document(
+                                worker_session,
+                                row,
+                                {
+                                    "ingest_status": "failed",
+                                    "ingest_progress": 0,
+                                    "ingest_error": message[:500],
+                                },
+                            )
                     if stored_bucket and stored_key:
                         with suppress(Exception):
                             store.delete(bucket=stored_bucket, key=stored_key)

@@ -36,8 +36,7 @@ async def create_bot(session: AsyncSession, name: str, user_id: str, org_id: str
         updated_at=now,
     )
     session.add(row)
-    await session.commit()
-    await session.refresh(row)
+    await session.flush()
     return row
 
 
@@ -45,11 +44,9 @@ async def update_bot(session: AsyncSession, row: BotRow, values: dict[str, Any])
     for key, value in values.items():
         setattr(row, key, value)
     row.updated_at = datetime.now(UTC)
-    await session.commit()
-    await session.refresh(row)
+    await session.flush()
     return row
 
 
 async def delete_bot(session: AsyncSession, row: BotRow) -> None:
     await session.delete(row)
-    await session.commit()

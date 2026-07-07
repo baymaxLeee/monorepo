@@ -4,7 +4,8 @@ Mirrors apps/backend/services/admin/src/admin/db.py so both Python services
 share the same PostgreSQL lifecycle model.
 """
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -43,6 +44,14 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
 async def get_db_session() -> AsyncGenerator[AsyncSession]:
     factory = get_session_factory()
     async with factory() as session:
+        yield session
+
+
+@asynccontextmanager
+async def write_tx(session: AsyncSession) -> AsyncIterator[AsyncSession]:
+    if session.in_transaction():
+        raise RuntimeError("write_tx must be entered before any session IO")
+    async with session.begin():
         yield session
 
 

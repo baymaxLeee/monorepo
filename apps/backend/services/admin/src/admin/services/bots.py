@@ -13,6 +13,7 @@ from admin.crud import bot_skills as bot_skill_crud
 from admin.crud import bots as bot_crud
 from admin.crud import providers as provider_crud
 from admin.crud import skills as skill_crud
+from admin.db import write_tx
 from admin.deps import AuthContext
 from admin.models.bot import BotRow
 from admin.models.provider import (
@@ -84,20 +85,26 @@ class BotService:
         return to_schema(row)
 
     async def create(self, name: str) -> Bot:
-        row = await bot_crud.create_bot(self._session, name, self._current_user.user_id, self._current_user.org_id)
+        async with write_tx(self._session):
+            row = await bot_crud.create_bot(
+                self._session, name, self._current_user.user_id, self._current_user.org_id
+            )
         if self._redis is not None:
             await self._redis.incr("admin:bots:created")
         return to_schema(row)
 
     async def update(self, bot_id: str, payload: UpdateBotInput) -> Bot:
-        row = await bot_crud.get_bot(
-            self._session,
-            bot_id,
-            self._current_user.org_id,
-        )
-        if row is None:
-            raise NotFoundError(f"bot {bot_id} not found")
+        async with write_tx(self._session):
+            row = await bot_crud.get_bot(
+                self._session,
+                bot_id,
+                self._current_user.org_id,
+            )
+            if row is None:
+                raise NotFoundError(f"bot {bot_id} not found")
+            return to_schema(await self._apply_update(row, payload))
 
+    async def _apply_update(self, row: BotRow, payload: UpdateBotInput) -> BotRow:
         fields_set = payload.model_fields_set
         values: dict[str, object] = {}
         if "name" in fields_set and payload.name is not None:
@@ -125,8 +132,8 @@ class BotService:
             values[field] = provider_id
 
         if not values:
-            return to_schema(row)
-        return to_schema(await bot_crud.update_bot(self._session, row, values))
+            return row
+        return await bot_crud.update_bot(self._session, row, values)
 
     async def get_resolved(self, bot_id: str) -> ResolvedAgent:
         row = await bot_crud.get_bot(
@@ -160,16 +167,18 @@ class BotService:
         return [skill_to_summary(row) for row in rows]
 
     async def attach_skill(self, bot_id: str, skill_id: str) -> builtins.list[SkillSummary]:
-        await self._get_row(bot_id)
-        skill = await skill_crud.get_skill(self._session, skill_id, self._current_user.org_id)
-        if skill is None:
-            raise RequestError(f"skill {skill_id} not found")
-        await bot_skill_crud.attach_skill(self._session, bot_id, skill_id)
+        async with write_tx(self._session):
+            await self._get_row(bot_id)
+            skill = await skill_crud.get_skill(self._session, skill_id, self._current_user.org_id)
+            if skill is None:
+                raise RequestError(f"skill {skill_id} not found")
+            await bot_skill_crud.attach_skill(self._session, bot_id, skill_id)
         return await self.list_skills(bot_id)
 
     async def detach_skill(self, bot_id: str, skill_id: str) -> builtins.list[SkillSummary]:
-        await self._get_row(bot_id)
-        await bot_skill_crud.detach_skill(self._session, bot_id, skill_id)
+        async with write_tx(self._session):
+            await self._get_row(bot_id)
+            await bot_skill_crud.detach_skill(self._session, bot_id, skill_id)
         return await self.list_skills(bot_id)
 
     async def _get_row(self, bot_id: str) -> BotRow:
@@ -191,14 +200,15 @@ class BotService:
         return provider_to_internal_schema(provider)
 
     async def delete(self, bot_id: str) -> None:
-        row = await bot_crud.get_bot(
-            self._session,
-            bot_id,
-            self._current_user.org_id,
-        )
-        if row is None:
-            raise NotFoundError(f"bot {bot_id} not found")
-        await bot_crud.delete_bot(self._session, row)
+        async with write_tx(self._session):
+            row = await bot_crud.get_bot(
+                self._session,
+                bot_id,
+                self._current_user.org_id,
+            )
+            if row is None:
+                raise NotFoundError(f"bot {bot_id} not found")
+            await bot_crud.delete_bot(self._session, row)
 
     async def _assert_provider_kind(self, provider_id: str, expected_kind: str) -> None:
         provider = await provider_crud.get_provider(

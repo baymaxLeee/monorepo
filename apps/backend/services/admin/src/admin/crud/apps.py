@@ -60,8 +60,7 @@ async def create_app(
         updated_at=now,
     )
     session.add(row)
-    await session.commit()
-    await session.refresh(row)
+    await session.flush()
     return row
 
 
@@ -69,11 +68,9 @@ async def update_app(session: AsyncSession, row: AppRow, values: dict[str, objec
     for key, value in values.items():
         setattr(row, key, value)
     row.updated_at = datetime.now(UTC)
-    await session.commit()
-    await session.refresh(row)
+    await session.flush()
     return row
 
 
 async def delete_app(session: AsyncSession, row: AppRow) -> None:
     await session.delete(row)
-    await session.commit()

@@ -51,3 +51,10 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 - Embedding model and the `vector(N)` column dimension must agree; changing the
   model requires altering the column + re-indexing.
 - Errors via `kernel.errors.*`, NEVER raw HTTPException.
+- Transactions (ADR-0037): `crud/` only reads/stages and never commits; the
+  router/service owning a write opens `async with write_tx(session):`
+  (autobegin-first) around its reads + writes. `ObjectStore` IO stays OUTSIDE the block
+  (upload before, purge after) so the artifact-publish `FOR UPDATE` lock never
+  spans object IO. `index_document` is DB-free (snapshot -> chunks); the
+  ingest/indexer worker sessions keep intentional multi-stage `write_tx` blocks
+  for durable SSE/background progress; the `pg_advisory_lock` raw connection is exempt.

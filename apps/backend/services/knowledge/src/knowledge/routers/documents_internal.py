@@ -10,6 +10,7 @@ from fastapi.responses import Response
 from kernel.errors import ConflictError, NotFoundError, RequestError
 from knowledge.config import get_settings
 from knowledge.crud import documents as document_crud
+from knowledge.db import write_tx
 from knowledge.deps import DbSession, require_internal_token
 from knowledge.schemas.document import (
     CreateArtifactInput,
@@ -104,28 +105,30 @@ async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> D
         document_id = sha256(
             f"{payload.user_id}:{payload.conversation_id or ''}:{payload.idempotency_key}".encode()
         ).hexdigest()[:16]
-        existing = await document_crud.get_document(session, document_id, payload.user_id)
-        if existing is not None:
-            return document_to_schema(existing, include_content=True)
     try:
-        row = await document_crud.create_document(
-            session,
-            user_id=payload.user_id,
-            conversation_id=payload.conversation_id,
-            kind="artifact",
-            title=payload.title,
-            filename=payload.filename,
-            mime_type=mime,
-            content_md=payload.content,
-            ingest_status="ready",
-            ingest_progress=100,
-            document_id=document_id,
-        )
-        await session.commit()
+        async with write_tx(session):
+            if document_id is not None:
+                existing = await document_crud.get_document(session, document_id, payload.user_id)
+                if existing is not None:
+                    return document_to_schema(existing, include_content=True)
+            row = await document_crud.create_document(
+                session,
+                user_id=payload.user_id,
+                conversation_id=payload.conversation_id,
+                kind="artifact",
+                title=payload.title,
+                filename=payload.filename,
+                mime_type=mime,
+                content_md=payload.content,
+                ingest_status="ready",
+                ingest_progress=100,
+                document_id=document_id,
+            )
     except IntegrityError:
+        # Lost an idempotency-key race: the begin block already rolled back, so
+        # re-read the winner's row on a fresh transaction.
         if document_id is None:
             raise
-        await session.rollback()
         existing = await document_crud.get_document(session, document_id, payload.user_id)
         if existing is None:
             raise
@@ -147,7 +150,10 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
         document_id = sha256(
             f"{payload.user_id}:{payload.conversation_id or ''}:{payload.idempotency_key}".encode()
         ).hexdigest()[:16]
-        existing = await document_crud.get_document(session, document_id, payload.user_id)
+        # Cheap pre-check in its own short transaction so a retried generation
+        # skips re-uploading bytes; the authoritative race guard is below.
+        async with write_tx(session):
+            existing = await document_crud.get_document(session, document_id, payload.user_id)
         if existing is not None:
             return document_to_schema(existing, include_content=True)
     try:
@@ -165,29 +171,35 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
         max_bytes=get_settings().media_max_object_bytes,
     )
     try:
-        row = await document_crud.create_document(
-            session,
-            user_id=payload.user_id,
-            conversation_id=payload.conversation_id,
-            kind="artifact",
-            title=payload.title,
-            filename=payload.filename,
-            mime_type=payload.mime_type,
-            content_md="",
-            source_size=stored.size,
-            source_mime_type=payload.mime_type,
-            object_bucket=stored.bucket,
-            object_key=stored.key,
-            object_sha256=stored.sha256,
-            ingest_status="ready",
-            ingest_progress=100,
-            document_id=document_id,
-        )
-        await session.commit()
+        async with write_tx(session):
+            if document_id is not None:
+                existing = await document_crud.get_document(session, document_id, payload.user_id)
+                if existing is not None:
+                    return document_to_schema(existing, include_content=True)
+            row = await document_crud.create_document(
+                session,
+                user_id=payload.user_id,
+                conversation_id=payload.conversation_id,
+                kind="artifact",
+                title=payload.title,
+                filename=payload.filename,
+                mime_type=payload.mime_type,
+                content_md="",
+                source_size=stored.size,
+                source_mime_type=payload.mime_type,
+                object_bucket=stored.bucket,
+                object_key=stored.key,
+                object_sha256=stored.sha256,
+                ingest_status="ready",
+                ingest_progress=100,
+                document_id=document_id,
+            )
     except IntegrityError:
+        # Lost an idempotency-key race: the begin block already rolled back, so
+        # re-read the winner's row on a fresh transaction. The blob just uploaded
+        # is a best-effort orphan.
         if document_id is None:
             raise
-        await session.rollback()
         existing = await document_crud.get_document(session, document_id, payload.user_id)
         if existing is None:
             raise
@@ -201,32 +213,32 @@ async def update_artifact(
     payload: UpdateArtifactInput,
     session: DbSession,
 ) -> Document:
-    row = await document_crud.get_document(session, document_id, payload.user_id)
-    if row is None or row.kind != "artifact":
-        raise NotFoundError(f"artifact {document_id} not found")
-    values = payload.model_dump(exclude_unset=True, exclude_none=True)
-    values.pop("user_id", None)
-    expected_updated_at_raw = values.pop("expected_updated_at", None)
-    if "content" in values:
-        values["content_md"] = values.pop("content")
-    if values:
-        if expected_updated_at_raw:
-            try:
-                expected_updated_at = datetime.fromisoformat(expected_updated_at_raw.replace("Z", "+00:00"))
-            except ValueError as exc:
-                raise ConflictError("invalid artifact base version") from exc
-            updated = await document_crud.update_document_if_unchanged(
-                session,
-                row,
-                values,
-                expected_updated_at=expected_updated_at,
-            )
-            if updated is None:
-                raise ConflictError("artifact changed while the revision was being generated")
-            row = updated
-        else:
-            row = await document_crud.update_document(session, row, values)
-        await session.commit()
+    async with write_tx(session):
+        row = await document_crud.get_document(session, document_id, payload.user_id)
+        if row is None or row.kind != "artifact":
+            raise NotFoundError(f"artifact {document_id} not found")
+        values = payload.model_dump(exclude_unset=True, exclude_none=True)
+        values.pop("user_id", None)
+        expected_updated_at_raw = values.pop("expected_updated_at", None)
+        if "content" in values:
+            values["content_md"] = values.pop("content")
+        if values:
+            if expected_updated_at_raw:
+                try:
+                    expected_updated_at = datetime.fromisoformat(expected_updated_at_raw.replace("Z", "+00:00"))
+                except ValueError as exc:
+                    raise ConflictError("invalid artifact base version") from exc
+                updated = await document_crud.update_document_if_unchanged(
+                    session,
+                    row,
+                    values,
+                    expected_updated_at=expected_updated_at,
+                )
+                if updated is None:
+                    raise ConflictError("artifact changed while the revision was being generated")
+                row = updated
+            else:
+                row = await document_crud.update_document(session, row, values)
     return document_to_schema(row, include_content=True)
 
 
@@ -236,10 +248,13 @@ async def delete_document(
     session: DbSession,
     user_id: str = Query(...),
 ) -> None:
-    row = await document_crud.get_document(session, document_id, user_id)
-    if row is None:
-        raise NotFoundError(f"document {document_id} not found")
-    if row.object_bucket and row.object_key:
-        ObjectStore().delete(bucket=row.object_bucket, key=row.object_key)
-    await document_crud.delete_document(session, row)
-    await session.commit()
+    async with write_tx(session):
+        row = await document_crud.get_document(session, document_id, user_id)
+        if row is None:
+            raise NotFoundError(f"document {document_id} not found")
+        object_ref = (
+            (row.object_bucket, row.object_key) if row.object_bucket and row.object_key else None
+        )
+        await document_crud.delete_document(session, row)
+    if object_ref is not None:
+        ObjectStore().delete(bucket=object_ref[0], key=object_ref[1])

@@ -11,6 +11,7 @@ from kernel.errors import ConflictError, NotFoundError, RequestError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from admin.crud import providers as provider_crud
+from admin.db import write_tx
 from admin.deps import AuthContext
 from admin.models.provider import PROVIDER_KIND_CHAT, ModelProviderRow
 from admin.schemas.provider import (
@@ -103,29 +104,30 @@ class ModelProviderService:
         if payload.is_default and payload.provider_kind != PROVIDER_KIND_CHAT:
             raise RequestError("only chat providers can be set as default")
 
-        if payload.is_default:
-            await provider_crud.clear_default_flag(
-                self._session,
-                self._current_user.org_id,
-            )
-
+        # DNS/SSRF validation performs network IO; keep it out of the DB transaction.
         base_url = await validate_provider_base_url(str(payload.base_url))
-        row = await provider_crud.create_provider(
-            self._session,
-            user_id=self._current_user.user_id,
-            org_id=self._current_user.org_id,
-            name=payload.name,
-            model=payload.model,
-            provider_kind=payload.provider_kind,
-            base_url=base_url,
-            api_key_enc=encrypt(payload.api_key),
-            extra_body=json.dumps(payload.extra_body),
-            context_window=payload.context_window,
-            max_output_tokens=payload.max_output_tokens,
-            supports_image_input=payload.supports_image_input,
-            is_default=payload.is_default,
-            is_enabled=payload.is_enabled,
-        )
+        async with write_tx(self._session):
+            if payload.is_default:
+                await provider_crud.clear_default_flag(
+                    self._session,
+                    self._current_user.org_id,
+                )
+            row = await provider_crud.create_provider(
+                self._session,
+                user_id=self._current_user.user_id,
+                org_id=self._current_user.org_id,
+                name=payload.name,
+                model=payload.model,
+                provider_kind=payload.provider_kind,
+                base_url=base_url,
+                api_key_enc=encrypt(payload.api_key),
+                extra_body=json.dumps(payload.extra_body),
+                context_window=payload.context_window,
+                max_output_tokens=payload.max_output_tokens,
+                supports_image_input=payload.supports_image_input,
+                is_default=payload.is_default,
+                is_enabled=payload.is_enabled,
+            )
         return to_public_schema(row)
 
     async def update(
@@ -133,81 +135,89 @@ class ModelProviderService:
         provider_id: str,
         payload: UpdateModelProviderInput,
     ) -> ModelProvider:
-        row = await self._get_row(provider_id)
-
-        values: dict[str, object] = {}
-        if payload.name is not None:
-            values["name"] = payload.name
-        if payload.model is not None:
-            values["model"] = payload.model
-        if payload.provider_kind is not None:
-            values["provider_kind"] = payload.provider_kind
-        if payload.base_url is not None:
-            values["base_url"] = await validate_provider_base_url(str(payload.base_url))
-        if payload.api_key is not None:
-            values["api_key_enc"] = encrypt(payload.api_key)
-        if payload.extra_body is not None:
-            values["extra_body"] = json.dumps(payload.extra_body)
-        if payload.context_window is not None:
-            values["context_window"] = payload.context_window
-        if payload.max_output_tokens is not None:
-            values["max_output_tokens"] = payload.max_output_tokens
-        if payload.supports_image_input is not None:
-            values["supports_image_input"] = payload.supports_image_input
-        if payload.is_enabled is not None:
-            values["is_enabled"] = payload.is_enabled
-        next_kind = payload.provider_kind if payload.provider_kind is not None else row.provider_kind
-        if next_kind != PROVIDER_KIND_CHAT:
-            if payload.is_default:
-                raise RequestError("only chat providers can be set as default")
-            values["is_default"] = False
-        elif payload.is_default is not None:
-            if payload.is_default and not row.is_default:
-                await provider_crud.clear_default_flag(
-                    self._session,
-                    self._current_user.org_id,
-                )
-            values["is_default"] = payload.is_default
-
-        if not values:
-            return to_public_schema(row)
-        context_window = payload.context_window if payload.context_window is not None else row.context_window
-        max_output_tokens = (
-            payload.max_output_tokens if payload.max_output_tokens is not None else row.max_output_tokens
+        # DNS/SSRF validation performs network IO; keep it out of the DB transaction.
+        validated_base_url = (
+            await validate_provider_base_url(str(payload.base_url)) if payload.base_url is not None else None
         )
-        if max_output_tokens >= context_window:
-            raise RequestError("max_output_tokens must be less than context_window")
-        return to_public_schema(await provider_crud.update_provider(self._session, row, values))
+        async with write_tx(self._session):
+            row = await self._get_row(provider_id)
+
+            values: dict[str, object] = {}
+            if payload.name is not None:
+                values["name"] = payload.name
+            if payload.model is not None:
+                values["model"] = payload.model
+            if payload.provider_kind is not None:
+                values["provider_kind"] = payload.provider_kind
+            if validated_base_url is not None:
+                values["base_url"] = validated_base_url
+            if payload.api_key is not None:
+                values["api_key_enc"] = encrypt(payload.api_key)
+            if payload.extra_body is not None:
+                values["extra_body"] = json.dumps(payload.extra_body)
+            if payload.context_window is not None:
+                values["context_window"] = payload.context_window
+            if payload.max_output_tokens is not None:
+                values["max_output_tokens"] = payload.max_output_tokens
+            if payload.supports_image_input is not None:
+                values["supports_image_input"] = payload.supports_image_input
+            if payload.is_enabled is not None:
+                values["is_enabled"] = payload.is_enabled
+            next_kind = payload.provider_kind if payload.provider_kind is not None else row.provider_kind
+            if next_kind != PROVIDER_KIND_CHAT:
+                if payload.is_default:
+                    raise RequestError("only chat providers can be set as default")
+                values["is_default"] = False
+            elif payload.is_default is not None:
+                if payload.is_default and not row.is_default:
+                    await provider_crud.clear_default_flag(
+                        self._session,
+                        self._current_user.org_id,
+                    )
+                values["is_default"] = payload.is_default
+
+            if not values:
+                return to_public_schema(row)
+            context_window = payload.context_window if payload.context_window is not None else row.context_window
+            max_output_tokens = (
+                payload.max_output_tokens if payload.max_output_tokens is not None else row.max_output_tokens
+            )
+            if max_output_tokens >= context_window:
+                raise RequestError("max_output_tokens must be less than context_window")
+            return to_public_schema(await provider_crud.update_provider(self._session, row, values))
 
     async def delete(self, provider_id: str) -> None:
-        await provider_crud.delete_provider(self._session, await self._get_row(provider_id))
+        async with write_tx(self._session):
+            await provider_crud.delete_provider(self._session, await self._get_row(provider_id))
 
     async def bulk_delete(self, ids: Sequence[str]) -> int:
-        return await provider_crud.bulk_delete_providers(
-            self._session,
-            list(ids),
-            self._current_user.org_id,
-        )
+        async with write_tx(self._session):
+            return await provider_crud.bulk_delete_providers(
+                self._session,
+                list(ids),
+                self._current_user.org_id,
+            )
 
     async def set_default(self, provider_id: str) -> ModelProvider:
-        row = await self._get_row(provider_id)
-        if row.provider_kind != PROVIDER_KIND_CHAT:
-            raise RequestError("only chat providers can be set as default")
-        if not row.is_enabled:
-            raise ConflictError("cannot mark a disabled provider as default")
-        if row.is_default:
-            return to_public_schema(row)
-        await provider_crud.clear_default_flag(
-            self._session,
-            self._current_user.org_id,
-        )
-        return to_public_schema(
-            await provider_crud.update_provider(
+        async with write_tx(self._session):
+            row = await self._get_row(provider_id)
+            if row.provider_kind != PROVIDER_KIND_CHAT:
+                raise RequestError("only chat providers can be set as default")
+            if not row.is_enabled:
+                raise ConflictError("cannot mark a disabled provider as default")
+            if row.is_default:
+                return to_public_schema(row)
+            await provider_crud.clear_default_flag(
                 self._session,
-                row,
-                {"is_default": True},
+                self._current_user.org_id,
             )
-        )
+            return to_public_schema(
+                await provider_crud.update_provider(
+                    self._session,
+                    row,
+                    {"is_default": True},
+                )
+            )
 
     async def test(
         self,

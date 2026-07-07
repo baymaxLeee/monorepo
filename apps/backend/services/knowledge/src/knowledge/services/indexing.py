@@ -18,7 +18,6 @@ from typing import Literal
 import anyio
 from knowledge.config import get_settings
 from knowledge.crud import chunks as chunk_crud
-from knowledge.crud import documents as document_crud
 from knowledge.models.chunk import DocumentChunkRow
 from knowledge.models.document import DocumentRow
 from knowledge.services.admin_client import ProviderNotConfiguredError, ProviderSnapshot, get_admin_client
@@ -26,7 +25,6 @@ from knowledge.services.chunking import chunk_text, estimate_tokens
 from knowledge.services.contextual import contextualize_chunks
 from knowledge.services.embed_client import embed_image, embed_texts, is_multimodal_embedding_model
 from knowledge.services.object_store import ObjectStore
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger("knowledge.indexing")
 
@@ -101,36 +99,23 @@ async def _maybe_append_image_chunk(
     return None
 
 
-async def index_document(session: AsyncSession, *, document_id: str) -> IndexResult:
+async def index_document(row: DocumentRow) -> tuple[IndexResult, list[DocumentChunkRow]]:
+    """Build the next chunk set from a document snapshot without touching the DB."""
     settings = get_settings()
-    row = await document_crud.get_document_by_id(session, document_id)
-    if row is None:
-        return IndexResult("skipped", reason="document not found")
     # Providers are team-shared: index against the document's own org so the
     # whole team's chunks land in one embedding space and are retrievable.
     org_id = row.org_id
     if org_id is None:
-        return IndexResult("skipped", reason="document has no org")
-
-    # Clear the document's existing chunks up front: a (re)index must make chunks
-    # reflect the CURRENT content, so every early return below (no provider / no
-    # text / dim mismatch) is guaranteed not to leave stale content retrievable —
-    # retrieval reads document_chunks directly and never consults index_status.
-    # Trade-off: a re-index attempted while the embedding provider is down drops
-    # the doc from retrieval until a later successful (re)index (startup sweep or
-    # manual reindex), which is preferable to serving outdated content.
-    await chunk_crud.delete_document_chunks(session, document_id)
+        return IndexResult("skipped", reason="document has no org"), []
 
     text = (row.content_md or "").strip()
     if not text:
-        await session.commit()
-        return IndexResult("skipped", reason="no text content")
+        return IndexResult("skipped", reason="no text content"), []
 
     try:
         embed_provider = await get_admin_client().get_provider_by_kind(org_id=org_id, kind="embedding")
     except ProviderNotConfiguredError:
-        await session.commit()
-        return IndexResult("skipped", reason="no embedding provider configured")
+        return IndexResult("skipped", reason="no embedding provider configured"), []
 
     pieces = chunk_text(
         text,
@@ -138,8 +123,7 @@ async def index_document(session: AsyncSession, *, document_id: str) -> IndexRes
         overlap_tokens=settings.chunk_overlap_tokens,
     )
     if not pieces:
-        await session.commit()
-        return IndexResult("skipped", reason="no chunks")
+        return IndexResult("skipped", reason="no chunks"), []
 
     contexts: list[str | None] = [None] * len(pieces)
     if settings.contextual_retrieval_enabled:
@@ -149,25 +133,26 @@ async def index_document(session: AsyncSession, *, document_id: str) -> IndexRes
         except ProviderNotConfiguredError:
             logger.info("contextual retrieval skipped: no chat provider for org %s", org_id)
         except Exception:
-            logger.warning("contextual retrieval failed for %s; using raw chunks", document_id)
+            logger.warning("contextual retrieval failed for %s; using raw chunks", row.id)
 
     embed_inputs = [f"{ctx}\n\n{piece}" if ctx else piece for piece, ctx in zip(pieces, contexts, strict=True)]
     vectors = await embed_texts(embed_inputs, provider=embed_provider)
     if len(vectors) != len(pieces):
-        await session.commit()
-        return IndexResult("failed", reason="embedding count mismatch")
+        return IndexResult("failed", reason="embedding count mismatch"), []
     if vectors and len(vectors[0]) != settings.embedding_dim:
-        await session.commit()
-        return IndexResult(
-            "failed",
-            reason=f"embedding dim {len(vectors[0])} != configured {settings.embedding_dim}; re-index after aligning",
+        return (
+            IndexResult(
+                "failed",
+                reason=f"embedding dim {len(vectors[0])} != configured {settings.embedding_dim}; re-index after aligning",
+            ),
+            [],
         )
 
     now = datetime.now(UTC)
     new_rows = [
         DocumentChunkRow(
             id=chunk_crud.new_chunk_id(),
-            document_id=document_id,
+            document_id=row.id,
             user_id=row.user_id,
             org_id=row.org_id,
             chunk_index=index,
@@ -190,6 +175,4 @@ async def index_document(session: AsyncSession, *, document_id: str) -> IndexRes
         embedding_dim=settings.embedding_dim,
     )
 
-    await chunk_crud.insert_chunks(session, new_rows)
-    await session.commit()
-    return IndexResult("indexed", indexed=len(new_rows), reason=image_note)
+    return IndexResult("indexed", indexed=len(new_rows), reason=image_note), new_rows

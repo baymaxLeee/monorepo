@@ -64,8 +64,7 @@ async def create_skill(
         updated_at=now,
     )
     session.add(row)
-    await session.commit()
-    await session.refresh(row)
+    await session.flush()
     return row
 
 
@@ -73,18 +72,15 @@ async def update_skill(session: AsyncSession, row: SkillRow, values: dict[str, o
     for key, value in values.items():
         setattr(row, key, value)
     row.updated_at = datetime.now(UTC)
-    await session.commit()
-    await session.refresh(row)
+    await session.flush()
     return row
 
 
 async def delete_skill(session: AsyncSession, row: SkillRow) -> None:
     await session.delete(row)
-    await session.commit()
 
 
 async def bulk_delete_skills(session: AsyncSession, ids: list[str], org_id: str) -> int:
     stmt = delete(SkillRow).where(SkillRow.id.in_(ids), SkillRow.org_id == org_id)
     result = await session.execute(stmt)
-    await session.commit()
     return cast(CursorResult[object], result).rowcount or 0

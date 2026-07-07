@@ -21,6 +21,7 @@ from kernel.errors import ConflictError, ForbiddenError, NotFoundError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from admin.crud import apps as app_crud
+from admin.db import write_tx
 from admin.deps import AuthContext
 from admin.models.apps import AppRow
 from admin.schemas.apps import App, CreateAppInput, UpdateAppInput
@@ -71,31 +72,34 @@ class AppService:
 
     async def create(self, payload: CreateAppInput) -> App:
         self._require_super_admin()
-        if await app_crud.get_app(self._session, payload.id) is not None:
-            raise ConflictError(f"app {payload.id} already exists")
-        row = await app_crud.create_app(
-            self._session,
-            app_id=payload.id,
-            title=payload.title,
-            base_path=payload.base_path,
-            remote_name=payload.remote_name,
-            expose_key=payload.expose_key,
-            entry=payload.entry,
-            requires_admin=payload.requires_admin,
-            is_enabled=payload.is_enabled,
-            sort_order=payload.sort_order,
-        )
+        async with write_tx(self._session):
+            if await app_crud.get_app(self._session, payload.id) is not None:
+                raise ConflictError(f"app {payload.id} already exists")
+            row = await app_crud.create_app(
+                self._session,
+                app_id=payload.id,
+                title=payload.title,
+                base_path=payload.base_path,
+                remote_name=payload.remote_name,
+                expose_key=payload.expose_key,
+                entry=payload.entry,
+                requires_admin=payload.requires_admin,
+                is_enabled=payload.is_enabled,
+                sort_order=payload.sort_order,
+            )
         return to_schema(row)
 
     async def update(self, app_id: str, payload: UpdateAppInput) -> App:
         self._require_super_admin()
-        row = await self._get_row(app_id)
-        values = payload.model_dump(exclude_unset=True)
-        return to_schema(await app_crud.update_app(self._session, row, values))
+        async with write_tx(self._session):
+            row = await self._get_row(app_id)
+            values = payload.model_dump(exclude_unset=True)
+            return to_schema(await app_crud.update_app(self._session, row, values))
 
     async def delete(self, app_id: str) -> None:
         self._require_super_admin()
-        await app_crud.delete_app(self._session, await self._get_row(app_id))
+        async with write_tx(self._session):
+            await app_crud.delete_app(self._session, await self._get_row(app_id))
 
     def _can_see_admin_apps(self) -> bool:
         return self._current_user.is_super_admin or self._current_user.is_org_admin
