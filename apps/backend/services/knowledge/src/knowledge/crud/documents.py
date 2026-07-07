@@ -212,32 +212,6 @@ async def set_index_status(
     )
 
 
-async def finalize_index_status(
-    session: AsyncSession,
-    document_id: str,
-    *,
-    status: str,
-    error: str | None,
-    expected_updated_at: datetime,
-) -> bool:
-    """Write the terminal index state only if the content version is unchanged.
-
-    ``updated_at`` is the content version (bumped by edits, never by
-    ``set_index_status``). If an edit committed while this run was indexing, the
-    guard fails (rowcount 0) so a stale result can't mark the newer content as
-    ``indexed`` — the caller re-runs instead. Does not touch ``updated_at``.
-    """
-    result = cast(
-        CursorResult[Any],
-        await session.execute(
-            update(DocumentRow)
-            .where(DocumentRow.id == document_id, DocumentRow.updated_at == expected_updated_at)
-            .values(index_status=status, index_error=error)
-        ),
-    )
-    return result.rowcount == 1
-
-
 async def delete_document(session: AsyncSession, row: DocumentRow) -> None:
     await session.delete(row)
     await session.flush()
