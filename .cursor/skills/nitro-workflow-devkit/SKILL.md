@@ -27,27 +27,37 @@ class of bugs.
 
 ## Known bug 1: `nf3`/`@vercel/nft` ESM/CJS interop breaks `nitro build`
 
+**Status: fixed upstream in `nf3@0.3.19`.** This repo now pins `nf3: 0.3.19`
+via `overrides` in `apps/backend/pnpm-workspace.yaml` (nitro only requires
+`^0.3.17`, so without the pin pnpm could resolve back to the broken 0.3.18) and
+carries **no** local patch. The rest of this section is kept as the fallback
+recipe in case a future `nitro`/`nf3` bump reintroduces it.
+
 **Symptom**: `nitro build` (production bundling) fails with
 `SyntaxError: Named export 'nodeFileTrace' not found` (or similar) coming
 from `nf3`, a Nitro dependency that wraps `@vercel/nft`.
 
-**Cause**: `nf3` does `import { nodeFileTrace } from "@vercel/nft"` but
-`@vercel/nft` ships as CommonJS; that named-export form doesn't reliably
-interop through Nitro/rollup's bundling in this version combination.
+**Cause**: broken `nf3` versions do `import { nodeFileTrace } from "@vercel/nft"`
+but `@vercel/nft` ships as CommonJS; that named-export form doesn't reliably
+interop through Nitro/rollup's bundling. `nf3@0.3.19` switched to a
+default-import destructure and resolves it.
 
-**Fix**: `pnpm patch` the exact `nf3` version pinned in your lockfile —
-change the import to a default-import + destructure:
+**Fix (only if it reappears on a version without the upstream fix)**: first try
+bumping/pinning `nf3` to a fixed release. If none exists, `pnpm patch` the exact
+`nf3` version pinned in your lockfile — change the import to a default-import +
+destructure:
 
 ```js
 import __vercelNftPkg from "@vercel/nft";
 const { nodeFileTrace } = __vercelNftPkg;
 ```
 
-The patch lives at `apps/backend/patches/nf3@<version>.patch` and is wired
-via `patchedDependencies` in `apps/backend/pnpm-workspace.yaml`. Re-apply the
-same patch technique (`pnpm patch nf3@<new-version>`, edit, `pnpm patch-commit`)
-if the version drifts and the bug reappears — check first, it may already be
-fixed upstream.
+A patch would live at `apps/backend/patches/nf3@<version>.patch`, wired via
+`patchedDependencies` in `apps/backend/pnpm-workspace.yaml`. Note that a
+workspace-wide patch forces every backend `Dockerfile` running `pnpm install`
+to `COPY apps/backend/patches` first (pnpm hashes referenced patch files before
+`--filter` narrows anything) — which is exactly the coupling we removed by
+moving to the upstream fix.
 
 ## Known bug 2: `nf3` miscalculates `../` depth copying `@vercel/oidc`
 

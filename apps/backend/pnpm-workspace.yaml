@@ -30,5 +30,11 @@ minimumReleaseAgeExclude:
   - httpxy@0.5.4
   - srvx@0.11.18
   - '@ai-sdk/gateway@4.0.12'
-patchedDependencies:
-  nf3@0.3.18: patches/nf3@0.3.18.patch
+  - nf3@0.3.19
+
+# nitro's file tracer nf3 shipped a broken `import { nodeFileTrace }` named
+# import in 0.3.18 (fixed to a default-import destructure in 0.3.19). nitro
+# only requires ^0.3.17, so pin 0.3.19 to guarantee the fixed build without a
+# local patch. Drop this override once nitro's own floor moves past 0.3.19.
+overrides:
+  nf3: 0.3.19

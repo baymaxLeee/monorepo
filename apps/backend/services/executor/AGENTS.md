@@ -133,16 +133,18 @@ for the full rationale.
 
 All fixed, all re-check-worthy whenever `nitro`/`workflow`/`ai` are bumped:
 
-1. **`nf3`/`@vercel/nft` ESM interop bug** breaks `nitro build`'s production
-   server bundling (`Named export 'nodeFileTrace' not found`). Fixed via
-   `apps/backend/patches/nf3@0.3.18.patch` (`pnpm patch`). This patch is
-   registered in `apps/backend/pnpm-workspace.yaml`'s `patchedDependencies`,
-   which is workspace-wide: **any** backend service's `Dockerfile` running
-   `pnpm install` there must `COPY apps/backend/patches ./apps/backend/patches`
-   before it, even if that service never depends on `nf3` — otherwise pnpm
-   fails with `ENOENT ... patches/nf3@0.3.18.patch` while hashing the
-   lockfile, regardless of `--filter`. Bit `chat`'s Dockerfile once (fixed
-   by adding the same `COPY` there); re-check this for every new service.
+1. **`nf3`/`@vercel/nft` ESM interop bug** used to break `nitro build`'s
+   production server bundling (`Named export 'nodeFileTrace' not found`).
+   **Fixed upstream in `nf3@0.3.19`** — it ships the same default-import
+   destructure we used to `pnpm patch` into 0.3.18. The local patch and its
+   `patchedDependencies` entry are **gone**; `nf3` is pinned to `0.3.19` via
+   `overrides` in `apps/backend/pnpm-workspace.yaml` (nitro only requires
+   `^0.3.17`, so without the pin pnpm could resolve back to the broken 0.3.18).
+   Because there is no longer a workspace patch, backend `Dockerfile`s no longer
+   need to `COPY apps/backend/patches` before `pnpm install`. If a future
+   `nitro`/`nf3` bump reintroduces the bug, `pnpm patch nf3@<version>` (default
+   import + destructure) is the fallback — but check upstream first. Drop the
+   `overrides` pin once nitro's own floor moves past 0.3.19.
 2. **`nf3` path-depth bug**: `ai`/`@ai-sdk/gateway` pull in `@vercel/oidc`
    (never actually called — this service only uses `createOpenAICompatible`
    directly), and nf3 miscalculates the number of `../` segments when

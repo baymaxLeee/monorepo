@@ -294,7 +294,7 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
           inputSchema: z.object({
             prompt: z.string().min(1).max(4_000),
             duration: z.number().int().min(VIDEO_TARGET_MIN_S).max(VIDEO_TARGET_MAX_S).optional(),
-            continuity: z.enum(["cut", "chain"]).optional(),
+            // continuity: z.enum(["cut", "chain"]).optional(),
           }),
           outputSchema: videoOutputSchema,
           contextSchema: mediaToolContextSchema,

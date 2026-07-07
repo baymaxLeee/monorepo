@@ -4,13 +4,6 @@ ENV NODE_ENV=production
 RUN corepack enable
 COPY package.json ./package.json
 COPY apps/backend/package.json apps/backend/pnpm-workspace.yaml apps/backend/pnpm-lock.yaml ./apps/backend/
-# pnpm-workspace.yaml's patchedDependencies (nf3, needed by executor's Nitro
-# build — see executor/AGENTS.md) applies workspace-wide during `pnpm
-# install` regardless of --filter: pnpm hashes every patch file referenced
-# there against the lockfile before it even resolves which packages the
-# filter selects, so this copy is required here even though chat itself
-# never depends on nf3.
-COPY apps/backend/patches ./apps/backend/patches
 COPY apps/backend/libs/transport-ts/package.json ./apps/backend/libs/transport-ts/package.json
 COPY apps/backend/services/chat/package.json ./apps/backend/services/chat/package.json
 WORKDIR /app/apps/backend
@@ -30,5 +23,5 @@ EXPOSE 8009
 # Do not invoke pnpm at runtime: the image was installed with a hoisted
 # node_modules layout, while pnpm's default runtime config is isolated. A
 # `pnpm start` dependency check would therefore try to reinstall production
-# dependencies and fail on the workspace-only nf3 patch.
+# dependencies against a layout it doesn't expect.
 CMD ["node", "--import", "tsx", "src/index.ts"]

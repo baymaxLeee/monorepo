@@ -25,10 +25,8 @@ catalogs:
       specifier: ^4.5.0
       version: 4.5.0
 
-patchedDependencies:
-  nf3@0.3.18:
-    hash: a552ec5984a677eadea8803c7a9f6082c9f7b7fd0e8b8936bcd898d4f1465f34
-    path: patches/nf3@0.3.18.patch
+overrides:
+  nf3: 0.3.19
 
 importers:
 
@@ -2474,8 +2472,8 @@ packages:
     resolution: {integrity: sha512-8Ofs/AUQh8MaEcrlq5xOX0CQ9ypTF5dl78mjlMNfOK08fzpgTHQRQPBxcPlEtIw0yRpws+Zo/3r+5WRby7u3Gg==}
     engines: {node: '>= 0.6'}
 
-  nf3@0.3.18:
-    resolution: {integrity: sha512-lFvZrVZXN4FQYoV1iGiZ5RAzfzjbjQvm0MBdLvQKqvnOfkh09btu1tzI/RdIKrdIoRKL12XYlwdbcB0QwM3m6Q==}
+  nf3@0.3.19:
+    resolution: {integrity: sha512-tfOXX/ivQBL+4km/fzxQ0HWMmp1Ewx/YpFLbya080gXVfm26bZy0n4a5K5PPnqTLyuAHu0FobVpXXUadIiIwIQ==}
 
   nitro@3.0.260610-beta:
     resolution: {integrity: sha512-KPb4L5yaF/Rx/xoGMpgHRJvZhbhGiqbRKOwwPLCH9jKTKTsEUHLjnJas85AeCzaswqa8Wi52eQBtRsODC4PS0Q==}
@@ -5471,7 +5469,7 @@ snapshots:
 
   negotiator@1.0.0: {}
 
-  nf3@0.3.18(patch_hash=a552ec5984a677eadea8803c7a9f6082c9f7b7fd0e8b8936bcd898d4f1465f34): {}
+  nf3@0.3.19: {}
 
   nitro@3.0.260610-beta(@vercel/functions@3.7.4(@aws-sdk/credential-provider-web-identity@3.972.49))(@vercel/queue@0.3.1)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.44.7(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@22.20.0))(pg@8.20.0)(postgres@3.4.9))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(mysql2@3.22.5(@types/node@22.20.0))(rollup@4.62.2):
     dependencies:
@@ -5481,7 +5479,7 @@ snapshots:
       env-runner: 0.1.15(@vercel/queue@0.3.1)
       h3: 2.0.1-rc.22(crossws@0.4.7(srvx@0.11.18))
       hookable: 6.1.1
-      nf3: 0.3.18(patch_hash=a552ec5984a677eadea8803c7a9f6082c9f7b7fd0e8b8936bcd898d4f1465f34)
+      nf3: 0.3.19
       ocache: 0.1.5
       ofetch: 2.0.0-alpha.3
       ohash: 2.0.11
