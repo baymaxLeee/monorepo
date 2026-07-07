@@ -653,4 +653,27 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /**
+   * 细滚动条：主题感知（thumb 用 border token），滚动时才明显。
+   * Firefox 用 scrollbar-width，WebKit 系通过伪元素控制宽度/圆角。
+   */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 9999px;
+  }
+  .scrollbar-thin:hover::-webkit-scrollbar-thumb {
+    background-color: var(--muted-foreground);
+  }
 }

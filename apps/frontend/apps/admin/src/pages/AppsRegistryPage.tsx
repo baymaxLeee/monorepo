@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -333,72 +334,78 @@ function AppFormDialog({
             维护微前端入口的挂载信息与可见性。
           </DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FieldGroup>
-              {textField("id", "标识（slug）", {
-                disabled: editing,
-                placeholder: "admin",
-              })}
-              {textField("title", "名称", { placeholder: "后台管理" })}
-              {textField("base_path", "挂载路径", {
-                placeholder: "/platform/admin",
-              })}
-              {textField("remote_name", "Remote 名", {
-                placeholder: "mfe_admin",
-              })}
-              {textField("expose_key", "Expose Key", {
-                placeholder: "./App",
-              })}
-              {textField("entry", "Manifest 入口 URL", {
-                placeholder: "/mfe-admin/mf-manifest.json",
-              })}
-              {textField("sort_order", "排序")}
-              <FormField
-                control={form.control}
-                name="requires_admin"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel className="flex items-center gap-2">
-                      <Switch
-                        checked={!field.value}
-                        onCheckedChange={(open) => field.onChange(!open)}
-                      />
-                      对普通用户开放
-                    </FieldLabel>
-                  </Field>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="is_enabled"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel className="flex items-center gap-2">
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                      启用
-                    </FieldLabel>
-                  </Field>
-                )}
-              />
-            </FieldGroup>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                取消
-              </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                保存
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+        <DialogBody>
+          <Form {...form}>
+            <form id="app-registry-form" onSubmit={form.handleSubmit(onSubmit)}>
+              <FieldGroup>
+                {textField("id", "标识（slug）", {
+                  disabled: editing,
+                  placeholder: "admin",
+                })}
+                {textField("title", "名称", { placeholder: "后台管理" })}
+                {textField("base_path", "挂载路径", {
+                  placeholder: "/platform/admin",
+                })}
+                {textField("remote_name", "Remote 名", {
+                  placeholder: "mfe_admin",
+                })}
+                {textField("expose_key", "Expose Key", {
+                  placeholder: "./App",
+                })}
+                {textField("entry", "Manifest 入口 URL", {
+                  placeholder: "/mfe-admin/mf-manifest.json",
+                })}
+                {textField("sort_order", "排序")}
+                <FormField
+                  control={form.control}
+                  name="requires_admin"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel className="flex items-center gap-2">
+                        <Switch
+                          checked={!field.value}
+                          onCheckedChange={(open) => field.onChange(!open)}
+                        />
+                        对普通用户开放
+                      </FieldLabel>
+                    </Field>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="is_enabled"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel className="flex items-center gap-2">
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                        启用
+                      </FieldLabel>
+                    </Field>
+                  )}
+                />
+              </FieldGroup>
+            </form>
+          </Form>
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            取消
+          </Button>
+          <Button
+            type="submit"
+            form="app-registry-form"
+            disabled={form.formState.isSubmitting}
+          >
+            保存
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

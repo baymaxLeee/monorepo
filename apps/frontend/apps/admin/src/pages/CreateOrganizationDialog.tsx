@@ -3,6 +3,7 @@ import { type CreateOrgInput, createOrg } from "api";
 import {
   Button,
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -132,91 +133,102 @@ export function CreateOrganizationDialog({
             每个组织都必须有一个负责人（org_admin）。
           </DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(submit)} className="space-y-4">
-            <FieldGroup>
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>组织名称</FieldLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FieldError errors={[form.formState.errors.name]} />
-                  </Field>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="slug"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>Slug</FieldLabel>
-                    <FormControl>
-                      <Input placeholder="acme-inc" {...field} />
-                    </FormControl>
-                    <FieldError errors={[form.formState.errors.slug]} />
-                  </Field>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="ownerMode"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>负责人</FieldLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="new">新建账号作为负责人</SelectItem>
-                        <SelectItem value="existing">
-                          使用已有用户 ID
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                )}
-              />
-              {ownerMode === "existing" ? (
+        <DialogBody>
+          <Form {...form}>
+            <form id="organization-form" onSubmit={form.handleSubmit(submit)}>
+              <FieldGroup>
                 <FormField
                   control={form.control}
-                  name="ownerUserId"
+                  name="name"
                   render={({ field }) => (
                     <Field>
-                      <FieldLabel>负责人用户 ID</FieldLabel>
+                      <FieldLabel>组织名称</FieldLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
-                      <FieldError
-                        errors={[form.formState.errors.ownerUserId]}
-                      />
+                      <FieldError errors={[form.formState.errors.name]} />
                     </Field>
                   )}
                 />
-              ) : (
-                <NewOrganizationOwnerFields form={form} />
-              )}
-            </FieldGroup>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                取消
-              </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                创建
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+                <FormField
+                  control={form.control}
+                  name="slug"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>Slug</FieldLabel>
+                      <FormControl>
+                        <Input placeholder="acme-inc" {...field} />
+                      </FormControl>
+                      <FieldError errors={[form.formState.errors.slug]} />
+                    </Field>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="ownerMode"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>负责人</FieldLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="new">
+                            新建账号作为负责人
+                          </SelectItem>
+                          <SelectItem value="existing">
+                            使用已有用户 ID
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  )}
+                />
+                {ownerMode === "existing" ? (
+                  <FormField
+                    control={form.control}
+                    name="ownerUserId"
+                    render={({ field }) => (
+                      <Field>
+                        <FieldLabel>负责人用户 ID</FieldLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FieldError
+                          errors={[form.formState.errors.ownerUserId]}
+                        />
+                      </Field>
+                    )}
+                  />
+                ) : (
+                  <NewOrganizationOwnerFields form={form} />
+                )}
+              </FieldGroup>
+            </form>
+          </Form>
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            取消
+          </Button>
+          <Button
+            type="submit"
+            form="organization-form"
+            disabled={form.formState.isSubmitting}
+          >
+            创建
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -23,6 +23,7 @@ import {
   CardHeader,
   CardTitle,
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -482,50 +483,53 @@ export function ProvidersPage() {
             </DialogTitle>
             <DialogDescription>连通性测试结果</DialogDescription>
           </DialogHeader>
-          {testResult && (
-            <div className="space-y-2 text-sm">
-              {testResult.result.ok ? (
-                <>
-                  <p>
-                    延迟：
-                    <span className="font-mono">
-                      {testResult.result.latency_ms ?? "?"} ms
-                    </span>
-                  </p>
-                  {testResult.result.sample && (
+          <DialogBody>
+            {testResult && (
+              <div className="space-y-2 text-sm">
+                {testResult.result.ok ? (
+                  <>
                     <p>
-                      {(testResult.provider.provider_kind ?? "chat") === "chat"
-                        ? "首条回复："
-                        : (testResult.provider.provider_kind ?? "chat") ===
-                            "image"
-                          ? "结果 URL："
-                          : "验证结果："}
-                      {(testResult.provider.provider_kind ?? "chat") !==
-                        "chat" &&
-                      /^https?:\/\//.test(testResult.result.sample) ? (
-                        <a
-                          href={testResult.result.sample}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="ml-1 font-mono text-xs text-primary underline"
-                        >
-                          {testResult.result.sample}
-                        </a>
-                      ) : (
-                        <code className="rounded bg-muted px-1 py-0.5">
-                          {testResult.result.sample}
-                        </code>
-                      )}
+                      延迟：
+                      <span className="font-mono">
+                        {testResult.result.latency_ms ?? "?"} ms
+                      </span>
                     </p>
-                  )}
-                </>
-              ) : (
-                <pre className="whitespace-pre-wrap rounded bg-muted p-2 text-xs">
-                  {testResult.result.error}
-                </pre>
-              )}
-            </div>
-          )}
+                    {testResult.result.sample && (
+                      <p>
+                        {(testResult.provider.provider_kind ?? "chat") ===
+                        "chat"
+                          ? "首条回复："
+                          : (testResult.provider.provider_kind ?? "chat") ===
+                              "image"
+                            ? "结果 URL："
+                            : "验证结果："}
+                        {(testResult.provider.provider_kind ?? "chat") !==
+                          "chat" &&
+                        /^https?:\/\//.test(testResult.result.sample) ? (
+                          <a
+                            href={testResult.result.sample}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="ml-1 font-mono text-xs text-primary underline"
+                          >
+                            {testResult.result.sample}
+                          </a>
+                        ) : (
+                          <code className="rounded bg-muted px-1 py-0.5">
+                            {testResult.result.sample}
+                          </code>
+                        )}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <pre className="whitespace-pre-wrap rounded bg-muted p-2 text-xs">
+                    {testResult.result.error}
+                  </pre>
+                )}
+              </div>
+            )}
+          </DialogBody>
         </DialogContent>
       </Dialog>
     </Page>
@@ -570,205 +574,246 @@ function ProviderFormDialog({
             视频测试只验证 Ark API 鉴权，不创建生成任务。
           </DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FieldGroup>
-              <FormField
-                control={form.control}
-                name="provider_kind"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>类型</FieldLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={(value: ProviderKind) => {
-                        field.onChange(value);
-                        if (value !== "chat") {
-                          form.setValue("is_default", false);
-                        }
-                        if (!isEditing) applyKindPreset(value);
-                      }}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="选择 Provider 类型" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="chat">对话 (chat)</SelectItem>
-                        <SelectItem value="image">
-                          图片生成 (Seedream)
-                        </SelectItem>
-                        <SelectItem value="video">
-                          视频生成 (Seedance)
-                        </SelectItem>
-                        <SelectItem value="embedding">
-                          向量嵌入 (Embedding · RAG)
-                        </SelectItem>
-                        <SelectItem value="rerank">
-                          重排 (Rerank · RAG)
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FieldError
-                      errors={[form.formState.errors.provider_kind]}
-                    />
-                  </Field>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>名称</FieldLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="例如：DeepSeek V4（个人）"
-                      />
-                    </FormControl>
-                    <FieldError errors={[form.formState.errors.name]} />
-                  </Field>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="model"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>模型 (model)</FieldLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder={
-                          providerKind === "image"
-                            ? "doubao-seedream-5-0-260128"
-                            : providerKind === "video"
-                              ? "doubao-seedance-2-0-260128"
-                              : "deepseek-chat / deepseek-v4-pro / gpt-4o"
-                        }
-                      />
-                    </FormControl>
-                    <FieldError errors={[form.formState.errors.model]} />
-                  </Field>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="base_url"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>Base URL</FieldLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder={
-                          providerKind === "chat"
-                            ? "https://api.deepseek.com"
-                            : ARK_BASE_URL
-                        }
-                      />
-                    </FormControl>
-                    <FieldError errors={[form.formState.errors.base_url]} />
-                  </Field>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="api_key"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>
-                      API Key{" "}
-                      {isEditing && (
-                        <span className="text-xs font-normal text-muted-foreground">
-                          （留空 = 保留原 key）
-                        </span>
-                      )}
-                    </FieldLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type="password"
-                        autoComplete="off"
-                        placeholder={isEditing ? "保持不变请留空" : "sk-..."}
-                      />
-                    </FormControl>
-                    <FieldError errors={[form.formState.errors.api_key]} />
-                  </Field>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="extra_body"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>extra_body（可选 JSON 对象）</FieldLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        rows={providerKind === "video" ? 8 : 4}
-                        className="font-mono text-xs"
-                        placeholder={kindPresets[providerKind].extra_body}
-                      />
-                    </FormControl>
-                    <FieldError errors={[form.formState.errors.extra_body]} />
-                  </Field>
-                )}
-              />
-              <div className="grid grid-cols-2 gap-3">
+        <DialogBody>
+          <Form {...form}>
+            <form id="provider-form" onSubmit={form.handleSubmit(onSubmit)}>
+              <FieldGroup>
                 <FormField
                   control={form.control}
-                  name="context_window"
+                  name="provider_kind"
                   render={({ field }) => (
                     <Field>
-                      <FieldLabel>Context window</FieldLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type="number"
-                          min={1024}
-                          max={2_000_000}
-                          onChange={(event) =>
-                            field.onChange(event.currentTarget.valueAsNumber)
+                      <FieldLabel>类型</FieldLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={(value: ProviderKind) => {
+                          field.onChange(value);
+                          if (value !== "chat") {
+                            form.setValue("is_default", false);
                           }
-                        />
-                      </FormControl>
+                          if (!isEditing) applyKindPreset(value);
+                        }}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="选择 Provider 类型" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="chat">对话 (chat)</SelectItem>
+                          <SelectItem value="image">
+                            图片生成 (Seedream)
+                          </SelectItem>
+                          <SelectItem value="video">
+                            视频生成 (Seedance)
+                          </SelectItem>
+                          <SelectItem value="embedding">
+                            向量嵌入 (Embedding · RAG)
+                          </SelectItem>
+                          <SelectItem value="rerank">
+                            重排 (Rerank · RAG)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FieldError
-                        errors={[form.formState.errors.context_window]}
+                        errors={[form.formState.errors.provider_kind]}
                       />
                     </Field>
                   )}
                 />
                 <FormField
                   control={form.control}
-                  name="max_output_tokens"
+                  name="name"
                   render={({ field }) => (
                     <Field>
-                      <FieldLabel>Max output tokens</FieldLabel>
+                      <FieldLabel>名称</FieldLabel>
                       <FormControl>
                         <Input
                           {...field}
-                          type="number"
-                          min={256}
-                          max={1_000_000}
-                          onChange={(event) =>
-                            field.onChange(event.currentTarget.valueAsNumber)
-                          }
+                          placeholder="例如：DeepSeek V4（个人）"
                         />
                       </FormControl>
-                      <FieldError
-                        errors={[form.formState.errors.max_output_tokens]}
-                      />
+                      <FieldError errors={[form.formState.errors.name]} />
                     </Field>
                   )}
                 />
-              </div>
-              {providerKind === "chat" && (
                 <FormField
                   control={form.control}
-                  name="supports_image_input"
+                  name="model"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>模型 (model)</FieldLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder={
+                            providerKind === "image"
+                              ? "doubao-seedream-5-0-260128"
+                              : providerKind === "video"
+                                ? "doubao-seedance-2-0-260128"
+                                : "deepseek-chat / deepseek-v4-pro / gpt-4o"
+                          }
+                        />
+                      </FormControl>
+                      <FieldError errors={[form.formState.errors.model]} />
+                    </Field>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="base_url"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>Base URL</FieldLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder={
+                            providerKind === "chat"
+                              ? "https://api.deepseek.com"
+                              : ARK_BASE_URL
+                          }
+                        />
+                      </FormControl>
+                      <FieldError errors={[form.formState.errors.base_url]} />
+                    </Field>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="api_key"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>
+                        API Key{" "}
+                        {isEditing && (
+                          <span className="text-xs font-normal text-muted-foreground">
+                            （留空 = 保留原 key）
+                          </span>
+                        )}
+                      </FieldLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="password"
+                          autoComplete="off"
+                          placeholder={isEditing ? "保持不变请留空" : "sk-..."}
+                        />
+                      </FormControl>
+                      <FieldError errors={[form.formState.errors.api_key]} />
+                    </Field>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="extra_body"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>extra_body（可选 JSON 对象）</FieldLabel>
+                      <FormControl>
+                        <Textarea
+                          {...field}
+                          rows={providerKind === "video" ? 8 : 4}
+                          className="font-mono text-xs"
+                          placeholder={kindPresets[providerKind].extra_body}
+                        />
+                      </FormControl>
+                      <FieldError errors={[form.formState.errors.extra_body]} />
+                    </Field>
+                  )}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="context_window"
+                    render={({ field }) => (
+                      <Field>
+                        <FieldLabel>Context window</FieldLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="number"
+                            min={1024}
+                            max={2_000_000}
+                            onChange={(event) =>
+                              field.onChange(event.currentTarget.valueAsNumber)
+                            }
+                          />
+                        </FormControl>
+                        <FieldError
+                          errors={[form.formState.errors.context_window]}
+                        />
+                      </Field>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="max_output_tokens"
+                    render={({ field }) => (
+                      <Field>
+                        <FieldLabel>Max output tokens</FieldLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="number"
+                            min={256}
+                            max={1_000_000}
+                            onChange={(event) =>
+                              field.onChange(event.currentTarget.valueAsNumber)
+                            }
+                          />
+                        </FormControl>
+                        <FieldError
+                          errors={[form.formState.errors.max_output_tokens]}
+                        />
+                      </Field>
+                    )}
+                  />
+                </div>
+                {providerKind === "chat" && (
+                  <FormField
+                    control={form.control}
+                    name="supports_image_input"
+                    render={({ field }) => (
+                      <Field>
+                        <FieldLabel className="flex items-center gap-2">
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                          支持图片输入（多模态视觉）
+                          <span className="text-xs font-normal text-muted-foreground">
+                            关闭时上传图片自动降级为文本引用
+                          </span>
+                        </FieldLabel>
+                      </Field>
+                    )}
+                  />
+                )}
+                <FormField
+                  control={form.control}
+                  name="is_default"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel className="flex items-center gap-2">
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          disabled={providerKind !== "chat"}
+                        />
+                        设为默认
+                        {providerKind !== "chat" && (
+                          <span className="text-xs font-normal text-muted-foreground">
+                            （仅对话类型可设为 chat 默认）
+                          </span>
+                        )}
+                      </FieldLabel>
+                    </Field>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="is_enabled"
                   render={({ field }) => (
                     <Field>
                       <FieldLabel className="flex items-center gap-2">
@@ -776,66 +821,31 @@ function ProviderFormDialog({
                           checked={field.value}
                           onCheckedChange={field.onChange}
                         />
-                        支持图片输入（多模态视觉）
-                        <span className="text-xs font-normal text-muted-foreground">
-                          关闭时上传图片自动降级为文本引用
-                        </span>
+                        启用
                       </FieldLabel>
                     </Field>
                   )}
                 />
-              )}
-              <FormField
-                control={form.control}
-                name="is_default"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel className="flex items-center gap-2">
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        disabled={providerKind !== "chat"}
-                      />
-                      设为默认
-                      {providerKind !== "chat" && (
-                        <span className="text-xs font-normal text-muted-foreground">
-                          （仅对话类型可设为 chat 默认）
-                        </span>
-                      )}
-                    </FieldLabel>
-                  </Field>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="is_enabled"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel className="flex items-center gap-2">
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                      启用
-                    </FieldLabel>
-                  </Field>
-                )}
-              />
-            </FieldGroup>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                取消
-              </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                保存
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+              </FieldGroup>
+            </form>
+          </Form>
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            取消
+          </Button>
+          <Button
+            type="submit"
+            form="provider-form"
+            disabled={form.formState.isSubmitting}
+          >
+            保存
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

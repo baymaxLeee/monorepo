@@ -19,6 +19,7 @@ import {
   CardHeader,
   CardTitle,
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -297,15 +298,17 @@ export function ScenesPage() {
             <DialogTitle>{detail?.name}</DialogTitle>
             <DialogDescription>场景详情</DialogDescription>
           </DialogHeader>
-          {detail && (
-            <div className="space-y-2 text-sm">
-              <p>用户：{detail.username}</p>
-              <p>
-                状态：{detail.status} / {detail.is_enabled ? "启用" : "停用"}
-              </p>
-              <p>描述：{detail.description || "无"}</p>
-            </div>
-          )}
+          <DialogBody>
+            {detail && (
+              <div className="space-y-2 text-sm">
+                <p>用户：{detail.username}</p>
+                <p>
+                  状态：{detail.status} / {detail.is_enabled ? "启用" : "停用"}
+                </p>
+                <p>描述：{detail.description || "无"}</p>
+              </div>
+            )}
+          </DialogBody>
         </DialogContent>
       </Dialog>
     </Page>
@@ -332,86 +335,94 @@ function SceneFormDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>维护场景名称、状态和描述。</DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FieldGroup>
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>名称</FieldLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FieldError errors={[form.formState.errors.name]} />
-                  </Field>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>描述</FieldLabel>
-                    <FormControl>
-                      <Textarea {...field} />
-                    </FormControl>
-                    <FieldError errors={[form.formState.errors.description]} />
-                  </Field>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>状态</FieldLabel>
-                    <FormControl>
-                      <select
-                        className="h-9 rounded-md border bg-background px-3 text-sm"
-                        {...field}
-                      >
-                        <option value="draft">草稿</option>
-                        <option value="active">启用</option>
-                        <option value="disabled">停用</option>
-                      </select>
-                    </FormControl>
-                  </Field>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="is_enabled"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>
-                      <input
-                        type="checkbox"
-                        className="mr-2"
-                        checked={field.value}
-                        onChange={(e) => field.onChange(e.target.checked)}
+        <DialogBody>
+          <Form {...form}>
+            <form id="scene-form" onSubmit={form.handleSubmit(onSubmit)}>
+              <FieldGroup>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>名称</FieldLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FieldError errors={[form.formState.errors.name]} />
+                    </Field>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>描述</FieldLabel>
+                      <FormControl>
+                        <Textarea {...field} />
+                      </FormControl>
+                      <FieldError
+                        errors={[form.formState.errors.description]}
                       />
-                      是否启用
-                    </FieldLabel>
-                  </Field>
-                )}
-              />
-            </FieldGroup>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                取消
-              </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                保存
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+                    </Field>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>状态</FieldLabel>
+                      <FormControl>
+                        <select
+                          className="h-9 rounded-md border bg-background px-3 text-sm"
+                          {...field}
+                        >
+                          <option value="draft">草稿</option>
+                          <option value="active">启用</option>
+                          <option value="disabled">停用</option>
+                        </select>
+                      </FormControl>
+                    </Field>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="is_enabled"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>
+                        <input
+                          type="checkbox"
+                          className="mr-2"
+                          checked={field.value}
+                          onChange={(e) => field.onChange(e.target.checked)}
+                        />
+                        是否启用
+                      </FieldLabel>
+                    </Field>
+                  )}
+                />
+              </FieldGroup>
+            </form>
+          </Form>
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            取消
+          </Button>
+          <Button
+            type="submit"
+            form="scene-form"
+            disabled={form.formState.isSubmitting}
+          >
+            保存
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

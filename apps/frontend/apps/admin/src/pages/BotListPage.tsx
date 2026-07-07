@@ -27,6 +27,7 @@ import {
   CardHeader,
   CardTitle,
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -184,47 +185,50 @@ export function BotListPage() {
                   先创建智能体，再在「配置」中选择其使用的模型。
                 </DialogDescription>
               </DialogHeader>
-              <Form {...form}>
-                <form
-                  onSubmit={form.handleSubmit(onCreate)}
-                  className="space-y-4"
+              <DialogBody>
+                <Form {...form}>
+                  <form
+                    id="bot-create-form"
+                    onSubmit={form.handleSubmit(onCreate)}
+                  >
+                    <FieldGroup>
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <Field>
+                            <FieldLabel htmlFor="bot-name">名称</FieldLabel>
+                            <FormControl>
+                              <Input
+                                id="bot-name"
+                                placeholder="例如：客服助手"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FieldError errors={[form.formState.errors.name]} />
+                          </Field>
+                        )}
+                      />
+                    </FieldGroup>
+                  </form>
+                </Form>
+              </DialogBody>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCreateOpen(false)}
                 >
-                  <FieldGroup>
-                    <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                        <Field>
-                          <FieldLabel htmlFor="bot-name">名称</FieldLabel>
-                          <FormControl>
-                            <Input
-                              id="bot-name"
-                              placeholder="例如：客服助手"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FieldError errors={[form.formState.errors.name]} />
-                        </Field>
-                      )}
-                    />
-                  </FieldGroup>
-                  <DialogFooter>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setCreateOpen(false)}
-                    >
-                      取消
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={form.formState.isSubmitting}
-                    >
-                      {form.formState.isSubmitting ? "创建中…" : "创建"}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </Form>
+                  取消
+                </Button>
+                <Button
+                  type="submit"
+                  form="bot-create-form"
+                  disabled={form.formState.isSubmitting}
+                >
+                  {form.formState.isSubmitting ? "创建中…" : "创建"}
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </PageActions>
