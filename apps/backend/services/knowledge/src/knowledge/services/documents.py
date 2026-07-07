@@ -24,6 +24,8 @@ def document_to_schema(row: DocumentRow, *, include_content: bool = False) -> Do
         ingest_status=row.ingest_status,  # type: ignore[arg-type]
         ingest_progress=row.ingest_progress,
         ingest_error=row.ingest_error,
+        index_status=row.index_status,  # type: ignore[arg-type]
+        index_error=row.index_error,
         created_at=row.created_at.isoformat(),
         updated_at=row.updated_at.isoformat(),
     )

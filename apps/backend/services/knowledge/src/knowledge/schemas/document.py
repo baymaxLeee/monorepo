@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 DocumentKind = Literal["source", "artifact"]
 IngestStatus = Literal["pending", "storing", "converting", "ready", "failed"]
+IndexStatus = Literal["pending", "indexing", "indexed", "skipped", "failed"]
 
 
 class Document(BaseModel):
@@ -27,6 +28,8 @@ class Document(BaseModel):
     ingest_status: IngestStatus = "ready"
     ingest_progress: int = 100
     ingest_error: str | None = None
+    index_status: IndexStatus = "skipped"
+    index_error: str | None = None
     created_at: str
     updated_at: str
 

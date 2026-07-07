@@ -91,6 +91,9 @@ export function toConversationDocument(
       (doc.ingest_status as ConversationDocument["ingest_status"]) ?? "ready",
     ingest_progress: Number(doc.ingest_progress ?? 100),
     ingest_error: (doc.ingest_error as string | null) ?? null,
+    index_status:
+      (doc.index_status as ConversationDocument["index_status"]) ?? "skipped",
+    index_error: (doc.index_error as string | null) ?? null,
     created_at: String(doc.created_at),
     updated_at: String(doc.updated_at),
   };
@@ -169,6 +172,21 @@ export async function listKnowledgeDocuments(
   }));
 }
 
+/** Re-queue a document for background RAG indexing (retry skipped/failed). */
+export async function reindexKnowledgeDocument(
+  documentId: string,
+): Promise<KnowledgeDocument> {
+  const doc = await request<Record<string, unknown>>({
+    url: `${BASE}/documents/${encodeURIComponent(documentId)}/reindex`,
+    method: "POST",
+  });
+  return {
+    ...toConversationDocument(doc, String(doc.conversation_id ?? "")),
+    user_id: doc.user_id ? String(doc.user_id) : undefined,
+    conversation_id: (doc.conversation_id as string | null) ?? null,
+  };
+}
+
 export async function deleteKnowledgeDocument(
   documentId: string,
 ): Promise<void> {
@@ -224,8 +242,9 @@ export async function fetchKnowledgeDocumentSource(
 
 /**
  * Upload one or more files into the knowledge base (no conversation scope).
- * Bytes are stored, converted to markdown, and RAG-indexed server-side;
- * progress streams back via SSE, mirroring the chat ingest flow.
+ * Bytes are stored and converted to markdown; SSE progress completes at
+ * `file_ready` (received + stored + converted). RAG indexing runs asynchronously
+ * afterwards — track it via `index_status` / `reindexKnowledgeDocument`.
  */
 export async function uploadKnowledgeDocuments(
   files: Array<{ clientRef: string; file: File }>,

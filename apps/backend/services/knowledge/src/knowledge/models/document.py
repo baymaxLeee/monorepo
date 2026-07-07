@@ -29,5 +29,7 @@ class DocumentRow(Base):
     ingest_status: Mapped[str] = mapped_column(String(20), nullable=False, default="ready")
     ingest_progress: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
     ingest_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    index_status: Mapped[str] = mapped_column(String(20), nullable=False, default="skipped")
+    index_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

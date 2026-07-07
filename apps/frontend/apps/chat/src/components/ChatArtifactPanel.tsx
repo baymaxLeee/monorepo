@@ -1,16 +1,22 @@
 import type { ConversationDocumentDetail } from "api";
 import { fetchConversationDocument, updateConversationDocument } from "api";
-import { Button, toast } from "components";
+import { Button } from "components";
 import { ArtifactPreview } from "components/ai-chat";
 import { MarkdownEditor } from "components/markdown-editor";
-import { PencilIcon, XIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { XIcon } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   fetchCachedDocumentSource,
   useDocumentBlobUrl,
 } from "../hooks/useDocumentSource";
 import { useChatStore } from "../store/useChatStore";
+
+// Autosave fires 1.5s after the user stops typing — long enough to coalesce a
+// burst of keystrokes into a single PATCH, short enough to feel automatic.
+const AUTOSAVE_DELAY_MS = 1500;
+
+type SaveState = "idle" | "saving" | "saved" | "error";
 
 function needsBinarySource(mimeType: string | undefined) {
   return Boolean(
@@ -45,9 +51,14 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
   const [sourceLoading, setSourceLoading] = useState(false);
   const [sourceError, setSourceError] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  // The debounce timer, the latest draft, and the last persisted content are
+  // read from the timer callback / unmount flush, so they live in refs to stay
+  // current without re-arming the timer on every keystroke.
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftRef = useRef("");
+  const savedContentRef = useRef<string | null>(null);
   const binarySource = needsBinarySource(artifact?.mime_type);
   const editable = isEditableMarkdown(artifact);
   const {
@@ -72,11 +83,15 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
     setArtifact(null);
     setPreviewHtml(null);
     setSourceError(false);
-    setEditing(false);
+    setSaveState("idle");
     void fetchConversationDocument(conversationId, documentId)
       .then((document) => {
         if (!active) return;
         setArtifact(document);
+        const content = document.content_md ?? "";
+        setDraft(content);
+        draftRef.current = content;
+        savedContentRef.current = content;
       })
       .catch(() => {
         if (!active) return;
@@ -139,29 +154,64 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
     Boolean(artifact && binarySource && blobLoading);
   const previewFailed = sourceError || Boolean(blobError);
 
-  function startEditing() {
-    if (!artifact) return;
-    setDraft(artifact.content_md ?? "");
-    setEditing(true);
+  const runSave = useCallback(
+    async (cid: string, did: string, content: string) => {
+      setSaveState("saving");
+      try {
+        const updated = await updateConversationDocument(cid, did, {
+          content_md: content,
+        });
+        savedContentRef.current = content;
+        setArtifact((prev) =>
+          prev && prev.id === updated.id
+            ? { ...prev, updated_at: updated.updated_at }
+            : prev,
+        );
+        // A newer keystroke may have re-armed the timer while this PATCH was in
+        // flight; only claim "saved" if the persisted content is still current.
+        setSaveState((state) =>
+          state === "saving" && draftRef.current === content ? "saved" : state,
+        );
+      } catch {
+        // apiHttp's interceptor already surfaces the error toast.
+        setSaveState("error");
+      }
+    },
+    [],
+  );
+
+  function handleDraftChange(value: string) {
+    setDraft(value);
+    draftRef.current = value;
+    if (!conversationId || !documentId) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    if (value === savedContentRef.current) {
+      saveTimerRef.current = null;
+      setSaveState("idle");
+      return;
+    }
+    saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null;
+      void runSave(conversationId, documentId, draftRef.current);
+    }, AUTOSAVE_DELAY_MS);
   }
 
-  async function saveDraft() {
-    if (!artifact || !conversationId || !documentId) return;
-    setSaving(true);
-    try {
-      const updated = await updateConversationDocument(
-        conversationId,
-        documentId,
-        { content_md: draft },
-      );
-      setArtifact(updated);
-      setEditing(false);
-      toast.success("已保存");
-    } catch {
-    } finally {
-      setSaving(false);
-    }
-  }
+  // Switching artifact / closing the panel / unmounting must not silently drop
+  // a debounced edit still waiting on its timer — flush it immediately.
+  useEffect(() => {
+    return () => {
+      if (!saveTimerRef.current) return;
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+      if (
+        conversationId &&
+        documentId &&
+        draftRef.current !== savedContentRef.current
+      ) {
+        void runSave(conversationId, documentId, draftRef.current);
+      }
+    };
+  }, [conversationId, documentId, token, runSave]);
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
@@ -176,39 +226,18 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
             </p>
           ) : null}
         </div>
-        {editing ? (
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="shrink-0"
-              disabled={saving}
-              onClick={() => setEditing(false)}
-            >
-              取消
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className="shrink-0"
-              disabled={saving}
-              onClick={() => void saveDraft()}
-            >
-              {saving ? "保存中…" : "保存"}
-            </Button>
-          </>
-        ) : editable ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8 shrink-0"
-            aria-label="编辑"
-            onClick={startEditing}
+        {editable && saveState !== "idle" ? (
+          <span
+            className="shrink-0 text-xs text-muted-foreground"
+            role="status"
+            aria-live="polite"
           >
-            <PencilIcon className="size-4" />
-          </Button>
+            {saveState === "saving"
+              ? "保存中…"
+              : saveState === "saved"
+                ? "已保存"
+                : "保存失败"}
+          </span>
         ) : null}
         <Button
           type="button"
@@ -222,19 +251,20 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
         </Button>
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {editing && artifact ? (
+        {previewLoading ? (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            加载中…
+          </div>
+        ) : editable && artifact ? (
           <div className="flex min-h-0 flex-1 overflow-hidden">
             <MarkdownEditor
+              key={`${documentId}:${token}`}
               value={draft}
               contentType="markdown"
               editable
-              onChange={setDraft}
-              className="h-full w-full"
+              onChange={handleDraftChange}
+              className="h-full w-full overflow-y-auto"
             />
-          </div>
-        ) : previewLoading ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            加载中…
           </div>
         ) : previewFailed ? (
           <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">

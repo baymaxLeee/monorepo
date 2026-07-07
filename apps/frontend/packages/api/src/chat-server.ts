@@ -86,6 +86,8 @@ export interface ConversationDocument {
   ingest_status?: IngestStatus;
   ingest_progress?: number;
   ingest_error?: string | null;
+  index_status?: IndexStatus;
+  index_error?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -96,6 +98,13 @@ export type IngestStatus =
   | "storing"
   | "converting"
   | "ready"
+  | "failed";
+
+export type IndexStatus =
+  | "pending"
+  | "indexing"
+  | "indexed"
+  | "skipped"
   | "failed";
 
 export interface ConversationDocumentDetail extends ConversationDocument {

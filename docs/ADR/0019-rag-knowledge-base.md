@@ -226,3 +226,67 @@ chunk's text/title. Feeding the *original image* back to a vision-capable chat
 model as an AI SDK `file` part on a retrieval hit — with official `source-*`
 stream parts for citation — is intentionally out of this round's scope; the
 retrieval + dual-index groundwork here is its prerequisite.
+
+## Update — v1.6.0: indexing decoupled from ingest progress (async background)
+
+Decisions 3-4 above ran `index_document` **synchronously inside the ingest SSE**
+(and inside the document-edit PATCH): the per-file `file_ready` event, and the
+whole `[DONE]`, only fired after embedding + Contextual Retrieval + chunk writes
+finished. Embedding is the slowest, most failure-prone step (external
+model calls) and is **not** required for the document to be considered imported —
+the file is received, stored, and converted well before it is retrievable. So the
+progress stream was blocked on work the user does not need to wait for.
+
+**Change.** Ingest/edit now return as soon as the document is `ready/100`
+(received + stored + converted); embedding/chunking runs asynchronously.
+
+- New `documents.index_status` (`pending`/`indexing`/`indexed`/`skipped`/`failed`)
+  + `index_error`, tracked **separately** from `ingest_status` so the RAG-index
+  lifecycle is observable and retryable. Column defaults to `skipped`, so agent
+  artifacts (never chunked) need no code change; only ingest/edit/reindex set
+  `pending` to enqueue. Migration `v1.6.0.sql` backfills by real chunk existence
+  (`EXISTS (SELECT 1 FROM document_chunks …)` → `indexed`; source-with-content but
+  no chunks → `pending`; else `skipped`) — the old ingest swallowed index errors
+  and still emitted `file_ready`, so "kind=source" alone did not imply indexed.
+- `IndexResult` is now structured (`status: indexed|skipped|failed` + `reason`)
+  instead of a free-form `note`, so the background runner classifies outcomes
+  without string-parsing.
+- `services/indexer.py` is the background runner: `schedule_index()` fire-and-
+  forget tasks (bounded by `index_max_parallel`), `sweep_claim()` re-queues
+  survivors at startup (resets crashed `indexing` → `pending`). A new
+  `POST /documents/{id}/reindex` retries a skipped/failed document; the admin UI
+  shows a secondary "索引中/可检索/索引失败" badge, a "重试索引" action, and
+  polls while any row is pending/indexing.
+- **Per-document correctness** under concurrent triggers (import / PATCH /
+  reindex / autosave / sweep):
+  - a Postgres advisory lock held for the whole run gives single-flight across
+    processes/replicas, so two runs never contend the
+    `ux_document_chunks_doc_index` unique constraint;
+  - `index_document` deletes the doc's chunks **up front**, so any outcome
+    (no provider / dim mismatch / no text) leaves no stale chunks — retrieval
+    reads `document_chunks` directly and does not consult `index_status`, so a
+    skipped/failed re-index after an edit must not keep old content searchable.
+    Trade-off: a re-index while the embedding provider is down drops the doc from
+    retrieval until a later successful run (sweep or manual reindex), which is
+    preferable to serving outdated content;
+  - the terminal status write is a compare-and-set on `updated_at` (the content
+    version, never bumped by status writes): if an edit lands mid-index the guard
+    fails and the stale result is discarded rather than marking new content
+    `indexed`;
+  - an in-memory dirty flag (`_pending[id] = True`) records schedules that arrive
+    while a doc is already running and re-runs once on completion, so a burst of
+    autosave edits never drops a schedule or leaves a row stuck in `indexing`.
+
+**Reliability boundary (explicit).** This is a **single-process, in-memory
+scheduler** — deliberately not a durable job system. Tasks are lost on
+crash/deploy and recovered only by the startup sweep; multi-replica safety rests
+on the advisory lock, not on persisted queues, so it is best-effort not
+exactly-once. If durable, resumable, observable execution across crashes and
+deployments is later required, this should move to the executor service's
+Workflow DevKit (durable/resumable steps, managed state) rather than growing more
+in-process machinery.
+
+**Consequence.** There is now a short window after import where a document is
+readable (`read_file` / `content_md`) but not yet retrievable via RAG
+(`knowledge_search`), since chunks/BM25 are written by `index_document`. This is
+the intended trade-off — import progress reflects storage, not embedding.

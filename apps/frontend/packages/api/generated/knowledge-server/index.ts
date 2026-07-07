@@ -150,6 +150,17 @@ export const DocumentIngestStatus = {
   failed: 'failed',
 } as const;
 
+export type DocumentIndexStatus = typeof DocumentIndexStatus[keyof typeof DocumentIndexStatus];
+
+
+export const DocumentIndexStatus = {
+  pending: 'pending',
+  indexing: 'indexing',
+  indexed: 'indexed',
+  skipped: 'skipped',
+  failed: 'failed',
+} as const;
+
 export interface Document {
   id: string;
   user_id: string;
@@ -169,6 +180,8 @@ export interface Document {
   ingest_status?: DocumentIngestStatus;
   ingest_progress?: number;
   ingest_error?: string | null;
+  index_status?: DocumentIndexStatus;
+  index_error?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -532,6 +545,20 @@ const deleteMyDocumentDocumentsDocumentIdDelete = (
     }
 
 /**
+ * Re-queue a document for background RAG indexing (retry a skipped/failed
+ * index, or rebuild after provider changes).
+ * @summary Reindex My Document
+ */
+const reindexMyDocumentDocumentsDocumentIdReindexPost = (
+    documentId: string,
+ options?: SecondParameter<typeof apiMutator<Document>>,) => {
+      return apiMutator<Document>(
+      {url: `/documents/${documentId}/reindex`, method: 'POST'
+    },
+      options);
+    }
+
+/**
  * @summary Get My Document Source
  */
 const getMyDocumentSourceDocumentsDocumentIdSourceGet = (
@@ -794,7 +821,7 @@ const retrieveChunksInternalRetrievePost = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestStreamIngestStreamPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,reserveGenerationInternalArtifactGenerationsPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,retrieveChunksInternalRetrievePost}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestStreamIngestStreamPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,reserveGenerationInternalArtifactGenerationsPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,retrieveChunksInternalRetrievePost}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -809,6 +836,7 @@ export type BatchDeleteMyDocumentsDocumentsBatchDeletePostResult = NonNullable<A
 export type GetMyDocumentDocumentsDocumentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getMyDocumentDocumentsDocumentIdGet']>>>
 export type UpdateMyDocumentDocumentsDocumentIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['updateMyDocumentDocumentsDocumentIdPatch']>>>
 export type DeleteMyDocumentDocumentsDocumentIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['deleteMyDocumentDocumentsDocumentIdDelete']>>>
+export type ReindexMyDocumentDocumentsDocumentIdReindexPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['reindexMyDocumentDocumentsDocumentIdReindexPost']>>>
 export type GetMyDocumentSourceDocumentsDocumentIdSourceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getMyDocumentSourceDocumentsDocumentIdSourceGet']>>>
 export type ListDocumentsInternalDocumentsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['listDocumentsInternalDocumentsGet']>>>
 export type GetDocumentInternalDocumentsDocumentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getDocumentInternalDocumentsDocumentIdGet']>>>

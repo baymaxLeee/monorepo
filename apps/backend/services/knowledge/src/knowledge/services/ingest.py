@@ -20,7 +20,7 @@ from knowledge.models.document import DocumentRow
 from knowledge.services.admin_client import get_admin_client
 from knowledge.services.convert import AttachmentConversionError, AttachmentTooLargeError, ConvertService
 from knowledge.services.documents import document_to_schema
-from knowledge.services.indexing import index_document
+from knowledge.services.indexer import schedule_index
 from knowledge.services.object_store import ObjectStore
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -183,15 +183,10 @@ async def stream_ingest_events(
                             "ingest_status": "ready",
                             "ingest_progress": 100,
                             "ingest_error": None,
+                            "index_status": "pending",
                         },
                     )
                     await worker_session.commit()
-                    try:
-                        index_result = await index_document(worker_session, document_id=row.id)
-                        if index_result.note:
-                            print(f"[knowledge-ingest] index note for {row.id}: {index_result.note}")
-                    except Exception as index_exc:
-                        print(f"[knowledge-ingest] indexing failed for {row.id}: {index_exc}")
                     succeeded += 1
                     doc = document_to_schema(row)
                     await emit(
@@ -204,6 +199,9 @@ async def stream_ingest_events(
                             "document": doc.model_dump(mode="json"),
                         }
                     )
+                    # Embedding/chunking runs in the background so ingest progress
+                    # only reflects "received + stored + converted", not RAG index.
+                    schedule_index(row.id)
                 except Exception as exc:
                     await worker_session.rollback()
                     failed += 1

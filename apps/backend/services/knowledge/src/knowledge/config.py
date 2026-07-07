@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     attachment_markdown_max_chars: int = 12_000
     attachment_vision_max_tokens: int = 1024
     ingest_max_parallel: int = 3
+    index_max_parallel: int = 2
     llm_timeout_seconds: float = 60.0
     default_bucket: str = "knowledge"
 

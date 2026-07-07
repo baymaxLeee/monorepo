@@ -8,7 +8,7 @@ from knowledge.deps import AuthContext, CurrentUser, DbSession
 from knowledge.models.document import DocumentRow
 from knowledge.schemas.document import Document
 from knowledge.services.documents import document_to_schema
-from knowledge.services.indexing import index_document
+from knowledge.services.indexer import schedule_index
 from knowledge.services.object_store import ObjectStore
 from pydantic import BaseModel, Field
 
@@ -98,13 +98,33 @@ async def update_my_document(
         raise ForbiddenError("you may only update your own documents")
     values = payload.model_dump(exclude_unset=True, exclude_none=True)
     if values:
+        if "content_md" in values:
+            values["index_status"] = "pending"
         row = await document_crud.update_document(session, row, values)
         await session.commit()
         if "content_md" in values:
-            try:
-                await index_document(session, document_id=row.id)
-            except Exception as exc:
-                print(f"[knowledge] reindex failed for {row.id}: {exc}")
+            schedule_index(row.id)
+    return document_to_schema(row, include_content=True)
+
+
+@router.post("/{document_id}/reindex", response_model=Document)
+async def reindex_my_document(
+    document_id: str,
+    current_user: CurrentUser,
+    session: DbSession,
+) -> Document:
+    """Re-queue a document for background RAG indexing (retry a skipped/failed
+    index, or rebuild after provider changes)."""
+    row = await document_crud.get_org_document(session, document_id, current_user.org_id)
+    if row is None:
+        raise NotFoundError(f"document {document_id} not found")
+    if not _may_manage(current_user, row):
+        raise ForbiddenError("you may only reindex your own documents")
+    await document_crud.set_index_status(session, row.id, status="pending")
+    await session.commit()
+    schedule_index(row.id)
+    row = await document_crud.get_org_document(session, document_id, current_user.org_id)
+    assert row is not None
     return document_to_schema(row, include_content=True)
 
 

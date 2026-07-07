@@ -40,6 +40,12 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 ## Conventions
 - Documents are user-scoped; `conversation_id` is an optional tag only (no FK).
 - Deleting a chat conversation does NOT delete knowledge documents.
+- RAG indexing is **async and decoupled from ingest progress** (ADR-0019 v1.6.0):
+  ingest/edit return at `ready/100` and enqueue background embedding via
+  `services/indexer.py` (`schedule_index`); `index_status` tracks that lifecycle
+  separately from `ingest_status`, `POST /documents/{id}/reindex` retries, and
+  `sweep_claim()` recovers on startup. It is a single-process demo scheduler
+  (advisory-lock single-flight + fingerprint re-run), not a durable queue.
 - RAG index is kept fresh: re-index on document change; `document_chunks` has an
   `ON DELETE CASCADE` FK so deleting a document removes its chunks.
 - Embedding model and the `vector(N)` column dimension must agree; changing the

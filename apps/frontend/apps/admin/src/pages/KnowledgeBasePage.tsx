@@ -4,6 +4,7 @@ import {
   fetchKnowledgeDocumentSource,
   type KnowledgeDocument,
   listKnowledgeDocuments,
+  reindexKnowledgeDocument,
   uploadKnowledgeDocuments,
 } from "api";
 import {
@@ -53,6 +54,20 @@ function statusBadge(doc: KnowledgeDocument) {
   return <Badge variant="secondary">处理中</Badge>;
 }
 
+function indexBadge(doc: KnowledgeDocument) {
+  const status = doc.index_status ?? "skipped";
+  if (status === "pending" || status === "indexing")
+    return <Badge variant="secondary">索引中</Badge>;
+  if (status === "failed") return <Badge variant="destructive">索引失败</Badge>;
+  if (status === "indexed") return <Badge variant="outline">可检索</Badge>;
+  return null;
+}
+
+function isIndexInFlight(doc: KnowledgeDocument): boolean {
+  const status = doc.index_status ?? "skipped";
+  return status === "pending" || status === "indexing";
+}
+
 export function KnowledgeBasePage() {
   const [docs, setDocs] = useState<KnowledgeDocument[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -77,6 +92,14 @@ export function KnowledgeBasePage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Indexing runs in the background after import; silently poll while any row is
+  // still pending/indexing so the badge flips to "可检索" without a manual refresh.
+  useEffect(() => {
+    if (!docs?.some(isIndexInFlight)) return;
+    const timer = setInterval(load, 3000);
+    return () => clearInterval(timer);
+  }, [docs, load]);
 
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
@@ -117,6 +140,16 @@ export function KnowledgeBasePage() {
       anchor.remove();
       URL.revokeObjectURL(url);
     } catch {}
+  }
+
+  async function retryIndex(doc: KnowledgeDocument) {
+    try {
+      await reindexKnowledgeDocument(doc.id);
+      toast.success("已重新提交索引");
+      load();
+    } catch (e) {
+      toast.error(getErrorMessage(e));
+    }
   }
 
   async function remove(doc: KnowledgeDocument) {
@@ -167,7 +200,7 @@ export function KnowledgeBasePage() {
           <PageTitle>知识库管理</PageTitle>
           <PageDescription>
             上传企业文档（接受任意格式，自动转换为 Markdown
-            并建立检索索引）。支持本地导入、列表查询、批量删除、单个下载与在线编辑。
+            后台异步建立检索索引）。支持本地导入、列表查询、批量删除、单个下载与在线编辑。
           </PageDescription>
         </PageHeaderContent>
         <PageActions>
@@ -258,11 +291,26 @@ export function KnowledgeBasePage() {
                     <TableCell className="text-muted-foreground">
                       {formatBytes(doc.source_size)}
                     </TableCell>
-                    <TableCell>{statusBadge(doc)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-1">
+                        {statusBadge(doc)}
+                        {indexBadge(doc)}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(doc.updated_at).toLocaleString()}
                     </TableCell>
                     <TableCell className="space-x-1 text-right">
+                      {(doc.index_status === "failed" ||
+                        doc.index_status === "skipped") && (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          onClick={() => retryIndex(doc)}
+                        >
+                          重试索引
+                        </Button>
+                      )}
                       <Button
                         variant="link"
                         size="sm"

@@ -13,6 +13,7 @@ import base64
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Literal
 
 import anyio
 from knowledge.config import get_settings
@@ -30,10 +31,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger("knowledge.indexing")
 
 
+# Outcome of a single index_document run. Distinct from schemas.document.IndexStatus
+# (the persisted workflow state: pending/indexing/indexed/skipped/failed).
+IndexOutcome = Literal["indexed", "skipped", "failed"]
+
+
 @dataclass(frozen=True)
 class IndexResult:
-    indexed: int
-    note: str | None = None
+    status: IndexOutcome
+    indexed: int = 0
+    reason: str | None = None
 
 
 def _is_image_document(row: DocumentRow) -> bool:
@@ -98,23 +105,32 @@ async def index_document(session: AsyncSession, *, document_id: str) -> IndexRes
     settings = get_settings()
     row = await document_crud.get_document_by_id(session, document_id)
     if row is None:
-        return IndexResult(0, "document not found")
+        return IndexResult("skipped", reason="document not found")
     # Providers are team-shared: index against the document's own org so the
     # whole team's chunks land in one embedding space and are retrievable.
     org_id = row.org_id
     if org_id is None:
-        return IndexResult(0, "document has no org")
+        return IndexResult("skipped", reason="document has no org")
+
+    # Clear the document's existing chunks up front: a (re)index must make chunks
+    # reflect the CURRENT content, so every early return below (no provider / no
+    # text / dim mismatch) is guaranteed not to leave stale content retrievable —
+    # retrieval reads document_chunks directly and never consults index_status.
+    # Trade-off: a re-index attempted while the embedding provider is down drops
+    # the doc from retrieval until a later successful (re)index (startup sweep or
+    # manual reindex), which is preferable to serving outdated content.
+    await chunk_crud.delete_document_chunks(session, document_id)
 
     text = (row.content_md or "").strip()
     if not text:
-        await chunk_crud.delete_document_chunks(session, document_id)
         await session.commit()
-        return IndexResult(0, "no text content")
+        return IndexResult("skipped", reason="no text content")
 
     try:
         embed_provider = await get_admin_client().get_provider_by_kind(org_id=org_id, kind="embedding")
     except ProviderNotConfiguredError:
-        return IndexResult(0, "no embedding provider configured")
+        await session.commit()
+        return IndexResult("skipped", reason="no embedding provider configured")
 
     pieces = chunk_text(
         text,
@@ -122,9 +138,8 @@ async def index_document(session: AsyncSession, *, document_id: str) -> IndexRes
         overlap_tokens=settings.chunk_overlap_tokens,
     )
     if not pieces:
-        await chunk_crud.delete_document_chunks(session, document_id)
         await session.commit()
-        return IndexResult(0, "no chunks")
+        return IndexResult("skipped", reason="no chunks")
 
     contexts: list[str | None] = [None] * len(pieces)
     if settings.contextual_retrieval_enabled:
@@ -139,11 +154,13 @@ async def index_document(session: AsyncSession, *, document_id: str) -> IndexRes
     embed_inputs = [f"{ctx}\n\n{piece}" if ctx else piece for piece, ctx in zip(pieces, contexts, strict=True)]
     vectors = await embed_texts(embed_inputs, provider=embed_provider)
     if len(vectors) != len(pieces):
-        return IndexResult(0, "embedding count mismatch")
+        await session.commit()
+        return IndexResult("failed", reason="embedding count mismatch")
     if vectors and len(vectors[0]) != settings.embedding_dim:
+        await session.commit()
         return IndexResult(
-            0,
-            f"embedding dim {len(vectors[0])} != configured {settings.embedding_dim}; re-index after aligning",
+            "failed",
+            reason=f"embedding dim {len(vectors[0])} != configured {settings.embedding_dim}; re-index after aligning",
         )
 
     now = datetime.now(UTC)
@@ -173,7 +190,6 @@ async def index_document(session: AsyncSession, *, document_id: str) -> IndexRes
         embedding_dim=settings.embedding_dim,
     )
 
-    await chunk_crud.delete_document_chunks(session, document_id)
     await chunk_crud.insert_chunks(session, new_rows)
     await session.commit()
-    return IndexResult(len(new_rows), image_note)
+    return IndexResult("indexed", indexed=len(new_rows), reason=image_note)

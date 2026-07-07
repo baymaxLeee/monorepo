@@ -1,5 +1,6 @@
 """FastAPI app entry."""
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -17,10 +18,19 @@ from knowledge.routers import (
     retrieval_internal,
 )
 from knowledge.services.admin_client import close_admin_client
+from knowledge.services.indexer import sweep_claim
+
+logger = logging.getLogger("knowledge.main")
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    try:
+        recovered = await sweep_claim()
+        if recovered:
+            logger.info("re-queued %d document(s) for background indexing", recovered)
+    except Exception:  # startup recovery is best-effort; never block boot
+        logger.exception("index sweep on startup failed")
     yield
     await close_admin_client()
     await close_db()
