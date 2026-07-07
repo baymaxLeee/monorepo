@@ -53,10 +53,12 @@ wants a chat affordance to invoke a skill directly via `/`.
 ## Consequences
 
 - A team can author a skill in admin, bind it to a bot, and the chat user can
-  invoke it via `/` — no code deploy. The oncall bot's RCA playbook is restored
-  as the seeded `oncall-rca` admin skill bound to `bot-oncall` (non-prod seed).
-- One migration (`admin v1.10.0`), purely structural. Demo data lives in
-  `seed_demo_bots` (non-production only), never in the migration.
+  invoke it via `/` — no code deploy. The oncall bot's RCA playbook is expressed
+  as an admin `oncall-rca` skill an operator authors and binds; nothing is seeded
+  by default (the demo oncall bot/skill seed was removed so tenant-authored data
+  is never confused with built-in data).
+- One migration (`admin v1.10.0`), purely structural, and never carries demo
+  data. `seed_demo_bots` only seeds apps/scenes/intentions (non-production only).
 - `load_skill` is still a single general tool; adding skills is data, not new
   tools. The system-skill mechanism (ADR-0028) is unchanged and coexists.
 - The dead `AgentExtensionContribution.instructions` field stayed removed;

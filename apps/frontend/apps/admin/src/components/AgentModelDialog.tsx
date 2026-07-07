@@ -175,7 +175,7 @@ export function AgentModelDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>配置智能体</DialogTitle>
           <DialogDescription>
@@ -186,8 +186,11 @@ export function AgentModelDialog({
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FieldGroup>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex min-h-0 flex-1 flex-col gap-4"
+          >
+            <FieldGroup className="min-h-0 flex-1 overflow-y-auto px-1">
               <FormField
                 control={form.control}
                 name="name"

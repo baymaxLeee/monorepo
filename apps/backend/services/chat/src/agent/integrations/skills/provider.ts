@@ -37,6 +37,11 @@ const SYSTEM_SKILLS: SystemSkill[] = SKILL_RESOURCES.map((resource) => {
   return { name, description, resource };
 });
 
+/** Names owned by code-governed system skills. Admin (bot-bound) skills may not
+ *  use these — a tenant must never shadow a built-in workflow/safety skill. The
+ *  run filters admin skills against this set before advertising or activating. */
+export const SYSTEM_SKILL_NAMES: ReadonlySet<string> = new Set(SYSTEM_SKILLS.map((s) => s.name));
+
 /** Per-run admin (bot-bound) skill source: L1 listings + an on-demand body
  *  loader keyed by skill id. Threaded from the run orchestrator so the single
  *  `load_skill` tool can resolve both built-in and configured skills. */
@@ -58,9 +63,10 @@ async function loadSystemSkillBody(skill: SystemSkill): Promise<string> {
 /**
  * Resolves the skills a run advertises and the single `load_skill` tool that
  * pulls their bodies. System skills (filesystem) and admin skills (bot-bound,
- * loaded via admin) are merged by name; on a name collision the bot's admin
- * skill wins and shadows the built-in. `load_skill` refuses any name not in the
- * advertised set, so the model can only load skills this bot actually offers.
+ * loaded via admin) are merged by name; on a name collision the code-governed
+ * system skill wins and the admin skill is dropped, so tenant config can never
+ * shadow a built-in workflow/safety skill. `load_skill` refuses any name not in
+ * the advertised set, so the model can only load skills this bot actually offers.
  */
 export function resolveSkills(
   mode: AgentMode,
@@ -68,7 +74,8 @@ export function resolveSkills(
 ): { manifests: AgentToolManifest[]; skills: SkillListing[] } {
   if (mode !== "normal") return { manifests: [], skills: [] };
 
-  // name -> body loader. System first, admin overrides on collision.
+  // name -> body loader. System skills claim their names first and are never
+  // overridden; a colliding admin skill is skipped (see SYSTEM_SKILL_NAMES).
   const loaders = new Map<string, () => Promise<string>>();
   const listings = new Map<string, SkillListing>();
 
@@ -78,7 +85,10 @@ export function resolveSkills(
   }
   for (const skill of adminSource?.skills ?? []) {
     if (loaders.has(skill.name)) {
-      console.warn(`[chat-agent] bot skill "${skill.name}" shadows a built-in skill of the same name`);
+      console.warn(
+        `[chat-agent] ignoring bot skill "${skill.name}": name is reserved by a built-in system skill`,
+      );
+      continue;
     }
     loaders.set(skill.name, () => adminSource!.loadBody(skill.id));
     listings.set(skill.name, { name: skill.name, description: skill.description });

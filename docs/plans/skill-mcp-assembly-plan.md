@@ -42,8 +42,9 @@
   `ChatComposerControls` 展示可移除的技能 chip。
 
 ### 兑现的历史遗留
-- ADR-0032 里延后的「RCA 工作流交给 skill」：`seed_demo_bots` 播种 `oncall-rca` admin Skill
-  （body=四段 RCA 作战手册）并绑定 `bot-oncall`，恢复其被移除 `system_prompt` 时丢失的完整手册。
+- ADR-0032 里延后的「RCA 工作流交给 skill」已由 admin Skill 能力承载：运营可在技能页新建
+  `oncall-rca`（body=四段 RCA 作战手册）并绑定到对应 bot。`seed_demo_bots` 不再内置任何
+  demo oncall bot/skill —— 演示数据改由运营在 admin 自行录入，避免租户配置与内置数据混淆。
 
 ## MCP 预留（不实装）
 
