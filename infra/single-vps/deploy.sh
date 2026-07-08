@@ -49,6 +49,7 @@ fi
 
 echo "→ syncing infra/single-vps → ${REMOTE}:${DEPLOY_DIR}"
 ssh "${REMOTE}" "mkdir -p ${DEPLOY_DIR}"
+ssh "${REMOTE}" "for f in otel-collector.yaml clickhouse-low-memory.xml clickhouse-users.xml; do [ ! -d \"${DEPLOY_DIR}/\$f\" ] || rm -rf \"${DEPLOY_DIR}/\$f\"; done"
 
 # Ship only the small ops files. All service code (nginx.conf, postgres-init.sh)
 # is baked into the images. The VPS-local age.key and generated .env.secrets are
@@ -56,6 +57,9 @@ ssh "${REMOTE}" "mkdir -p ${DEPLOY_DIR}"
 rsync -avz --delete \
     --include='docker-compose.prod.yml' \
     --include='render-env.sh' \
+    --include='otel-collector.yaml' \
+    --include='clickhouse-low-memory.xml' \
+    --include='clickhouse-users.xml' \
     --include='secrets.sops.env' \
     --include='README.md' \
     --exclude='*' \

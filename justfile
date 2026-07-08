@@ -6,20 +6,23 @@ default:
     @just --list
 
 # ─── Lifecycle ──────────────────────────────────────────────
-# Start local infra: Docker, create DBs, apply service-owned dev schemas.
+# Start full local infra, including the observability stack.
 up:
-    docker compose up -d --remove-orphans
-    @./scripts/wait-for-postgres.sh
-    @./scripts/workflow-postgres-bootstrap.sh
-    @./scripts/db-bootstrap.sh
-    @echo "OK Infra up - Redis :6379, Postgres :5432 (workflow + service DBs + knowledge vectors)"
-
-up-observability:
     docker compose --profile observability up -d --remove-orphans
     @./scripts/wait-for-postgres.sh
     @./scripts/workflow-postgres-bootstrap.sh
     @./scripts/db-bootstrap.sh
-    @echo "OK Infra + observability up - Redis :6379, Postgres :5432, ClickHouse :8123, OTLP :4318"
+    @echo "OK Infra up - Redis :6379, Postgres :5432, ClickHouse :8123, OTLP :4318"
+
+up-core:
+    docker compose up -d --remove-orphans
+    @./scripts/wait-for-postgres.sh
+    @./scripts/workflow-postgres-bootstrap.sh
+    @./scripts/db-bootstrap.sh
+    @echo "OK Core infra up - Redis :6379, Postgres :5432 (workflow + service DBs + knowledge vectors)"
+
+up-observability:
+    @just up
 
 reset-demo-data:
     @./scripts/reset-demo-data.sh
