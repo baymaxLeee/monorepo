@@ -103,7 +103,9 @@ export function ChatLayout() {
     const { id, title } = conversationTitleUpdate;
     setConversations((prev) =>
       prev
-        ? prev.map((conv) => (conv.id === id ? { ...conv, title } : conv))
+        ? prev.map((conv) =>
+            conv.id === id && conv.title !== title ? { ...conv, title } : conv,
+          )
         : prev,
     );
   }, [conversationTitleUpdate]);

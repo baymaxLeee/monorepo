@@ -54,7 +54,7 @@ export function TraceTimeline({
     );
   }
   return (
-    <div className="space-y-3 rounded-md border p-4">
+    <div className="flex max-h-[calc(100vh-16rem)] flex-col gap-3 rounded-md border p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="font-medium">Trace timeline</div>
@@ -62,7 +62,7 @@ export function TraceTimeline({
         </div>
         <Badge variant="outline">{spans.length} spans</Badge>
       </div>
-      <div className="space-y-2">
+      <div className="min-h-0 flex-1 space-y-2 overflow-auto">
         {spans.map((span) => {
           const label = spanLabel(span);
           const isError = span.status_code.toLowerCase().includes("error");

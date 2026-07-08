@@ -30,7 +30,7 @@ import {
   type PromptInputValue,
   PromptInput as RichPromptInput,
 } from "components/prompt-input";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getErrorMessage } from "shared";
 import { useShallow } from "zustand/react/shallow";
@@ -96,6 +96,8 @@ function isPendingAssistantMessage(message: ChatUIMessage | undefined) {
   });
 }
 
+const CHAT_STREAM_THROTTLE_MS = 50;
+
 export function Chat() {
   const { id } = useParams<{ id: string }>();
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
@@ -110,6 +112,8 @@ export function Chat() {
   const resumedConversationRef = useRef<string | null>(null);
   const reconnectAbortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatUIMessage[]>([]);
+  const titleRafRef = useRef<number | null>(null);
+  const pendingTitleRef = useRef<{ id: string; title: string } | null>(null);
   const {
     agents,
     selectedAgentId,
@@ -218,6 +222,31 @@ export function Chat() {
     [id, setTraceRun],
   );
 
+  const scheduleConversationTitle = useCallback(
+    (conversationId: string, title: string) => {
+      pendingTitleRef.current = { id: conversationId, title };
+      if (titleRafRef.current !== null) return;
+      titleRafRef.current = window.requestAnimationFrame(() => {
+        titleRafRef.current = null;
+        const pending = pendingTitleRef.current;
+        pendingTitleRef.current = null;
+        if (!pending) return;
+        setDetail((current) => {
+          if (
+            !current ||
+            current.id !== pending.id ||
+            current.title === pending.title
+          ) {
+            return current;
+          }
+          return { ...current, title: pending.title };
+        });
+        applyConversationTitle(pending.id, pending.title);
+      });
+    },
+    [applyConversationTitle],
+  );
+
   const {
     messages,
     setMessages,
@@ -231,6 +260,7 @@ export function Chat() {
     id: id ?? "chat",
     transport,
     resume: false,
+    experimental_throttle: CHAT_STREAM_THROTTLE_MS,
     sendAutomaticallyWhen: (options) =>
       lastAssistantMessageIsCompleteWithToolCalls(options) ||
       lastAssistantMessageIsCompleteWithApprovalResponses(options),
@@ -241,9 +271,8 @@ export function Chat() {
     onData: (dataPart) => {
       if (dataPart.type !== "data-conversation-title") return;
       const title = dataPart.data.title.trim();
-      if (!title) return;
-      setDetail((current) => (current ? { ...current, title } : current));
-      if (id) applyConversationTitle(id, title);
+      if (!title || !id) return;
+      scheduleConversationTitle(id, title);
     },
     onFinish: () => {
       bumpTraceRefresh();
@@ -264,6 +293,9 @@ export function Chat() {
     () => () => {
       void stop();
       reconnectAbortRef.current?.abort();
+      if (titleRafRef.current !== null) {
+        window.cancelAnimationFrame(titleRafRef.current);
+      }
     },
     [stop],
   );

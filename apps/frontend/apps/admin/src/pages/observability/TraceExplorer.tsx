@@ -117,7 +117,7 @@ function TraceList({
     );
   }
   return (
-    <div className="overflow-auto rounded-md border">
+    <div className="max-h-[calc(100vh-16rem)] overflow-auto rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>

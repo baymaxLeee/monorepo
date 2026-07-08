@@ -191,13 +191,21 @@ export const useChatStore = create<ChatUIState>()(
 
       conversationTitleUpdate: null,
       applyConversationTitle: (id, title) =>
-        set((state) => ({
-          conversationTitleUpdate: {
-            id,
-            title,
-            seq: (state.conversationTitleUpdate?.seq ?? 0) + 1,
-          },
-        })),
+        set((state) => {
+          if (
+            state.conversationTitleUpdate?.id === id &&
+            state.conversationTitleUpdate.title === title
+          ) {
+            return state;
+          }
+          return {
+            conversationTitleUpdate: {
+              id,
+              title,
+              seq: (state.conversationTitleUpdate?.seq ?? 0) + 1,
+            },
+          };
+        }),
     }),
     {
       name: "chat.store",
