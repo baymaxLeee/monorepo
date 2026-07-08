@@ -45,7 +45,13 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   serialize independent deliverables (md/html/image/video run concurrently via
   the SDK's per-step `Promise.all`). Rare co-emission of todos with a deliverable
   is an accepted cosmetic glitch, not a bug to guard at runtime.
-- `update_plan` snapshots are persisted in native UIMessage tool parts.
+- `write_plan`/`update_plan` snapshots are persisted in native UIMessage tool
+  parts. Their successful outputs may include advisory routing hints such as
+  `next_suggestion`, used only by the LLM to decide whether a later approved
+  normal-mode execution should begin with `update_todos` for medium/difficult
+  work. The harness must not read these hints as a scheduler, lock, or
+  permission mechanism. Higher-priority instructions, user intent, mode policy,
+  and tool schemas always win.
 - `update_todos` (normal/agent execution mode only) is a stateless,
   side-effect-free tool: it
   always replaces the full `{id, content, status, deliverable?}` list and has
@@ -63,6 +69,9 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   restate the snapshot mid-step, so the frontend advances each tagged todo live
   from its own deliverable card instead of waiting for the next-step reconcile
   (ADR-0024).
+  After `update_todos`, the next model step should execute the ready work
+  directly under `runtime_contract` (including parallel deliverables in one
+  step); `update_todos` does not return routing advice.
 - `write_file`/`edit_file` handle both Markdown and HTML. Markdown runs
   synchronously in this tool call (a single `streamText`, no durability
   needed). **HTML dispatches to the `executor` service and foreground-blocks

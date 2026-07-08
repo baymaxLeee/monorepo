@@ -18,6 +18,7 @@ const planArtifactOutputSchema = z.object({
   title: z.string(),
   filename: z.string(),
   kind: z.literal("plan"),
+  next_suggestion: z.string(),
 });
 
 const updatePlanOutputSchema = z.union([
@@ -62,7 +63,8 @@ export function createPlanningToolManifests() {
     defineAgentTool(
       "write_plan",
       tool({
-        description: "Create the active Markdown execution plan. The filename is normalized to *-plan.md.",
+        description:
+          "Create the active Markdown execution plan. The filename is normalized to *-plan.md. The returned `next_suggestion` is advisory for a later normal-mode execution turn: for medium or difficult approved plans, consider update_todos first.",
         inputSchema: writePlanInputSchema,
         outputSchema: planArtifactOutputSchema,
         contextSchema: planToolContextSchema,
@@ -81,7 +83,8 @@ export function createPlanningToolManifests() {
     defineAgentTool(
       "update_plan",
       tool({
-        description: "Replace the active Markdown plan using its document id and latest revision id.",
+        description:
+          "Replace the active Markdown plan using its document id and latest revision id. The returned `next_suggestion` is advisory for a later normal-mode execution turn: for medium or difficult approved plans, consider update_todos first.",
         inputSchema: updatePlanInputSchema,
         outputSchema: updatePlanOutputSchema,
         contextSchema: planToolContextSchema,
@@ -101,7 +104,7 @@ export function createPlanningToolManifests() {
       "update_todos",
       tool({
         description:
-          "Create or replace the full todo list for a multi-step task. Reflect real parallel work with multiple in-progress items. Use exactly ONE todo per deliverable and tag it with `deliverable` ('artifact' for write_file/edit_file, 'image' for generate_images, 'video' for generate_video); the whole image batch (a single generate_images call with multiple prompts) is ONE 'image' todo, never one per image. Call this alone to lay out the complete list before you dispatch any deliverable — a tagged todo then advances to completed on its own the moment that deliverable's card finishes, independently of the slower siblings, so you need not wait for the whole parallel step to reconcile them.",
+          "Create or replace the full todo list for a multi-step task. Prefer this as the first normal-mode action when executing an approved or referenced plan that has multiple checklist items, parallel deliverables, dependencies, or long-running work; skip it for clearly small or single-deliverable plans. Reflect real parallel work with multiple in-progress items. Use exactly ONE todo per deliverable and tag it with `deliverable` ('artifact' for write_file/edit_file, 'image' for generate_images, 'video' for generate_video); the whole image batch (a single generate_images call with multiple prompts) is ONE 'image' todo, never one per image. Call this alone to lay out the complete list before you dispatch any deliverable.",
         inputSchema: updateTodosInputSchema,
         outputSchema: updateTodosOutputSchema,
         execute: updateTodos,

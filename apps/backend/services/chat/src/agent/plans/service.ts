@@ -27,6 +27,7 @@ export type PlanArtifactOutput = {
   title: string;
   filename: string;
   kind: "plan";
+  next_suggestion: string;
 };
 
 function planFilename(value: string): string {
@@ -48,6 +49,8 @@ function output(document: { id: string; updated_at: string; title: string; filen
     title: document.title,
     filename: document.filename,
     kind: "plan",
+    next_suggestion:
+      "If the user approves executing this plan and the work is medium or difficult, consider calling update_todos first in normal mode to create a visible checklist; skip it for clearly small or single-deliverable plans. Do not call update_todos while still in plan mode.",
   };
 }
 
