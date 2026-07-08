@@ -9,11 +9,13 @@ import { getToken } from "./storage";
 
 declare const process: { env: { API_BASE_URL?: string } } | undefined;
 
-export const API_BASE_URL =
+const rawApiBaseUrl =
   (typeof window !== "undefined" &&
     (window as { __API_BASE__?: string }).__API_BASE__) ||
   (typeof process !== "undefined" ? process.env.API_BASE_URL : undefined) ||
   "";
+
+export const API_BASE_URL = normalizeApiBaseURL(rawApiBaseUrl);
 
 /**
  * Per-request options layered on top of axios config.
@@ -49,7 +51,44 @@ const NO_REFRESH_PATHS = [
   "/api/iam-server/account-availability",
 ];
 
+const GATEWAY_PREFIX_BY_ROOT_SEGMENT: Record<string, string> = {
+  "account-availability": "/api/iam-server",
+  login: "/api/iam-server",
+  logout: "/api/iam-server",
+  me: "/api/iam-server",
+  orgs: "/api/iam-server",
+  refresh: "/api/iam-server",
+  register: "/api/iam-server",
+  roles: "/api/iam-server",
+  users: "/api/iam-server",
+  apps: "/api/admin-server",
+  bots: "/api/admin-server",
+  intentions: "/api/admin-server",
+  providers: "/api/admin-server",
+  scenes: "/api/admin-server",
+  skills: "/api/admin-server",
+  conversations: "/api/chat-server",
+  memories: "/api/chat-server",
+  documents: "/api/knowledge-server",
+  ingest: "/api/knowledge-server",
+  errors: "/api/telemetry-server",
+  ops: "/api/telemetry-server",
+  performance: "/api/telemetry-server",
+  rum: "/api/telemetry-server",
+};
+
+const GATEWAY_PREFIX_BY_LOCAL_PORT: Record<string, string> = {
+  "8001": "/api/admin-server",
+  "8002": "/api/iam-server",
+  "8008": "/api/telemetry-server",
+  "8009": "/api/chat-server",
+  "8010": "/api/knowledge-server",
+};
+
 apiHttp.interceptors.request.use((config) => {
+  const target = normalizeRequestTarget(config.url, config.baseURL);
+  config.url = target.url;
+  config.baseURL = target.baseURL;
   const token = getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -125,4 +164,84 @@ export function toApiError(error: unknown): ApiError {
     status: error.response?.status,
     code: data?.title,
   });
+}
+
+function normalizeApiBaseURL(value: string): string {
+  if (isLocalBackendOrigin(value)) {
+    return "";
+  }
+  return value;
+}
+
+function normalizeRequestTarget(
+  url: string | undefined,
+  baseURL: string | undefined,
+): { url: string | undefined; baseURL: string | undefined } {
+  const direct = normalizeDirectLocalUrl(url);
+  if (direct) {
+    return { url: direct, baseURL: "" };
+  }
+
+  const normalizedBaseURL = normalizeApiBaseURL(baseURL ?? "");
+  if (
+    !url?.startsWith("/") ||
+    url.startsWith("/api/") ||
+    gatewayServiceBaseURL(normalizedBaseURL)
+  ) {
+    return { url, baseURL: normalizedBaseURL };
+  }
+
+  const segment = url.slice(1).split("/", 1)[0];
+  const prefix = GATEWAY_PREFIX_BY_ROOT_SEGMENT[segment];
+  return { url: prefix ? `${prefix}${url}` : url, baseURL: normalizedBaseURL };
+}
+
+function normalizeDirectLocalUrl(value: string | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return null;
+  }
+  if (!isLocalHostname(parsed.hostname)) {
+    return null;
+  }
+  if (parsed.port === "8000") {
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  }
+  const prefix = GATEWAY_PREFIX_BY_LOCAL_PORT[parsed.port];
+  if (!prefix) {
+    return null;
+  }
+  return `${prefix}${parsed.pathname}${parsed.search}${parsed.hash}`;
+}
+
+function gatewayServiceBaseURL(value: string | undefined): boolean {
+  return (
+    typeof value === "string" &&
+    /\/api\/[a-z-]+$/.test(value.replace(/\/$/, ""))
+  );
+}
+
+function isLocalBackendOrigin(value: string | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+  return (
+    isLocalHostname(parsed.hostname) &&
+    (parsed.port === "8000" || parsed.port in GATEWAY_PREFIX_BY_LOCAL_PORT)
+  );
+}
+
+function isLocalHostname(value: string): boolean {
+  return value === "localhost" || value === "127.0.0.1";
 }

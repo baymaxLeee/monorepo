@@ -87,7 +87,14 @@ def _read_clickhouse_status(base_url: str, user: str, password: str) -> ClickHou
             spans_last_hour=_int(row.get("spans_last_hour")),
             latest_span_at=_none_if_empty(row.get("latest_span_at")),
         )
-    except (OSError, urllib.error.URLError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+    except (
+        OSError,
+        urllib.error.URLError,
+        json.JSONDecodeError,
+        KeyError,
+        TypeError,
+        ValueError,
+    ) as exc:
         return ClickHouseStatus(
             configured=True,
             healthy=False,
@@ -107,7 +114,14 @@ async def list_traces(*, limit: int, minutes: int) -> TraceListResponse:
             limit,
             minutes,
         )
-    except OSError, urllib.error.URLError, json.JSONDecodeError, KeyError, TypeError, ValueError:
+    except (
+        OSError,
+        urllib.error.URLError,
+        json.JSONDecodeError,
+        KeyError,
+        TypeError,
+        ValueError,
+    ):
         rows = []
     return TraceListResponse(items=rows)
 
@@ -125,7 +139,14 @@ async def get_trace_detail(trace_id: str) -> TraceDetailResponse:
             settings.clickhouse_password,
             normalized,
         )
-    except OSError, urllib.error.URLError, json.JSONDecodeError, KeyError, TypeError, ValueError:
+    except (
+        OSError,
+        urllib.error.URLError,
+        json.JSONDecodeError,
+        KeyError,
+        TypeError,
+        ValueError,
+    ):
         spans = []
     return TraceDetailResponse(trace_id=normalized, spans=spans)
 
@@ -232,8 +253,15 @@ def _clickhouse_json_query(
         data=sql.encode(),
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        payload = json.loads(response.read().decode())
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode())
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode(errors="replace").strip()
+        message = f"ClickHouse HTTP {exc.code}"
+        if detail:
+            message = f"{message}: {detail}"
+        raise ValueError(message) from exc
     return cast(dict[str, object], payload) if isinstance(payload, dict) else {}
 
 
