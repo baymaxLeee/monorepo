@@ -86,7 +86,8 @@ for the full rationale.
     step. Before assembly a quality bar requires the **hook** (segment 0) plus
     ≥60% of segments, else the run fails rather than shipping a plot with holes.
   - **Assembly is hard-cut ONLY, always parallel.** Every segment references the
-    character sheet and fans out via `mapConcurrent` (`SEGMENT_CONCURRENCY`), then
+    character sheet and fans out via `mapConcurrent` with
+    `VIDEO_SEGMENT_CONCURRENCY` (default 12, matching the max segment count), then
     concatenates with hard cuts. Seed is per-segment derived (soft reproducibility
     on 2.x). There is NO serial/seamless mode: the `continuity: "chain"` option
     (last-frame → next first-frame chaining) was removed — it was serial, so an

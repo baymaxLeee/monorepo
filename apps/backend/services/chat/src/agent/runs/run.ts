@@ -30,6 +30,7 @@ import {
   createAgentRun,
   finishAgentRun,
   finalizeCancelledRunToolCalls,
+  finalizeRunToolCallsFromParts,
   getAgentRunById,
   getRunTrace,
   type AgentRunTrace,
@@ -406,6 +407,7 @@ export async function createAgentRunResponse(
           const usage = await Promise.resolve(result.totalUsage).catch(() => null);
           const tokens = extractUsageTokens(usage);
           if (aborted) await finalizeCancelledRunToolCalls(runId);
+          else await finalizeRunToolCallsFromParts(runId, parts);
           await finishAgentRun({
             runId,
             status: aborted ? "cancelled" : failed ? "failed" : "completed",

@@ -310,6 +310,81 @@ export async function recordToolCallFinish(input: {
     .where(eq(agentToolCalls.id, input.toolCallId));
 }
 
+function terminalToolPart(part: unknown): {
+  toolCallId: string;
+  status: "completed" | "failed";
+  output?: unknown;
+  error?: unknown;
+} | null {
+  if (!part || typeof part !== "object") return null;
+  const row = part as Record<string, unknown>;
+  if (typeof row.toolCallId !== "string") return null;
+  if (row.state === "output-available") {
+    const output = row.output;
+    const semanticFailure =
+      output &&
+      typeof output === "object" &&
+      "ok" in output &&
+      (output as { ok?: unknown }).ok === false;
+    return {
+      toolCallId: row.toolCallId,
+      status: semanticFailure ? "failed" : "completed",
+      output: semanticFailure ? undefined : output,
+      error: semanticFailure ? output : undefined,
+    };
+  }
+  if (row.state === "output-error") {
+    return {
+      toolCallId: row.toolCallId,
+      status: "failed",
+      error: typeof row.errorText === "string" ? row.errorText : "tool execution failed",
+    };
+  }
+  if (row.state === "output-denied") {
+    return {
+      toolCallId: row.toolCallId,
+      status: "failed",
+      error: "tool execution denied",
+    };
+  }
+  return null;
+}
+
+export async function finalizeRunToolCallsFromParts(runId: string, parts: unknown[]): Promise<void> {
+  const terminalById = new Map<string, ReturnType<typeof terminalToolPart>>();
+  for (const part of parts) {
+    const terminal = terminalToolPart(part);
+    if (terminal) terminalById.set(terminal.toolCallId, terminal);
+  }
+  if (terminalById.size === 0) return;
+
+  const db = getDb();
+  const rows = await db
+    .select({ id: agentToolCalls.id, createdAt: agentToolCalls.createdAt })
+    .from(agentToolCalls)
+    .where(and(eq(agentToolCalls.runId, runId), eq(agentToolCalls.status, "running")));
+  const now = new Date();
+  await Promise.all(
+    rows.map((row) => {
+      const terminal = terminalById.get(row.id);
+      if (!terminal) return Promise.resolve();
+      return db
+        .update(agentToolCalls)
+        .set({
+          status: terminal.status,
+          outputJson:
+            terminal.status === "completed" && terminal.output !== undefined
+              ? asJsonValue(terminal.output)
+              : undefined,
+          error: terminal.status === "failed" ? errorText(terminal.error).slice(0, 4000) : null,
+          durationMs: Math.max(0, now.getTime() - row.createdAt.getTime()),
+          finishedAt: now,
+        })
+        .where(eq(agentToolCalls.id, row.id));
+    }),
+  );
+}
+
 export interface PersistedToolCall {
   id: string;
   status: "running" | "completed" | "failed";

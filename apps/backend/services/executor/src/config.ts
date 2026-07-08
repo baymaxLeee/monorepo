@@ -16,6 +16,7 @@ export interface Settings {
   chatServiceUrl: string;
   ffmpegPath: string;
   htmlBlockConcurrency: number;
+  videoSegmentConcurrency: number;
 }
 
 function envOr(key: string, fallback: string): string {
@@ -59,5 +60,6 @@ export function getSettings(): Settings {
     // Bounded above by WORKFLOW_POSTGRES_WORKER_CONCURRENCY (the WDK step pool)
     // and the provider's rate limit; transient 429/5xx are absorbed by retries.
     htmlBlockConcurrency: envIntClamped("HTML_BLOCK_CONCURRENCY", 8, 1, 32),
+    videoSegmentConcurrency: envIntClamped("VIDEO_SEGMENT_CONCURRENCY", 12, 1, 12),
   };
 }

@@ -374,7 +374,7 @@ Remove the `chain` path and all its plumbing entirely; the pipeline is
    the `generateVideo` signature, and the executor task payload.
 2. **executor `videoGenerationInputSchema`**: `continuity` field removed.
 3. **`videoGenerationWorkflow`**: the `if (continuity === "chain")` serial branch
-   is deleted; every run fans out through `mapConcurrent(SEGMENT_CONCURRENCY)`
+   is deleted; every run fans out through `mapConcurrent(VIDEO_SEGMENT_CONCURRENCY)`
    with mode `reference` (falls back to `text` when no character sheet).
 4. **Chaining primitives removed**: `SegmentMode` drops `"first-frame"`;
    `createSegmentStep`/`buildSegmentContent` drop `firstFrameUrl`/`returnLastFrame`;
@@ -383,9 +383,10 @@ Remove the `chain` path and all its plumbing entirely; the pipeline is
    entry, and `ArkImageRole` narrows to `"reference_image"` only (no
    `first_frame`/`last_frame`).
 
-Parallel `cut` keeps total wall-clock at roughly `ceil(N / SEGMENT_CONCURRENCY) ×
-per-segment render` (~14 min for a 10-segment 60s reel), comfortably inside the
-30-min cap — the timeout disappears by construction, without touching the cap.
+Parallel `cut` keeps total wall-clock at roughly `ceil(N / VIDEO_SEGMENT_CONCURRENCY) ×
+per-segment render`; the default concurrency is 12, matching the max segment
+count, so the normal path submits every deterministic 6s segment in one fan-out
+batch. The timeout disappears by construction, without touching the cap.
 
 Frame-level seamless continuity (last-frame chaining) is once again **out of
 scope**, as it was in the original `## Decision`. If it ever returns it must NOT

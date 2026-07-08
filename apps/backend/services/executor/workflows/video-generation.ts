@@ -6,6 +6,7 @@ import {
   recordExternalTask,
   reportTaskProgress,
 } from "../src/tasks/notify.js";
+import { getSettings } from "../src/config.js";
 import { getProvider } from "../src/clients/admin.js";
 import { createMediaDocument } from "../src/clients/knowledge.js";
 import {
@@ -27,6 +28,7 @@ import {
 import {
   DEFAULT_TARGET_DURATION_S,
   MAX_MAIN_CHARACTERS,
+  MAX_SEGMENTS,
   MAX_TARGET_DURATION_S,
   MIN_TARGET_DURATION_S,
   deriveSegmentCount,
@@ -56,8 +58,6 @@ const POLL_REQUEST_TIMEOUT_MS = 30_000;
 const CREATE_REQUEST_TIMEOUT_MS = 60_000;
 const ANCHOR_PER_IMAGE_TIMEOUT_MS = 2 * 60_000;
 const ASSEMBLE_TIMEOUT_MS = 10 * 60_000;
-
-const SEGMENT_CONCURRENCY = 3;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -278,6 +278,11 @@ async function reportProgressStep(done: number, total: number): Promise<void> {
   }
 }
 
+async function getVideoSegmentConcurrencyStep(): Promise<number> {
+  "use step";
+  return Math.min(getSettings().videoSegmentConcurrency, MAX_SEGMENTS);
+}
+
 async function mapConcurrent<T, R>(
   values: readonly T[],
   concurrency: number,
@@ -297,6 +302,7 @@ async function mapConcurrent<T, R>(
 
 export async function videoGenerationWorkflow(input: VideoGenerationInput) {
   "use workflow";
+  const segmentConcurrency = await getVideoSegmentConcurrencyStep();
   const { script, segments, characterRefs, baseSeed } = await planStep(input);
   const total = segments.length;
   const hasRefs = characterRefs.length > 0;
@@ -304,7 +310,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
   await reportProgressStep(done, total);
 
   const mode: SegmentMode = hasRefs ? "reference" : "text";
-  const results = await mapConcurrent(segments, SEGMENT_CONCURRENCY, async (segment: Segment) => {
+  const results = await mapConcurrent(segments, segmentConcurrency, async (segment: Segment) => {
     const created = await createSegmentStep({
       providerId: input.providerId,
       segment,
