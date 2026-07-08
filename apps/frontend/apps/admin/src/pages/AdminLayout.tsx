@@ -1,6 +1,5 @@
 import { Aside, Button, Layout, Main, Section } from "components";
 import {
-  ActivityIcon,
   AppWindowIcon,
   ArrowLeftIcon,
   BotIcon,
@@ -31,12 +30,7 @@ type AdminMenuItem = {
 const personalMenus: AdminMenuItem[] = [
   { title: "个人资料", href: "/platform/admin/profile", icon: UserIcon },
   {
-    title: "我的可观测数据",
-    href: "/platform/admin/telemetry",
-    icon: ActivityIcon,
-  },
-  {
-    title: "总览",
+    title: "仪表盘",
     href: "/platform/admin/dashboard",
     icon: LayoutDashboardIcon,
   },
@@ -48,12 +42,12 @@ const adminMenus: AdminMenuItem[] = [
   { title: "场景", href: "/platform/admin/scenes", icon: ListTreeIcon },
   { title: "意图", href: "/platform/admin/intentions", icon: NetworkIcon },
   {
-    title: "模型管理",
+    title: "模型",
     href: "/platform/admin/providers",
     icon: BrainCircuitIcon,
   },
   {
-    title: "知识库管理",
+    title: "知识库",
     href: "/platform/admin/knowledge",
     icon: LibraryBigIcon,
   },
@@ -77,7 +71,7 @@ function MenuList({ items }: { items: AdminMenuItem[] }) {
   const location = useLocation();
 
   return (
-    <nav className="grid gap-1" aria-label="后台管理菜单">
+    <nav className="grid gap-0.5" aria-label="后台管理菜单">
       {items.map((item) => {
         const Icon = item.icon;
         const active =
@@ -89,7 +83,7 @@ function MenuList({ items }: { items: AdminMenuItem[] }) {
             key={item.href}
             asChild
             variant={active ? "secondary" : "ghost"}
-            className="justify-start gap-2"
+            className="h-8 justify-start gap-2 px-2"
           >
             <Link to={item.href}>
               <Icon aria-hidden="true" className="size-4" />
@@ -108,19 +102,19 @@ export function AdminLayout() {
   const governanceMenus: AdminMenuItem[] = [];
   if (isSuperAdmin) {
     governanceMenus.push({
-      title: "应用入口管理",
+      title: "应用入口",
       href: "/platform/admin/apps",
       icon: AppWindowIcon,
     });
     governanceMenus.push({
-      title: "组织管理",
+      title: "组织",
       href: "/platform/admin/organizations",
       icon: Building2Icon,
     });
   }
   if (canViewMembers) {
     governanceMenus.push({
-      title: "成员管理",
+      title: "成员",
       href: "/platform/admin/members",
       icon: UsersIcon,
     });
@@ -135,12 +129,12 @@ export function AdminLayout() {
 
   return (
     <Layout className="min-h-svh flex-row">
-      <Aside className="w-52 shrink-0 gap-6 p-3">
+      <Aside className="w-52 shrink-0 gap-2 p-2">
         <Button
           asChild
           variant="ghost"
           size="sm"
-          className="justify-start gap-2 self-start px-2 text-muted-foreground"
+          className="h-8 justify-start gap-2 self-start px-2 text-muted-foreground"
         >
           <Link to="/platform/chat">
             <ArrowLeftIcon aria-hidden="true" className="size-4" />
@@ -148,27 +142,27 @@ export function AdminLayout() {
           </Link>
         </Button>
         <Section>
-          <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+          <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
             个人
           </div>
           <MenuList items={personalMenus} />
         </Section>
         <Section>
-          <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+          <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
             管理配置
           </div>
           <MenuList items={adminMenus} />
         </Section>
         {governanceMenus.length > 0 && (
           <Section>
-            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+            <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
               组织与权限
             </div>
             <MenuList items={governanceMenus} />
           </Section>
         )}
         <Section>
-          <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+          <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
             开发
           </div>
           <MenuList items={utilityMenus} />

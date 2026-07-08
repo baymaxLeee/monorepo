@@ -8,7 +8,6 @@ import { DashboardPage } from "../pages/DashboardPage";
 import { IntentionsPage } from "../pages/IntentionsPage";
 import { KnowledgeBasePage } from "../pages/KnowledgeBasePage";
 import { MembersPage } from "../pages/MembersPage";
-import { MyTelemetryPage } from "../pages/MyTelemetryPage";
 import { OrganizationsPage } from "../pages/OrganizationsPage";
 import { OperationsObservabilityPage } from "../pages/observability/OperationsObservabilityPage";
 import { TraceExplorerPage } from "../pages/observability/TraceExplorerPage";
@@ -28,7 +27,7 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <Navigate to="profile" replace /> },
       { path: "profile", element: <ProfilePage /> },
-      { path: "telemetry", element: <MyTelemetryPage /> },
+      { path: "telemetry", element: <Navigate to="dashboard" replace /> },
       { path: "dashboard", element: <DashboardPage /> },
       { path: "bots", element: <BotListPage /> },
       { path: "bots/:id", element: <BotDetailPage /> },

@@ -6,7 +6,11 @@ storage and dashboard query APIs.
 ## Owns
 
 - PostgreSQL database: `telemetry`
-- HTTP API: `/rum/*`, `/errors/*`, `/healthz`
+- HTTP API:
+  - `/rum/*` — RUM write path used by `packages/observability`
+  - `/errors/*` and `/performance/*` — user/admin dashboard reads
+  - `/ops/*` — super_admin-only observability status and trace queries
+  - `/livez`, `/readyz`, `/healthz` — service probes
 - Private RUM write protocol used by `@packages/observability`
 
 ## Does NOT own

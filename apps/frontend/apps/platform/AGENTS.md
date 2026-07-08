@@ -31,7 +31,7 @@ shell (sidebar with "返回应用" + grouped menu). See `apps/frontend/AGENTS.md
 - `/404` — platform-owned not-found page
 - `/platform` — authed shell; index redirects to `/platform/chat` (primary landing)
 - `/platform/<slug>/*` — each remote (`basePath` from app registry, e.g. `/platform/chat`, `/platform/admin`)
-- Personal pages (个人资料 / 我的可观测数据 / 总览 Dashboard) live inside the
+- Personal pages (个人资料 / 仪表盘) live inside the
   `admin` settings shell, not platform.
 - **Guest**: any unknown path → `/login`
 - **Authed**: unknown app slug in `RemoteHost` → `/404` (never the landing, to avoid a redirect loop)
