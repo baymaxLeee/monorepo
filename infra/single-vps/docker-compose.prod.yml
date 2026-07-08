@@ -282,7 +282,9 @@ services:
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
       EXECUTOR_SERVICE_URL: http://executor:8011
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
-      TAVILY_API_KEY: ${TAVILY_API_KEY:?TAVILY_API_KEY is required}
+      EXA_API_KEY: ${EXA_API_KEY:?EXA_API_KEY is required}
+      # Optional fallback provider; chat runs on Exa alone if unset.
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
     <<: *restart_policy
 
   executor:

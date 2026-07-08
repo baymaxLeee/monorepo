@@ -17,6 +17,7 @@ export interface Settings {
   knowledgeServiceUrl: string;
   executorServiceUrl: string;
   internalApiToken: string;
+  exaApiKey: string;
   tavilyApiKey: string;
   providerCacheTtlSeconds: number;
 }
@@ -53,6 +54,7 @@ export function getSettings(): Settings {
     knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
     executorServiceUrl: envOr("EXECUTOR_SERVICE_URL", "http://localhost:8011"),
     internalApiToken: envOr("INTERNAL_API_TOKEN", DEV_INTERNAL_TOKEN),
+    exaApiKey: envOr("EXA_API_KEY", ""),
     tavilyApiKey: envOr("TAVILY_API_KEY", ""),
     providerCacheTtlSeconds: envInt("PROVIDER_CACHE_TTL_SECONDS", 300),
   };

@@ -12,8 +12,8 @@
 #      or type them. Regenerating is safe only on a fresh data volume, so we
 #      generate-if-missing and otherwise reuse.
 #   3. Operator secrets decrypted from the committed, SOPS-encrypted
-#      ./secrets.sops.env (super-admin login, Tavily key, and the two
-#      must-stay-stable crypto secrets ACCESS_TOKEN_SECRET / ADMIN_SECRET_KEY).
+#      ./secrets.sops.env (super-admin login, Exa/Tavily Search keys, and the
+#      two must-stay-stable crypto secrets ACCESS_TOKEN_SECRET / ADMIN_SECRET_KEY).
 #
 # Idempotent. The persistence in (2) is REQUIRED for correctness, not just
 # tidiness: the Postgres superuser password is fixed at first data-volume init

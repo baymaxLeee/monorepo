@@ -77,7 +77,7 @@ hand-manage the middle-column "operator" secrets:
 |---|---|---|
 | `IMAGE_REGISTRY` / `IMAGE_TAG` / `PUBLIC_PORT` | CI / `deploy.sh` | passed in the environment |
 | Database passwords + `INTERNAL_API_TOKEN` | **auto-generated on the VPS** | `.env.secrets` (0600, VPS-only, never in git) |
-| super-admin login, `TAVILY_API_KEY`, `ACCESS_TOKEN_SECRET`, `ADMIN_SECRET_KEY` | **you** | `secrets.sops.env` (SOPS-encrypted, committed) |
+| super-admin login, `EXA_API_KEY` / `TAVILY_API_KEY`, `ACCESS_TOKEN_SECRET`, `ADMIN_SECRET_KEY` | **you** | `secrets.sops.env` (SOPS-encrypted, committed) |
 
 ---
 
@@ -129,7 +129,7 @@ $EDITOR .sops.yaml                    # replace the two age1REPLACE... placehold
 
 # c) Create the encrypted operator secrets from the template:
 cp infra/single-vps/secrets.sops.env.example /tmp/s.env
-$EDITOR /tmp/s.env        # fill in SUPER_ADMIN_PASSWORD, TAVILY_API_KEY, etc.
+$EDITOR /tmp/s.env        # fill in SUPER_ADMIN_PASSWORD, EXA_API_KEY, TAVILY_API_KEY, etc.
 sops --encrypt --input-type dotenv --output-type dotenv /tmp/s.env \
   > infra/single-vps/secrets.sops.env
 shred -u /tmp/s.env

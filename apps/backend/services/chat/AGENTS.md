@@ -99,14 +99,24 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   against *process* loss; it is only tied to the turn for user-initiated Stop.)
   Executor task-type compensation also cancels the Knowledge generation or
   recorded Ark video jobs; Workflow run cancellation alone is insufficient.
-- `web_search` uses Tavily. Freshness is handled two ways so the model never
-  falls back to its training-cutoff year: (1) the current date is injected into
-  the agent instructions as a trailing `<environment>` block (single source of
-  truth — `renderEnvironment` in `context/instructions/assembler.ts`, assembled
-  last so the static prompt prefix stays cache-stable); (2) the tool exposes
-  Tavily's
-  native `topic`/`time_range`/`start_date`/`end_date` filters so recency is a
-  structured, server-side filter rather than a year stuffed into the query.
+- `web_search` uses Exa Search as the primary source
+  (`POST https://api.exa.ai/search`, `x-api-key`) and Tavily Search as fallback
+  (`POST https://api.tavily.com/search`, `Authorization: Bearer`). Freshness is
+  handled two ways so the model never falls back to its training-cutoff year:
+  (1) the current date is injected into the agent instructions as a trailing
+  `<environment>` block (single source of truth — `renderEnvironment` in
+  `context/instructions/assembler.ts`, assembled last so the static prompt
+  prefix stays cache-stable);   (2) the tool keeps its own `category`/`time_range`/`start_date`/`end_date`
+  inputs so recency is a structured, server-side filter rather than a year
+  stuffed into the query. Exa freshness uses two distinct levers together:
+  `startPublishedDate`/`endPublishedDate` bias WHICH results return (by publish
+  date; from an explicit range or derived from `time_range`), while `maxAgeHours`
+  (derived from `time_range`: day/week/month/year → 24/168/744/8760) forces a
+  livecrawl of stale page CONTENT. `category` maps to Exa `news`/`research paper`
+  (and to Tavily's `topic`). Snippets prefer Exa `highlights` (token-efficient);
+  the heavier whole-page `summary` is requested only for `research_paper`. If Exa
+  fails or returns no results and `TAVILY_API_KEY` is configured, the tool falls
+  back to Tavily `search_depth: "advanced"`; Tavily is optional (Exa is primary).
   `create_memory`/`update_memory` stage a candidate; user approval remains
   asynchronous in the memory panel.
 - Built-ins are grouped by capability under `tools/builtins/` but remain one
