@@ -24,7 +24,7 @@ export function SelectOrgPage() {
 
   if (!user) return <Navigate to="/login" replace />;
   if (user.activeOrg || isSuperAdmin(user)) {
-    return <Navigate to="/platform/home" replace />;
+    return <Navigate to="/platform/chat" replace />;
   }
   const orgs = activeMemberships(user);
   if (orgs.length === 0) return <Navigate to="/pending" replace />;
@@ -36,7 +36,7 @@ export function SelectOrgPage() {
       // Persist the rescoped identity before the reload so the shell boots
       // cleanly bound to the chosen org.
       setUser(session.user);
-      window.location.assign("/platform/home");
+      window.location.assign("/platform/chat");
     } catch {
       setSwitching(null);
     }

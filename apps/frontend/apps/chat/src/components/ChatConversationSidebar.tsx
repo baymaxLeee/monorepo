@@ -11,6 +11,7 @@ import {
   Skeleton,
 } from "components";
 import {
+  BoxesIcon,
   MessageSquareIcon,
   MoreHorizontalIcon,
   PanelLeftIcon,
@@ -21,6 +22,7 @@ import {
 import { Link } from "react-router-dom";
 import { cn } from "shared";
 import { ChatPanelResizeHandle } from "./ChatPanelResizeHandle";
+import { ChatUserMenu } from "./ChatUserMenu";
 
 export type ChatConversationSidebarProps = {
   conversations: Conversation[] | null;
@@ -71,36 +73,45 @@ export function ChatConversationSidebar({
         aria-hidden={!open}
       >
         <div className="relative flex h-full min-w-0 flex-col gap-2 overflow-hidden">
+          <div className="flex items-center justify-between gap-1 px-1 pt-0.5">
+            <Link
+              to="/platform/chat"
+              aria-label="Monorepo"
+              className="inline-flex min-w-0 items-center gap-1.5 font-semibold"
+            >
+              <BoxesIcon aria-hidden="true" className="size-4 shrink-0" />
+              <span className="truncate text-sm">Monorepo</span>
+            </Link>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label="收起侧栏"
+              className="size-7 shrink-0"
+              onClick={onToggle}
+            >
+              <PanelLeftIcon aria-hidden="true" className="size-3.5" />
+            </Button>
+          </div>
+
           <div className="flex items-center justify-between gap-1 px-0.5">
             <span className="truncate text-[11px] font-medium text-muted-foreground">
               会话
             </span>
-            <div className="flex shrink-0 items-center gap-0.5">
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                onClick={onCreate}
-                disabled={creating}
-                aria-label="新建会话"
-                className="size-7"
-              >
-                <PlusIcon aria-hidden="true" className="size-3.5" />
-              </Button>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                aria-label="收起会话列表"
-                className="size-7"
-                onClick={onToggle}
-              >
-                <PanelLeftIcon aria-hidden="true" className="size-3.5" />
-              </Button>
-            </div>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={onCreate}
+              disabled={creating}
+              aria-label="新建会话"
+              className="size-7 shrink-0"
+            >
+              <PlusIcon aria-hidden="true" className="size-3.5" />
+            </Button>
           </div>
 
-          <Section className="gap-0.5 overflow-y-auto">
+          <Section className="min-h-0 flex-1 gap-0.5 overflow-y-auto">
             {conversations === null ? (
               <div className="space-y-2 px-1">
                 <Skeleton className="h-9 w-full" />
@@ -181,6 +192,10 @@ export function ChatConversationSidebar({
               </nav>
             )}
           </Section>
+
+          <div className="mt-auto border-t pt-1.5">
+            <ChatUserMenu />
+          </div>
         </div>
         <ChatPanelResizeHandle
           edge="left-panel"

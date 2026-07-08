@@ -491,7 +491,7 @@ export function Chat() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <header className="flex h-11 shrink-0 items-center justify-center px-4">
+      <header className="flex h-8 shrink-0 items-center justify-center px-4">
         <h1 className="max-w-full truncate text-sm font-medium text-foreground">
           {detail?.title ?? "新对话"}
         </h1>

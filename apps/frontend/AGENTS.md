@@ -94,7 +94,7 @@ deployed asset bundles, but platform is the only user-facing entry.
 - **MFE remotes**: no PostCSS/Tailwind; app-level styles come from platform-injected `components/styles.css`. Component-owned third-party CSS may stay inside lazy component entries and is handled by the remote plain CSS rule.
 - **components**: normal workspace dependency, not MF-shared; preserve tree-shaking
 - **State**: shared cross-MFE state primitives live in `runtime`; `zustand`, `zustand/middleware`, and shallow selector helpers are host-provided MF singletons. Private MFE stores may import `create` / `useShallow` directly from `zustand` packages; do not wrap static Zustand APIs in `runtime`.
-- **Shell 布局**: platform `Layout` 使用 `Sidebar` + `registry.subNav`；MFE 只渲染内容区（无二次顶栏）
+- **Shell 布局（Codex 式左右布局）**: platform `Layout` 是**透明 host**——只做鉴权守卫、重定向、埋点，不渲染任何全局 chrome DOM（无顶栏/侧栏）。可见外壳由各 MFE 自持：`chat` 是主壳（左侧栏含品牌 + 会话列表 + 左下角用户区，用户区下拉聚合设置/记忆/团队切换/退出），`admin` 是「设置」壳（左侧「返回应用」+ 分组菜单 + 内容区）。登录落地 `/platform/chat`；跨 app 跳转走 chat 用户区（→ admin）与 admin 的「返回应用」（→ chat）。不要把顶栏加回 platform。
 - **全局浮层**: platform `AppProviders` 挂载 `TooltipProvider` + `Toaster`（`toast` 从 `components` 导出）
 - **MFE 内 Provider**: 每个 remote 的 `App` 也要挂载自己的 `TooltipProvider`；`Toaster` 保持由 platform 统一挂载
 - **表单**: `Form` + `Field` + `react-hook-form` + `zod`；业务页勿手写裸 `Label`+`useState` 校验

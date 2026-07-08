@@ -41,7 +41,7 @@ function shortId(value: string | null) {
   return value ? value.slice(0, 8) : "-";
 }
 
-export function ObservabilityPage() {
+export function MyTelemetryPage() {
   const [items, setItems] = useState<TelemetryErrorEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -181,5 +181,3 @@ function ErrorTable({ items }: { items: TelemetryErrorEvent[] }) {
     </Table>
   );
 }
-
-export default ObservabilityPage;

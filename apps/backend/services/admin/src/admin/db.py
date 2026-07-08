@@ -117,7 +117,7 @@ _DEMO_INTENTIONS: list[tuple[str, str, str, int, str, bool, str]] = [
 
 _DEMO_APPS: list[tuple[str, str, str, str, bool, int]] = [
     ("admin", "后台管理", "/platform/admin", "mfe_admin", True, 10),
-    ("chat", "对话", "/platform/chat", "mfe_chat", True, 20),
+    ("chat", "对话", "/platform/chat", "mfe_chat", False, 20),
 ]
 
 

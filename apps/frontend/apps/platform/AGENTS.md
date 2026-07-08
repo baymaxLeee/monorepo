@@ -4,9 +4,15 @@ Platform is the host application. It owns:
 
 - Top-level routing (which URL routes to which MFE)
 - Authentication (via api)
-- Global layout (header, sidebar, footer)
-- Global error boundary
 - MFE registry (which remote lives at which URL)
+- Global error boundary + global providers (TooltipProvider / Toaster)
+
+Platform is a **transparent host**: its `Layout` renders NO global chrome
+(no header/sidebar/footer). It only does auth guards, redirects, and page-view
+telemetry, then mounts the active MFE. The visible shell is owned per-MFE:
+`chat` is the primary shell (sidebar + user area), `admin` is the settings
+shell (sidebar with "返回应用" + grouped menu). See `apps/frontend/AGENTS.md`
+"Shell 布局". Do not reintroduce a platform-level top bar.
 
 ## Hard rules
 
@@ -18,15 +24,17 @@ Platform is the host application. It owns:
 
 ## URL layout
 
-- `/` (`HOME_PATH`) — platform-owned home page
-- `/login` — session check via `LoginRoute`; valid token → admin, else login form
+- `/` — redirects to `/login`
+- `/login` — session check via `LoginRoute`; valid token → landing, else login form
 - `/register` — public account registration
-- `/profile` — platform-owned user profile page
+- `/select-org` / `/pending` — org onboarding (host-owned)
 - `/404` — platform-owned not-found page
-- `/platform/<slug>` — each remote (`basePath` in registry, e.g. `/platform/admin`)
+- `/platform` — authed shell; index redirects to `/platform/chat` (primary landing)
+- `/platform/<slug>/*` — each remote (`basePath` from app registry, e.g. `/platform/chat`, `/platform/admin`)
+- Personal pages (个人资料 / 我的可观测数据 / 总览 Dashboard) live inside the
+  `admin` settings shell, not platform.
 - **Guest**: any unknown path → `/login`
-- **Authed**: any unknown host path → `defaultAppPath` (admin; sub-routes owned by MFE)
-- Sidebar: top-level apps from `registry`; `subNav` for in-MFE pages (e.g. admin 列表 / 组件演示)
+- **Authed**: unknown app slug in `RemoteHost` → `/404` (never the landing, to avoid a redirect loop)
 
 ## Adding a new MFE remote
 

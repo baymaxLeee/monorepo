@@ -4,13 +4,16 @@ import { AppsRegistryPage } from "../pages/AppsRegistryPage";
 import { BotDetailPage } from "../pages/BotDetailPage";
 import { BotListPage } from "../pages/BotListPage";
 import { ComponentsDemoPage } from "../pages/ComponentsDemoPage";
+import { DashboardPage } from "../pages/DashboardPage";
 import { IntentionsPage } from "../pages/IntentionsPage";
 import { KnowledgeBasePage } from "../pages/KnowledgeBasePage";
 import { MembersPage } from "../pages/MembersPage";
+import { MyTelemetryPage } from "../pages/MyTelemetryPage";
 import { OrganizationsPage } from "../pages/OrganizationsPage";
 import { OperationsObservabilityPage } from "../pages/observability/OperationsObservabilityPage";
 import { TraceExplorerPage } from "../pages/observability/TraceExplorerPage";
 import { PlatformRolesPage } from "../pages/PlatformRolesPage";
+import { ProfilePage } from "../pages/ProfilePage";
 import { ProvidersPage } from "../pages/ProvidersPage";
 import { ScenesPage } from "../pages/ScenesPage";
 import { SkillsPage } from "../pages/SkillsPage";
@@ -23,7 +26,10 @@ export const routes: RouteObject[] = [
   {
     element: <AdminLayout />,
     children: [
-      { index: true, element: <Navigate to="bots" replace /> },
+      { index: true, element: <Navigate to="profile" replace /> },
+      { path: "profile", element: <ProfilePage /> },
+      { path: "telemetry", element: <MyTelemetryPage /> },
+      { path: "dashboard", element: <DashboardPage /> },
       { path: "bots", element: <BotListPage /> },
       { path: "bots/:id", element: <BotDetailPage /> },
       { path: "scenes", element: <ScenesPage /> },

@@ -150,7 +150,7 @@ export function ChatLayout() {
   }
 
   return (
-    <Layout className="relative flex h-[calc(100svh-3.5rem)] min-h-0 flex-col scrollbar-hide [&_*]:[scrollbar-width:none] [&_*]:[-ms-overflow-style:none] [&_*::-webkit-scrollbar]:hidden">
+    <Layout className="relative flex h-svh min-h-0 flex-col scrollbar-hide [&_*]:[scrollbar-width:none] [&_*]:[-ms-overflow-style:none] [&_*::-webkit-scrollbar]:hidden">
       <div
         ref={shell.containerRef}
         className={cn(

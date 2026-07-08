@@ -71,5 +71,3 @@ export function ProfilePage() {
     </Page>
   );
 }
-
-export default ProfilePage;

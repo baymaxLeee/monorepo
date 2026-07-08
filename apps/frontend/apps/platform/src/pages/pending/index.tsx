@@ -55,14 +55,14 @@ export function PendingPage() {
     async (me: PlatformUser) => {
       setUser(me);
       if (me.activeOrg || isSuperAdmin(me)) {
-        navigate("/platform/home", { replace: true });
+        navigate("/platform/chat", { replace: true });
         return;
       }
       const active = activeMemberships(me);
       if (active.length === 1) {
         const session = await switchActiveOrg(active[0].orgId);
         setUser(session.user);
-        window.location.assign("/platform/home");
+        window.location.assign("/platform/chat");
       } else if (active.length > 1) {
         navigate("/select-org", { replace: true });
       }
@@ -105,7 +105,7 @@ export function PendingPage() {
 
   if (!user) return <Navigate to="/login" replace />;
   if (user.activeOrg || isSuperAdmin(user)) {
-    return <Navigate to="/platform/home" replace />;
+    return <Navigate to="/platform/chat" replace />;
   }
   if (activeMemberships(user).length > 0) {
     return <Navigate to="/select-org" replace />;

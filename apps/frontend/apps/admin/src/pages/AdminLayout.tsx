@@ -1,11 +1,14 @@
 import { Aside, Button, Layout, Main, Section } from "components";
 import {
+  ActivityIcon,
   AppWindowIcon,
+  ArrowLeftIcon,
   BotIcon,
   BrainCircuitIcon,
   Building2Icon,
   ComponentIcon,
   GitBranchIcon,
+  LayoutDashboardIcon,
   LibraryBigIcon,
   ListTreeIcon,
   type LucideIcon,
@@ -13,6 +16,7 @@ import {
   RadarIcon,
   ShieldCheckIcon,
   SparklesIcon,
+  UserIcon,
   UsersIcon,
 } from "lucide-react";
 import { Link, Outlet, useLocation } from "react-router-dom";
@@ -23,6 +27,20 @@ type AdminMenuItem = {
   href: string;
   icon: LucideIcon;
 };
+
+const personalMenus: AdminMenuItem[] = [
+  { title: "个人资料", href: "/platform/admin/profile", icon: UserIcon },
+  {
+    title: "我的可观测数据",
+    href: "/platform/admin/telemetry",
+    icon: ActivityIcon,
+  },
+  {
+    title: "总览",
+    href: "/platform/admin/dashboard",
+    icon: LayoutDashboardIcon,
+  },
+];
 
 const adminMenus: AdminMenuItem[] = [
   { title: "智能体", href: "/platform/admin/bots", icon: BotIcon },
@@ -116,8 +134,25 @@ export function AdminLayout() {
   }
 
   return (
-    <Layout className="min-h-[calc(100svh-3.5rem)] flex-row">
+    <Layout className="min-h-svh flex-row">
       <Aside className="w-52 shrink-0 gap-6 p-3">
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="justify-start gap-2 self-start px-2 text-muted-foreground"
+        >
+          <Link to="/platform/chat">
+            <ArrowLeftIcon aria-hidden="true" className="size-4" />
+            返回应用
+          </Link>
+        </Button>
+        <Section>
+          <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+            个人
+          </div>
+          <MenuList items={personalMenus} />
+        </Section>
         <Section>
           <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
             管理配置

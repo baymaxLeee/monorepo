@@ -16,7 +16,6 @@
     "@tanstack/react-query": "^5.101.2",
     "api": "workspace:*",
     "components": "workspace:*",
-    "echarts": "^6.0.0",
     "lucide-react": "^0.468.0",
     "observability": "workspace:*",
     "react": "^18.3.0",

@@ -24,7 +24,7 @@ export function activeMemberships(
  * initial landing so users never stare at an empty, org-scoped shell.
  */
 export function landingPath(user: PlatformUser): string {
-  if (user.activeOrg || isSuperAdmin(user)) return "/platform/home";
+  if (user.activeOrg || isSuperAdmin(user)) return "/platform/chat";
   if (activeMemberships(user).length > 0) return "/select-org";
   return "/pending";
 }

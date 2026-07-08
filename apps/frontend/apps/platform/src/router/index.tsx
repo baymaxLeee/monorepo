@@ -70,7 +70,9 @@ function RemoteHost() {
   if (!loaded) return <RemoteLoading />;
 
   const app = apps.find((entry) => entry.id === appSlug);
-  if (!app) return <Navigate to="/platform/home" replace />;
+  // Neutral fallback: never point at the primary landing (chat), or a user
+  // lacking the chat entitlement would loop landing -> RemoteHost -> landing.
+  if (!app) return <Navigate to="/404" replace />;
 
   const Remote = getRemoteComponent(app);
   return (
@@ -147,19 +149,7 @@ export const routes: RouteObject[] = [
         children: [
           {
             index: true,
-            element: <Navigate to="/platform/home" replace />,
-          },
-          {
-            path: "home",
-            lazy: lazyPage(() => import("../pages/home")),
-          },
-          {
-            path: "profile",
-            lazy: lazyPage(() => import("../pages/profile")),
-          },
-          {
-            path: "observability",
-            lazy: lazyPage(() => import("../pages/observability")),
+            element: <Navigate to="/platform/chat" replace />,
           },
           {
             path: ":appSlug/*",
