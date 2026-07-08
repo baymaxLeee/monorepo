@@ -71,9 +71,15 @@ importers:
         specifier: ^0.17.0
         version: 0.17.0
     devDependencies:
+      '@types/node':
+        specifier: ^22.13.0
+        version: 22.20.0
       openapi-typescript:
         specifier: ^7.13.0
         version: 7.13.0(typescript@5.9.3)
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
 
   services/chat:
     dependencies:
