@@ -80,11 +80,18 @@ export class KnowledgeInternalClient {
     );
   }
 
-  async getDocumentSource(input: { userId: string; documentId: string }): Promise<BinaryResponse> {
+  async getDocumentSource(input: {
+    userId: string;
+    documentId: string;
+    maxDim?: number;
+  }): Promise<BinaryResponse> {
     const { data, error, response } = await this.client.GET(
       "/internal/documents/{document_id}/source",
       {
-        params: { path: { document_id: input.documentId }, query: { user_id: input.userId } },
+        params: {
+          path: { document_id: input.documentId },
+          query: { user_id: input.userId, max_dim: input.maxDim },
+        },
         parseAs: "arrayBuffer",
       },
     );

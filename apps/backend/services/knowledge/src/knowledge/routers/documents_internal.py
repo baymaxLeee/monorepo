@@ -5,8 +5,10 @@ import base64
 import binascii
 import time
 from datetime import datetime
+from functools import partial
 from hashlib import sha256
 
+import anyio
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from kernel.errors import ConflictError, NotFoundError, RequestError
@@ -22,6 +24,7 @@ from knowledge.schemas.document import (
     UpdateArtifactInput,
 )
 from knowledge.services.documents import document_to_schema
+from knowledge.services.image_variant import get_or_build_vision_variant
 from knowledge.services.object_store import ObjectStore
 from sqlalchemy.exc import IntegrityError
 
@@ -133,12 +136,32 @@ async def get_document_source(
     document_id: str,
     session: DbSession,
     user_id: str = Query(...),
+    max_dim: int | None = Query(default=None, ge=1, le=4096),
 ) -> Response:
     row = await document_crud.get_document(session, document_id, user_id)
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
     if not row.object_bucket or not row.object_key:
         raise NotFoundError("document has no stored source object")
+    is_image = (row.source_mime_type or "").lower().startswith("image/")
+    if max_dim is not None and not is_image:
+        raise RequestError("max_dim is only supported for image sources")
+    if max_dim is not None and is_image and not row.object_sha256:
+        raise RequestError("image source has no content hash for variant caching")
+    if max_dim is not None and is_image and row.object_sha256:
+        object_sha256 = row.object_sha256
+        object_bucket = row.object_bucket
+        object_key = row.object_key
+        variant = await anyio.to_thread.run_sync(
+            partial(
+                get_or_build_vision_variant,
+                object_sha256=object_sha256,
+                object_bucket=object_bucket,
+                object_key=object_key,
+                max_dim=max_dim,
+            )
+        )
+        return Response(content=variant, media_type="image/jpeg")
     content = ObjectStore().get_bytes(bucket=row.object_bucket, key=row.object_key)
     media = row.source_mime_type or "application/octet-stream"
     return Response(content=content, media_type=media)

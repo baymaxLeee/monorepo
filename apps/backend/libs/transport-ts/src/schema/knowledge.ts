@@ -1405,6 +1405,7 @@ export interface operations {
         parameters: {
             query: {
                 user_id: string;
+                max_dim?: number | null;
             };
             header?: {
                 "X-Internal-Token"?: string | null;

@@ -19,6 +19,10 @@ const MAX_SUMMARY_CHARS = 12_000;
 const MAX_STATE_CHARS = 20_000;
 const MAX_PLAN_CHARS = 40_000;
 const CONTEXT_OVERHEAD_TOKENS = 4_000;
+// Longest-edge target for image bytes sent to vision models. Vision models
+// downsample internally (~1568px Anthropic / <=2048px OpenAI), so normalizing
+// here keeps the request body small/reliable while the original is preserved.
+const VISION_MAX_DIM = 1536;
 
 function textParts(message: AnyUIMessage): string {
   return message.parts
@@ -147,7 +151,12 @@ async function transformUserFilePartsForModel(
 
     await Promise.all([...imageDocIds].map(async (documentId) => {
       try {
-        const source = await getDocumentSource(userId, documentId);
+        // Fetch a downscaled vision variant (longest edge <= VISION_MAX_DIM),
+        // not the raw file: vision models downsample anyway, so this keeps the
+        // request body small/reliable and avoids provider stalls on big photos.
+        const source = await getDocumentSource(userId, documentId, {
+          maxDim: VISION_MAX_DIM,
+        });
         const part = messages
           .flatMap((message) => (message.role === "user" ? message.parts : []))
           .find((candidate) => candidate.type === "file" && documentIdFromFilePart(candidate) === documentId);

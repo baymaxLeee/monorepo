@@ -65,3 +65,100 @@ export const secureProviderFetch: typeof fetch = async (input, init) => {
   await assertPublicProviderUrl(url);
   return fetch(input, { ...init, redirect: "error" });
 };
+
+function combineAbortSignals(
+  signals: (AbortSignal | null | undefined)[],
+): AbortSignal | undefined {
+  const present = signals.filter((s): s is AbortSignal => Boolean(s));
+  if (present.length === 0) return undefined;
+  if (present.length === 1) return present[0];
+  return AbortSignal.any(present);
+}
+
+function monitorStall(
+  body: ReadableStream<Uint8Array>,
+  onChunk: () => void,
+  onDone: () => void,
+): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          onDone();
+          controller.close();
+          return;
+        }
+        onChunk();
+        controller.enqueue(value);
+      } catch (err) {
+        onDone();
+        controller.error(err);
+      }
+    },
+    async cancel(reason) {
+      onDone();
+      await reader.cancel(reason);
+    },
+  });
+}
+
+/**
+ * Like {@link secureProviderFetch} but with a *stall* timeout: it aborts only
+ * after `stallTimeoutMs` of complete silence — no response headers, or no
+ * streamed bytes — so it never truncates a provider that is actively producing
+ * output, however long the whole generation runs.
+ *
+ * Use this for streaming LLM/vision calls (a chat completion that never answers
+ * — e.g. an oversized vision request the endpoint accepts then hangs — must not
+ * pin a run forever). Do NOT use it for blocking image/video generation POSTs,
+ * which legitimately return no bytes for minutes.
+ */
+export function createSecureProviderFetch(options: { stallTimeoutMs: number }): typeof fetch {
+  const { stallTimeoutMs } = options;
+  const impl: typeof fetch = async (input, init) => {
+    const url = input instanceof Request ? input.url : input.toString();
+    await assertPublicProviderUrl(url);
+    if (!(stallTimeoutMs > 0)) {
+      return fetch(input, { ...init, redirect: "error" });
+    }
+
+    const controller = new AbortController();
+    const fail = () =>
+      controller.abort(
+        new DOMException(`provider sent no data for ${stallTimeoutMs}ms`, "TimeoutError"),
+      );
+    let timer: ReturnType<typeof setTimeout> = setTimeout(fail, stallTimeoutMs);
+    const rearm = () => {
+      clearTimeout(timer);
+      timer = setTimeout(fail, stallTimeoutMs);
+    };
+    const stop = () => clearTimeout(timer);
+
+    const callerSignal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+    const signal = combineAbortSignals([callerSignal, controller.signal]);
+
+    let response: Response;
+    try {
+      response = await fetch(input, { ...init, redirect: "error", signal });
+    } catch (err) {
+      stop();
+      throw err;
+    }
+    if (!response.body) {
+      stop();
+      return response;
+    }
+
+    rearm();
+    signal?.addEventListener("abort", stop, { once: true });
+    const monitored = monitorStall(response.body, rearm, stop);
+    return new Response(monitored, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  };
+  return impl;
+}

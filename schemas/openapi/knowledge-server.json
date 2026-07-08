@@ -1485,6 +1485,24 @@
             }
           },
           {
+            "name": "max_dim",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 4096,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Dim"
+            }
+          },
+          {
             "name": "X-Internal-Token",
             "in": "header",
             "required": false,

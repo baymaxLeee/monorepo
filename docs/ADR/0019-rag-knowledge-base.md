@@ -329,9 +329,18 @@ Codex/Cursor keep upload instant and process asynchronously.
   → `processing`, convert error → `failed`; both are structured tool outputs, so
   the model can tell the user instead of getting an empty/garbage body. The old
   raw-bytes fallback (useless for binary) is removed.
-- **Image fast-path (free):** images are referenceable at `received`; vision
-  models see the original bytes inlined by `projector.ts` with no dependency on
-  convert, and the caption (for non-vision/RAG) is fully backgrounded.
+- **Image fast-path:** images are referenceable at `received`; the caption (for
+  non-vision/RAG) is fully backgrounded. For vision input, `projector.ts` inlines
+  a **downscaled variant** (longest edge ≤ 1536px, re-encoded JPEG) derived from
+  the stored original by `services/image_variant.py` and cached in the object
+  store (keyed by source `sha256` + params), served via
+  `GET /internal/documents/{id}/source?max_dim=`. Vision models downsample
+  internally anyway (~1568px Anthropic / ≤2048px OpenAI), so sending the raw
+  multi-megapixel photo only wastes tokens/latency and can stall weaker
+  providers on request size; normalizing keeps the body small and reliable while
+  the original is preserved for download/RAG. A stall timeout on the streaming
+  provider fetch (`transport-ts` `createSecureProviderFetch`) is the last-resort
+  backstop so a silent provider can never pin a run.
 - **Convert cache:** identical re-uploads reuse a prior `ready` document's
   `content_md` by `object_sha256`, scoped to the same org/user trust boundary and
   restricted to deterministic (non-media) MarkItDown output — vision captions

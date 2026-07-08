@@ -78,6 +78,18 @@ class ObjectStore:
             path=final_path,
         )
 
+    def put_bytes_at(self, *, bucket: str, key: str, content: bytes) -> None:
+        """Write bytes to an explicit, caller-computed key (unlike ``put_bytes``
+        which derives the key). Used for deterministic derived objects such as
+        cached downscaled image variants keyed by source hash + params."""
+        if not _SAFE_SEGMENT.match(bucket) or not self._valid_key(key):
+            raise RequestError("invalid bucket or object key")
+        final_path = self._root / bucket / key
+        final_path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = final_path.with_suffix(final_path.suffix + f".{uuid.uuid4().hex}.tmp")
+        temp_path.write_bytes(content)
+        os.replace(temp_path, final_path)
+
     def get_bytes(self, *, bucket: str, key: str) -> bytes:
         path = self._root / bucket / key
         if not path.is_file():

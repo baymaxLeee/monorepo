@@ -84,9 +84,14 @@ export async function getDocumentSlice(
 export async function getDocumentSource(
   userId: string,
   documentId: string,
+  options?: { maxDim?: number },
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
   try {
-    const source = await knowledgeClient().getDocumentSource({ userId, documentId });
+    const source = await knowledgeClient().getDocumentSource({
+      userId,
+      documentId,
+      maxDim: options?.maxDim,
+    });
     return { bytes: source.bytes, mimeType: source.contentType };
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
