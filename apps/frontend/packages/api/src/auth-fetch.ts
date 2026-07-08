@@ -14,7 +14,7 @@ function withAuth(init: RequestInit | undefined): RequestInit {
 
 /**
  * Auth-aware `fetch` for streaming / raw-fetch calls that cannot go through the
- * axios instance (AI SDK `DefaultChatTransport`, SSE ingest, blob source).
+ * axios instance (AI SDK `DefaultChatTransport`, blob source, multipart upload).
  *
  * It is the single place that mirrors the axios 401 policy for those calls:
  * proactive refresh-ahead + single-flight refresh (shared `refreshSession`

@@ -195,6 +195,35 @@ async def update_document_if_unchanged(
     return row
 
 
+async def find_converted_cache(
+    session: AsyncSession,
+    *,
+    object_sha256: str,
+    org_id: str | None,
+    user_id: str,
+    exclude_document_id: str,
+) -> str | None:
+    """Return the converted markdown of an already-``ready`` document with the
+    exact same source bytes, so re-uploading an identical file skips a redundant
+    MarkItDown pass. Scoped to the same team (or user, when personal) so it never
+    crosses a trust boundary. Callers must only use this for deterministic
+    (non-media) conversions — vision captions depend on the provider/model, so
+    they are intentionally not cached.
+    """
+    stmt = (
+        select(DocumentRow.content_md)
+        .where(
+            DocumentRow.object_sha256 == object_sha256,
+            DocumentRow.id != exclude_document_id,
+            DocumentRow.ingest_status == "ready",
+            DocumentRow.content_md != "",
+        )
+        .limit(1)
+    )
+    stmt = stmt.where(DocumentRow.org_id == org_id) if org_id else stmt.where(DocumentRow.user_id == user_id)
+    return cast("str | None", await session.scalar(stmt))
+
+
 async def set_index_status(
     session: AsyncSession,
     document_id: str,

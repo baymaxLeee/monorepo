@@ -5,8 +5,12 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 DocumentKind = Literal["source", "artifact"]
-IngestStatus = Literal["pending", "storing", "converting", "ready", "failed"]
+# "received" = bytes stored + row created, safe to reference/ask about; the heavy
+# MarkItDown/vision convert then runs in the background (received -> converting ->
+# ready) so upload no longer blocks on it.
+IngestStatus = Literal["pending", "storing", "received", "converting", "ready", "failed"]
 IndexStatus = Literal["pending", "indexing", "indexed", "skipped", "failed"]
+SliceState = Literal["ready", "processing", "failed"]
 
 
 class Document(BaseModel):
@@ -32,6 +36,25 @@ class Document(BaseModel):
     index_error: str | None = None
     created_at: str
     updated_at: str
+
+
+class IngestFailure(BaseModel):
+    index: int
+    client_ref: str
+    artifact_id: str | None = None
+    error: str
+    code: str | None = None
+
+
+class IngestReceipt(BaseModel):
+    index: int
+    client_ref: str
+    document: Document
+
+
+class IngestResult(BaseModel):
+    documents: list[IngestReceipt]
+    failed: list[IngestFailure] = Field(default_factory=list)
 
 
 class CreateArtifactInput(BaseModel):
@@ -78,3 +101,7 @@ class DocumentSlice(BaseModel):
     start: int = 0
     total_chars: int
     next_start: int | None = None
+    # "ready" -> content is the real slice; "processing" -> convert still running
+    # (content empty, caller should retry); "failed" -> convert failed (see error).
+    state: SliceState = "ready"
+    error: str | None = None

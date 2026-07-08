@@ -4,7 +4,6 @@ import { z } from "zod";
 import {
   getDocument,
   getDocumentSlice,
-  getDocumentSource,
   listDocuments,
 } from "../../../clients/knowledge.js";
 import { fileToolContextSchema, type FileToolContext } from "../context.js";
@@ -44,7 +43,26 @@ const readFileOutputSchema = z.discriminatedUnion("status", [
     code: z.literal("FILE_NOT_ATTACHED"),
     message: z.string(),
   }),
+  z.object({
+    status: z.literal("processing"),
+    file_id: z.string(),
+    filename: z.string(),
+    message: z.string(),
+  }),
+  z.object({
+    status: z.literal("failed"),
+    file_id: z.string(),
+    filename: z.string(),
+    message: z.string(),
+  }),
 ]);
+
+// The document is referenceable at upload (ingest_status="received"); the heavy
+// MarkItDown/vision convert then runs in the background. When the model reads a
+// just-uploaded file we long-poll the slice endpoint for this long so a single
+// tool call returns the content once convert finishes, instead of the model
+// having to give up and retry.
+const READ_FILE_CONVERT_WAIT_MS = 60_000;
 
 async function listFiles(_input: {}, { context }: { context: FileToolContext }) {
   const rows = await listDocuments(context.userId, context.conversationId);
@@ -75,40 +93,41 @@ async function readFile(
       message: `file ${input.file_id} is not attached to this conversation`,
     };
   }
-  if (document.content_md) {
-    const slice = await getDocumentSlice(
-      context.userId,
-      input.file_id,
-      input.offset,
-      input.max_chars,
-    );
+  const alreadyConverted = Boolean(document.content_md) || document.ingest_status === "ready";
+  const slice = await getDocumentSlice(
+    context.userId,
+    input.file_id,
+    input.offset,
+    input.max_chars,
+    alreadyConverted ? 0 : READ_FILE_CONVERT_WAIT_MS,
+  );
+  if (slice.state === "processing") {
     return {
-      status: "completed" as const,
+      status: "processing" as const,
       file_id: document.id,
-      title: document.title,
       filename: document.filename,
-      mime_type: document.mime_type,
-      offset: slice.start,
-      total_chars: slice.total_chars,
-      next_offset: slice.next_start ?? null,
-      content: slice.content,
-      untrusted: document.kind === "source",
+      message:
+        "file received but still being processed (converting); tell the user it is not readable yet and retry read_file shortly",
     };
   }
-  const source = await getDocumentSource(context.userId, input.file_id);
-  const text = new TextDecoder().decode(source.bytes);
-  const content = text.slice(input.offset, input.offset + input.max_chars);
-  const next = input.offset + content.length;
+  if (slice.state === "failed") {
+    return {
+      status: "failed" as const,
+      file_id: document.id,
+      filename: document.filename,
+      message: slice.error ?? "file conversion failed",
+    };
+  }
   return {
     status: "completed" as const,
     file_id: document.id,
-    title: document.title,
-    filename: document.filename,
-    mime_type: source.mimeType,
-    offset: input.offset,
-    total_chars: text.length,
-    next_offset: next < text.length ? next : null,
-    content,
+    title: slice.title,
+    filename: slice.filename,
+    mime_type: slice.mime_type,
+    offset: slice.start,
+    total_chars: slice.total_chars,
+    next_offset: slice.next_start ?? null,
+    content: slice.content,
     untrusted: document.kind === "source",
   };
 }

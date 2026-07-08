@@ -3,8 +3,6 @@ import type {
   ConversationDocument,
   ConversationDocumentDetail,
   ConversationDocumentKind,
-  DocumentIngestStreamEvent,
-  StreamEventOptions,
   UpdateConversationDocumentInput,
 } from "./chat-server";
 import { API_BASE_URL, type ApiRequestConfig, apiHttp, request } from "./http";
@@ -20,53 +18,21 @@ export type KnowledgeDocument = Omit<
   conversation_id?: string | null;
 };
 
-export type { DocumentIngestStreamEvent };
+export interface IngestFailure {
+  index: number;
+  client_ref: string;
+  artifact_id?: string | null;
+  error: string;
+  code?: string | null;
+}
 
-async function openKnowledgeIngestStream(
-  url: string,
-  form: FormData,
-  options: StreamEventOptions<DocumentIngestStreamEvent>,
-): Promise<void> {
-  const { onEvent, signal } = options;
-  const response = await authFetch(url, {
-    method: "POST",
-    headers: { Accept: "text/event-stream" },
-    body: form,
-    signal,
-  });
-
-  if (!response.ok || !response.body) {
-    throw new Error(`ingest stream failed: ${response.status}`);
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let separatorIndex = buffer.indexOf("\n\n");
-      while (separatorIndex !== -1) {
-        const frame = buffer.slice(0, separatorIndex);
-        buffer = buffer.slice(separatorIndex + 2);
-        const dataLines = frame
-          .split("\n")
-          .filter((line) => line.startsWith("data:"))
-          .map((line) => line.slice(5).trimStart());
-        if (dataLines.length > 0) {
-          const data = dataLines.join("\n");
-          if (data === "[DONE]") return;
-          onEvent(JSON.parse(data) as DocumentIngestStreamEvent);
-        }
-        separatorIndex = buffer.indexOf("\n\n");
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
+export interface IngestResult {
+  documents: Array<{
+    index: number;
+    client_ref: string;
+    document: ConversationDocumentDetail;
+  }>;
+  failed: IngestFailure[];
 }
 
 /** Map knowledge document payload to chat ConversationDocument shape for UI reuse. */
@@ -99,12 +65,10 @@ export function toConversationDocument(
   };
 }
 
-export async function streamKnowledgeIngest(
-  conversationId: string,
+function buildIngestForm(
   files: Array<{ clientRef: string; file: File }>,
-  options: StreamEventOptions<DocumentIngestStreamEvent>,
-  ingestOptions?: { providerId?: string | null },
-): Promise<void> {
+  options?: { conversationId?: string; providerId?: string | null },
+): FormData {
   const form = new FormData();
   const clientRefs: string[] = [];
   for (const item of files) {
@@ -112,12 +76,62 @@ export async function streamKnowledgeIngest(
     clientRefs.push(item.clientRef);
   }
   form.append("client_refs", JSON.stringify(clientRefs));
-  form.append("conversation_id", conversationId);
-  if (ingestOptions?.providerId) {
-    form.append("provider_id", ingestOptions.providerId);
+  if (options?.conversationId) {
+    form.append("conversation_id", options.conversationId);
   }
-  const url = `${API_BASE_URL}${BASE}/ingest/stream`;
-  await openKnowledgeIngestStream(url, form, options);
+  if (options?.providerId) {
+    form.append("provider_id", options.providerId);
+  }
+  return form;
+}
+
+async function postIngest(
+  form: FormData,
+  conversationId: string,
+): Promise<IngestResult> {
+  const response = await authFetch(`${API_BASE_URL}${BASE}/ingest`, {
+    method: "POST",
+    body: form,
+  });
+  if (!response.ok) {
+    throw new Error(`ingest failed: ${response.status}`);
+  }
+  const payload = (await response.json()) as {
+    documents?: Array<{
+      index: number;
+      client_ref: string;
+      document: Record<string, unknown>;
+    }>;
+    failed?: IngestFailure[];
+  };
+  return {
+    documents: (payload.documents ?? []).map((receipt) => ({
+      index: receipt.index,
+      client_ref: receipt.client_ref,
+      document: {
+        ...toConversationDocument(
+          receipt.document,
+          String(receipt.document.conversation_id ?? conversationId),
+        ),
+        content_md: String(receipt.document.content_md ?? ""),
+      },
+    })),
+    failed: payload.failed ?? [],
+  };
+}
+
+export async function ingestConversationDocuments(
+  conversationId: string,
+  files: Array<{ clientRef: string; file: File }>,
+  ingestOptions?: { providerId?: string | null },
+): Promise<IngestResult> {
+  return postIngest(
+    buildIngestForm(files, {
+      conversationId,
+      providerId: ingestOptions?.providerId,
+    }),
+    conversationId,
+  );
 }
 
 export async function fetchKnowledgeDocument(
@@ -242,27 +256,18 @@ export async function fetchKnowledgeDocumentSource(
 
 /**
  * Upload one or more files into the knowledge base (no conversation scope).
- * Bytes are stored and converted to markdown; SSE progress completes at
- * `file_ready` (received + stored + converted). RAG indexing runs asynchronously
- * afterwards — track it via `index_status` / `reindexKnowledgeDocument`.
+ * The request returns once bytes are stored + referenceable. MarkItDown/vision
+ * conversion and RAG indexing both run in the background afterwards; track them
+ * via `ingest_status` (received -> converting -> ready) and `index_status`.
  */
-export async function uploadKnowledgeDocuments(
+export async function ingestKnowledgeDocuments(
   files: Array<{ clientRef: string; file: File }>,
-  options: StreamEventOptions<DocumentIngestStreamEvent>,
   ingestOptions?: { providerId?: string | null },
-): Promise<void> {
-  const form = new FormData();
-  const clientRefs: string[] = [];
-  for (const item of files) {
-    form.append("files", item.file);
-    clientRefs.push(item.clientRef);
-  }
-  form.append("client_refs", JSON.stringify(clientRefs));
-  if (ingestOptions?.providerId) {
-    form.append("provider_id", ingestOptions.providerId);
-  }
-  const url = `${API_BASE_URL}${BASE}/ingest/stream`;
-  await openKnowledgeIngestStream(url, form, options);
+): Promise<IngestResult> {
+  return postIngest(
+    buildIngestForm(files, { providerId: ingestOptions?.providerId }),
+    "",
+  );
 }
 
 export type { ConversationDocumentDetail };

@@ -1,7 +1,9 @@
 """Internal document API for chat and other services."""
 
+import asyncio
 import base64
 import binascii
+import time
 from datetime import datetime
 from hashlib import sha256
 
@@ -53,6 +55,27 @@ async def get_document(
     return document_to_schema(row, include_content=True)
 
 
+_SLICE_WAIT_MAX_MS = 120_000
+_SLICE_POLL_INTERVAL_S = 0.5
+
+
+def _ready_slice(row: object, start: int, max_chars: int) -> DocumentSlice:
+    content = row.content_md  # type: ignore[attr-defined]
+    chunk = content[start : start + max_chars]
+    next_start = start + len(chunk) if start + len(chunk) < len(content) else None
+    return DocumentSlice(
+        id=row.id,  # type: ignore[attr-defined]
+        title=row.title,  # type: ignore[attr-defined]
+        filename=row.filename,  # type: ignore[attr-defined]
+        mime_type=row.mime_type,  # type: ignore[attr-defined]
+        content=chunk,
+        start=start,
+        total_chars=len(content),
+        next_start=next_start,
+        state="ready",
+    )
+
+
 @router.get("/documents/{document_id}/slice", response_model=DocumentSlice)
 async def get_document_slice(
     document_id: str,
@@ -60,23 +83,49 @@ async def get_document_slice(
     user_id: str = Query(...),
     start: int = Query(default=0, ge=0),
     max_chars: int = Query(default=4000, ge=1, le=8000),
+    wait_ms: int = Query(default=0, ge=0, le=_SLICE_WAIT_MAX_MS),
 ) -> DocumentSlice:
-    row = await document_crud.get_document(session, document_id, user_id)
-    if row is None:
-        raise NotFoundError(f"document {document_id} not found")
-    content = row.content_md
-    chunk = content[start : start + max_chars]
-    next_start = start + len(chunk) if start + len(chunk) < len(content) else None
-    return DocumentSlice(
-        id=row.id,
-        title=row.title,
-        filename=row.filename,
-        mime_type=row.mime_type,
-        content=chunk,
-        start=start,
-        total_chars=len(content),
-        next_start=next_start,
-    )
+    """Read a bounded slice of the converted markdown. When the document is still
+    converting in the background, ``wait_ms`` long-polls until it is ``ready`` (or
+    ``failed``/timeout) so a caller that just uploaded can read as soon as convert
+    finishes instead of getting an empty body. ``state`` distinguishes the outcome:
+    ``ready`` (real content), ``processing`` (retry later), ``failed`` (see error).
+    """
+    deadline = time.monotonic() + wait_ms / 1000
+    while True:
+        row = await document_crud.get_document(session, document_id, user_id)
+        if row is None:
+            raise NotFoundError(f"document {document_id} not found")
+        if row.content_md or row.ingest_status == "ready":
+            return _ready_slice(row, start, max_chars)
+        if row.ingest_status == "failed":
+            return DocumentSlice(
+                id=row.id,
+                title=row.title,
+                filename=row.filename,
+                mime_type=row.mime_type,
+                content="",
+                start=start,
+                total_chars=0,
+                state="failed",
+                error=row.ingest_error,
+            )
+        # Still pending/storing/received/converting: wait for the background
+        # convert if the caller allowed it, else report "processing" so the model
+        # can tell the user the file is not readable yet.
+        if wait_ms <= 0 or time.monotonic() >= deadline:
+            return DocumentSlice(
+                id=row.id,
+                title=row.title,
+                filename=row.filename,
+                mime_type=row.mime_type,
+                content="",
+                start=start,
+                total_chars=0,
+                state="processing",
+            )
+        await session.rollback()  # end the read tx so the next poll sees fresh commits
+        await asyncio.sleep(_SLICE_POLL_INTERVAL_S)
 
 
 @router.get("/documents/{document_id}/source")

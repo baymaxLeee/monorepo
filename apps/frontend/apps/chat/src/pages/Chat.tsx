@@ -11,11 +11,10 @@ import {
   type ConversationDocument,
   cancelConversationAgentRun,
   conversationAgentStreamUrl,
-  type DocumentIngestStreamEvent,
   fetchBotSkills,
   fetchConversation,
+  ingestConversationDocuments,
   type SkillSummary,
-  streamKnowledgeIngest,
 } from "api";
 import { toast } from "components";
 import {
@@ -430,34 +429,6 @@ export function Chat() {
     }
   }
 
-  function onIngestEvent(event: DocumentIngestStreamEvent) {
-    if (event.type === "file_progress") {
-      promptRef.current?.updateToken(event.client_ref, {
-        meta: {
-          artifactId: event.artifact_id,
-          ingestStatus: event.status,
-          ingestProgress: event.progress,
-        },
-      });
-    } else if (event.type === "file_ready") {
-      promptRef.current?.updateToken(event.client_ref, {
-        meta: {
-          artifactId: event.artifact_id,
-          ingestStatus: "ready",
-          ingestProgress: 100,
-        },
-      });
-    } else if (event.type === "file_failed") {
-      promptRef.current?.updateToken(event.client_ref, {
-        meta: {
-          artifactId: event.artifact_id ?? undefined,
-          ingestStatus: "failed",
-          ingestError: event.error,
-        },
-      });
-    }
-  }
-
   function changeMode(nextMode: "normal" | "plan") {
     if (busy || nextMode === mode) return;
     // Mode is an ephemeral per-run input carried in the run request body
@@ -606,31 +577,53 @@ export function Chat() {
           onStop={() => void stopRun()}
           onFilesAdded={(items) => {
             if (!id) return;
-            void streamKnowledgeIngest(
+            void ingestConversationDocuments(
               id,
               items.map(({ token, file }) => ({
                 clientRef: token.id,
                 file,
               })),
-              { onEvent: onIngestEvent },
               {
                 providerId:
                   agents?.find((a) => a.id === selectedAgentId)
                     ?.text_provider_id ?? undefined,
               },
-            ).catch((error) => {
-              const message = getErrorMessage(error);
-              for (const { token } of items) {
-                promptRef.current?.updateToken(token.id, {
-                  meta: {
-                    ingestStatus: "failed",
-                    ingestError: message,
-                  },
-                });
-              }
-              // 上传走 fetch/SSE 流(不经 axios 拦截器),错误在此提示
-              toast.error(message);
-            });
+            )
+              .then((result) => {
+                for (const {
+                  client_ref: clientRef,
+                  document,
+                } of result.documents) {
+                  promptRef.current?.updateToken(clientRef, {
+                    meta: {
+                      artifactId: document.id,
+                      ingestStatus: document.ingest_status ?? "received",
+                    },
+                  });
+                }
+                for (const failure of result.failed) {
+                  promptRef.current?.updateToken(failure.client_ref, {
+                    meta: {
+                      artifactId: failure.artifact_id ?? undefined,
+                      ingestStatus: "failed",
+                      ingestError: failure.error,
+                    },
+                  });
+                  toast.error(`上传失败：${failure.error}`);
+                }
+              })
+              .catch((error) => {
+                const message = getErrorMessage(error);
+                for (const { token } of items) {
+                  promptRef.current?.updateToken(token.id, {
+                    meta: {
+                      ingestStatus: "failed",
+                      ingestError: message,
+                    },
+                  });
+                }
+                toast.error(message);
+              });
           }}
           onSubmit={(value) => void submit(value).catch(() => {})}
           mentionSource={(query) => {

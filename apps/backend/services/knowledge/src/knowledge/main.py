@@ -21,12 +21,21 @@ from knowledge.routers import (
 )
 from knowledge.services.admin_client import close_admin_client
 from knowledge.services.indexer import sweep_claim
+from knowledge.services.processor import sweep_process
 
 logger = logging.getLogger("knowledge.main")
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # Convert sweep first: a doc must reach ``ready`` (content_md written) before
+    # the indexer can chunk it, so recover pending converts ahead of indexing.
+    try:
+        reconverted = await sweep_process()
+        if reconverted:
+            logger.info("re-queued %d document(s) for background conversion", reconverted)
+    except Exception:  # startup recovery is best-effort; never block boot
+        logger.exception("convert sweep on startup failed")
     try:
         recovered = await sweep_claim()
         if recovered:

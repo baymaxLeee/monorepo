@@ -19,12 +19,13 @@ export type {
   StoredArtifactBlock,
 } from "@backend/transport-ts";
 
-function knowledgeClient(): KnowledgeInternalClient {
+function knowledgeClient(timeoutMs?: number): KnowledgeInternalClient {
   const s = getSettings();
   return new KnowledgeInternalClient({
     baseUrl: s.knowledgeServiceUrl,
     internalToken: s.internalApiToken,
     propagatedHeaders: propagationHeaders,
+    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
   });
 }
 
@@ -65,9 +66,13 @@ export async function getDocumentSlice(
   documentId: string,
   start = 0,
   maxChars = 4000,
+  waitMs = 0,
 ): Promise<DocumentSlice> {
+  // The long-poll holds the request open for up to waitMs; the transport's
+  // default 15s abort would kill it, so give the client headroom past waitMs.
+  const client = knowledgeClient(waitMs > 0 ? waitMs + 5000 : undefined);
   try {
-    return await knowledgeClient().getDocumentSlice({ userId, documentId, start, maxChars });
+    return await client.getDocumentSlice({ userId, documentId, start, maxChars, waitMs });
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new NotFoundError(`document ${documentId} not found`);

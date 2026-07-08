@@ -2,10 +2,10 @@ import {
   batchDeleteKnowledgeDocuments,
   deleteKnowledgeDocument,
   fetchKnowledgeDocumentSource,
+  ingestKnowledgeDocuments,
   type KnowledgeDocument,
   listKnowledgeDocuments,
   reindexKnowledgeDocument,
-  uploadKnowledgeDocuments,
 } from "api";
 import {
   Alert,
@@ -108,19 +108,17 @@ export function KnowledgeBasePage() {
       file,
     }));
     setUploading(true);
-    let succeeded = 0;
     try {
-      await uploadKnowledgeDocuments(files, {
-        onEvent: (event) => {
-          if (event.type === "file_ready") succeeded += 1;
-          else if (event.type === "file_failed") {
-            toast.error(`导入失败：${event.error}`);
-          }
-        },
-      });
-      if (succeeded > 0) toast.success(`成功导入 ${succeeded} 个文档`);
+      const result = await ingestKnowledgeDocuments(files);
+      for (const failure of result.failed) {
+        toast.error(`导入失败：${failure.error}`);
+      }
+      if (result.documents.length > 0) {
+        toast.success(
+          `已接收 ${result.documents.length} 个文档，正在后台解析与索引`,
+        );
+      }
     } catch (e) {
-      // 上传走 fetch/SSE 流(不经 axios 拦截器),错误在此提示
       toast.error(getErrorMessage(e));
     } finally {
       setUploading(false);

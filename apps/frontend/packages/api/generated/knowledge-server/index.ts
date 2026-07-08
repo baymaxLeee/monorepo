@@ -59,7 +59,7 @@ export interface BatchDeleteResult {
   deleted: number;
 }
 
-export interface BodyIngestStreamIngestStreamPost {
+export interface BodyIngestIngestPost {
   files: Blob[];
   client_refs: string;
   conversation_id?: string | null;
@@ -145,6 +145,7 @@ export type DocumentIngestStatus = typeof DocumentIngestStatus[keyof typeof Docu
 export const DocumentIngestStatus = {
   pending: 'pending',
   storing: 'storing',
+  received: 'received',
   converting: 'converting',
   ready: 'ready',
   failed: 'failed',
@@ -186,6 +187,15 @@ export interface Document {
   updated_at: string;
 }
 
+export type DocumentSliceState = typeof DocumentSliceState[keyof typeof DocumentSliceState];
+
+
+export const DocumentSliceState = {
+  ready: 'ready',
+  processing: 'processing',
+  failed: 'failed',
+} as const;
+
 export interface DocumentSlice {
   id: string;
   title: string;
@@ -195,6 +205,8 @@ export interface DocumentSlice {
   start?: number;
   total_chars: number;
   next_start?: number | null;
+  state?: DocumentSliceState;
+  error?: string | null;
 }
 
 export interface FailArtifactGenerationInput {
@@ -218,6 +230,25 @@ export interface ValidationError {
 
 export interface HTTPValidationError {
   detail?: ValidationError[];
+}
+
+export interface IngestFailure {
+  index: number;
+  client_ref: string;
+  artifact_id?: string | null;
+  error: string;
+  code?: string | null;
+}
+
+export interface IngestReceipt {
+  index: number;
+  client_ref: string;
+  document: Document;
+}
+
+export interface IngestResult {
+  documents: IngestReceipt[];
+  failed?: IngestFailure[];
 }
 
 export interface PublishArtifactRevisionInput {
@@ -392,6 +423,11 @@ start?: number;
  * @maximum 8000
  */
 max_chars?: number;
+/**
+ * @minimum 0
+ * @maximum 120000
+ */
+wait_ms?: number;
 };
 
 export type GetDocumentSourceInternalDocumentsDocumentIdSourceGetParams = {
@@ -447,23 +483,23 @@ const healthzHealthzGet = (
     }
 
 /**
- * Upload files, store raw bytes, convert to markdown, stream progress via SSE.
- * @summary Ingest Stream
+ * Upload files, store raw bytes, and schedule background conversion.
+ * @summary Ingest
  */
-const ingestStreamIngestStreamPost = (
-    bodyIngestStreamIngestStreamPost: BodyIngestStreamIngestStreamPost,
- options?: SecondParameter<typeof apiMutator<unknown>>,) => {const formData = new FormData();
-bodyIngestStreamIngestStreamPost.files.forEach(value => formData.append(`files`, value));
-formData.append(`client_refs`, bodyIngestStreamIngestStreamPost.client_refs);
-if(bodyIngestStreamIngestStreamPost.conversation_id !== undefined && bodyIngestStreamIngestStreamPost.conversation_id !== null) {
- formData.append(`conversation_id`, bodyIngestStreamIngestStreamPost.conversation_id);
+const ingestIngestPost = (
+    bodyIngestIngestPost: BodyIngestIngestPost,
+ options?: SecondParameter<typeof apiMutator<IngestResult>>,) => {const formData = new FormData();
+bodyIngestIngestPost.files.forEach(value => formData.append(`files`, value));
+formData.append(`client_refs`, bodyIngestIngestPost.client_refs);
+if(bodyIngestIngestPost.conversation_id !== undefined && bodyIngestIngestPost.conversation_id !== null) {
+ formData.append(`conversation_id`, bodyIngestIngestPost.conversation_id);
  }
-if(bodyIngestStreamIngestStreamPost.provider_id !== undefined && bodyIngestStreamIngestStreamPost.provider_id !== null) {
- formData.append(`provider_id`, bodyIngestStreamIngestStreamPost.provider_id);
+if(bodyIngestIngestPost.provider_id !== undefined && bodyIngestIngestPost.provider_id !== null) {
+ formData.append(`provider_id`, bodyIngestIngestPost.provider_id);
  }
 
-      return apiMutator<unknown>(
-      {url: `/ingest/stream`, method: 'POST',
+      return apiMutator<IngestResult>(
+      {url: `/ingest`, method: 'POST',
       headers: {'Content-Type': 'multipart/form-data', },
        data: formData
     },
@@ -627,6 +663,11 @@ const deleteDocumentInternalDocumentsDocumentIdDelete = (
     }
 
 /**
+ * Read a bounded slice of the converted markdown. When the document is still
+ * converting in the background, ``wait_ms`` long-polls until it is ``ready`` (or
+ * ``failed``/timeout) so a caller that just uploaded can read as soon as convert
+ * finishes instead of getting an empty body. ``state`` distinguishes the outcome:
+ * ``ready`` (real content), ``processing`` (retry later), ``failed`` (see error).
  * @summary Get Document Slice
  */
 const getDocumentSliceInternalDocumentsDocumentIdSliceGet = (
@@ -821,7 +862,7 @@ const retrieveChunksInternalRetrievePost = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestStreamIngestStreamPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,reserveGenerationInternalArtifactGenerationsPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,retrieveChunksInternalRetrievePost}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,reserveGenerationInternalArtifactGenerationsPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,retrieveChunksInternalRetrievePost}};
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -830,7 +871,7 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['healthzHealthzGet']>>>
-export type IngestStreamIngestStreamPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['ingestStreamIngestStreamPost']>>>
+export type IngestIngestPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['ingestIngestPost']>>>
 export type ListMyDocumentsDocumentsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['listMyDocumentsDocumentsGet']>>>
 export type BatchDeleteMyDocumentsDocumentsBatchDeletePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['batchDeleteMyDocumentsDocumentsBatchDeletePost']>>>
 export type GetMyDocumentDocumentsDocumentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getMyDocumentDocumentsDocumentIdGet']>>>

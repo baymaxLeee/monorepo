@@ -53,7 +53,6 @@ export function buildMentionExtension(source: PromptMentionSource) {
         meta: {
           origin: "mention",
           ingestStatus: "ready",
-          ingestProgress: 100,
           ...item.meta,
         },
       };

@@ -150,7 +150,7 @@ The MVP's "standalone knowledge-base MFE is out of scope" note is now resolved
 without spinning up a new micro-frontend: the document-management surface ships
 inside the existing **admin** MFE (管理配置 → 知识库管理,
 `/platform/admin/knowledge`), reusing knowledge's public `/documents` API via the
-frontend `api` package (`listKnowledgeDocuments` / `uploadKnowledgeDocuments` /
+frontend `api` package (`listKnowledgeDocuments` / `ingestKnowledgeDocuments` /
 `fetchKnowledgeDocument` / `updateKnowledgeDocument` / `deleteKnowledgeDocument` /
 `batchDeleteKnowledgeDocuments`). It covers local import (upload → MarkItDown →
 auto-index), list, per-document download of the original bytes, view/edit
@@ -290,3 +290,58 @@ in-process machinery.
 readable (`read_file` / `content_md`) but not yet retrievable via RAG
 (`knowledge_search`), since chunks/BM25 are written by `index_document`. This is
 the intended trade-off — import progress reflects storage, not embedding.
+
+## Update — v1.7.0: convert decoupled too ("upload = ask", convert in background)
+
+v1.6.0 moved *indexing* off the ingest request, but **conversion still ran inside
+it**: the `converting` → `ready` gap was a synchronous
+MarkItDown/vision black box (tens of seconds for large PDFs / images), and the
+frontend `PromptInput` hard-blocked send until `ingest_status === "ready"`. So a
+user still could not ask about a freshly uploaded large file until convert
+finished — the classic "stuck at 50%" wait (see the progress-UX finding: a
+stalled fabricated percentage is worse than an honest indeterminate state).
+
+**Change.** Ingest now returns at `received/100` — bytes stored + row
+referenceable — and the heavy convert runs in the background, mirroring how
+Codex/Cursor keep upload instant and process asynchronously.
+
+- New `ingest_status` value **`received`** (`pending`→`storing`→`received`→
+  `converting`→`ready`), between storing and converting. String column, no DDL.
+- `services/processor.py` is the background convert runner, structurally a twin
+  of `indexer.py`: `schedule_process()` fire-and-forget (bounded by
+  `ingest_max_parallel`), advisory-lock single-flight (namespaced `convert:<id>`
+  so it never collides with the indexer's lock), `_pending` dirty re-run, and
+  `sweep_process()` startup recovery (resets crashed `converting`→`received`).
+  On success it writes `content_md`/`ready`/`index_status=pending` then chains
+  `schedule_index()`; on failure it writes `failed` and **keeps the stored
+  object** so `read_file`/manual retry still have the source. `main.py` sweeps
+  convert before index (a doc must reach `ready` before it can be chunked).
+- The public ingest API is now a plain HTTP `POST /ingest` returning
+  `{ documents, failed }` once bytes are stored and rows are referenceable. There
+  is no upload-progress SSE and no frontend progress ring; the `PromptInput`
+  only waits for the returned document id, then allows the file to be sent while
+  conversion continues in the background. Admin upload reports "已接收…后台解析与索引".
+- **Reading a not-yet-converted file:** the internal slice endpoint gains a
+  `wait_ms` long-poll returning `state: ready|processing|failed`. Chat's
+  `read_file` long-polls (60s) when the doc is still `received/converting`, so a
+  single tool call returns content once convert finishes — the wait moves from
+  "upload bar stuck at 50%" to "AI is reading the document" (streaming). Timeout
+  → `processing`, convert error → `failed`; both are structured tool outputs, so
+  the model can tell the user instead of getting an empty/garbage body. The old
+  raw-bytes fallback (useless for binary) is removed.
+- **Image fast-path (free):** images are referenceable at `received`; vision
+  models see the original bytes inlined by `projector.ts` with no dependency on
+  convert, and the caption (for non-vision/RAG) is fully backgrounded.
+- **Convert cache:** identical re-uploads reuse a prior `ready` document's
+  `content_md` by `object_sha256`, scoped to the same org/user trust boundary and
+  restricted to deterministic (non-media) MarkItDown output — vision captions
+  depend on provider/model and are never cached.
+
+**Reliability boundary (unchanged).** Same single-process, in-memory, best-effort
+caveat as v1.6.0's indexer applies to the processor; durable execution would move
+both to the executor's Workflow DevKit.
+
+**Consequence.** The readable-but-not-retrievable window from v1.6.0 now has a
+sibling: a just-uploaded file is *referenceable* immediately but briefly not yet
+*readable* (convert running) — surfaced honestly via `read_file`'s `processing`
+state + server-side wait, not a fake progress bar.

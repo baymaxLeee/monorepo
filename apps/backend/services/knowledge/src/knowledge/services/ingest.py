@@ -1,28 +1,23 @@
-"""Parallel document ingest with SSE progress."""
+"""Parallel document ingest."""
 
 from __future__ import annotations
 
 import asyncio
-import json
-from collections.abc import AsyncIterator
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
-from fastapi.responses import StreamingResponse
 from kernel.errors import BaseError
 from knowledge.config import get_settings
 from knowledge.crud import documents as document_crud
 from knowledge.db import get_session_factory, write_tx
 from knowledge.deps import AuthContext
 from knowledge.models.document import DocumentRow
-from knowledge.services.admin_client import get_admin_client
-from knowledge.services.convert import AttachmentConversionError, AttachmentTooLargeError, ConvertService
+from knowledge.schemas.document import IngestFailure, IngestReceipt, IngestResult
+from knowledge.services.convert import AttachmentTooLargeError
 from knowledge.services.documents import document_to_schema
-from knowledge.services.indexer import schedule_index
 from knowledge.services.object_store import ObjectStore
-from sqlalchemy.ext.asyncio import AsyncSession
+from knowledge.services.processor import schedule_process
 
 
 @dataclass(frozen=True)
@@ -34,58 +29,24 @@ class IngestFileItem:
     content: bytes
 
 
-_SENTINEL = object()
-
-
-def sse_response(event_stream: AsyncIterator[bytes]) -> StreamingResponse:
-    from fastapi.responses import StreamingResponse
-
-    return StreamingResponse(
-        event_stream,
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-async def stream_ingest_events(
+async def ingest_documents(
     *,
-    session: AsyncSession,
     current_user: AuthContext,
     conversation_id: str | None,
     provider_id: str | None,
     items: list[IngestFileItem],
-) -> AsyncIterator[bytes]:
+) -> IngestResult:
     settings = get_settings()
-    queue: asyncio.Queue[dict[str, Any] | object] = asyncio.Queue()
-    succeeded = 0
-    failed = 0
     factory = get_session_factory()
 
-    async def emit(event: dict[str, Any]) -> None:
-        await queue.put(event)
-
-    async def ingest_one(item: IngestFileItem, semaphore: asyncio.Semaphore) -> None:
-        nonlocal succeeded, failed
+    async def ingest_one(item: IngestFileItem, semaphore: asyncio.Semaphore) -> IngestReceipt | IngestFailure:
         async with semaphore:
             store = ObjectStore()
-            converter = ConvertService()
             row: DocumentRow | None = None
             stored_bucket: str | None = None
             stored_key: str | None = None
             async with factory() as worker_session:
                 try:
-                    await emit(
-                        {
-                            "type": "file_started",
-                            "index": item.index,
-                            "client_ref": item.client_ref,
-                            "filename": item.filename,
-                        }
-                    )
                     if len(item.content) > settings.attachment_max_upload_bytes:
                         raise AttachmentTooLargeError(
                             "attachment too large",
@@ -108,16 +69,6 @@ async def stream_ingest_events(
                             ingest_status="storing",
                             ingest_progress=10,
                         )
-                    await emit(
-                        {
-                            "type": "file_progress",
-                            "index": item.index,
-                            "client_ref": item.client_ref,
-                            "artifact_id": row.id,
-                            "status": "storing",
-                            "progress": 10,
-                        }
-                    )
 
                     prefix = f"conversations/{conversation_id}" if conversation_id else "uploads"
                     stored = store.put_bytes(
@@ -137,76 +88,14 @@ async def stream_ingest_events(
                                 "object_bucket": stored.bucket,
                                 "object_key": stored.key,
                                 "object_sha256": stored.sha256,
-                                "ingest_status": "converting",
-                                "ingest_progress": 50,
-                            },
-                        )
-                    await emit(
-                        {
-                            "type": "file_progress",
-                            "index": item.index,
-                            "client_ref": item.client_ref,
-                            "artifact_id": row.id,
-                            "status": "converting",
-                            "progress": 50,
-                        }
-                    )
-
-                    provider = None
-                    if item.mime_type.lower().startswith(("image/", "audio/", "video/")) and provider_id:
-                        provider = await get_admin_client().get_provider(
-                            org_id=current_user.org_id,
-                            provider_id=provider_id,
-                        )
-                    convert_timeout = max(settings.llm_timeout_seconds * 2, 90)
-                    try:
-                        markdown = await asyncio.wait_for(
-                            converter.convert(
-                                filename=item.filename,
-                                mime_type=item.mime_type,
-                                content=item.content,
-                                provider=provider,
-                            ),
-                            timeout=convert_timeout,
-                        )
-                    except TimeoutError as exc:
-                        raise AttachmentConversionError(
-                            f"conversion timed out after {convert_timeout}s",
-                            details={"filename": item.filename},
-                        ) from exc
-                    async with write_tx(worker_session):
-                        row = await document_crud.update_document(
-                            worker_session,
-                            row,
-                            {
-                                "content_md": markdown,
-                                "mime_type": "text/markdown",
-                                "ingest_status": "ready",
+                                "ingest_status": "received",
                                 "ingest_progress": 100,
-                                "ingest_error": None,
-                                "index_status": "pending",
                             },
                         )
-                    succeeded += 1
                     doc = document_to_schema(row)
-                    await emit(
-                        {
-                            "type": "file_ready",
-                            "index": item.index,
-                            "client_ref": item.client_ref,
-                            "artifact_id": row.id,
-                            "progress": 100,
-                            "document": doc.model_dump(mode="json"),
-                        }
-                    )
-                    # Embedding/chunking runs in the background so ingest progress
-                    # only reflects "received + stored + converted", not RAG index.
-                    schedule_index(row.id)
+                    schedule_process(row.id, provider_id=provider_id)
+                    return IngestReceipt(index=item.index, client_ref=item.client_ref, document=doc)
                 except Exception as exc:
-                    # A stage that failed inside its own begin block already rolled
-                    # back; failures during external IO ran between transactions, so
-                    # the session is clean and can write the terminal failed status.
-                    failed += 1
                     code = exc.code if isinstance(exc, BaseError) else None
                     message = str(exc)
                     if row is not None:
@@ -223,35 +112,20 @@ async def stream_ingest_events(
                     if stored_bucket and stored_key:
                         with suppress(Exception):
                             store.delete(bucket=stored_bucket, key=stored_key)
-                    await emit(
-                        {
-                            "type": "file_failed",
-                            "index": item.index,
-                            "client_ref": item.client_ref,
-                            "artifact_id": row.id if row is not None else None,
-                            "error": message,
-                            "code": code,
-                        }
+                    return IngestFailure(
+                        index=item.index,
+                        client_ref=item.client_ref,
+                        artifact_id=row.id if row is not None else None,
+                        error=message,
+                        code=code,
                     )
 
-    async def run_batch() -> None:
-        await emit({"type": "batch_started", "total": len(items), "max_parallel": settings.ingest_max_parallel})
-        semaphore = asyncio.Semaphore(settings.ingest_max_parallel)
-        await asyncio.gather(*(ingest_one(item, semaphore) for item in items))
-        await emit({"type": "batch_done", "succeeded": succeeded, "failed": failed})
-        await queue.put(_SENTINEL)
-
-    task = asyncio.create_task(run_batch())
-    try:
-        while True:
-            event = await queue.get()
-            if event is _SENTINEL:
-                break
-            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode()
-            await asyncio.sleep(0)
-    finally:
-        await task
-    yield b"data: [DONE]\n\n"
+    semaphore = asyncio.Semaphore(settings.ingest_max_parallel)
+    results = await asyncio.gather(*(ingest_one(item, semaphore) for item in items))
+    return IngestResult(
+        documents=[result for result in results if isinstance(result, IngestReceipt)],
+        failed=[result for result in results if isinstance(result, IngestFailure)],
+    )
 
 
 def parse_ingest_items(

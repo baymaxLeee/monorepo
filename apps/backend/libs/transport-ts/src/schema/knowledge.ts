@@ -55,7 +55,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ingest/stream": {
+    "/ingest": {
         parameters: {
             query?: never;
             header?: never;
@@ -65,10 +65,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Ingest Stream
-         * @description Upload files, store raw bytes, convert to markdown, stream progress via SSE.
+         * Ingest
+         * @description Upload files, store raw bytes, and schedule background conversion.
          */
-        post: operations["ingest_stream_ingest_stream_post"];
+        post: operations["ingest_ingest_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -219,7 +219,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Document Slice */
+        /**
+         * Get Document Slice
+         * @description Read a bounded slice of the converted markdown. When the document is still
+         *     converting in the background, ``wait_ms`` long-polls until it is ``ready`` (or
+         *     ``failed``/timeout) so a caller that just uploaded can read as soon as convert
+         *     finishes instead of getting an empty body. ``state`` distinguishes the outcome:
+         *     ``ready`` (real content), ``processing`` (retry later), ``failed`` (see error).
+         */
         get: operations["get_document_slice_internal_documents__document_id__slice_get"];
         put?: never;
         post?: never;
@@ -495,8 +502,8 @@ export interface components {
             /** Deleted */
             deleted: number;
         };
-        /** Body_ingest_stream_ingest_stream_post */
-        Body_ingest_stream_ingest_stream_post: {
+        /** Body_ingest_ingest_post */
+        Body_ingest_ingest_post: {
             /** Files */
             files: string[];
             /** Client Refs */
@@ -598,7 +605,7 @@ export interface components {
              * @default ready
              * @enum {string}
              */
-            ingest_status: "pending" | "storing" | "converting" | "ready" | "failed";
+            ingest_status: "pending" | "storing" | "received" | "converting" | "ready" | "failed";
             /**
              * Ingest Progress
              * @default 100
@@ -640,6 +647,14 @@ export interface components {
             total_chars: number;
             /** Next Start */
             next_start?: number | null;
+            /**
+             * State
+             * @default ready
+             * @enum {string}
+             */
+            state: "ready" | "processing" | "failed";
+            /** Error */
+            error?: string | null;
         };
         /** FailArtifactGenerationInput */
         FailArtifactGenerationInput: {
@@ -652,6 +667,34 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** IngestFailure */
+        IngestFailure: {
+            /** Index */
+            index: number;
+            /** Client Ref */
+            client_ref: string;
+            /** Artifact Id */
+            artifact_id?: string | null;
+            /** Error */
+            error: string;
+            /** Code */
+            code?: string | null;
+        };
+        /** IngestReceipt */
+        IngestReceipt: {
+            /** Index */
+            index: number;
+            /** Client Ref */
+            client_ref: string;
+            document: components["schemas"]["Document"];
+        };
+        /** IngestResult */
+        IngestResult: {
+            /** Documents */
+            documents: components["schemas"]["IngestReceipt"][];
+            /** Failed */
+            failed?: components["schemas"]["IngestFailure"][];
         };
         /** PublishArtifactRevisionInput */
         PublishArtifactRevisionInput: {
@@ -878,7 +921,7 @@ export interface operations {
             };
         };
     };
-    ingest_stream_ingest_stream_post: {
+    ingest_ingest_post: {
         parameters: {
             query?: never;
             header?: {
@@ -893,7 +936,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_ingest_stream_ingest_stream_post"];
+                "multipart/form-data": components["schemas"]["Body_ingest_ingest_post"];
             };
         };
         responses: {
@@ -903,7 +946,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["IngestResult"];
                 };
             };
             /** @description Validation Error */
@@ -1326,6 +1369,7 @@ export interface operations {
                 user_id: string;
                 start?: number;
                 max_chars?: number;
+                wait_ms?: number;
             };
             header?: {
                 "X-Internal-Token"?: string | null;

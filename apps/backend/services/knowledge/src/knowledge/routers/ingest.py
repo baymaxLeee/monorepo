@@ -3,25 +3,23 @@
 import json
 
 from fastapi import APIRouter, Form, UploadFile
-from fastapi.responses import StreamingResponse
 from kernel.errors import RequestError
-from knowledge.deps import CurrentUser, DbSession
-from knowledge.services.ingest import parse_ingest_items, sse_response, stream_ingest_events
+from knowledge.deps import CurrentUser
+from knowledge.schemas.document import IngestResult
+from knowledge.services.ingest import ingest_documents, parse_ingest_items
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 
-@router.post("/stream")
-async def ingest_stream(
+@router.post("", response_model=IngestResult)
+async def ingest(
     current_user: CurrentUser,
-    session: DbSession,
     files: list[UploadFile],
     client_refs: str = Form(...),
     conversation_id: str | None = Form(default=None),
     provider_id: str | None = Form(default=None),
-) -> StreamingResponse:
-    """Upload files, store raw bytes, convert to markdown, stream progress via SSE."""
-
+) -> IngestResult:
+    """Upload files, store raw bytes, and schedule background conversion."""
     try:
         refs = json.loads(client_refs)
     except json.JSONDecodeError as exc:
@@ -40,12 +38,9 @@ async def ingest_stream(
             )
         )
     items = parse_ingest_items(files=payload, client_refs=refs)
-    return sse_response(
-        stream_ingest_events(
-            session=session,
-            current_user=current_user,
-            conversation_id=conversation_id,
-            provider_id=provider_id,
-            items=items,
-        )
+    return await ingest_documents(
+        current_user=current_user,
+        conversation_id=conversation_id,
+        provider_id=provider_id,
+        items=items,
     )

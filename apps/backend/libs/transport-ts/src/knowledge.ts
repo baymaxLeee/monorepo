@@ -63,6 +63,7 @@ export class KnowledgeInternalClient {
     documentId: string;
     start?: number;
     maxChars?: number;
+    waitMs?: number;
   }): Promise<DocumentSlice> {
     return this.unwrap(
       this.client.GET("/internal/documents/{document_id}/slice", {
@@ -72,6 +73,7 @@ export class KnowledgeInternalClient {
             user_id: input.userId,
             start: input.start ?? 0,
             max_chars: input.maxChars ?? 4000,
+            wait_ms: input.waitMs ?? 0,
           },
         },
       }),

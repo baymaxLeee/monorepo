@@ -7,7 +7,7 @@
 - 原始文件字节存储（demo 阶段：本地 filesystem `KNOWLEDGE_DATA_DIR`）
 - MarkItDown 文档转换 → `content_md`
 - `documents` 单表：同时保存 `object_key`（原始文件）与 `content_md`（转换结果）
-- 上传 ingest（SSE 进度）
+- 上传 ingest（HTTP 接收后后台转换/索引）
 - Agent artifact 持久化（`POST /internal/artifacts`）
 - 面向用户的文档 CRUD（未来知识库 app）
 
@@ -35,7 +35,7 @@
 
 | 路径 | 鉴权 | 说明 |
 |---|---|---|
-| `POST /ingest/stream` | Gateway 用户 JWT | 多文件上传 + SSE |
+| `POST /ingest` | Gateway 用户 JWT | 多文件上传，返回已接收文档 |
 | `GET/PATCH/DELETE /documents/*` | Gateway 用户 JWT | 用户文档管理 |
 | `GET/POST/DELETE /internal/*` | `X-Internal-Token` | chat 等 sibling 服务调用 |
 

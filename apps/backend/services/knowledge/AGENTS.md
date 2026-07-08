@@ -40,12 +40,18 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 ## Conventions
 - Documents are user-scoped; `conversation_id` is an optional tag only (no FK).
 - Deleting a chat conversation does NOT delete knowledge documents.
-- RAG indexing is **async and decoupled from ingest progress** (ADR-0019 v1.6.0):
-  ingest/edit return at `ready/100` and enqueue background embedding via
-  `services/indexer.py` (`schedule_index`); `index_status` tracks that lifecycle
-  separately from `ingest_status`, `POST /documents/{id}/reindex` retries, and
-  `sweep_claim()` recovers on startup. It is a single-process demo scheduler
-  (advisory-lock single-flight + fingerprint re-run), not a durable queue.
+- Both **convert and indexing are async and decoupled from ingest progress**
+  (ADR-0019 v1.6.0 + v1.7.0): the ingest SSE returns at `received/100` (bytes
+  stored + referenceable); `services/processor.py` (`schedule_process`) then runs
+  MarkItDown/vision convert in the background (`received`→`converting`→`ready`)
+  and chains `services/indexer.py` (`schedule_index`) for embedding. `file_ready`
+  means "received", NOT "converted". `index_status` tracks the RAG lifecycle
+  separately; `POST /documents/{id}/reindex` retries; `sweep_process()` (convert)
+  then `sweep_claim()` (index) recover on startup. Both are single-process demo
+  schedulers (advisory-lock single-flight + dirty re-run), not durable queues.
+- Reading a not-yet-converted file: the internal `/documents/{id}/slice` endpoint
+  takes `wait_ms` and returns `state: ready|processing|failed`; chat `read_file`
+  long-polls it so a just-uploaded file becomes readable as soon as convert ends.
 - RAG index is kept fresh: re-index on document change; `document_chunks` has an
   `ON DELETE CASCADE` FK so deleting a document removes its chunks.
 - Embedding model and the `vector(N)` column dimension must agree; changing the

@@ -42,8 +42,6 @@ const fileToToken = (file: File, url?: string): PromptInputToken => {
     url: isImage ? url : undefined,
     meta: {
       clientRef: id,
-      ingestStatus: "pending",
-      ingestProgress: 0,
     },
   };
 };
@@ -439,12 +437,22 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
       if (disabled || loading) return;
       const value = api.getValue();
       if (!value.text.trim() && value.tokens.length === 0) return;
-      const hasPendingIngest = value.tokens.some((token) => {
-        const status = (token.meta as Record<string, unknown> | undefined)
-          ?.ingestStatus;
-        return typeof status === "string" && status !== "ready";
+      // Files become sendable once the backend returns the stored document id.
+      // Conversion continues in the background and is handled by read_file.
+      const sendableIngest = new Set(["ready", "received", "converting"]);
+      const hasBlockingToken = value.tokens.some((token) => {
+        const meta = token.meta as Record<string, unknown> | undefined;
+        const status = meta?.ingestStatus;
+        if (status === "failed") return true;
+        if (
+          (token.kind === "file" || token.kind === "image") &&
+          typeof meta?.artifactId !== "string"
+        ) {
+          return true;
+        }
+        return typeof status === "string" && !sendableIngest.has(status);
       });
-      if (hasPendingIngest) return;
+      if (hasBlockingToken) return;
       onSubmit?.(value, event);
     };
 

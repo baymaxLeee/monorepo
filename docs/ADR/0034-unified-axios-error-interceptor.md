@@ -18,7 +18,7 @@ refresh-retry，**不负责把后端错误 toast 出来**。这带来几个系�
 - **React Compiler v1 miscompile**：async `try/catch` 里内联
   `err instanceof Error ? err.message : ...`，编译后 `catch` 绑定被丢弃，运行时崩溃。
 
-要求（用户明确）：**除 SSE 直接用 `fetch` 外，其余接口都走同一个 axios 单例，单例内
+要求（用户明确）：**除 SSE / raw-fetch 外，其余接口都走同一个 axios 单例，单例内
 封装统一的 req/res 拦截器，res 拦截器统一做通用错误处理并提示后端错误信息。**
 
 ## 业界实践（依据）
@@ -56,7 +56,7 @@ refresh-retry，**不负责把后端错误 toast 出来**。这带来几个系�
 
 ### 3. SSE / 流式：`authFetch`（`auth-fetch.ts`）
 
-AI SDK transport、上传 SSE、blob 源改用 `authFetch`——镜像同一套 401
+AI SDK transport、blob 源和少量 multipart/raw fetch 改用 `authFetch`——镜像同一套 401
 refresh-ahead + retry-once 策略，但不经 axios。这些调用点**保留**自身
 `toast.error(getErrorMessage(err))`，因为拦截器看不到它们。
 

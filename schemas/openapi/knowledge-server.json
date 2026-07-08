@@ -81,14 +81,14 @@
         }
       }
     },
-    "/ingest/stream": {
+    "/ingest": {
       "post": {
         "tags": [
           "ingest"
         ],
-        "summary": "Ingest Stream",
-        "description": "Upload files, store raw bytes, convert to markdown, stream progress via SSE.",
-        "operationId": "ingest_stream_ingest_stream_post",
+        "summary": "Ingest",
+        "description": "Upload files, store raw bytes, and schedule background conversion.",
+        "operationId": "ingest_ingest_post",
         "parameters": [
           {
             "name": "X-Auth-Name",
@@ -176,7 +176,7 @@
           "content": {
             "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/Body_ingest_stream_ingest_stream_post"
+                "$ref": "#/components/schemas/Body_ingest_ingest_post"
               }
             }
           }
@@ -186,7 +186,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IngestResult"
+                }
               }
             }
           },
@@ -1359,6 +1361,7 @@
           "internal"
         ],
         "summary": "Get Document Slice",
+        "description": "Read a bounded slice of the converted markdown. When the document is still\nconverting in the background, ``wait_ms`` long-polls until it is ``ready`` (or\n``failed``/timeout) so a caller that just uploaded can read as soon as convert\nfinishes instead of getting an empty body. ``state`` distinguishes the outcome:\n``ready`` (real content), ``processing`` (retry later), ``failed`` (see error).",
         "operationId": "get_document_slice_internal_documents__document_id__slice_get",
         "parameters": [
           {
@@ -1400,6 +1403,18 @@
               "minimum": 1,
               "default": 4000,
               "title": "Max Chars"
+            }
+          },
+          {
+            "name": "wait_ms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 120000,
+              "minimum": 0,
+              "default": 0,
+              "title": "Wait Ms"
             }
           },
           {
@@ -2383,7 +2398,7 @@
         ],
         "title": "BatchDeleteResult"
       },
-      "Body_ingest_stream_ingest_stream_post": {
+      "Body_ingest_ingest_post": {
         "properties": {
           "files": {
             "items": {
@@ -2425,7 +2440,7 @@
           "files",
           "client_refs"
         ],
-        "title": "Body_ingest_stream_ingest_stream_post"
+        "title": "Body_ingest_ingest_post"
       },
       "CancelArtifactGenerationInput": {
         "properties": {
@@ -2704,6 +2719,7 @@
             "enum": [
               "pending",
               "storing",
+              "received",
               "converting",
               "ready",
               "failed"
@@ -2813,6 +2829,27 @@
               }
             ],
             "title": "Next Start"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "processing",
+              "failed"
+            ],
+            "title": "State",
+            "default": "ready"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
           }
         },
         "type": "object",
@@ -2865,6 +2902,96 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "IngestFailure": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "client_ref": {
+            "type": "string",
+            "title": "Client Ref"
+          },
+          "artifact_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Id"
+          },
+          "error": {
+            "type": "string",
+            "title": "Error"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "client_ref",
+          "error"
+        ],
+        "title": "IngestFailure"
+      },
+      "IngestReceipt": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "client_ref": {
+            "type": "string",
+            "title": "Client Ref"
+          },
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "client_ref",
+          "document"
+        ],
+        "title": "IngestReceipt"
+      },
+      "IngestResult": {
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/IngestReceipt"
+            },
+            "type": "array",
+            "title": "Documents"
+          },
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/IngestFailure"
+            },
+            "type": "array",
+            "title": "Failed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "documents"
+        ],
+        "title": "IngestResult"
       },
       "PublishArtifactRevisionInput": {
         "properties": {

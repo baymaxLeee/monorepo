@@ -36,7 +36,6 @@ type IngestMeta = {
   clientRef?: string;
   artifactId?: string;
   ingestStatus?: string;
-  ingestProgress?: number;
   ingestError?: string;
 };
 
@@ -49,45 +48,6 @@ const getTokenIcon = (kind: string) => {
   if (kind === "image") return <ImageIcon className="size-3.5" />;
   return <FileText className="size-3.5" />;
 };
-
-function TokenProgressRing({ progress }: { progress: number }) {
-  const radius = 7;
-  const circumference = 2 * Math.PI * radius;
-  const clamped = Math.max(0, Math.min(100, progress));
-  const offset = circumference - (clamped / 100) * circumference;
-
-  return (
-    <svg
-      className="prompt-input-token-ring"
-      width="18"
-      height="18"
-      viewBox="0 0 18 18"
-      aria-hidden="true"
-    >
-      <circle
-        cx="9"
-        cy="9"
-        r={radius}
-        fill="none"
-        stroke="currentColor"
-        strokeOpacity="0.2"
-        strokeWidth="2"
-      />
-      <circle
-        cx="9"
-        cy="9"
-        r={radius}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-        transform="rotate(-90 9 9)"
-      />
-    </svg>
-  );
-}
 
 const PromptTokenView = (props: NodeViewProps) => {
   const { editor, extension, node, selected, getPos } = props;
@@ -111,12 +71,8 @@ const PromptTokenView = (props: NodeViewProps) => {
   });
 
   const ingestStatus = meta.ingestStatus;
-  const ingestProgress = Number(meta.ingestProgress ?? 0);
   const failed = ingestStatus === "failed";
-  const isReady = ingestStatus === "ready";
-  const ingesting = Boolean(
-    ingestStatus && !failed && ingestStatus !== "ready",
-  );
+  const isReady = Boolean(meta.artifactId) || ingestStatus === "ready";
 
   return (
     <NodeViewWrapper as="span" className="prompt-input-token-wrap">
@@ -131,9 +87,7 @@ const PromptTokenView = (props: NodeViewProps) => {
           )}
           data-kind={token.kind}
         >
-          {ingesting ? (
-            <TokenProgressRing progress={ingestProgress} />
-          ) : isReady ? (
+          {isReady ? (
             <Check className="size-3.5 text-emerald-600" />
           ) : failed ? (
             <AlertCircle className="size-3.5 text-destructive" />
@@ -143,11 +97,6 @@ const PromptTokenView = (props: NodeViewProps) => {
             getTokenIcon(token.kind)
           )}
           <span className="prompt-input-token-label">{token.label}</span>
-          {ingesting ? (
-            <span className="prompt-input-token-progress">
-              {ingestProgress}%
-            </span>
-          ) : null}
           {failed ? (
             <button
               type="button"

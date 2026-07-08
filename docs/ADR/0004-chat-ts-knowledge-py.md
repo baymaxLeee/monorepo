@@ -19,7 +19,7 @@ Accepted — 2026-06
 2. **storage 下线，由 Python `knowledge` 服务替代**
    - FastAPI + MarkItDown
    - `documents` 单表：`object_key` + `content_md`
-   - 提供 ingest SSE、artifact 写入、内部/公开文档 API
+   - 提供 HTTP ingest、artifact 写入、内部/公开文档 API
 
 3. **artifact 机制重设计（不兼容旧方案）**
    - 统一 `create_artifact` 工具 → POST knowledge 落库 → 占位符 `⟦artifact:N⟧` → turn 结束回填 `[id]`

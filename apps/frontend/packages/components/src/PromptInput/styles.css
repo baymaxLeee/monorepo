@@ -165,16 +165,6 @@
   border-color: color-mix(in oklch, var(--foreground) 20%, transparent);
 }
 
-.prompt-input-token-ring {
-  flex-shrink: 0;
-}
-
-.prompt-input-token-progress {
-  flex-shrink: 0;
-  font-size: 0.625rem;
-  opacity: 0.75;
-}
-
 /* Highlight the live `@query` / `/query` text while the popup is open. The
    plugin decorates it with the default `.suggestion` class. */
 .prompt-input-prosemirror .suggestion {

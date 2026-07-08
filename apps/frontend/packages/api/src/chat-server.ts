@@ -96,6 +96,9 @@ export type IngestStatus =
   | "pending"
   | "queued"
   | "storing"
+  // Bytes stored + referenceable; the MarkItDown/vision convert then runs in the
+  // background (received -> converting -> ready) so upload does not block on it.
+  | "received"
   | "converting"
   | "ready"
   | "failed";
@@ -114,11 +117,6 @@ export interface ConversationDocumentDetail extends ConversationDocument {
 export interface UpdateConversationDocumentInput {
   title?: string;
   content_md?: string;
-}
-
-export interface StreamEventOptions<T> {
-  signal?: AbortSignal;
-  onEvent: (event: T) => void;
 }
 
 const BASE = "/api/chat-server/conversations";
@@ -223,60 +221,6 @@ export function updateConversationDocument(
     data: input,
   });
 }
-
-export interface DocumentIngestBatchStartedEvent {
-  type: "batch_started";
-  total: number;
-  max_parallel: number;
-}
-
-export interface DocumentIngestFileStartedEvent {
-  type: "file_started";
-  index: number;
-  client_ref: string;
-  filename: string;
-}
-
-export interface DocumentIngestFileProgressEvent {
-  type: "file_progress";
-  index: number;
-  client_ref: string;
-  artifact_id: string;
-  status: IngestStatus;
-  progress: number;
-}
-
-export interface DocumentIngestFileReadyEvent {
-  type: "file_ready";
-  index: number;
-  client_ref: string;
-  artifact_id: string;
-  progress: number;
-  document: ConversationDocumentDetail;
-}
-
-export interface DocumentIngestFileFailedEvent {
-  type: "file_failed";
-  index: number;
-  client_ref: string;
-  artifact_id?: string | null;
-  error: string;
-  code?: string | null;
-}
-
-export interface DocumentIngestBatchDoneEvent {
-  type: "batch_done";
-  succeeded: number;
-  failed: number;
-}
-
-export type DocumentIngestStreamEvent =
-  | DocumentIngestBatchStartedEvent
-  | DocumentIngestFileStartedEvent
-  | DocumentIngestFileProgressEvent
-  | DocumentIngestFileReadyEvent
-  | DocumentIngestFileFailedEvent
-  | DocumentIngestBatchDoneEvent;
 
 export interface AgentTraceStep {
   id: string;
