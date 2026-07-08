@@ -105,7 +105,7 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:26.6.1.1193
     container_name: monorepo-clickhouse
-    mem_limit: 1200m
+    mem_limit: 2g
     environment:
       CLICKHOUSE_DB: otel
       CLICKHOUSE_USER: default
