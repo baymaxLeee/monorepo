@@ -28,6 +28,9 @@ on:
       - 'apps/backend/**'
       - 'apps/frontend/**'
       - 'infra/single-vps/**'
+      # db-init bakes scripts/db-migrate.sh (see Dockerfile.db-init); a change
+      # there MUST rebuild images or the deployed migrator stays stale.
+      - 'scripts/**'
       - '.github/workflows/build-images.yml'
   workflow_dispatch:
     inputs:
