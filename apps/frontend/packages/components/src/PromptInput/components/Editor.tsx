@@ -1,7 +1,7 @@
 import type { Editor, Extensions, JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { ArrowUp, Plus, Square } from "lucide-react";
+import { ArrowUp, Loader2, Plus, Square } from "lucide-react";
 import {
   type FormEvent,
   forwardRef,
@@ -11,6 +11,7 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { cn, randomId } from "shared";
 import { Button } from "../../shadcn/button";
@@ -61,6 +62,29 @@ const tokenMatchesRef = (token: PromptInputToken, tokenRef: string) => {
   return token.id === tokenRef || meta.clientRef === tokenRef;
 };
 
+// A freshly attached file/image is referenceable the moment the backend stores
+// it and returns a document id; MarkItDown conversion (received→converting→ready)
+// then continues in the background and does not block sending.
+const SENDABLE_INGEST = new Set(["ready", "received", "converting"]);
+
+type TokenSendState = "ready" | "uploading" | "failed";
+
+const tokenSendState = (token: PromptInputToken): TokenSendState => {
+  const meta = token.meta as Record<string, unknown> | undefined;
+  const status = meta?.ingestStatus;
+  if (status === "failed") return "failed";
+  if (
+    (token.kind === "file" || token.kind === "image") &&
+    typeof meta?.artifactId !== "string"
+  ) {
+    return "uploading";
+  }
+  if (typeof status === "string" && !SENDABLE_INGEST.has(status)) {
+    return "uploading";
+  }
+  return "ready";
+};
+
 const fileMatchesAccept = (file: File, accept?: string) => {
   if (!accept?.trim()) return true;
   const filename = file.name.toLowerCase();
@@ -87,7 +111,7 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
       autoFocus,
       accept,
       maxFiles = 8,
-      maxFileSize = 20 * 1024 * 1024,
+      maxFileSize = 10 * 1024 * 1024,
       onError,
       onChange,
       onFilesAdded,
@@ -111,6 +135,7 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
     const slashCommandsRef = useRef(slashCommands);
     const onSlashCommandRef = useRef(onSlashCommand);
     const apiRef = useRef<PromptInputApi | null>(null);
+    const [attachmentsUploading, setAttachmentsUploading] = useState(false);
 
     onChangeRef.current = onChange;
     onFilesAddedRef.current = onFilesAdded;
@@ -175,6 +200,9 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
           delete objectUrlsRef.current[tokenId];
         }
       }
+      setAttachmentsUploading(
+        value.tokens.some((token) => tokenSendState(token) === "uploading"),
+      );
       onChangeRef.current?.(value);
     }, []);
 
@@ -437,22 +465,19 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
       if (disabled || loading) return;
       const value = api.getValue();
       if (!value.text.trim() && value.tokens.length === 0) return;
-      // Files become sendable once the backend returns the stored document id.
-      // Conversion continues in the background and is handled by read_file.
-      const sendableIngest = new Set(["ready", "received", "converting"]);
-      const hasBlockingToken = value.tokens.some((token) => {
-        const meta = token.meta as Record<string, unknown> | undefined;
-        const status = meta?.ingestStatus;
-        if (status === "failed") return true;
-        if (
-          (token.kind === "file" || token.kind === "image") &&
-          typeof meta?.artifactId !== "string"
-        ) {
-          return true;
-        }
-        return typeof status === "string" && !sendableIngest.has(status);
-      });
-      if (hasBlockingToken) return;
+      const sendStates = value.tokens.map(tokenSendState);
+      // Surface why a mixed text+attachment message won't send instead of
+      // silently swallowing the submit: a failed upload needs a retry/remove,
+      // and an in-flight upload just needs a moment (the send button also
+      // reflects this as a disabled spinner).
+      if (sendStates.includes("failed")) {
+        onError?.("有附件上传失败，请重试或移除后再发送。");
+        return;
+      }
+      if (sendStates.includes("uploading")) {
+        onError?.("附件仍在上传中，请稍候…");
+        return;
+      }
       onSubmit?.(value, event);
     };
 
@@ -494,13 +519,21 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
             type={loading && onStop ? "button" : "submit"}
             size="icon-xs"
             className="rounded-full mr-2 cursor-pointer"
-            disabled={disabled && !loading}
-            aria-label={loading ? "Stop" : "Submit prompt"}
+            disabled={(disabled || attachmentsUploading) && !loading}
+            aria-label={
+              loading
+                ? "Stop"
+                : attachmentsUploading
+                  ? "附件上传中"
+                  : "Submit prompt"
+            }
             onClick={loading ? onStop : undefined}
           >
             {submitLabel ??
               (loading ? (
                 <Square className="size-3" />
+              ) : attachmentsUploading ? (
+                <Loader2 className="size-3 animate-spin" />
               ) : (
                 <ArrowUp className="size-3" />
               ))}

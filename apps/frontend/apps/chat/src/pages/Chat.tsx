@@ -380,8 +380,16 @@ export function Chat() {
     const hasReadyFile = value.tokens.some(
       (token) => typeof token.meta?.artifactId === "string",
     );
+    // `value.text` embeds `[[tokenId]]` placeholders for tokens; derive the real
+    // typed text from text segments so an attachment-only send falls back to the
+    // friendly prompt instead of shipping a raw `[[id]]` placeholder as content.
+    const typedText = value.segments
+      .filter((segment) => segment.type === "text")
+      .map((segment) => segment.text)
+      .join("")
+      .trim();
     const text =
-      value.text.trim() || (hasReadyFile ? "请阅读并处理我附加的文件。" : "");
+      typedText || (hasReadyFile ? "请阅读并处理我附加的文件。" : "");
     if (!text) return;
     const parts = value.segments.flatMap(
       (segment): ChatUIMessage["parts"][number][] => {
@@ -572,7 +580,7 @@ export function Chat() {
               : "要求后续变更"
           }
           maxFiles={8}
-          maxFileSize={20 * 1024 * 1024}
+          maxFileSize={10 * 1024 * 1024}
           onError={(message) => toast.error(message)}
           onStop={() => void stopRun()}
           onFilesAdded={(items) => {
