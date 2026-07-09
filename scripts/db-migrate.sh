@@ -90,7 +90,9 @@ SELECT format('ALTER DATABASE %I OWNER TO %I', :'db_name', :'db_user') \gexec
 SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'db_name') \gexec
 SELECT format('GRANT CONNECT ON DATABASE %I TO %I', :'db_name', :'db_user') \gexec
 SQL
-  if [ "$DB" = "knowledge" ]; then
+  # vector is not grantable to DB owners on stock Postgres images — migrations
+  # must not CREATE EXTENSION vector as the service role (chat v2.5.0, knowledge).
+  if [ "$DB" = "knowledge" ] || [ "$DB" = "chat" ]; then
     pg_admin -d "$DB" -c "CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pg_trgm;"
   fi
   pg_service -d "$DB" <<'SQL'
