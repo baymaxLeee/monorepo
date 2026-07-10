@@ -1,0 +1,51 @@
+apps/frontend/packages/components/src/shadcn/accordion.tsx
+  s_ad42df569b5346::t_468b13609524bc 36
+apps/frontend/packages/components/src/shadcn/badge.tsx
+  s_ad42df569b5346::t_0cc67912987f64 8,16
+apps/frontend/packages/components/src/shadcn/button.tsx
+  s_ad42df569b5346::t_4e2333eb56e07c 8,14
+apps/frontend/packages/components/src/shadcn/checkbox.tsx
+  s_ad42df569b5346::t_c0b28b13b5bd78 18
+apps/frontend/packages/components/src/shadcn/input-otp.tsx
+  s_ad42df569b5346::t_ec439bca34c49d 52
+apps/frontend/packages/components/src/shadcn/input.tsx
+  s_ad42df569b5346::t_58e0a82f0d9d1f 13-15
+apps/frontend/packages/components/src/shadcn/radio-group.tsx
+  s_ad42df569b5346::t_d468da2ba022bc 30
+apps/frontend/packages/components/src/shadcn/resizable.tsx
+  s_ad42df569b5346::t_4353c763ccd329 39
+apps/frontend/packages/components/src/shadcn/scroll-area.tsx
+  s_ad42df569b5346::t_cdd35fd3795b2b 21
+apps/frontend/packages/components/src/shadcn/select.tsx
+  s_ad42df569b5346::t_9cb1de35b28161 42
+apps/frontend/packages/components/src/shadcn/sheet.tsx
+  s_ad42df569b5346::t_a420d83bd82c33 78
+apps/frontend/packages/components/src/shadcn/sidebar.tsx
+  s_ad42df569b5346::t_6f15d89f2dae5d 398,419,466,553,676
+apps/frontend/packages/components/src/shadcn/slider.tsx
+  s_ad42df569b5346::t_90576465b9be40 54
+apps/frontend/packages/components/src/shadcn/switch.tsx
+  s_ad42df569b5346::t_8dfcde5675bd79 18
+apps/frontend/packages/components/src/shadcn/textarea.tsx
+  s_ad42df569b5346::t_c07540260c00c5 14
+apps/frontend/packages/components/src/shadcn/toggle.tsx
+  s_ad42df569b5346::t_66a470dcab5254 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a7ec5c081734a8777fba033f8a10f591a3c8ff33",
+  "prompts": {},
+  "sessions": {
+    "s_ad42df569b5346": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4b94-258b-74c2-a9f6-e510e9c471b2",
+        "model": "unknown"
+      },
+      "human_author": "baymaxlee.001 <baymaxlee.001@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
