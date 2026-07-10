@@ -4,20 +4,20 @@ import { ErrorBoundary, Toaster, TooltipProvider } from "components";
 import { useEffect } from "react";
 import { RouterProvider } from "react-router-dom";
 import { usePlatformStore } from "runtime";
+import { useShallow } from "zustand/react/shallow";
 import { isSuperAdmin } from "./onboarding";
 import { queryClient } from "./query-client";
 import { router } from "./router";
 import { loadApps, resetApps } from "./store/apps";
 
 export function App() {
-  const { user, setUser, resetPlatformState } = usePlatformStore((state) => ({
-    user: state.user,
-    setUser: state.setUser,
-    resetPlatformState: state.resetPlatformState,
-  }));
-  // App visibility is org-scoped: only fetch entitlements once the session is
-  // bound to an org (or the caller is a platform super_admin). Re-fetch when the
-  // active org changes so a switch never shows the previous org's apps.
+  const { user, setUser, resetPlatformState } = usePlatformStore(
+    useShallow((state) => ({
+      user: state.user,
+      setUser: state.setUser,
+      resetPlatformState: state.resetPlatformState,
+    })),
+  );
   const canEnter = !!user && (!!user.activeOrg || isSuperAdmin(user));
   const activeOrgId = user?.activeOrg?.orgId ?? null;
 
