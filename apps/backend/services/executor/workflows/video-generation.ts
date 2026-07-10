@@ -16,7 +16,7 @@ import {
   getArkVideoTask,
   type ArkVideoSnapshot,
 } from "../src/clients/ark.js";
-import { buildVideoTextModel, planScript, SCRIPT_TIMEOUT_MS, type Script } from "../src/video/script.js";
+import { buildVideoTextModel, planScript, buildScriptFromSegments, SCRIPT_TIMEOUT_MS, type Character, type Script, type UserVideoSegment } from "../src/video/script.js";
 import {
   STORYBOARD_TIMEOUT_MS,
   buildSegmentContent,
@@ -25,6 +25,7 @@ import {
   type CharacterRef,
   type Segment,
 } from "../src/video/storyboard.js";
+import { describeCharacterAppearances, type UserCharacterRef } from "../src/video/characters.js";
 import {
   DEFAULT_TARGET_DURATION_S,
   MAX_MAIN_CHARACTERS,
@@ -34,9 +35,23 @@ import {
   deriveSegmentCount,
   deriveSegmentSeed,
   randomBaseSeed,
+  scriptedSegmentSeconds,
 } from "../src/video/limits.js";
 import { assembleClips } from "../src/video/assembler.js";
 import { observeTaskCancellation } from "../src/tasks/cancellation.js";
+
+export const videoSegmentInputSchema = z.object({
+  content: z.string().min(1).max(1_000),
+  narration: z.string().max(300).optional(),
+  dialogue: z.string().max(300).optional(),
+  seconds: z.number().int().min(4).max(15).optional(),
+});
+
+export const videoCharacterRefInputSchema = z.object({
+  name: z.string().min(1).max(40),
+  documentId: z.string().max(32).optional(),
+  appearance: z.string().max(400).optional(),
+});
 
 export const videoGenerationInputSchema = z.object({
   orgId: z.string().min(1),
@@ -50,6 +65,8 @@ export const videoGenerationInputSchema = z.object({
   title: z.string().min(1).max(120),
   filename: z.string().min(1).max(160),
   idempotencyKey: z.string().min(1).max(120).optional(),
+  segments: z.array(videoSegmentInputSchema).min(1).max(MAX_SEGMENTS).optional(),
+  characterRefs: z.array(videoCharacterRefInputSchema).max(MAX_MAIN_CHARACTERS).optional(),
 });
 export type VideoGenerationInput = z.infer<typeof videoGenerationInputSchema>;
 
@@ -71,6 +88,74 @@ type SegmentResult = {
   videoUrl?: string;
   error?: string;
 };
+
+async function scriptedScriptStep(input: VideoGenerationInput): Promise<Script> {
+  "use step";
+  const segments = input.segments!;
+  const { model } = await buildVideoTextModel(input.textProviderId, input.orgId);
+  const { workflowRunId } = getWorkflowMetadata();
+  const cancellation = observeTaskCancellation(workflowRunId);
+  try {
+    const script = await buildScriptFromSegments({
+      prompt: input.prompt,
+      segments: segments.map((segment) => ({
+        content: segment.content,
+        ...(segment.narration ? { narration: segment.narration } : {}),
+        ...(segment.dialogue ? { dialogue: segment.dialogue } : {}),
+      })),
+      characters: input.characterRefs?.map((character) => ({
+        name: character.name,
+        ...(character.appearance ? { appearance: character.appearance } : {}),
+      })),
+      model,
+      abortSignal: AbortSignal.any([
+        cancellation.signal,
+        AbortSignal.timeout(SCRIPT_TIMEOUT_MS),
+      ]),
+    });
+    if (cancellation.signal.aborted) throw cancellation.signal.reason;
+    return script;
+  } finally {
+    cancellation.dispose();
+  }
+}
+
+async function describeCharactersStep(input: {
+  orgId: string;
+  userId: string;
+  textProviderId: string;
+  existingCharacters: Character[];
+  characterRefs?: UserCharacterRef[];
+}): Promise<Character[] | null> {
+  "use step";
+  if (!input.characterRefs?.length) return null;
+  if (!input.characterRefs.some((character) => character.documentId)) return null;
+  const { workflowRunId } = getWorkflowMetadata();
+  const cancellation = observeTaskCancellation(workflowRunId);
+  try {
+    const characters = await describeCharacterAppearances({
+      orgId: input.orgId,
+      userId: input.userId,
+      textProviderId: input.textProviderId,
+      existingCharacters: input.existingCharacters,
+      characters: input.characterRefs,
+      abortSignal: AbortSignal.any([
+        cancellation.signal,
+        AbortSignal.timeout(SCRIPT_TIMEOUT_MS),
+      ]),
+    });
+    if (cancellation.signal.aborted) throw cancellation.signal.reason;
+    return characters;
+  } catch (error) {
+    if (cancellation.signal.aborted) throw error;
+    console.warn("[executor] character describe step failed, keeping script characters", {
+      error: String(error).slice(0, 200),
+    });
+    return null;
+  } finally {
+    cancellation.dispose();
+  }
+}
 
 async function scriptStep(input: VideoGenerationInput): Promise<Script> {
   "use step";
@@ -102,6 +187,9 @@ async function storyboardStep(input: {
   targetDurationSec: number;
   textProviderId: string;
   orgId: string;
+  faithful?: boolean;
+  userSegments?: UserVideoSegment[];
+  segmentSeconds?: number[];
 }): Promise<Segment[]> {
   "use step";
   const { model } = await buildVideoTextModel(input.textProviderId, input.orgId);
@@ -116,6 +204,9 @@ async function storyboardStep(input: {
         cancellation.signal,
         AbortSignal.timeout(STORYBOARD_TIMEOUT_MS),
       ]),
+      faithful: input.faithful,
+      userSegments: input.userSegments,
+      segmentSeconds: input.segmentSeconds,
     });
     if (cancellation.signal.aborted) throw cancellation.signal.reason;
     return segments;
@@ -161,12 +252,39 @@ async function planStep(input: VideoGenerationInput): Promise<{
   baseSeed: number;
 }> {
   const targetDurationSec = input.targetDurationSec ?? DEFAULT_TARGET_DURATION_S;
-  const script = await scriptStep(input);
+  const scripted = Boolean(input.segments?.length);
+  let script = scripted
+    ? await scriptedScriptStep(input)
+    : await scriptStep(input);
+
+  const describedCharacters = await describeCharactersStep({
+    orgId: input.orgId,
+    userId: input.userId,
+    textProviderId: input.textProviderId,
+    existingCharacters: script.characters,
+    characterRefs: input.characterRefs,
+  });
+  if (describedCharacters?.length) {
+    script = { ...script, characters: describedCharacters };
+  }
+
+  const userSegments = input.segments?.map((segment) => ({
+    content: segment.content,
+    ...(segment.narration ? { narration: segment.narration } : {}),
+    ...(segment.dialogue ? { dialogue: segment.dialogue } : {}),
+  }));
+  const segmentSeconds = scripted && input.segments
+    ? scriptedSegmentSeconds(targetDurationSec, input.segments)
+    : undefined;
+
   const segments = await storyboardStep({
     script,
     targetDurationSec,
     textProviderId: input.textProviderId,
     orgId: input.orgId,
+    faithful: scripted,
+    userSegments,
+    segmentSeconds,
   });
   const characterRefs = await characterSheetStep({
     script,

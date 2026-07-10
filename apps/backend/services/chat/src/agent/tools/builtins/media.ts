@@ -5,7 +5,7 @@ import { createProviderImageModel } from "@backend/transport-ts/provider-model";
 import { logger } from "../../../lib/logger.js";
 import type { ProviderSnapshot } from "../../../clients/admin.js";
 import type { Task } from "../../../clients/executor.js";
-import { createMediaDocument } from "../../../clients/knowledge.js";
+import { createMediaDocument, getDocument } from "../../../clients/knowledge.js";
 import {
   pollTaskSnapshots,
   startTaskResilient,
@@ -58,6 +58,29 @@ const IMAGE_EXTENSIONS: Record<string, string> = {
 };
 const VIDEO_TARGET_MIN_S = 5;
 const VIDEO_TARGET_MAX_S = 120;
+
+const videoSegmentInputSchema = z.object({
+  content: z.string().min(1).max(1_000),
+  narration: z.string().max(300).optional(),
+  dialogue: z.string().max(300).optional(),
+  duration: z.number().int().min(4).max(15).optional(),
+});
+
+const videoCharacterInputSchema = z.object({
+  name: z.string().min(1).max(40),
+  referenceDocumentId: z.string().max(32).optional(),
+  appearance: z.string().max(400).optional(),
+});
+
+const videoGenerateInputSchema = z.object({
+  prompt: z.string().min(1).max(4_000),
+  duration: z.number().int().min(VIDEO_TARGET_MIN_S).max(VIDEO_TARGET_MAX_S).optional(),
+  segments: z.array(videoSegmentInputSchema).min(1).max(12).optional(),
+  characters: z.array(videoCharacterInputSchema).max(3).optional(),
+});
+
+type VideoGenerateInput = z.infer<typeof videoGenerateInputSchema>;
+type VideoCharacterInput = z.infer<typeof videoCharacterInputSchema>;
 
 export interface MediaToolProviders {
   imageProvider: ProviderSnapshot | null;
@@ -190,8 +213,54 @@ function videoDocumentId(result: unknown): string | undefined {
   return typeof documentId === "string" ? documentId : undefined;
 }
 
+async function resolveVideoCharacters(
+  characters: VideoCharacterInput[] | undefined,
+  context: MediaToolContext,
+): Promise<Array<{ name: string; documentId?: string; appearance?: string }>> {
+  const pool = [...(context.attachedImageDocumentIds ?? [])];
+
+  async function validateDocument(documentId: string) {
+    const document = await getDocument(context.userId, documentId);
+    if (document.conversation_id !== context.conversationId) {
+      throw new Error(`document ${documentId} does not belong to this conversation`);
+    }
+    return document;
+  }
+
+  if (characters?.length) {
+    const resolved: Array<{ name: string; documentId?: string; appearance?: string }> = [];
+    for (const character of characters) {
+      let documentId = character.referenceDocumentId;
+      if (documentId) {
+        await validateDocument(documentId);
+      } else if (pool.length) {
+        documentId = pool.shift();
+      }
+      resolved.push({
+        name: character.name,
+        ...(documentId ? { documentId } : {}),
+        ...(character.appearance ? { appearance: character.appearance } : {}),
+      });
+    }
+    return resolved;
+  }
+
+  if (!pool.length) return [];
+
+  return Promise.all(
+    pool.map(async (documentId, index) => {
+      const document = await validateDocument(documentId);
+      const stem = document.filename?.replace(/\.[^.]+$/, "").trim();
+      return {
+        name: (stem || `character-${index + 1}`).slice(0, 40),
+        documentId,
+      };
+    }),
+  );
+}
+
 async function* generateVideo(
-  input: { prompt: string; duration?: number },
+  input: VideoGenerateInput,
   {
     context,
     toolCallId,
@@ -201,6 +270,7 @@ async function* generateVideo(
 ): AsyncGenerator<z.infer<typeof videoOutputSchema>> {
   const title = input.prompt.slice(0, 80);
   const filename = mediaFilename(input.prompt, "mp4");
+  const characterRefs = await resolveVideoCharacters(input.characters, context);
   try {
     const task = await startTaskResilient(
       {
@@ -218,6 +288,17 @@ async function* generateVideo(
           title,
           filename,
           idempotencyKey: toolCallId,
+          ...(input.segments?.length
+            ? {
+                segments: input.segments.map((segment) => ({
+                  content: segment.content,
+                  ...(segment.narration ? { narration: segment.narration } : {}),
+                  ...(segment.dialogue ? { dialogue: segment.dialogue } : {}),
+                  ...(segment.duration != null ? { seconds: segment.duration } : {}),
+                })),
+              }
+            : {}),
+          ...(characterRefs.length ? { characterRefs } : {}),
         },
       },
       abortSignal,
@@ -319,11 +400,9 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
     ? defineAgentTool(
         "generate_video",
         tool({
-          description: "Generate and persist a video from a concrete premise. Current output is a vertical short-drama reel.",
-          inputSchema: z.object({
-            prompt: z.string().min(1).max(4_000),
-            duration: z.number().int().min(VIDEO_TARGET_MIN_S).max(VIDEO_TARGET_MAX_S).optional(),
-          }),
+          description:
+            "Generate and persist a video. Pass segments[] when the user gave an explicit scene-by-scene script; pass only prompt for auto storyboarding.",
+          inputSchema: videoGenerateInputSchema,
           outputSchema: videoOutputSchema,
           contextSchema: mediaToolContextSchema,
           execute: (input, options) =>

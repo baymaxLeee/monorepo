@@ -393,3 +393,40 @@ scope**, as it was in the original `## Decision`. If it ever returns it must NOT
 be a synchronous, turn-blocking tool call: revisit the async-delivery direction
 (task runs in the background, completion pushed / persisted) before re-adding any
 mode whose runtime scales linearly with segment count.
+
+## Update (2026-07-10): scripted direct mode (respect user segments + narration + vision character refs)
+
+Testing with conversation `5dd8769cb1e2` showed a structural mismatch: users who
+supply an explicit scene-by-scene script were routed through the auto planner,
+which **always** derived segment count from `duration / 6`, forced `planScript` to
+invent distinct beats, and stripped narration/subtitle text before Seedance.
+
+### Decision
+
+Add a **dual-mode** pipeline selected by payload shape:
+
+1. **Auto mode** (unchanged): `generate_video({ prompt, duration? })` only →
+   `planScript` → `planSegments` → parallel segments.
+2. **Scripted direct mode**: `generate_video({ prompt, duration?, segments[], characters? })`
+   when the chat model passes structured scenes:
+   - Segment count = `segments.length` (not `duration / 6`).
+   - Beats map 1:1 from user `content`; no `dedupeBeats` / `arcBeats`.
+   - A lightweight anchors-only LLM call sets `logline` / `motif` / bibles; plot is not rewritten.
+   - `planSegments` runs in **faithful** mode: camera/framing only; user
+     `narration` / `dialogue` are appended to the Seedance prompt as on-screen text.
+   - Optional `characters[]` with `referenceDocumentId`: executor pulls the image
+     from knowledge, runs a vision describe step, then reuses `generateCharacterSheet`
+     (Ark public URL reference images — no new object-store presign infra).
+
+Chat runtime instructions now tell the model to populate `segments[]` when the user
+gives numbered/per-scene directions, and to attach character document ids from file
+parts when reference images are present.
+
+### Consequences
+
+- Auto mode behaviour and ADR-0018 anti-repetition script rules are unchanged.
+- Narration/subtitle on-screen text is allowed **only** in scripted direct mode;
+  auto mode keeps "dialogue = spoken line only" to preserve prior tuning.
+- Character IP fidelity is vision-describe → generated reference sheet, not
+  pixel-perfect upload passthrough (knowledge `/source` URLs are auth-gated and
+  unreachable by Seedance).

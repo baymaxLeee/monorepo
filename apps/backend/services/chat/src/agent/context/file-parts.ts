@@ -48,3 +48,12 @@ export function activatedSkillNameFromParts(parts: ChatPart[]): string | null {
 export function isImageMediaType(mediaType: string): boolean {
   return mediaType.startsWith("image/");
 }
+
+export function attachedImageDocumentIdsFromParts(parts: ChatPart[]): string[] {
+  return parts.flatMap((part) => {
+    if (!isFileUIPart(part)) return [];
+    const id = documentIdFromFilePart(part);
+    if (!id || !isImageMediaType(String(part.mediaType ?? ""))) return [];
+    return [id];
+  });
+}

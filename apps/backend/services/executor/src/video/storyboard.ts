@@ -5,7 +5,7 @@ import { generateArkImageUrl, type ArkImageRef } from "../clients/ark.js";
 import { getProvider } from "../clients/admin.js";
 import { JSON_OBJECT_MODE_INSTRUCTION } from "@backend/transport-ts/provider-model";
 import { MAX_SEGMENTS, perSegmentSeconds } from "./limits.js";
-import { buildVideoTextModel, type Character, type Script } from "./script.js";
+import { buildVideoTextModel, type Character, type Script, type UserVideoSegment } from "./script.js";
 
 export const STORYBOARD_TIMEOUT_MS = 3 * 60_000;
 
@@ -19,7 +19,9 @@ export type Segment = {
   camera: string;
   action: string;
   dialogue?: string;
+  narration?: string;
   mood: string;
+  faithful?: boolean;
 };
 
 export type CharacterRef = {
@@ -40,6 +42,41 @@ const segmentSchema = z.object({
 const segmentsSchema = z.object({
   segments: z.array(segmentSchema).min(1).max(MAX_SEGMENTS),
 });
+
+function faithfulStoryboardInstructions(
+  script: Script,
+  userSegments: UserVideoSegment[],
+  perSegmentSec: number,
+): string {
+  const beatList = script.beats
+    .map((beat, index) => {
+      const user = userSegments[index];
+      const narration = user?.narration?.trim();
+      const dialogue = user?.dialogue?.trim();
+      return [
+        `  ${index}. FIXED ACTION: ${user?.content ?? beat.plot}`,
+        narration ? `     narration/subtitle (preserve verbatim): ${narration}` : null,
+        dialogue ? `     spoken line (preserve verbatim): ${dialogue}` : null,
+      ].filter(Boolean).join("\n");
+    })
+    .join("\n");
+  return [
+    "You are storyboarding a pre-written vertical (9:16) short-drama reel. The plot for each segment is FIXED — do NOT invent new events or change the story.",
+    `Produce EXACTLY ONE segment per beat, IN THE SAME ORDER (${script.beats.length} beats → ${script.beats.length} segments).`,
+    `Each segment is ONE Seedance generation of ONE continuous, single-take action lasting about ${perSegmentSec}s.`,
+    "For EACH segment output: `shot_size`, `camera`, `action`, optional `dialogue`, and `mood`.",
+    "The `action` must stay semantically identical to the FIXED ACTION (only minor camera-friendly rewording allowed).",
+    "If narration/subtitle text is provided, do NOT put it in `action` or `dialogue` — the system appends it separately.",
+    "If a spoken line is provided, copy it into `dialogue` verbatim.",
+    "State CAMERA move (`camera`) and SUBJECT motion (`action`) separately.",
+    "Adjacent segments MUST contrast in `shot_size` and/or `camera`.",
+    "",
+    "FIXED SCRIPT SEGMENTS:",
+    beatList,
+    "",
+    JSON_OBJECT_MODE_INSTRUCTION,
+  ].join("\n");
+}
 
 function storyboardInstructions(script: Script, perSegmentSec: number): string {
   const beatList = script.beats
@@ -66,7 +103,28 @@ function storyboardInstructions(script: Script, perSegmentSec: number): string {
 const FALLBACK_SHOTS = ["wide establishing", "medium", "close-up", "medium wide", "extreme close-up", "wide"];
 const FALLBACK_CAMERAS = ["static", "slow push-in", "static", "slow pan", "slow tracking", "static"];
 
-function deterministicSegment(beat: Script["beats"][number], script: Script, seconds: number): Segment {
+function faithfulAction(userSegment: UserVideoSegment | undefined, beat: Script["beats"][number]): string {
+  if (userSegment?.content != null) return userSegment.content;
+  return beat.plot;
+}
+
+function faithfulDialogue(userSegment: UserVideoSegment | undefined): string | undefined {
+  if (userSegment?.dialogue == null) return undefined;
+  return userSegment.dialogue;
+}
+
+function faithfulNarration(userSegment: UserVideoSegment | undefined): string | undefined {
+  if (userSegment?.narration == null) return undefined;
+  return userSegment.narration;
+}
+
+function deterministicSegment(
+  beat: Script["beats"][number],
+  script: Script,
+  seconds: number,
+  userSegment?: UserVideoSegment,
+  faithful = false,
+): Segment {
   return {
     id: `segment-${beat.order + 1}`,
     order: beat.order,
@@ -75,13 +133,23 @@ function deterministicSegment(beat: Script["beats"][number], script: Script, sec
     seconds,
     shotSize: FALLBACK_SHOTS[beat.order % FALLBACK_SHOTS.length]!,
     camera: FALLBACK_CAMERAS[beat.order % FALLBACK_CAMERAS.length]!,
-    action: beat.plot,
+    action: faithful ? faithfulAction(userSegment, beat) : beat.plot.trim().slice(0, 300),
+    dialogue: faithful ? faithfulDialogue(userSegment) : undefined,
+    narration: faithful ? faithfulNarration(userSegment) : undefined,
     mood: beat.emotion,
+    ...(faithful ? { faithful: true } : {}),
   };
 }
 
-function deterministicSegments(script: Script, seconds: number): Segment[] {
-  return script.beats.map((beat) => deterministicSegment(beat, script, seconds));
+function deterministicSegments(
+  script: Script,
+  seconds: number,
+  userSegments?: UserVideoSegment[],
+  faithful = false,
+): Segment[] {
+  return script.beats.map((beat, index) =>
+    deterministicSegment(beat, script, seconds, userSegments?.[index], faithful),
+  );
 }
 
 export async function planSegments(input: {
@@ -89,21 +157,35 @@ export async function planSegments(input: {
   targetDurationSec: number;
   model: Awaited<ReturnType<typeof buildVideoTextModel>>["model"];
   abortSignal: AbortSignal;
+  faithful?: boolean;
+  userSegments?: UserVideoSegment[];
+  segmentSeconds?: number[];
 }): Promise<Segment[]> {
   const beats = input.script.beats;
   const beatCount = Math.max(1, beats.length);
-  const seconds = perSegmentSeconds(input.targetDurationSec, beatCount);
-  const fallback = deterministicSegments(input.script, seconds);
+  const defaultSeconds = perSegmentSeconds(input.targetDurationSec, beatCount);
+  const fallback = deterministicSegments(
+    input.script,
+    defaultSeconds,
+    input.userSegments,
+    input.faithful,
+  ).map((segment, index) => ({
+    ...segment,
+    seconds: input.segmentSeconds?.[index] ?? segment.seconds,
+  }));
   try {
     const structuredModel = wrapLanguageModel({ model: input.model, middleware: extractJsonMiddleware() });
+    const instructions = input.faithful
+      ? faithfulStoryboardInstructions(input.script, input.userSegments ?? [], defaultSeconds)
+      : storyboardInstructions(input.script, defaultSeconds);
     const result = await generateText({
       model: structuredModel,
       output: Output.object({ schema: segmentsSchema }),
-      instructions: storyboardInstructions(input.script, seconds),
+      instructions,
       prompt: [
         `<logline>${input.script.logline}</logline>`,
         `<beat_count>${beatCount}</beat_count>`,
-        `<per_segment_seconds>${seconds}</per_segment_seconds>`,
+        `<per_segment_seconds>${defaultSeconds}</per_segment_seconds>`,
       ].join("\n"),
       maxOutputTokens: 4_000,
       abortSignal: input.abortSignal,
@@ -112,18 +194,25 @@ export async function planSegments(input: {
     if (!planned.length) return fallback;
     return beats.map((beat, i) => {
       const seg = planned[i];
+      const userSegment = input.userSegments?.[i];
       if (!seg) return fallback[i]!;
       return {
         id: `segment-${i + 1}`,
         order: i,
         purpose: beat.purpose,
         characters: beat.characters.length ? beat.characters : input.script.characters.map((c) => c.name),
-        seconds,
+        seconds: input.segmentSeconds?.[i] ?? defaultSeconds,
         shotSize: seg.shot_size.trim().slice(0, 48),
         camera: seg.camera.trim().slice(0, 60),
-        action: seg.action.trim().slice(0, 300),
-        dialogue: seg.dialogue?.trim() ? seg.dialogue.trim().slice(0, 120) : undefined,
+        action: input.faithful
+          ? faithfulAction(userSegment, beat)
+          : seg.action.trim().slice(0, 300),
+        dialogue: input.faithful
+          ? faithfulDialogue(userSegment)
+          : seg.dialogue?.trim() ? seg.dialogue.trim().slice(0, 120) : undefined,
+        narration: input.faithful ? faithfulNarration(userSegment) : undefined,
         mood: seg.mood.trim().slice(0, 60),
+        ...(input.faithful ? { faithful: true } : {}),
       };
     });
   } catch (error) {
@@ -205,8 +294,16 @@ export function buildSegmentContent(
 
   lines.push(`${segment.shotSize}, ${segment.camera} — camera move only; the subject moves as described.`);
   lines.push(`Action: ${segment.action}`);
-  const line = segment.dialogue?.trim().replace(/^["“”']+|["“”']+$/g, "").trim();
-  if (line) lines.push(`Spoken line: "${line}"`);
+  const line = segment.faithful
+    ? segment.dialogue
+    : segment.dialogue?.trim().replace(/^["“”']+|["“”']+$/g, "").trim();
+  if (line != null && line !== "") lines.push(`Spoken line: "${line}"`);
+  if (segment.faithful) {
+    const narration = segment.narration;
+    if (narration != null && narration !== "") {
+      lines.push(`On-screen narration/subtitle: "${narration}"`);
+    }
+  }
 
   lines.push(`Setting: ${script.settingBible}. Recurring motif: ${script.motif}.`);
   lines.push(`Style: ${script.styleBible}. Mood: ${segment.mood}.`);

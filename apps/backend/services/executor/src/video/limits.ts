@@ -36,6 +36,21 @@ export function perSegmentSeconds(targetDurationSec: number, count: number): num
   return clampSegmentSeconds(Math.round(targetDurationSec / safeCount));
 }
 
+export type ScriptedSegmentDurationInput = {
+  seconds?: number;
+};
+
+export function scriptedSegmentSeconds(
+  targetDurationSec: number,
+  segments: readonly ScriptedSegmentDurationInput[],
+): number[] {
+  if (!segments.length) return [];
+  return segments.map((segment) => {
+    if (segment.seconds != null) return clampArkDuration(segment.seconds);
+    return clampArkDuration(Math.round(targetDurationSec / segments.length));
+  });
+}
+
 export function randomBaseSeed(): number {
   return Math.floor(Math.random() * 2 ** 31);
 }

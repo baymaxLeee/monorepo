@@ -44,6 +44,19 @@ export async function getDocument(userId: string, documentId: string): Promise<K
   return knowledgeClient().getDocument({ userId, documentId });
 }
 
+export async function getDocumentSource(
+  userId: string,
+  documentId: string,
+  options?: { maxDim?: number },
+): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  const source = await knowledgeClient().getDocumentSource({
+    userId,
+    documentId,
+    maxDim: options?.maxDim,
+  });
+  return { bytes: source.bytes, mimeType: source.contentType };
+}
+
 export async function createMediaDocument(input: {
   userId: string;
   orgId: string;

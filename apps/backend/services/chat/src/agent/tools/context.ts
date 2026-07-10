@@ -38,5 +38,6 @@ export const mediaToolContextSchema = z.object({
   userId: z.string(),
   orgId: z.string(),
   conversationId: z.string(),
+  attachedImageDocumentIds: z.array(z.string()).optional(),
 });
 export type MediaToolContext = z.infer<typeof mediaToolContextSchema>;

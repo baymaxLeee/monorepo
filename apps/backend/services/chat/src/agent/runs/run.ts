@@ -41,6 +41,7 @@ import { extractMemoryCandidates } from "../memory/extractor.js";
 import { extractUsageTokens, failAgentRun } from "../observability/lifecycle.js";
 import {
   activatedSkillNameFromParts,
+  attachedImageDocumentIdsFromParts,
   hasUntrustedFilePart,
   referencedDocumentIdsFromParts,
 } from "../context/file-parts.js";
@@ -347,6 +348,9 @@ export async function createAgentRunResponse(
       imageProvider: input.imageProvider,
       videoProviderId: input.videoProviderId,
       modelMessages,
+      attachedImageDocumentIds: latestUser
+        ? attachedImageDocumentIdsFromParts(latestUser.parts)
+        : [],
       instructionInput,
       botSkills,
       loadSkillBody: async (skillId: string) => (await getSkillBody(skillId, auth.orgId)).body,

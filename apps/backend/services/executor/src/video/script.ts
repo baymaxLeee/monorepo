@@ -150,6 +150,148 @@ function dedupeBeats(beats: Beat[]): Beat[] {
   return kept.map((k, i) => ({ ...k.beat, order: i }));
 }
 
+const anchorsSchema = z.object({
+  logline: z.string().min(1).max(240),
+  motif: z.string().min(1).max(160),
+  style_bible: z.string().min(1).max(240),
+  setting_bible: z.string().min(1).max(240),
+  characters: z.array(characterSchema).min(1).max(MAX_MAIN_CHARACTERS).optional(),
+});
+
+function mapUserCharacters(
+  characters: UserVideoCharacter[],
+  promptFallback: string,
+): Character[] {
+  return characters.slice(0, MAX_MAIN_CHARACTERS).map((character, index) => ({
+    id: `character-${index + 1}`,
+    name: character.name.trim().slice(0, 40),
+    appearance: (character.appearance ?? promptFallback).slice(0, 160),
+  }));
+}
+
+function mapExtractedCharacters(characters: z.infer<typeof characterSchema>[]): Character[] {
+  return characters.slice(0, MAX_MAIN_CHARACTERS).map((character, index) => ({
+    id: `character-${index + 1}`,
+    name: character.name.trim().slice(0, 40),
+    appearance: character.appearance.trim().slice(0, 160),
+  }));
+}
+
+function defaultScriptCharacters(prompt: string): Character[] {
+  return [{
+    id: "character-1",
+    name: "the protagonist",
+    appearance: prompt.trim().slice(0, 160),
+  }];
+}
+
+export type UserVideoSegment = {
+  content: string;
+  narration?: string;
+  dialogue?: string;
+};
+
+export type UserVideoCharacter = {
+  name: string;
+  appearance?: string;
+};
+
+function anchorsInstructions(extractCharacters: boolean): string {
+  const lines = [
+    "You are a short-drama production designer. Output global visual anchors for a vertical (9:16) reel.",
+    "Do NOT write beats, scenes, or a shot list — those are already fixed.",
+    "Keep every field tight and concrete; these anchors get restated downstream.",
+  ];
+  if (extractCharacters) {
+    lines.push(
+      `Also extract 1–${MAX_MAIN_CHARACTERS} recurring NAMED characters from the premise and segment text.`,
+      "Use the story's actual names (e.g. 阿莲, 周明), never generic labels like 'the protagonist' unless no names exist.",
+      "For each character give a fixed `appearance` in concrete tokens (hair, face, wardrobe, build) reused across segments.",
+    );
+  }
+  lines.push(JSON_OBJECT_MODE_INSTRUCTION);
+  return lines.join("\n");
+}
+
+function inferBeatCharacters(content: string, characters: Character[]): string[] {
+  const matched = characters
+    .map((character) => character.name)
+    .filter((name) => content.includes(name));
+  return matched.length ? matched : characters.map((character) => character.name);
+}
+
+function deterministicAnchors(prompt: string): Omit<Script, "beats" | "characters"> {
+  const gist = prompt.trim().slice(0, 200);
+  return {
+    logline: gist,
+    motif: "a single recurring visual throughline tied to the premise",
+    styleBible:
+      "Cinematic vertical short-drama look: punchy colour grade, shallow depth of field, directional key light with deep shadows.",
+    settingBible: `Consistent world and key locations as implied by: ${gist}`,
+  };
+}
+
+export async function buildScriptFromSegments(input: {
+  prompt: string;
+  segments: UserVideoSegment[];
+  characters?: UserVideoCharacter[];
+  model: Awaited<ReturnType<typeof buildVideoTextModel>>["model"];
+  abortSignal: AbortSignal;
+}): Promise<Script> {
+  const userProvidedCharacters = Boolean(input.characters?.length);
+  let scriptCharacters: Character[] = userProvidedCharacters
+    ? mapUserCharacters(input.characters!, input.prompt.trim())
+    : defaultScriptCharacters(input.prompt);
+
+  let anchors = deterministicAnchors(input.prompt);
+  try {
+    const structuredModel = wrapLanguageModel({ model: input.model, middleware: extractJsonMiddleware() });
+    const segmentOutline = input.segments
+      .map((segment, index) => `  ${index + 1}. ${segment.content}`)
+      .join("\n");
+    const result = await generateText({
+      model: structuredModel,
+      output: Output.object({ schema: anchorsSchema }),
+      instructions: anchorsInstructions(!userProvidedCharacters),
+      prompt: [
+        `<premise>${input.prompt}</premise>`,
+        `<segments>\n${segmentOutline}\n</segments>`,
+      ].join("\n"),
+      maxOutputTokens: 1_600,
+      abortSignal: input.abortSignal,
+    });
+    const out = result.output;
+    if (out) {
+      anchors = {
+        logline: out.logline.trim().slice(0, 240) || anchors.logline,
+        motif: out.motif.trim().slice(0, 160) || anchors.motif,
+        styleBible: out.style_bible.trim().slice(0, 240) || anchors.styleBible,
+        settingBible: out.setting_bible.trim().slice(0, 240) || anchors.settingBible,
+      };
+      if (!userProvidedCharacters && out.characters?.length) {
+        scriptCharacters = mapExtractedCharacters(out.characters);
+      }
+    }
+  } catch (error) {
+    if (input.abortSignal.aborted) throw error;
+    console.warn("[executor] scripted anchors planning failed, using deterministic fallback", error);
+  }
+
+  const beats: Beat[] = input.segments.map((segment, index) => ({
+    order: index,
+    purpose: `scene-${index + 1}`,
+    plot: segment.content.trim(),
+    emotion: "as directed",
+    characters: inferBeatCharacters(segment.content, scriptCharacters),
+  }));
+
+  return {
+    ...anchors,
+    characters: scriptCharacters,
+    beats,
+  };
+}
+
 export async function planScript(input: {
   prompt: string;
   targetDurationSec: number;

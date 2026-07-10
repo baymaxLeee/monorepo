@@ -24,6 +24,7 @@ export interface ChatAgentInput {
   imageProvider?: ProviderSnapshot | null;
   videoProviderId?: string | null;
   modelMessages: ModelMessage[];
+  attachedImageDocumentIds?: string[];
   instructionInput: InstructionInput;
   /** Bot-bound skills advertised to the model (L1). Empty when no bot / no skills. */
   botSkills?: AgentSkillRef[];
