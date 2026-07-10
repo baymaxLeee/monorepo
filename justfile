@@ -89,6 +89,18 @@ lint:
     cd apps/backend && just lint
     cd apps/frontend && just lint
 
+# Aggregate lint + OpenAPI/client sync check (demo phase: no test gate).
+check:
+    @just lint
+    @just sync-check
+
+sync-check:
+    cd apps/backend && just gen-openapi-all
+    cd apps/backend && just gen-transport-ts
+    cd apps/frontend && just gen-client
+    @git diff --exit-code schemas/openapi/ apps/backend/libs/transport-ts/src/schema/ apps/frontend/packages/api/generated/ \
+      || (echo "ERROR: generated contracts out of sync — run 'just sync'" && exit 1)
+
 status:
     @git status -sb
     @echo "---"

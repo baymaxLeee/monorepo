@@ -72,19 +72,13 @@ type SegmentResult = {
   error?: string;
 };
 
-async function planStep(input: VideoGenerationInput): Promise<{
-  script: Script;
-  segments: Segment[];
-  characterRefs: CharacterRef[];
-  baseSeed: number;
-}> {
+async function scriptStep(input: VideoGenerationInput): Promise<Script> {
   "use step";
   const targetDurationSec = input.targetDurationSec ?? DEFAULT_TARGET_DURATION_S;
   const count = deriveSegmentCount(targetDurationSec);
   const { model } = await buildVideoTextModel(input.textProviderId, input.orgId);
   const { workflowRunId } = getWorkflowMetadata();
   const cancellation = observeTaskCancellation(workflowRunId);
-
   try {
     const script = await planScript({
       prompt: input.prompt,
@@ -96,39 +90,90 @@ async function planStep(input: VideoGenerationInput): Promise<{
         AbortSignal.timeout(SCRIPT_TIMEOUT_MS),
       ]),
     });
+    if (cancellation.signal.aborted) throw cancellation.signal.reason;
+    return script;
+  } finally {
+    cancellation.dispose();
+  }
+}
 
+async function storyboardStep(input: {
+  script: Script;
+  targetDurationSec: number;
+  textProviderId: string;
+  orgId: string;
+}): Promise<Segment[]> {
+  "use step";
+  const { model } = await buildVideoTextModel(input.textProviderId, input.orgId);
+  const { workflowRunId } = getWorkflowMetadata();
+  const cancellation = observeTaskCancellation(workflowRunId);
+  try {
     const segments = await planSegments({
-      script,
-      targetDurationSec,
+      script: input.script,
+      targetDurationSec: input.targetDurationSec,
       model,
       abortSignal: AbortSignal.any([
         cancellation.signal,
         AbortSignal.timeout(STORYBOARD_TIMEOUT_MS),
       ]),
     });
-
-    let characterRefs: CharacterRef[] = [];
-    if (input.imageProviderId && !cancellation.signal.aborted) {
-      try {
-        characterRefs = await generateCharacterSheet({
-          orgId: input.orgId,
-          imageProviderId: input.imageProviderId,
-          characters: script.characters.slice(0, MAX_MAIN_CHARACTERS),
-          perImageTimeoutMs: ANCHOR_PER_IMAGE_TIMEOUT_MS,
-          abortSignal: cancellation.signal,
-        });
-      } catch (error) {
-        if (cancellation.signal.aborted) throw error;
-        console.warn("[executor] character sheet failed, degrading to text-only segments", {
-          error: String(error).slice(0, 200),
-        });
-      }
-    }
     if (cancellation.signal.aborted) throw cancellation.signal.reason;
-    return { script, segments, characterRefs, baseSeed: randomBaseSeed() };
+    return segments;
   } finally {
     cancellation.dispose();
   }
+}
+
+async function characterSheetStep(input: {
+  script: Script;
+  orgId: string;
+  imageProviderId?: string;
+}): Promise<CharacterRef[]> {
+  "use step";
+  if (!input.imageProviderId) return [];
+  const { workflowRunId } = getWorkflowMetadata();
+  const cancellation = observeTaskCancellation(workflowRunId);
+  try {
+    const characterRefs = await generateCharacterSheet({
+      orgId: input.orgId,
+      imageProviderId: input.imageProviderId,
+      characters: input.script.characters.slice(0, MAX_MAIN_CHARACTERS),
+      perImageTimeoutMs: ANCHOR_PER_IMAGE_TIMEOUT_MS,
+      abortSignal: cancellation.signal,
+    });
+    if (cancellation.signal.aborted) throw cancellation.signal.reason;
+    return characterRefs;
+  } catch (error) {
+    if (cancellation.signal.aborted) throw error;
+    console.warn("[executor] character sheet failed, degrading to text-only segments", {
+      error: String(error).slice(0, 200),
+    });
+    return [];
+  } finally {
+    cancellation.dispose();
+  }
+}
+
+async function planStep(input: VideoGenerationInput): Promise<{
+  script: Script;
+  segments: Segment[];
+  characterRefs: CharacterRef[];
+  baseSeed: number;
+}> {
+  const targetDurationSec = input.targetDurationSec ?? DEFAULT_TARGET_DURATION_S;
+  const script = await scriptStep(input);
+  const segments = await storyboardStep({
+    script,
+    targetDurationSec,
+    textProviderId: input.textProviderId,
+    orgId: input.orgId,
+  });
+  const characterRefs = await characterSheetStep({
+    script,
+    orgId: input.orgId,
+    imageProviderId: input.imageProviderId,
+  });
+  return { script, segments, characterRefs, baseSeed: randomBaseSeed() };
 }
 
 async function createSegmentStep(input: {

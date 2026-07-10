@@ -128,5 +128,18 @@ export async function reconcileOrphanedRuns(): Promise<void> {
     ),
   );
   await getDb().delete(conversationRunLeases).where(inArray(conversationRunLeases.runId, runIds));
-  logger.info({ count: orphaned.length }, "reconciled orphaned runs on boot");
+  logger.info({ count: orphaned.length }, "reconciled orphaned runs");
+}
+
+const ORPHAN_RECONCILE_MS = 5 * 60_000;
+let orphanReconcileTimer: ReturnType<typeof setInterval> | null = null;
+
+export function startOrphanRunReconciler(): void {
+  if (orphanReconcileTimer) return;
+  orphanReconcileTimer = setInterval(() => {
+    void reconcileOrphanedRuns().catch((error) =>
+      logger.error({ err: error }, "periodic orphan run reconcile failed"),
+    );
+  }, ORPHAN_RECONCILE_MS);
+  orphanReconcileTimer.unref();
 }

@@ -17,6 +17,7 @@ import { NotFoundError } from "../lib/errors.js";
 export interface Conversation {
   id: string;
   user_id: string;
+  org_id: string;
   title: string;
   model: string;
   provider_id: string;
@@ -94,6 +95,7 @@ function toConversation(row: typeof conversations.$inferSelect): Conversation {
   return {
     id: row.id,
     user_id: row.userId,
+    org_id: row.orgId,
     title: row.title,
     model: row.model,
     provider_id: row.providerId,
@@ -119,7 +121,9 @@ export async function listConversations(auth: AuthContext): Promise<Conversation
   const rows = await db
     .select()
     .from(conversations)
-    .where(eq(conversations.userId, auth.userId))
+    .where(
+      and(eq(conversations.userId, auth.userId), eq(conversations.orgId, auth.orgId)),
+    )
     .orderBy(desc(conversations.updatedAt));
   return rows.map(toConversation);
 }
@@ -159,6 +163,7 @@ export async function createConversation(
   await db.insert(conversations).values({
     id,
     userId: auth.userId,
+    orgId: auth.orgId,
     title: input.title ?? "新对话",
     model: "",
     providerId: input.provider_id ?? "",
@@ -289,6 +294,7 @@ export async function getConversationRow(
   const condition = and(
     eq(conversations.id, conversationId),
     eq(conversations.userId, auth.userId),
+    eq(conversations.orgId, auth.orgId),
   );
   const [row] = await db.select().from(conversations).where(condition);
   if (!row) throw new NotFoundError(`conversation ${conversationId} not found`);

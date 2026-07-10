@@ -319,8 +319,6 @@ services:
       # Provider calls (SSRF-guarded); knowledge owns the published document.
       ADMIN_SERVICE_URL: http://admin:8001
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
-      # Reverse channel: push task progress/terminal events to chat.
-      CHAT_SERVICE_URL: http://chat:8009
     <<: *restart_policy
 
   knowledge:

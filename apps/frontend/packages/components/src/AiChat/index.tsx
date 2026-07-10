@@ -78,25 +78,6 @@ export {
   type ModelSelectorProps,
 } from "./model-selector";
 export {
-  PromptInput,
-  PromptInputAttachmentButton,
-  PromptInputButton,
-  type PromptInputButtonProps,
-  type PromptInputError,
-  type PromptInputFile,
-  PromptInputHeader,
-  type PromptInputMessage,
-  type PromptInputProps,
-  PromptInputRemoveIcon,
-  PromptInputSubmit,
-  type PromptInputSubmitProps,
-  PromptInputTextarea,
-  type PromptInputTextareaProps,
-  PromptInputToolbar,
-  PromptInputTools,
-  usePromptInput,
-} from "./prompt-input";
-export {
   Reasoning,
   ReasoningContent,
   type ReasoningContentProps,

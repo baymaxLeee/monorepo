@@ -10,6 +10,7 @@ export const conversations = pgTable(
   {
     id: varchar("id", { length: 32 }).primaryKey(),
     userId: varchar("user_id", { length: 26 }).notNull(),
+    orgId: varchar("org_id", { length: 26 }).notNull(),
     title: varchar("title", { length: 200 }).notNull().default("新对话"),
     model: varchar("model", { length: 120 }).notNull().default(""),
     providerId: varchar("provider_id", { length: 32 }).notNull().default(""),
@@ -17,7 +18,7 @@ export const conversations = pgTable(
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },
-  (t) => [index("ix_conversations_user_id").on(t.userId)],
+  (t) => [index("ix_conversations_user_id").on(t.userId), index("ix_conversations_user_org").on(t.userId, t.orgId)],
 );
 
 export const conversationContexts = pgTable("conversation_contexts", {

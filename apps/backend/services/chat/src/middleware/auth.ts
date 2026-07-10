@@ -20,7 +20,8 @@ export async function authMiddleware(c: Context, next: Next) {
   if (!userId) throw new UnauthorizedError("X-Auth-User-ID header is required");
   const username = c.req.header("X-Auth-Name") ?? userId;
   const email = c.req.header("X-Auth-Email") ?? "";
-  const orgId = c.req.header("X-Auth-Org-ID") ?? "";
+  const orgId = c.req.header("X-Auth-Org-ID");
+  if (!orgId) throw new UnauthorizedError("X-Auth-Org-ID header is required");
   c.set("auth", { userId, username, email, orgId } satisfies AuthContext);
   await next();
 }

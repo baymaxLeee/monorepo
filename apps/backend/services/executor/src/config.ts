@@ -13,7 +13,6 @@ export interface Settings {
   internalApiToken: string;
   adminServiceUrl: string;
   knowledgeServiceUrl: string;
-  chatServiceUrl: string;
   ffmpegPath: string;
   htmlBlockConcurrency: number;
   videoSegmentConcurrency: number;
@@ -55,7 +54,6 @@ export function getSettings(): Settings {
     internalApiToken,
     adminServiceUrl: envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
     knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
-    chatServiceUrl: envOr("CHAT_SERVICE_URL", "http://localhost:8009"),
     ffmpegPath: envOr("FFMPEG_PATH", "ffmpeg"),
     // Bounded above by WORKFLOW_POSTGRES_WORKER_CONCURRENCY (the WDK step pool)
     // and the provider's rate limit; transient 429/5xx are absorbed by retries.

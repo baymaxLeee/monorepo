@@ -49,6 +49,7 @@ import { SYSTEM_SKILL_NAMES } from "../integrations/skills/provider.js";
 import { loadInstructionContext } from "../context/instruction-loader.js";
 import type { BotProfileSnapshot } from "../context/instructions/index.js";
 import { acquireRunLease, registerRunController, releaseRun } from "./lease.js";
+import { mergeClientContinuation } from "./continuation.js";
 import {
   activateAgentStream,
   consumeAgentSseStream,
@@ -271,14 +272,18 @@ export async function createAgentRunResponse(
       if (continuationIndex < 0) {
         throw new RequestError("client tool continuation message was not found");
       }
+      const mergedMessage = mergeClientContinuation(
+        historyMessages[continuationIndex]!,
+        latestMessage,
+      );
       await updateMessageContent({
-        id: latestMessage.id,
+        id: mergedMessage.id,
         conversationId: conversation.id,
-        content: serializeMessageContent(latestMessage),
+        content: serializeMessageContent(mergedMessage),
         status: "ok",
       });
       modelUiMessages = [...historyMessages];
-      modelUiMessages[continuationIndex] = latestMessage;
+      modelUiMessages[continuationIndex] = mergedMessage;
     }
 
     const memorySourceUser =
