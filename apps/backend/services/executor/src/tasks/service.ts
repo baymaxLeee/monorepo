@@ -9,6 +9,11 @@ import { ConflictError, NotFoundError, RequestError } from "../lib/errors.js";
 import { getTaskType } from "./registry.js";
 import type { TaskSnapshot } from "./types.js";
 
+export interface TaskOwner {
+  service: string;
+  ref?: string;
+}
+
 export interface CreateTaskInput {
   type: string;
   ownerService: string;
@@ -51,6 +56,12 @@ async function findByOwner(ownerService: string, ownerRef: string): Promise<Task
 async function findById(id: string): Promise<TaskRow | undefined> {
   const [row] = await getDb().select().from(tasks).where(eq(tasks.id, id));
   return row;
+}
+
+function assertTaskOwner(row: TaskRow, owner: TaskOwner): void {
+  if (row.ownerService !== owner.service || (owner.ref !== undefined && row.ownerRef !== owner.ref)) {
+    throw new NotFoundError(`task ${row.id} not found`);
+  }
 }
 
 function watchCompletion(taskId: string, workflowRunId: string): void {
@@ -119,15 +130,17 @@ export async function createTask(input: CreateTaskInput): Promise<TaskSnapshot> 
   return toSnapshot(row);
 }
 
-export async function getTask(id: string): Promise<TaskSnapshot> {
+export async function getTask(id: string, owner: TaskOwner): Promise<TaskSnapshot> {
   const row = await findById(id);
   if (!row) throw new NotFoundError(`task ${id} not found`);
+  assertTaskOwner(row, owner);
   return toSnapshot(row);
 }
 
-export async function cancelTask(id: string): Promise<TaskSnapshot> {
+export async function cancelTask(id: string, owner: TaskOwner): Promise<TaskSnapshot> {
   const row = await findById(id);
   if (!row) throw new NotFoundError(`task ${id} not found`);
+  assertTaskOwner(row, owner);
   if (row.status === "completed" || row.status === "failed" || row.status === "cancelled") {
     return toSnapshot(row);
   }

@@ -100,8 +100,8 @@ class SkillService:
         async with write_tx(self._session):
             return await skill_crud.bulk_delete_skills(self._session, list(ids), self._current_user.org_id)
 
-    async def get_internal(self, skill_id: str) -> InternalSkill:
-        row = await skill_crud.get_skill_internal(self._session, skill_id)
+    async def get_internal(self, skill_id: str, org_id: str) -> InternalSkill:
+        row = await skill_crud.get_skill(self._session, skill_id, org_id)
         if row is None:
             raise NotFoundError(f"skill {skill_id} not found")
         return to_internal_schema(row)

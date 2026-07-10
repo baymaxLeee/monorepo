@@ -36,4 +36,5 @@ spec:
             periodSeconds: 5
       volumes:
         - name: knowledge-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: knowledge-data

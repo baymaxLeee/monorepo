@@ -37,27 +37,12 @@ export type PlatformState = {
   resetPlatformState: () => void;
 };
 
-type PersistedPlatformState = Pick<PlatformState, "sidebarCollapsed" | "user">;
+type PersistedPlatformState = Pick<PlatformState, "sidebarCollapsed">;
 
-const initialState: PersistedPlatformState = {
+const initialState: Pick<PlatformState, "user" | "sidebarCollapsed"> = {
   user: null,
   sidebarCollapsed: false,
 };
-
-/**
- * A persisted user is only usable if it carries the two-dimensional identity
- * arrays (`roles` + `memberships`). A partial/legacy blob — e.g. one cached
- * across an identity-schema change — must be dropped rather than fed to routing
- * helpers that call `.includes`/`.filter`, which would throw on `undefined`.
- */
-function isValidUser(user: unknown): user is PlatformUser {
-  return (
-    !!user &&
-    typeof user === "object" &&
-    Array.isArray((user as { roles?: unknown }).roles) &&
-    Array.isArray((user as { memberships?: unknown }).memberships)
-  );
-}
 
 export const usePlatformStore = create<PlatformState>()(
   persist(
@@ -71,29 +56,18 @@ export const usePlatformStore = create<PlatformState>()(
       name: "platform.store",
       storage: createJSONStorage(() => localStorage),
       partialize: (state): PersistedPlatformState => ({
-        user: state.user,
         sidebarCollapsed: state.sidebarCollapsed,
       }),
-      // v3: identity switched to two-dimensional roles + activeOrg + memberships.
-      // Old cached `user` blobs (flat type/orgId) are structurally incompatible;
-      // drop them so the app re-bootstraps a fresh session shape.
-      version: 3,
-      migrate: (persisted, from) => {
+      version: 4,
+      migrate: (persisted) => {
         const state = persisted as Partial<PersistedPlatformState> | undefined;
-        if (from < 3) {
-          return {
-            sidebarCollapsed: state?.sidebarCollapsed ?? false,
-            user: null,
-          };
-        }
-        return state as PersistedPlatformState;
+        return { sidebarCollapsed: state?.sidebarCollapsed ?? false };
       },
       merge: (persisted, current) => {
         const state = persisted as Partial<PersistedPlatformState> | undefined;
         return {
           ...current,
           sidebarCollapsed: state?.sidebarCollapsed ?? false,
-          user: isValidUser(state?.user) ? state.user : null,
         };
       },
     },

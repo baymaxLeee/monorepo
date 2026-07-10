@@ -24,6 +24,7 @@ function knowledgeClient(): KnowledgeInternalClient {
   return new KnowledgeInternalClient({
     baseUrl: s.knowledgeServiceUrl,
     internalToken: s.internalApiToken,
+    callerService: "executor",
   });
 }
 
@@ -34,6 +35,7 @@ function knowledgeMediaClient(): KnowledgeInternalClient {
   return new KnowledgeInternalClient({
     baseUrl: s.knowledgeServiceUrl,
     internalToken: s.internalApiToken,
+    callerService: "executor",
     timeoutMs: MEDIA_UPLOAD_TIMEOUT_MS,
   });
 }
@@ -44,6 +46,7 @@ export async function getDocument(userId: string, documentId: string): Promise<K
 
 export async function createMediaDocument(input: {
   userId: string;
+  orgId: string;
   conversationId?: string;
   title: string;
   filename: string;
@@ -64,6 +67,7 @@ export async function getLatestArtifactWorkspace(
 
 export async function reserveArtifactGeneration(input: {
   userId: string;
+  orgId: string;
   conversationId?: string;
   title: string;
   filename: string;
@@ -103,6 +107,7 @@ export async function listArtifactBlocks(
 
 export async function publishArtifactRevision(input: {
   userId: string;
+  orgId: string;
   generationId: string;
   compiledHtml: string;
 }): Promise<PublishedArtifactRevision> {

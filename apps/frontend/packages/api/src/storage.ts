@@ -31,17 +31,16 @@ export type AuthSession = {
   user: AuthUser;
 };
 
-const ACCESS_TOKEN_KEY = "platform.access_token";
-const EXPIRES_AT_KEY = "platform.access_token_expires_at";
+const LEGACY_ACCESS_TOKEN_KEY = "platform.access_token";
+const LEGACY_EXPIRES_AT_KEY = "platform.access_token_expires_at";
 const USER_KEY = "platform.user";
 
-let accessToken = readStorage(ACCESS_TOKEN_KEY);
-let expiresAt = readStorage(EXPIRES_AT_KEY);
+let accessToken: string | null = null;
+let expiresAt: string | null = null;
 let currentUser = readJSON<AuthUser>(USER_KEY);
 
 export function syncSessionFromStorage(): void {
-  accessToken = readStorage(ACCESS_TOKEN_KEY);
-  expiresAt = readStorage(EXPIRES_AT_KEY);
+  purgeLegacyTokenKeys();
   currentUser = readJSON<AuthUser>(USER_KEY);
 }
 
@@ -58,13 +57,34 @@ export function isAccessTokenValid(): boolean {
   return new Date(expiresAt).getTime() > Date.now() + 30_000;
 }
 
+const SESSION_EVENT = "api:session";
+
+function notifySessionChange(user: AuthUser | null): void {
+  try {
+    globalThis.dispatchEvent(
+      new CustomEvent(SESSION_EVENT, { detail: { user } }),
+    );
+  } catch {}
+}
+
+export function onSessionChange(
+  handler: (user: AuthUser | null) => void,
+): () => void {
+  const listener = (event: Event) => {
+    const user =
+      (event as CustomEvent<{ user: AuthUser | null }>).detail?.user ?? null;
+    handler(user);
+  };
+  globalThis.addEventListener(SESSION_EVENT, listener);
+  return () => globalThis.removeEventListener(SESSION_EVENT, listener);
+}
+
 export function commitSession(session: AuthSession): AuthSession {
   accessToken = session.accessToken;
   expiresAt = session.expiresAt;
   currentUser = session.user;
-  writeStorage(ACCESS_TOKEN_KEY, accessToken);
-  writeStorage(EXPIRES_AT_KEY, expiresAt);
   writeStorage(USER_KEY, JSON.stringify(currentUser));
+  notifySessionChange(currentUser);
   return session;
 }
 
@@ -72,9 +92,14 @@ export function clearSession(): void {
   accessToken = null;
   expiresAt = null;
   currentUser = null;
-  writeStorage(ACCESS_TOKEN_KEY, null);
-  writeStorage(EXPIRES_AT_KEY, null);
+  purgeLegacyTokenKeys();
   writeStorage(USER_KEY, null);
+  notifySessionChange(null);
+}
+
+function purgeLegacyTokenKeys(): void {
+  writeStorage(LEGACY_ACCESS_TOKEN_KEY, null);
+  writeStorage(LEGACY_EXPIRES_AT_KEY, null);
 }
 
 function readStorage(key: string): string | null {

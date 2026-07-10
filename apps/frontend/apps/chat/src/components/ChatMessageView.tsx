@@ -17,7 +17,7 @@ import {
 } from "components/ai-chat";
 import { SparklesIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import { cn } from "shared";
+import { cn, isPublicHttpUrl } from "shared";
 import { documentIdFromFilePart } from "../lib/file-parts";
 import { useChatStore } from "../store/useChatStore";
 import {
@@ -214,14 +214,22 @@ function MessagePartView({
   }
 
   if (part.type === "source-url") {
+    const href = isPublicHttpUrl(part.url) ? part.url : undefined;
+    if (!href) {
+      return (
+        <div className="block rounded-md border bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+          {part.title ?? "链接不可用"}
+        </div>
+      );
+    }
     return (
       <a
-        href={part.url}
+        href={href}
         target="_blank"
         rel="noreferrer"
         className="block rounded-md border bg-background/70 px-3 py-2 text-xs text-primary hover:underline"
       >
-        {part.title ?? part.url}
+        {part.title ?? href}
       </a>
     );
   }

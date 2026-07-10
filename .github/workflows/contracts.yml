@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - 'schemas/**'
+      - 'apps/backend/libs/transport-ts/**'
+      - 'apps/backend/services/**'
+      - '.github/workflows/contracts.yml'
 
 jobs:
   verify-sync:
@@ -22,18 +25,37 @@ jobs:
             exit 1
           fi
 
+      - name: Transport-ts codegen + diff
+        working-directory: apps/backend/libs/transport-ts
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run codegen
+          if ! git diff --exit-code src/schema/; then
+            echo "::error::transport-ts schemas out of sync. Run 'pnpm run codegen' in apps/backend/libs/transport-ts."
+            exit 1
+          fi
+          pnpm run typecheck
+
       - name: Frontend codegen
         working-directory: apps/frontend
         run: |
           pnpm install --frozen-lockfile
           just gen-client
-          # api-client/*/generated is gitignored, but tsc must pass
+          if ! git diff --exit-code packages/api/generated/; then
+            echo "::error::Frontend API clients out of sync. Run 'just sync' from root."
+            exit 1
+          fi
           pnpm typecheck
 
   buf:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: bufbuild/buf-action@v1
         with:
           input: schemas/proto
+      - name: Buf breaking (against main)
+        working-directory: schemas/proto
+        run: buf breaking --against '.git#branch=main'

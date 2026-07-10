@@ -14,7 +14,8 @@ name: deploy-prod
 #   secrets.KUBECONFIG_PROD           (base64-encoded kubeconfig for prod cluster)
 #   The cluster MUST already have:
 #     - namespace `monorepo-prod`
-#     - Secrets: gateway-secrets, iam-secrets, admin-secrets, knowledge-secrets, telemetry-secrets
+#     - Secrets: gateway-secrets, iam-secrets, admin-secrets, knowledge-secrets,
+#       telemetry-secrets, chat-secrets (INTERNAL_API_TOKEN + TOOL_APPROVAL_SECRET)
 #     - TLS Secret: api-tls
 #     - Nginx Ingress Controller installed
 #   See infra/k8s/overlays/prod/README.md for one-time setup.
@@ -78,7 +79,7 @@ jobs:
         run: |
           REG="${{ steps.vars.outputs.registry }}"
           TAG="${{ steps.vars.outputs.tag }}"
-          for svc in gateway iam admin chat knowledge telemetry; do
+          for svc in gateway iam admin chat knowledge telemetry executor web; do
             kustomize edit set image \
               "ghcr.io/example/${svc}=${REG}/${svc}:${TAG}"
           done
@@ -129,7 +130,7 @@ jobs:
           kubectl -n monorepo-prod wait --for=condition=complete \
             --timeout=5m job/${JOB_NAME}
 
-      - name: Apply prod manifest
+      - name: Apply prod manifest (secrets excluded — managed out-of-band)
         working-directory: infra/k8s/overlays/prod
         run: |
           kustomize build --load-restrictor=LoadRestrictionsNone . \
@@ -137,7 +138,7 @@ jobs:
 
       - name: Wait for rollouts
         run: |
-          for svc in gateway iam admin chat knowledge telemetry; do
+          for svc in gateway iam admin chat knowledge telemetry executor web; do
             kubectl -n monorepo-prod rollout status deployment/${svc} --timeout=5m
           done
 

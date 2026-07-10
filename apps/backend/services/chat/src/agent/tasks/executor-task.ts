@@ -54,21 +54,22 @@ function isTerminalStatus(status: Task["status"]): boolean {
  */
 export async function* pollTaskSnapshots(
   taskId: string,
+  ownerRef: string,
   signal?: AbortSignal,
 ): AsyncGenerator<Task, Task> {
   const deadline = Date.now() + MAX_TASK_WAIT_MS;
   let consecutiveFailures = 0;
   while (true) {
     if (signal?.aborted) {
-      await cancelTask(taskId);
+      await cancelTask(taskId, ownerRef);
       throw new DOMException("aborted", "AbortError");
     }
     if (Date.now() >= deadline) {
-      await cancelTask(taskId);
+      await cancelTask(taskId, ownerRef);
       throw new TaskWaitTimeoutError(taskId);
     }
     try {
-      const task = await getTask(taskId);
+      const task = await getTask(taskId, ownerRef);
       consecutiveFailures = 0;
       yield task;
       if (isTerminalStatus(task.status)) return task;

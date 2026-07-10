@@ -2865,6 +2865,18 @@
             }
           },
           {
+            "name": "org_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Team that owns the skill",
+              "title": "Org Id"
+            },
+            "description": "Team that owns the skill"
+          },
+          {
             "name": "X-Internal-Token",
             "in": "header",
             "required": false,
@@ -2878,6 +2890,22 @@
                 }
               ],
               "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
             }
           }
         ],
@@ -4870,6 +4898,22 @@
               ],
               "title": "X-Internal-Token"
             }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
           }
         ],
         "responses": {
@@ -4941,6 +4985,22 @@
               ],
               "title": "X-Internal-Token"
             }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
           }
         ],
         "responses": {
@@ -4973,7 +5033,6 @@
           "internal-providers"
         ],
         "summary": "Get Provider Internal",
-        "description": "Trusted by-id resolve: chat/executor/knowledge already hold a concrete,\nupstream-authorized provider id. No scope param — the internal token is the\nboundary and the id is opaque.",
         "operationId": "get_provider_internal_internal_providers__provider_id__get",
         "parameters": [
           {
@@ -4984,6 +5043,18 @@
               "type": "string",
               "title": "Provider Id"
             }
+          },
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Team that owns the provider",
+              "title": "Org Id"
+            },
+            "description": "Team that owns the provider"
           },
           {
             "name": "X-Internal-Token",
@@ -4999,6 +5070,22 @@
                 }
               ],
               "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
             }
           }
         ],
@@ -5081,6 +5168,22 @@
                 }
               ],
               "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
             }
           }
         ],

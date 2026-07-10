@@ -13,7 +13,9 @@ this without first completing the checklist below.
      `patches/gateway-config.yaml`, `patches/ingress-host.yaml`
      → registered domain
 2. **Create the namespace + Secrets out-of-band** (NEVER commit real
-   secrets):
+   secrets). The prod overlay **strips all Secret resources** from the
+   applied manifest so placeholder `stringData` cannot overwrite live
+   cluster secrets on deploy:
    ```bash
    kubectl create ns monorepo-prod
    kubectl -n monorepo-prod create secret generic gateway-secrets \
@@ -25,7 +27,8 @@ this without first completing the checklist below.
      --from-literal=POSTGRES_USER=<svc-user> \
      --from-literal=POSTGRES_PASSWORD=<from-1Password> \
      --from-literal=ACCESS_TOKEN_SECRET=<256-bit-random>
-   # repeat for admin-secrets, chat-secrets, executor-secrets, telemetry-secrets
+   # repeat for admin/chat/executor/knowledge/telemetry service Secrets.
+   # chat-secrets must include INTERNAL_API_TOKEN and TOOL_APPROVAL_SECRET.
    ```
    For real ops, switch to ExternalSecrets Operator pointing at
    火山引擎 KMS or Vault, or use sealed-secrets.
@@ -50,11 +53,12 @@ this without first completing the checklist below.
 GitHub Actions deploy job:
 
 1. Build & push image with tag = `${GITHUB_SHA::8}` to 火山 CR
-2. `cd infra/k8s/overlays/prod && kustomize edit set image gateway=<new-image>:<sha>`
-   (and the other 3 services)
-3. Apply db-migrate Job; wait for completion
-4. `kubectl apply -k infra/k8s/overlays/prod`
-5. `kubectl rollout status deployment/<each> -n monorepo-prod --timeout=5m`
+2. Apply service and Workflow World schema migrations out-of-band.
+3. Pin all eight images (`gateway`, `iam`, `admin`, `chat`, `executor`,
+   `knowledge`, `telemetry`, `web`) in the prod overlay.
+4. Run the idempotent IAM identity bootstrap Job and wait for completion.
+5. Render/apply the prod overlay; placeholder Secrets are removed by the overlay.
+6. Wait for all eight Deployment rollouts.
 
 ## Rollback
 

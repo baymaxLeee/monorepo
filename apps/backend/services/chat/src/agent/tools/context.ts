@@ -18,12 +18,17 @@ export const memoryToolContextSchema = z.object({
 });
 export type MemoryToolContext = z.infer<typeof memoryToolContextSchema>;
 
-export const planToolContextSchema = fileToolContextSchema;
-export type PlanToolContext = FileToolContext;
+export const planToolContextSchema = z.object({
+  userId: z.string(),
+  orgId: z.string(),
+  conversationId: z.string(),
+});
+export type PlanToolContext = z.infer<typeof planToolContextSchema>;
 
 export const artifactToolContextSchema = z.object({
   runId: z.string(),
   userId: z.string(),
+  orgId: z.string(),
   conversationId: z.string(),
 });
 export type ArtifactToolContext = z.infer<typeof artifactToolContextSchema>;
@@ -31,6 +36,7 @@ export type ArtifactToolContext = z.infer<typeof artifactToolContextSchema>;
 export const mediaToolContextSchema = z.object({
   runId: z.string(),
   userId: z.string(),
+  orgId: z.string(),
   conversationId: z.string(),
 });
 export type MediaToolContext = z.infer<typeof mediaToolContextSchema>;

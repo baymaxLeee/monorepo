@@ -1,7 +1,7 @@
 import type { SourceUrlUIPart } from "ai";
 import { ExternalLinkIcon, LinkIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
-import { cn } from "shared";
+import { cn, isPublicHttpUrl } from "shared";
 import { Badge } from "../shadcn/badge";
 
 export type SourceItem =
@@ -43,7 +43,8 @@ export type SourceProps = ComponentProps<"a"> & {
 export function Source({ className, source, ...props }: SourceProps) {
   const value = source as Record<string, unknown>;
   const title = String(value.title ?? value.filename ?? value.url ?? "Source");
-  const href = typeof value.url === "string" ? value.url : undefined;
+  const rawHref = typeof value.url === "string" ? value.url : undefined;
+  const href = rawHref && isPublicHttpUrl(rawHref) ? rawHref : undefined;
   const content = (
     <>
       <LinkIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -97,18 +98,31 @@ export function InlineCitation({
   index,
   source,
   children,
+  href: propsHref,
   ...props
 }: InlineCitationProps) {
-  const href = props.href ?? source?.url;
+  const rawHref = propsHref ?? source?.url;
+  const href =
+    typeof rawHref === "string" && isPublicHttpUrl(rawHref)
+      ? rawHref
+      : undefined;
+  const classNameMerged = cn(
+    "inline-flex h-5 min-w-5 items-center justify-center rounded-full border bg-muted px-1.5 align-baseline text-[10px] font-medium text-muted-foreground hover:text-foreground",
+    className,
+  );
+  if (!href) {
+    return (
+      <span className={classNameMerged} {...props}>
+        {children ?? index ?? "src"}
+      </span>
+    );
+  }
   return (
     <a
-      className={cn(
-        "inline-flex h-5 min-w-5 items-center justify-center rounded-full border bg-muted px-1.5 align-baseline text-[10px] font-medium text-muted-foreground hover:text-foreground",
-        className,
-      )}
+      className={classNameMerged}
       href={href}
       rel="noreferrer"
-      target={href ? "_blank" : undefined}
+      target="_blank"
       {...props}
     >
       {children ?? index ?? "src"}

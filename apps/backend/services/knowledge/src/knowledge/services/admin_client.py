@@ -46,9 +46,14 @@ class AdminClient:
         self._http = httpx.AsyncClient(
             base_url=self._settings.admin_service_url.rstrip("/"),
             timeout=httpx.Timeout(10.0, connect=3.0),
-            headers={"X-Internal-Token": self._settings.internal_api_token},
+            headers={
+                "X-Internal-Token": self._settings.internal_api_token,
+                "X-Caller-Service": "knowledge",
+            },
         )
-        self._cache: TTLCache[tuple[str, str | None], ProviderSnapshot] = TTLCache(maxsize=256, ttl=300.0)
+        self._cache: TTLCache[tuple[str, str] | tuple[str, str, str], ProviderSnapshot] = TTLCache(
+            maxsize=256, ttl=300.0
+        )
         self._cache_lock = asyncio.Lock()
 
     async def aclose(self) -> None:
@@ -57,14 +62,18 @@ class AdminClient:
     async def get_provider(self, *, org_id: str, provider_id: str | None = None) -> ProviderSnapshot:
         """Resolve a chat provider: a concrete `provider_id` (by-id, trusted
         internal resolve) or the team's default chat provider (scoped by org)."""
+        cache_key: tuple[str, str] | tuple[str, str, str]
         if provider_id:
-            cache_key = ("id", provider_id)
+            cache_key = ("id", org_id, provider_id)
             if (cached := self._cache.get(cache_key)) is not None:
                 return cached
             async with self._cache_lock:
                 if (cached := self._cache.get(cache_key)) is not None:
                     return cached
-                snapshot = await self._fetch(f"/internal/providers/{provider_id}", params=None)
+                snapshot = await self._fetch(
+                    f"/internal/providers/{provider_id}",
+                    params={"org_id": org_id},
+                )
                 self._cache[cache_key] = snapshot
                 return snapshot
 
@@ -76,7 +85,7 @@ class AdminClient:
                 return cached
             snapshot = await self._fetch("/internal/providers/default", params={"org_id": org_id})
             self._cache[cache_key] = snapshot
-            self._cache[("id", snapshot.id)] = snapshot
+            self._cache[("id", org_id, snapshot.id)] = snapshot
             return snapshot
 
     async def get_provider_by_kind(self, *, org_id: str, kind: str) -> ProviderSnapshot:

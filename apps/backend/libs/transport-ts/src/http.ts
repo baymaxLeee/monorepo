@@ -16,6 +16,7 @@ export interface InternalClientOptions {
   baseUrl: string;
   internalToken: string;
   service: string;
+  callerService: string;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
   propagatedHeaders?: () => Record<string, string> | undefined;
@@ -46,6 +47,7 @@ export function createInternalOpenApiClient<Paths extends object>(
     baseUrl: options.baseUrl.replace(/\/$/, ""),
     headers: {
       "X-Internal-Token": options.internalToken,
+      "X-Caller-Service": options.callerService,
     },
     fetch: (request) => http.fetch(request),
   });
@@ -126,6 +128,7 @@ export class InternalHttpClient {
         method: options.method ?? "GET",
         headers: {
           "X-Internal-Token": this.options.internalToken,
+          "X-Caller-Service": this.options.callerService,
           ...extra,
           ...(options.body === undefined ? {} : { "Content-Type": "application/json" }),
           ...options.headers,

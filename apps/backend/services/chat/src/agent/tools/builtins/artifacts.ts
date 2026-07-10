@@ -156,7 +156,7 @@ async function* streamHtmlArtifactTask(
   yield { ok: true, status: task.status, ...base };
   let terminal: Task | null = null;
   try {
-    for await (const snapshot of pollTaskSnapshots(task.id, signal)) {
+    for await (const snapshot of pollTaskSnapshots(task.id, task.ownerRef, signal)) {
       if (snapshot.status === "completed" || snapshot.status === "failed" || snapshot.status === "cancelled") {
         terminal = snapshot;
         break;
@@ -437,6 +437,7 @@ export async function* writeFileTool(
       }
       const document = await createArtifact({
         userId: context.userId,
+        orgId: context.orgId,
         conversationId: context.conversationId,
         title: input.title,
         filename,
@@ -453,6 +454,7 @@ export async function* writeFileTool(
         type: "html-artifact",
         ownerRef: toolCallId,
         payload: {
+          orgId: context.orgId,
           userId: context.userId,
           conversationId: context.conversationId,
           providerId: textProvider.id,
@@ -534,6 +536,7 @@ export async function* editFileTool(
         type: "html-artifact",
         ownerRef: toolCallId,
         payload: {
+          orgId: context.orgId,
           userId: context.userId,
           conversationId: context.conversationId,
           providerId: textProvider.id,

@@ -93,7 +93,21 @@ const openapi = {
     },
     "/tasks/{id}": {
       get: {
-        parameters: [idPathParam],
+        parameters: [
+          idPathParam,
+          {
+            name: "owner_service",
+            in: "query",
+            required: true,
+            schema: { type: "string" },
+          },
+          {
+            name: "owner_ref",
+            in: "query",
+            required: true,
+            schema: { type: "string" },
+          },
+        ],
         responses: {
           "200": jsonResponse("task snapshot", taskSchema),
           "404": { description: "task not found" },
@@ -102,7 +116,21 @@ const openapi = {
     },
     "/tasks/{id}/cancel": {
       post: {
-        parameters: [idPathParam],
+        parameters: [
+          idPathParam,
+          {
+            name: "owner_service",
+            in: "query",
+            required: true,
+            schema: { type: "string" },
+          },
+          {
+            name: "owner_ref",
+            in: "query",
+            required: true,
+            schema: { type: "string" },
+          },
+        ],
         responses: {
           "200": jsonResponse("task snapshot after cancellation request", taskSchema),
           "404": { description: "task not found" },

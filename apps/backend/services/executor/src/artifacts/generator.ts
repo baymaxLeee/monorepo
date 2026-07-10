@@ -43,8 +43,8 @@ export function isRetryableProviderError(error: unknown): boolean {
   return false;
 }
 
-export async function buildArtifactTextModel(providerId: string) {
-  const provider: ChatProvider = await getProvider(providerId);
+export async function buildArtifactTextModel(providerId: string, orgId: string) {
+  const provider: ChatProvider = await getProvider(providerId, orgId);
   const model = createProviderModel(provider, { disableReasoning: true });
   return { model, maxOutputTokens: provider.maxOutputTokens };
 }

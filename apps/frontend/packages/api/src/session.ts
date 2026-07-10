@@ -12,6 +12,7 @@ import {
 } from "./storage";
 
 export type { AuthSession, AuthUser, Membership } from "./storage";
+export { onSessionChange } from "./storage";
 
 export type AuthCredentials = {
   account: string;
@@ -127,16 +128,6 @@ export async function bootstrapSession(): Promise<AuthUser | null> {
 
   if (isAccessTokenValid() && getCurrentUser()) {
     return getCurrentUser();
-  }
-
-  if (isAccessTokenValid() && !getCurrentUser()) {
-    clearSession();
-    return null;
-  }
-
-  if (!getToken()) {
-    clearSession();
-    return null;
   }
 
   const refreshed = await refreshSession();

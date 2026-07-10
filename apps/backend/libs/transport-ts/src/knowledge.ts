@@ -26,6 +26,7 @@ export type RetrievedChunk = components["schemas"]["RetrievedChunk"];
 export interface KnowledgeClientOptions {
   baseUrl: string;
   internalToken: string;
+  callerService: string;
   timeoutMs?: number;
   propagatedHeaders?: () => Record<string, string> | undefined;
 }
@@ -107,6 +108,7 @@ export class KnowledgeInternalClient {
 
   createArtifact(input: {
     userId: string;
+    orgId: string;
     conversationId: string;
     title: string;
     filename: string;
@@ -118,6 +120,7 @@ export class KnowledgeInternalClient {
       this.client.POST("/internal/artifacts", {
         body: {
           user_id: input.userId,
+          org_id: input.orgId,
           conversation_id: input.conversationId,
           title: input.title,
           filename: input.filename,
@@ -138,6 +141,7 @@ export class KnowledgeInternalClient {
    */
   createMediaDocument(input: {
     userId: string;
+    orgId: string;
     conversationId?: string;
     title: string;
     filename: string;
@@ -149,6 +153,7 @@ export class KnowledgeInternalClient {
       this.client.POST("/internal/media-documents", {
         body: {
           user_id: input.userId,
+          org_id: input.orgId,
           conversation_id: input.conversationId,
           title: input.title,
           filename: input.filename,
@@ -188,6 +193,7 @@ export class KnowledgeInternalClient {
 
   reserveArtifactGeneration(input: {
     userId: string;
+    orgId: string;
     conversationId?: string;
     title: string;
     filename: string;
@@ -200,6 +206,7 @@ export class KnowledgeInternalClient {
       this.client.POST("/internal/artifact-generations", {
         body: {
           user_id: input.userId,
+          org_id: input.orgId,
           conversation_id: input.conversationId,
           title: input.title,
           filename: input.filename,
@@ -285,13 +292,14 @@ export class KnowledgeInternalClient {
 
   publishArtifactRevision(input: {
     userId: string;
+    orgId: string;
     generationId: string;
     compiledHtml: string;
   }): Promise<PublishedArtifactRevision> {
     return this.unwrap(
       this.client.POST("/internal/artifact-generations/{generation_id}/publish", {
         params: { path: { generation_id: input.generationId } },
-        body: { user_id: input.userId, compiled_html: input.compiledHtml },
+        body: { user_id: input.userId, org_id: input.orgId, compiled_html: input.compiledHtml },
       }),
     );
   }

@@ -24,6 +24,7 @@ function knowledgeClient(timeoutMs?: number): KnowledgeInternalClient {
   return new KnowledgeInternalClient({
     baseUrl: s.knowledgeServiceUrl,
     internalToken: s.internalApiToken,
+    callerService: "chat",
     propagatedHeaders: propagationHeaders,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
   });
@@ -113,6 +114,7 @@ export async function retrieveKnowledge(
 
 export async function createArtifact(input: {
   userId: string;
+  orgId: string;
   conversationId: string;
   title: string;
   filename: string;
@@ -125,6 +127,7 @@ export async function createArtifact(input: {
 
 export async function createMediaDocument(input: {
   userId: string;
+  orgId: string;
   conversationId: string;
   title: string;
   filename: string;

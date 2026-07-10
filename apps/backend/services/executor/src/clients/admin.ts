@@ -10,13 +10,14 @@ function adminClient(): AdminInternalClient {
   return new AdminInternalClient({
     baseUrl: settings.adminServiceUrl,
     internalToken: settings.internalApiToken,
+    callerService: "executor",
   });
 }
 
-export async function getProvider(providerId: string): Promise<ChatProvider> {
+export async function getProvider(providerId: string, orgId: string): Promise<ChatProvider> {
   let data: AdminProviderSnapshot;
   try {
-    data = await adminClient().getProvider(providerId);
+    data = await adminClient().getProvider(providerId, orgId);
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new RequestError(`provider ${providerId} not found`);

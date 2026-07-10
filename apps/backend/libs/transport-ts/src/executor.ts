@@ -11,6 +11,7 @@ export type CreateTaskInput = components["schemas"]["CreateTaskInput"];
 export interface ExecutorClientOptions {
   baseUrl: string;
   internalToken: string;
+  callerService: string;
   timeoutMs?: number;
   propagatedHeaders?: () => Record<string, string> | undefined;
 }
@@ -28,17 +29,29 @@ export class ExecutorInternalClient {
     throw toTransportError(response, error);
   }
 
-  async getTask(id: string): Promise<Task> {
+  async getTask(id: string, owner: { owner_service: string; owner_ref: string }): Promise<Task> {
     const { data, error, response } = await this.client.GET("/tasks/{id}", {
-      params: { path: { id } },
+      params: {
+        path: { id },
+        query: {
+          owner_service: owner.owner_service,
+          owner_ref: owner.owner_ref,
+        },
+      },
     });
     if (data) return data;
     throw toTransportError(response, error);
   }
 
-  async cancelTask(id: string): Promise<Task> {
+  async cancelTask(id: string, owner: { owner_service: string; owner_ref: string }): Promise<Task> {
     const { data, error, response } = await this.client.POST("/tasks/{id}/cancel", {
-      params: { path: { id } },
+      params: {
+        path: { id },
+        query: {
+          owner_service: owner.owner_service,
+          owner_ref: owner.owner_ref,
+        },
+      },
     });
     if (data) return data;
     throw toTransportError(response, error);

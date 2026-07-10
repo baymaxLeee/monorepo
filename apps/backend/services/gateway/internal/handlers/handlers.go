@@ -21,7 +21,32 @@ func Index(w http.ResponseWriter, _ *http.Request) {
 }
 
 func NewServiceProxy(upstream, service, externalPrefix string) http.Handler {
-	return newReverseProxy(upstream, service, externalPrefix)
+	return &internalPathGuard{
+		inner:          newReverseProxy(upstream, service, externalPrefix),
+		externalPrefix: externalPrefix,
+	}
+}
+
+// internalPathGuard rejects a service's `/internal/*` subtree at the edge.
+// Those routes trust the shared S2S token and are meant to be reachable only
+// from sibling services on the cluster network (e.g. admin returns decrypted
+// provider secrets there) — the gateway must never forward them regardless of
+// what a client sends, so this runs before the request reaches the proxy.
+type internalPathGuard struct {
+	inner          http.Handler
+	externalPrefix string
+}
+
+func (g *internalPathGuard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if isInternalPath(stripServicePrefix(r.URL.Path, g.externalPrefix)) {
+		writeProblem(w, http.StatusNotFound, "not_found", "the requested resource was not found")
+		return
+	}
+	g.inner.ServeHTTP(w, r)
+}
+
+func isInternalPath(path string) bool {
+	return path == "/internal" || strings.HasPrefix(path, "/internal/")
 }
 
 func newReverseProxy(upstream, service, externalPrefix string) http.Handler {
@@ -88,4 +113,15 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(body)
+}
+
+func writeProblem(w http.ResponseWriter, status int, title, detail string) {
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"type":   "about:blank",
+		"title":  title,
+		"detail": detail,
+		"status": status,
+	})
 }

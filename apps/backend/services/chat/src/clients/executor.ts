@@ -11,6 +11,7 @@ function executorClient(): ExecutorInternalClient {
   return new ExecutorInternalClient({
     baseUrl: s.executorServiceUrl,
     internalToken: s.internalApiToken,
+    callerService: "chat",
     propagatedHeaders: propagationHeaders,
   });
 }
@@ -28,9 +29,14 @@ export async function startTask(input: {
   });
 }
 
-export async function getTask(id: string): Promise<Task> {
+const CHAT_TASK_OWNER = { owner_service: "chat" } as const;
+
+export async function getTask(id: string, ownerRef: string): Promise<Task> {
   try {
-    return await executorClient().getTask(id);
+    return await executorClient().getTask(id, {
+      ...CHAT_TASK_OWNER,
+      owner_ref: ownerRef,
+    });
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new NotFoundError(`task ${id} not found`);
@@ -39,9 +45,12 @@ export async function getTask(id: string): Promise<Task> {
   }
 }
 
-export async function cancelTask(id: string): Promise<void> {
+export async function cancelTask(id: string, ownerRef: string): Promise<void> {
   try {
-    await executorClient().cancelTask(id);
+    await executorClient().cancelTask(id, {
+      ...CHAT_TASK_OWNER,
+      owner_ref: ownerRef,
+    });
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) return;
     throw err;

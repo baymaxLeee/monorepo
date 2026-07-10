@@ -36,19 +36,24 @@ jobs:
 
   node:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [chat, executor]
     defaults:
       run:
-        working-directory: apps/backend/services/chat
+        working-directory: apps/backend/services/${{ matrix.service }}
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
       - uses: pnpm/action-setup@v4
         with:
           version: 9
-      - run: pnpm install
+      - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
       - run: pnpm run build
 
+  go:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

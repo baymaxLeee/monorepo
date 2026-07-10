@@ -49,6 +49,7 @@ function adminClient(): AdminInternalClient {
   return new AdminInternalClient({
     baseUrl: settings.adminServiceUrl,
     internalToken: settings.internalApiToken,
+    callerService: "chat",
     propagatedHeaders: propagationHeaders,
   });
 }
@@ -88,7 +89,7 @@ export async function getProvider(
   try {
     const client = adminClient();
     data = providerId
-      ? await client.getProvider(providerId)
+      ? await client.getProvider(providerId, orgId)
       : await client.getDefaultProvider(orgId);
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
@@ -138,10 +139,13 @@ export async function getAgent(
 
 /** Pulls a skill's full L2 body on demand (progressive disclosure). Called by
  *  `load_skill` and by explicit `/` activation — never at prompt-assembly time. */
-export async function getSkillBody(skillId: string): Promise<{ id: string; name: string; body: string }> {
+export async function getSkillBody(
+  skillId: string,
+  orgId: string,
+): Promise<{ id: string; name: string; body: string }> {
   let data;
   try {
-    data = await adminClient().getSkill(skillId);
+    data = await adminClient().getSkill(skillId, orgId);
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new RequestError(`skill ${skillId} not found`);

@@ -30,8 +30,8 @@ export type Script = {
   beats: Beat[];
 };
 
-export function buildVideoTextModel(providerId: string) {
-  return getProvider(providerId).then((provider) => ({
+export function buildVideoTextModel(providerId: string, orgId: string) {
+  return getProvider(providerId, orgId).then((provider) => ({
     model: createProviderModel(provider, { disableReasoning: true }),
   }));
 }

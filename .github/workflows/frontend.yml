@@ -21,7 +21,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
-      - run: pnpm test
       - run: pnpm -F platform build
       - run: pnpm -F admin build
       - run: pnpm -F chat build

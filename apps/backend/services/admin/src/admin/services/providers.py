@@ -251,8 +251,8 @@ class ModelProviderService:
             raise NotFoundError(f"no enabled {kind} provider for org {org_id}")
         return to_internal_schema(row)
 
-    async def get_internal(self, provider_id: str) -> InternalModelProvider:
-        row = await provider_crud.get_provider_for_internal(self._session, provider_id)
+    async def get_internal(self, provider_id: str, org_id: str) -> InternalModelProvider:
+        row = await provider_crud.get_provider(self._session, provider_id, org_id)
         if row is None:
             raise NotFoundError(f"model provider {provider_id} not found")
         if not row.is_enabled:

@@ -1,4 +1,4 @@
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, inArray, lte } from "drizzle-orm";
 
 import { getDb } from "../../db/index.js";
 import { conversationRunLeases } from "../../db/schema.js";
@@ -115,9 +115,11 @@ export async function cancelRun(conversationId: string, runId: string): Promise<
 }
 
 export async function reconcileOrphanedRuns(): Promise<void> {
-  const orphaned = await listOrphanedRuns();
+  const now = new Date();
+  const orphaned = await listOrphanedRuns(now);
   if (orphaned.length === 0) return;
-  await interruptRuns(orphaned.map((run) => run.id));
+  const runIds = orphaned.map((run) => run.id);
+  await interruptRuns(runIds);
   await Promise.all(
     orphaned.map((run) =>
       deactivateAgentStream(run.conversationId, run.id).catch((error) =>
@@ -125,6 +127,6 @@ export async function reconcileOrphanedRuns(): Promise<void> {
       ),
     ),
   );
-  await getDb().delete(conversationRunLeases);
+  await getDb().delete(conversationRunLeases).where(inArray(conversationRunLeases.runId, runIds));
   logger.info({ count: orphaned.length }, "reconciled orphaned runs on boot");
 }

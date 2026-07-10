@@ -59,6 +59,7 @@ class IngestResult(BaseModel):
 
 class CreateArtifactInput(BaseModel):
     user_id: str = Field(min_length=1, max_length=26)
+    org_id: str = Field(min_length=1, max_length=26)
     conversation_id: str | None = Field(default=None, max_length=32)
     title: str = Field(min_length=1, max_length=120)
     filename: str = Field(min_length=1, max_length=160)
@@ -84,6 +85,7 @@ class CreateMediaDocumentInput(BaseModel):
     temporary URL as the durable source of truth (ADR-0014)."""
 
     user_id: str = Field(min_length=1, max_length=26)
+    org_id: str = Field(min_length=1, max_length=26)
     conversation_id: str | None = Field(default=None, max_length=32)
     title: str = Field(min_length=1, max_length=120)
     filename: str = Field(min_length=1, max_length=160)

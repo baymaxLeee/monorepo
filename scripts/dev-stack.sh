@@ -6,7 +6,7 @@ cd "$ROOT"
 
 echo "→ Starting full demo stack (shell mode). Ctrl+C to stop all."
 
-DEV_PORTS=(8000 8001 8002 8008 8009 8010 3000 3001 3005)
+DEV_PORTS=(8000 8001 8002 8008 8009 8010 8011 3000 3001 3005)
 PIDS=()
 
 cleanup() {
@@ -77,6 +77,11 @@ track_last_pid
 (
   cd apps/backend/services/telemetry
   uv run uvicorn telemetry.main:app --reload --port 8008 2>&1 | sed 's/^/[telemetry] /'
+) &
+track_last_pid
+(
+  cd apps/backend/services/executor
+  PORT=8011 pnpm dev 2>&1 | sed 's/^/[executor] /'
 ) &
 track_last_pid
 (

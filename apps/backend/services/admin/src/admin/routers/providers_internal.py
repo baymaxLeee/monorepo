@@ -21,8 +21,8 @@ def _service(session: DbSession, org_id: str = "") -> ModelProviderService:
     """Construct a provider service for internal (service-to-service) use.
 
     The `/default` and `/by-kind` selectors search a team's shared provider
-    pool and take `org_id`; the by-id resolve is a trusted lookup that needs no
-    scope (the internal token is the trust boundary and the id is opaque).
+    pool and take `org_id`; by-id resolve also requires `org_id` so decrypted
+    keys never cross tenant boundaries.
     """
 
     return ModelProviderService(session, AuthContext(user_id="", username="", email="", org_id=org_id))
@@ -55,10 +55,8 @@ async def get_provider_by_kind_internal(
 @router.get("/{provider_id}", response_model=InternalModelProvider)
 async def get_provider_internal(
     provider_id: str,
+    org_id: Annotated[str, Query(min_length=1, description="Team that owns the provider")],
     session: DbSession,
     _caller: InternalCaller,
 ) -> InternalModelProvider:
-    """Trusted by-id resolve: chat/executor/knowledge already hold a concrete,
-    upstream-authorized provider id. No scope param — the internal token is the
-    boundary and the id is opaque."""
-    return await _service(session).get_internal(provider_id)
+    return await _service(session, org_id).get_internal(provider_id, org_id)

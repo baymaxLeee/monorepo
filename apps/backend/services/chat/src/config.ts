@@ -17,6 +17,7 @@ export interface Settings {
   knowledgeServiceUrl: string;
   executorServiceUrl: string;
   internalApiToken: string;
+  toolApprovalSecret: string;
   exaApiKey: string;
   tavilyApiKey: string;
   providerCacheTtlSeconds: number;
@@ -39,6 +40,14 @@ export function getSettings(): Settings {
   if (environment === "production" && (!postgresPassword || postgresPassword === "chat")) {
     throw new Error("POSTGRES_PASSWORD must be set explicitly in production");
   }
+  const toolApprovalSecret = envOr("TOOL_APPROVAL_SECRET", "");
+  if (environment === "production" && !toolApprovalSecret) {
+    throw new Error("TOOL_APPROVAL_SECRET must be set explicitly in production");
+  }
+  const internalApiToken = envOr("INTERNAL_API_TOKEN", DEV_INTERNAL_TOKEN);
+  if (environment === "production" && internalApiToken === DEV_INTERNAL_TOKEN) {
+    throw new Error("INTERNAL_API_TOKEN must be set explicitly in production");
+  }
   return {
     environment,
     port: envInt("PORT", 8009),
@@ -53,7 +62,8 @@ export function getSettings(): Settings {
     adminServiceUrl: envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
     knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
     executorServiceUrl: envOr("EXECUTOR_SERVICE_URL", "http://localhost:8011"),
-    internalApiToken: envOr("INTERNAL_API_TOKEN", DEV_INTERNAL_TOKEN),
+    internalApiToken,
+    toolApprovalSecret: toolApprovalSecret || DEV_INTERNAL_TOKEN,
     exaApiKey: envOr("EXA_API_KEY", ""),
     tavilyApiKey: envOr("TAVILY_API_KEY", ""),
     providerCacheTtlSeconds: envInt("PROVIDER_CACHE_TTL_SECONDS", 300),

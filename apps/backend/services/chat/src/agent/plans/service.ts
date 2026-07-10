@@ -60,6 +60,7 @@ export async function writePlanTool(
 ): Promise<PlanArtifactOutput> {
   const document = await createArtifact({
     userId: context.userId,
+    orgId: context.orgId,
     conversationId: context.conversationId,
     title: input.title,
     filename: planFilename(input.filename),

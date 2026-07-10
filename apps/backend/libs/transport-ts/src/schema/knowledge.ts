@@ -522,6 +522,8 @@ export interface components {
         CreateArtifactInput: {
             /** User Id */
             user_id: string;
+            /** Org Id */
+            org_id: string;
             /** Conversation Id */
             conversation_id?: string | null;
             /** Title */
@@ -546,6 +548,8 @@ export interface components {
         CreateMediaDocumentInput: {
             /** User Id */
             user_id: string;
+            /** Org Id */
+            org_id: string;
             /** Conversation Id */
             conversation_id?: string | null;
             /** Title */
@@ -700,6 +704,8 @@ export interface components {
         PublishArtifactRevisionInput: {
             /** User Id */
             user_id: string;
+            /** Org Id */
+            org_id: string;
             /** Compiled Html */
             compiled_html: string;
         };
@@ -723,6 +729,8 @@ export interface components {
         ReserveArtifactGenerationInput: {
             /** User Id */
             user_id: string;
+            /** Org Id */
+            org_id: string;
             /** Conversation Id */
             conversation_id?: string | null;
             /** Title */
@@ -1232,6 +1240,7 @@ export interface operations {
             };
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1265,6 +1274,7 @@ export interface operations {
             };
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 document_id: string;
@@ -1300,6 +1310,7 @@ export interface operations {
             };
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 document_id: string;
@@ -1331,6 +1342,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 document_id: string;
@@ -1373,6 +1385,7 @@ export interface operations {
             };
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 document_id: string;
@@ -1409,6 +1422,7 @@ export interface operations {
             };
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 document_id: string;
@@ -1442,6 +1456,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1477,6 +1492,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1512,6 +1528,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1547,6 +1564,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 generation_id: string;
@@ -1584,6 +1602,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 generation_id: string;
@@ -1621,6 +1640,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 generation_id: string;
@@ -1658,6 +1678,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 generation_id: string;
@@ -1698,6 +1719,7 @@ export interface operations {
             };
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 generation_id: string;
@@ -1733,6 +1755,7 @@ export interface operations {
             };
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 document_id: string;
@@ -1766,6 +1789,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 generation_id: string;
@@ -1803,6 +1827,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path?: never;
             cookie?: never;

@@ -121,7 +121,10 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query: {
+                    owner_service: string;
+                    owner_ref: string;
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -186,7 +189,10 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: never;
+                query: {
+                    owner_service: string;
+                    owner_ref: string;
+                };
                 header?: never;
                 path: {
                     id: string;

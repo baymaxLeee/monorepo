@@ -331,7 +331,7 @@ export async function createAgentRunResponse(
       }
       // getSkillBody throws RequestError (404) / AdminUnavailableError (502);
       // let those propagate so the client sees why the skill could not load.
-      const { body } = await getSkillBody(picked.id);
+      const { body } = await getSkillBody(picked.id, auth.orgId);
       if (!body.trim()) {
         throw new RequestError(`skill "${picked.name}" has no content to load`);
       }
@@ -353,7 +353,7 @@ export async function createAgentRunResponse(
       modelMessages,
       instructionInput,
       botSkills,
-      loadSkillBody: async (skillId: string) => (await getSkillBody(skillId)).body,
+      loadSkillBody: async (skillId: string) => (await getSkillBody(skillId, auth.orgId)).body,
     });
     const agent = agentInstance.agent;
     disposeAgentResources = agentInstance.dispose;

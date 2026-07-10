@@ -31,6 +31,7 @@ import {
 import { observeTaskCancellation } from "../src/tasks/cancellation.js";
 
 export const htmlArtifactInputSchema = z.object({
+  orgId: z.string().min(1),
   userId: z.string().min(1),
   conversationId: z.string().optional(),
   providerId: z.string().min(1),
@@ -68,7 +69,7 @@ function parseStoredBlockHtml(content: string): string | null {
 
 async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
   "use step";
-  const tools = await buildArtifactTextModel(input.providerId);
+  const tools = await buildArtifactTextModel(input.providerId, input.orgId);
   const { workflowRunId } = getWorkflowMetadata();
   const cancellation = observeTaskCancellation(workflowRunId);
   const signal = AbortSignal.any([
@@ -132,6 +133,7 @@ async function reserveStep(input: HtmlArtifactInput, plan: ArtifactPlan, idempot
   "use step";
   const generation = await reserveArtifactGeneration({
     userId: input.userId,
+    orgId: input.orgId,
     conversationId: input.conversationId,
     documentId: input.documentId,
     title: input.title,
@@ -156,6 +158,7 @@ async function reserveStep(input: HtmlArtifactInput, plan: ArtifactPlan, idempot
 }
 
 async function generateBlockStep(input: {
+  orgId: string;
   userId: string;
   providerId: string;
   generationId: string;
@@ -185,7 +188,7 @@ async function generateBlockStep(input: {
       return { id: input.block.id, ok: true };
     }
 
-    const tools = await buildArtifactTextModel(input.providerId);
+    const tools = await buildArtifactTextModel(input.providerId, input.orgId);
     const abortSignal = AbortSignal.any([
       cancellation.signal,
       AbortSignal.timeout(5 * 60_000),
@@ -261,6 +264,7 @@ async function generateBlockStep(input: {
 
 async function compileAndPublishStep(input: {
   userId: string;
+  orgId: string;
   generationId: string;
   title: string;
   mode: ArtifactMode;
@@ -288,6 +292,7 @@ async function compileAndPublishStep(input: {
   }
   const published = await publishArtifactRevision({
     userId: input.userId,
+    orgId: input.orgId,
     generationId: input.generationId,
     compiledHtml: compiled.html,
   });
@@ -362,6 +367,7 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
     await reportProgressStep(done, total);
     await mapConcurrent(plan.blocks, blockConcurrency, async (block) => {
       const result = await generateBlockStep({
+        orgId: input.orgId,
         userId: input.userId,
         providerId: input.providerId,
         generationId,
@@ -382,6 +388,7 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
 
     const published = await compileAndPublishStep({
       userId: input.userId,
+      orgId: input.orgId,
       generationId,
       title: input.title,
       mode: plan.mode,

@@ -282,30 +282,6 @@ export type TaskStatus =
   | "failed"
   | "cancelled";
 
-export interface Task {
-  id: string;
-  type: string;
-  status: TaskStatus;
-  ownerService: string;
-  ownerRef: string;
-  result: unknown;
-  progress: { done: number; total: number } | null;
-  error: string | null;
-  createdAt: string;
-  updatedAt: string;
-  finishedAt: string | null;
-}
-
-export function fetchConversationTask(
-  conversationId: string,
-  taskId: string,
-): Promise<Task> {
-  return request({
-    url: `${BASE}/${encodeURIComponent(conversationId)}/tasks/${encodeURIComponent(taskId)}`,
-    method: "GET",
-  });
-}
-
 export type UpdateMemoryCandidateInput = UpdateMemoryCandidate;
 
 const memoryClient = getChatService();

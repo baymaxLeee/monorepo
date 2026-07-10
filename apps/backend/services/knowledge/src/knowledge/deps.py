@@ -1,5 +1,6 @@
 """FastAPI dependencies."""
 
+import hmac
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Annotated
@@ -71,11 +72,15 @@ def auth_context(
 
 def require_internal_token(
     x_internal_token: Annotated[str | None, Header(alias="X-Internal-Token")] = None,
+    x_caller_service: Annotated[str | None, Header(alias="X-Caller-Service")] = None,
 ) -> None:
     from knowledge.config import get_settings
 
-    if x_internal_token != get_settings().internal_api_token:
+    expected = get_settings().internal_api_token
+    if not expected or not x_internal_token or not hmac.compare_digest(expected, x_internal_token):
         raise UnauthorizedError("invalid internal token")
+    if x_caller_service not in {"chat", "executor"}:
+        raise UnauthorizedError("invalid or missing X-Caller-Service header")
 
 
 DbSession = Annotated[AsyncSession, Depends(db_session)]

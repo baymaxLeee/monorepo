@@ -175,7 +175,7 @@ async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> D
     document_id = None
     if payload.idempotency_key:
         document_id = sha256(
-            f"{payload.user_id}:{payload.conversation_id or ''}:{payload.idempotency_key}".encode()
+            f"{payload.org_id}:{payload.user_id}:{payload.conversation_id or ''}:{payload.idempotency_key}".encode()
         ).hexdigest()[:16]
     try:
         async with write_tx(session):
@@ -186,6 +186,7 @@ async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> D
             row = await document_crud.create_document(
                 session,
                 user_id=payload.user_id,
+                org_id=payload.org_id,
                 conversation_id=payload.conversation_id,
                 kind="artifact",
                 title=payload.title,
@@ -220,7 +221,7 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
     document_id = None
     if payload.idempotency_key:
         document_id = sha256(
-            f"{payload.user_id}:{payload.conversation_id or ''}:{payload.idempotency_key}".encode()
+            f"{payload.org_id}:{payload.user_id}:{payload.conversation_id or ''}:{payload.idempotency_key}".encode()
         ).hexdigest()[:16]
         # Cheap pre-check in its own short transaction so a retried generation
         # skips re-uploading bytes; the authoritative race guard is below.
@@ -251,6 +252,7 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
             row = await document_crud.create_document(
                 session,
                 user_id=payload.user_id,
+                org_id=payload.org_id,
                 conversation_id=payload.conversation_id,
                 kind="artifact",
                 title=payload.title,
@@ -324,9 +326,7 @@ async def delete_document(
         row = await document_crud.get_document(session, document_id, user_id)
         if row is None:
             raise NotFoundError(f"document {document_id} not found")
-        object_ref = (
-            (row.object_bucket, row.object_key) if row.object_bucket and row.object_key else None
-        )
+        object_ref = (row.object_bucket, row.object_key) if row.object_bucket and row.object_key else None
         await document_crud.delete_document(session, row)
     if object_ref is not None:
         ObjectStore().delete(bucket=object_ref[0], key=object_ref[1])

@@ -7,7 +7,9 @@ body; chat pulls it on demand when the model calls `load_skill` (progressive
 disclosure), so the body never sits in the prompt unless activated.
 """
 
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, Query
 
 from admin.deps import AuthContext, DbSession, InternalCaller
 from admin.schemas.skill import InternalSkill
@@ -19,8 +21,9 @@ router = APIRouter(prefix="/internal/skills", tags=["internal-skills"])
 @router.get("/{skill_id}", response_model=InternalSkill)
 async def get_skill_internal(
     skill_id: str,
+    org_id: Annotated[str, Query(min_length=1, description="Team that owns the skill")],
     session: DbSession,
     _caller: InternalCaller,
 ) -> InternalSkill:
-    service = SkillService(session, AuthContext(user_id="", username="", email="", org_id=""))
-    return await service.get_internal(skill_id)
+    service = SkillService(session, AuthContext(user_id="", username="", email="", org_id=org_id))
+    return await service.get_internal(skill_id, org_id)

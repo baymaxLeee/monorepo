@@ -28,6 +28,16 @@ const SEARCH_ITEM_CLS =
 const SEARCH_ITEM_ACTIVE = "bg-[#e8f3ff]";
 const MENU_ITEM_CLS =
   "cursor-default px-4 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground";
+
+function activateTreeNode(
+  event: React.KeyboardEvent,
+  action: () => void,
+): void {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    action();
+  }
+}
 const MENU_ITEM_DANGER =
   "text-[#e5484d] hover:bg-[#fff0ed] hover:text-[#e5484d]";
 
@@ -420,7 +430,16 @@ export const FileTree: React.FC<FileTreeProps> = ({
             dragOverId === node.id && TREE_NODE_DRAGOVER,
           )}
           style={{ paddingLeft: depth * 16 + 8 }}
+          role="treeitem"
+          tabIndex={0}
+          aria-selected={node.id === activeFileId}
+          aria-expanded={isDir ? isOpen : undefined}
           onClick={() => (isDir ? toggle(node.id) : onSelectFile(node.id))}
+          onKeyDown={(event) =>
+            activateTreeNode(event, () =>
+              isDir ? toggle(node.id) : onSelectFile(node.id),
+            )
+          }
           onContextMenu={(e) => onCtxMenu(e, node)}
           draggable={!readOnly}
           onDragStart={(e) => onDragStart(e, node.id)}
@@ -448,28 +467,32 @@ export const FileTree: React.FC<FileTreeProps> = ({
           )}
         </div>
         {isDir && isOpen && (
-          <div
-            onDragOver={(e) => onDragOver(e, node)}
-            onDrop={(e) => onDrop(e, node.id)}
-            onDragLeave={() => setDragOverId(null)}
-          >
-            {node.children?.map((c) => renderNode(c, depth + 1))}
-            {input && !input.renameId && input.parent_id === node.id && (
-              <div
-                className={cn(NODE_BASE, TREE_NODE_CLS)}
-                style={{ paddingLeft: (depth + 1) * 16 + 8 }}
-              >
-                <span className={NODE_ICON_CLS}>
-                  {input.type === "directory" ? (
-                    <FolderClosed className="size-4" />
-                  ) : (
-                    <FileIcon filename="" />
-                  )}
-                </span>
-                {renderInput()}
-              </div>
-            )}
-          </div>
+          <>
+            {/* biome-ignore lint/a11y/useSemanticElements: ARIA tree groups have no native HTML equivalent */}
+            <div
+              role="group"
+              onDragOver={(e) => onDragOver(e, node)}
+              onDrop={(e) => onDrop(e, node.id)}
+              onDragLeave={() => setDragOverId(null)}
+            >
+              {node.children?.map((c) => renderNode(c, depth + 1))}
+              {input && !input.renameId && input.parent_id === node.id && (
+                <div
+                  className={cn(NODE_BASE, TREE_NODE_CLS)}
+                  style={{ paddingLeft: (depth + 1) * 16 + 8 }}
+                >
+                  <span className={NODE_ICON_CLS}>
+                    {input.type === "directory" ? (
+                      <FolderClosed className="size-4" />
+                    ) : (
+                      <FileIcon filename="" />
+                    )}
+                  </span>
+                  {renderInput()}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
     );
@@ -527,13 +550,13 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
       <div
         className="min-h-0 flex-1 select-none overflow-hidden bg-background"
+        role="tree"
         onContextMenu={(e) => onCtxMenu(e)}
         onDragOver={(e) => {
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
         }}
         onDrop={(e) => onDrop(e, null)}
-        onClick={closeMenu}
       >
         {searchResults ? (
           <div
@@ -549,11 +572,13 @@ export const FileTree: React.FC<FileTreeProps> = ({
               </div>
             ) : (
               searchResults.map(({ node, dirPath }) => (
-                <div
+                <button
                   key={node.id}
+                  type="button"
                   className={cn(
                     NODE_BASE,
                     SEARCH_ITEM_CLS,
+                    "w-full text-left",
                     node.id === activeFileId && SEARCH_ITEM_ACTIVE,
                   )}
                   onClick={() => onSelectFile(node.id)}
@@ -569,7 +594,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
                       {dirPath}
                     </span>
                   )}
-                </div>
+                </button>
               ))
             )}
           </div>
@@ -605,40 +630,52 @@ export const FileTree: React.FC<FileTreeProps> = ({
         createPortal(
           <div
             ref={menuRef}
+            role="menu"
             className="fixed z-[9999] min-w-36 rounded-md border bg-popover py-1 text-popover-foreground shadow-md"
             style={{ top: menu.y, left: menu.x }}
-            onClick={(e) => e.stopPropagation()}
           >
             {menu.targetType === "directory" && (
               <>
-                <div
-                  className={MENU_ITEM_CLS}
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={cn(MENU_ITEM_CLS, "block w-full text-left")}
                   onClick={() => startCreate(menu.targetId, "file")}
                 >
                   新建文件
-                </div>
-                <div
-                  className={MENU_ITEM_CLS}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={cn(MENU_ITEM_CLS, "block w-full text-left")}
                   onClick={() => startCreate(menu.targetId, "directory")}
                 >
                   新建文件夹
-                </div>
+                </button>
               </>
             )}
             {menu.targetId !== null && (
               <>
-                <div
-                  className={MENU_ITEM_CLS}
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={cn(MENU_ITEM_CLS, "block w-full text-left")}
                   onClick={() => startRename(menu.targetId!)}
                 >
                   重命名
-                </div>
-                <div
-                  className={cn(MENU_ITEM_CLS, MENU_ITEM_DANGER)}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={cn(
+                    MENU_ITEM_CLS,
+                    MENU_ITEM_DANGER,
+                    "block w-full text-left",
+                  )}
                   onClick={() => handleDelete(menu.targetId!)}
                 >
                   删除
-                </div>
+                </button>
               </>
             )}
           </div>,

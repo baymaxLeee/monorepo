@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
 
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
 import { getDb } from "../../db/index.js";
-import { agentRuns, agentSteps, agentToolCalls } from "../../db/schema.js";
+import { agentRuns, agentSteps, agentToolCalls, conversationRunLeases } from "../../db/schema.js";
 import { cancelTodoOutput } from "./cancellation.js";
 
 export type AgentRunStatus = "running" | "cancel_requested" | "completed" | "failed" | "cancelled" | "interrupted";
@@ -110,11 +110,17 @@ export async function isRunActive(runId: string): Promise<boolean> {
   return run?.status === "running" || run?.status === "cancel_requested";
 }
 
-export async function listOrphanedRuns(): Promise<Array<{ id: string; conversationId: string }>> {
+export async function listOrphanedRuns(now = new Date()): Promise<Array<{ id: string; conversationId: string }>> {
   return getDb()
     .select({ id: agentRuns.id, conversationId: agentRuns.conversationId })
     .from(agentRuns)
-    .where(inArray(agentRuns.status, ["running", "cancel_requested"]));
+    .leftJoin(conversationRunLeases, eq(conversationRunLeases.runId, agentRuns.id))
+    .where(
+      and(
+        inArray(agentRuns.status, ["running", "cancel_requested"]),
+        or(isNull(conversationRunLeases.runId), lte(conversationRunLeases.expiresAt, now)),
+      ),
+    );
 }
 
 export async function interruptRuns(runIds: string[]): Promise<void> {

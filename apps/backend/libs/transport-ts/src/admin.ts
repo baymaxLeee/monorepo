@@ -12,6 +12,7 @@ export type AdminInternalSkill = components["schemas"]["InternalSkill"];
 export interface AdminClientOptions {
   baseUrl: string;
   internalToken: string;
+  callerService: string;
   timeoutMs?: number;
   propagatedHeaders?: () => Record<string, string> | undefined;
 }
@@ -31,9 +32,9 @@ export class AdminInternalClient {
     throw toTransportError(response, error);
   }
 
-  async getProvider(providerId: string): Promise<AdminProviderSnapshot> {
+  async getProvider(providerId: string, orgId: string): Promise<AdminProviderSnapshot> {
     const { data, error, response } = await this.client.GET("/internal/providers/{provider_id}", {
-      params: { path: { provider_id: providerId } },
+      params: { path: { provider_id: providerId }, query: { org_id: orgId } },
     });
     if (data) return data;
     throw toTransportError(response, error);
@@ -47,9 +48,9 @@ export class AdminInternalClient {
     throw toTransportError(response, error);
   }
 
-  async getSkill(skillId: string): Promise<AdminInternalSkill> {
+  async getSkill(skillId: string, orgId: string): Promise<AdminInternalSkill> {
     const { data, error, response } = await this.client.GET("/internal/skills/{skill_id}", {
-      params: { path: { skill_id: skillId } },
+      params: { path: { skill_id: skillId }, query: { org_id: orgId } },
     });
     if (data) return data;
     throw toTransportError(response, error);

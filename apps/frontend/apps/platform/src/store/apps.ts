@@ -25,12 +25,23 @@ export const useAppsStore = create<AppsState>((set) => ({
 
 let loadPromise: Promise<void> | null = null;
 
+function remoteEntry(entry: string): string {
+  const url = new URL(entry, globalThis.location.origin);
+  if (url.origin !== globalThis.location.origin) {
+    throw new Error(`Remote entry must be same-origin: ${entry}`);
+  }
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 export function loadApps(): Promise<void> {
   if (loadPromise) return loadPromise;
   loadPromise = fetchApps({ skipErrorNotify: true })
     .then((apps) => {
       registerRemotes(
-        apps.map((app) => ({ name: app.remote_name, entry: app.entry })),
+        apps.map((app) => ({
+          name: app.remote_name,
+          entry: remoteEntry(app.entry),
+        })),
         { force: true },
       );
       useAppsStore.getState().setApps(apps);

@@ -12,6 +12,6 @@ data:
   # Admin owns LLM credentials. chat calls
   # `${ADMIN_SERVICE_URL}/internal/providers/...` with INTERNAL_API_TOKEN
   # (kept in the Secret).
-  ADMIN_SERVICE_URL: "http://admin.default.svc.cluster.local:8001"
-  KNOWLEDGE_SERVICE_URL: "http://knowledge.default.svc.cluster.local:8010"
-  EXECUTOR_SERVICE_URL: "http://executor.default.svc.cluster.local:8011"
+  ADMIN_SERVICE_URL: "http://admin:8001"
+  KNOWLEDGE_SERVICE_URL: "http://knowledge:8010"
+  EXECUTOR_SERVICE_URL: "http://executor:8011"

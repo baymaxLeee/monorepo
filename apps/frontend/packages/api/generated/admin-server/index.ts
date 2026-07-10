@@ -658,6 +658,14 @@ export type ReadyzReadyzGet200 = { [key: string]: unknown };
 
 export type HealthzHealthzGet200 = { [key: string]: unknown };
 
+export type GetSkillInternalInternalSkillsSkillIdGetParams = {
+/**
+ * Team that owns the skill
+ * @minLength 1
+ */
+org_id: string;
+};
+
 export type GetDefaultProviderInternalInternalProvidersDefaultGetParams = {
 /**
  * Team that owns the provider
@@ -667,6 +675,14 @@ org_id: string;
 };
 
 export type GetProviderByKindInternalInternalProvidersByKindKindGetParams = {
+/**
+ * Team that owns the provider
+ * @minLength 1
+ */
+org_id: string;
+};
+
+export type GetProviderInternalInternalProvidersProviderIdGetParams = {
 /**
  * Team that owns the provider
  * @minLength 1
@@ -994,9 +1010,11 @@ const bulkDeleteSkillsSkillsBulkDeletePost = (
  */
 const getSkillInternalInternalSkillsSkillIdGet = (
     skillId: string,
+    params: GetSkillInternalInternalSkillsSkillIdGetParams,
  options?: SecondParameter<typeof apiMutator<InternalSkill>>,) => {
       return apiMutator<InternalSkill>(
-      {url: `/internal/skills/${skillId}`, method: 'GET'
+      {url: `/internal/skills/${skillId}`, method: 'GET',
+        params
     },
       options);
     }
@@ -1218,16 +1236,15 @@ const getProviderByKindInternalInternalProvidersByKindKindGet = (
     }
 
 /**
- * Trusted by-id resolve: chat/executor/knowledge already hold a concrete,
- * upstream-authorized provider id. No scope param — the internal token is the
- * boundary and the id is opaque.
  * @summary Get Provider Internal
  */
 const getProviderInternalInternalProvidersProviderIdGet = (
     providerId: string,
+    params: GetProviderInternalInternalProvidersProviderIdGetParams,
  options?: SecondParameter<typeof apiMutator<InternalModelProvider>>,) => {
       return apiMutator<InternalModelProvider>(
-      {url: `/internal/providers/${providerId}`, method: 'GET'
+      {url: `/internal/providers/${providerId}`, method: 'GET',
+        params
     },
       options);
     }

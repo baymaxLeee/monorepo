@@ -203,7 +203,9 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
             const removeSubtree = (id: string) => {
               const n = map.get(id);
               map.delete(id);
-              n?.children?.forEach((c) => removeSubtree(c.id));
+              n?.children?.forEach((c) => {
+                removeSubtree(c.id);
+              });
             };
             removeSubtree(change.id);
             break;
@@ -307,12 +309,14 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
             readOnly={readOnly}
           />
         </div>
-        <div
-          className="group relative z-10 w-px shrink-0 cursor-col-resize bg-border"
+        <button
+          type="button"
+          aria-label="调整侧栏宽度"
+          className="group relative z-10 w-px shrink-0 cursor-col-resize border-0 bg-border p-0"
           onMouseDown={handleResizeStart}
         >
           <span className="pointer-events-none absolute inset-y-0 -left-px w-0.5 bg-transparent transition-colors group-hover:bg-[#1677ff] group-active:bg-[#1677ff]" />
-        </div>
+        </button>
         <div className="flex min-w-0 flex-1 flex-col">
           <EditorPanel
             tabs={tabs}

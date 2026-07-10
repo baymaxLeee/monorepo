@@ -39,6 +39,7 @@ import { assembleClips } from "../src/video/assembler.js";
 import { observeTaskCancellation } from "../src/tasks/cancellation.js";
 
 export const videoGenerationInputSchema = z.object({
+  orgId: z.string().min(1),
   userId: z.string().min(1),
   conversationId: z.string().optional(),
   providerId: z.string().min(1),
@@ -80,7 +81,7 @@ async function planStep(input: VideoGenerationInput): Promise<{
   "use step";
   const targetDurationSec = input.targetDurationSec ?? DEFAULT_TARGET_DURATION_S;
   const count = deriveSegmentCount(targetDurationSec);
-  const { model } = await buildVideoTextModel(input.textProviderId);
+  const { model } = await buildVideoTextModel(input.textProviderId, input.orgId);
   const { workflowRunId } = getWorkflowMetadata();
   const cancellation = observeTaskCancellation(workflowRunId);
 
@@ -110,6 +111,7 @@ async function planStep(input: VideoGenerationInput): Promise<{
     if (input.imageProviderId && !cancellation.signal.aborted) {
       try {
         characterRefs = await generateCharacterSheet({
+          orgId: input.orgId,
           imageProviderId: input.imageProviderId,
           characters: script.characters.slice(0, MAX_MAIN_CHARACTERS),
           perImageTimeoutMs: ANCHOR_PER_IMAGE_TIMEOUT_MS,
@@ -130,6 +132,7 @@ async function planStep(input: VideoGenerationInput): Promise<{
 }
 
 async function createSegmentStep(input: {
+  orgId: string;
   providerId: string;
   segment: Segment;
   script: Script;
@@ -141,7 +144,7 @@ async function createSegmentStep(input: {
   const { workflowRunId } = getWorkflowMetadata();
   const cancellation = observeTaskCancellation(workflowRunId);
   try {
-    const provider = await getProvider(input.providerId);
+    const provider = await getProvider(input.providerId, input.orgId);
     const { prompt, images } = buildSegmentContent(input.segment, input.script, {
       characterRefs: input.characterRefs,
       mode: input.mode,
@@ -194,11 +197,12 @@ async function createSegmentStep(input: {
 }
 
 async function waitSegmentStep(input: {
+  orgId: string;
   providerId: string;
   taskId: string;
 }): Promise<ArkVideoSnapshot> {
   "use step";
-  const provider = await getProvider(input.providerId);
+  const provider = await getProvider(input.providerId, input.orgId);
   const { workflowRunId } = getWorkflowMetadata();
   const deadline = Date.now() + PER_SEGMENT_MAX_WAIT_MS;
   while (true) {
@@ -235,6 +239,7 @@ async function waitSegmentStep(input: {
 
 async function assembleStep(input: {
   userId: string;
+  orgId: string;
   conversationId?: string;
   title: string;
   filename: string;
@@ -258,6 +263,7 @@ async function assembleStep(input: {
   }
   const document = await createMediaDocument({
     userId: input.userId,
+    orgId: input.orgId,
     conversationId: input.conversationId,
     title: input.title,
     filename: input.filename,
@@ -312,6 +318,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
   const mode: SegmentMode = hasRefs ? "reference" : "text";
   const results = await mapConcurrent(segments, segmentConcurrency, async (segment: Segment) => {
     const created = await createSegmentStep({
+      orgId: input.orgId,
       providerId: input.providerId,
       segment,
       script,
@@ -324,6 +331,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
       result = { order: segment.order, ok: false, error: created.error };
     } else {
       const snapshot = await waitSegmentStep({
+        orgId: input.orgId,
         providerId: input.providerId,
         taskId: created.taskId,
       });
@@ -354,6 +362,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
 
   const assembled = await assembleStep({
     userId: input.userId,
+    orgId: input.orgId,
     conversationId: input.conversationId,
     title: input.title,
     filename: input.filename,

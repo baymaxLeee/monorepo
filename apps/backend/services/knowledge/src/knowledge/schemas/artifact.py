@@ -9,6 +9,7 @@ ArtifactMode = Literal["document", "presentation", "dashboard"]
 
 class ReserveArtifactGenerationInput(BaseModel):
     user_id: str = Field(min_length=1, max_length=26)
+    org_id: str = Field(min_length=1, max_length=26)
     conversation_id: str | None = Field(default=None, max_length=32)
     title: str = Field(min_length=1, max_length=120)
     filename: str = Field(min_length=1, max_length=160)
@@ -46,6 +47,7 @@ class SaveArtifactBlockInput(BaseModel):
 
 class PublishArtifactRevisionInput(BaseModel):
     user_id: str = Field(min_length=1, max_length=26)
+    org_id: str = Field(min_length=1, max_length=26)
     compiled_html: str = Field(min_length=1)
 
 

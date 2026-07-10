@@ -4,6 +4,7 @@ namespace: monorepo-prod
 
 resources:
   - namespace.yaml
+  - ../../base/network-policy.yaml
   - ../../base/gateway
   - ../../base/iam
   - ../../base/admin
@@ -50,6 +51,9 @@ images:
     newTag: placeholder
 
 patches:
+  - path: patches/omit-secrets.yaml
+    target:
+      kind: Secret
   - path: patches/gateway-config.yaml
     target: { kind: ConfigMap, name: gateway-config }
   - path: patches/iam-config.yaml

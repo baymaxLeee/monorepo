@@ -441,12 +441,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Provider Internal
-         * @description Trusted by-id resolve: chat/executor/knowledge already hold a concrete,
-         *     upstream-authorized provider id. No scope param — the internal token is the
-         *     boundary and the id is opaque.
-         */
+        /** Get Provider Internal */
         get: operations["get_provider_internal_internal_providers__provider_id__get"];
         put?: never;
         post?: never;
@@ -2062,9 +2057,13 @@ export interface operations {
     };
     get_skill_internal_internal_skills__skill_id__get: {
         parameters: {
-            query?: never;
+            query: {
+                /** @description Team that owns the skill */
+                org_id: string;
+            };
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 skill_id: string;
@@ -2645,6 +2644,7 @@ export interface operations {
             };
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2679,6 +2679,7 @@ export interface operations {
             };
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 kind: string;
@@ -2709,9 +2710,13 @@ export interface operations {
     };
     get_provider_internal_internal_providers__provider_id__get: {
         parameters: {
-            query?: never;
+            query: {
+                /** @description Team that owns the provider */
+                org_id: string;
+            };
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 provider_id: string;
@@ -2750,6 +2755,7 @@ export interface operations {
             };
             header?: {
                 "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
             };
             path: {
                 agent_id: string;

@@ -152,6 +152,7 @@ async function* generateImages(
       const filename = mediaFilename(prompt, IMAGE_EXTENSIONS[mediaType] ?? "png", index);
       const document = await createMediaDocument({
         userId: context.userId,
+        orgId: context.orgId,
         conversationId: context.conversationId,
         title: prompt.slice(0, 80),
         filename,
@@ -206,6 +207,7 @@ async function* generateVideo(
         type: "video-generation",
         ownerRef: toolCallId,
         payload: {
+          orgId: context.orgId,
           userId: context.userId,
           conversationId: context.conversationId,
           providerId: providers.videoProviderId,
@@ -224,7 +226,7 @@ async function* generateVideo(
     yield { ok: true, status: task.status, ...base };
     let terminal: Task | null = null;
     try {
-      for await (const snapshot of pollTaskSnapshots(task.id, abortSignal)) {
+      for await (const snapshot of pollTaskSnapshots(task.id, task.ownerRef, abortSignal)) {
         if (snapshot.status === "completed" || snapshot.status === "failed" || snapshot.status === "cancelled") {
           terminal = snapshot;
           break;

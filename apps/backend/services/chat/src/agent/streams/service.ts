@@ -122,6 +122,8 @@ const STALE_CHECK_EVERY_IDLE_ROUNDS = 6;
 export interface ReplayAgentStreamOptions {
   isRunLive?: (runId: string) => Promise<boolean>;
   signal?: AbortSignal;
+  /** Redis stream cursor; omit for full replay, `"$"` for tail-only (no history). */
+  startAfterId?: string;
 }
 
 export async function* replayAgentSseStream(
@@ -131,7 +133,7 @@ export async function* replayAgentSseStream(
 ): AsyncGenerator<string> {
   const reader = getRedis().duplicate();
   const key = streamKey(runId);
-  let lastId = "0-0";
+  let lastId = options?.startAfterId ?? "0-0";
   let idleRounds = 0;
   const abortRead = () => reader.disconnect();
   options?.signal?.addEventListener("abort", abortRead, { once: true });

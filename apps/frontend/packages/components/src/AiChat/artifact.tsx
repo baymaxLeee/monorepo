@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { XIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
-import { cn } from "shared";
+import { cn, isPublicHttpUrl } from "shared";
 import { Button } from "../shadcn/button";
 import {
   Tooltip,
@@ -158,8 +158,6 @@ export type ArtifactPreviewKind =
   | "audio"
   | "pdf";
 
-const TRUSTED_ARTIFACT_RUNTIME_MARKER = 'data-chat-artifact-runtime="true"';
-
 const UNTRUSTED_HTML_PREVIEW_CSP = [
   "default-src 'none'",
   "base-uri 'none'",
@@ -171,8 +169,12 @@ const UNTRUSTED_HTML_PREVIEW_CSP = [
   "style-src 'unsafe-inline'",
 ].join("; ");
 
+function isAllowedArtifactSrc(src: string): boolean {
+  if (src.startsWith("blob:")) return true;
+  return isPublicHttpUrl(src);
+}
+
 function sandboxedHtml(content: string) {
-  if (content.includes(TRUSTED_ARTIFACT_RUNTIME_MARKER)) return content;
   const meta = `<meta http-equiv="Content-Security-Policy" content="${UNTRUSTED_HTML_PREVIEW_CSP}">`;
   const headOpen = content.match(/<head\b[^>]*>/i);
   if (headOpen?.index !== undefined) {
@@ -191,6 +193,7 @@ export type ArtifactPreviewProps = HTMLAttributes<HTMLDivElement> & {
   mimeType?: string;
   actions?: ReactNode;
   showHeader?: boolean;
+  trustedHtml?: boolean;
 };
 
 function resolveArtifactPreviewKind(
@@ -224,9 +227,11 @@ export function ArtifactPreview({
   mimeType,
   actions,
   showHeader = true,
+  trustedHtml = false,
   ...props
 }: ArtifactPreviewProps) {
   const resolvedKind = resolveArtifactPreviewKind(kind, mimeType, filename);
+  const safeSrc = src && isAllowedArtifactSrc(src) ? src : undefined;
   return (
     <Artifact className={cn("h-full min-h-0", className)} {...props}>
       {showHeader ? (
@@ -243,39 +248,45 @@ export function ArtifactPreview({
         </ArtifactHeader>
       ) : null}
       <ArtifactContent className="min-h-0 p-0">
-        {resolvedKind === "image" && src ? (
+        {resolvedKind === "image" && safeSrc ? (
           <div className="flex h-full min-h-[40svh] items-center justify-center bg-muted/20 p-4">
             <img
-              src={src}
+              src={safeSrc}
               alt={title}
               className="max-h-[70svh] max-w-full object-contain"
             />
           </div>
-        ) : resolvedKind === "video" && src ? (
+        ) : resolvedKind === "video" && safeSrc ? (
           // biome-ignore lint/a11y/useMediaCaption: uploaded media has no separate caption track
           <video
-            src={src}
+            src={safeSrc}
             controls
             className="h-full min-h-[40svh] w-full bg-black"
           />
-        ) : resolvedKind === "audio" && src ? (
+        ) : resolvedKind === "audio" && safeSrc ? (
           <div className="flex min-h-[20svh] items-center justify-center p-6">
             {/* biome-ignore lint/a11y/useMediaCaption: uploaded media has no separate caption track */}
-            <audio src={src} controls className="w-full max-w-xl" />
+            <audio src={safeSrc} controls className="w-full max-w-xl" />
           </div>
-        ) : resolvedKind === "pdf" && src ? (
+        ) : resolvedKind === "pdf" && safeSrc ? (
           <iframe
             title={title}
-            src={src}
+            src={safeSrc}
             className="h-full min-h-[60svh] w-full bg-white"
           />
         ) : resolvedKind === "html" ? (
           <iframe
             title={title}
-            sandbox="allow-scripts"
+            sandbox={trustedHtml ? "allow-scripts" : ""}
             referrerPolicy="no-referrer"
-            src={src}
-            srcDoc={src ? undefined : sandboxedHtml(content)}
+            src={safeSrc}
+            srcDoc={
+              safeSrc
+                ? undefined
+                : trustedHtml
+                  ? content
+                  : sandboxedHtml(content)
+            }
             className="h-full min-h-[60svh] w-full bg-white"
           />
         ) : resolvedKind === "markdown" ? (

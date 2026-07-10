@@ -105,7 +105,7 @@ fmt:
 
 lint scope="":
     @if [ -z "{{ scope }}" ]; then \
-        uv run ruff check . && uv run mypy services libs && just lint-node; \
+        uv run ruff check . && uv run mypy services libs && just lint-node && just lint-go; \
     elif [ -f "services/{{ scope }}/package.json" ]; then \
         cd services/{{ scope }} && pnpm run lint; \
     else \

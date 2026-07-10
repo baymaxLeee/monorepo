@@ -5,7 +5,6 @@ import { UI_MESSAGE_STREAM_HEADERS } from "ai";
 
 import { type AgentSkillRef, getAgent, getProvider, type ProviderSnapshot } from "../clients/admin.js";
 import type { BotProfileSnapshot } from "../agent/context/instructions/index.js";
-import { getTask } from "../clients/executor.js";
 import { getAuth } from "../middleware/auth.js";
 import {
   createAgentRunResponse,
@@ -131,14 +130,4 @@ agentsRoutes.post("/:conversationId/agents/runs/:runId/cancel", async (c) => {
   const cancelled = await cancelRun(conversationId, runId);
   const run = await getAgentRunTrace(auth, conversationId, runId);
   return c.json({ cancelled, status: run.status });
-});
-
-// Read-only debug/status snapshot. HTML/video progress now rides the main
-// useChat stream as preliminary tool-results (ADR-0035); there is no separate
-// task SSE channel — this route stays only as a cold-start/debug JSON read.
-agentsRoutes.get("/:conversationId/tasks/:taskId", async (c) => {
-  const auth = getAuth(c);
-  await getConversationRow(auth, c.req.param("conversationId"));
-  const task = await getTask(c.req.param("taskId"));
-  return c.json(task);
 });

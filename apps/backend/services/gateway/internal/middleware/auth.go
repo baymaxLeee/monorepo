@@ -16,6 +16,14 @@ const (
 	HeaderAuthOrgID   = "X-Auth-Org-ID"
 	HeaderAuthOrgRole = "X-Auth-Org-Role"
 	HeaderAuthRoles   = "X-Auth-Roles"
+
+	// HeaderInternalToken carries the shared S2S secret between backend
+	// services. The gateway is an edge component, not a peer service — it
+	// must never accept this header from a client and must never forward a
+	// client-supplied value upstream, or an external caller could impersonate
+	// trusted S2S traffic on any internal route an upstream fails to gate.
+	HeaderInternalToken = "X-Internal-Token"
+	HeaderCallerService = "X-Caller-Service"
 )
 
 func IdentityPropagation(secret string, publicPathPrefixes, publicExactPaths, optionalAuthPathPrefixes []string) func(http.Handler) http.Handler {
@@ -27,6 +35,8 @@ func IdentityPropagation(secret string, publicPathPrefixes, publicExactPaths, op
 			r.Header.Del(HeaderAuthOrgID)
 			r.Header.Del(HeaderAuthOrgRole)
 			r.Header.Del(HeaderAuthRoles)
+			r.Header.Del(HeaderInternalToken)
+			r.Header.Del(HeaderCallerService)
 
 			// Prefix publics cover whole subtrees; method-aware exact publics
 			// open a single route (e.g. GET /api/iam-server/orgs) WITHOUT

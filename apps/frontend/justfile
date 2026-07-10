@@ -22,7 +22,7 @@ dev-all:
 build target="":
     @if [ -z "{{ target }}" ]; then \
         echo "→ Building all (turbo)..." && pnpm build; \
-    elif echo "{{ target }}" | grep -qE "^mfe-|^(platform|admin)$"; then \
+    elif [ -d "apps/{{ target }}" ]; then \
         echo "→ Building app: {{ target }}" && pnpm -F {{ target }} build; \
     elif [ -d "packages/{{ target }}" ]; then \
         echo "→ Building package: {{ target }}" && pnpm -F {{ target }} build; \
@@ -32,7 +32,7 @@ build target="":
 
 test pkg="":
     @if [ -z "{{ pkg }}" ]; then pnpm test; \
-    elif echo "{{ pkg }}" | grep -qE "^mfe-|^(platform|admin)$"; then pnpm -F {{ pkg }} test; \
+    elif [ -d "apps/{{ pkg }}" ]; then pnpm -F {{ pkg }} test; \
     else pnpm -F {{ pkg }} test; fi
 
 # ─── quality ────────────────────────────────────────────

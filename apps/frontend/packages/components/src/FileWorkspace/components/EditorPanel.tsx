@@ -79,6 +79,9 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
           return (
             <div
               key={tab.id}
+              role="tab"
+              tabIndex={0}
+              aria-selected={active}
               data-tab-id={tab.id}
               className={cn(
                 "relative flex h-8 max-w-48 shrink-0 cursor-default items-center gap-2 border-r px-3 text-sm transition-colors",
@@ -87,6 +90,12 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
                   : "text-muted-foreground hover:bg-muted",
               )}
               onClick={() => onTabSelect(tab.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onTabSelect(tab.id);
+                }
+              }}
             >
               <span className="min-w-0 max-w-36 overflow-hidden text-ellipsis whitespace-nowrap">
                 {tab.name}

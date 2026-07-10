@@ -80,6 +80,11 @@ export interface CreateArtifactInput {
      * @maxLength 26
      */
   user_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  org_id: string;
   conversation_id?: string | null;
   /**
      * @minLength 1
@@ -110,6 +115,11 @@ export interface CreateMediaDocumentInput {
      * @maxLength 26
      */
   user_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  org_id: string;
   conversation_id?: string | null;
   /**
      * @minLength 1
@@ -257,6 +267,11 @@ export interface PublishArtifactRevisionInput {
      * @maxLength 26
      */
   user_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  org_id: string;
   /** @minLength 1 */
   compiled_html: string;
 }
@@ -284,6 +299,11 @@ export interface ReserveArtifactGenerationInput {
      * @maxLength 26
      */
   user_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  org_id: string;
   conversation_id?: string | null;
   /**
      * @minLength 1
@@ -432,6 +452,7 @@ wait_ms?: number;
 
 export type GetDocumentSourceInternalDocumentsDocumentIdSourceGetParams = {
 user_id: string;
+max_dim?: number | null;
 };
 
 export type ListReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGetParams = {

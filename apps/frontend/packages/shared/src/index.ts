@@ -49,3 +49,13 @@ export function randomId(): string {
   }
   return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
 }
+
+/** Allow only http(s) links for user/model-provided hrefs — blocks javascript:, data:, etc. */
+export function isPublicHttpUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}

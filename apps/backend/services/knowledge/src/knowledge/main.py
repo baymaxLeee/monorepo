@@ -10,6 +10,7 @@ from kernel.logging import RequestLoggingMiddleware, configure_logging
 from kernel.observability import configure_opentelemetry
 from kernel.tracing import TraceIDMiddleware
 
+from knowledge.config import get_settings
 from knowledge.db import close_db
 from knowledge.routers import (
     artifacts_internal,
@@ -50,11 +51,19 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     configure_logging("knowledge")
     configure_opentelemetry("knowledge")
+    settings = get_settings()
     app = FastAPI(
         title="Knowledge Service",
         version="0.1.0",
         description="Knowledge base: ingest, storage, MarkItDown conversion, artifacts",
         lifespan=lifespan,
+        # Swagger/OpenAPI HTTP routes are docs UI only — `gen-openapi` calls
+        # app.openapi() in-process, so hiding these in prod doesn't affect
+        # codegen. Internal routers document real artifact/document internals,
+        # so the interactive UI must not be reachable off the cluster network.
+        docs_url=None if settings.is_production else "/docs",
+        redoc_url=None if settings.is_production else "/redoc",
+        openapi_url=None if settings.is_production else "/openapi.json",
     )
     register_exception_handlers(app)
     app.add_middleware(RequestLoggingMiddleware)

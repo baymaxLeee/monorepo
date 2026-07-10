@@ -101,7 +101,7 @@ async def reserve_generation(payload: ReserveArtifactGenerationInput, session: D
                 raise ConflictError("artifact idempotency key belongs to another user")
             return _generation_schema(existing)
 
-        document_id = sha256(f"{payload.user_id}:{payload.idempotency_key}".encode()).hexdigest()[:16]
+        document_id = sha256(f"{payload.org_id}:{payload.user_id}:{payload.idempotency_key}".encode()).hexdigest()[:16]
         if payload.document_id:
             document = await document_crud.get_document(session, payload.document_id, payload.user_id)
             if document is None or document.kind != "artifact":
@@ -119,7 +119,12 @@ async def reserve_generation(payload: ReserveArtifactGenerationInput, session: D
             brief=payload.brief,
             idempotency_key=payload.idempotency_key,
             status="queued",
-            manifest_json={"schemaVersion": 1, "mode": payload.mode, "blocks": []},
+            manifest_json={
+                "schemaVersion": 1,
+                "mode": payload.mode,
+                "blocks": [],
+                **({"org_id": payload.org_id} if payload.org_id else {}),
+            },
             total_blocks=0,
             completed_blocks=0,
             failed_blocks=0,
@@ -372,9 +377,15 @@ async def publish_revision(
         )
         now = datetime.now(UTC)
         if document is None:
+            org_id = payload.org_id
+            if org_id is None and isinstance(generation.manifest_json, dict):
+                manifest_org = generation.manifest_json.get("org_id")
+                if isinstance(manifest_org, str) and manifest_org:
+                    org_id = manifest_org
             await document_crud.create_document(
                 session,
                 user_id=payload.user_id,
+                org_id=org_id,
                 conversation_id=generation.conversation_id,
                 kind="artifact",
                 title=generation.title,

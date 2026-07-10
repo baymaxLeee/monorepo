@@ -47,18 +47,23 @@ just dev
 
 ```
 浏览器 :3000
-  └─ shell 通过 Module Federation 加载 mfe_bot/App
-       └─ mfe-bot 调 fetch http://localhost:8000/v1/bots
-            └─ gateway 反向代理到 http://localhost:8001/v1/bots
-                 └─ bot 服务返回 3 个 demo Bot
+  └─ platform 通过 Module Federation 加载 mfe-chat / mfe-admin
+       └─ mfe-chat 调 gateway http://localhost:8000/v1/...
+            └─ gateway 反向代理到 chat / admin / knowledge / executor
+                 └─ chat agent 流式返回，artifact 写入 knowledge
 ```
 
 | 服务 | URL | 角色 |
 |---|---|---|
-| shell | http://localhost:3000 | 微前端 host(主壳) |
-| mfe-bot | http://localhost:3001 | 微前端 remote(智能体模块) |
+| platform | http://localhost:3000 | 微前端 host（主壳） |
+| mfe-admin | http://localhost:3001 | 管理台 remote |
+| mfe-chat | http://localhost:3005 | 对话 remote |
 | gateway | http://localhost:8000 | Go API 网关 |
-| bot | http://localhost:8001/docs | FastAPI 智能体服务(Swagger UI) |
+| iam | http://localhost:8002/healthz | 身份 / 组织 |
+| svc-admin | http://localhost:8001/docs | 配置平面（providers / skills） |
+| svc-chat | http://localhost:8009/docs | Agent 运行时 |
+| knowledge | http://localhost:8010/healthz | 文档 / RAG / artifact 存储 |
+| executor | http://localhost:8011/healthz | 长任务（HTML artifact / 视频） |
 
 > 不想装 mise?自己装齐 `node@22 / pnpm@9 / python@3.12 / uv / go@1.23 / just / docker / jq` 也行。
 > 不想装 overmind?`just dev` 会自动回退到纯 shell 模式,功能一样,只是日志混在一起。
@@ -72,7 +77,7 @@ just dev
 ```bash
 just install # 首次 clone:装齐 mise/pnpm/uv/go 与所有 workspace 依赖
 just up      # 起 Docker + 建库 + schema
-just dev     # 起全套服务(platform + mfe-admin + gateway + svc-admin),Ctrl+C 全停
+just dev     # 起全套服务(platform + mfe-admin + mfe-chat + gateway + 后端微服务),Ctrl+C 全停
 just down    # 收工,关 docker
 ```
 
@@ -80,7 +85,7 @@ just down    # 收工,关 docker
 
 ## 🧰 技术栈速览
 
-- **前端**:React 18 + TypeScript + Rspack + **Module Federation 2.0**(`shell` host + `mfe-*` remote)
+- **前端**:React 18 + TypeScript + Rspack + **Module Federation 2.0**(`platform` host + `mfe-*` remote)
 - **后端**:Python 3.12 + FastAPI(微服务) + Go 1.23 + chi(API Gateway)
 - **包管理**:pnpm(FE) · uv(Py) · go.work
 - **任务编排**:[just](https://just.systems) + [mise](https://mise.jdx.dev)
@@ -101,7 +106,7 @@ just down    # 收工,关 docker
 | `just up` / `just down` | 起 / 关 docker(Redis + Postgres/pgvector) |
 | `just install` | 装所有依赖(前端 + 后端 Py + Go) |
 | `just build` | **全栈构建**(前端 dist + Go 二进制) |
-| `just build <target>` | 单目标构建:`shell` / `mfe-bot` / `gateway` / `frontend` / `backend` |
+| `just build <target>` | 单目标构建:`platform` / `admin` / `chat` / `gateway` / `frontend` / `backend` |
 | `just build-images [registry] [tag]` | 后端所有服务打 docker 镜像 |
 | `just sync` | 后端导出 OpenAPI → 前端重新生成 TS 客户端 ⭐ |
 | `just fmt` | 一把梭格式化(ruff + prettier + gofmt) |
@@ -115,13 +120,14 @@ just down    # 收工,关 docker
 ```bash
 # 前端
 cd apps/frontend
-just dev shell              # 单起 shell
-just dev mfe-bot            # 单起 mfe-bot
+just dev platform              # 单起 platform
+just dev admin                 # 单起 mfe-admin
+just dev chat                  # 单起 mfe-chat
 just build                  # build 全部(turbo orchestrates)
-just build shell            # 只 build shell → apps/shell/dist/
-just build mfe-bot          # 只 build mfe-bot → apps/mfe-bot/dist/ + mf-manifest.json
-just test mfe-bot           # 测 mfe-bot
-just gen-client             # 重新生成 api-client
+just build platform         # 只 build platform
+just build chat             # 只 build mfe-chat
+just test mfe-bot           # demo 阶段跳过（见根 AGENTS.md）
+just gen-client             # 重新生成 packages/api/generated
 
 # 后端
 cd apps/backend
@@ -132,7 +138,7 @@ just build gateway          # 只 build Go 二进制 → services/gateway/bin/se
 just build bot              # Python "build":lint + test + 导 OpenAPI 预检
 just build-image bot        # docker build 单个服务 → local/bot:latest
 just build-images           # 全部服务的 docker 镜像
-just test bot               # 测 bot 服务
+just test bot               # demo 阶段跳过（见根 AGENTS.md）
 just gen-openapi bot        # 导出 OpenAPI 到 schemas/openapi/bot.json
 just migrate-new admin v1.1.0 "msg"  # 新建服务内 SQL migration
 just migrate-up admin v1.1.0         # 应用 (current, target] 范围内的 migration
@@ -224,7 +230,7 @@ overmind kill                  # 全部干掉
 | Tier 2:平台基础设施 | `@packages/shared`、`@packages/runtime`、`@packages/auth-client` | 项目内通用 workspace 包 | `eager: true` | `eager: false` |
 
 **不进 shared 的**(各 MFE 自带):
-- 服务粒度的 client(`@packages/api-client/bot`、`@packages/api-client/scene` ...,只有少数 MFE 用)
+- 服务粒度的 client（`packages/api` 统一导出各服务 typed client，按需 import）
 - MFE 业务专属 UX 库(`react-markdown`、`monaco-editor`、图表库...)
 
 ### 为什么 host 要 eager,remote 不要

@@ -1,10 +1,10 @@
-import { isStepCount, ToolLoopAgent } from "ai";
+import { ToolLoopAgent } from "ai";
 import type { ToolSet } from "ai";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import { finishSpan, runWithActiveSpan, startSpan } from "@backend/kernel-ts";
 
+import { getSettings } from "../../config.js";
 import { logger } from "../../lib/logger.js";
-import { MAX_AGENT_STEPS } from "./config.js";
 import {
   finishModelStep,
   extractUsageTokens,
@@ -114,6 +114,7 @@ export async function createToolLoopAgent(
     profileId: input.mode,
     runtimeKind: "tool-loop",
   };
+  const toolApprovalSecret = getSettings().toolApprovalSecret;
   const agent = new ToolLoopAgent<never, typeof tools, AgentRuntimeContext>({
     id: "chat-agent",
     model: createProviderModel(provider, {
@@ -125,9 +126,12 @@ export async function createToolLoopAgent(
     activeTools: resolvedTools.activeTools,
     toolOrder: [...resolvedTools.activeTools].sort(),
     toolApproval: createToolApprovalPolicy(input.mode),
+    // ToolLoopAgentSettings omits experimental_toolApprovalSecret; streamText
+    // accepts it and HMAC-binds approvals at issuance/replay.
+    prepareCall: (settings) =>
+      Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
     toolsContext: toolsContext as never,
     runtimeContext,
-    stopWhen: isStepCount(MAX_AGENT_STEPS),
     onStepStart: (event) => {
       currentStepNumber = event.stepNumber;
       modelStepSpans.set(
