@@ -1,10 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "noEmit": true
   },
   "include": ["src/**/*"]
 }

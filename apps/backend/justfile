@@ -116,7 +116,8 @@ lint scope="":
     fi
 
 lint-node:
-    @for s in {{ NODE_SERVICES }}; do echo "=== $s ===" && (cd services/$s && pnpm run lint); done
+    @for p in libs/kernel-ts libs/transport-ts; do echo "=== $p ===" && (cd $p && pnpm run typecheck) || exit 1; done
+    @for s in {{ NODE_SERVICES }}; do echo "=== $s ===" && (cd services/$s && pnpm run lint) || exit 1; done
 
 lint-go:
     @for s in {{ GO_SERVICES }}; do echo "=== $s ===" && (cd services/$s && go vet ./...); done

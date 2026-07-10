@@ -119,6 +119,20 @@ deployed asset bundles, but platform is the only user-facing entry.
 - **约束**: 记忆化正确性依赖遵守 Rules of React（不要在渲染期 mutate props/state、hooks 只在顶层调用）。新组件若出现 stale/异常，先怀疑规则违背，用 `"use no memo"` 临时隔离再修。
 - **版本**: `@rspack/core`/`@rspack/cli` ≥ `2.1.2`；勿降回 2.0.x（会丢失 `reactCompiler` 支持）。
 
+### TypeScript 7（原生检查器双轨过渡）
+
+- `@typescript/native` 固定原生 TypeScript 7，负责所有 `typecheck`；各包脚本显式调用
+  `node_modules/@typescript/native/bin/tsc`，不得改回不确定来源的裸 `tsc`。
+- `typescript` 5.x 暂时只服务仍依赖旧编程 API / peer range 的 Module Federation、
+  Orval / TypeDoc、shadcn 等工具，不负责仓库类型检查；上游兼容稳定 API 后直接删除旧版本。
+- 普通 TS package 不得直接声明旧 `typescript`；每个含 TS 源码的 workspace package
+  必须提供独立 TS7 `typecheck`。只有承载明确旧 API / peer 消费者的 package 可保留 TS5。
+- TS7 不支持 `baseUrl`；`paths` replacement 必须以 `./` 开头，并相对声明它的项目 `tsconfig.json`。
+  浏览器代码不要依赖默认注入的 Node 全局类型，计时器使用
+  `ReturnType<typeof setTimeout>`。
+- VS Code / Cursor 使用微软 `TypeScriptTeam.native-preview` 扩展，并在编辑器设置中启用
+  `js/ts.experimental.useTsgo`。
+
 ### Code style
 
 - Components: PascalCase, ≤ 250 LoC, no default exports in libs

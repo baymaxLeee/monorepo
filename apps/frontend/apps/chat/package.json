@@ -8,7 +8,7 @@
     "build": "rspack build",
     "lint": "biome check src",
     "format": "biome check --write src",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit"
   },
   "dependencies": {
     "@ai-sdk/react": "catalog:",
@@ -31,6 +31,7 @@
   },
   "devDependencies": {
     "@module-federation/enhanced": "catalog:",
+    "@typescript/native": "catalog:",
     "@rspack/cli": "catalog:",
     "@rspack/core": "catalog:",
     "@rspack/dev-server": "catalog:",

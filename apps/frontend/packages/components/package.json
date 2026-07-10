@@ -87,7 +87,7 @@
   "scripts": {
     "lint": "biome check src",
     "format": "biome check --write src",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit",
     "ui:add": "shadcn add",
     "ui:diff": "shadcn diff"
   },
@@ -96,9 +96,9 @@
     "react-dom": "^18.0.0"
   },
   "devDependencies": {
+    "@typescript/native": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "shadcn": "^4.12.0",
-    "typescript": "catalog:"
+    "shadcn": "^4.12.0"
   }
 }

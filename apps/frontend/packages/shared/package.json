@@ -8,11 +8,14 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit"
+  },
   "dependencies": {
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
-    "typescript": "catalog:"
+    "@typescript/native": "catalog:"
   }
 }

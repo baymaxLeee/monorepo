@@ -51,7 +51,7 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
   const [visible, setVisible] = useState(false);
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
-  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

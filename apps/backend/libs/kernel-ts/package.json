@@ -5,6 +5,9 @@
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./trace": "./src/trace.ts"
@@ -20,5 +23,9 @@
   },
   "peerDependencies": {
     "hono": "^4.7.0"
+  },
+  "devDependencies": {
+    "@typescript/native": "catalog:",
+    "@types/node": "^22.13.0"
   }
 }

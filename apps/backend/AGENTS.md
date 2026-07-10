@@ -95,6 +95,18 @@ share Pydantic models across services via libs — each service owns its own DTO
 | `just migrate-new <svc> <version>` | New service-owned SQL migration, versioned as `vX.Y.Z` |
 | `just migrate-up <svc> [target-version]` | Apply SQL migrations in `(current, target]`; defaults to latest local version |
 
+### TypeScript 7
+
+- `@typescript/native` 固定原生 TypeScript 7，负责 Node 服务和 TypeScript kernel 的
+  `build` / `lint` / `typecheck`。脚本必须显式调用
+  `node_modules/@typescript/native/bin/tsc`，不得使用来源不确定的裸 `tsc`。
+- `typescript` 5.x 暂时保留给 Nitro、Workflow TypeScript plugin、OpenAPI 工具等旧
+  编程 API 消费者，不负责仓库代码检查；这些工具支持 TS7 稳定 API 后直接删除旧版本。
+- 普通 Node package 不得直接声明旧 `typescript`；只有承载明确旧 API / peer
+  消费者的 package 可保留 TS5，其他包只声明 `@typescript/native`。
+- 所有 Node `tsconfig.json` 必须显式声明 `"types": ["node"]`；TS7 不再默认注入
+  `@types/*` 全局类型。
+
 ## Size limits
 - ≤ 500 LoC per Python module (excl. tests)
 - ≤ 800 LoC hard ceiling — split into a new module if exceeded

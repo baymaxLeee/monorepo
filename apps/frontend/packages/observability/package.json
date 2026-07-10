@@ -8,10 +8,13 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit"
+  },
   "dependencies": {
     "web-vitals": "^5.1.0"
   },
   "devDependencies": {
-    "typescript": "catalog:"
+    "@typescript/native": "catalog:"
   }
 }
