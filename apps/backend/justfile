@@ -24,7 +24,7 @@ dev service:
             cd services/{{ service }} && PORT=$PORT pnpm dev; \
         else \
             echo "→ Python service {{ service }} on :$PORT" && \
-            cd services/{{ service }} && uv run uvicorn {{ service }}.main:app --reload --port $PORT --no-access-log; \
+            cd services/{{ service }} && uv run uvicorn main:app --app-dir src --reload --port $PORT --no-access-log; \
         fi; \
     else echo "✗ Unknown service: {{ service }}"; exit 1; fi
 
@@ -105,7 +105,10 @@ fmt:
 
 lint scope="":
     @if [ -z "{{ scope }}" ]; then \
-        uv run ruff check . && uv run mypy services libs && just lint-node && just lint-go; \
+        uv run ruff check . && \
+        uv run mypy libs && \
+        for s in {{ PY_SERVICES }}; do (cd services/$s && uv run mypy .) || exit 1; done && \
+        just lint-node && just lint-go; \
     elif [ -f "services/{{ scope }}/package.json" ]; then \
         cd services/{{ scope }} && pnpm run lint; \
     else \
@@ -126,7 +129,7 @@ gen-openapi service:
         cd services/{{ service }} && pnpm exec tsx src/gen-openapi.ts > ../../../../schemas/openapi/$out.json; \
     else \
         cd services/{{ service }} && \
-            uv run python -m {{ service }}.gen_openapi \
+            uv run python src/gen_openapi.py \
             > ../../../../schemas/openapi/$out.json; \
     fi
     @out="{{ service }}-server"; \

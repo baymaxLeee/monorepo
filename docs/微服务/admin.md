@@ -45,13 +45,13 @@ dev fallback 值，避免线上误用样本密钥。**轮换 `ADMIN_SECRET_KEY` 
 
 ## 入口文件
 
-- `src/admin/main.py` — FastAPI app + lifespan
-- `src/admin/routers/providers.py` — 公开 CRUD
-- `src/admin/routers/providers_internal.py` — `/internal/providers/*`
-- `src/admin/services/providers.py` — 业务编排（含 OpenAI 兼容连通性测试）
-- `src/admin/services/encryption.py` — Fernet wrapper + masking
-- `src/admin/deps.py` — `InternalCaller` dependency（X-Internal-Token 校验）
-- `src/admin/crud/providers.py` / `models/provider.py` / `schemas/provider.py`
+- `src/main.py` — FastAPI app + lifespan
+- `src/routers/providers.py` — 公开 CRUD
+- `src/routers/providers_internal.py` — `/internal/providers/*`
+- `src/services/providers.py` — 业务编排（含 OpenAI 兼容连通性测试）
+- `src/services/encryption.py` — Fernet wrapper + masking
+- `src/deps.py` — `InternalCaller` dependency（X-Internal-Token 校验）
+- `src/crud/providers.py` / `models/provider.py` / `schemas/provider.py`
 
 ## 关键约束
 

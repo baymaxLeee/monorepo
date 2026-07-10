@@ -17,9 +17,10 @@ dependencies = [
     "kernel",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+[tool.uv]
+package = false
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/admin"]
+[tool.mypy]
+mypy_path = "src"
+explicit_package_bases = true
+files = ["src"]

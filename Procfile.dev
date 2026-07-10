@@ -7,11 +7,11 @@
 #     come online; the API call only fires when the user clicks/loads the list.
 #   - We DO wait for mfe-admin's manifest before starting platform.
 
-svc-admin: cd apps/backend/services/admin && uv run uvicorn admin.main:app --reload --port 8001
+svc-admin: cd apps/backend/services/admin && uv run uvicorn main:app --app-dir src --reload --port 8001
 svc-chat:  cd apps/backend/services/chat && PORT=8009 pnpm dev
 executor:  cd apps/backend/services/executor && PORT=8011 pnpm dev
-knowledge: cd apps/backend/services/knowledge && uv run uvicorn knowledge.main:app --reload --port 8010
-telemetry: cd apps/backend/services/telemetry && uv run uvicorn telemetry.main:app --reload --port 8008
+knowledge: cd apps/backend/services/knowledge && uv run uvicorn main:app --app-dir src --reload --port 8010
+telemetry: cd apps/backend/services/telemetry && uv run uvicorn main:app --app-dir src --reload --port 8008
 iam:  cd apps/backend/services/iam && PORT=8002 IAM_POSTGRES_DATABASE=iam go run ./cmd/server
 gateway:   cd apps/backend/services/gateway && PORT=8000 go run ./cmd/server
 mfe-admin: cd apps/frontend && PORT=3001 pnpm -F admin dev

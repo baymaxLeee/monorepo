@@ -145,22 +145,13 @@ function partsFromPersistedContent(
   return null;
 }
 
-function sanitizeHistoryParts(message: AnyUIMessage): AnyUIMessage {
-  const parts = message.parts.filter((part) => {
-    if (!part || typeof part !== "object" || !("toolCallId" in part)) return true;
-    const state = "state" in part ? part.state : "";
-    return state === "output-available" || state === "output-error";
-  });
-  return { ...message, parts } as AnyUIMessage;
-}
-
 function persistedMessageToUiMessage(message: Message): AnyUIMessage {
   const parts = partsFromPersistedContent(message.content);
-  return sanitizeHistoryParts({
+  return {
     id: message.id,
     role: message.role,
     parts: parts ?? [],
-  } as AnyUIMessage);
+  } as AnyUIMessage;
 }
 
 export async function createAgentRunResponse(

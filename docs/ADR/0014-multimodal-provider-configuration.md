@@ -70,7 +70,7 @@ boundaries above:
   and parses it, so we receive raw bytes regardless of the provider's configured
   default. Those bytes are copied immediately into Knowledge via a new internal
   endpoint `POST /internal/media-documents`
-  (`services/knowledge/src/knowledge/routers/documents_internal.py`), which
+  (`services/knowledge/src/routers/documents_internal.py`), which
   mirrors the artifact-publish object-store path. Messages persist only the
   resulting `document_id`; Ark's temporary URL is never persisted.
 - Generation runs inline in the tool call (no durable executor task), but a

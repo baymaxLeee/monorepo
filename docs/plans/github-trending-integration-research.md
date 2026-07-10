@@ -23,7 +23,7 @@
 - Agent 运行时 = AI SDK v7 `ToolLoopAgent`（`apps/backend/services/chat/src/agent/agents/tool-loop.ts`，含 `stopWhen`、tool approval、`toolsContext`）
 - 持久后台任务 = Workflow DevKit + Nitro（`apps/backend/services/executor/`）
 - RAG = pgvector 混合检索（dense + BM25 + RRF + rerank + Contextual Retrieval，`apps/backend/services/knowledge/`）
-- 文档转换 = `markitdown[all]>=0.1.3`（`apps/backend/services/knowledge/src/knowledge/services/convert.py`，图片走 vision LLM caption）
+- 文档转换 = `markitdown[all]>=0.1.3`（`apps/backend/services/knowledge/src/services/convert.py`，图片走 vision LLM caption）
 - 流式 UI = streamdown + 自研 `AiChat/`；富文本 = TipTap 3
 - 流式契约 = `schemas/streaming/chat-uimessage-stream.md`（reuse-first，官方 `text`/`reasoning`/`tool-*`/`file`/`source-*`/`metadata`）
 - 可恢复流 = Redis Streams；web 搜索 = Tavily

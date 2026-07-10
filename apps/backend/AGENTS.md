@@ -78,7 +78,7 @@ share Pydantic models across services via libs — each service owns its own DTO
 5. Document in `docs/微服务/<name>.md`
 
 ### Adding a route
-- Routes go in `services/<name>/src/<name>/routes/<resource>.py`
+- Routes go in `services/<name>/src/routers/<resource>.py`
 - Apply `@require_action(...)` for mutations
 - Use `libs.kernel.errors.*`, NEVER raise raw HTTPException
 - Audit successful mutations via `libs.audit_sdk.record(...)`

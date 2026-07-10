@@ -19,11 +19,11 @@ WORKDIR /app/services/telemetry
 RUN uv sync --frozen --no-dev
 
 FROM python:3.14.5-slim
-WORKDIR /app
 COPY --from=builder /app /app
 # uv puts the venv at the workspace root (apps/backend = /app here), not at
 # the member directory — so the bin/ to add to PATH is /app/.venv/bin.
 ENV PATH="/app/.venv/bin:$PATH"
+WORKDIR /app/services/telemetry
 
 EXPOSE 8008
-CMD ["uvicorn", "telemetry.main:app", "--host", "0.0.0.0", "--port", "8008", "--no-access-log"]
+CMD ["uvicorn", "main:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "8008", "--no-access-log"]

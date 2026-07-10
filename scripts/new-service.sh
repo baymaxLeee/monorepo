@@ -11,7 +11,7 @@ if [ -d "$SVC_DIR" ]; then
 fi
 
 echo "→ Scaffolding service: $NAME at $SVC_DIR"
-mkdir -p "$SVC_DIR"/{src/$NAME/{routes,models,repository},migrations/versions}
+mkdir -p "$SVC_DIR"/{src/{routers,models,crud,services,schemas},migrations/versions}
 
 cat > "$SVC_DIR/pyproject.toml" <<EOF
 [project]
@@ -27,12 +27,13 @@ dependencies = [
     "audit_sdk",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+[tool.uv]
+package = false
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/$NAME"]
+[tool.mypy]
+mypy_path = "src"
+explicit_package_bases = true
+files = ["src"]
 EOF
 
 cat > "$SVC_DIR/AGENTS.md" <<EOF
@@ -41,16 +42,10 @@ cat > "$SVC_DIR/AGENTS.md" <<EOF
 (Document responsibilities, owns/does-not-own, entry points here.)
 EOF
 
-cat > "$SVC_DIR/src/$NAME/__init__.py" <<EOF
-"""$NAME microservice."""
-
-__version__ = "0.1.0"
-EOF
-
-cat > "$SVC_DIR/src/$NAME/main.py" <<EOF
+cat > "$SVC_DIR/src/main.py" <<EOF
 from fastapi import FastAPI
 from kernel.errors import register_exception_handlers
-from .routes import health
+from routers import health
 
 
 def create_app() -> FastAPI:
@@ -63,17 +58,25 @@ def create_app() -> FastAPI:
 app = create_app()
 EOF
 
-cat > "$SVC_DIR/src/$NAME/gen_openapi.py" <<EOF
-import json, sys
-from .main import app
+cat > "$SVC_DIR/src/gen_openapi.py" <<EOF
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from main import app
+
 json.dump(app.openapi(), sys.stdout, indent=2, ensure_ascii=False)
+sys.stdout.write("\n")
 EOF
 
-cat > "$SVC_DIR/src/$NAME/routes/__init__.py" <<EOF
+cat > "$SVC_DIR/src/routers/__init__.py" <<EOF
 EOF
 
-cat > "$SVC_DIR/src/$NAME/routes/health.py" <<EOF
+cat > "$SVC_DIR/src/routers/health.py" <<EOF
 from fastapi import APIRouter
+
 router = APIRouter(tags=["meta"])
 
 
@@ -87,5 +90,5 @@ echo ""
 echo "Next:"
 echo "  1. Add '$NAME' to apps/backend/justfile PY_SERVICES list"
 echo "  2. Add to apps/backend/pyproject.toml [tool.uv.workspace] members"
-echo "  3. cd $SVC_DIR && uv sync"
+echo "  3. cd $ROOT/apps/backend && uv sync --all-packages"
 echo "  4. Add k8s manifests: infra/k8s/base/$NAME/"

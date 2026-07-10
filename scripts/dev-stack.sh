@@ -61,7 +61,7 @@ monitor_stack() {
 
 (
   cd apps/backend/services/admin
-  uv run uvicorn admin.main:app --reload --port 8001 2>&1 | sed 's/^/[svc-admin] /'
+  uv run uvicorn main:app --app-dir src --reload --port 8001 2>&1 | sed 's/^/[svc-admin] /'
 ) &
 track_last_pid
 (
@@ -71,12 +71,12 @@ track_last_pid
 track_last_pid
 (
   cd apps/backend/services/knowledge
-  uv run uvicorn knowledge.main:app --reload --port 8010 2>&1 | sed 's/^/[knowledge] /'
+  uv run uvicorn main:app --app-dir src --reload --port 8010 2>&1 | sed 's/^/[knowledge] /'
 ) &
 track_last_pid
 (
   cd apps/backend/services/telemetry
-  uv run uvicorn telemetry.main:app --reload --port 8008 2>&1 | sed 's/^/[telemetry] /'
+  uv run uvicorn main:app --app-dir src --reload --port 8008 2>&1 | sed 's/^/[telemetry] /'
 ) &
 track_last_pid
 (

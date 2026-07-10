@@ -30,11 +30,11 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
   fetched via `/internal/providers/by-kind/{kind}`)
 
 ## Entry points
-- `src/knowledge/main.py` — FastAPI app
-- `src/knowledge/routers/*.py` — HTTP handlers (incl. `retrieval_internal.py`)
-- `src/knowledge/services/*.py` — ingest, conversion, object store, indexing,
+- `src/main.py` — FastAPI app
+- `src/routers/*.py` — HTTP handlers (incl. `retrieval_internal.py`)
+- `src/services/*.py` — ingest, conversion, object store, indexing,
   retrieval, embed/rerank client, chunking, contextual retrieval
-- `src/knowledge/gen_openapi.py` — OpenAPI export
+- `src/gen_openapi.py` — OpenAPI export
 - `scripts/eval_rag.py` — manual retrieval quality check (NOT CI / NOT tests)
 
 ## Conventions

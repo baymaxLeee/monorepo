@@ -14,14 +14,14 @@ The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing
 - Bot audit log (→ audit service via events)
 
 ## Entry points
-- `src/admin/main.py` — FastAPI app
-- `src/admin/routers/*.py` — HTTP handlers
-- `src/admin/services/*.py` — business orchestration
-- `src/admin/crud/*.py` — persistence operations
-- `src/admin/models/*.py` — SQLAlchemy ORM table models
-- `src/admin/schemas/*.py` — Pydantic request/response schemas
-- `src/admin/grpc/server.py` — gRPC server (when added)
-- `src/admin/gen_openapi.py` — OpenAPI export (run by `just gen-openapi admin`)
+- `src/main.py` — FastAPI app
+- `src/routers/*.py` — HTTP handlers
+- `src/services/*.py` — business orchestration
+- `src/crud/*.py` — persistence operations
+- `src/models/*.py` — SQLAlchemy ORM table models
+- `src/schemas/*.py` — Pydantic request/response schemas
+- `src/grpc/server.py` — gRPC server (when added)
+- `src/gen_openapi.py` — OpenAPI export (run by `just gen-openapi admin`)
 
 ## Conventions
 - Routers are thin: request/response wiring only.

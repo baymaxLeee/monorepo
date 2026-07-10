@@ -20,11 +20,11 @@ RUN uv sync --frozen --no-dev
 
 # ─── runtime ────────────────────────────────────────────
 FROM python:3.14.5-slim
-WORKDIR /app
 COPY --from=builder /app /app
 # uv puts the venv at the workspace root (apps/backend = /app here), not at
 # the member directory — so the bin/ to add to PATH is /app/.venv/bin.
 ENV PATH="/app/.venv/bin:$PATH"
+WORKDIR /app/services/admin
 
 EXPOSE 8001
-CMD ["uvicorn", "admin.main:app", "--host", "0.0.0.0", "--port", "8001", "--no-access-log"]
+CMD ["uvicorn", "main:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "8001", "--no-access-log"]

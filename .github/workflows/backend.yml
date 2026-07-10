@@ -21,7 +21,12 @@ jobs:
       - run: uv sync --all-packages
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run mypy services libs
+      - name: mypy
+        run: |
+          uv run mypy libs
+          for svc in admin knowledge telemetry; do
+            (cd "services/$svc" && uv run mypy .)
+          done
       # Demo phase: most services have no tests/ yet (see root AGENTS.md).
       # The guard skips services without a tests/ directory rather than
       # failing the build.

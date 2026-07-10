@@ -17,7 +17,7 @@
 [ ] apps/backend/services/<name>/.env.example          # PORT、POSTGRES_*、REDIS_DB、其他上游凭据
 [ ] apps/backend/services/<name>/Dockerfile
 [ ] apps/backend/services/<name>/AGENTS.md
-[ ] apps/backend/services/<name>/src/<name>/
+[ ] apps/backend/services/<name>/src/
     [ ] main.py（FastAPI app + lifespan）
     [ ] config.py / db.py / redis_client.py / deps.py
     [ ] models/ schemas/ crud/ services/ routers/
@@ -66,7 +66,7 @@ ADR-0015 的教训：`executor` 加入 `NODE_SERVICES` 后这个洞踩了一整�
 ## E. 契约 / OpenAPI
 
 ```
-[ ] apps/backend/services/<name>/src/<name>/gen_openapi.py   # 输出到 schemas/openapi/<name>-server.json
+[ ] apps/backend/services/<name>/src/gen_openapi.py   # 输出到 schemas/openapi/<name>-server.json
 [ ] 验证：cd apps/backend && just gen-openapi <name>
 [ ] 在仓库根运行 just sync 让前端 client 同步
 ```

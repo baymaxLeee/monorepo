@@ -54,8 +54,11 @@ echo "→ Seeding admin demo data..."
 cd "$ADMIN_DIR"
 uv run python - <<'PY'
 import asyncio
+import sys
 
-from admin.db import close_db, seed_demo_bots
+sys.path.insert(0, "src")
+
+from db import close_db, seed_demo_bots
 
 
 async def main() -> None:

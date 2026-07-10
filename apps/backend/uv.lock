@@ -18,7 +18,7 @@ members = [
 [[package]]
 name = "admin"
 version = "0.1.0"
-source = { editable = "services/admin" }
+source = { virtual = "services/admin" }
 dependencies = [
     { name = "asyncpg" },
     { name = "cryptography" },
@@ -660,7 +660,7 @@ requires-dist = [
 [[package]]
 name = "knowledge"
 version = "0.1.0"
-source = { editable = "services/knowledge" }
+source = { virtual = "services/knowledge" }
 dependencies = [
     { name = "asyncpg" },
     { name = "cachetools" },
@@ -1589,7 +1589,7 @@ wheels = [
 [[package]]
 name = "telemetry"
 version = "0.1.0"
-source = { editable = "services/telemetry" }
+source = { virtual = "services/telemetry" }
 dependencies = [
     { name = "asyncpg" },
     { name = "cryptography" },

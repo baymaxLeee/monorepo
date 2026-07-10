@@ -17,9 +17,9 @@ WORKDIR /app/services/knowledge
 RUN uv sync --frozen --no-dev
 
 FROM python:3.14.5-slim
-WORKDIR /app
 COPY --from=builder /app /app
 ENV PATH="/app/.venv/bin:$PATH"
 RUN mkdir -p /data/objects
+WORKDIR /app/services/knowledge
 EXPOSE 8010
-CMD ["uvicorn", "knowledge.main:app", "--host", "0.0.0.0", "--port", "8010", "--no-access-log"]
+CMD ["uvicorn", "main:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "8010", "--no-access-log"]
