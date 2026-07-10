@@ -18,6 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
+      - run: uv lock --check
       - run: uv sync --all-packages
       - run: uv run ruff check .
       - run: uv run ruff format --check .
@@ -53,7 +54,7 @@ jobs:
       - uses: jdx/mise-action@v2
       - uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 11.9.0
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
       - run: pnpm run build
@@ -67,9 +68,12 @@ jobs:
     defaults:
       run:
         working-directory: apps/backend/services/${{ matrix.service }}
+    env:
+      GOWORK: "off"
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
+      - run: go mod tidy && git diff --exit-code -- go.mod go.sum
       - run: go mod download
       - run: go vet ./...
       - run: go build ./...

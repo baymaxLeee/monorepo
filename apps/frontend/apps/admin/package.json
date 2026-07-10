@@ -11,31 +11,31 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.4.0",
-    "@tanstack/react-query": "^5.101.2",
+    "@hookform/resolvers": "catalog:",
+    "@tanstack/react-query": "catalog:",
     "api": "workspace:*",
     "components": "workspace:*",
     "echarts": "^6.0.0",
-    "lucide-react": "^0.468.0",
+    "lucide-react": "catalog:",
     "observability": "workspace:*",
-    "react": "^18.3.0",
-    "react-compiler-runtime": "^1.0.0",
-    "react-dom": "^18.3.0",
-    "react-hook-form": "^7.76.0",
-    "react-router-dom": "^6.26.0",
+    "react": "catalog:",
+    "react-compiler-runtime": "catalog:",
+    "react-dom": "catalog:",
+    "react-hook-form": "catalog:",
+    "react-router-dom": "catalog:",
     "runtime": "workspace:*",
     "shared": "workspace:*",
-    "zod": "^4.4.3",
-    "zustand": "^5.0.2"
+    "zod": "catalog:",
+    "zustand": "catalog:"
   },
   "devDependencies": {
-    "@module-federation/enhanced": "^2.4.0",
-    "@rspack/cli": "^2.1.2",
-    "@rspack/core": "^2.1.2",
-    "@rspack/dev-server": "^2.0.5",
-    "@swc/helpers": "^0.5.0",
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "^18.3.0",
-    "typescript": "^5.4.0"
+    "@module-federation/enhanced": "catalog:",
+    "@rspack/cli": "catalog:",
+    "@rspack/core": "catalog:",
+    "@rspack/dev-server": "catalog:",
+    "@swc/helpers": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:"
   }
 }

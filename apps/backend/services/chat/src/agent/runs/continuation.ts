@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+
 import type { UIMessage } from "ai";
 
 import { RequestError } from "../../lib/errors.js";
@@ -54,7 +56,7 @@ export function mergeClientContinuation(persisted: AnyUIMessage, client: AnyUIMe
     if (!existing) {
       throw new RequestError(`unknown toolCallId ${part.toolCallId}`);
     }
-    if (JSON.stringify(existing) !== JSON.stringify(part)) {
+    if (!isDeepStrictEqual(existing, part)) {
       throw new RequestError(`client continuation cannot overwrite toolCallId ${part.toolCallId}`);
     }
   }

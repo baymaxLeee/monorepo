@@ -440,6 +440,7 @@ function ToolPartView({
         {kind === "ask-user" && part.state === "output-available" ? (
           <AskUserAnsweredCard
             question={askUserInput?.question}
+            input={askUserInput}
             output={output}
           />
         ) : null}
@@ -583,14 +584,27 @@ function parseAskUserAnswer(output: unknown): string {
   return typeof raw.label === "string" ? raw.label.trim() : "";
 }
 
+function answerToLabels(answer: string, input: AskUserInput | null): string {
+  if (!input || input.choices.length === 0) return answer;
+  const valueToLabel = new Map(
+    input.choices.map((choice) => [choice.value, choice.label] as const),
+  );
+  return answer
+    .split("、")
+    .map((token) => valueToLabel.get(token.trim()) ?? token)
+    .join("、");
+}
+
 function AskUserAnsweredCard({
   question,
+  input,
   output,
 }: {
   question?: string;
+  input: AskUserInput | null;
   output: unknown;
 }) {
-  const answer = parseAskUserAnswer(output);
+  const answer = answerToLabels(parseAskUserAnswer(output), input);
   if (!answer) return <ToolJsonBlock value={output} />;
   return (
     <div className="space-y-1.5 rounded-md border bg-muted/30 p-3">
@@ -618,11 +632,11 @@ function AskUserToolCard({
       : Boolean(trimmedOther);
 
   function submitMultiple() {
-    const labels = input.choices
+    const values = input.choices
       .filter((choice) => selected.includes(choice.value))
-      .map((choice) => choice.label);
-    if (trimmedOther) labels.push(trimmedOther);
-    onSubmit(labels.join("、"));
+      .map((choice) => choice.value);
+    if (trimmedOther) values.push(trimmedOther);
+    onSubmit(values.join("、"));
   }
 
   function submitOther() {
@@ -672,7 +686,7 @@ function AskUserToolCard({
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() => onSubmit(choice.label)}
+                onClick={() => onSubmit(choice.value)}
               >
                 {choice.label}
               </Button>

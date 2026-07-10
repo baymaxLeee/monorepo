@@ -12,6 +12,6 @@
     "web-vitals": "^5.1.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.0"
+    "typescript": "catalog:"
   }
 }

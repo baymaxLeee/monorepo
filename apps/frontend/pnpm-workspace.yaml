@@ -2,6 +2,43 @@ packages:
   - "apps/*"
   - "packages/*"
 
+catalogMode: strict
+
+catalog:
+  "@ai-sdk/react": ^4.0.16
+  "@hookform/resolvers": ^5.4.0
+  "@module-federation/enhanced": ^2.4.0
+  "@rspack/cli": ^2.1.2
+  "@rspack/core": ^2.1.2
+  "@rspack/dev-server": ^2.0.5
+  "@swc/helpers": ^0.5.0
+  "@tailwindcss/webpack": ^4.3.0
+  "@tanstack/react-query": ^5.101.2
+  "@types/react": ^18.3.0
+  "@types/react-dom": ^18.3.0
+  ai: ^7.0.15
+  html-webpack-plugin: ^5.6.0
+  lucide-react: ^0.468.0
+  react: ^18.3.0
+  react-compiler-runtime: ^1.0.0
+  react-dom: ^18.3.0
+  react-hook-form: ^7.76.0
+  react-router-dom: ^6.26.0
+  sonner: ^2.0.7
+  streamdown: ^2.5.0
+  tailwindcss: ^4.1.0
+  typescript: ^5.4.0
+  zod: ^4.4.3
+  zustand: ^5.0.2
+
+overrides:
+  ai: "catalog:"
+  react: "catalog:"
+  react-compiler-runtime: "catalog:"
+  react-dom: "catalog:"
+  react-router-dom: "catalog:"
+  zustand: "catalog:"
+
 # esbuild validates its platform binary; MSW's notice script is optional.
 allowBuilds:
   esbuild: true

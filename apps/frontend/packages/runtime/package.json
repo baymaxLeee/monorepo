@@ -9,9 +9,9 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "zustand": "^5.0.2"
+    "zustand": "catalog:"
   },
   "devDependencies": {
-    "typescript": "^5.4.0"
+    "typescript": "catalog:"
   }
 }

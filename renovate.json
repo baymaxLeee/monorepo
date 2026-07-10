@@ -1,0 +1,37 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:best-practices"],
+  "dependencyDashboard": true,
+  "packageRules": [
+    {
+      "groupName": "React Module Federation runtime",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "react",
+        "react-dom",
+        "react-router-dom",
+        "react-compiler-runtime",
+        "zustand",
+        "@module-federation/enhanced",
+        "@rspack/core",
+        "@rspack/cli",
+        "@rspack/dev-server"
+      ]
+    },
+    {
+      "groupName": "Vercel AI SDK",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["/^ai$/", "/^@ai-sdk\\//"]
+    },
+    {
+      "groupName": "OpenTelemetry Go",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": ["/^go\\.opentelemetry\\.io\\//"]
+    },
+    {
+      "groupName": "OpenTelemetry Python",
+      "matchManagers": ["uv"],
+      "matchPackageNames": ["/^opentelemetry-/"]
+    }
+  ]
+}
