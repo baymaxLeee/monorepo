@@ -1,0 +1,57 @@
+apps/backend/justfile
+  s_ad42df569b5346::t_270049268fa513 119-120
+apps/backend/libs/kernel-ts/package.json
+  s_ad42df569b5346::t_4f020c534e6928 8-10,26-29
+apps/backend/libs/kernel-ts/tsconfig.json
+  s_ad42df569b5346::t_52344ea9295315 1-14
+apps/backend/libs/transport-ts/package.json
+  s_ad42df569b5346::t_9ef816b09ca82a 10,26
+apps/backend/libs/transport-ts/tsconfig.json
+  s_ad42df569b5346::t_a0f03dccdce2a1 10
+apps/backend/pnpm-workspace.yaml
+  s_ad42df569b5346::t_a49dd5b65c7c32 9
+apps/backend/services/chat/tsconfig.json
+  s_ad42df569b5346::t_94efad155fb11a 12
+apps/backend/services/executor/package.json
+  s_ad42df569b5346::t_3edb0be0f0b382 11-12,31
+apps/backend/services/executor/tsconfig.json
+  s_ad42df569b5346::t_176a0d550be069 10
+apps/frontend/apps/admin/package.json
+  s_ad42df569b5346::t_fb49cba0205a47 11,33
+apps/frontend/apps/admin/tsconfig.json
+  s_ad42df569b5346::t_69de43a246f065 6
+apps/frontend/apps/chat/package.json
+  s_ad42df569b5346::t_72a558249ab110 11,34
+apps/frontend/apps/chat/src/pages/Chat.tsx
+  s_ad42df569b5346::t_a56dba730905ce 681
+apps/frontend/apps/chat/tsconfig.json
+  s_ad42df569b5346::t_43d4fd66d4512f 6
+apps/frontend/apps/platform/package.json
+  s_ad42df569b5346::t_a206b8d9964faf 11,32
+apps/frontend/apps/platform/tsconfig.json
+  s_ad42df569b5346::t_a27df4659b88ec 6
+apps/frontend/packages/components/src/MarkdownEditor/components/Link/LinkMenu.tsx
+  s_ad42df569b5346::t_cea2ea7fadac13 54
+apps/frontend/packages/components/src/types.d.ts
+  s_ad42df569b5346::t_36ce792a2a4df5 1
+apps/frontend/pnpm-workspace.yaml
+  s_ad42df569b5346::t_baee257a31c6de 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d5898798f26bc39bea7ff1e5ea01c58a01f7167c",
+  "prompts": {},
+  "sessions": {
+    "s_ad42df569b5346": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4b94-258b-74c2-a9f6-e510e9c471b2",
+        "model": "unknown"
+      },
+      "human_author": "baymaxlee.001 <baymaxlee.001@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
