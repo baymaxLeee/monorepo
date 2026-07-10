@@ -5,6 +5,12 @@ import selectorParser from "postcss-selector-parser";
 
 export type ArtifactPartPlan = { id: string; type: string; title: string };
 
+export type ArtifactValidation = {
+  ok: boolean;
+  structuralErrors: string[];
+  brokenInternalLinks: string[];
+};
+
 export const ARTIFACT_VISUAL_CAPABILITIES = [
   "Own the complete visual direction: color scheme, typography, spacing, density, composition, and responsive behavior.",
   "Use semantic HTML plus arbitrary classes and CSS. A scoped <style> element is allowed inside the fragment.",
@@ -188,6 +194,29 @@ export function compileArtifactHtml(input: {
     ...sections, buildChartHydrationScript(), buildArtifactNavScript(), "</body>", "</html>",
   ].join("\n");
   return { html, partsOk, partsFailed };
+}
+
+export function validateArtifactHtml(html: string): ArtifactValidation {
+  const brokenInternalLinks = findBrokenInternalLinks(html);
+  const structuralErrors = [
+    !/^\s*<!doctype html>/i.test(html) ? "missing doctype" : null,
+    !/<\/html>\s*$/i.test(html) ? "missing closing html tag" : null,
+    /\son[a-z]+\s*=/i.test(html) ? "inline event handler detected" : null,
+    /javascript\s*:/i.test(html) ? "javascript URL detected" : null,
+    (html.match(/<html\b/gi) ?? []).length > 1 ? "nested html document" : null,
+    (html.match(/<body\b/gi) ?? []).length > 1 ? "nested body element" : null,
+  ].filter((value): value is string => value != null);
+  return {
+    ok: structuralErrors.length === 0 && brokenInternalLinks.length === 0,
+    structuralErrors,
+    brokenInternalLinks,
+  };
+}
+
+function findBrokenInternalLinks(html: string): string[] {
+  const ids = new Set([...html.matchAll(/\bid=["']([^"']+)["']/g)].map((match) => match[1]));
+  const targets = [...html.matchAll(/href=["']#([^"']+)["']/g)].map((match) => match[1]!);
+  return [...new Set(targets.filter((target) => target && !ids.has(target)))];
 }
 
 function renderErrorSection(part: ArtifactPartPlan, reason: string): string {

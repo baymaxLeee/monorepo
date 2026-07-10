@@ -18,7 +18,7 @@ import {
   saveArtifactPlan,
   getLatestArtifactWorkspace,
 } from "../src/clients/knowledge.js";
-import { compileArtifactHtml } from "../src/artifacts/compiler.js";
+import { compileArtifactHtml, validateArtifactHtml } from "../src/artifacts/compiler.js";
 import {
   buildArtifactTextModel,
   generateBlock,
@@ -262,20 +262,16 @@ async function generateBlockStep(input: {
   }
 }
 
-async function compileAndPublishStep(input: {
+type CompileArtifactInput = {
   userId: string;
-  orgId: string;
   generationId: string;
   title: string;
   mode: ArtifactMode;
   theme: ArtifactTheme;
   blocks: ArtifactBlock[];
-}) {
-  "use step";
-  const { workflowRunId } = getWorkflowMetadata();
-  if (await isTaskCancelled(workflowRunId)) {
-    throw new DOMException("task cancelled", "AbortError");
-  }
+};
+
+async function compileArtifact(input: CompileArtifactInput) {
   const stored = await listArtifactBlocks(input.userId, input.generationId);
   const compiled = compileArtifactHtml({
     title: input.title,
@@ -287,9 +283,37 @@ async function compileAndPublishStep(input: {
   if (compiled.partsOk === 0) {
     throw new Error(`artifact generation produced no usable blocks (${compiled.partsFailed} failed)`);
   }
+  return compiled;
+}
+
+async function validateArtifactStep(input: CompileArtifactInput) {
+  "use step";
+  const { workflowRunId } = getWorkflowMetadata();
   if (await isTaskCancelled(workflowRunId)) {
     throw new DOMException("task cancelled", "AbortError");
   }
+  const compiled = await compileArtifact(input);
+  const validation = validateArtifactHtml(compiled.html);
+  if (!validation.ok) {
+    throw new Error(
+      `compiled artifact failed validation: ${[...validation.structuralErrors, ...validation.brokenInternalLinks].join("; ")}`,
+    );
+  }
+  return {
+    totalChars: compiled.html.length,
+    blocksOk: compiled.partsOk,
+    blocksFailed: compiled.partsFailed,
+    validation,
+  };
+}
+
+async function publishArtifactStep(input: CompileArtifactInput & { orgId: string }) {
+  "use step";
+  const { workflowRunId } = getWorkflowMetadata();
+  if (await isTaskCancelled(workflowRunId)) {
+    throw new DOMException("task cancelled", "AbortError");
+  }
+  const compiled = await compileArtifact(input);
   const published = await publishArtifactRevision({
     userId: input.userId,
     orgId: input.orgId,
@@ -298,9 +322,6 @@ async function compileAndPublishStep(input: {
   });
   return {
     documentId: published.document_id,
-    totalChars: compiled.html.length,
-    blocksOk: compiled.partsOk,
-    blocksFailed: compiled.partsFailed,
   };
 }
 
@@ -386,7 +407,15 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
       return result;
     });
 
-    const published = await compileAndPublishStep({
+    const validation = await validateArtifactStep({
+      userId: input.userId,
+      generationId,
+      title: input.title,
+      mode: plan.mode,
+      theme: plan.theme,
+      blocks: plan.blocks,
+    });
+    const published = await publishArtifactStep({
       userId: input.userId,
       orgId: input.orgId,
       generationId,
@@ -401,10 +430,11 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
       documentId: published.documentId,
       title: input.title,
       filename: input.filename,
-      totalChars: published.totalChars,
+      totalChars: validation.totalChars,
       blocksTotal: plan.blocks.length,
-      blocksDone: published.blocksOk,
-      blocksFailed: published.blocksFailed,
+      blocksDone: validation.blocksOk,
+      blocksFailed: validation.blocksFailed,
+      validation: validation.validation,
     };
   } catch (error) {
     await failStep({ userId: input.userId, generationId, error: String(error) });

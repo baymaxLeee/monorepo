@@ -53,6 +53,13 @@ const artifactTaskOutputSchema = z.object({
   document_id: z.string().optional(),
   total_chars: z.number().optional(),
   blocks_failed: z.number().optional(),
+  html_validation: z
+    .object({
+      ok: z.literal(true),
+      structural_errors: z.array(z.string()),
+      broken_internal_links: z.array(z.string()),
+    })
+    .optional(),
 });
 
 const artifactBlockedOutputSchema = z.object({
@@ -132,13 +139,38 @@ function parseStoredArtifactBlock(content: string): { title?: string; html?: str
   }
 }
 
-function taskResultFields(result: unknown): { documentId?: string; totalChars?: number; blocksFailed?: number } {
+function stringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value) || !value.every((item): item is string => typeof item === "string")) {
+    return undefined;
+  }
+  return value;
+}
+
+function taskResultFields(result: unknown): {
+  documentId?: string;
+  totalChars?: number;
+  blocksFailed?: number;
+  validation?: { ok: true; structuralErrors: string[]; brokenInternalLinks: string[] };
+} {
   if (!result || typeof result !== "object") return {};
   const r = result as Record<string, unknown>;
+  const rawValidation =
+    r.validation && typeof r.validation === "object" ? (r.validation as Record<string, unknown>) : undefined;
+  const structuralErrors = stringArray(rawValidation?.structuralErrors);
+  const brokenInternalLinks = stringArray(rawValidation?.brokenInternalLinks);
+  const validation =
+    rawValidation?.ok === true && structuralErrors && brokenInternalLinks
+      ? {
+          ok: true as const,
+          structuralErrors,
+          brokenInternalLinks,
+        }
+      : undefined;
   return {
     documentId: typeof r.documentId === "string" ? r.documentId : undefined,
     totalChars: typeof r.totalChars === "number" ? r.totalChars : undefined,
     blocksFailed: typeof r.blocksFailed === "number" ? r.blocksFailed : undefined,
+    validation,
   };
 }
 
@@ -176,13 +208,20 @@ async function* streamHtmlArtifactTask(
     throw error;
   }
   if (terminal?.status === "completed") {
-    const { documentId, totalChars, blocksFailed } = taskResultFields(terminal.result);
+    const { documentId, totalChars, blocksFailed, validation } = taskResultFields(terminal.result);
     yield {
       ok: true,
       status: "completed",
       document_id: documentId,
       total_chars: totalChars,
       blocks_failed: blocksFailed,
+      html_validation: validation
+        ? {
+            ok: true,
+            structural_errors: validation.structuralErrors,
+            broken_internal_links: validation.brokenInternalLinks,
+          }
+        : undefined,
       ...base,
     };
     return;
