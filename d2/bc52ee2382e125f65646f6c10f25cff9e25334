@@ -1,0 +1,23 @@
+apps/backend/services/chat/src/agent/context/instructions/core-policy.ts
+  s_318933fdd2b4a5::t_62281020bb0c78 8-20
+apps/backend/services/chat/src/agent/context/instructions/runtime.ts
+  s_318933fdd2b4a5::t_521438ff159a32 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d2bc52ee2382e125f65646f6c10f25cff9e25334",
+  "prompts": {},
+  "sessions": {
+    "s_318933fdd2b4a5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4a91-50e2-73f3-9535-b9e118e66b02",
+        "model": "unknown"
+      },
+      "human_author": "baymaxlee.001 <baymaxlee.001@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
