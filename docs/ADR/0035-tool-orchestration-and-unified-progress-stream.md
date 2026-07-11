@@ -53,9 +53,10 @@ Verified constraints (against `ai@7.0.15`):
   (`agent/context/instructions/runtime.ts`, aligned with Claude Code / Codex
   TodoWrite usage): `update_todos` is called alone, then deliverables dispatch
   together in the NEXT step. The SDK runs steps sequentially, so those
-  deliverables start strictly after. `update_todos` is selective visible tracking
-  for substantial/complex/long-running execution, skipped for Q&A / single
-  deliverables.
+  deliverables start strictly after.   `update_todos` is selective visible tracking
+  for substantial multi-item execution, skipped for Q&A / single deliverables /
+  one-item lists (multi-page single artifacts still skip). Duration alone is
+  not a reason — the deliverable tool card shows progress.
 - **No run-scoped scheduler or concurrency lock.** On this SDK there is no
   public hook to see a step's full tool-call batch before execution, so a hard
   intra-step guarantee is impossible; an earlier writer-priority gate was

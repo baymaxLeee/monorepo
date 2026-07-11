@@ -41,9 +41,12 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   produce only `write_plan`/`update_plan`; it must not call `update_todos` or any
   content-generation tool. After switching to normal/agent execution mode,
   `update_todos` is an optional visible execution checklist — call it only when
-  the task cannot be completed directly (large decomposition, multiple dependent
-  steps, coordinated deliverables, or long-running work where user-visible
-  progress matters); simple requests directly produce the output without todos.
+  the task needs a real multi-item breakdown (multiple dependent steps,
+  coordinated deliverables, or a plan with multiple checklist items). Hard skip
+  for a single actionable item or single deliverable (multi-page HTML still
+  counts as one); never emit a one-item todo list, and never use duration alone
+  as justification — the deliverable card already shows progress. Simple
+  requests directly produce the output without todos.
   Keep tool `execute` non-blocking so the event loop overlaps IO; never
   serialize independent deliverables (md/html/image/video run concurrently via
   the SDK's per-step `Promise.all`). Rare co-emission of todos with a deliverable
@@ -51,10 +54,10 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 - `write_plan`/`update_plan` snapshots are persisted in native UIMessage tool
   parts. Their successful outputs may include advisory routing hints such as
   `next_suggestion`, used only by the LLM to decide whether a later approved
-  normal-mode execution should begin with `update_todos` for medium/difficult
-  work. The harness must not read these hints as a scheduler, lock, or
-  permission mechanism. Higher-priority instructions, user intent, mode policy,
-  and tool schemas always win.
+  normal-mode execution should begin with `update_todos` for multi-item plans.
+  Skip that hint for single-deliverable plans. The harness must not read these
+  hints as a scheduler, lock, or permission mechanism. Higher-priority
+  instructions, user intent, mode policy, and tool schemas always win.
 - `update_todos` (normal/agent execution mode only) is a stateless,
   side-effect-free tool: it
   always replaces the full `{id, content, status, deliverable?}` list and has
@@ -82,10 +85,14 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   Phase 2; ADR-0015 revision). Progress 100% means block generation completed;
   compile + publish still follow. After every successful HTML write/edit, the
   ToolLoopAgent `prepareStep` quality gate forces `html_validate`; actionable
-  findings force one block-addressed `edit_file` repair →
-  `html_validate` before the turn may finish. Validation/list tools remain native
-  UIMessage tool parts for model context and traces but are hidden from product
-  UI. Users provide final acceptance and subjective feedback; they do not
+  findings keep the internal `edit_file` → `html_validate` loop running until
+  validation has no actionable findings. The gate fails closed on tool errors
+  and unaddressable document-level findings; the agent-wide step limit does not
+  interrupt a pending gate. `prepareStep` injects the required quality-gate tool
+  call deterministically rather than asking the provider to generate it.
+  `html_validate` remains a native
+  UIMessage tool part and is visible in product UI; list tools stay internal.
+  Users provide final acceptance and subjective feedback; they do not
   initiate routine QA. The tool `execute`
   is an async generator that consumes `pollTaskSnapshots`
   (`agent/tasks/executor-task.ts`): it yields a preliminary `{ status, task_id }`

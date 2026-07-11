@@ -135,12 +135,16 @@ export function ArtifactTaskCard({
         <div className="min-w-0">
           <ArtifactTitle className="truncate">{task.title}</ArtifactTitle>
           <ArtifactDescription className="truncate">
-            {task.kind} · {task.filename} · 后台生成中
-            {hasBlockProgress ? ` · 已生成 ${done}/${total} 页` : ""}
+            {[task.kind, task.filename].filter(Boolean).join(" · ")}
           </ArtifactDescription>
         </div>
         <Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground" />
       </ArtifactHeader>
+      <ArtifactContent className="flex-none px-4 py-3 text-xs text-muted-foreground">
+        <FileTextIcon className="mr-1 inline size-3" />
+        后台生成中
+        {hasBlockProgress ? ` · 已生成 ${done}/${total} 页` : ""}
+      </ArtifactContent>
     </Artifact>
   );
 }

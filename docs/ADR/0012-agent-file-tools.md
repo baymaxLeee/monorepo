@@ -29,8 +29,10 @@ Superseded in part by ADR 0023. The artifact pipeline remains accepted; ADR
 - Preview HTML runs in an opaque-origin iframe with `sandbox="allow-scripts"`.
   Internal `#fragment` navigation remains available; same-origin access to the
   application is not.
-- Chart artifacts load the pinned ECharts 6.1.0 simple runtime from the web
-  image at `/runtime/echarts/6.1.0/echarts.simple.min.js`, not a public CDN.
+- Chart artifacts load the pinned full ECharts 6.1.0 runtime from the web
+  image at `/runtime/echarts/6.1.0/echarts.min.js`, not a public CDN. The full
+  build keeps generated options functional when they use components such as
+  tooltip, legend, title, radar, or gauge.
   The platform build copies the package-owned file into its dist; nginx serves
   the versioned path with immutable caching and anonymous CORS for SRI. Because
   preview `srcdoc` keeps an opaque origin, the chat preview adds only that exact
@@ -42,18 +44,20 @@ Superseded in part by ADR 0023. The artifact pipeline remains accepted; ADR
   persisted block contracts, generated fragments, and the whole outline. After
   every successful HTML `write_file` or `edit_file`, the ToolLoopAgent harness
   enforces an internal `html_validate` quality gate. Actionable findings trigger
-  one block-addressed `edit_file` repair → `html_validate`
-  before the turn may finish. These internal diagnostics are retained in native
-  tool parts and traces but hidden from the product UI. The hash-bound report is
+  block-addressed `edit_file` repair → `html_validate` rounds until no
+  actionable findings remain. Tool execution errors and unaddressable
+  document-level findings fail the gate closed.
+  These diagnostics are retained in native tool parts and traces and rendered
+  as an ordinary visible tool part. The hash-bound report is
   returned only by `html_validate`; `write_file`/`edit_file` carry no advisory report.
   `html_validate` sends the document identity to executor's synchronous internal
   validation endpoint; executor reads current bytes from Knowledge and reruns the
   same canonical validator after any edit. Chat has no duplicate validator and
   HTML does not enter chat history.
-- The forced validation step uses a reasoning-disabled model configuration and
-  fails closed when the provider returns no tool call. Reviewer JSON is normalized
-  and retried once; persistent model-format failures become an actionable
-  `REVIEW_UNAVAILABLE` finding without suppressing deterministic results.
+- The forced validation step uses `prepareStep` to inject a deterministic native
+  tool-call stream, so provider-specific tool-call generation cannot skip the
+  mandatory gate. Tool execution failures fail the gate. Reviewer JSON is
+  normalized and retried once without suppressing deterministic results.
 - Every compiled ECharts option receives a default tooltip when the fragment did
   not declare one. Validation still reports `CHART_TOOLTIP_MISSING` on persisted
   artifacts so legacy output is repaired block-by-block rather than silently
@@ -110,8 +114,8 @@ repair orchestration.
   the demo phase.
 - HTML directories and teaching-course navigation use stable block IDs and
   ordinary fragment links.
-- The chart runtime's raw payload drops from the full 1.12 MB bundle to the
-  500 KB simple bundle, and first load no longer depends on jsDelivr; the fixed
-  same-origin URL is reused from the browser cache after the first request.
+- The full ECharts runtime is served from a fixed, versioned same-origin URL and
+  reused from the browser cache after the first request; first load does not
+  depend on jsDelivr.
 - Active process loss still cancels the run; completed blocks and revisions
   remain in knowledge for later product-level recovery work.

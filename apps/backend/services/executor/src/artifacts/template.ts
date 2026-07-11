@@ -1,8 +1,8 @@
 export type ArtifactKind = "html" | "markdown";
 
-export const ECHARTS_RUNTIME_URL = "/runtime/echarts/6.1.0/echarts.simple.min.js";
+export const ECHARTS_RUNTIME_URL = "/runtime/echarts/6.1.0/echarts.min.js";
 export const ECHARTS_RUNTIME_INTEGRITY =
-  "sha384-tceyq+iTlugaZ6vut4CtUPLeu5PA081dcSvhme2LINBzh+11ILKQmEeRvpDnv9Q7";
+  "sha384-C2iskrW/uPW46KzOjrvJIQo4YkV8lkD+QS0CrDN18IIPIpT/g2USu8bTP3nvmIAD";
 export const ARTIFACT_CSP = [
   "default-src 'none'",
   "script-src 'self' 'unsafe-inline'",

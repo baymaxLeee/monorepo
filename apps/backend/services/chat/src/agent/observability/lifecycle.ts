@@ -67,8 +67,8 @@ export async function recordToolStart(input: { runId: string; toolCallId: string
   await recordToolCallStart({ runId: input.runId, toolCallId: input.toolCallId, stepIndex: input.stepNumber, toolName: input.toolName, toolInput: sanitizeToolInput(input.toolName, input.toolInput) });
 }
 
-export async function recordToolEnd(input: { toolCallId: string; success: boolean; output?: unknown; error?: unknown; durationMs: number }): Promise<void> {
-  const semanticFailure = input.success && typeof input.output === "object" && input.output !== null && "ok" in input.output && (input.output as { ok?: unknown }).ok === false;
+export async function recordToolEnd(input: { toolCallId: string; toolName: string; success: boolean; output?: unknown; error?: unknown; durationMs: number }): Promise<void> {
+  const semanticFailure = input.toolName !== "html_validate" && input.success && typeof input.output === "object" && input.output !== null && "ok" in input.output && (input.output as { ok?: unknown }).ok === false;
   const success = input.success && !semanticFailure;
   await recordToolCallFinish({
     toolCallId: input.toolCallId,

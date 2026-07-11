@@ -50,7 +50,7 @@ function output(document: { id: string; updated_at: string; title: string; filen
     filename: document.filename,
     kind: "plan",
     next_suggestion:
-      "If the user approves executing this plan and the work is medium or difficult, consider calling update_todos first in normal mode to create a visible checklist; skip it for clearly small or single-deliverable plans. Do not call update_todos while still in plan mode.",
+      "If the user approves executing this plan and it has multiple checklist items or coordinated deliverables, consider calling update_todos first in normal mode (2+ items). Skip todos for a single deliverable or one-item plan — go straight to the generation tool. Do not call update_todos while still in plan mode.",
   };
 }
 

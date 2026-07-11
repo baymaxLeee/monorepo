@@ -1,5 +1,8 @@
-import { InvalidToolInputError, NoSuchToolError, ToolLoopAgent } from "ai";
+import { randomBytes } from "node:crypto";
+
+import { NoSuchToolError, ToolLoopAgent } from "ai";
 import type { ToolSet } from "ai";
+import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import { finishSpan, runWithActiveSpan, startSpan } from "@backend/kernel-ts";
 
@@ -33,6 +36,44 @@ function observe(label: string, operation: Promise<void>): Promise<void> {
 type ExecutableTool = ToolSet[string] & {
   execute: (...args: unknown[]) => unknown;
 };
+
+function createForcedToolCallModel(
+  baseModel: LanguageModelV4,
+  directive: Extract<
+    ArtifactVerificationDirective,
+    { toolName: "html_validate" | "edit_file" }
+  >,
+): LanguageModelV4 {
+  return {
+    specificationVersion: "v4",
+    provider: baseModel.provider,
+    modelId: baseModel.modelId,
+    supportedUrls: baseModel.supportedUrls,
+    doGenerate: (options) => baseModel.doGenerate(options),
+    doStream: async () => ({
+      stream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: "stream-start", warnings: [] });
+          controller.enqueue({
+            type: "tool-call",
+            toolCallId: `artifact-gate-${randomBytes(12).toString("hex")}`,
+            toolName: directive.toolName,
+            input: JSON.stringify(directive.toolInput),
+          });
+          controller.enqueue({
+            type: "finish",
+            finishReason: { unified: "tool-calls", raw: "tool_calls" },
+            usage: {
+              inputTokens: { total: 0, noCache: 0, cacheRead: 0, cacheWrite: 0 },
+              outputTokens: { total: 0, text: 0, reasoning: 0 },
+            },
+          });
+          controller.close();
+        },
+      }),
+    }),
+  };
+}
 
 function toolCallIdFromOptions(options: unknown): string | undefined {
   if (!options || typeof options !== "object") return undefined;
@@ -126,12 +167,8 @@ export async function createToolLoopAgent(
     input.instructionInput,
     resolvedTools.contributions,
   );
-  const artifactRepairModel = createProviderModel(provider, {
-    parallelToolCalls: false,
-  });
-  const verificationModel = createProviderModel(provider, {
-    parallelToolCalls: false,
-    disableReasoning: true,
+  const defaultModel = createProviderModel(provider, {
+    parallelToolCalls: true,
   });
   const toolApprovalSecret = getSettings().toolApprovalSecret;
   let artifactGatePending = false;
@@ -141,9 +178,7 @@ export async function createToolLoopAgent(
   > | null = null;
   const agent = new ToolLoopAgent<never, typeof tools, AgentRuntimeContext>({
     id: "chat-agent",
-    model: createProviderModel(provider, {
-      parallelToolCalls: true,
-    }),
+    model: defaultModel,
     instructions,
     maxOutputTokens: provider.maxOutputTokens,
     tools: instrumentedTools,
@@ -181,10 +216,7 @@ export async function createToolLoopAgent(
       }
       return {
         runtimeContext: nextContext,
-        model:
-          directive.toolName === "html_validate"
-            ? verificationModel
-            : artifactRepairModel,
+        model: createForcedToolCallModel(defaultModel, directive),
         activeTools: [directive.toolName],
         toolChoice: { type: "tool", toolName: directive.toolName },
         instructions: `${String(initialInstructions ?? instructions)}\n<artifact_quality_gate>${directive.instruction}</artifact_quality_gate>`,
@@ -192,7 +224,7 @@ export async function createToolLoopAgent(
     },
     experimental_repairToolCall: async ({ toolCall, tools: stepTools, error }) => {
       if (
-        (!NoSuchToolError.isInstance(error) && !InvalidToolInputError.isInstance(error)) ||
+        !NoSuchToolError.isInstance(error) ||
         !artifactGateDirective ||
         !(artifactGateDirective.toolName in stepTools)
       ) {
@@ -266,8 +298,7 @@ export async function createToolLoopAgent(
       );
       const expectedGateTool = artifactGateDirective?.toolName;
       if (
-        event.runtimeContext.artifactVerification.current &&
-        event.runtimeContext.artifactVerification.current.phase !== "failed" &&
+        artifactGatePending &&
         expectedGateTool &&
         !event.toolCalls.some((toolCall) => toolCall.toolName === expectedGateTool)
       ) {
@@ -316,6 +347,7 @@ export async function createToolLoopAgent(
         "finish tool",
         recordToolEnd({
           toolCallId: event.toolCall.toolCallId,
+          toolName: event.toolCall.toolName,
           success,
           output: success ? event.toolOutput.output : undefined,
           error: success ? undefined : event.toolOutput.error,

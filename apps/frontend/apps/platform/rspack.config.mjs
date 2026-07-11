@@ -73,9 +73,9 @@ export default defineConfig({
         {
           from: path.resolve(
             appDir,
-            "node_modules/echarts/dist/echarts.simple.min.js",
+            "node_modules/echarts/dist/echarts.min.js",
           ),
-          to: `runtime/echarts/${ECHARTS_RUNTIME_VERSION}/echarts.simple.min.js`,
+          to: `runtime/echarts/${ECHARTS_RUNTIME_VERSION}/echarts.min.js`,
           // The executor pins this package file's SRI hash.
           info: { minimized: true },
         },

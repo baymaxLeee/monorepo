@@ -72,10 +72,18 @@ function combinedSignal(abortSignal?: AbortSignal): AbortSignal {
 
 const MAX_BLOCK_BRIEF = 4000;
 
+function resolveAppearance(brief: string): ArtifactTheme["appearance"] {
+  if (/\b(?:not|no)\s+(?:a\s+)?dark\b|不要(?:使用)?(?:深色|暗色|暗黑|黑色)/i.test(brief)) {
+    return "light";
+  }
+  return /\bdark\s+(?:(?:tech|technology|futuristic|cyberpunk)\s+)?(?:mode|theme|background|canvas|appearance|ui|page|dashboard|presentation|style)\b|(?:深色|暗色|暗黑)(?:科技|未来|赛博朋克)?(?:模式|主题|背景|画布|界面|页面|仪表盘|演示|风格)|夜间(?:模式|主题|界面)|黑色(?:背景|主题|画布)/i.test(brief)
+    ? "dark"
+    : "light";
+}
+
 const outlineSchema = z.object({
   visual_direction: z.string().min(1).max(1200).optional(),
   accent: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
-  appearance: z.enum(["light", "dark"]).optional(),
   pages: z
     .array(
       z.object({
@@ -111,9 +119,9 @@ function deterministicOutline(input: {
 }): { theme: ArtifactTheme; blocks: ArtifactBlock[] } {
   return {
     theme: {
-      visualDirection: "Choose a coherent visual direction that fits the subject and the user's requested tone. The model owns theme and layout.",
+      visualDirection: "Choose a coherent visual direction and layout that fit the subject, requested tone, and resolved canvas appearance.",
       accent: input.brief.match(/#[0-9a-f]{6}/i)?.[0] ?? "#2563eb",
-      appearance: /(?:dark|深色|暗色|黑色)/i.test(input.brief) ? "dark" : "light",
+      appearance: resolveAppearance(input.brief),
     },
     blocks: Array.from({ length: input.count }, (_, index) => ({
       id: `page-${index + 1}`,
@@ -126,7 +134,7 @@ function deterministicOutline(input: {
   };
 }
 
-function outlineInstructions(input: { mode: ArtifactMode; count: number }): string {
+function outlineInstructions(input: { mode: ArtifactMode; count: number; appearance: ArtifactTheme["appearance"] }): string {
   return [
     `Plan the outline for a ${input.count}-page ${input.mode} artifact.`,
     "Return exactly one entry per page in reading order.",
@@ -134,7 +142,10 @@ function outlineInstructions(input: { mode: ArtifactMode; count: number }): stri
     "The brief is an instruction to a writer, not prose: name the concrete sections, data points, or visuals that belong on this page and nothing that belongs on another page.",
     "For each page, return content_scope as the short list of topics/facts owned only by that page, and acceptance_criteria as concrete checks for completeness and presentation quality.",
     "Optionally pick one accent hex color that fits the topic.",
-    "Choose light or dark appearance from the user's request and content context.",
+    `The artifact appearance is ${input.appearance}. Design for this appearance; do not choose or return another appearance.`,
+    input.appearance === "light"
+      ? "Use a predominantly light canvas and light surfaces with dark readable text. Color requests such as navy, deep blue, cyan, black, or other dark hues describe accent colors, not a dark appearance. Reserve them for restrained accents or individual data marks, never page backgrounds or dominant panels; this keeps dense layouts, tables, and charts clear."
+      : "Use a coherent dark canvas with sufficient contrast across text, controls, tables, and chart labels.",
     "Describe one specific visual direction shared by every page: color scheme, typography, composition, density, motifs, and chart treatment. Do not fall back to a generic template.",
     "Do not write any HTML; describe content only.",
     JSON_OBJECT_MODE_INSTRUCTION,
@@ -150,13 +161,14 @@ export async function planArtifact(input: {
   abortSignal: AbortSignal;
 }): Promise<{ theme: ArtifactTheme; blocks: ArtifactBlock[] }> {
   const count = resolvePageCount(input);
+  const appearance = resolveAppearance(input.brief);
   const fallback = deterministicOutline({ title: input.title, mode: input.mode, brief: input.brief, count });
   try {
     const structuredModel = wrapLanguageModel({ model: input.model, middleware: extractJsonMiddleware() });
     const result = await generateText({
       model: structuredModel,
       output: Output.object({ schema: outlineSchema }),
-      instructions: outlineInstructions({ mode: input.mode, count }),
+      instructions: outlineInstructions({ mode: input.mode, count, appearance }),
       prompt: [
         `<title>${input.title}</title>`,
         `<page_count>${count}</page_count>`,
@@ -172,7 +184,7 @@ export async function planArtifact(input: {
       theme: {
         visualDirection: result.output?.visual_direction?.trim() || fallback.theme.visualDirection,
         accent,
-        appearance: result.output?.appearance ?? fallback.theme.appearance,
+        appearance,
       },
       blocks: pages.map((page, index) => ({
         id: `page-${index + 1}`,
@@ -214,6 +226,10 @@ function blockInstructions(input: {
     "For a two-column composition use artifact-split. For metrics use artifact-metric-grid. Wrap every table in artifact-table-scroll.",
     "</starter_template>",
     `Shared visual direction: ${input.theme.visualDirection}`,
+    `Canvas appearance: ${input.theme.appearance}. Keep the block's dominant surfaces consistent with it.`,
+    input.theme.appearance === "light"
+      ? "For this light artifact, color words such as navy, deep blue, cyan, black, 深蓝, or 深色系 specify accent hue only and never imply dark mode. Do not introduce dark page-sized backgrounds, dark chart backgrounds, or make most cards dark. Use light surfaces and dark text; apply saturated or dark colors selectively to hierarchy and data marks."
+      : "For this dark artifact, maintain accessible contrast for all text, tables, axes, legends, labels, and tooltips.",
     `Suggested accent: ${input.theme.accent}. Treat it as inspiration, not a required token.`,
     "Internal navigation must use fragment links such as href=\"#chapter-id\"; the compiler gives every block that id.",
     "<chart_spec>",

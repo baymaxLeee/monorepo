@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   getDocument,
+  getDocumentSource,
   getDocumentSlice,
   listDocuments,
 } from "../../../clients/knowledge.js";
@@ -93,6 +94,31 @@ async function readFile(
       message: `file ${input.file_id} is not attached to this conversation`,
     };
   }
+  if (
+    document.kind === "artifact" &&
+    document.object_key &&
+    document.mime_type.startsWith("text/")
+  ) {
+    const source = await getDocumentSource(context.userId, input.file_id);
+    const content = new TextDecoder().decode(source.bytes);
+    const chunk = content.slice(input.offset, input.offset + input.max_chars);
+    const nextOffset =
+      input.offset + chunk.length < content.length
+        ? input.offset + chunk.length
+        : null;
+    return {
+      status: "completed" as const,
+      file_id: document.id,
+      title: document.title,
+      filename: document.filename,
+      mime_type: source.mimeType,
+      offset: input.offset,
+      total_chars: content.length,
+      next_offset: nextOffset,
+      content: chunk,
+      untrusted: false,
+    };
+  }
   const alreadyConverted = Boolean(document.content_md) || document.ingest_status === "ready";
   const slice = await getDocumentSlice(
     context.userId,
@@ -159,7 +185,13 @@ export function createFileToolManifests() {
         inputSchema: z.object({
           file_id: z.string().min(1).max(32),
           offset: z.number().int().min(0).default(0),
-          max_chars: z.number().int().min(1).max(20_000).default(8_000),
+          max_chars: z
+            .number()
+            .int()
+            .min(1)
+            .default(8_000)
+            .transform((value) => Math.min(value, 8_000))
+            .describe("Maximum characters to return; values above 8000 are clamped."),
         }),
         outputSchema: readFileOutputSchema,
         contextSchema: fileToolContextSchema,

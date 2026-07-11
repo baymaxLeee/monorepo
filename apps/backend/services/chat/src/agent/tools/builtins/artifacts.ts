@@ -128,10 +128,22 @@ const artifactToolOutputSchema = z.union([
 ]);
 
 const htmlValidateOutputSchema = z.union([
-  htmlValidationReportSchema.extend({
-    status: z.literal("completed"),
-    file_id: z.string(),
-  }),
+  z
+    .object({
+      ok: z.boolean(),
+      status: z.literal("completed"),
+      file_id: z.string(),
+      errors: z.array(
+        z.object({
+          code: z.string(),
+          suggestion: z.string(),
+          block_id: z.string().optional(),
+        }),
+      ),
+    })
+    .refine((output) => output.ok === (output.errors.length === 0), {
+      message: "ok must be true exactly when no actionable errors remain",
+    }),
   artifactBlockedOutputSchema,
 ]);
 
@@ -300,10 +312,18 @@ async function validateHtml(
   if (document.object_sha256 && parsed.content_sha256 !== document.object_sha256) {
     throw new Error("html_validate result does not match the current artifact revision");
   }
+  const errors = parsed.findings
+    .filter((finding) => finding.severity === "error" && finding.actionable)
+    .map((finding) => ({
+      code: finding.code,
+      suggestion: finding.suggestion,
+      ...(finding.block_id ? { block_id: finding.block_id } : {}),
+    }));
   return {
-    ...parsed,
+    ok: errors.length === 0,
     status: "completed",
     file_id: input.file_id,
+    errors,
   };
 }
 
@@ -370,7 +390,7 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
           .min(1)
           .max(20_000)
           .describe(
-            "Content and visual requirements. Preserve explicit user design requests. Describe chart type/data only — never name a charting library; all charts render via ECharts.",
+            "Content and visual requirements. Preserve explicit user design requests. HTML defaults to a light appearance: do not introduce a dark theme unless the user explicitly requested one; dark or saturated color names are accent hues, not permission for a dark canvas. Describe chart type/data only — never name a charting library; all charts render via ECharts.",
           ),
         page_count: z.number().int().min(1).max(100).optional().describe("Requested number of generated blocks or pages."),
       }),
@@ -406,7 +426,7 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
           .min(1)
           .max(12_000)
           .describe(
-            "Overall change description. With no block_ids/changes it rewrites every block; otherwise it is the fallback brief for targeted blocks. Describe chart type/data only — never name a charting library; all charts render via ECharts.",
+            "Overall change description. With no block_ids/changes it rewrites every block; otherwise it is the fallback brief for targeted blocks. Preserve the artifact's light appearance unless the user explicitly requests dark mode. Describe chart type/data only — never name a charting library; all charts render via ECharts.",
           ),
         block_ids: z
           .array(z.string().regex(/^page-[1-9]\d*$/))
@@ -446,7 +466,7 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
       "html_validate",
       tool({
       description:
-        "Run the canonical validator against the current stored HTML and return stable error/warning codes, block and selector locations, responsive/template/accessibility findings, evidence, and repair suggestions. The runtime quality gate uses actionable findings to list blocks, repair affected blocks, and revalidate before completion.",
+        "Run the canonical validator against the current stored HTML and return only actionable errors needed by the internal repair loop.",
       inputSchema: z.object({
         file_id: z.string().min(1).max(32),
       }),
@@ -460,9 +480,9 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
         trust: "private-untrusted",
         execution: "inline",
         modes: ["normal"],
-        visibility: "internal",
+        visibility: "visible",
       },
-      { summary: "Validate the current HTML and return actionable findings for the edit-and-revalidate loop." },
+      { summary: "Validate the current HTML and return only actionable block errors for the edit-and-revalidate loop." },
     ),
     defineAgentTool(
       "list_artifact_blocks",

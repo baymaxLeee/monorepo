@@ -1,8 +1,5 @@
-const MAX_REPAIR_ATTEMPTS = 1;
-
 type VerificationFinding = {
   code: string;
-  message: string;
   suggestion: string;
   blockId: string;
 };
@@ -10,7 +7,6 @@ type VerificationFinding = {
 type VerificationItem = {
   documentId: string;
   phase: "verify" | "repair" | "failed";
-  repairAttempts: number;
   findings: VerificationFinding[];
   failure?: string;
 };
@@ -56,13 +52,17 @@ function recordValue(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function isAddressableBlockId(value: unknown): value is string {
+  return typeof value === "string" && /^page-[1-9]\d*$/.test(value);
+}
+
 function advance(state: ArtifactVerificationState): ArtifactVerificationState {
   const [documentId, ...queuedDocumentIds] = state.queuedDocumentIds;
   return {
     ...state,
     queuedDocumentIds,
     current: documentId
-      ? { documentId, phase: "verify", repairAttempts: 0, findings: [] }
+      ? { documentId, phase: "verify", findings: [] }
       : undefined,
   };
 }
@@ -70,21 +70,21 @@ function advance(state: ArtifactVerificationState): ArtifactVerificationState {
 function enqueue(state: ArtifactVerificationState, documentId: string): ArtifactVerificationState {
   if (state.current?.documentId === documentId || state.queuedDocumentIds.includes(documentId)) return state;
   if (!state.current) {
-    return { ...state, current: { documentId, phase: "verify", repairAttempts: 0, findings: [] } };
+    return { ...state, current: { documentId, phase: "verify", findings: [] } };
   }
   return { ...state, queuedDocumentIds: [...state.queuedDocumentIds, documentId] };
 }
 
 function actionableFindings(output: Record<string, unknown>): VerificationFinding[] {
-  if (!Array.isArray(output.findings)) return [];
-  return output.findings.flatMap((value) => {
+  if (!Array.isArray(output.errors)) return [];
+  return output.errors.flatMap((value) => {
     const finding = recordValue(value);
     if (
-      !finding || finding.actionable !== true || typeof finding.code !== "string" ||
-      typeof finding.message !== "string" || typeof finding.suggestion !== "string" ||
-      typeof finding.block_id !== "string"
+      !finding || typeof finding.code !== "string" ||
+      typeof finding.suggestion !== "string" ||
+      !isAddressableBlockId(finding.block_id)
     ) return [];
-    return [{ code: finding.code, message: finding.message, suggestion: finding.suggestion, blockId: finding.block_id }];
+    return [{ code: finding.code, suggestion: finding.suggestion, blockId: finding.block_id }];
   });
 }
 
@@ -96,11 +96,16 @@ function applyToolResult(
   const output = recordValue(outputValue);
   if (!output) return state;
   if (toolName === "write_file" || toolName === "edit_file") {
-    if (output.ok !== true || output.status !== "completed" || output.kind !== "html" || typeof output.document_id !== "string") return state;
+    if (output.ok !== true || output.status !== "completed" || output.kind !== "html" || typeof output.document_id !== "string") {
+      if (toolName === "edit_file" && state.current?.phase === "repair") {
+        return { ...state, current: { ...state.current, phase: "failed", failure: "edit_file did not complete during artifact repair" } };
+      }
+      return state;
+    }
     if (toolName === "edit_file" && state.current?.documentId === output.document_id && state.current.phase === "repair") {
       return {
         ...state,
-        current: { ...state.current, phase: "verify", repairAttempts: state.current.repairAttempts + 1, findings: [] },
+        current: { ...state.current, phase: "verify", findings: [] },
       };
     }
     return enqueue(state, output.document_id);
@@ -109,18 +114,15 @@ function applyToolResult(
   if (output.status !== "completed" || output.file_id !== state.current.documentId) {
     return { ...state, current: { ...state.current, phase: "failed", failure: "html_validate did not complete for the expected revision" } };
   }
-  const unaddressable = Array.isArray(output.findings) && output.findings.some((value) => {
+  const unaddressable = Array.isArray(output.errors) && output.errors.some((value) => {
     const finding = recordValue(value);
-    return finding?.actionable === true && typeof finding.block_id !== "string";
+    return !isAddressableBlockId(finding?.block_id);
   });
   if (unaddressable) {
     return { ...state, current: { ...state.current, phase: "failed", failure: "validation found a document-level issue that cannot be repaired by block" } };
   }
   const findings = actionableFindings(output);
   if (findings.length === 0) return advance(state);
-  if (state.current.repairAttempts >= MAX_REPAIR_ATTEMPTS) {
-    return { ...state, current: { ...state.current, phase: "failed", findings, failure: "HTML still has actionable findings after the focused repair" } };
-  }
   return { ...state, current: { ...state.current, phase: "repair", findings } };
 }
 
@@ -139,8 +141,21 @@ export function reduceArtifactVerificationSteps(
         processed.add(part.toolCallId);
       } else if (part.type === "tool-error" && typeof part.toolName === "string") {
         processed.add(part.toolCallId);
-        if (state.current && ["html_validate", "edit_file"].includes(part.toolName)) {
-          state = { ...state, current: { ...state.current, phase: "failed", failure: `${part.toolName} failed` } };
+        const expectedTool =
+          state.current?.phase === "verify"
+            ? "html_validate"
+            : state.current?.phase === "repair"
+              ? "edit_file"
+              : null;
+        if (state.current && part.toolName === expectedTool) {
+          state = {
+            ...state,
+            current: {
+              ...state.current,
+              phase: "failed",
+              failure: `${part.toolName} failed during the internal quality gate`,
+            },
+          };
         }
       }
     }
@@ -167,7 +182,7 @@ export function artifactVerificationDirective(state: ArtifactVerificationState):
   const changes = new Map<string, string[]>();
   for (const finding of item.findings) {
     const values = changes.get(finding.blockId) ?? [];
-    values.push(`${finding.code}: ${finding.message} Fix: ${finding.suggestion}`);
+    values.push(`${finding.code}: ${finding.suggestion}`);
     changes.set(finding.blockId, values);
   }
   const repairChanges = [...changes].map(([block_id, values]) => ({

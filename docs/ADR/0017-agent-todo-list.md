@@ -115,3 +115,8 @@ source of truth for plan content.
   (a multi-minute video). The tag replaces the removed `todo_id` coupling with a
   static label on the todo, and the model snapshot remains the source of truth.
   See ADR 0024.
+- **Update (single-item ban):** `update_todos` is for multi-item checklists only.
+  A one-item list wrapping a single deliverable is always wrong (including
+  multi-page HTML). The runtime contract and tool description hard-skip single
+  deliverables; duration alone is not a reason — the deliverable tool card
+  already shows progress. See ADR 0035.
