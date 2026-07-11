@@ -15,6 +15,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const API_TARGET = process.env.API_TARGET ?? "http://localhost:8000";
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 const isProduction = process.env.NODE_ENV === "production";
+const ECHARTS_RUNTIME_VERSION = "6.1.0";
 
 const API_BASE_URL = process.env.API_BASE_URL ?? "";
 if (isProduction && !API_BASE_URL) {
@@ -67,6 +68,19 @@ export default defineConfig({
   },
   plugins: [
     new HtmlWebpackPlugin({ template: "./src/index.html", publicPath: "/" }),
+    new rspack.CopyRspackPlugin({
+      patterns: [
+        {
+          from: path.resolve(
+            appDir,
+            "node_modules/echarts/dist/echarts.simple.min.js",
+          ),
+          to: `runtime/echarts/${ECHARTS_RUNTIME_VERSION}/echarts.simple.min.js`,
+          // The executor pins this package file's SRI hash.
+          info: { minimized: true },
+        },
+      ],
+    }),
     new rspack.DefinePlugin({
       "process.env.API_BASE_URL": JSON.stringify(API_BASE_URL),
       "process.env.TELEMETRY_ENDPOINT": JSON.stringify(

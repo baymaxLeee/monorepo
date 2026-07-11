@@ -101,6 +101,10 @@ const providerSchema = z
   .refine((value) => value.max_output_tokens < value.context_window, {
     message: "最大输出必须小于上下文窗口",
     path: ["max_output_tokens"],
+  })
+  .refine((value) => value.provider_kind === "chat" || !value.is_default, {
+    message: "仅对话类型可设为 chat 默认模型",
+    path: ["is_default"],
   });
 
 type ProviderValues = z.infer<typeof providerSchema>;
@@ -178,6 +182,13 @@ function stringifyExtraBody(value: Record<string, unknown>): string {
   return JSON.stringify(value, null, 2);
 }
 
+function resolveIsDefault(
+  providerKind: ProviderKind,
+  isDefault: boolean,
+): boolean {
+  return providerKind === "chat" && isDefault;
+}
+
 function statusBadge(item: ModelProvider) {
   if (!item.is_enabled) return <Badge variant="secondary">停用</Badge>;
   if (item.is_default) return <Badge>默认</Badge>;
@@ -251,7 +262,10 @@ export function ProvidersPage() {
           context_window: values.context_window,
           max_output_tokens: values.max_output_tokens,
           supports_image_input: values.supports_image_input,
-          is_default: values.is_default,
+          is_default: resolveIsDefault(
+            values.provider_kind,
+            values.is_default,
+          ),
           is_enabled: values.is_enabled,
         };
         if (values.api_key.trim()) patch.api_key = values.api_key.trim();
@@ -273,7 +287,10 @@ export function ProvidersPage() {
           context_window: values.context_window,
           max_output_tokens: values.max_output_tokens,
           supports_image_input: values.supports_image_input,
-          is_default: values.is_default,
+          is_default: resolveIsDefault(
+            values.provider_kind,
+            values.is_default,
+          ),
           is_enabled: values.is_enabled,
         };
         await createModelProvider(payload);
@@ -786,27 +803,24 @@ function ProviderFormDialog({
                     )}
                   />
                 )}
-                <FormField
-                  control={form.control}
-                  name="is_default"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel className="flex items-center gap-2">
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          disabled={providerKind !== "chat"}
-                        />
-                        设为默认
-                        {providerKind !== "chat" && (
-                          <span className="text-xs font-normal text-muted-foreground">
-                            （仅对话类型可设为 chat 默认）
-                          </span>
-                        )}
-                      </FieldLabel>
-                    </Field>
-                  )}
-                />
+                {providerKind === "chat" && (
+                  <FormField
+                    control={form.control}
+                    name="is_default"
+                    render={({ field }) => (
+                      <Field>
+                        <FieldLabel className="flex items-center gap-2">
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                          设为默认对话模型
+                        </FieldLabel>
+                        <FieldError errors={[form.formState.errors.is_default]} />
+                      </Field>
+                    )}
+                  />
+                )}
                 <FormField
                   control={form.control}
                   name="is_enabled"

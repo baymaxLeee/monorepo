@@ -1,11 +1,11 @@
 export type ArtifactKind = "html" | "markdown";
 
-export const ECHARTS_CDN_URL = "https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js";
-export const ECHARTS_CDN_INTEGRITY =
-  "sha384-C2iskrW/uPW46KzOjrvJIQo4YkV8lkD+QS0CrDN18IIPIpT/g2USu8bTP3nvmIAD";
+export const ECHARTS_RUNTIME_URL = "/runtime/echarts/6.1.0/echarts.simple.min.js";
+export const ECHARTS_RUNTIME_INTEGRITY =
+  "sha384-tceyq+iTlugaZ6vut4CtUPLeu5PA081dcSvhme2LINBzh+11ILKQmEeRvpDnv9Q7";
 export const ARTIFACT_CSP = [
   "default-src 'none'",
-  "script-src 'unsafe-inline' https://cdn.jsdelivr.net",
+  "script-src 'self' 'unsafe-inline'",
   "style-src 'unsafe-inline'",
   "img-src data: blob:",
   "font-src data:",
@@ -29,13 +29,13 @@ export const ARTIFACT_ERROR_BOUNDARY = [
   "  </script>",
 ].join("\n");
 
-const ECHARTS_CDN_TAG = `  <script src="${ECHARTS_CDN_URL}" integrity="${ECHARTS_CDN_INTEGRITY}" crossorigin="anonymous" referrerpolicy="no-referrer"></script>`;
+const ECHARTS_RUNTIME_TAG = `  <script src="${ECHARTS_RUNTIME_URL}" integrity="${ECHARTS_RUNTIME_INTEGRITY}" crossorigin="anonymous" referrerpolicy="no-referrer"></script>`;
 
 export function buildArtifactRuntimeHead(options: { usesEcharts: boolean }): string {
   return [
     `  <meta http-equiv="Content-Security-Policy" content="${ARTIFACT_CSP}" data-chat-artifact-runtime="true" />`,
     ARTIFACT_ERROR_BOUNDARY,
-    options.usesEcharts ? ECHARTS_CDN_TAG : "",
+    options.usesEcharts ? ECHARTS_RUNTIME_TAG : "",
   ]
     .filter(Boolean)
     .join("\n");

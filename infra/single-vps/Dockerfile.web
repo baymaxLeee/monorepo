@@ -2,6 +2,7 @@
 #   • the platform host SPA bundle (apps/frontend/apps/platform/dist)
 #   • the admin MFE remote bundle  (apps/frontend/apps/admin/dist)
 #   • the chat  MFE remote bundle  (apps/frontend/apps/chat/dist)
+#   • the versioned ECharts runtime (platform dist/runtime)
 #   • our nginx.conf
 #
 # Build context: monorepo root (so we can COPY anywhere under the repo).

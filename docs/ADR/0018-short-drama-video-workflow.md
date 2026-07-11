@@ -430,3 +430,27 @@ parts when reference images are present.
 - Character IP fidelity is vision-describe → generated reference sheet, not
   pixel-perfect upload passthrough (knowledge `/source` URLs are auth-gated and
   unreachable by Seedance).
+
+## Update (2026-07-10): Plan Mode uses generation-level shots capped at 6 seconds
+
+Plan Mode previously described long-form videos as a small set of 8–10 second
+"scenes". That confused narrative sections with provider generations: execution
+could preserve those rows as long single takes, increasing the chance of padded
+or repeated action even though the auto pipeline targets six-second segments.
+
+The `generate_video` manifest now projects the following constraints into Plan
+Mode's generated `<execution_capabilities>` prompt:
+
+- A narrative section may group several shots, but every generation shot maps to
+  one Seedance call and lasts 4–6 seconds, never more than 6 seconds.
+- Longer narrative sections are split into contiguous, non-overlapping shots; a
+  60-second plan therefore contains at least 10 generation shots.
+- Adjacent shots must advance a distinct information/action beat and vary
+  framing, subject action, or on-screen content instead of padding or restaging
+  the same moment.
+
+The six-second ceiling is a product quality policy, not a claim about the
+provider wire limit: Seedance 2.0 currently accepts integer durations from 4 to
+15 seconds. Normal execution preserves a plan's generation-level shots as
+one-to-one `segments[]` entries rather than merging them back into narrative
+sections.

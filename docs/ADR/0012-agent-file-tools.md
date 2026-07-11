@@ -23,6 +23,13 @@ Superseded in part by ADR 0023. The artifact pipeline remains accepted; ADR
 - Preview HTML runs in an opaque-origin iframe with `sandbox="allow-scripts"`.
   Internal `#fragment` navigation remains available; same-origin access to the
   application is not.
+- Chart artifacts load the pinned ECharts 6.1.0 simple runtime from the web
+  image at `/runtime/echarts/6.1.0/echarts.simple.min.js`, not a public CDN.
+  The platform build copies the package-owned file into its dist; nginx serves
+  the versioned path with immutable caching and anonymous CORS for SRI. Because
+  preview `srcdoc` keeps an opaque origin, the chat preview adds only that exact
+  deployment URL to the compiler-owned CSP instead of enabling same-origin
+  iframe access.
 - `html_validate` is a read-only HTML validator and inspector. It is explicitly
   not host shell access; arbitrary execution requires an isolated sandbox.
 - `write_plan` creates revision 1. `update_plan` performs compare-and-swap and
@@ -52,5 +59,8 @@ for office artifact generation.
   published partial revision.
 - HTML directories and teaching-course navigation use stable block IDs and
   ordinary fragment links.
+- The chart runtime's raw payload drops from the full 1.12 MB bundle to the
+  500 KB simple bundle, and first load no longer depends on jsDelivr; the fixed
+  same-origin URL is reused from the browser cache after the first request.
 - Active process loss still cancels the run; completed blocks and revisions
   remain in knowledge for later product-level recovery work.

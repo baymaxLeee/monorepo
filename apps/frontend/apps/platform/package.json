@@ -16,6 +16,7 @@
     "@tanstack/react-query": "catalog:",
     "api": "workspace:*",
     "components": "workspace:*",
+    "echarts": "6.1.0",
     "lucide-react": "catalog:",
     "observability": "workspace:*",
     "react": "catalog:",

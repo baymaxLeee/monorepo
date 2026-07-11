@@ -10,6 +10,7 @@ import {
   fetchCachedDocumentSource,
   useDocumentBlobUrl,
 } from "../hooks/useDocumentSource";
+import { prepareArtifactPreviewHtml } from "../lib/prepareArtifactPreviewHtml";
 import { useChatStore } from "../store/useChatStore";
 
 // Autosave fires 1.5s after the user stops typing — long enough to coalesce a
@@ -126,7 +127,7 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
     )
       .then((blob) => blob.text())
       .then((html) => {
-        if (active) setPreviewHtml(html);
+        if (active) setPreviewHtml(prepareArtifactPreviewHtml(html));
       })
       .catch(() => {
         if (active) {
