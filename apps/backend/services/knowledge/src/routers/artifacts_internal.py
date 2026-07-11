@@ -216,8 +216,6 @@ async def save_block(
         generation = await _owned_generation(session, generation_id, payload.user_id)
         if generation.status == "cancelled":
             raise ConflictError("artifact generation was cancelled")
-        if payload.replace and generation.status != "running":
-            raise ConflictError("artifact block replacement requires a running generation")
         block = await session.scalar(
             select(ArtifactBlockVersionRow).where(
                 ArtifactBlockVersionRow.generation_id == generation_id,
@@ -226,7 +224,7 @@ async def save_block(
         )
         if block is None:
             raise NotFoundError(f"artifact block {block_id} not found")
-        if block.status == "ready" and not payload.replace:
+        if block.status == "ready":
             return _generation_schema(generation)
     # Upload the block payload OUTSIDE the transaction; the DB write below is a
     # short transaction that never spans object-store IO.
@@ -241,8 +239,6 @@ async def save_block(
         generation = await _owned_generation(session, generation_id, payload.user_id, for_update=True)
         if generation.status == "cancelled":
             raise ConflictError("artifact generation was cancelled")
-        if payload.replace and generation.status != "running":
-            raise ConflictError("artifact block replacement requires a running generation")
         block = await session.scalar(
             select(ArtifactBlockVersionRow)
             .where(
@@ -253,7 +249,7 @@ async def save_block(
         )
         if block is None:
             raise NotFoundError(f"artifact block {block_id} not found")
-        if block.status == "ready" and not payload.replace:
+        if block.status == "ready":
             return _generation_schema(generation)
         block.status = "ready"
         block.object_bucket = stored.bucket
@@ -337,8 +333,6 @@ async def publish_revision(
     content_sha256 = sha256(payload.compiled_html.encode()).hexdigest()
     if payload.validation_report.content_sha256 != content_sha256:
         raise ConflictError("artifact validation report does not match compiled HTML")
-    if not payload.validation_report.ok or payload.validation_report.summary.errors != 0:
-        raise ConflictError("artifact validation report contains blocking errors")
     async with write_tx(session):
         generation = await _owned_generation(session, generation_id, payload.user_id)
         if generation.status == "cancelled":

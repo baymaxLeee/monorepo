@@ -11,8 +11,10 @@ Superseded in part by ADR 0023. The artifact pipeline remains accepted; ADR
   by capability. See ADR 0023 for the complete current list.
 - `write_file` is the only HTML creation entry point. Its execute function
   plans a typed outline, generates semantic blocks with bounded concurrency,
-  validates and repairs them, compiles one document, and publishes only after
-  the compiled document has no blocking findings.
+  compiles one document, and publishes as soon as blocks compile. Progress
+  reaching 100% means the artifact is on screen. Per-block fragment validation
+  still runs during generation; compiled-document findings are advisory and
+  returned in `html_validation` without blocking publish.
 - `edit_file` reads the latest immutable knowledge revision. It revises all
   blocks by default or only explicit `block_ids`, reusing every other block
   byte-for-byte. Publishing creates a child revision on the same document.
@@ -33,13 +35,15 @@ Superseded in part by ADR 0023. The artifact pipeline remains accepted; ADR
   iframe access.
 - Executor owns the canonical AST-based HTML/CSS validator. It reports stable
   error/warning codes with block, selector, evidence, and repair suggestions.
-  Fragment errors are returned to the block model once; compiled cross-block
-  errors get one targeted repair pass. Remaining errors block publication. The
-  hash-bound report is persisted in the generation manifest and returned by
-  `write_file`/`edit_file`. `html_validate` sends the document identity to
-  executor's synchronous internal validation endpoint; executor reads current
-  bytes from Knowledge and reruns the same canonical validator after any edit.
-  Chat has no duplicate validator and HTML does not enter chat history.
+  Fragment errors are returned to the block model once during generation.
+  Compiled cross-block findings are advisory at publish time; repair is a visible
+  ToolLoopAgent loop (`html_validate` → `list_artifact_blocks` → `edit_file` →
+  `html_validate`), not a hidden workflow step. The hash-bound report is
+  persisted in the generation manifest and returned by `write_file`/`edit_file`.
+  `html_validate` sends the document identity to executor's synchronous internal
+  validation endpoint; executor reads current bytes from Knowledge and reruns the
+  same canonical validator after any edit. Chat has no duplicate validator and
+  HTML does not enter chat history.
 - `html_validate` is read-only and never executes model-authored HTML. Automated
   browser screenshots and computed-layout inspection remain outside this phase;
   user-provided screenshots can drive a later `edit_file` turn.
@@ -71,7 +75,8 @@ Static validation is intentionally an inline tool call rather than another
 durable Workflow run. Deterministic checks return structured findings directly
 to the ToolLoopAgent; the agent can target `block_id` with `edit_file` and rerun
 the validator in the same turn. Workflow remains the boundary for long-running,
-restartable generation and repair.
+restartable generation; repair after publish is visible agent work, not a hidden
+workflow phase.
 
 ## Consequences
 
@@ -79,9 +84,9 @@ restartable generation and repair.
   ToolLoop step per block. Four block model calls run concurrently and all
   inherit the parent AbortSignal.
 - A failed or missing block, invalid chart, broken navigation target, unsafe
-  markup, or blocking template/responsive finding leaves an incomplete
-  generation and never publishes a partial revision. An edit failure preserves
-  the previously published document.
+  markup, or blocking template/responsive finding may publish with an advisory
+  validation report; the agent repairs via the visible `html_validate` loop.
+  An edit failure preserves the previously published document.
 - Existing artifacts without the current `templateVersion` are regenerated on
   their next edit; no legacy template compatibility branch is retained during
   the demo phase.

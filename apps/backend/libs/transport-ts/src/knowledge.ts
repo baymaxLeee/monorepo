@@ -268,7 +268,6 @@ export class KnowledgeInternalClient {
     blockId: string;
     content: string;
     failed?: boolean;
-    replace?: boolean;
   }): Promise<ArtifactGeneration> {
     return this.unwrap(
       this.client.PUT("/internal/artifact-generations/{generation_id}/blocks/{block_id}", {
@@ -277,7 +276,6 @@ export class KnowledgeInternalClient {
           user_id: input.userId,
           content: input.content,
           failed: input.failed ?? false,
-          replace: input.replace ?? false,
         },
       }),
     );

@@ -86,7 +86,6 @@ class SaveArtifactBlockInput(BaseModel):
     user_id: str = Field(min_length=1, max_length=26)
     content: str = Field(min_length=1)
     failed: bool = False
-    replace: bool = False
 
 
 class PublishArtifactRevisionInput(BaseModel):

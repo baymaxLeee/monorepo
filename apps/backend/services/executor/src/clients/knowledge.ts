@@ -108,7 +108,6 @@ export async function saveArtifactBlock(input: {
   blockId: string;
   content: string;
   failed?: boolean;
-  replace?: boolean;
 }): Promise<ArtifactGeneration> {
   return knowledgeClient().saveArtifactBlock(input);
 }

@@ -869,11 +869,6 @@ export interface components {
              * @default false
              */
             failed: boolean;
-            /**
-             * Replace
-             * @default false
-             */
-            replace: boolean;
         };
         /** SaveArtifactPlanInput */
         SaveArtifactPlanInput: {

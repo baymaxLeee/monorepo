@@ -326,54 +326,6 @@ async function validateArtifactStep(input: CompileArtifactInput) {
   };
 }
 
-async function repairCompiledBlockStep(input: {
-  orgId: string;
-  userId: string;
-  providerId: string;
-  generationId: string;
-  block: ArtifactBlock;
-  mode: ArtifactMode;
-  theme: ArtifactTheme;
-  outline: ArtifactBlock[];
-  artifactBrief: string;
-  findings: HtmlValidationReport["findings"];
-}): Promise<void> {
-  "use step";
-  const { workflowRunId } = getWorkflowMetadata();
-  const cancellation = observeTaskCancellation(workflowRunId);
-  try {
-    const stored = await listArtifactBlocks(input.userId, input.generationId);
-    const current = stored.find((item) => item.id === input.block.id);
-    const sourceHtml = current ? parseStoredBlockHtml(current.content) ?? undefined : undefined;
-    if (!sourceHtml) throw new Error(`cannot repair block ${input.block.id} without generated HTML`);
-    const tools = await buildArtifactTextModel(input.providerId, input.orgId);
-    const html = await generateBlock({
-      block: input.block,
-      mode: input.mode,
-      theme: input.theme,
-      outline: input.outline,
-      artifactBrief: input.artifactBrief,
-      tools,
-      abortSignal: AbortSignal.any([cancellation.signal, AbortSignal.timeout(5 * 60_000)]),
-      currentHtml: sourceHtml,
-      changeBrief: [
-        "Repair the compiled validation errors below without changing unrelated content.",
-        JSON.stringify(input.findings),
-      ].join("\n"),
-    });
-    await saveArtifactBlock({
-      userId: input.userId,
-      generationId: input.generationId,
-      blockId: input.block.id,
-      content: JSON.stringify({ title: input.block.title, html }),
-      failed: false,
-      replace: true,
-    });
-  } finally {
-    cancellation.dispose();
-  }
-}
-
 async function publishArtifactStep(
   input: CompileArtifactInput & { orgId: string; validationReport: HtmlValidationReport },
 ) {
@@ -477,7 +429,7 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
       return result;
     });
 
-    let validation = await validateArtifactStep({
+    const validation = await validateArtifactStep({
       userId: input.userId,
       generationId,
       title: input.title,
@@ -485,53 +437,6 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
       theme: plan.theme,
       blocks: plan.blocks,
     });
-    if (!validation.validation.ok) {
-      const errors = validation.validation.findings.filter((finding) => finding.severity === "error");
-      const unrepairable = errors.filter(
-        (finding) => !finding.block_id || finding.code === "BLOCK_GENERATION_FAILED",
-      );
-      if (unrepairable.length) {
-        throw new Error(
-          `compiled artifact failed validation: ${unrepairable.map((finding) => finding.code).join(", ")}`,
-        );
-      }
-      const findingsByBlock = new Map<string, HtmlValidationReport["findings"]>();
-      for (const finding of errors) {
-        const blockId = finding.block_id!;
-        findingsByBlock.set(blockId, [...(findingsByBlock.get(blockId) ?? []), finding]);
-      }
-      const repairBlocks = plan.blocks.filter((block) => findingsByBlock.has(block.id));
-      await mapConcurrent(repairBlocks, blockConcurrency, async (block) => {
-        await repairCompiledBlockStep({
-          orgId: input.orgId,
-          userId: input.userId,
-          providerId: input.providerId,
-          generationId,
-          block,
-          mode: plan.mode,
-          theme: plan.theme,
-          outline: plan.blocks,
-          artifactBrief: input.brief,
-          findings: findingsByBlock.get(block.id)!,
-        });
-      });
-      validation = await validateArtifactStep({
-        userId: input.userId,
-        generationId,
-        title: input.title,
-        mode: plan.mode,
-        theme: plan.theme,
-        blocks: plan.blocks,
-      });
-      if (!validation.validation.ok) {
-        throw new Error(
-          `compiled artifact failed validation after repair: ${validation.validation.findings
-            .filter((finding) => finding.severity === "error")
-            .map((finding) => finding.code)
-            .join(", ")}`,
-        );
-      }
-    }
     const published = await publishArtifactStep({
       userId: input.userId,
       orgId: input.orgId,

@@ -75,8 +75,12 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 - `write_file`/`edit_file` handle both Markdown and HTML. Markdown runs
   synchronously in this tool call (a single `streamText`, no durability
   needed). **HTML dispatches to the `executor` service and foreground-blocks
-  this turn** (`agent_task_执行时服务` plan, Phase 2; ADR-0015 revision). The
-  tool `execute` is an async generator that consumes `pollTaskSnapshots`
+  this turn** until compile + publish complete (`agent_task_执行时服务` plan,
+  Phase 2; ADR-0015 revision). Progress 100% means the artifact is on screen;
+  the returned `html_validation` report is advisory and may include errors.
+  After delivery, use `html_validate` → `list_artifact_blocks` → `edit_file` →
+  `html_validate` for one focused repair pass when needed. The tool `execute`
+  is an async generator that consumes `pollTaskSnapshots`
   (`agent/tasks/executor-task.ts`): it yields a preliminary `{ status, task_id }`
   (so the card mounts at once), then polls `GET /tasks/:id`, yielding running
   `{ status: "running", blocks_done, blocks_total }` snapshots, and finally

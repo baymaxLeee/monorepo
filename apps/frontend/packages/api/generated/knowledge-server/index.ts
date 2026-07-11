@@ -451,7 +451,6 @@ export interface SaveArtifactBlockInput {
   /** @minLength 1 */
   content: string;
   failed?: boolean;
-  replace?: boolean;
 }
 
 export type SaveArtifactPlanInputManifest = { [key: string]: unknown };
