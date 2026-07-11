@@ -37,6 +37,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/html-validations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Validate current compiled artifact HTML synchronously. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        user_id: string;
+                        document_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description canonical HTML validation report */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HtmlValidationReport"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tasks": {
         parameters: {
             query?: never;
@@ -277,6 +320,41 @@ export interface components {
             owner_ref: string;
             /** @description TaskType-specific input, validated against that type's schema */
             payload: unknown;
+        };
+        HtmlValidationFinding: {
+            code: string;
+            /** @enum {string} */
+            severity: "error" | "warning" | "info";
+            /** @enum {string} */
+            category: "structure" | "security" | "template" | "responsive" | "accessibility" | "navigation" | "chart";
+            message: string;
+            suggestion: string;
+            block_id?: string;
+            selector?: string;
+            evidence?: {
+                /** @enum {string} */
+                kind: "html" | "css";
+                excerpt: string;
+            };
+        };
+        HtmlValidationReport: {
+            /** @enum {integer} */
+            schema_version: 1;
+            template_version: number;
+            ok: boolean;
+            content_sha256: string;
+            summary: {
+                errors: number;
+                warnings: number;
+                infos: number;
+            };
+            findings: components["schemas"]["HtmlValidationFinding"][];
+            metrics: {
+                blocks: number;
+                charts: number;
+                internal_links: number;
+                total_chars: number;
+            };
         };
     };
     responses: never;

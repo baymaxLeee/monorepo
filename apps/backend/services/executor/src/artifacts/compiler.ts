@@ -1,21 +1,20 @@
 import { buildArtifactNavScript, buildArtifactRuntimeHead, buildChartHydrationScript } from "./template.js";
 import sanitizeHtml from "sanitize-html";
+import { DomUtils, parseDocument } from "htmlparser2";
 import postcss from "postcss";
 import selectorParser from "postcss-selector-parser";
 
 export type ArtifactPartPlan = { id: string; type: string; title: string };
 
-export type ArtifactValidation = {
-  ok: boolean;
-  structuralErrors: string[];
-  brokenInternalLinks: string[];
-};
-
 export const ARTIFACT_VISUAL_CAPABILITIES = [
-  "Own the complete visual direction: color scheme, typography, spacing, density, composition, and responsive behavior.",
-  "Use semantic HTML plus arbitrary classes and CSS. A scoped <style> element is allowed inside the fragment.",
-  "Scope every CSS selector under the compiler-provided block id so independently generated blocks cannot restyle one another.",
-  "Do not target html, body, or :root. Do not load external CSS, fonts, images, or other resources from CSS.",
+  "The platform owns the responsive shell, accessible color tokens, typography, spacing scale, and reusable Grid/Flex primitives.",
+  "Compose layouts with artifact-stack, artifact-cluster, artifact-grid, artifact-split, artifact-card, artifact-metric-grid, artifact-frame, artifact-table-scroll, and artifact-prose.",
+  "Use semantic HTML. A scoped <style> element is allowed only for topic-specific composition that the platform primitives cannot express.",
+  "Use platform CSS variables such as --artifact-accent, --artifact-text, --artifact-muted, --artifact-surface, --artifact-gap, and --artifact-radius instead of inventing a page-level design system.",
+  "Scope every custom selector under the compiler-provided block id. Never target html, body, :root, or another block.",
+  "Prefer Grid/Flex with minmax(0,1fr), min-width:0, max-width:100%, auto-fit, clamp(), and wrapping. Avoid fixed widths, rigid min-width, fixed positioning, and nowrap content.",
+  "Wrap every table in artifact-table-scroll. Images, charts, tables, and code must remain usable on narrow viewports.",
+  "Do not load external CSS, fonts, images, or other resources from CSS.",
 ].join("\n");
 
 export const ARTIFACT_CHART_SPEC = [
@@ -38,7 +37,37 @@ function stripUnsafeCss(value: string): string {
     .replace(/javascript\s*:/gi, "");
 }
 
-function sanitizeArtifactCss(value: string, scopeId: string): string {
+type HtmlNode = {
+  type?: string;
+  attribs?: Record<string, string>;
+  children?: HtmlNode[];
+};
+
+const BLOCK_ID_PATTERN = /^page-[1-9]\d*$/;
+const IDREF_ATTRIBUTES = ["aria-activedescendant", "aria-controls", "aria-describedby", "aria-details", "aria-errormessage", "aria-flowto", "aria-labelledby", "aria-owns"];
+
+function htmlNodes(root: HtmlNode): HtmlNode[] {
+  const result: HtmlNode[] = [];
+  const visit = (node: HtmlNode): void => {
+    result.push(node);
+    for (const child of node.children ?? []) visit(child);
+  };
+  visit(root);
+  return result;
+}
+
+function collectLocalIds(value: string, scopeId: string): Map<string, string> {
+  const root = parseDocument(value, { lowerCaseAttributeNames: false }) as unknown as HtmlNode;
+  const ids = new Map<string, string>();
+  for (const node of htmlNodes(root)) {
+    const id = node.attribs?.id;
+    if (!id || id === scopeId || BLOCK_ID_PATTERN.test(id)) continue;
+    ids.set(id, id.startsWith(`${scopeId}--`) ? id : `${scopeId}--${id}`);
+  }
+  return ids;
+}
+
+function sanitizeArtifactCss(value: string, scopeId: string, localIds: Map<string, string>): string {
   const cleaned = stripUnsafeCss(value);
   try {
     const root = postcss.parse(cleaned);
@@ -77,6 +106,9 @@ function sanitizeArtifactCss(value: string, scopeId: string): string {
         parsed.walkPseudos((pseudo) => {
           if (pseudo.value.toLowerCase() === ":root") unsafe = true;
         });
+        parsed.walkIds((id) => {
+          id.value = localIds.get(id.value) ?? id.value;
+        });
         if (unsafe) {
           rule.remove();
           return;
@@ -99,6 +131,35 @@ function sanitizeArtifactCss(value: string, scopeId: string): string {
   }
 }
 
+function namespaceArtifactIds(value: string, scopeId: string, localIds: Map<string, string>): string {
+  const root = parseDocument(value, { lowerCaseAttributeNames: false }) as unknown as HtmlNode;
+  for (const node of htmlNodes(root)) {
+    const attributes = node.attribs;
+    if (!attributes) continue;
+    const id = attributes.id;
+    if (id === scopeId || (id && BLOCK_ID_PATTERN.test(id))) {
+      delete attributes.id;
+    } else if (id) {
+      attributes.id = localIds.get(id) ?? id;
+    }
+    const href = attributes.href;
+    if (href?.startsWith("#")) {
+      const target = href.slice(1);
+      const namespaced = localIds.get(target);
+      if (namespaced) attributes.href = `#${namespaced}`;
+    }
+    for (const attribute of IDREF_ATTRIBUTES) {
+      const value = attributes[attribute];
+      if (!value) continue;
+      attributes[attribute] = value
+        .split(/\s+/)
+        .map((token) => localIds.get(token) ?? token)
+        .join(" ");
+    }
+  }
+  return DomUtils.getInnerHTML(root as never).trim();
+}
+
 export function sanitizeArtifactPart(value: string, scopeId: string): string {
   const fragment = value
     .trim()
@@ -108,16 +169,17 @@ export function sanitizeArtifactPart(value: string, scopeId: string): string {
     .replace(/<\/?(?:html|head|body)[^>]*>/gi, "")
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
     .trim();
+  const localIds = collectLocalIds(fragment, scopeId);
   const sanitizedCss = fragment
     .replace(
       /<style\b[^>]*>([\s\S]*?)<\/style>/gi,
-      (_match, css) => `<style>${sanitizeArtifactCss(String(css), scopeId)}</style>`,
+      (_match, css) => `<style>${sanitizeArtifactCss(String(css), scopeId, localIds)}</style>`,
     )
     .replace(
       /\sstyle=(["'])([\s\S]*?)\1/gi,
       (_match, quote, css) => ` style=${quote}${stripUnsafeCss(String(css))}${quote}`,
     );
-  return sanitizeHtml(sanitizedCss, {
+  const sanitized = sanitizeHtml(sanitizedCss, {
     allowedTags: [
       "a", "abbr", "article", "aside", "b", "blockquote", "br", "button",
       "caption", "cite", "code", "col", "colgroup", "dd", "details", "div",
@@ -152,12 +214,13 @@ export function sanitizeArtifactPart(value: string, scopeId: string): string {
       },
     },
   }).trim();
+  return namespaceArtifactIds(sanitized, scopeId, localIds);
 }
 
 export function compileArtifactHtml(input: {
   title: string;
   mode: "document" | "presentation" | "dashboard";
-  theme: { visualDirection: string; accent: string };
+  theme: { visualDirection: string; accent: string; appearance: "light" | "dark" };
   parts: ArtifactPartPlan[];
   stored: Array<{ id: string; content: string }>;
 }): { html: string; partsOk: number; partsFailed: number } {
@@ -183,40 +246,18 @@ export function compileArtifactHtml(input: {
       return renderErrorSection(planned, parsed.error ?? "part produced no HTML");
     }
     partsOk += 1;
-    return `<section id="${escapeAttribute(planned.id)}" class="artifact-block artifact-block--${escapeAttribute(planned.type)}" data-block-id="${escapeAttribute(planned.id)}"><div class="artifact-block__content">${compileCharts(parsed.html, accent)}</div></section>`;
+    return `<section id="${escapeAttribute(planned.id)}" class="artifact-block artifact-block--${escapeAttribute(planned.type)}" data-block-id="${escapeAttribute(planned.id)}"><div class="artifact-block__content"><article class="artifact-content">${compileCharts(parsed.html, accent)}</article></div></section>`;
   });
   const usesEcharts = sections.some((section) => section.includes("data-chart-option"));
   const html = [
     "<!doctype html>", '<html lang="zh-CN">', "<head>", '  <meta charset="utf-8" />',
     '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
     `  <title>${escapeHtml(input.title)}</title>`, buildArtifactRuntimeHead({ usesEcharts }),
-    `  <style>${artifactRuntimeStyles()}</style>`, "</head>", "<body>",
+    `  <style>${artifactRuntimeStyles(input.theme.appearance, accent)}</style>`, "</head>",
+    `<body class="artifact-shell artifact-shell--${input.mode} artifact-shell--${input.theme.appearance}" data-artifact-template-version="1">`,
     ...sections, buildChartHydrationScript(), buildArtifactNavScript(), "</body>", "</html>",
   ].join("\n");
   return { html, partsOk, partsFailed };
-}
-
-export function validateArtifactHtml(html: string): ArtifactValidation {
-  const brokenInternalLinks = findBrokenInternalLinks(html);
-  const structuralErrors = [
-    !/^\s*<!doctype html>/i.test(html) ? "missing doctype" : null,
-    !/<\/html>\s*$/i.test(html) ? "missing closing html tag" : null,
-    /\son[a-z]+\s*=/i.test(html) ? "inline event handler detected" : null,
-    /javascript\s*:/i.test(html) ? "javascript URL detected" : null,
-    (html.match(/<html\b/gi) ?? []).length > 1 ? "nested html document" : null,
-    (html.match(/<body\b/gi) ?? []).length > 1 ? "nested body element" : null,
-  ].filter((value): value is string => value != null);
-  return {
-    ok: structuralErrors.length === 0 && brokenInternalLinks.length === 0,
-    structuralErrors,
-    brokenInternalLinks,
-  };
-}
-
-function findBrokenInternalLinks(html: string): string[] {
-  const ids = new Set([...html.matchAll(/\bid=["']([^"']+)["']/g)].map((match) => match[1]));
-  const targets = [...html.matchAll(/href=["']#([^"']+)["']/g)].map((match) => match[1]!);
-  return [...new Set(targets.filter((target) => target && !ids.has(target)))];
 }
 
 function renderErrorSection(part: ArtifactPartPlan, reason: string): string {
@@ -455,18 +496,44 @@ function normalizeChartOptionJson(value: string): string {
   );
 }
 
-function artifactRuntimeStyles(): string {
+function artifactRuntimeStyles(appearance: "light" | "dark", accent: string): string {
+  const palette = appearance === "dark"
+    ? { bg: "#09090b", surface: "#18181b", elevated: "#27272a", text: "#fafafa", muted: "#a1a1aa", border: "#3f3f46" }
+    : { bg: "#f8fafc", surface: "#ffffff", elevated: "#f1f5f9", text: "#0f172a", muted: "#475569", border: "#dbe3ee" };
   return [
     "*{box-sizing:border-box;}",
-    "html,body{margin:0;min-height:100%;}",
-    ".artifact-block{position:relative;}",
-    ".artifact-block__content{min-width:0;overflow-wrap:anywhere;}",
+    `:root{color-scheme:${appearance};--artifact-bg:${palette.bg};--artifact-surface:${palette.surface};--artifact-elevated:${palette.elevated};--artifact-text:${palette.text};--artifact-muted:${palette.muted};--artifact-border:${palette.border};--artifact-accent:${accent};--artifact-radius:clamp(12px,1.5vw,22px);--artifact-gap:clamp(16px,2.4vw,32px);--artifact-gutter:clamp(16px,4vw,64px);--artifact-content-width:1440px;}`,
+    "html,body{margin:0;min-height:100%;background:var(--artifact-bg);color:var(--artifact-text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;line-height:1.55;text-rendering:optimizeLegibility;}",
+    "body{overflow-x:hidden;}",
+    ".artifact-block{position:relative;min-width:0;}",
+    ".artifact-block__content{width:min(100%,var(--artifact-content-width));min-width:0;margin-inline:auto;padding:clamp(24px,5vw,80px) var(--artifact-gutter);overflow-wrap:anywhere;}",
+    ".artifact-content{min-width:0;}",
+    ".artifact-shell--document .artifact-block+.artifact-block{border-top:1px solid var(--artifact-border);}",
+    ".artifact-shell--presentation .artifact-block{display:grid;align-items:center;min-height:min(100svh,900px);}",
+    ".artifact-shell--dashboard .artifact-block__content{width:min(100%,1600px);}",
+    ".artifact-stack{display:flex;min-width:0;flex-direction:column;flex-wrap:nowrap;gap:var(--artifact-gap);}",
+    ".artifact-cluster{display:flex;min-width:0;flex-wrap:wrap;align-items:center;gap:clamp(8px,1.5vw,16px);}",
+    ".artifact-grid,.artifact-metric-grid{display:grid;min-width:0;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:var(--artifact-gap);}",
+    ".artifact-metric-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));}",
+    ".artifact-split{display:grid;min-width:0;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));align-items:center;gap:clamp(24px,5vw,72px);}",
+    ".artifact-card{min-width:0;padding:clamp(16px,2.5vw,32px);border:1px solid var(--artifact-border);border-radius:var(--artifact-radius);background:var(--artifact-surface);box-shadow:0 12px 32px color-mix(in srgb,var(--artifact-text) 8%,transparent);}",
+    ".artifact-frame{min-width:0;overflow:hidden;border-radius:var(--artifact-radius);background:var(--artifact-elevated);}",
+    ".artifact-table-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch;}",
+    ".artifact-table-scroll table{width:100%;min-width:min(640px,100%);border-collapse:collapse;}",
+    ".artifact-prose{max-width:75ch;}",
+    "h1,h2,h3,h4,h5,h6{margin-block:0 .5em;line-height:1.15;letter-spacing:-.02em;text-wrap:balance;}",
+    "h1{font-size:clamp(2rem,6vw,4.75rem);}h2{font-size:clamp(1.6rem,4vw,3rem);}h3{font-size:clamp(1.25rem,2.5vw,2rem);}",
+    "p,li,td,th{font-size:clamp(.95rem,1.3vw,1.08rem);}p{max-width:75ch;}",
+    "a{color:var(--artifact-accent);text-underline-offset:.18em;}",
+    "pre{max-width:100%;overflow:auto;padding:1em;border-radius:calc(var(--artifact-radius)*.65);background:var(--artifact-elevated);}",
+    "table{max-width:100%;}th,td{padding:.75em 1em;border-bottom:1px solid var(--artifact-border);text-align:start;}",
     "img,svg,canvas{max-width:100%;height:auto;}",
-    "[data-chart-option]{min-height:360px;width:100%;}",
+    "[data-chart-option]{min-height:clamp(280px,45vw,520px);width:100%;max-width:100%;}",
     "[data-chart-invalid]{min-height:auto;}",
     ".artifact-block--error{padding:24px;border:1px solid #fecaca;background:#fef2f2;}",
     ".artifact-block__error{color:#b91c1c;font-weight:600;}",
-    "@media print{.artifact-block{break-after:page;}}",
+    "@media(max-width:640px){.artifact-block__content{padding-block:clamp(20px,7vw,40px)}.artifact-card{box-shadow:none}.artifact-shell--presentation .artifact-block{min-height:auto}}",
+    "@media print{.artifact-block{break-after:page}.artifact-card{box-shadow:none}}",
   ].join("\n");
 }
 

@@ -43,13 +43,17 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   里，chat 不再传输 HTML 正文，也不再自己跑 worker pool。
 - 前端通过 task progress UIMessage stream 展示细粒度进度；tool 自身轮询 executor
   terminal state，前者只负责 UX，后者才是完成信号。
-- HTML block 自行生成 scoped CSS、主题、布局与图表 option；executor 的 compiler
-  只提供安全壳、CSP、网络型 CSS 清洗和 ECharts hydration，不按
-  document/presentation/dashboard 注入固定视觉模板。
+- executor compiler 统一提供版本化响应式 shell、主题 tokens、Grid/Flex primitives、
+  CSP、CSS 清洗和 ECharts hydration；HTML block 只负责语义内容与有限的 scoped 构图。
+  block 内局部 ID 会按 `page-N--local-id` 确定性命名空间化并同步重写 CSS、fragment
+  link 与 ARIA IDREF；模型误写的 compiler-owned `page-N` 声明会被移除。
 - `edit_file` 从 knowledge 读取最新 immutable revision，复用未改 block，只生成受
   影响 block，并在同一个 document 下发布新 revision（同样委派给 executor）。
-- `html_validate` 提供 HTML 结构、内部链接、图表和 block 检查，不执行宿主机 shell，留在 chat
-  本地（不需要模型调用，不需要持久化执行状态）。
+- `write_file`/`edit_file` 的 HTML 终态携带 executor 生成的完整验证报告。
+  `html_validate` 每次读取 Knowledge 当前 HTML 并调用 executor 的同步内部校验接口，
+  返回 error/warning code、block、selector、evidence 和修复建议；模型可据此调用
+  `list_artifact_blocks` + `edit_file` 后再次校验。chat 不复制 validator，也不执行
+  宿主机 shell 或不可信 HTML。静态校验不走 durable Workflow；生成和编译修复仍走。
 - 用户取消 chat run 会通过 tool AbortSignal 取消当前前台等待的 executor task；进程
   故障不会取消 durable task。
 - executor 先持久化并通知 task `cancelled`，再取消 Workflow，并按 task type 补偿

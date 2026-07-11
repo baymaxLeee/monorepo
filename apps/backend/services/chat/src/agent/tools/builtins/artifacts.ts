@@ -2,7 +2,6 @@ import { tool } from "ai";
 import { z } from "zod";
 
 import { buildArtifactTextModel, collectText, combinedSignal } from "../../artifacts/generator.js";
-import { inspectArtifactHtml, validateArtifactHtml } from "../../artifacts/compiler.js";
 import {
   artifactSystemPrompt,
   artifactRevisionPrompt,
@@ -13,12 +12,11 @@ import {
 import { ARTIFACT_GENERATION_TIMEOUT } from "../../artifacts/config.js";
 import {
   getDocument,
-  getDocumentSource,
   getLatestArtifactWorkspace,
   createArtifact,
   updateArtifact,
 } from "../../../clients/knowledge.js";
-import { type Task } from "../../../clients/executor.js";
+import { type Task, validateHtml as validateHtmlWithExecutor } from "../../../clients/executor.js";
 import { logger } from "../../../lib/logger.js";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
 import { artifactToolContextSchema, type ArtifactToolContext } from "../context.js";
@@ -41,6 +39,40 @@ const artifactPersistedOutputSchema = z.object({
   total_chars: z.number(),
 });
 
+const htmlValidationFindingSchema = z.object({
+  code: z.string(),
+  severity: z.enum(["error", "warning", "info"]),
+  category: z.enum([
+    "structure",
+    "security",
+    "template",
+    "responsive",
+    "accessibility",
+    "navigation",
+    "chart",
+  ]),
+  message: z.string(),
+  suggestion: z.string(),
+  block_id: z.string().optional(),
+  selector: z.string().optional(),
+  evidence: z.object({ kind: z.enum(["html", "css"]), excerpt: z.string() }).optional(),
+});
+
+const htmlValidationReportSchema = z.object({
+  schema_version: z.literal(1),
+  template_version: z.number().int().positive(),
+  ok: z.boolean(),
+  content_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  summary: z.object({ errors: z.number().int().nonnegative(), warnings: z.number().int().nonnegative(), infos: z.number().int().nonnegative() }),
+  findings: z.array(htmlValidationFindingSchema),
+  metrics: z.object({
+    blocks: z.number().int().nonnegative(),
+    charts: z.number().int().nonnegative(),
+    internal_links: z.number().int().nonnegative(),
+    total_chars: z.number().int().nonnegative(),
+  }),
+});
+
 const artifactTaskOutputSchema = z.object({
   ok: z.literal(true),
   status: z.string(),
@@ -53,19 +85,17 @@ const artifactTaskOutputSchema = z.object({
   document_id: z.string().optional(),
   total_chars: z.number().optional(),
   blocks_failed: z.number().optional(),
-  html_validation: z
-    .object({
-      ok: z.literal(true),
-      structural_errors: z.array(z.string()),
-      broken_internal_links: z.array(z.string()),
-    })
-    .optional(),
+  html_validation: htmlValidationReportSchema.optional(),
 });
 
 const artifactBlockedOutputSchema = z.object({
   ok: z.literal(false),
   status: z.literal("blocked"),
-  code: z.enum(["ARTIFACT_NOT_EDITABLE", "FILE_NOT_ATTACHED", "NOT_HTML"]),
+  code: z.enum([
+    "ARTIFACT_NOT_EDITABLE",
+    "FILE_NOT_ATTACHED",
+    "NOT_HTML",
+  ]),
   error: z.string(),
 });
 
@@ -90,18 +120,9 @@ const artifactToolOutputSchema = z.union([
 ]);
 
 const htmlValidateOutputSchema = z.union([
-  z.object({
-    ok: z.boolean(),
+  htmlValidationReportSchema.extend({
     status: z.literal("completed"),
     file_id: z.string(),
-    structural_errors: z.array(z.string()),
-    broken_internal_links: z.array(z.string()),
-    pages: z.number(),
-    charts: z.number(),
-    invalid_charts: z.number(),
-    internal_links: z.number(),
-    failed_blocks: z.array(z.object({ id: z.string(), reason: z.string() })),
-    total_chars: z.number(),
   }),
   artifactBlockedOutputSchema,
 ]);
@@ -139,38 +160,20 @@ function parseStoredArtifactBlock(content: string): { title?: string; html?: str
   }
 }
 
-function stringArray(value: unknown): string[] | undefined {
-  if (!Array.isArray(value) || !value.every((item): item is string => typeof item === "string")) {
-    return undefined;
-  }
-  return value;
-}
-
 function taskResultFields(result: unknown): {
   documentId?: string;
   totalChars?: number;
   blocksFailed?: number;
-  validation?: { ok: true; structuralErrors: string[]; brokenInternalLinks: string[] };
+  validation?: z.infer<typeof htmlValidationReportSchema>;
 } {
   if (!result || typeof result !== "object") return {};
   const r = result as Record<string, unknown>;
-  const rawValidation =
-    r.validation && typeof r.validation === "object" ? (r.validation as Record<string, unknown>) : undefined;
-  const structuralErrors = stringArray(rawValidation?.structuralErrors);
-  const brokenInternalLinks = stringArray(rawValidation?.brokenInternalLinks);
-  const validation =
-    rawValidation?.ok === true && structuralErrors && brokenInternalLinks
-      ? {
-          ok: true as const,
-          structuralErrors,
-          brokenInternalLinks,
-        }
-      : undefined;
+  const parsedValidation = htmlValidationReportSchema.safeParse(r.validation);
   return {
     documentId: typeof r.documentId === "string" ? r.documentId : undefined,
     totalChars: typeof r.totalChars === "number" ? r.totalChars : undefined,
     blocksFailed: typeof r.blocksFailed === "number" ? r.blocksFailed : undefined,
-    validation,
+    validation: parsedValidation.success ? parsedValidation.data : undefined,
   };
 }
 
@@ -215,13 +218,7 @@ async function* streamHtmlArtifactTask(
       document_id: documentId,
       total_chars: totalChars,
       blocks_failed: blocksFailed,
-      html_validation: validation
-        ? {
-            ok: true,
-            structural_errors: validation.structuralErrors,
-            broken_internal_links: validation.brokenInternalLinks,
-          }
-        : undefined,
+      html_validation: validation,
       ...base,
     };
     return;
@@ -251,18 +248,23 @@ async function validateHtml(
       error: `file ${input.file_id} is not attached to this conversation`,
     };
   }
-  const source = await getDocumentSource(context.userId, input.file_id);
-  if (source.mimeType !== "text/html") {
+  if (document.mime_type !== "text/html") {
     return { ok: false, status: "blocked", code: "NOT_HTML", error: "html_validate only supports HTML files" };
   }
-  const html = new TextDecoder().decode(source.bytes);
-  const validation = validateArtifactHtml(html);
+  if (document.kind !== "artifact") {
+    return {
+      ok: false,
+      status: "blocked",
+      code: "ARTIFACT_NOT_EDITABLE",
+      error: `file ${input.file_id} is not a generated artifact`,
+    };
+  }
+  const liveReport = await validateHtmlWithExecutor({ userId: context.userId, documentId: input.file_id });
+  const parsed = htmlValidationReportSchema.parse(liveReport);
   return {
-    ok: validation.ok,
+    ...parsed,
     status: "completed",
     file_id: input.file_id,
-    structural_errors: validation.structural_errors,
-    ...inspectArtifactHtml(html),
   };
 }
 
@@ -403,7 +405,8 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
     defineAgentTool(
       "html_validate",
       tool({
-      description: "Validate a stored HTML artifact and report structure, links, charts, layout blocks, and failures.",
+      description:
+        "Run the canonical validator against the current stored HTML and return stable error/warning codes, block and selector locations, responsive/template/accessibility findings, evidence, and repair suggestions. After errors, call list_artifact_blocks, repair the affected blocks with edit_file, then rerun html_validate.",
       inputSchema: z.object({
         file_id: z.string().min(1).max(32),
       }),
@@ -418,7 +421,7 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
         execution: "inline",
         modes: ["normal"],
       },
-      { summary: "Validate and inspect a persisted HTML artifact." },
+      { summary: "Validate the current HTML and return actionable findings for the edit-and-revalidate loop." },
     ),
     defineAgentTool(
       "list_artifact_blocks",

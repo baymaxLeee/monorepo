@@ -242,6 +242,84 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
+export type HtmlValidationEvidenceKind = typeof HtmlValidationEvidenceKind[keyof typeof HtmlValidationEvidenceKind];
+
+
+export const HtmlValidationEvidenceKind = {
+  html: 'html',
+  css: 'css',
+} as const;
+
+export interface HtmlValidationEvidence {
+  kind: HtmlValidationEvidenceKind;
+  excerpt: string;
+}
+
+export type HtmlValidationFindingSeverity = typeof HtmlValidationFindingSeverity[keyof typeof HtmlValidationFindingSeverity];
+
+
+export const HtmlValidationFindingSeverity = {
+  error: 'error',
+  warning: 'warning',
+  info: 'info',
+} as const;
+
+export type HtmlValidationFindingCategory = typeof HtmlValidationFindingCategory[keyof typeof HtmlValidationFindingCategory];
+
+
+export const HtmlValidationFindingCategory = {
+  structure: 'structure',
+  security: 'security',
+  template: 'template',
+  responsive: 'responsive',
+  accessibility: 'accessibility',
+  navigation: 'navigation',
+  chart: 'chart',
+} as const;
+
+export interface HtmlValidationFinding {
+  code: string;
+  severity: HtmlValidationFindingSeverity;
+  category: HtmlValidationFindingCategory;
+  message: string;
+  suggestion: string;
+  block_id?: string | null;
+  selector?: string | null;
+  evidence?: HtmlValidationEvidence | null;
+}
+
+export interface HtmlValidationMetrics {
+  /** @minimum 0 */
+  blocks: number;
+  /** @minimum 0 */
+  charts: number;
+  /** @minimum 0 */
+  internal_links: number;
+  /** @minimum 0 */
+  total_chars: number;
+}
+
+export interface HtmlValidationSummary {
+  /** @minimum 0 */
+  errors: number;
+  /** @minimum 0 */
+  warnings: number;
+  /** @minimum 0 */
+  infos: number;
+}
+
+export interface HtmlValidationReport {
+  schema_version: 1;
+  /** @minimum 1 */
+  template_version: number;
+  ok: boolean;
+  /** @pattern ^[0-9a-f]{64}$ */
+  content_sha256: string;
+  summary: HtmlValidationSummary;
+  findings: HtmlValidationFinding[];
+  metrics: HtmlValidationMetrics;
+}
+
 export interface IngestFailure {
   index: number;
   client_ref: string;
@@ -274,6 +352,7 @@ export interface PublishArtifactRevisionInput {
   org_id: string;
   /** @minLength 1 */
   compiled_html: string;
+  validation_report: HtmlValidationReport;
 }
 
 export interface PublishedArtifactRevision {
@@ -372,6 +451,7 @@ export interface SaveArtifactBlockInput {
   /** @minLength 1 */
   content: string;
   failed?: boolean;
+  replace?: boolean;
 }
 
 export type SaveArtifactPlanInputManifest = { [key: string]: unknown };
@@ -884,11 +964,6 @@ const retrieveChunksInternalRetrievePost = (
     }
 
 return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,reserveGenerationInternalArtifactGenerationsPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,retrieveChunksInternalRetrievePost}};
-
-type AwaitedInput<T> = PromiseLike<T> | T;
-
-    type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
-
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['healthzHealthzGet']>>>

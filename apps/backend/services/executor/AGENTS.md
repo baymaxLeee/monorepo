@@ -44,6 +44,11 @@ for the full rationale.
 
 ## TaskType registry
 
+Fast, read-only deterministic checks are not TaskTypes. The authenticated
+`POST /html-validations` endpoint runs the same canonical validator used by the
+HTML artifact workflow and returns immediately; durable Workflow is reserved
+for long-running, restartable work.
+
 - `src/tasks/registry.ts` maps a `type` string to a Zod input schema and a
   `"use workflow"` function. This is the seam a future `harness`-backed
   execution engine plugs into: the registry and the HTTP layer never depend

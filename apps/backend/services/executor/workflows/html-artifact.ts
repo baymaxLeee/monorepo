@@ -18,7 +18,12 @@ import {
   saveArtifactPlan,
   getLatestArtifactWorkspace,
 } from "../src/clients/knowledge.js";
-import { compileArtifactHtml, validateArtifactHtml } from "../src/artifacts/compiler.js";
+import { compileArtifactHtml } from "../src/artifacts/compiler.js";
+import {
+  ARTIFACT_TEMPLATE_VERSION,
+  validateArtifactHtml,
+  type HtmlValidationReport,
+} from "../src/artifacts/validator.js";
 import {
   buildArtifactTextModel,
   generateBlock,
@@ -106,22 +111,35 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
       .filter((block): block is ArtifactBlock => block != null);
 
     const briefById = input.blockBriefs ?? {};
-    const targeted = input.blockIds?.length
-      ? new Set(input.blockIds)
-      : Object.keys(briefById).length
-        ? new Set(Object.keys(briefById))
-        : null;
+    const needsTemplateMigration = manifest.templateVersion !== ARTIFACT_TEMPLATE_VERSION;
+    const targeted = needsTemplateMigration
+      ? null
+      : input.blockIds?.length
+        ? new Set(input.blockIds)
+        : Object.keys(briefById).length
+          ? new Set(Object.keys(briefById))
+          : null;
     const blocks = existing;
     const blockStrategies: BlockStrategy[] = existing.map((block) => ({
       id: block.id,
       action: targeted && !targeted.has(block.id) ? "reuse" : "revise",
       sourceId: block.id,
-      changeBrief: briefById[block.id],
+      changeBrief: needsTemplateMigration
+        ? "Migrate this block to the current responsive template primitives while preserving its facts and intent."
+        : briefById[block.id],
     }));
-    const themeParsed = manifest.theme as ArtifactTheme | undefined;
+    const themeParsed = manifest.theme as Partial<ArtifactTheme> | undefined;
     const theme: ArtifactTheme = themeParsed?.visualDirection
-      ? themeParsed
-      : { visualDirection: "Keep the existing document's established visual direction.", accent: "#2563eb" };
+      ? {
+          visualDirection: themeParsed.visualDirection,
+          accent: themeParsed.accent ?? "#2563eb",
+          appearance: themeParsed.appearance === "dark" ? "dark" : "light",
+        }
+      : {
+          visualDirection: "Keep the existing document's established visual direction.",
+          accent: "#2563eb",
+          appearance: "light",
+        };
     const mode = manifest.mode === "presentation" || manifest.mode === "dashboard" ? manifest.mode : "document";
     return { mode, theme, blocks, blockStrategies, sourceHtmlById };
   } finally {
@@ -145,7 +163,13 @@ async function reserveStep(input: HtmlArtifactInput, plan: ArtifactPlan, idempot
   await saveArtifactPlan({
     userId: input.userId,
     generationId: generation.id,
-    manifest: { schemaVersion: 2, mode: plan.mode, theme: plan.theme, blocks: plan.blocks },
+    manifest: {
+      schemaVersion: 3,
+      templateVersion: ARTIFACT_TEMPLATE_VERSION,
+      mode: plan.mode,
+      theme: plan.theme,
+      blocks: plan.blocks,
+    },
     blocks: plan.blocks.map((block) => ({ id: block.id, type: block.type })),
   });
   const { workflowRunId } = getWorkflowMetadata();
@@ -294,11 +318,6 @@ async function validateArtifactStep(input: CompileArtifactInput) {
   }
   const compiled = await compileArtifact(input);
   const validation = validateArtifactHtml(compiled.html);
-  if (!validation.ok) {
-    throw new Error(
-      `compiled artifact failed validation: ${[...validation.structuralErrors, ...validation.brokenInternalLinks].join("; ")}`,
-    );
-  }
   return {
     totalChars: compiled.html.length,
     blocksOk: compiled.partsOk,
@@ -307,7 +326,57 @@ async function validateArtifactStep(input: CompileArtifactInput) {
   };
 }
 
-async function publishArtifactStep(input: CompileArtifactInput & { orgId: string }) {
+async function repairCompiledBlockStep(input: {
+  orgId: string;
+  userId: string;
+  providerId: string;
+  generationId: string;
+  block: ArtifactBlock;
+  mode: ArtifactMode;
+  theme: ArtifactTheme;
+  outline: ArtifactBlock[];
+  artifactBrief: string;
+  findings: HtmlValidationReport["findings"];
+}): Promise<void> {
+  "use step";
+  const { workflowRunId } = getWorkflowMetadata();
+  const cancellation = observeTaskCancellation(workflowRunId);
+  try {
+    const stored = await listArtifactBlocks(input.userId, input.generationId);
+    const current = stored.find((item) => item.id === input.block.id);
+    const sourceHtml = current ? parseStoredBlockHtml(current.content) ?? undefined : undefined;
+    if (!sourceHtml) throw new Error(`cannot repair block ${input.block.id} without generated HTML`);
+    const tools = await buildArtifactTextModel(input.providerId, input.orgId);
+    const html = await generateBlock({
+      block: input.block,
+      mode: input.mode,
+      theme: input.theme,
+      outline: input.outline,
+      artifactBrief: input.artifactBrief,
+      tools,
+      abortSignal: AbortSignal.any([cancellation.signal, AbortSignal.timeout(5 * 60_000)]),
+      currentHtml: sourceHtml,
+      changeBrief: [
+        "Repair the compiled validation errors below without changing unrelated content.",
+        JSON.stringify(input.findings),
+      ].join("\n"),
+    });
+    await saveArtifactBlock({
+      userId: input.userId,
+      generationId: input.generationId,
+      blockId: input.block.id,
+      content: JSON.stringify({ title: input.block.title, html }),
+      failed: false,
+      replace: true,
+    });
+  } finally {
+    cancellation.dispose();
+  }
+}
+
+async function publishArtifactStep(
+  input: CompileArtifactInput & { orgId: string; validationReport: HtmlValidationReport },
+) {
   "use step";
   const { workflowRunId } = getWorkflowMetadata();
   if (await isTaskCancelled(workflowRunId)) {
@@ -319,6 +388,7 @@ async function publishArtifactStep(input: CompileArtifactInput & { orgId: string
     orgId: input.orgId,
     generationId: input.generationId,
     compiledHtml: compiled.html,
+    validationReport: input.validationReport,
   });
   return {
     documentId: published.document_id,
@@ -407,7 +477,7 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
       return result;
     });
 
-    const validation = await validateArtifactStep({
+    let validation = await validateArtifactStep({
       userId: input.userId,
       generationId,
       title: input.title,
@@ -415,6 +485,53 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
       theme: plan.theme,
       blocks: plan.blocks,
     });
+    if (!validation.validation.ok) {
+      const errors = validation.validation.findings.filter((finding) => finding.severity === "error");
+      const unrepairable = errors.filter(
+        (finding) => !finding.block_id || finding.code === "BLOCK_GENERATION_FAILED",
+      );
+      if (unrepairable.length) {
+        throw new Error(
+          `compiled artifact failed validation: ${unrepairable.map((finding) => finding.code).join(", ")}`,
+        );
+      }
+      const findingsByBlock = new Map<string, HtmlValidationReport["findings"]>();
+      for (const finding of errors) {
+        const blockId = finding.block_id!;
+        findingsByBlock.set(blockId, [...(findingsByBlock.get(blockId) ?? []), finding]);
+      }
+      const repairBlocks = plan.blocks.filter((block) => findingsByBlock.has(block.id));
+      await mapConcurrent(repairBlocks, blockConcurrency, async (block) => {
+        await repairCompiledBlockStep({
+          orgId: input.orgId,
+          userId: input.userId,
+          providerId: input.providerId,
+          generationId,
+          block,
+          mode: plan.mode,
+          theme: plan.theme,
+          outline: plan.blocks,
+          artifactBrief: input.brief,
+          findings: findingsByBlock.get(block.id)!,
+        });
+      });
+      validation = await validateArtifactStep({
+        userId: input.userId,
+        generationId,
+        title: input.title,
+        mode: plan.mode,
+        theme: plan.theme,
+        blocks: plan.blocks,
+      });
+      if (!validation.validation.ok) {
+        throw new Error(
+          `compiled artifact failed validation after repair: ${validation.validation.findings
+            .filter((finding) => finding.severity === "error")
+            .map((finding) => finding.code)
+            .join(", ")}`,
+        );
+      }
+    }
     const published = await publishArtifactStep({
       userId: input.userId,
       orgId: input.orgId,
@@ -423,6 +540,7 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
       mode: plan.mode,
       theme: plan.theme,
       blocks: plan.blocks,
+      validationReport: validation.validation,
     });
 
     return {

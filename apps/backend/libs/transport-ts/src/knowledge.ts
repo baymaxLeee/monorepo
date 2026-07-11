@@ -20,6 +20,7 @@ export type ArtifactBlockPlan = components["schemas"]["ArtifactBlockPlan"];
 export type PublishedArtifactRevision = components["schemas"]["PublishedArtifactRevision"];
 export type StoredArtifactBlock = components["schemas"]["StoredArtifactBlock"];
 export type ArtifactRevisionWorkspace = components["schemas"]["ArtifactRevisionWorkspace"];
+export type HtmlValidationReport = components["schemas"]["HtmlValidationReport"];
 export type RetrieveResult = components["schemas"]["RetrieveResult"];
 export type RetrievedChunk = components["schemas"]["RetrievedChunk"];
 
@@ -267,11 +268,17 @@ export class KnowledgeInternalClient {
     blockId: string;
     content: string;
     failed?: boolean;
+    replace?: boolean;
   }): Promise<ArtifactGeneration> {
     return this.unwrap(
       this.client.PUT("/internal/artifact-generations/{generation_id}/blocks/{block_id}", {
         params: { path: { generation_id: input.generationId, block_id: input.blockId } },
-        body: { user_id: input.userId, content: input.content, failed: input.failed ?? false },
+        body: {
+          user_id: input.userId,
+          content: input.content,
+          failed: input.failed ?? false,
+          replace: input.replace ?? false,
+        },
       }),
     );
   }
@@ -295,11 +302,17 @@ export class KnowledgeInternalClient {
     orgId: string;
     generationId: string;
     compiledHtml: string;
+    validationReport: HtmlValidationReport;
   }): Promise<PublishedArtifactRevision> {
     return this.unwrap(
       this.client.POST("/internal/artifact-generations/{generation_id}/publish", {
         params: { path: { generation_id: input.generationId } },
-        body: { user_id: input.userId, org_id: input.orgId, compiled_html: input.compiledHtml },
+        body: {
+          user_id: input.userId,
+          org_id: input.orgId,
+          compiled_html: input.compiledHtml,
+          validation_report: input.validationReport,
+        },
       }),
     );
   }

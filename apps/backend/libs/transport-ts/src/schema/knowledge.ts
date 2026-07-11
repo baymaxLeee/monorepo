@@ -672,6 +672,78 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HtmlValidationEvidence */
+        HtmlValidationEvidence: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "html" | "css";
+            /** Excerpt */
+            excerpt: string;
+        };
+        /** HtmlValidationFinding */
+        HtmlValidationFinding: {
+            /** Code */
+            code: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "error" | "warning" | "info";
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "structure" | "security" | "template" | "responsive" | "accessibility" | "navigation" | "chart";
+            /** Message */
+            message: string;
+            /** Suggestion */
+            suggestion: string;
+            /** Block Id */
+            block_id?: string | null;
+            /** Selector */
+            selector?: string | null;
+            evidence?: components["schemas"]["HtmlValidationEvidence"] | null;
+        };
+        /** HtmlValidationMetrics */
+        HtmlValidationMetrics: {
+            /** Blocks */
+            blocks: number;
+            /** Charts */
+            charts: number;
+            /** Internal Links */
+            internal_links: number;
+            /** Total Chars */
+            total_chars: number;
+        };
+        /** HtmlValidationReport */
+        HtmlValidationReport: {
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: 1;
+            /** Template Version */
+            template_version: number;
+            /** Ok */
+            ok: boolean;
+            /** Content Sha256 */
+            content_sha256: string;
+            summary: components["schemas"]["HtmlValidationSummary"];
+            /** Findings */
+            findings: components["schemas"]["HtmlValidationFinding"][];
+            metrics: components["schemas"]["HtmlValidationMetrics"];
+        };
+        /** HtmlValidationSummary */
+        HtmlValidationSummary: {
+            /** Errors */
+            errors: number;
+            /** Warnings */
+            warnings: number;
+            /** Infos */
+            infos: number;
+        };
         /** IngestFailure */
         IngestFailure: {
             /** Index */
@@ -708,6 +780,7 @@ export interface components {
             org_id: string;
             /** Compiled Html */
             compiled_html: string;
+            validation_report: components["schemas"]["HtmlValidationReport"];
         };
         /** PublishedArtifactRevision */
         PublishedArtifactRevision: {
@@ -796,6 +869,11 @@ export interface components {
              * @default false
              */
             failed: boolean;
+            /**
+             * Replace
+             * @default false
+             */
+            replace: boolean;
         };
         /** SaveArtifactPlanInput */
         SaveArtifactPlanInput: {

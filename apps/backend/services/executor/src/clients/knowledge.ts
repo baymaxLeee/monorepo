@@ -4,6 +4,7 @@ import {
   type ArtifactGeneration,
   type ArtifactRevisionWorkspace,
   type KnowledgeDocument,
+  type HtmlValidationReport,
   type PublishedArtifactRevision,
   type StoredArtifactBlock,
 } from "@backend/transport-ts";
@@ -107,6 +108,7 @@ export async function saveArtifactBlock(input: {
   blockId: string;
   content: string;
   failed?: boolean;
+  replace?: boolean;
 }): Promise<ArtifactGeneration> {
   return knowledgeClient().saveArtifactBlock(input);
 }
@@ -123,6 +125,7 @@ export async function publishArtifactRevision(input: {
   orgId: string;
   generationId: string;
   compiledHtml: string;
+  validationReport: HtmlValidationReport;
 }): Promise<PublishedArtifactRevision> {
   return knowledgeClient().publishArtifactRevision(input);
 }

@@ -90,8 +90,10 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   source; Knowledge is not). `GET .../tasks/:taskId` stays as a plain JSON read
   for cold-start/debug. Knowledge/ObjectStore owns full content; chat history and
   traces never carry HTML fragments.
-- `html_validate` validates and inspects an already-published HTML artifact;
-  it stays local to chat since it needs no LLM call and no durability.
+- `html_validate` validates an already-published artifact's current bytes through
+  executor's synchronous canonical-validator endpoint. It is an inline agent
+  tool (no Workflow): findings flow into the next ToolLoopAgent step so the
+  model can use `list_artifact_blocks` + `edit_file` and validate again.
 - Cancelling a chat run **does** cancel the in-flight executor task the current
   `write_file`/`edit_file` call is blocking on: Stop aborts the turn, the tool's
   `abortSignal` fires, and it calls `POST /tasks/:id/cancel` before unwinding —

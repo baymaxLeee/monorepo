@@ -8,9 +8,10 @@ import {
   type ChatProvider,
 } from "@backend/transport-ts/provider-model";
 import { sanitizeArtifactPart, ARTIFACT_VISUAL_CAPABILITIES, ARTIFACT_CHART_SPEC } from "./compiler.js";
+import { validateArtifactFragment, type HtmlValidationReport } from "./validator.js";
 
 export type ArtifactMode = "document" | "presentation" | "dashboard";
-export type ArtifactTheme = { visualDirection: string; accent: string };
+export type ArtifactTheme = { visualDirection: string; accent: string; appearance: "light" | "dark" };
 export type ArtifactBlock = { id: string; type: string; title: string; brief: string };
 
 export const ARTIFACT_GENERATION_TIMEOUT = {
@@ -22,6 +23,7 @@ export const ARTIFACT_GENERATION_TIMEOUT = {
 const themeSchema = z.object({
   visualDirection: z.string().min(1).max(1200),
   accent: z.string().regex(/^#[0-9a-f]{6}$/i),
+  appearance: z.enum(["light", "dark"]),
 });
 
 const blockSchema = z.object({
@@ -65,6 +67,7 @@ const MAX_BLOCK_BRIEF = 4000;
 const outlineSchema = z.object({
   visual_direction: z.string().min(1).max(1200).optional(),
   accent: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
+  appearance: z.enum(["light", "dark"]).optional(),
   pages: z
     .array(
       z.object({
@@ -100,6 +103,7 @@ function deterministicOutline(input: {
     theme: {
       visualDirection: "Choose a coherent visual direction that fits the subject and the user's requested tone. The model owns theme and layout.",
       accent: input.brief.match(/#[0-9a-f]{6}/i)?.[0] ?? "#2563eb",
+      appearance: /(?:dark|深色|暗色|黑色)/i.test(input.brief) ? "dark" : "light",
     },
     blocks: Array.from({ length: input.count }, (_, index) => ({
       id: `page-${index + 1}`,
@@ -117,6 +121,7 @@ function outlineInstructions(input: { mode: ArtifactMode; count: number }): stri
     "Each page needs a distinct, specific title and a brief that states what THIS page must cover so independently generated pages never overlap or leave gaps.",
     "The brief is an instruction to a writer, not prose: name the concrete sections, data points, or visuals that belong on this page and nothing that belongs on another page.",
     "Optionally pick one accent hex color that fits the topic.",
+    "Choose light or dark appearance from the user's request and content context.",
     "Describe one specific visual direction shared by every page: color scheme, typography, composition, density, motifs, and chart treatment. Do not fall back to a generic template.",
     "Do not write any HTML; describe content only.",
     JSON_OBJECT_MODE_INSTRUCTION,
@@ -154,6 +159,7 @@ export async function planArtifact(input: {
       theme: {
         visualDirection: result.output?.visual_direction?.trim() || fallback.theme.visualDirection,
         accent,
+        appearance: result.output?.appearance ?? fallback.theme.appearance,
       },
       blocks: pages.map((page, index) => ({
         id: `page-${index + 1}`,
@@ -179,13 +185,19 @@ function blockInstructions(input: {
     "Generate one semantic HTML body fragment for a larger compiled artifact.",
     "Return only the fragment: no markdown fence, doctype, html, head, body, or script tags.",
     "Never emit inline JavaScript or event-handler attributes.",
-    "The runtime does not provide a visual template. You own the complete visual design and should make strong, topic-appropriate choices rather than producing generic unstyled HTML.",
-    "You may use arbitrary classes, inline styles, CSS variables, media queries, and one <style> element. Scope every selector under the current block id so it cannot affect other generated blocks.",
+    "The platform provides the responsive template, design tokens, and Grid/Flex primitives below. Compose them instead of rebuilding the page shell.",
+    "You may use topic-specific classes, inline styles, media queries, and one <style> element only when the platform primitives cannot express the composition. Scope every selector under the current block id.",
     `Current block selector: #${input.block.id}. Do not target html, body, :root, or another block id.`,
+    `The compiler owns id="${input.block.id}" on the outer block. Never declare that id, or any page-N id, inside the fragment. Give block-local targets descriptive unique ids; the compiler namespaces them and rewrites local references.`,
     "Do not use @import, CSS url(), external fonts, external stylesheets, or external images. The runtime removes them.",
     "<visual_capabilities>",
     ARTIFACT_VISUAL_CAPABILITIES,
     "</visual_capabilities>",
+    "<starter_template>",
+    '<header class="artifact-stack"><p>Short eyebrow</p><h1>Specific page title</h1><p class="artifact-prose">Concise introduction.</p></header>',
+    '<div class="artifact-grid"><section class="artifact-card artifact-stack"><h2>Section</h2><p>Content</p></section></div>',
+    "For a two-column composition use artifact-split. For metrics use artifact-metric-grid. Wrap every table in artifact-table-scroll.",
+    "</starter_template>",
     `Shared visual direction: ${input.theme.visualDirection}`,
     `Suggested accent: ${input.theme.accent}. Treat it as inspiration, not a required token.`,
     "Internal navigation must use fragment links such as href=\"#chapter-id\"; the compiler gives every block that id.",
@@ -210,8 +222,9 @@ export async function generateBlock(input: {
   changeBrief?: string;
 }): Promise<string> {
   let lastError = "empty output";
+  let validationFeedback: HtmlValidationReport | undefined;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const prompt = input.currentHtml
+    const basePrompt = input.currentHtml
       ? [
           `<artifact_brief>${input.artifactBrief}</artifact_brief>`,
           `<block id="${input.block.id}" title="${input.block.title}">${input.currentHtml}</block>`,
@@ -222,6 +235,13 @@ export async function generateBlock(input: {
           `<artifact_brief>${input.artifactBrief}</artifact_brief>`,
           `<block id="${input.block.id}" title="${input.block.title}">${input.block.brief}</block>`,
         ].join("\n");
+    const prompt = validationFeedback
+      ? [
+          basePrompt,
+          `<validation_feedback>${JSON.stringify(validationFeedback.findings.filter((finding) => finding.severity === "error"))}</validation_feedback>`,
+          "Return the complete corrected fragment. Resolve every error code while preserving correct content and the requested visual direction.",
+        ].join("\n")
+      : basePrompt;
     const result = streamText({
       model: input.tools.model,
       maxOutputTokens: input.tools.maxOutputTokens,
@@ -231,8 +251,17 @@ export async function generateBlock(input: {
       abortSignal: input.abortSignal,
     });
     const html = sanitizeArtifactPart(await collectText(result), input.block.id);
-    if (html) return html;
-    lastError = `block ${input.block.id} produced empty or unsafe HTML on attempt ${attempt}`;
+    if (!html) {
+      lastError = `block ${input.block.id} produced empty or unsafe HTML on attempt ${attempt}`;
+      continue;
+    }
+    const validation = validateArtifactFragment(html, input.block.id);
+    if (validation.ok) return html;
+    validationFeedback = validation;
+    lastError = `block ${input.block.id} failed validation on attempt ${attempt}: ${validation.findings
+      .filter((finding) => finding.severity === "error")
+      .map((finding) => finding.code)
+      .join(", ")}`;
   }
   throw new Error(lastError);
 }

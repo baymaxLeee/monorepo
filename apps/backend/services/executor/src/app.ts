@@ -6,6 +6,7 @@ import { problemJson } from "./lib/errors.js";
 import { logger } from "./lib/logger.js";
 import { checkReadiness, currentBootState, isBootReady } from "./lib/readiness.js";
 import { internalAuthMiddleware } from "./middleware/auth.js";
+import { htmlValidationRoutes } from "./routes/html-validations.js";
 import { tasksRoutes } from "./routes/tasks.js";
 
 export function createApp() {
@@ -47,6 +48,7 @@ export function createApp() {
     await next();
   });
   api.use("*", internalAuthMiddleware);
+  api.route("/html-validations", htmlValidationRoutes);
   api.route("/tasks", tasksRoutes);
   app.route("/", api);
 

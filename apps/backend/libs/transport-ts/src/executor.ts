@@ -7,6 +7,7 @@ import type { components, paths } from "./schema/executor.js";
 
 export type Task = components["schemas"]["Task"];
 export type CreateTaskInput = components["schemas"]["CreateTaskInput"];
+export type ExecutorHtmlValidationReport = components["schemas"]["HtmlValidationReport"];
 
 export interface ExecutorClientOptions {
   baseUrl: string;
@@ -25,6 +26,14 @@ export class ExecutorInternalClient {
 
   async startTask(input: CreateTaskInput): Promise<Task> {
     const { data, error, response } = await this.client.POST("/tasks", { body: input });
+    if (data) return data;
+    throw toTransportError(response, error);
+  }
+
+  async validateHtml(input: { user_id: string; document_id: string }): Promise<ExecutorHtmlValidationReport> {
+    const { data, error, response } = await this.client.POST("/html-validations", {
+      body: input,
+    });
     if (data) return data;
     throw toTransportError(response, error);
   }

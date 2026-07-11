@@ -68,6 +68,52 @@ const createTaskInputSchema = {
   required: ["type", "owner_service", "owner_ref", "payload"],
 };
 
+const htmlValidationFindingSchema = {
+  type: "object",
+  properties: {
+    code: { type: "string" },
+    severity: { type: "string", enum: ["error", "warning", "info"] },
+    category: { type: "string", enum: ["structure", "security", "template", "responsive", "accessibility", "navigation", "chart"] },
+    message: { type: "string" },
+    suggestion: { type: "string" },
+    block_id: { type: "string" },
+    selector: { type: "string" },
+    evidence: {
+      type: "object",
+      properties: { kind: { type: "string", enum: ["html", "css"] }, excerpt: { type: "string" } },
+      required: ["kind", "excerpt"],
+    },
+  },
+  required: ["code", "severity", "category", "message", "suggestion"],
+};
+
+const htmlValidationReportSchema = {
+  type: "object",
+  properties: {
+    schema_version: { type: "integer", enum: [1] },
+    template_version: { type: "integer" },
+    ok: { type: "boolean" },
+    content_sha256: { type: "string" },
+    summary: {
+      type: "object",
+      properties: { errors: { type: "integer" }, warnings: { type: "integer" }, infos: { type: "integer" } },
+      required: ["errors", "warnings", "infos"],
+    },
+    findings: { type: "array", items: ref("HtmlValidationFinding") },
+    metrics: {
+      type: "object",
+      properties: {
+        blocks: { type: "integer" },
+        charts: { type: "integer" },
+        internal_links: { type: "integer" },
+        total_chars: { type: "integer" },
+      },
+      required: ["blocks", "charts", "internal_links", "total_chars"],
+    },
+  },
+  required: ["schema_version", "template_version", "ok", "content_sha256", "summary", "findings", "metrics"],
+};
+
 const openapi = {
   openapi: "3.1.0",
   info: {
@@ -78,6 +124,24 @@ const openapi = {
   },
   paths: {
     "/healthz": { get: { responses: { "200": { description: "ok" } } } },
+    "/html-validations": {
+      post: {
+        summary: "Validate current compiled artifact HTML synchronously.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: { user_id: { type: "string" }, document_id: { type: "string" } },
+                required: ["user_id", "document_id"],
+              },
+            },
+          },
+        },
+        responses: { "200": jsonResponse("canonical HTML validation report", ref("HtmlValidationReport")) },
+      },
+    },
     "/tasks": {
       post: {
         summary: "Start a durable task. Non-blocking: returns immediately with status=queued/running.",
@@ -142,6 +206,8 @@ const openapi = {
     schemas: {
       Task: taskSchema,
       CreateTaskInput: createTaskInputSchema,
+      HtmlValidationFinding: htmlValidationFindingSchema,
+      HtmlValidationReport: htmlValidationReportSchema,
     },
     securitySchemes: {
       internalToken: { type: "apiKey", in: "header", name: "X-Internal-Token" },

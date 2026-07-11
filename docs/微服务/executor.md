@@ -29,7 +29,10 @@ session）的替换点——只需要新增一种执行引擎实现，Task API �
 - `echo`：烟雾测试用，验证 Task API 全链路。
 - `html-artifact`：从 chat 的 `agent/artifacts/{worker,generation-runner}.ts`
   迁移而来的大型 HTML 生成流水线（plan → 并发 block 生成 → compile →
-  publish）。
+  publish）。executor 注入版本化响应式 shell、设计 tokens 和 Grid/Flex
+  primitives；block 与 compiled document 都经过 HTML/CSS AST 校验，结构化
+  findings 会回传模型定点修复，复验仍有 error 时禁止发布。最终报告与 HTML
+  SHA-256 绑定并随 generation manifest 持久化。
 
 ## 持久化边界
 

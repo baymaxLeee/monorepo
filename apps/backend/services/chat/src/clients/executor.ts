@@ -29,6 +29,10 @@ export async function startTask(input: {
   });
 }
 
+export async function validateHtml(input: { userId: string; documentId: string }) {
+  return executorClient().validateHtml({ user_id: input.userId, document_id: input.documentId });
+}
+
 const CHAT_TASK_OWNER = { owner_service: "chat" } as const;
 
 export async function getTask(id: string, ownerRef: string): Promise<Task> {
