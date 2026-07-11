@@ -1,4 +1,4 @@
-import { ToolLoopAgent } from "ai";
+import { InvalidToolInputError, NoSuchToolError, ToolLoopAgent } from "ai";
 import type { ToolSet } from "ai";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import { finishSpan, runWithActiveSpan, startSpan } from "@backend/kernel-ts";
@@ -22,6 +22,7 @@ import {
   createArtifactVerificationState,
   reduceArtifactVerificationSteps,
 } from "./artifact-verification.js";
+import type { ArtifactVerificationDirective } from "./artifact-verification.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {
   return operation.catch((error) => {
@@ -125,8 +126,19 @@ export async function createToolLoopAgent(
     input.instructionInput,
     resolvedTools.contributions,
   );
+  const artifactRepairModel = createProviderModel(provider, {
+    parallelToolCalls: false,
+  });
+  const verificationModel = createProviderModel(provider, {
+    parallelToolCalls: false,
+    disableReasoning: true,
+  });
   const toolApprovalSecret = getSettings().toolApprovalSecret;
   let artifactGatePending = false;
+  let artifactGateDirective: Extract<
+    ArtifactVerificationDirective,
+    { toolName: "html_validate" | "edit_file" }
+  > | null = null;
   const agent = new ToolLoopAgent<never, typeof tools, AgentRuntimeContext>({
     id: "chat-agent",
     model: createProviderModel(provider, {
@@ -151,9 +163,14 @@ export async function createToolLoopAgent(
       const directive = artifactVerificationDirective(
         artifactVerification,
       );
-      artifactGatePending = Boolean(artifactVerification.current);
+      artifactGatePending = Boolean(
+        artifactVerification.current && artifactVerification.current.phase !== "failed",
+      );
+      artifactGateDirective = directive?.toolName ? directive : null;
       const nextContext = { ...stepContext, artifactVerification };
-      if (!directive) return { runtimeContext: nextContext, instructions: initialInstructions };
+      if (!directive) {
+        return { runtimeContext: nextContext, instructions: initialInstructions };
+      }
       if (!directive.toolName) {
         return {
           runtimeContext: nextContext,
@@ -164,9 +181,35 @@ export async function createToolLoopAgent(
       }
       return {
         runtimeContext: nextContext,
+        model:
+          directive.toolName === "html_validate"
+            ? verificationModel
+            : artifactRepairModel,
         activeTools: [directive.toolName],
         toolChoice: { type: "tool", toolName: directive.toolName },
         instructions: `${String(initialInstructions ?? instructions)}\n<artifact_quality_gate>${directive.instruction}</artifact_quality_gate>`,
+      };
+    },
+    experimental_repairToolCall: async ({ toolCall, tools: stepTools, error }) => {
+      if (
+        (!NoSuchToolError.isInstance(error) && !InvalidToolInputError.isInstance(error)) ||
+        !artifactGateDirective ||
+        !(artifactGateDirective.toolName in stepTools)
+      ) {
+        return null;
+      }
+      logger.warn(
+        {
+          attemptedTool: toolCall.toolName,
+          expectedTool: artifactGateDirective.toolName,
+          repairReason: error.name,
+        },
+        "repairing mandatory artifact quality-gate tool call",
+      );
+      return {
+        ...toolCall,
+        toolName: artifactGateDirective.toolName,
+        input: JSON.stringify(artifactGateDirective.toolInput),
       };
     },
     toolsContext: toolsContext as never,
@@ -210,7 +253,7 @@ export async function createToolLoopAgent(
           "agent.model_step.duration_ms": performance.totalDurationMs,
         });
       }
-      return observe(
+      const recorded = observe(
         "finish model step",
         finishModelStep({
           runId: input.runId,
@@ -221,6 +264,18 @@ export async function createToolLoopAgent(
           performance: event.performance,
         }),
       );
+      const expectedGateTool = artifactGateDirective?.toolName;
+      if (
+        event.runtimeContext.artifactVerification.current &&
+        event.runtimeContext.artifactVerification.current.phase !== "failed" &&
+        expectedGateTool &&
+        !event.toolCalls.some((toolCall) => toolCall.toolName === expectedGateTool)
+      ) {
+        return recorded.then(() => {
+          throw new Error("mandatory artifact quality-gate tool call was not produced");
+        });
+      }
+      return recorded;
     },
     onToolExecutionStart: (event) => {
       toolSpans.set(

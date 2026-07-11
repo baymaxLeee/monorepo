@@ -424,6 +424,12 @@ function validateChartOptions(html: string, accent: string): string {
     const option = coerceEChartsOption(normalizeChartDeep(parsed));
     if (!option || !isBoundedChartOption(option)) return 'data-chart-invalid="true"';
     if (!("color" in option)) option.color = chartPalette(accent);
+    if (!("tooltip" in option)) {
+      const firstSeries = Array.isArray(option.series) && option.series[0] && typeof option.series[0] === "object"
+        ? option.series[0] as Record<string, unknown>
+        : undefined;
+      option.tooltip = { trigger: firstSeries?.type === "pie" || firstSeries?.type === "radar" ? "item" : "axis" };
+    }
     return `data-chart-option="${escapeAttribute(JSON.stringify(option))}"`;
   });
 }

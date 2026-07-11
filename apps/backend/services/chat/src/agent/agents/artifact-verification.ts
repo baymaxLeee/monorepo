@@ -21,10 +21,30 @@ export type ArtifactVerificationState = {
   processedToolCallIds: string[];
 };
 
-export type ArtifactVerificationDirective = {
-  toolName?: "html_validate" | "edit_file";
-  instruction: string;
+type ArtifactRepairChange = {
+  block_id: string;
+  brief: string;
 };
+
+export type ArtifactVerificationDirective =
+  | {
+      toolName: "html_validate";
+      toolInput: { file_id: string };
+      instruction: string;
+    }
+  | {
+      toolName: "edit_file";
+      toolInput: {
+        document_id: string;
+        brief: string;
+        changes: ArtifactRepairChange[];
+      };
+      instruction: string;
+    }
+  | {
+      toolName: null;
+      instruction: string;
+    };
 
 export function createArtifactVerificationState(): ArtifactVerificationState {
   return { queuedDocumentIds: [], processedToolCallIds: [] };
@@ -134,11 +154,13 @@ export function artifactVerificationDirective(state: ArtifactVerificationState):
   if (item.phase === "verify") {
     return {
       toolName: "html_validate",
+      toolInput: { file_id: item.documentId },
       instruction: `Quality gate: call html_validate now with file_id="${item.documentId}". Do not answer the user before validation completes.`,
     };
   }
   if (item.phase === "failed") {
     return {
+      toolName: null,
       instruction: `The mandatory HTML quality gate failed for artifact "${item.documentId}": ${item.failure}. Do not claim successful delivery. Briefly report that the artifact exists but did not pass validation.`,
     };
   }
@@ -148,10 +170,21 @@ export function artifactVerificationDirective(state: ArtifactVerificationState):
     values.push(`${finding.code}: ${finding.message} Fix: ${finding.suggestion}`);
     changes.set(finding.blockId, values);
   }
+  const repairChanges = [...changes].map(([block_id, values]) => ({
+    block_id,
+    brief: values.join(" "),
+  }));
+  const repairBrief =
+    "Apply only the specified block-scoped validation fixes and preserve every other block byte-for-byte.";
   return {
     toolName: "edit_file",
+    toolInput: {
+      document_id: item.documentId,
+      brief: repairBrief,
+      changes: repairChanges,
+    },
     instruction:
-      `Quality gate: call edit_file for document_id="${item.documentId}" with changes=${JSON.stringify([...changes].map(([block_id, values]) => ({ block_id, brief: values.join(" ") })))}. ` +
-      "Use exactly these block-scoped changes, preserve every other block byte-for-byte, and do not answer before revalidation.",
+      `Quality gate: call edit_file for document_id="${item.documentId}" with changes=${JSON.stringify(repairChanges)}. ` +
+      `${repairBrief} Do not answer before revalidation.`,
   };
 }

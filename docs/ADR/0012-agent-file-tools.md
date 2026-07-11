@@ -50,6 +50,16 @@ Superseded in part by ADR 0023. The artifact pipeline remains accepted; ADR
   validation endpoint; executor reads current bytes from Knowledge and reruns the
   same canonical validator after any edit. Chat has no duplicate validator and
   HTML does not enter chat history.
+- The forced validation step uses a reasoning-disabled model configuration and
+  fails closed when the provider returns no tool call. Reviewer JSON is normalized
+  and retried once; persistent model-format failures become an actionable
+  `REVIEW_UNAVAILABLE` finding without suppressing deterministic results.
+- Every compiled ECharts option receives a default tooltip when the fragment did
+  not declare one. Validation still reports `CHART_TOOLTIP_MISSING` on persisted
+  artifacts so legacy output is repaired block-by-block rather than silently
+  accepted.
+- The web client auto-continues only tools explicitly marked for client execution.
+  Completed durable server tools are never echoed as client tool responses.
 - `html_validate` is read-only and never executes model-authored HTML. Automated
   browser screenshots and computed-layout inspection remain outside this phase;
   user-provided screenshots can drive a later `edit_file` turn.

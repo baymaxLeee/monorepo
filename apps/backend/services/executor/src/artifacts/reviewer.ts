@@ -1,8 +1,9 @@
-import { generateText, Output } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
 
 import { getLatestArtifactWorkspace } from "../clients/knowledge.js";
 import { buildArtifactTextModel, type ArtifactBlock } from "./generator.js";
+import { JSON_OBJECT_MODE_INSTRUCTION } from "@backend/transport-ts/provider-model";
 import {
   mergeArtifactValidationFindings,
   type HtmlValidationFinding,
@@ -10,21 +11,21 @@ import {
 } from "./validator.js";
 
 const reviewFindingSchema = z.object({
-  code: z.string().regex(/^REVIEW_[A-Z0-9_]+$/),
-  severity: z.enum(["error", "warning"]),
-  category: z.enum(["content", "coherence", "visual"]),
-  message: z.string().min(1).max(500),
-  suggestion: z.string().min(1).max(800),
-  evidence: z.string().min(1).max(500),
+  code: z.string().min(1).max(120).default("CONTENT_ISSUE"),
+  severity: z.enum(["error", "warning"]).default("warning"),
+  category: z.string().min(1).max(80).default("content"),
+  message: z.string().min(1).max(500).default("The review identified a content issue."),
+  suggestion: z.string().min(1).max(800).default("Revise this block to satisfy its content contract."),
+  evidence: z.string().max(500).optional(),
 });
 
 const blockReviewSchema = z.object({
-  summary: z.string().min(1).max(800),
-  findings: z.array(reviewFindingSchema).max(12),
+  summary: z.string().max(800).optional(),
+  findings: z.array(reviewFindingSchema).max(12).optional().default([]),
 });
 
 const documentReviewSchema = z.object({
-  findings: z.array(reviewFindingSchema.extend({ block_id: z.string().regex(/^page-[1-9]\d*$/) })).max(24),
+  findings: z.array(reviewFindingSchema.extend({ block_id: z.string().min(1).max(80).optional() })).max(24).optional().default([]),
 });
 
 function storedHtml(content: string): string {
@@ -38,16 +39,54 @@ function storedHtml(content: string): string {
   return "[empty block]";
 }
 
+function parseJsonObject(text: string): unknown {
+  const unfenced = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "");
+  const start = unfenced.indexOf("{");
+  const end = unfenced.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("review response did not contain a JSON object");
+  const parsed = JSON.parse(unfenced.slice(start, end + 1));
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return parsed;
+  const record = parsed as Record<string, unknown>;
+  if (!Array.isArray(record.findings)) {
+    const alias = Array.isArray(record.issues)
+      ? record.issues
+      : Array.isArray(record.problems)
+        ? record.problems
+        : undefined;
+    if (alias) record.findings = alias;
+  }
+  if (Array.isArray(record.findings)) {
+    record.findings = record.findings.map((value) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+      const finding = value as Record<string, unknown>;
+      finding.code ??= finding.type ?? finding.title;
+      finding.message ??= finding.description ?? finding.problem ?? finding.reason;
+      finding.suggestion ??= finding.fix ?? finding.recommendation;
+      finding.block_id ??= finding.blockId ?? finding.page_id ?? finding.id;
+      return finding;
+    });
+  }
+  return record;
+}
+
 function asModelFinding(
   finding: z.infer<typeof reviewFindingSchema>,
-  blockId: string,
+  blockId?: string,
 ): HtmlValidationFinding {
+  const normalizedCode = finding.code.toUpperCase().replace(/[^A-Z0-9_]+/g, "_");
+  const category = ["content", "coherence", "visual"].includes(finding.category)
+    ? finding.category as "content" | "coherence" | "visual"
+    : "content";
   return {
-    ...finding,
-    block_id: blockId,
+    code: normalizedCode.startsWith("REVIEW_") ? normalizedCode : `REVIEW_${normalizedCode}`,
+    severity: finding.severity,
+    category,
+    message: finding.message,
+    suggestion: finding.suggestion,
+    ...(blockId ? { block_id: blockId } : {}),
     source: "model",
     actionable: finding.severity === "error",
-    evidence: { kind: "html", excerpt: finding.evidence },
+    evidence: { kind: "html", excerpt: finding.evidence || finding.message },
   };
 }
 
@@ -98,7 +137,38 @@ export async function reviewArtifactHtml(input: {
     "Find only concrete content coverage, cross-block coherence, or visual-direction problems.",
     "An error must violate the supplied block contract and be worth an automatic rewrite; use warning for subjective polish.",
     "Every finding must quote short evidence and propose a focused repair. Do not report syntax, security, CSS, accessibility, links, or chart validity; deterministic validation owns those.",
+    "Return exactly one JSON object matching the requested fields, without Markdown fences or surrounding prose.",
+    JSON_OBJECT_MODE_INSTRUCTION,
   ].join("\n");
+
+  async function generateReview<S extends z.ZodTypeAny>(
+    prompt: unknown,
+    schema: S,
+    maxOutputTokens: number,
+  ): Promise<z.output<S>> {
+    let invalidResponse = "";
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = await generateText({
+        model: tools.model,
+        maxOutputTokens: Math.min(tools.maxOutputTokens, maxOutputTokens),
+        instructions,
+        prompt: JSON.stringify(attempt === 0
+          ? prompt
+          : { task: prompt, invalid_response: invalidResponse, correction: "Return corrected valid JSON only." }),
+        abortSignal: input.abortSignal,
+      });
+      invalidResponse = result.text;
+      try {
+        const parsed = schema.safeParse(parseJsonObject(result.text));
+        if (parsed.success) return parsed.data;
+        lastError = parsed.error;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw new Error(`review schema mismatch after retry: ${String(lastError)}`);
+  }
 
   const blockReviews = await mapConcurrent(
     workspace.blocks,
@@ -106,43 +176,28 @@ export async function reviewArtifactHtml(input: {
     async (stored) => {
       const contract = contractById.get(stored.id);
       if (!contract) return { id: stored.id, summary: "Missing block contract.", findings: [] as HtmlValidationFinding[] };
-      const result = await generateText({
-        model: tools.model,
-        maxOutputTokens: Math.min(tools.maxOutputTokens, 2_000),
-        output: Output.object({ schema: blockReviewSchema }),
-        instructions,
-        prompt: JSON.stringify({
+      const output = await generateReview({
           artifact_brief: manifest.artifactBrief ?? "",
           visual_direction: (manifest.theme as { visualDirection?: unknown } | undefined)?.visualDirection ?? "",
           ownership_map: ownershipMap,
           block_contract: contract,
           block_html: storedHtml(stored.content),
-        }),
-        abortSignal: input.abortSignal,
-      });
-      const output = result.output ?? { summary: "Review produced no structured result.", findings: [] };
+        }, blockReviewSchema, 2_000);
       return {
         id: stored.id,
-        summary: output.summary,
+        summary: output.summary || `Reviewed ${stored.id}.`,
         findings: output.findings.map((finding) => asModelFinding(finding, stored.id)),
       };
     },
   );
 
-  const synthesis = await generateText({
-    model: tools.model,
-    maxOutputTokens: Math.min(tools.maxOutputTokens, 3_000),
-    output: Output.object({ schema: documentReviewSchema }),
-    instructions,
-    prompt: JSON.stringify({
+  const synthesis = await generateReview({
       artifact_brief: manifest.artifactBrief ?? "",
       visual_direction: (manifest.theme as { visualDirection?: unknown } | undefined)?.visualDirection ?? "",
       ownership_map: ownershipMap,
       block_review_summaries: blockReviews.map(({ id, summary }) => ({ id, summary })),
-    }),
-    abortSignal: input.abortSignal,
-  });
-  const documentFindings = (synthesis.output?.findings ?? []).map((finding) => {
+    }, documentReviewSchema, 3_000);
+  const documentFindings = synthesis.findings.map((finding) => {
     const { block_id, ...rest } = finding;
     return asModelFinding(rest, block_id);
   });

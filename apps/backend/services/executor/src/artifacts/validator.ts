@@ -409,6 +409,24 @@ export function validateArtifactHtml(html: string): HtmlValidationReport {
   for (const invalidChart of allElements.filter((element) => "data-chart-invalid" in (element.attribs ?? {}))) {
     findings.push(finding("CHART_INVALID", "error", "chart", "A chart specification is invalid.", "Return a valid data-chart spec or ECharts option with a non-empty series.", { block_id: closestBlockId(invalidChart) }));
   }
+  for (const chart of allElements.filter((element) => "data-chart-option" in (element.attribs ?? {}))) {
+    const raw = chart.attribs?.["data-chart-option"];
+    try {
+      const option = JSON.parse(raw ?? "") as Record<string, unknown>;
+      if (!option.tooltip || typeof option.tooltip !== "object") {
+        findings.push(finding(
+          "CHART_TOOLTIP_MISSING",
+          "error",
+          "chart",
+          "Chart hover details are unavailable because tooltip configuration is missing.",
+          "Add an ECharts tooltip with trigger:item for pie/radar charts or trigger:axis for cartesian charts.",
+          { block_id: closestBlockId(chart), evidence: { kind: "html", excerpt: excerpt(raw ?? "") } },
+        ));
+      }
+    } catch {
+      // CHART_INVALID owns malformed options.
+    }
+  }
   findings.push(...inspectChartTextEntities(root));
 
   return report(html, findings, {

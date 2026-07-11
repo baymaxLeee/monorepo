@@ -2,7 +2,6 @@ import { useChat } from "@ai-sdk/react";
 import {
   DefaultChatTransport,
   lastAssistantMessageIsCompleteWithApprovalResponses,
-  lastAssistantMessageIsCompleteWithToolCalls,
 } from "ai";
 import {
   type Message as ApiMessage,
@@ -260,9 +259,34 @@ export function Chat() {
     transport,
     resume: false,
     experimental_throttle: CHAT_STREAM_THROTTLE_MS,
-    sendAutomaticallyWhen: (options) =>
-      lastAssistantMessageIsCompleteWithToolCalls(options) ||
-      lastAssistantMessageIsCompleteWithApprovalResponses(options),
+    sendAutomaticallyWhen: (options) => {
+      const last = options.messages.at(-1);
+      const completedClientTool =
+        last?.role === "assistant" &&
+        last.parts.some((part) => {
+          if (!part.type.startsWith("tool-") || !("state" in part))
+            return false;
+          const metadata =
+            "toolMetadata" in part ? part.toolMetadata : undefined;
+          const agent =
+            metadata && typeof metadata === "object" && "agent" in metadata
+              ? metadata.agent
+              : undefined;
+          return (
+            agent &&
+            typeof agent === "object" &&
+            "execution" in agent &&
+            agent.execution === "client" &&
+            ["output-available", "output-error", "output-denied"].includes(
+              String(part.state),
+            )
+          );
+        });
+      return (
+        Boolean(completedClientTool) ||
+        lastAssistantMessageIsCompleteWithApprovalResponses(options)
+      );
+    },
     onError: (error) => {
       if (/abort|aborted/i.test(error.message)) return;
       toast.error(error.message);
