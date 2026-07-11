@@ -216,6 +216,10 @@ async def save_block(
         generation = await _owned_generation(session, generation_id, payload.user_id)
         if generation.status == "cancelled":
             raise ConflictError("artifact generation was cancelled")
+        if generation.status == "failed":
+            raise ConflictError("artifact generation failed")
+        if generation.status == "completed":
+            raise ConflictError("completed artifact blocks are immutable")
         block = await session.scalar(
             select(ArtifactBlockVersionRow).where(
                 ArtifactBlockVersionRow.generation_id == generation_id,
@@ -239,6 +243,10 @@ async def save_block(
         generation = await _owned_generation(session, generation_id, payload.user_id, for_update=True)
         if generation.status == "cancelled":
             raise ConflictError("artifact generation was cancelled")
+        if generation.status == "failed":
+            raise ConflictError("artifact generation failed")
+        if generation.status == "completed":
+            raise ConflictError("completed artifact blocks are immutable")
         block = await session.scalar(
             select(ArtifactBlockVersionRow)
             .where(

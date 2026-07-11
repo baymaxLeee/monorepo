@@ -22,7 +22,7 @@ export async function reportTaskProgress(
     await tx
       .update(tasks)
       .set({
-        progress: { ...(row.progress ?? {}), done: progress.done, total: progress.total },
+        progress: { ...(row.progress ?? {}), ...progress },
         updatedAt: new Date(),
       })
       .where(eq(tasks.id, row.id));
