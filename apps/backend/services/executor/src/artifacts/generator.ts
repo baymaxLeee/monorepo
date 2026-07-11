@@ -8,11 +8,17 @@ import {
   type ChatProvider,
 } from "@backend/transport-ts/provider-model";
 import { sanitizeArtifactPart, ARTIFACT_VISUAL_CAPABILITIES, ARTIFACT_CHART_SPEC } from "./compiler.js";
-import { validateArtifactFragment, type HtmlValidationReport } from "./validator.js";
 
 export type ArtifactMode = "document" | "presentation" | "dashboard";
 export type ArtifactTheme = { visualDirection: string; accent: string; appearance: "light" | "dark" };
-export type ArtifactBlock = { id: string; type: string; title: string; brief: string };
+export type ArtifactBlock = {
+  id: string;
+  type: string;
+  title: string;
+  brief: string;
+  contentScope: string[];
+  acceptanceCriteria: string[];
+};
 
 export const ARTIFACT_GENERATION_TIMEOUT = {
   totalMs: 30 * 60_000,
@@ -31,6 +37,8 @@ const blockSchema = z.object({
   type: z.string().min(1).max(40),
   title: z.string().min(1).max(160),
   brief: z.string().min(1).max(4000),
+  contentScope: z.array(z.string().min(1).max(240)).min(1).max(12),
+  acceptanceCriteria: z.array(z.string().min(1).max(320)).min(1).max(12),
 });
 
 // Same retryable class as the video pipeline's ArkRequestError: rate limits and
@@ -73,6 +81,8 @@ const outlineSchema = z.object({
       z.object({
         title: z.string().min(1).max(160),
         brief: z.string().min(1).max(MAX_BLOCK_BRIEF),
+        content_scope: z.array(z.string().min(1).max(240)).min(1).max(12),
+        acceptance_criteria: z.array(z.string().min(1).max(320)).min(1).max(12),
       }),
     )
     .min(1)
@@ -110,6 +120,8 @@ function deterministicOutline(input: {
       type: input.mode === "presentation" ? "slide" : "section",
       title: `${input.title} · ${index + 1}/${input.count}`,
       brief: `Generate only ordered page/block ${index + 1} of ${input.count}. Derive its distinct content from the overall artifact brief and avoid repeating other pages.`,
+      contentScope: [`Distinct content owned by page ${index + 1}`],
+      acceptanceCriteria: [`Page ${index + 1} is complete, specific, and does not repeat another page.`],
     })),
   };
 }
@@ -120,6 +132,7 @@ function outlineInstructions(input: { mode: ArtifactMode; count: number }): stri
     "Return exactly one entry per page in reading order.",
     "Each page needs a distinct, specific title and a brief that states what THIS page must cover so independently generated pages never overlap or leave gaps.",
     "The brief is an instruction to a writer, not prose: name the concrete sections, data points, or visuals that belong on this page and nothing that belongs on another page.",
+    "For each page, return content_scope as the short list of topics/facts owned only by that page, and acceptance_criteria as concrete checks for completeness and presentation quality.",
     "Optionally pick one accent hex color that fits the topic.",
     "Choose light or dark appearance from the user's request and content context.",
     "Describe one specific visual direction shared by every page: color scheme, typography, composition, density, motifs, and chart treatment. Do not fall back to a generic template.",
@@ -166,6 +179,8 @@ export async function planArtifact(input: {
         type: input.mode === "presentation" ? "slide" : "section",
         title: page.title.slice(0, 160),
         brief: page.brief.slice(0, MAX_BLOCK_BRIEF),
+        contentScope: page.content_scope,
+        acceptanceCriteria: page.acceptance_criteria,
       })),
     };
   } catch (error) {
@@ -206,7 +221,7 @@ function blockInstructions(input: {
     "</chart_spec>",
     "Use accessible headings, table headers, and image alt text.",
     `Mode is content intent only (${input.mode}); it does not prescribe colors, dimensions, density, or layout.`,
-    `Whole outline: ${input.outline.map((block) => `${block.id}:${block.title}`).join(" | ")}`,
+    `Whole outline ownership map: ${input.outline.map((block) => `${block.id}:${block.title} [${block.contentScope.join("; ")}]`).join(" | ")}`,
   ].join("\n");
 }
 
@@ -221,10 +236,7 @@ export async function generateBlock(input: {
   currentHtml?: string;
   changeBrief?: string;
 }): Promise<string> {
-  let lastError = "empty output";
-  let validationFeedback: HtmlValidationReport | undefined;
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const basePrompt = input.currentHtml
+  const prompt = input.currentHtml
       ? [
           `<artifact_brief>${input.artifactBrief}</artifact_brief>`,
           `<block id="${input.block.id}" title="${input.block.title}">${input.currentHtml}</block>`,
@@ -235,35 +247,17 @@ export async function generateBlock(input: {
           `<artifact_brief>${input.artifactBrief}</artifact_brief>`,
           `<block id="${input.block.id}" title="${input.block.title}">${input.block.brief}</block>`,
         ].join("\n");
-    const prompt = validationFeedback
-      ? [
-          basePrompt,
-          `<validation_feedback>${JSON.stringify(validationFeedback.findings.filter((finding) => finding.severity === "error"))}</validation_feedback>`,
-          "Return the complete corrected fragment. Resolve every error code while preserving correct content and the requested visual direction.",
-        ].join("\n")
-      : basePrompt;
-    const result = streamText({
-      model: input.tools.model,
-      maxOutputTokens: input.tools.maxOutputTokens,
-      instructions: blockInstructions(input),
-      prompt,
-      timeout: ARTIFACT_GENERATION_TIMEOUT,
-      abortSignal: input.abortSignal,
-    });
-    const html = sanitizeArtifactPart(await collectText(result), input.block.id);
-    if (!html) {
-      lastError = `block ${input.block.id} produced empty or unsafe HTML on attempt ${attempt}`;
-      continue;
-    }
-    const validation = validateArtifactFragment(html, input.block.id);
-    if (validation.ok) return html;
-    validationFeedback = validation;
-    lastError = `block ${input.block.id} failed validation on attempt ${attempt}: ${validation.findings
-      .filter((finding) => finding.severity === "error")
-      .map((finding) => finding.code)
-      .join(", ")}`;
-  }
-  throw new Error(lastError);
+  const result = streamText({
+    model: input.tools.model,
+    maxOutputTokens: input.tools.maxOutputTokens,
+    instructions: blockInstructions(input),
+    prompt,
+    timeout: ARTIFACT_GENERATION_TIMEOUT,
+    abortSignal: input.abortSignal,
+  });
+  const html = sanitizeArtifactPart(await collectText(result), input.block.id);
+  if (!html) throw new Error(`block ${input.block.id} produced empty or unsafe HTML`);
+  return html;
 }
 
 export { combinedSignal, themeSchema, blockSchema };

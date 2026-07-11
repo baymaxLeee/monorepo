@@ -73,9 +73,11 @@ const htmlValidationFindingSchema = {
   properties: {
     code: { type: "string" },
     severity: { type: "string", enum: ["error", "warning", "info"] },
-    category: { type: "string", enum: ["structure", "security", "template", "responsive", "accessibility", "navigation", "chart"] },
+    category: { type: "string", enum: ["structure", "security", "template", "responsive", "accessibility", "navigation", "chart", "content", "coherence", "visual"] },
     message: { type: "string" },
     suggestion: { type: "string" },
+    source: { type: "string", enum: ["static", "model"] },
+    actionable: { type: "boolean" },
     block_id: { type: "string" },
     selector: { type: "string" },
     evidence: {
@@ -84,7 +86,7 @@ const htmlValidationFindingSchema = {
       required: ["kind", "excerpt"],
     },
   },
-  required: ["code", "severity", "category", "message", "suggestion"],
+  required: ["code", "severity", "category", "message", "suggestion", "source", "actionable"],
 };
 
 const htmlValidationReportSchema = {
@@ -133,8 +135,8 @@ const openapi = {
             "application/json": {
               schema: {
                 type: "object",
-                properties: { user_id: { type: "string" }, document_id: { type: "string" } },
-                required: ["user_id", "document_id"],
+                properties: { user_id: { type: "string" }, org_id: { type: "string" }, provider_id: { type: "string" }, document_id: { type: "string" } },
+                required: ["user_id", "org_id", "provider_id", "document_id"],
               },
             },
           },

@@ -327,11 +327,6 @@ const traceDetailOpsTracesTraceIdGet = (
     }
 
 return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,batchRumBatchPost,listErrorEventsErrorsGet,listPerformanceEventsPerformanceGet,observabilityStatusOpsObservabilityGet,recentTracesOpsTracesGet,traceDetailOpsTracesTraceIdGet}};
-
-type AwaitedInput<T> = PromiseLike<T> | T;
-
-    type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
-
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTelemetryService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTelemetryService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTelemetryService>['healthzHealthzGet']>>>

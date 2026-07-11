@@ -3207,212 +3207,6 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
-      "HtmlValidationEvidence": {
-        "properties": {
-          "kind": {
-            "type": "string",
-            "enum": [
-              "html",
-              "css"
-            ],
-            "title": "Kind"
-          },
-          "excerpt": {
-            "type": "string",
-            "title": "Excerpt"
-          }
-        },
-        "type": "object",
-        "required": [
-          "kind",
-          "excerpt"
-        ],
-        "title": "HtmlValidationEvidence"
-      },
-      "HtmlValidationFinding": {
-        "properties": {
-          "code": {
-            "type": "string",
-            "title": "Code"
-          },
-          "severity": {
-            "type": "string",
-            "enum": [
-              "error",
-              "warning",
-              "info"
-            ],
-            "title": "Severity"
-          },
-          "category": {
-            "type": "string",
-            "enum": [
-              "structure",
-              "security",
-              "template",
-              "responsive",
-              "accessibility",
-              "navigation",
-              "chart"
-            ],
-            "title": "Category"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message"
-          },
-          "suggestion": {
-            "type": "string",
-            "title": "Suggestion"
-          },
-          "block_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Block Id"
-          },
-          "selector": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Selector"
-          },
-          "evidence": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/HtmlValidationEvidence"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "code",
-          "severity",
-          "category",
-          "message",
-          "suggestion"
-        ],
-        "title": "HtmlValidationFinding"
-      },
-      "HtmlValidationMetrics": {
-        "properties": {
-          "blocks": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Blocks"
-          },
-          "charts": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Charts"
-          },
-          "internal_links": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Internal Links"
-          },
-          "total_chars": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Total Chars"
-          }
-        },
-        "type": "object",
-        "required": [
-          "blocks",
-          "charts",
-          "internal_links",
-          "total_chars"
-        ],
-        "title": "HtmlValidationMetrics"
-      },
-      "HtmlValidationReport": {
-        "properties": {
-          "schema_version": {
-            "type": "integer",
-            "const": 1,
-            "title": "Schema Version"
-          },
-          "template_version": {
-            "type": "integer",
-            "minimum": 1.0,
-            "title": "Template Version"
-          },
-          "ok": {
-            "type": "boolean",
-            "title": "Ok"
-          },
-          "content_sha256": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{64}$",
-            "title": "Content Sha256"
-          },
-          "summary": {
-            "$ref": "#/components/schemas/HtmlValidationSummary"
-          },
-          "findings": {
-            "items": {
-              "$ref": "#/components/schemas/HtmlValidationFinding"
-            },
-            "type": "array",
-            "title": "Findings"
-          },
-          "metrics": {
-            "$ref": "#/components/schemas/HtmlValidationMetrics"
-          }
-        },
-        "type": "object",
-        "required": [
-          "schema_version",
-          "template_version",
-          "ok",
-          "content_sha256",
-          "summary",
-          "findings",
-          "metrics"
-        ],
-        "title": "HtmlValidationReport"
-      },
-      "HtmlValidationSummary": {
-        "properties": {
-          "errors": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Errors"
-          },
-          "warnings": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Warnings"
-          },
-          "infos": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Infos"
-          }
-        },
-        "type": "object",
-        "required": [
-          "errors",
-          "warnings",
-          "infos"
-        ],
-        "title": "HtmlValidationSummary"
-      },
       "IngestFailure": {
         "properties": {
           "index": {
@@ -3522,16 +3316,24 @@
             "minLength": 1,
             "title": "Compiled Html"
           },
-          "validation_report": {
-            "$ref": "#/components/schemas/HtmlValidationReport"
+          "expected_object_sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Object Sha256"
           }
         },
         "type": "object",
         "required": [
           "user_id",
           "org_id",
-          "compiled_html",
-          "validation_report"
+          "compiled_html"
         ],
         "title": "PublishArtifactRevisionInput"
       },

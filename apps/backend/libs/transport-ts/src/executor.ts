@@ -30,9 +30,11 @@ export class ExecutorInternalClient {
     throw toTransportError(response, error);
   }
 
-  async validateHtml(input: { user_id: string; document_id: string }): Promise<ExecutorHtmlValidationReport> {
+  async validateHtml(input: { user_id: string; org_id: string; provider_id: string; document_id: string; signal?: AbortSignal }): Promise<ExecutorHtmlValidationReport> {
+    const { signal, ...body } = input;
     const { data, error, response } = await this.client.POST("/html-validations", {
-      body: input,
+      body,
+      signal,
     });
     if (data) return data;
     throw toTransportError(response, error);

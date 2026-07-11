@@ -19,11 +19,7 @@ import {
   getLatestArtifactWorkspace,
 } from "../src/clients/knowledge.js";
 import { compileArtifactHtml } from "../src/artifacts/compiler.js";
-import {
-  ARTIFACT_TEMPLATE_VERSION,
-  validateArtifactHtml,
-  type HtmlValidationReport,
-} from "../src/artifacts/validator.js";
+import { ARTIFACT_TEMPLATE_VERSION } from "../src/artifacts/validator.js";
 import {
   buildArtifactTextModel,
   generateBlock,
@@ -48,27 +44,33 @@ export const htmlArtifactInputSchema = z.object({
   documentId: z.string().max(32).optional(),
   blockIds: z.array(z.string()).max(100).optional(),
   blockBriefs: z.record(z.string(), z.string().min(1).max(8_000)).optional(),
+  expectedObjectSha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
   idempotencyKey: z.string().min(1).max(120).optional(),
 });
 export type HtmlArtifactInput = z.infer<typeof htmlArtifactInputSchema>;
 
-type BlockAction = "generate" | "reuse" | "revise";
+type BlockAction = "generate" | "reuse" | "revise" | "regenerate";
 type BlockStrategy = { id: string; action: BlockAction; sourceId?: string; changeBrief?: string };
 
 type ArtifactPlan = {
   mode: ArtifactMode;
   theme: ArtifactTheme;
   blocks: ArtifactBlock[];
+  reviewBrief: string;
   blockStrategies?: BlockStrategy[];
   sourceHtmlById?: Record<string, string>;
+  sourceContentById?: Record<string, string>;
+  sourceFailedById?: Record<string, boolean>;
 };
 
-function parseStoredBlockHtml(content: string): string | null {
+function parseStoredBlock(content: string): { html: string | null; error?: string; failed: boolean } {
   try {
-    const parsed = JSON.parse(content) as { html?: unknown };
-    return typeof parsed.html === "string" ? parsed.html : null;
+    const parsed = JSON.parse(content) as { html?: unknown; error?: unknown };
+    const html = typeof parsed.html === "string" ? parsed.html : null;
+    const error = typeof parsed.error === "string" ? parsed.error : undefined;
+    return { html, error, failed: html == null && Boolean(error) };
   } catch {
-    return null;
+    return { html: null, failed: true };
   }
 }
 
@@ -92,7 +94,7 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
         model: tools.model,
         abortSignal: signal,
       });
-      return { mode: input.mode, theme: outline.theme, blocks: outline.blocks };
+      return { mode: input.mode, theme: outline.theme, blocks: outline.blocks, reviewBrief: input.brief };
     }
 
     const workspace = await getLatestArtifactWorkspace(input.userId, input.documentId);
@@ -100,15 +102,15 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
     const manifestBlocks = Array.isArray(manifest.blocks) ? (manifest.blocks as ArtifactBlock[]) : [];
     const metaById = new Map(manifestBlocks.map((block) => [block.id, block]));
     const sourceHtmlById: Record<string, string> = {};
-    const existing = workspace.blocks
-      .map((stored) => {
-        const html = parseStoredBlockHtml(stored.content);
-        if (html == null) return null;
-        sourceHtmlById[stored.id] = html;
-        const meta = metaById.get(stored.id);
-        return { id: stored.id, type: meta?.type ?? stored.type, title: meta?.title ?? stored.id, brief: meta?.brief ?? "" };
-      })
-      .filter((block): block is ArtifactBlock => block != null);
+    const sourceContentById: Record<string, string> = {};
+    const sourceFailedById: Record<string, boolean> = {};
+
+    for (const stored of workspace.blocks) {
+      sourceContentById[stored.id] = stored.content;
+      const parsed = parseStoredBlock(stored.content);
+      sourceFailedById[stored.id] = parsed.failed;
+      if (parsed.html != null) sourceHtmlById[stored.id] = parsed.html;
+    }
 
     const briefById = input.blockBriefs ?? {};
     const needsTemplateMigration = manifest.templateVersion !== ARTIFACT_TEMPLATE_VERSION;
@@ -119,15 +121,60 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
         : Object.keys(briefById).length
           ? new Set(Object.keys(briefById))
           : null;
-    const blocks = existing;
-    const blockStrategies: BlockStrategy[] = existing.map((block) => ({
-      id: block.id,
-      action: targeted && !targeted.has(block.id) ? "reuse" : "revise",
-      sourceId: block.id,
-      changeBrief: needsTemplateMigration
-        ? "Migrate this block to the current responsive template primitives while preserving its facts and intent."
-        : briefById[block.id],
-    }));
+
+    const blocks: ArtifactBlock[] = manifestBlocks.length
+      ? manifestBlocks.map((block) => ({
+          id: block.id,
+          type: block.type,
+          title: block.title,
+          brief: block.brief ?? "",
+          contentScope: block.contentScope ?? [block.title],
+          acceptanceCriteria: block.acceptanceCriteria ?? ["Preserve the block's facts and intent."],
+        }))
+      : workspace.blocks.map((stored) => {
+          const meta = metaById.get(stored.id);
+          return {
+            id: stored.id,
+            type: meta?.type ?? stored.type,
+            title: meta?.title ?? stored.id,
+            brief: meta?.brief ?? "",
+            contentScope: meta?.contentScope ?? [meta?.title ?? stored.id],
+            acceptanceCriteria: meta?.acceptanceCriteria ?? ["Preserve the block's facts and intent."],
+          };
+        });
+
+    const blockStrategies: BlockStrategy[] = blocks.map((block) => {
+      const isTargeted = targeted ? targeted.has(block.id) : true;
+      if (!isTargeted) {
+        return { id: block.id, action: "reuse" };
+      }
+      if (needsTemplateMigration) {
+        return {
+          id: block.id,
+          action: sourceHtmlById[block.id] ? "revise" : "regenerate",
+          sourceId: block.id,
+          changeBrief:
+            "Migrate this block to the current responsive template primitives while preserving its facts and intent.",
+        };
+      }
+      if (sourceFailedById[block.id]) {
+        return {
+          id: block.id,
+          action: "regenerate",
+          changeBrief: briefById[block.id] ?? input.brief,
+        };
+      }
+      if (sourceHtmlById[block.id]) {
+        return {
+          id: block.id,
+          action: "revise",
+          sourceId: block.id,
+          changeBrief: briefById[block.id] ?? input.brief,
+        };
+      }
+      return { id: block.id, action: "generate", changeBrief: briefById[block.id] };
+    });
+
     const themeParsed = manifest.theme as Partial<ArtifactTheme> | undefined;
     const theme: ArtifactTheme = themeParsed?.visualDirection
       ? {
@@ -141,7 +188,19 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
           appearance: "light",
         };
     const mode = manifest.mode === "presentation" || manifest.mode === "dashboard" ? manifest.mode : "document";
-    return { mode, theme, blocks, blockStrategies, sourceHtmlById };
+    return {
+      mode,
+      theme,
+      blocks,
+      reviewBrief: [
+        typeof manifest.artifactBrief === "string" ? manifest.artifactBrief : "",
+        `Current revision request: ${input.brief}`,
+      ].filter(Boolean).join("\n"),
+      blockStrategies,
+      sourceHtmlById,
+      sourceContentById,
+      sourceFailedById,
+    };
   } finally {
     cancellation.dispose();
   }
@@ -166,6 +225,7 @@ async function reserveStep(input: HtmlArtifactInput, plan: ArtifactPlan, idempot
     manifest: {
       schemaVersion: 3,
       templateVersion: ARTIFACT_TEMPLATE_VERSION,
+      artifactBrief: plan.reviewBrief,
       mode: plan.mode,
       theme: plan.theme,
       blocks: plan.blocks,
@@ -193,6 +253,8 @@ async function generateBlockStep(input: {
   artifactBrief: string;
   strategy?: BlockStrategy;
   sourceHtml?: string;
+  sourceContent?: string;
+  sourceFailed?: boolean;
 }): Promise<{ id: string; ok: boolean }> {
   "use step";
   const { workflowRunId } = getWorkflowMetadata();
@@ -201,15 +263,15 @@ async function generateBlockStep(input: {
     const action = input.strategy?.action ?? "generate";
 
     if (action === "reuse") {
-      if (!input.sourceHtml) throw new Error(`reuse block ${input.block.id} has no source html`);
+      if (!input.sourceContent) throw new Error(`reuse block ${input.block.id} has no stored content`);
       await saveArtifactBlock({
         userId: input.userId,
         generationId: input.generationId,
         blockId: input.block.id,
-        content: JSON.stringify({ title: input.block.title, html: input.sourceHtml }),
-        failed: false,
+        content: input.sourceContent,
+        failed: input.sourceFailed ?? false,
       });
-      return { id: input.block.id, ok: true };
+      return { id: input.block.id, ok: !(input.sourceFailed ?? false) };
     }
 
     const tools = await buildArtifactTextModel(input.providerId, input.orgId);
@@ -219,9 +281,6 @@ async function generateBlockStep(input: {
     ]);
 
     if (action === "revise") {
-      // EDIT is strict: a failed revise must throw so the whole generation fails and the
-      // previously published snapshot stays intact. Silently keeping the old block would
-      // report success for an edit that never happened.
       const html = await generateBlock({
         block: input.block,
         mode: input.mode,
@@ -246,7 +305,6 @@ async function generateBlockStep(input: {
       return { id: input.block.id, ok: true };
     }
 
-    // CREATE degrades a single failed block to an error section so the rest still ship.
     let payload: string;
     let failed = false;
     try {
@@ -258,13 +316,11 @@ async function generateBlockStep(input: {
         artifactBrief: input.artifactBrief,
         tools,
         abortSignal,
+        changeBrief: input.strategy?.changeBrief,
       });
       payload = JSON.stringify({ title: input.block.title, html });
     } catch (error) {
       if (cancellation.signal.aborted) throw error;
-      // Transient provider failures (429 / 5xx / network) must reach the WDK
-      // step retry instead of being frozen into an error section — otherwise
-      // raising concurrency just turns rate limits into permanent broken blocks.
       if (isRetryableProviderError(error)) throw error;
       console.error("[executor] block failed, degrading to error section", { blockId: input.block.id, error });
       payload = JSON.stringify({ title: input.block.title, error: String(error).slice(0, 500) });
@@ -310,24 +366,11 @@ async function compileArtifact(input: CompileArtifactInput) {
   return compiled;
 }
 
-async function validateArtifactStep(input: CompileArtifactInput) {
-  "use step";
-  const { workflowRunId } = getWorkflowMetadata();
-  if (await isTaskCancelled(workflowRunId)) {
-    throw new DOMException("task cancelled", "AbortError");
-  }
-  const compiled = await compileArtifact(input);
-  const validation = validateArtifactHtml(compiled.html);
-  return {
-    totalChars: compiled.html.length,
-    blocksOk: compiled.partsOk,
-    blocksFailed: compiled.partsFailed,
-    validation,
-  };
-}
-
-async function publishArtifactStep(
-  input: CompileArtifactInput & { orgId: string; validationReport: HtmlValidationReport },
+async function compilePublishStep(
+  input: CompileArtifactInput & {
+    orgId: string;
+    expectedObjectSha256?: string;
+  },
 ) {
   "use step";
   const { workflowRunId } = getWorkflowMetadata();
@@ -340,10 +383,13 @@ async function publishArtifactStep(
     orgId: input.orgId,
     generationId: input.generationId,
     compiledHtml: compiled.html,
-    validationReport: input.validationReport,
+    expectedObjectSha256: input.expectedObjectSha256,
   });
   return {
     documentId: published.document_id,
+    totalChars: compiled.html.length,
+    blocksOk: compiled.partsOk,
+    blocksFailed: compiled.partsFailed,
   };
 }
 
@@ -388,6 +434,27 @@ async function mapConcurrent<T, R>(
   return results;
 }
 
+function blockActionBuckets(
+  strategies: BlockStrategy[] | undefined,
+): {
+  reused: string[];
+  revised: string[];
+  regenerated: string[];
+  generated: string[];
+} {
+  const reused: string[] = [];
+  const revised: string[] = [];
+  const regenerated: string[] = [];
+  const generated: string[] = [];
+  for (const strategy of strategies ?? []) {
+    if (strategy.action === "reuse") reused.push(strategy.id);
+    else if (strategy.action === "revise") revised.push(strategy.id);
+    else if (strategy.action === "regenerate") regenerated.push(strategy.id);
+    else generated.push(strategy.id);
+  }
+  return { reused, revised, regenerated, generated };
+}
+
 export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
   "use workflow";
   const blockConcurrency = await getHtmlBlockConcurrencyStep();
@@ -401,14 +468,11 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
   try {
     const strategiesById = new Map((plan.blockStrategies ?? []).map((s) => [s.id, s]));
     const total = plan.blocks.length;
-    // Progress is best-effort UX, but each report is a durable step competing for
-    // the same worker pool as block generation. Cap it to ~20 reports regardless
-    // of block count so raising concurrency doesn't flood the queue with progress
-    // jobs; the terminal block always reports.
     const progressEvery = Math.max(1, Math.ceil(total / 20));
     let done = 0;
     await reportProgressStep(done, total);
     await mapConcurrent(plan.blocks, blockConcurrency, async (block) => {
+      const strategy = strategiesById.get(block.id);
       const result = await generateBlockStep({
         orgId: input.orgId,
         userId: input.userId,
@@ -419,8 +483,10 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
         theme: plan.theme,
         outline: plan.blocks,
         artifactBrief: input.brief,
-        strategy: strategiesById.get(block.id),
+        strategy,
         sourceHtml: plan.sourceHtmlById?.[block.id],
+        sourceContent: plan.sourceContentById?.[block.id],
+        sourceFailed: plan.sourceFailedById?.[block.id],
       });
       done += 1;
       if (done === total || done % progressEvery === 0) {
@@ -429,15 +495,7 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
       return result;
     });
 
-    const validation = await validateArtifactStep({
-      userId: input.userId,
-      generationId,
-      title: input.title,
-      mode: plan.mode,
-      theme: plan.theme,
-      blocks: plan.blocks,
-    });
-    const published = await publishArtifactStep({
+    const published = await compilePublishStep({
       userId: input.userId,
       orgId: input.orgId,
       generationId,
@@ -445,19 +503,23 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
       mode: plan.mode,
       theme: plan.theme,
       blocks: plan.blocks,
-      validationReport: validation.validation,
+      expectedObjectSha256: input.expectedObjectSha256,
     });
+    const buckets = blockActionBuckets(plan.blockStrategies);
 
     return {
       ok: true as const,
       documentId: published.documentId,
       title: input.title,
       filename: input.filename,
-      totalChars: validation.totalChars,
+      totalChars: published.totalChars,
       blocksTotal: plan.blocks.length,
-      blocksDone: validation.blocksOk,
-      blocksFailed: validation.blocksFailed,
-      validation: validation.validation,
+      blocksDone: published.blocksOk,
+      blocksFailed: published.blocksFailed,
+      reusedBlockIds: buckets.reused,
+      revisedBlockIds: buckets.revised,
+      regeneratedBlockIds: buckets.regenerated,
+      generatedBlockIds: buckets.generated,
     };
   } catch (error) {
     await failStep({ userId: input.userId, generationId, error: String(error) });

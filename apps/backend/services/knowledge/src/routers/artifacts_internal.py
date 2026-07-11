@@ -330,9 +330,6 @@ async def get_latest_workspace(document_id: str, user_id: str, session: DbSessio
 async def publish_revision(
     generation_id: str, payload: PublishArtifactRevisionInput, session: DbSession
 ) -> PublishedArtifactRevision:
-    content_sha256 = sha256(payload.compiled_html.encode()).hexdigest()
-    if payload.validation_report.content_sha256 != content_sha256:
-        raise ConflictError("artifact validation report does not match compiled HTML")
     async with write_tx(session):
         generation = await _owned_generation(session, generation_id, payload.user_id)
         if generation.status == "cancelled":
@@ -405,6 +402,12 @@ async def publish_revision(
                 document_id=generation.document_id,
             )
         else:
+            if (
+                payload.expected_object_sha256
+                and document.object_sha256
+                and document.object_sha256 != payload.expected_object_sha256
+            ):
+                raise ConflictError("artifact document was modified concurrently")
             await document_crud.update_document(
                 session,
                 document,
@@ -422,10 +425,6 @@ async def publish_revision(
             )
         generation.updated_at = now
         await session.flush()
-        generation.manifest_json = {
-            **(generation.manifest_json or {}),
-            "validation_report": payload.validation_report.model_dump(mode="json"),
-        }
         generation.status = "completed"
         generation.finished_at = now
         generation.updated_at = now

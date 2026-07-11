@@ -4,7 +4,6 @@ import {
   type ArtifactGeneration,
   type ArtifactRevisionWorkspace,
   type KnowledgeDocument,
-  type HtmlValidationReport,
   type PublishedArtifactRevision,
   type StoredArtifactBlock,
 } from "@backend/transport-ts";
@@ -124,7 +123,7 @@ export async function publishArtifactRevision(input: {
   orgId: string;
   generationId: string;
   compiledHtml: string;
-  validationReport: HtmlValidationReport;
+  expectedObjectSha256?: string;
 }): Promise<PublishedArtifactRevision> {
   return knowledgeClient().publishArtifactRevision(input);
 }

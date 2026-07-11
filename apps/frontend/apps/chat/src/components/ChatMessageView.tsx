@@ -297,6 +297,7 @@ function ToolPartView({
 }) {
   const toolName = getToolName(part);
   const kind = toolUiKind(part);
+  if (toolIsInternal(part)) return null;
   if (kind === "todo-list" && part.toolCallId !== latestTodoCallId) {
     return null;
   }
@@ -484,6 +485,15 @@ function toolUiKind(
   if (!agent || typeof agent !== "object" || Array.isArray(agent)) return null;
   const value = agent as Record<string, unknown>;
   return typeof value.uiKind === "string" ? value.uiKind : null;
+}
+
+function toolIsInternal(
+  part: Extract<UIMessage["parts"][number], { toolCallId: string }>,
+): boolean {
+  if (!("toolMetadata" in part) || !part.toolMetadata) return false;
+  const agent = part.toolMetadata.agent;
+  if (!agent || typeof agent !== "object" || Array.isArray(agent)) return false;
+  return (agent as Record<string, unknown>).visibility === "internal";
 }
 
 function parseToolOutputError(output: unknown): string | null {

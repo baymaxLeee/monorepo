@@ -273,7 +273,7 @@ function compileCharts(html: string, accent: string): string {
     } catch {
       return 'data-chart-invalid="true"';
     }
-    const option = expandChartSpec(spec, accent);
+    const option = expandChartSpec(normalizeChartDeep(spec), accent);
     if (!option) return 'data-chart-invalid="true"';
     return `data-chart-option="${escapeAttribute(JSON.stringify(option))}"`;
   });
@@ -299,7 +299,13 @@ function expandChartSpec(spec: unknown, accent: string): Record<string, unknown>
   const palette = chartPalette(accent);
   const title =
     typeof input.title === "string" && input.title.trim()
-      ? { title: { text: input.title.trim(), left: "center", textStyle: { fontSize: 16, fontWeight: 600 } } }
+      ? {
+          title: {
+            text: normalizeChartText(input.title.trim()),
+            left: "center",
+            textStyle: { fontSize: 16, fontWeight: 600 },
+          },
+        }
       : {};
 
   if (type === "pie") {
@@ -323,7 +329,9 @@ function expandChartSpec(spec: unknown, accent: string): Record<string, unknown>
     };
   }
 
-  const categories = Array.isArray(input.categories) ? input.categories.map((c) => String(c)) : [];
+  const categories = Array.isArray(input.categories)
+    ? input.categories.map((c) => normalizeChartText(String(c)))
+    : [];
   const series = normalizeCartesianSeries(input.series, type);
   if (!series.length) return null;
   const horizontal = input.horizontal === true;
@@ -367,20 +375,26 @@ function normalizeCartesianSeries(
     const row = item as Record<string, unknown>;
     if (!Array.isArray(row.data)) continue;
     const data = row.data.map((n) => (typeof n === "number" ? n : Number(n))).map((n) => (Number.isFinite(n) ? n : 0));
-    out.push({ name: typeof row.name === "string" ? row.name : undefined, data });
+    out.push({
+      name: typeof row.name === "string" ? normalizeChartText(row.name) : undefined,
+      data,
+    });
   }
   return out;
 }
 
 function normalizePieData(raw: unknown, categories: unknown): Array<{ name: string; value: number }> {
   if (Array.isArray(raw) && raw.every((v) => typeof v === "number") && Array.isArray(categories)) {
-    return (raw as number[]).map((value, i) => ({ name: String(categories[i] ?? i), value }));
+    return (raw as number[]).map((value, i) => ({
+      name: normalizeChartText(String(categories[i] ?? i)),
+      value,
+    }));
   }
   if (Array.isArray(raw)) {
     const first = raw[0] as Record<string, unknown> | undefined;
     if (first && Array.isArray(first.data) && Array.isArray(categories)) {
       return (first.data as unknown[]).map((value, i) => ({
-        name: String(categories[i] ?? i),
+        name: normalizeChartText(String(categories[i] ?? i)),
         value: Number(value) || 0,
       }));
     }
@@ -389,7 +403,7 @@ function normalizePieData(raw: unknown, categories: unknown): Array<{ name: stri
       if (!item || typeof item !== "object") continue;
       const row = item as Record<string, unknown>;
       if (row.name == null || row.value == null) continue;
-      out.push({ name: String(row.name), value: Number(row.value) || 0 });
+      out.push({ name: normalizeChartText(String(row.name)), value: Number(row.value) || 0 });
     }
     return out;
   }
@@ -407,7 +421,7 @@ function validateChartOptions(html: string, accent: string): string {
     } catch {
       return 'data-chart-invalid="true"';
     }
-    const option = coerceEChartsOption(parsed);
+    const option = coerceEChartsOption(normalizeChartDeep(parsed));
     if (!option || !isBoundedChartOption(option)) return 'data-chart-invalid="true"';
     if (!("color" in option)) option.color = chartPalette(accent);
     return `data-chart-option="${escapeAttribute(JSON.stringify(option))}"`;
@@ -482,11 +496,52 @@ function convertChartJsOption(option: Record<string, unknown>): Record<string, u
   };
 }
 
+const NUMERIC_HEX_ENTITY = /&#x([0-9a-fA-F]+);/g;
+const NUMERIC_DEC_ENTITY = /&#(\d+);/g;
+
+function decodeHtmlEntities(value: string): string {
+  let current = value;
+  for (let pass = 0; pass < 8; pass += 1) {
+    const next = current
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&")
+      .replace(NUMERIC_HEX_ENTITY, (_match, hex: string) => {
+        const code = Number.parseInt(hex, 16);
+        return Number.isFinite(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : _match;
+      })
+      .replace(NUMERIC_DEC_ENTITY, (_match, dec: string) => {
+        const code = Number.parseInt(dec, 10);
+        return Number.isFinite(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : _match;
+      });
+    if (next === current) break;
+    current = next;
+  }
+  return current;
+}
+
 function decodeAttribute(value: string): string {
-  return value
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, "&");
+  return decodeHtmlEntities(value);
+}
+
+function normalizeChartText(value: string): string {
+  return decodeHtmlEntities(value);
+}
+
+function normalizeChartDeep(value: unknown): unknown {
+  if (typeof value === "string") return normalizeChartText(value);
+  if (Array.isArray(value)) return value.map((item) => normalizeChartDeep(item));
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = normalizeChartDeep(child);
+    }
+    return out;
+  }
+  return value;
 }
 
 function normalizeChartOptionJson(value: string): string {

@@ -44,10 +44,10 @@ for the full rationale.
 
 ## TaskType registry
 
-Fast, read-only deterministic checks are not TaskTypes. The authenticated
-`POST /html-validations` endpoint runs the same canonical validator used by the
-HTML artifact workflow and returns immediately; durable Workflow is reserved
-for long-running, restartable work.
+The authenticated `POST /html-validations` endpoint runs canonical static
+checks plus model review of the persisted block contracts and whole artifact.
+It is the post-generation quality tool and is never called inside the HTML
+artifact workflow; durable Workflow remains reserved for generation.
 
 - `src/tasks/registry.ts` maps a `type` string to a Zod input schema and a
   `"use workflow"` function. This is the seam a future `harness`-backed

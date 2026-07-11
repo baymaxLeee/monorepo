@@ -14,7 +14,10 @@ export type HtmlValidationCategory =
   | "responsive"
   | "accessibility"
   | "navigation"
-  | "chart";
+  | "chart"
+  | "content"
+  | "coherence"
+  | "visual";
 
 export type HtmlValidationFinding = {
   code: string;
@@ -22,6 +25,8 @@ export type HtmlValidationFinding = {
   category: HtmlValidationCategory;
   message: string;
   suggestion: string;
+  source: "static" | "model";
+  actionable: boolean;
   block_id?: string;
   selector?: string;
   evidence?: { kind: "html" | "css"; excerpt: string };
@@ -53,18 +58,6 @@ type NodeLike = {
 };
 
 const BLOCK_CLASS = "artifact-block";
-const TEMPLATE_PRIMITIVES = new Set([
-  "artifact-stack",
-  "artifact-cluster",
-  "artifact-grid",
-  "artifact-split",
-  "artifact-card",
-  "artifact-metric-grid",
-  "artifact-frame",
-  "artifact-table-scroll",
-  "artifact-prose",
-]);
-
 function nodes(root: NodeLike): NodeLike[] {
   const out: NodeLike[] = [];
   const visit = (node: NodeLike): void => {
@@ -105,7 +98,34 @@ function finding(
   suggestion: string,
   options: Pick<HtmlValidationFinding, "block_id" | "selector" | "evidence"> = {},
 ): HtmlValidationFinding {
-  return { code, severity, category, message, suggestion, ...options };
+  return {
+    code,
+    severity,
+    category,
+    message,
+    suggestion,
+    source: "static",
+    actionable: severity === "error",
+    ...options,
+  };
+}
+
+export function mergeArtifactValidationFindings(
+  report: HtmlValidationReport,
+  findings: HtmlValidationFinding[],
+): HtmlValidationReport {
+  const merged = [...report.findings, ...findings];
+  const summary = {
+    errors: merged.filter((item) => item.severity === "error").length,
+    warnings: merged.filter((item) => item.severity === "warning").length,
+    infos: merged.filter((item) => item.severity === "info").length,
+  };
+  return {
+    ...report,
+    ok: !merged.some((item) => item.actionable),
+    summary,
+    findings: merged,
+  };
 }
 
 function inspectCss(css: string, blockId: string | undefined, enforceScope = true): HtmlValidationFinding[] {
@@ -284,6 +304,50 @@ function inspectElements(root: NodeLike, defaultBlockId?: string): HtmlValidatio
   return findings;
 }
 
+function chartTextHasEntityLiteral(value: string): boolean {
+  return /&#(?:x[0-9a-fA-F]+|\d+);/.test(value);
+}
+
+function inspectChartTextEntities(root: NodeLike): HtmlValidationFinding[] {
+  const findings: HtmlValidationFinding[] = [];
+  for (const element of elements(root)) {
+    const attrs = element.attribs ?? {};
+    const optionRaw = attrs["data-chart-option"];
+    if (!optionRaw) continue;
+    const blockId = closestBlockId(element);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(optionRaw);
+    } catch {
+      continue;
+    }
+    const visit = (value: unknown): void => {
+      if (typeof value === "string" && chartTextHasEntityLiteral(value)) {
+        findings.push(
+          finding(
+            "CHART_TEXT_ENTITY_LITERAL",
+            "error",
+            "chart",
+            "Chart text still contains HTML entity literals.",
+            "Use plain Unicode text in chart labels and tooltips; the compiler decodes entities automatically.",
+            { block_id: blockId, evidence: { kind: "html", excerpt: excerpt(value) } },
+          ),
+        );
+        return;
+      }
+      if (Array.isArray(value)) {
+        for (const item of value) visit(item);
+        return;
+      }
+      if (value && typeof value === "object") {
+        for (const child of Object.values(value as Record<string, unknown>)) visit(child);
+      }
+    };
+    visit(parsed);
+  }
+  return findings;
+}
+
 function report(html: string, findings: HtmlValidationFinding[], metrics: HtmlValidationReport["metrics"]): HtmlValidationReport {
   const summary = {
     errors: findings.filter((item) => item.severity === "error").length,
@@ -299,21 +363,6 @@ function report(html: string, findings: HtmlValidationFinding[], metrics: HtmlVa
     findings,
     metrics,
   };
-}
-
-export function validateArtifactFragment(html: string, blockId: string): HtmlValidationReport {
-  const root = parseDocument(html, { lowerCaseAttributeNames: false }) as unknown as NodeLike;
-  const findings = inspectElements(root, blockId);
-  if (!html.trim()) findings.push(finding("BLOCK_EMPTY", "error", "structure", "Block has no content.", "Return a complete semantic HTML fragment.", { block_id: blockId }));
-  if (elements(root, "script").length) findings.push(finding("BLOCK_SCRIPT_FORBIDDEN", "error", "security", "Block contains a script element.", "Remove scripts and use the compiler-provided runtime.", { block_id: blockId }));
-  const usedPrimitive = elements(root).some((element) => classes(element).some((className) => TEMPLATE_PRIMITIVES.has(className)));
-  if (!usedPrimitive) findings.push(finding("TEMPLATE_PRIMITIVE_UNUSED", "warning", "template", "Block does not use a platform layout primitive.", "Compose the page with artifact-stack, artifact-grid, artifact-split, artifact-cluster, or artifact-card.", { block_id: blockId }));
-  return report(html, findings, {
-    blocks: 1,
-    charts: elements(root).filter((element) => "data-chart" in (element.attribs ?? {}) || "data-chart-option" in (element.attribs ?? {})).length,
-    internal_links: elements(root, "a").filter((element) => element.attribs?.href?.startsWith("#")).length,
-    total_chars: html.length,
-  });
 }
 
 export function validateArtifactHtml(html: string): HtmlValidationReport {
@@ -360,6 +409,7 @@ export function validateArtifactHtml(html: string): HtmlValidationReport {
   for (const invalidChart of allElements.filter((element) => "data-chart-invalid" in (element.attribs ?? {}))) {
     findings.push(finding("CHART_INVALID", "error", "chart", "A chart specification is invalid.", "Return a valid data-chart spec or ECharts option with a non-empty series.", { block_id: closestBlockId(invalidChart) }));
   }
+  findings.push(...inspectChartTextEntities(root));
 
   return report(html, findings, {
     blocks: blocks.length,

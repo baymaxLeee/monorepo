@@ -49,10 +49,9 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   link 与 ARIA IDREF；模型误写的 compiler-owned `page-N` 声明会被移除。
 - `edit_file` 从 knowledge 读取最新 immutable revision，复用未改 block，只生成受
   影响 block，并在同一个 document 下发布新 revision（同样委派给 executor）。
-- `write_file`/`edit_file` 的 HTML 终态携带 executor 生成的 advisory 验证报告
-  （可能有 error，不阻塞发布）。`html_validate` 每次读取 Knowledge 当前 HTML
-  并调用 executor 的同步内部校验接口，返回 error/warning code、block、selector、
-  evidence 和修复建议；模型可据此调用 `list_artifact_blocks` + `edit_file` 后
+- `write_file`/`edit_file` 的 HTML 终态不携带 advisory 验证报告。harness 在每个
+  HTML revision 后强制 `html_validate` 读取 Knowledge 当前 HTML 和 block contract，
+  合并静态与模型 review findings；模型按准确 block_id 调用 `edit_file` 后
   再次校验。chat 不复制 validator，也不执行宿主机 shell 或不可信 HTML。静态校验
   不走 durable Workflow；生成与 compile/publish 仍走 `html-artifact` workflow。
 - 用户取消 chat run 会通过 tool AbortSignal 取消当前前台等待的 executor task；进程

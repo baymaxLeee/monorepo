@@ -43,7 +43,6 @@ export type ArtifactTaskOutput = {
   blocksTotal?: number;
   documentId?: string;
   totalChars?: number;
-  blocksFailed?: number;
   error?: string;
 };
 
@@ -68,8 +67,6 @@ export function parseArtifactTaskOutput(
       typeof raw.document_id === "string" ? raw.document_id : undefined,
     totalChars:
       typeof raw.total_chars === "number" ? raw.total_chars : undefined,
-    blocksFailed:
-      typeof raw.blocks_failed === "number" ? raw.blocks_failed : undefined,
     error: typeof raw.error === "string" ? raw.error : undefined,
   };
 }
@@ -103,7 +100,6 @@ export function ArtifactTaskCard({
           kind: task.kind,
           totalChars: task.totalChars ?? undefined,
         }}
-        blocksFailed={task.blocksFailed ?? undefined}
         onOpen={() => onOpen(task.documentId!)}
       />
     );
@@ -153,7 +149,6 @@ export function ArtifactDocumentCard({
   document,
   documentId,
   fallback,
-  blocksFailed,
   planExecuted,
   planBusy,
   onOpen,
@@ -162,7 +157,6 @@ export function ArtifactDocumentCard({
   document: ConversationDocument | undefined;
   documentId: string;
   fallback?: ArtifactOutput;
-  blocksFailed?: number;
   planExecuted?: boolean;
   planBusy?: boolean;
   onOpen: () => void;
@@ -203,11 +197,6 @@ export function ArtifactDocumentCard({
       <ArtifactContent className="px-4 py-3 text-xs text-muted-foreground">
         <FileTextIcon className="mr-1 inline size-3" />
         AI artifact
-        {blocksFailed ? (
-          <span className="ml-2 text-destructive">
-            · {blocksFailed} 页生成失败，已在预览中标注
-          </span>
-        ) : null}
       </ArtifactContent>
     </Artifact>
   );

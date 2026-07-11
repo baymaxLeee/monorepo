@@ -17,6 +17,11 @@ import { assembleInstructions } from "../context/instructions/index.js";
 import { ToolCatalog } from "../tools/catalog.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
 import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
+import {
+  artifactVerificationDirective,
+  createArtifactVerificationState,
+  reduceArtifactVerificationSteps,
+} from "./artifact-verification.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {
   return operation.catch((error) => {
@@ -114,23 +119,56 @@ export async function createToolLoopAgent(
     conversationId: input.conversationId,
     profileId: input.mode,
     runtimeKind: "tool-loop",
+    artifactVerification: createArtifactVerificationState(),
   };
+  const instructions = assembleInstructions(
+    input.instructionInput,
+    resolvedTools.contributions,
+  );
   const toolApprovalSecret = getSettings().toolApprovalSecret;
+  let artifactGatePending = false;
   const agent = new ToolLoopAgent<never, typeof tools, AgentRuntimeContext>({
     id: "chat-agent",
     model: createProviderModel(provider, {
       parallelToolCalls: true,
     }),
-    instructions: assembleInstructions(input.instructionInput, resolvedTools.contributions),
+    instructions,
     maxOutputTokens: provider.maxOutputTokens,
     tools: instrumentedTools,
     activeTools: resolvedTools.activeTools,
     toolOrder: [...resolvedTools.activeTools].sort(),
     toolApproval: createToolApprovalPolicy(input.mode),
+    stopWhen: ({ steps }) => steps.length >= 20 && !artifactGatePending,
     // ToolLoopAgentSettings omits experimental_toolApprovalSecret; streamText
     // accepts it and HMAC-binds approvals at issuance/replay.
     prepareCall: (settings) =>
       Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
+    prepareStep: ({ runtimeContext: stepContext, steps, initialInstructions }) => {
+      const artifactVerification = reduceArtifactVerificationSteps(
+        stepContext.artifactVerification,
+        steps,
+      );
+      const directive = artifactVerificationDirective(
+        artifactVerification,
+      );
+      artifactGatePending = Boolean(artifactVerification.current);
+      const nextContext = { ...stepContext, artifactVerification };
+      if (!directive) return { runtimeContext: nextContext, instructions: initialInstructions };
+      if (!directive.toolName) {
+        return {
+          runtimeContext: nextContext,
+          activeTools: [],
+          toolChoice: "none",
+          instructions: `${String(initialInstructions ?? instructions)}\n<artifact_quality_gate>${directive.instruction}</artifact_quality_gate>`,
+        };
+      }
+      return {
+        runtimeContext: nextContext,
+        activeTools: [directive.toolName],
+        toolChoice: { type: "tool", toolName: directive.toolName },
+        instructions: `${String(initialInstructions ?? instructions)}\n<artifact_quality_gate>${directive.instruction}</artifact_quality_gate>`,
+      };
+    },
     toolsContext: toolsContext as never,
     runtimeContext,
     onStepStart: (event) => {

@@ -29,8 +29,11 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 
 ## Tools and artifacts
 
-- Tool orchestration (ADR-0035): **thin harness — no runtime scheduler/lock, no
-  `concurrency` policy.** The SDK owns the tool loop; the prompt supplies policy.
+- Tool orchestration (ADR-0035): **thin harness — no general runtime
+  scheduler/lock and no `concurrency` policy.** The SDK owns the tool loop; the
+  prompt supplies normal policy. Deterministic completion postconditions use
+  AI SDK `prepareStep` narrowly: an HTML write cannot end the turn before its
+  internal validate/repair/revalidate gate completes.
   plan/todos-before-deliverables ordering is carried by the prompt
   (`renderRuntimeContract` "barrier step": `update_todos` called alone, then
   deliverables dispatched together in the NEXT step) plus the SDK step boundary.
@@ -76,10 +79,14 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   synchronously in this tool call (a single `streamText`, no durability
   needed). **HTML dispatches to the `executor` service and foreground-blocks
   this turn** until compile + publish complete (`agent_task_执行时服务` plan,
-  Phase 2; ADR-0015 revision). Progress 100% means the artifact is on screen;
-  the returned `html_validation` report is advisory and may include errors.
-  After delivery, use `html_validate` → `list_artifact_blocks` → `edit_file` →
-  `html_validate` for one focused repair pass when needed. The tool `execute`
+  Phase 2; ADR-0015 revision). Progress 100% means block generation completed;
+  compile + publish still follow. After every successful HTML write/edit, the
+  ToolLoopAgent `prepareStep` quality gate forces `html_validate`; actionable
+  findings force one block-addressed `edit_file` repair →
+  `html_validate` before the turn may finish. Validation/list tools remain native
+  UIMessage tool parts for model context and traces but are hidden from product
+  UI. Users provide final acceptance and subjective feedback; they do not
+  initiate routine QA. The tool `execute`
   is an async generator that consumes `pollTaskSnapshots`
   (`agent/tasks/executor-task.ts`): it yields a preliminary `{ status, task_id }`
   (so the card mounts at once), then polls `GET /tasks/:id`, yielding running
@@ -96,8 +103,8 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   traces never carry HTML fragments.
 - `html_validate` validates an already-published artifact's current bytes through
   executor's synchronous canonical-validator endpoint. It is an inline agent
-  tool (no Workflow): findings flow into the next ToolLoopAgent step so the
-  model can use `list_artifact_blocks` + `edit_file` and validate again.
+  tool (no Workflow): findings flow into the enforced ToolLoopAgent quality gate
+  so the model uses the finding's block IDs with `edit_file` and validates again.
 - Cancelling a chat run **does** cancel the in-flight executor task the current
   `write_file`/`edit_file` call is blocking on: Stop aborts the turn, the tool's
   `abortSignal` fires, and it calls `POST /tasks/:id/cancel` before unwinding —

@@ -58,6 +58,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         user_id: string;
+                        org_id: string;
+                        provider_id: string;
                         document_id: string;
                     };
                 };
@@ -326,9 +328,12 @@ export interface components {
             /** @enum {string} */
             severity: "error" | "warning" | "info";
             /** @enum {string} */
-            category: "structure" | "security" | "template" | "responsive" | "accessibility" | "navigation" | "chart";
+            category: "structure" | "security" | "template" | "responsive" | "accessibility" | "navigation" | "chart" | "content" | "coherence" | "visual";
             message: string;
             suggestion: string;
+            /** @enum {string} */
+            source: "static" | "model";
+            actionable: boolean;
             block_id?: string;
             selector?: string;
             evidence?: {

@@ -301,11 +301,6 @@ const deleteMemoriesId = (
     }
 
 return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdTasksTaskId,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
-
-type AwaitedInput<T> = PromiseLike<T> | T;
-
-    type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
-
 export type GetHealthzResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getHealthz']>>>
 export type GetConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversations']>>>
 export type PostConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversations']>>>

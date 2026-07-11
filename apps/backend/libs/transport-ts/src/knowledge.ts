@@ -20,7 +20,6 @@ export type ArtifactBlockPlan = components["schemas"]["ArtifactBlockPlan"];
 export type PublishedArtifactRevision = components["schemas"]["PublishedArtifactRevision"];
 export type StoredArtifactBlock = components["schemas"]["StoredArtifactBlock"];
 export type ArtifactRevisionWorkspace = components["schemas"]["ArtifactRevisionWorkspace"];
-export type HtmlValidationReport = components["schemas"]["HtmlValidationReport"];
 export type RetrieveResult = components["schemas"]["RetrieveResult"];
 export type RetrievedChunk = components["schemas"]["RetrievedChunk"];
 
@@ -300,7 +299,7 @@ export class KnowledgeInternalClient {
     orgId: string;
     generationId: string;
     compiledHtml: string;
-    validationReport: HtmlValidationReport;
+    expectedObjectSha256?: string;
   }): Promise<PublishedArtifactRevision> {
     return this.unwrap(
       this.client.POST("/internal/artifact-generations/{generation_id}/publish", {
@@ -309,7 +308,7 @@ export class KnowledgeInternalClient {
           user_id: input.userId,
           org_id: input.orgId,
           compiled_html: input.compiledHtml,
-          validation_report: input.validationReport,
+          expected_object_sha256: input.expectedObjectSha256 ?? null,
         },
       }),
     );

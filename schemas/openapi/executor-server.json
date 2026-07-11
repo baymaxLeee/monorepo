@@ -28,12 +28,20 @@
                   "user_id": {
                     "type": "string"
                   },
+                  "org_id": {
+                    "type": "string"
+                  },
+                  "provider_id": {
+                    "type": "string"
+                  },
                   "document_id": {
                     "type": "string"
                   }
                 },
                 "required": [
                   "user_id",
+                  "org_id",
+                  "provider_id",
                   "document_id"
                 ]
               }
@@ -536,7 +544,10 @@
               "responsive",
               "accessibility",
               "navigation",
-              "chart"
+              "chart",
+              "content",
+              "coherence",
+              "visual"
             ]
           },
           "message": {
@@ -544,6 +555,16 @@
           },
           "suggestion": {
             "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "static",
+              "model"
+            ]
+          },
+          "actionable": {
+            "type": "boolean"
           },
           "block_id": {
             "type": "string"
@@ -576,7 +597,9 @@
           "severity",
           "category",
           "message",
-          "suggestion"
+          "suggestion",
+          "source",
+          "actionable"
         ]
       },
       "HtmlValidationReport": {

@@ -28,11 +28,10 @@ session）的替换点——只需要新增一种执行引擎实现，Task API �
 
 - `echo`：烟雾测试用，验证 Task API 全链路。
 - `html-artifact`：从 chat 的 `agent/artifacts/{worker,generation-runner}.ts`
-  迁移而来的大型 HTML 生成流水线（plan → 并发 block 生成 → compile →
-  advisory validate → publish）。进度 100% 即上屏；executor 注入版本化响应式
-  shell、设计 tokens 和 Grid/Flex primitives；block 生成阶段仍有 fragment 级校验。
-  编译后的 findings 以 advisory 报告随 manifest 持久化；跨 block 修复由 chat
-  的可见 `html_validate` → `edit_file` 循环负责，不在 workflow 内静默重跑 LLM。
+  迁移而来的大型 HTML 生成流水线（plan → 并发 block 生成 → compile → publish）。
+  workflow 不执行 fragment 或整页质量校验，也不因 findings 静默重跑 LLM。
+  后续必定执行的 `html_validate` 合并静态校验与基于 block contract 的模型整页
+  review，chat 再按 finding 的 block_id 精准 `edit_file` 并复检。
 
 ## 持久化边界
 

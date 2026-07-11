@@ -24,6 +24,7 @@ export function defineAgentTool(
     source: resolvedPolicy.source,
     trust: resolvedPolicy.trust,
     ...(resolvedPolicy.uiKind ? { uiKind: resolvedPolicy.uiKind } : {}),
+    ...(resolvedPolicy.visibility ? { visibility: resolvedPolicy.visibility } : {}),
   } satisfies JSONObject;
 
   return {
