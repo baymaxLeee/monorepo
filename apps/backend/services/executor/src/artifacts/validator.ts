@@ -219,7 +219,7 @@ function inspectCss(css: string, blockId: string | undefined, enforceScope = tru
       findings.push(
         finding(
           "CSS_RIGID_MIN_WIDTH",
-          "error",
+          "warning",
           "responsive",
           `${rule.selector} has a rigid min-width of ${minWidth}.`,
           "Use min-width:0, max-width:100%, or min()/clamp() so the element fits narrow viewports.",
@@ -232,7 +232,7 @@ function inspectCss(css: string, blockId: string | undefined, enforceScope = tru
       findings.push(
         finding(
           "CSS_RIGID_GRID_TRACK",
-          "error",
+          "warning",
           "responsive",
           `${rule.selector} uses large fixed grid tracks.`,
           "Use repeat(auto-fit, minmax(min(100%, ...), 1fr)) or a platform artifact-grid primitive.",

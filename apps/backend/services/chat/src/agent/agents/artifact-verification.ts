@@ -1,5 +1,7 @@
 type VerificationFinding = {
   code: string;
+  reason: string;
+  evidence?: string;
   suggestion: string;
   blockId: string;
 };
@@ -81,10 +83,17 @@ function actionableFindings(output: Record<string, unknown>): VerificationFindin
     const finding = recordValue(value);
     if (
       !finding || typeof finding.code !== "string" ||
+      typeof finding.reason !== "string" ||
       typeof finding.suggestion !== "string" ||
       !isAddressableBlockId(finding.block_id)
     ) return [];
-    return [{ code: finding.code, suggestion: finding.suggestion, blockId: finding.block_id }];
+    return [{
+      code: finding.code,
+      reason: finding.reason,
+      ...(typeof finding.evidence === "string" ? { evidence: finding.evidence } : {}),
+      suggestion: finding.suggestion,
+      blockId: finding.block_id,
+    }];
   });
 }
 
@@ -182,7 +191,11 @@ export function artifactVerificationDirective(state: ArtifactVerificationState):
   const changes = new Map<string, string[]>();
   for (const finding of item.findings) {
     const values = changes.get(finding.blockId) ?? [];
-    values.push(`${finding.code}: ${finding.suggestion}`);
+    values.push(
+      `${finding.code}: ${finding.reason}` +
+      `${finding.evidence ? ` Evidence: ${finding.evidence}` : ""}` +
+      ` Fix: ${finding.suggestion}`,
+    );
     changes.set(finding.blockId, values);
   }
   const repairChanges = [...changes].map(([block_id, values]) => ({

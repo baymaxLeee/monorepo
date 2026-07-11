@@ -50,11 +50,11 @@
         },
         "responses": {
           "200": {
-            "description": "canonical HTML validation report",
+            "description": "canonical HTML validation decision",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HtmlValidationReport"
+                  "$ref": "#/components/schemas/HtmlValidationDecision"
                 }
               }
             }
@@ -521,162 +521,58 @@
           "payload"
         ]
       },
-      "HtmlValidationFinding": {
+      "HtmlValidationDecisionFinding": {
         "type": "object",
         "properties": {
           "code": {
             "type": "string"
           },
-          "severity": {
-            "type": "string",
-            "enum": [
-              "error",
-              "warning",
-              "info"
-            ]
+          "block_id": {
+            "type": "string"
           },
-          "category": {
-            "type": "string",
-            "enum": [
-              "structure",
-              "security",
-              "template",
-              "responsive",
-              "accessibility",
-              "navigation",
-              "chart",
-              "content",
-              "coherence",
-              "visual"
-            ]
+          "reason": {
+            "type": "string"
           },
-          "message": {
+          "evidence": {
             "type": "string"
           },
           "suggestion": {
             "type": "string"
-          },
-          "source": {
-            "type": "string",
-            "enum": [
-              "static",
-              "model"
-            ]
-          },
-          "actionable": {
-            "type": "boolean"
-          },
-          "block_id": {
-            "type": "string"
-          },
-          "selector": {
-            "type": "string"
-          },
-          "evidence": {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "html",
-                  "css"
-                ]
-              },
-              "excerpt": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind",
-              "excerpt"
-            ]
           }
         },
         "required": [
           "code",
-          "severity",
-          "category",
-          "message",
-          "suggestion",
-          "source",
-          "actionable"
+          "reason",
+          "suggestion"
         ]
       },
-      "HtmlValidationReport": {
+      "HtmlValidationDecision": {
         "type": "object",
         "properties": {
-          "schema_version": {
-            "type": "integer",
-            "enum": [
-              1
-            ]
-          },
-          "template_version": {
-            "type": "integer"
-          },
           "ok": {
             "type": "boolean"
           },
           "content_sha256": {
             "type": "string"
           },
-          "summary": {
-            "type": "object",
-            "properties": {
-              "errors": {
-                "type": "integer"
-              },
-              "warnings": {
-                "type": "integer"
-              },
-              "infos": {
-                "type": "integer"
-              }
-            },
-            "required": [
-              "errors",
-              "warnings",
-              "infos"
-            ]
-          },
-          "findings": {
+          "errors": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/HtmlValidationFinding"
+              "$ref": "#/components/schemas/HtmlValidationDecisionFinding"
             }
           },
-          "metrics": {
-            "type": "object",
-            "properties": {
-              "blocks": {
-                "type": "integer"
-              },
-              "charts": {
-                "type": "integer"
-              },
-              "internal_links": {
-                "type": "integer"
-              },
-              "total_chars": {
-                "type": "integer"
-              }
-            },
-            "required": [
-              "blocks",
-              "charts",
-              "internal_links",
-              "total_chars"
-            ]
+          "advisories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HtmlValidationDecisionFinding"
+            }
           }
         },
         "required": [
-          "schema_version",
-          "template_version",
           "ok",
           "content_sha256",
-          "summary",
-          "findings",
-          "metrics"
+          "errors",
+          "advisories"
         ]
       }
     },

@@ -40,13 +40,21 @@ Superseded in part by ADR 0023. The artifact pipeline remains accepted; ADR
   iframe access.
 - Executor owns the canonical AST-based HTML/CSS validator. It reports stable
   error/warning codes with block, selector, evidence, and repair suggestions.
-  `html_validate` combines deterministic AST/CSS checks with model review of
-  persisted block contracts, generated fragments, and the whole outline. After
-  every successful HTML `write_file` or `edit_file`, the ToolLoopAgent harness
-  enforces an internal `html_validate` quality gate. Actionable findings trigger
-  block-addressed `edit_file` repair → `html_validate` rounds until no
-  actionable findings remain. Tool execution errors and unaddressable
-  document-level findings fail the gate closed.
+  `html_validate` runs deterministic AST/CSS checks first. Hard errors include a
+  compact reason and evidence and trigger block-addressed `edit_file` repair →
+  `html_validate` rounds until the deterministic gate passes. Heuristic
+  responsive findings remain warnings. Only after the hard gate passes does one
+  whole-artifact model review compare persisted blocks with their explicit
+  content contracts. Its deduplicated findings are non-blocking advisories with
+  contract item, reason, evidence, and suggestion; they never change `ok`. The
+  primary agent may repair a clearly evidenced explicit-requirement violation
+  but must not chase subjective review findings to zero. Tool execution errors
+  and unaddressable document-level hard errors fail the gate closed.
+  Executor alone classifies the internal report and exposes the canonical
+  compact `{ ok, content_sha256, errors, advisories }` decision through its
+  generated transport contract. Chat verifies the revision hash and orchestrates
+  repair without parsing raw findings, reclassifying severity, or recomputing
+  `ok`.
   These diagnostics are retained in native tool parts and traces and rendered
   as an ordinary visible tool part. The hash-bound report is
   returned only by `html_validate`; `write_file`/`edit_file` carry no advisory report.
@@ -56,8 +64,10 @@ Superseded in part by ADR 0023. The artifact pipeline remains accepted; ADR
   HTML does not enter chat history.
 - The forced validation step uses `prepareStep` to inject a deterministic native
   tool-call stream, so provider-specific tool-call generation cannot skip the
-  mandatory gate. Tool execution failures fail the gate. Reviewer JSON is
-  normalized and retried once without suppressing deterministic results.
+  mandatory gate. Tool execution failures fail the gate. Reviewer JSON requires
+  concrete contract/reason/evidence fields, is normalized and retried once, and
+  is discarded on persistent format failure without suppressing deterministic
+  results.
 - Every compiled ECharts option receives a default tooltip when the fragment did
   not declare one. Validation still reports `CHART_TOOLTIP_MISSING` on persisted
   artifacts so legacy output is repaired block-by-block rather than silently

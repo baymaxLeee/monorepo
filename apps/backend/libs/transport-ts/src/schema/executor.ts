@@ -65,13 +65,13 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description canonical HTML validation report */
+                /** @description canonical HTML validation decision */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["HtmlValidationReport"];
+                        "application/json": components["schemas"]["HtmlValidationDecision"];
                     };
                 };
             };
@@ -323,43 +323,18 @@ export interface components {
             /** @description TaskType-specific input, validated against that type's schema */
             payload: unknown;
         };
-        HtmlValidationFinding: {
+        HtmlValidationDecisionFinding: {
             code: string;
-            /** @enum {string} */
-            severity: "error" | "warning" | "info";
-            /** @enum {string} */
-            category: "structure" | "security" | "template" | "responsive" | "accessibility" | "navigation" | "chart" | "content" | "coherence" | "visual";
-            message: string;
-            suggestion: string;
-            /** @enum {string} */
-            source: "static" | "model";
-            actionable: boolean;
             block_id?: string;
-            selector?: string;
-            evidence?: {
-                /** @enum {string} */
-                kind: "html" | "css";
-                excerpt: string;
-            };
+            reason: string;
+            evidence?: string;
+            suggestion: string;
         };
-        HtmlValidationReport: {
-            /** @enum {integer} */
-            schema_version: 1;
-            template_version: number;
+        HtmlValidationDecision: {
             ok: boolean;
             content_sha256: string;
-            summary: {
-                errors: number;
-                warnings: number;
-                infos: number;
-            };
-            findings: components["schemas"]["HtmlValidationFinding"][];
-            metrics: {
-                blocks: number;
-                charts: number;
-                internal_links: number;
-                total_chars: number;
-            };
+            errors: components["schemas"]["HtmlValidationDecisionFinding"][];
+            advisories: components["schemas"]["HtmlValidationDecisionFinding"][];
         };
     };
     responses: never;

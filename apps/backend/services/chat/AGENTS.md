@@ -84,12 +84,19 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   this turn** until compile + publish complete (`agent_task_执行时服务` plan,
   Phase 2; ADR-0015 revision). Progress 100% means block generation completed;
   compile + publish still follow. After every successful HTML write/edit, the
-  ToolLoopAgent `prepareStep` quality gate forces `html_validate`; actionable
-  findings keep the internal `edit_file` → `html_validate` loop running until
-  validation has no actionable findings. The gate fails closed on tool errors
-  and unaddressable document-level findings; the agent-wide step limit does not
-  interrupt a pending gate. `prepareStep` injects the required quality-gate tool
-  call deterministically rather than asking the provider to generate it.
+  ToolLoopAgent `prepareStep` quality gate forces `html_validate`; deterministic
+  errors keep the internal `edit_file` → `html_validate` loop running until the
+  hard gate passes. Model content review runs only after deterministic checks
+  pass and returns non-blocking advisories with contract item, reason, evidence,
+  and suggestion; the primary agent decides whether a clear explicit-requirement
+  violation warrants another edit and must not chase subjective advisories to
+  zero. The gate fails closed on tool errors and unaddressable document-level
+  hard errors; the agent-wide step limit does not interrupt a pending gate.
+  Executor returns the canonical compact `{ ok, content_sha256, errors,
+  advisories }` decision; chat verifies the revision hash and orchestrates the
+  loop without reclassifying findings or recomputing `ok`.
+  `prepareStep` injects the required quality-gate tool call deterministically
+  rather than asking the provider to generate it.
   `html_validate` remains a native
   UIMessage tool part and is visible in product UI; list tools stay internal.
   Users provide final acceptance and subjective feedback; they do not

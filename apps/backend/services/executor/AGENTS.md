@@ -45,9 +45,14 @@ for the full rationale.
 ## TaskType registry
 
 The authenticated `POST /html-validations` endpoint runs canonical static
-checks plus model review of the persisted block contracts and whole artifact.
-It is the post-generation quality tool and is never called inside the HTML
-artifact workflow; durable Workflow remains reserved for generation.
+checks first. Static hard errors return immediately; only a statically valid
+artifact receives one whole-artifact model review. Model findings are
+non-blocking, evidence-backed advisories and never change the report's `ok`
+state. The endpoint owns final classification and returns the canonical compact
+`{ ok, content_sha256, errors, advisories }` decision; callers must not
+reinterpret raw findings. It is the post-generation quality tool and is never
+called inside the HTML artifact workflow; durable Workflow remains reserved for
+generation.
 
 - `src/tasks/registry.ts` maps a `type` string to a Zod input schema and a
   `"use workflow"` function. This is the seam a future `harness`-backed

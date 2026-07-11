@@ -68,52 +68,27 @@ const createTaskInputSchema = {
   required: ["type", "owner_service", "owner_ref", "payload"],
 };
 
-const htmlValidationFindingSchema = {
+const htmlValidationDecisionFindingSchema = {
   type: "object",
   properties: {
     code: { type: "string" },
-    severity: { type: "string", enum: ["error", "warning", "info"] },
-    category: { type: "string", enum: ["structure", "security", "template", "responsive", "accessibility", "navigation", "chart", "content", "coherence", "visual"] },
-    message: { type: "string" },
-    suggestion: { type: "string" },
-    source: { type: "string", enum: ["static", "model"] },
-    actionable: { type: "boolean" },
     block_id: { type: "string" },
-    selector: { type: "string" },
-    evidence: {
-      type: "object",
-      properties: { kind: { type: "string", enum: ["html", "css"] }, excerpt: { type: "string" } },
-      required: ["kind", "excerpt"],
-    },
+    reason: { type: "string" },
+    evidence: { type: "string" },
+    suggestion: { type: "string" },
   },
-  required: ["code", "severity", "category", "message", "suggestion", "source", "actionable"],
+  required: ["code", "reason", "suggestion"],
 };
 
-const htmlValidationReportSchema = {
+const htmlValidationDecisionSchema = {
   type: "object",
   properties: {
-    schema_version: { type: "integer", enum: [1] },
-    template_version: { type: "integer" },
     ok: { type: "boolean" },
     content_sha256: { type: "string" },
-    summary: {
-      type: "object",
-      properties: { errors: { type: "integer" }, warnings: { type: "integer" }, infos: { type: "integer" } },
-      required: ["errors", "warnings", "infos"],
-    },
-    findings: { type: "array", items: ref("HtmlValidationFinding") },
-    metrics: {
-      type: "object",
-      properties: {
-        blocks: { type: "integer" },
-        charts: { type: "integer" },
-        internal_links: { type: "integer" },
-        total_chars: { type: "integer" },
-      },
-      required: ["blocks", "charts", "internal_links", "total_chars"],
-    },
+    errors: { type: "array", items: ref("HtmlValidationDecisionFinding") },
+    advisories: { type: "array", items: ref("HtmlValidationDecisionFinding") },
   },
-  required: ["schema_version", "template_version", "ok", "content_sha256", "summary", "findings", "metrics"],
+  required: ["ok", "content_sha256", "errors", "advisories"],
 };
 
 const openapi = {
@@ -141,7 +116,7 @@ const openapi = {
             },
           },
         },
-        responses: { "200": jsonResponse("canonical HTML validation report", ref("HtmlValidationReport")) },
+        responses: { "200": jsonResponse("canonical HTML validation decision", ref("HtmlValidationDecision")) },
       },
     },
     "/tasks": {
@@ -208,8 +183,8 @@ const openapi = {
     schemas: {
       Task: taskSchema,
       CreateTaskInput: createTaskInputSchema,
-      HtmlValidationFinding: htmlValidationFindingSchema,
-      HtmlValidationReport: htmlValidationReportSchema,
+      HtmlValidationDecisionFinding: htmlValidationDecisionFindingSchema,
+      HtmlValidationDecision: htmlValidationDecisionSchema,
     },
     securitySchemes: {
       internalToken: { type: "apiKey", in: "header", name: "X-Internal-Token" },

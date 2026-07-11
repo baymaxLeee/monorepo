@@ -39,45 +39,6 @@ const artifactPersistedOutputSchema = z.object({
   total_chars: z.number(),
 });
 
-const htmlValidationFindingSchema = z.object({
-  code: z.string(),
-  severity: z.enum(["error", "warning", "info"]),
-  category: z.enum([
-    "structure",
-    "security",
-    "template",
-    "responsive",
-    "accessibility",
-    "navigation",
-    "chart",
-    "content",
-    "coherence",
-    "visual",
-  ]),
-  message: z.string(),
-  suggestion: z.string(),
-  source: z.enum(["static", "model"]),
-  actionable: z.boolean(),
-  block_id: z.string().optional(),
-  selector: z.string().optional(),
-  evidence: z.object({ kind: z.enum(["html", "css"]), excerpt: z.string() }).optional(),
-});
-
-const htmlValidationReportSchema = z.object({
-  schema_version: z.literal(1),
-  template_version: z.number().int().positive(),
-  ok: z.boolean(),
-  content_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-  summary: z.object({ errors: z.number().int().nonnegative(), warnings: z.number().int().nonnegative(), infos: z.number().int().nonnegative() }),
-  findings: z.array(htmlValidationFindingSchema),
-  metrics: z.object({
-    blocks: z.number().int().nonnegative(),
-    charts: z.number().int().nonnegative(),
-    internal_links: z.number().int().nonnegative(),
-    total_chars: z.number().int().nonnegative(),
-  }),
-});
-
 const artifactTaskOutputSchema = z.object({
   ok: z.literal(true),
   status: z.string(),
@@ -127,19 +88,22 @@ const artifactToolOutputSchema = z.union([
   artifactBlockedOutputSchema,
 ]);
 
+const compactValidationFindingSchema = z.object({
+  code: z.string(),
+  block_id: z.string().optional(),
+  reason: z.string(),
+  evidence: z.string().optional(),
+  suggestion: z.string(),
+});
+
 const htmlValidateOutputSchema = z.union([
   z
     .object({
       ok: z.boolean(),
       status: z.literal("completed"),
       file_id: z.string(),
-      errors: z.array(
-        z.object({
-          code: z.string(),
-          suggestion: z.string(),
-          block_id: z.string().optional(),
-        }),
-      ),
+      errors: z.array(compactValidationFindingSchema),
+      advisories: z.array(compactValidationFindingSchema),
     })
     .refine((output) => output.ok === (output.errors.length === 0), {
       message: "ok must be true exactly when no actionable errors remain",
@@ -301,29 +265,22 @@ async function validateHtml(
       error: `file ${input.file_id} is not a generated artifact`,
     };
   }
-  const liveReport = await validateHtmlWithExecutor({
+  const decision = await validateHtmlWithExecutor({
     userId: context.userId,
     orgId: context.orgId,
     providerId: textProvider.id,
     documentId: input.file_id,
     signal: abortSignal,
   });
-  const parsed = htmlValidationReportSchema.parse(liveReport);
-  if (document.object_sha256 && parsed.content_sha256 !== document.object_sha256) {
+  if (document.object_sha256 && decision.content_sha256 !== document.object_sha256) {
     throw new Error("html_validate result does not match the current artifact revision");
   }
-  const errors = parsed.findings
-    .filter((finding) => finding.severity === "error" && finding.actionable)
-    .map((finding) => ({
-      code: finding.code,
-      suggestion: finding.suggestion,
-      ...(finding.block_id ? { block_id: finding.block_id } : {}),
-    }));
   return {
-    ok: errors.length === 0,
+    ok: decision.ok,
     status: "completed",
     file_id: input.file_id,
-    errors,
+    errors: decision.errors,
+    advisories: decision.advisories,
   };
 }
 
@@ -466,7 +423,7 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
       "html_validate",
       tool({
       description:
-        "Run the canonical validator against the current stored HTML and return only actionable errors needed by the internal repair loop.",
+        "Run deterministic validation against the current stored HTML. Returns compact hard-gate errors with reason/evidence for the internal repair loop, plus non-blocking high-signal content-review advisories for agent judgment.",
       inputSchema: z.object({
         file_id: z.string().min(1).max(32),
       }),
@@ -482,7 +439,7 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
         modes: ["normal"],
         visibility: "visible",
       },
-      { summary: "Validate the current HTML and return only actionable block errors for the edit-and-revalidate loop." },
+      { summary: "Validate HTML with deterministic hard errors and non-blocking review advisories." },
     ),
     defineAgentTool(
       "list_artifact_blocks",
