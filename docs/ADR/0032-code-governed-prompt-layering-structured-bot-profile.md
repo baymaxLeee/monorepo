@@ -93,6 +93,15 @@ are discarded, not migrated into the new fields.
    later. The oncall bot's behavior is intentionally "thinner" during the
    transition.
 
+7. **Schema v2 adds one code-owned execution protocol.** The static
+   `<execution_protocol>` sits after the mode-specific runtime contract and
+   before dynamic capabilities, Skills, Bot configuration, and context data. It
+   defines the primary agent's per-step loop: orient → route context → route
+   Skills → check sufficiency → choose action → execute → observe → continue or
+   stop. Tool schemas remain the input contract, manifests remain the mode and
+   permission boundary, and deterministic HTML repair remains enforced by AI
+   SDK `prepareStep`; the prompt does not become a second scheduler.
+
 Scope boundary: this ADR governs prompt **layering** and the structured Bot
 profile. The **management and assembly** of skills / MCP / sub-agents remains
 future work (`docs/plans/agent-extensions-mcp-skill-subagent.md`); this change
@@ -106,6 +115,9 @@ only narrows their injection seam to a typed contract.
 - The final prompt has a stable XML root and fixed layers; all admin/user text is
   escaped and confined to its section. Prompts are now diffable and carry a
   schema version (`INSTRUCTION_SCHEMA_VERSION`).
+- The execution protocol connects context, Skills, tools, and completion in one
+  explicit primary-agent loop without adding role-play agents or manual tool-loop
+  code.
 - Tools, memory, documents, and retrieval results are all data/untrusted context;
   no component can promote them into the instruction layer.
 - **Destructive, by design:** existing `system_prompt` content is lost. Bots show

@@ -1,6 +1,6 @@
 import type { AgentMode } from "../../agents/types.js";
 
-export const INSTRUCTION_SCHEMA_VERSION = "1";
+export const INSTRUCTION_SCHEMA_VERSION = "2";
 
 export type BotTone = "professional" | "concise" | "friendly" | "empathetic";
 

@@ -1,6 +1,7 @@
 import { renderBotProfile } from "./bot-profile.js";
 import { renderContextData } from "./context-data.js";
 import { CORE_POLICY } from "./core-policy.js";
+import { renderExecutionProtocol } from "./execution.js";
 import { renderRuntimeContract } from "./runtime.js";
 import {
   INSTRUCTION_SCHEMA_VERSION,
@@ -13,8 +14,8 @@ import { escapeXmlText, xmlSection } from "./xml.js";
 /**
  * The single, fixed-order instruction assembler. Section order is code-owned and
  * cannot be reordered by callers. Trust flows top→bottom: code-owned policy and
- * runtime first, then code-generated capabilities and available skills, then
- * configured bot_profile, then data (context_data), then server facts (environment).
+ * runtime and execution protocol first, then code-generated capabilities and
+ * available skills, configured bot_profile, data, and server facts.
  */
 export function assembleInstructions(
   input: InstructionInput,
@@ -23,6 +24,7 @@ export function assembleInstructions(
   const sections = [
     xmlSection("core_policy", CORE_POLICY),
     renderRuntimeContract(input.mode),
+    renderExecutionProtocol(),
     xmlSection("capability_contract", contributions.capabilities ?? null),
     renderAvailableSkills(contributions.skills),
     renderBotProfile(input.botProfile),
