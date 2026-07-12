@@ -273,6 +273,30 @@ export interface CreateSkillInput {
   description: string;
 }
 
+export type CreateSkillNodeInputType = typeof CreateSkillNodeInputType[keyof typeof CreateSkillNodeInputType];
+
+
+export const CreateSkillNodeInputType = {
+  file: 'file',
+  directory: 'directory',
+} as const;
+
+export interface CreateSkillNodeInput {
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  id: string;
+  parent_id?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  name: string;
+  type: CreateSkillNodeInputType;
+  content?: string | null;
+}
+
 export type ValidationErrorCtx = { [key: string]: unknown };
 
 export interface ValidationError {
@@ -391,6 +415,15 @@ export interface ModelProvider {
   updated_at: string;
 }
 
+export interface MoveSkillNodeInput {
+  /**
+     * @minLength 64
+     * @maxLength 64
+     */
+  base_etag: string;
+  parent_id?: string | null;
+}
+
 export interface PublishSkillInput {
   /** @minimum 1 */
   base_workspace_seq: number;
@@ -434,6 +467,19 @@ export interface SkillValidationResult {
 export interface PublishSkillResult {
   skill: Skill;
   validation: SkillValidationResult;
+}
+
+export interface RenameSkillNodeInput {
+  /**
+     * @minLength 64
+     * @maxLength 64
+     */
+  base_etag: string;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  name: string;
 }
 
 export type ResolvedAgentTone = typeof ResolvedAgentTone[keyof typeof ResolvedAgentTone];
@@ -492,41 +538,10 @@ export interface Scene {
   updated_at: string;
 }
 
-export type SkillFileChangeAction = typeof SkillFileChangeAction[keyof typeof SkillFileChangeAction];
-
-
-export const SkillFileChangeAction = {
-  create: 'create',
-  update: 'update',
-  delete: 'delete',
-  move: 'move',
-  rename: 'rename',
-} as const;
-
-export type SkillFileChangeType = typeof SkillFileChangeType[keyof typeof SkillFileChangeType] | null;
-
-
-export const SkillFileChangeType = {
-  file: 'file',
-  directory: 'directory',
-} as const;
-
-export interface SkillFileChange {
-  action: SkillFileChangeAction;
-  /**
-     * @minLength 1
-     * @maxLength 64
-     */
-  id: string;
-  parent_id?: string | null;
-  name?: string | null;
-  type?: SkillFileChangeType;
-  content?: string | null;
-}
-
 export interface SkillFileContent {
   id: string;
   content: string;
+  etag: string;
 }
 
 export type SkillFileNodeType = typeof SkillFileNodeType[keyof typeof SkillFileNodeType];
@@ -543,8 +558,15 @@ export interface SkillFileNode {
   type: SkillFileNodeType;
   parent_id?: string | null;
   mime_type?: string | null;
+  etag: string;
   content?: string | null;
   children?: SkillFileNode[] | null;
+}
+
+export interface SkillNodeMutationResult {
+  workspace_seq: number;
+  node_id: string;
+  etag?: string | null;
 }
 
 export type SkillSummaryStatus = typeof SkillSummaryStatus[keyof typeof SkillSummaryStatus];
@@ -702,6 +724,16 @@ export interface UpdateSceneInput {
   is_enabled?: boolean | null;
 }
 
+export interface UpdateSkillFileContentInput {
+  /**
+     * @minLength 64
+     * @maxLength 64
+     */
+  base_etag: string;
+  /** @maxLength 200000 */
+  content: string;
+}
+
 export type UpdateSkillInputStatus = typeof UpdateSkillInputStatus[keyof typeof UpdateSkillInputStatus] | null;
 
 
@@ -715,21 +747,19 @@ export interface UpdateSkillInput {
   status?: UpdateSkillInputStatus;
 }
 
-export interface UpdateSkillWorkspaceInput {
-  /** @minimum 1 */
-  base_workspace_seq: number;
-  /**
-     * @minItems 1
-     * @maxItems 200
-     */
-  changes: SkillFileChange[];
-}
-
 export type LivezLivezGet200 = {[key: string]: string};
 
 export type ReadyzReadyzGet200 = { [key: string]: unknown };
 
 export type HealthzHealthzGet200 = { [key: string]: unknown };
+
+export type DeleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDeleteParams = {
+/**
+ * @minLength 64
+ * @maxLength 64
+ */
+base_etag: string;
+};
 
 export type GetSkillFileInternalInternalSkillsSkillIdFilesGetParams = {
 /**
@@ -1090,21 +1120,6 @@ const getSkillWorkspaceSkillsSkillIdWorkspaceGet = (
     }
 
 /**
- * @summary Update Skill Workspace
- */
-const updateSkillWorkspaceSkillsSkillIdWorkspacePatch = (
-    skillId: string,
-    updateSkillWorkspaceInput: UpdateSkillWorkspaceInput,
- options?: SecondParameter<typeof apiMutator<SkillWorkspace>>,) => {
-      return apiMutator<SkillWorkspace>(
-      {url: `/skills/${skillId}/workspace`, method: 'PATCH',
-      headers: {'Content-Type': 'application/json', },
-      data: updateSkillWorkspaceInput
-    },
-      options);
-    }
-
-/**
  * @summary Get Skill File
  */
 const getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet = (
@@ -1113,6 +1128,84 @@ const getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet = (
  options?: SecondParameter<typeof apiMutator<SkillFileContent>>,) => {
       return apiMutator<SkillFileContent>(
       {url: `/skills/${skillId}/workspace/files/${nodeId}`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * @summary Create Skill Node
+ */
+const createSkillNodeSkillsSkillIdWorkspaceNodesPost = (
+    skillId: string,
+    createSkillNodeInput: CreateSkillNodeInput,
+ options?: SecondParameter<typeof apiMutator<SkillNodeMutationResult>>,) => {
+      return apiMutator<SkillNodeMutationResult>(
+      {url: `/skills/${skillId}/workspace/nodes`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createSkillNodeInput
+    },
+      options);
+    }
+
+/**
+ * @summary Update Skill File Content
+ */
+const updateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPut = (
+    skillId: string,
+    nodeId: string,
+    updateSkillFileContentInput: UpdateSkillFileContentInput,
+ options?: SecondParameter<typeof apiMutator<SkillNodeMutationResult>>,) => {
+      return apiMutator<SkillNodeMutationResult>(
+      {url: `/skills/${skillId}/workspace/nodes/${nodeId}/content`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: updateSkillFileContentInput
+    },
+      options);
+    }
+
+/**
+ * @summary Rename Skill Node
+ */
+const renameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePut = (
+    skillId: string,
+    nodeId: string,
+    renameSkillNodeInput: RenameSkillNodeInput,
+ options?: SecondParameter<typeof apiMutator<SkillNodeMutationResult>>,) => {
+      return apiMutator<SkillNodeMutationResult>(
+      {url: `/skills/${skillId}/workspace/nodes/${nodeId}/name`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: renameSkillNodeInput
+    },
+      options);
+    }
+
+/**
+ * @summary Move Skill Node
+ */
+const moveSkillNodeSkillsSkillIdWorkspaceNodesNodeIdParentPut = (
+    skillId: string,
+    nodeId: string,
+    moveSkillNodeInput: MoveSkillNodeInput,
+ options?: SecondParameter<typeof apiMutator<SkillNodeMutationResult>>,) => {
+      return apiMutator<SkillNodeMutationResult>(
+      {url: `/skills/${skillId}/workspace/nodes/${nodeId}/parent`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: moveSkillNodeInput
+    },
+      options);
+    }
+
+/**
+ * @summary Delete Skill Node
+ */
+const deleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDelete = (
+    skillId: string,
+    nodeId: string,
+    params: DeleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDeleteParams,
+ options?: SecondParameter<typeof apiMutator<SkillNodeMutationResult>>,) => {
+      return apiMutator<SkillNodeMutationResult>(
+      {url: `/skills/${skillId}/workspace/nodes/${nodeId}`, method: 'DELETE',
+        params
     },
       options);
     }
@@ -1495,7 +1588,7 @@ const deleteAppAppsAppIdDelete = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listBotSkillsBotBotIdSkillsGet,attachBotSkillBotBotIdSkillsPost,detachBotSkillBotBotIdSkillsSkillIdDelete,listScenesScenesGet,createSceneScenesPost,getSceneScenesSceneIdGet,updateSceneScenesSceneIdPatch,deleteSceneScenesSceneIdDelete,bulkDeleteScenesScenesBulkDeletePost,listSkillsSkillsGet,createSkillSkillsPost,getSkillSkillsSkillIdGet,updateSkillSkillsSkillIdPatch,deleteSkillSkillsSkillIdDelete,getSkillWorkspaceSkillsSkillIdWorkspaceGet,updateSkillWorkspaceSkillsSkillIdWorkspacePatch,getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet,validateSkillSkillsSkillIdValidatePost,publishSkillSkillsSkillIdPublishPost,bulkDeleteSkillsSkillsBulkDeletePost,getSkillFileInternalInternalSkillsSkillIdFilesGet,getSkillInternalInternalSkillsSkillIdGet,listIntentionsIntentionsGet,createIntentionIntentionsPost,getIntentionIntentionsIntentionIdGet,updateIntentionIntentionsIntentionIdPatch,deleteIntentionIntentionsIntentionIdDelete,bulkDeleteIntentionsIntentionsBulkDeletePost,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderByKindInternalInternalProvidersByKindKindGet,getProviderInternalInternalProvidersProviderIdGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listBotSkillsBotBotIdSkillsGet,attachBotSkillBotBotIdSkillsPost,detachBotSkillBotBotIdSkillsSkillIdDelete,listScenesScenesGet,createSceneScenesPost,getSceneScenesSceneIdGet,updateSceneScenesSceneIdPatch,deleteSceneScenesSceneIdDelete,bulkDeleteScenesScenesBulkDeletePost,listSkillsSkillsGet,createSkillSkillsPost,getSkillSkillsSkillIdGet,updateSkillSkillsSkillIdPatch,deleteSkillSkillsSkillIdDelete,getSkillWorkspaceSkillsSkillIdWorkspaceGet,getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet,createSkillNodeSkillsSkillIdWorkspaceNodesPost,updateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPut,renameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePut,moveSkillNodeSkillsSkillIdWorkspaceNodesNodeIdParentPut,deleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDelete,validateSkillSkillsSkillIdValidatePost,publishSkillSkillsSkillIdPublishPost,bulkDeleteSkillsSkillsBulkDeletePost,getSkillFileInternalInternalSkillsSkillIdFilesGet,getSkillInternalInternalSkillsSkillIdGet,listIntentionsIntentionsGet,createIntentionIntentionsPost,getIntentionIntentionsIntentionIdGet,updateIntentionIntentionsIntentionIdPatch,deleteIntentionIntentionsIntentionIdDelete,bulkDeleteIntentionsIntentionsBulkDeletePost,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderByKindInternalInternalProvidersByKindKindGet,getProviderInternalInternalProvidersProviderIdGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['healthzHealthzGet']>>>
@@ -1519,8 +1612,12 @@ export type GetSkillSkillsSkillIdGetResult = NonNullable<Awaited<ReturnType<Retu
 export type UpdateSkillSkillsSkillIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateSkillSkillsSkillIdPatch']>>>
 export type DeleteSkillSkillsSkillIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['deleteSkillSkillsSkillIdDelete']>>>
 export type GetSkillWorkspaceSkillsSkillIdWorkspaceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getSkillWorkspaceSkillsSkillIdWorkspaceGet']>>>
-export type UpdateSkillWorkspaceSkillsSkillIdWorkspacePatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateSkillWorkspaceSkillsSkillIdWorkspacePatch']>>>
 export type GetSkillFileSkillsSkillIdWorkspaceFilesNodeIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet']>>>
+export type CreateSkillNodeSkillsSkillIdWorkspaceNodesPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createSkillNodeSkillsSkillIdWorkspaceNodesPost']>>>
+export type UpdateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPut']>>>
+export type RenameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['renameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePut']>>>
+export type MoveSkillNodeSkillsSkillIdWorkspaceNodesNodeIdParentPutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['moveSkillNodeSkillsSkillIdWorkspaceNodesNodeIdParentPut']>>>
+export type DeleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['deleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDelete']>>>
 export type ValidateSkillSkillsSkillIdValidatePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['validateSkillSkillsSkillIdValidatePost']>>>
 export type PublishSkillSkillsSkillIdPublishPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['publishSkillSkillsSkillIdPublishPost']>>>
 export type BulkDeleteSkillsSkillsBulkDeletePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['bulkDeleteSkillsSkillsBulkDeletePost']>>>

@@ -1,11 +1,17 @@
 import {
+  createSkillNode,
+  deleteSkillNode,
   fetchSkill,
   fetchSkillFile,
   fetchSkillWorkspace,
+  moveSkillNode,
   publishSkill,
+  renameSkillNode,
   type Skill,
+  type SkillFileNode,
+  type SkillNodeMutationResult,
   type SkillValidationResult,
-  updateSkillWorkspace,
+  updateSkillFileContent,
   validateSkill,
 } from "api";
 import {
@@ -41,6 +47,7 @@ export function SkillWorkspacePage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const workspaceRef = useRef<FileWorkspaceRef>(null);
+  const etagsRef = useRef(new Map<string, string>());
   const [skill, setSkill] = useState<Skill | null>(null);
   const [tree, setTree] = useState<FileNode[] | null>(null);
   const [workspaceSeq, setWorkspaceSeq] = useState(1);
@@ -58,6 +65,15 @@ export function SkillWorkspacePage() {
         fetchSkill(id),
         fetchSkillWorkspace(id),
       ]);
+      const etags = new Map<string, string>();
+      const collectEtags = (nodes: SkillFileNode[]) => {
+        for (const node of nodes) {
+          etags.set(node.id, node.etag);
+          if (node.children) collectEtags(node.children);
+        }
+      };
+      collectEtags(workspace.tree);
+      etagsRef.current = etags;
       setSkill(detail);
       setTree(workspace.tree);
       setWorkspaceSeq(workspace.workspace_seq);
@@ -84,18 +100,54 @@ export function SkillWorkspacePage() {
   async function save(): Promise<number> {
     const changes = workspaceRef.current?.getChanges() ?? [];
     if (!changes.length) return workspaceSeq;
-    const workspace = await updateSkillWorkspace(
-      id,
-      workspaceSeq,
-      changes as FileChange[],
-    );
-    setWorkspaceSeq(workspace.workspace_seq);
+    let nextWorkspaceSeq = workspaceSeq;
+    for (const change of changes) {
+      const result = await persistChange(change);
+      nextWorkspaceSeq = result.workspace_seq;
+      if (result.etag) etagsRef.current.set(result.node_id, result.etag);
+      else etagsRef.current.delete(result.node_id);
+    }
+    setWorkspaceSeq(nextWorkspaceSeq);
     workspaceRef.current?.resetBaseline();
     setDirty(false);
     setValidation(null);
     setSkill(await fetchSkill(id));
     toast.success("工作区已保存");
-    return workspace.workspace_seq;
+    return nextWorkspaceSeq;
+  }
+
+  function etag(nodeId: string): string {
+    const value = etagsRef.current.get(nodeId);
+    if (!value) throw new Error(`文件 ${nodeId} 已变化，请刷新后重试`);
+    return value;
+  }
+
+  function persistChange(change: FileChange): Promise<SkillNodeMutationResult> {
+    switch (change.action) {
+      case "create":
+        return createSkillNode(id, {
+          id: change.id,
+          parent_id: change.parent_id,
+          name: change.name,
+          type: change.type,
+          ...(change.content === undefined ? {} : { content: change.content }),
+        });
+      case "update":
+        return updateSkillFileContent(
+          id,
+          change.id,
+          etag(change.id),
+          change.content,
+        );
+      case "rename":
+        return renameSkillNode(id, change.id, etag(change.id), change.name);
+      case "move":
+        return moveSkillNode(id, change.id, etag(change.id), change.parent_id);
+      case "delete":
+        return deleteSkillNode(id, change.id, etag(change.id));
+    }
+    const unsupported: never = change;
+    throw new Error(`不支持的文件变更：${JSON.stringify(unsupported)}`);
   }
 
   async function run(action: () => Promise<void>) {
@@ -194,7 +246,11 @@ export function SkillWorkspacePage() {
             ref={workspaceRef}
             value={tree}
             defaultSelectedFileId={skillMdId}
-            onLoadContent={(nodeId) => fetchSkillFile(id, nodeId)}
+            onLoadContent={async (nodeId) => {
+              const file = await fetchSkillFile(id, nodeId);
+              etagsRef.current.set(nodeId, file.etag);
+              return file.content;
+            }}
             onChange={() => setDirty(true)}
             height="100%"
             codeEditorProps={{

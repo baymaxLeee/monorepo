@@ -122,6 +122,7 @@ export interface SkillFileNode {
   type: "file" | "directory";
   parent_id?: string | null;
   mime_type?: string | null;
+  etag: string;
   /**
    * File nodes only. `null` = content not included in tree listing (lazy-load via
    * GET /workspace/files/{id}); string = inline body (including empty file).
@@ -136,13 +137,16 @@ export interface SkillWorkspace {
   tree: SkillFileNode[];
 }
 
-export interface SkillFileChange {
-  action: "create" | "update" | "delete" | "move" | "rename";
+export interface SkillNodeMutationResult {
+  workspace_seq: number;
+  node_id: string;
+  etag: string | null;
+}
+
+export interface SkillFileContent {
   id: string;
-  parent_id?: string | null;
-  name?: string;
-  type?: "file" | "directory";
-  content?: string;
+  content: string;
+  etag: string;
 }
 
 export interface SkillValidationIssue {
@@ -193,22 +197,81 @@ export function fetchSkillWorkspace(id: string): Promise<SkillWorkspace> {
   });
 }
 
-export function fetchSkillFile(id: string, nodeId: string): Promise<string> {
-  return request<{ id: string; content: string }>({
+export function fetchSkillFile(
+  id: string,
+  nodeId: string,
+): Promise<SkillFileContent> {
+  return request<SkillFileContent>({
     url: `${skillPath(id)}/workspace/files/${nodeId}`,
     method: "GET",
-  }).then((result) => result.content);
+  });
 }
 
-export function updateSkillWorkspace(
+export function createSkillNode(
   id: string,
-  baseWorkspaceSeq: number,
-  changes: SkillFileChange[],
-): Promise<SkillWorkspace> {
-  return request<SkillWorkspace>({
-    url: `${skillPath(id)}/workspace`,
-    method: "PATCH",
-    data: { base_workspace_seq: baseWorkspaceSeq, changes },
+  input: {
+    id: string;
+    parent_id: string | null;
+    name: string;
+    type: "file" | "directory";
+    content?: string;
+  },
+): Promise<SkillNodeMutationResult> {
+  return request<SkillNodeMutationResult>({
+    url: `${skillPath(id)}/workspace/nodes`,
+    method: "POST",
+    data: input,
+  });
+}
+
+export function updateSkillFileContent(
+  id: string,
+  nodeId: string,
+  baseEtag: string,
+  content: string,
+): Promise<SkillNodeMutationResult> {
+  return request<SkillNodeMutationResult>({
+    url: `${skillPath(id)}/workspace/nodes/${nodeId}/content`,
+    method: "PUT",
+    data: { base_etag: baseEtag, content },
+  });
+}
+
+export function renameSkillNode(
+  id: string,
+  nodeId: string,
+  baseEtag: string,
+  name: string,
+): Promise<SkillNodeMutationResult> {
+  return request<SkillNodeMutationResult>({
+    url: `${skillPath(id)}/workspace/nodes/${nodeId}/name`,
+    method: "PUT",
+    data: { base_etag: baseEtag, name },
+  });
+}
+
+export function moveSkillNode(
+  id: string,
+  nodeId: string,
+  baseEtag: string,
+  parentId: string | null,
+): Promise<SkillNodeMutationResult> {
+  return request<SkillNodeMutationResult>({
+    url: `${skillPath(id)}/workspace/nodes/${nodeId}/parent`,
+    method: "PUT",
+    data: { base_etag: baseEtag, parent_id: parentId },
+  });
+}
+
+export function deleteSkillNode(
+  id: string,
+  nodeId: string,
+  baseEtag: string,
+): Promise<SkillNodeMutationResult> {
+  return request<SkillNodeMutationResult>({
+    url: `${skillPath(id)}/workspace/nodes/${nodeId}`,
+    method: "DELETE",
+    params: { base_etag: baseEtag },
   });
 }
 

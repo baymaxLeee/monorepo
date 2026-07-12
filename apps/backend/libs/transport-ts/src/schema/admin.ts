@@ -232,8 +232,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update Skill Workspace */
-        patch: operations["update_skill_workspace_skills__skill_id__workspace_patch"];
+        patch?: never;
         trace?: never;
     };
     "/skills/{skill_id}/workspace/files/{node_id}": {
@@ -248,6 +247,91 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skills/{skill_id}/workspace/nodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Skill Node */
+        post: operations["create_skill_node_skills__skill_id__workspace_nodes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skills/{skill_id}/workspace/nodes/{node_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Skill File Content */
+        put: operations["update_skill_file_content_skills__skill_id__workspace_nodes__node_id__content_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skills/{skill_id}/workspace/nodes/{node_id}/name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Rename Skill Node */
+        put: operations["rename_skill_node_skills__skill_id__workspace_nodes__node_id__name_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skills/{skill_id}/workspace/nodes/{node_id}/parent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Move Skill Node */
+        put: operations["move_skill_node_skills__skill_id__workspace_nodes__node_id__parent_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skills/{skill_id}/workspace/nodes/{node_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Skill Node */
+        delete: operations["delete_skill_node_skills__skill_id__workspace_nodes__node_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -867,6 +951,22 @@ export interface components {
             /** Description */
             description: string;
         };
+        /** CreateSkillNodeInput */
+        CreateSkillNodeInput: {
+            /** Id */
+            id: string;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Name */
+            name: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "file" | "directory";
+            /** Content */
+            content?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1002,6 +1102,13 @@ export interface components {
             /** Updated At */
             updated_at: string;
         };
+        /** MoveSkillNodeInput */
+        MoveSkillNodeInput: {
+            /** Base Etag */
+            base_etag: string;
+            /** Parent Id */
+            parent_id?: string | null;
+        };
         /** PublishSkillInput */
         PublishSkillInput: {
             /** Base Workspace Seq */
@@ -1011,6 +1118,13 @@ export interface components {
         PublishSkillResult: {
             skill: components["schemas"]["Skill"];
             validation: components["schemas"]["SkillValidationResult"];
+        };
+        /** RenameSkillNodeInput */
+        RenameSkillNodeInput: {
+            /** Base Etag */
+            base_etag: string;
+            /** Name */
+            name: string;
         };
         /**
          * ResolvedAgent
@@ -1105,30 +1219,14 @@ export interface components {
             /** Workspace Seq */
             workspace_seq: number;
         };
-        /** SkillFileChange */
-        SkillFileChange: {
-            /**
-             * Action
-             * @enum {string}
-             */
-            action: "create" | "update" | "delete" | "move" | "rename";
-            /** Id */
-            id: string;
-            /** Parent Id */
-            parent_id?: string | null;
-            /** Name */
-            name?: string | null;
-            /** Type */
-            type?: ("file" | "directory") | null;
-            /** Content */
-            content?: string | null;
-        };
         /** SkillFileContent */
         SkillFileContent: {
             /** Id */
             id: string;
             /** Content */
             content: string;
+            /** Etag */
+            etag: string;
         };
         /** SkillFileNode */
         SkillFileNode: {
@@ -1145,10 +1243,21 @@ export interface components {
             parent_id?: string | null;
             /** Mime Type */
             mime_type?: string | null;
+            /** Etag */
+            etag: string;
             /** Content */
             content?: string | null;
             /** Children */
             children?: components["schemas"]["SkillFileNode"][] | null;
+        };
+        /** SkillNodeMutationResult */
+        SkillNodeMutationResult: {
+            /** Workspace Seq */
+            workspace_seq: number;
+            /** Node Id */
+            node_id: string;
+            /** Etag */
+            etag?: string | null;
         };
         /** SkillSummary */
         SkillSummary: {
@@ -1327,19 +1436,19 @@ export interface components {
             /** Is Enabled */
             is_enabled?: boolean | null;
         };
+        /** UpdateSkillFileContentInput */
+        UpdateSkillFileContentInput: {
+            /** Base Etag */
+            base_etag: string;
+            /** Content */
+            content: string;
+        };
         /** UpdateSkillInput */
         UpdateSkillInput: {
             /** Is Enabled */
             is_enabled?: boolean | null;
             /** Status */
             status?: ("draft" | "archived") | null;
-        };
-        /** UpdateSkillWorkspaceInput */
-        UpdateSkillWorkspaceInput: {
-            /** Base Workspace Seq */
-            base_workspace_seq: number;
-            /** Changes */
-            changes: components["schemas"]["SkillFileChange"][];
         };
         /** ValidationError */
         ValidationError: {
@@ -2202,48 +2311,6 @@ export interface operations {
             };
         };
     };
-    update_skill_workspace_skills__skill_id__workspace_patch: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Auth-Email"?: string | null;
-                "X-Auth-User-ID"?: string | null;
-                "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
-                "X-Auth-Roles"?: string | null;
-            };
-            path: {
-                skill_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateSkillWorkspaceInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SkillWorkspace"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_skill_file_skills__skill_id__workspace_files__node_id__get: {
         parameters: {
             query?: never;
@@ -2270,6 +2337,218 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SkillFileContent"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_skill_node_skills__skill_id__workspace_nodes_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSkillNodeInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillNodeMutationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_skill_file_content_skills__skill_id__workspace_nodes__node_id__content_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+                node_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSkillFileContentInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillNodeMutationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_skill_node_skills__skill_id__workspace_nodes__node_id__name_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+                node_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameSkillNodeInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillNodeMutationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_skill_node_skills__skill_id__workspace_nodes__node_id__parent_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+                node_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveSkillNodeInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillNodeMutationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_skill_node_skills__skill_id__workspace_nodes__node_id__delete: {
+        parameters: {
+            query: {
+                base_etag: string;
+            };
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+                node_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillNodeMutationResult"];
                 };
             };
             /** @description Validation Error */

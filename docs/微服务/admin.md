@@ -21,7 +21,8 @@
 ## 域所有权
 
 - **Skill package** —— PostgreSQL 文件树是编辑真相源，发布时原子覆盖唯一
-  `skill_published_nodes` 快照；没有版本历史。Chat 只读取已发布且启用的快照。
+  `skill_published_nodes` 快照；草稿通过 node 级 API + etag 更新，没有版本历史。
+  Chat 只读取已发布且启用的快照。服务启动不访问 GitHub 或同步远程 Skill。
 
 - **`model_providers`** —— 所有 LLM 凭据的真相之源
   - `(user_id, name)` 维度，多 provider 共存，单个 default

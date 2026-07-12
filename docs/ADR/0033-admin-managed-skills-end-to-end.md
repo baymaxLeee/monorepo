@@ -27,9 +27,10 @@ live chat runs.
    `skill_published_nodes` snapshot and records its hash and timestamp. Draft
    editing never changes the live package; chat reads only the published
    snapshot.
-4. `workspace_seq` is an internal optimistic-concurrency token, not a product
-   version. A stale change set fails with HTTP 409 instead of overwriting another
-   editor's work.
+4. Draft mutations use node-granular create/content/rename/move/delete endpoints.
+   Every node carries a content-derived `etag`; only conflicting edits to that
+   node fail with HTTP 409. `workspace_seq` is not a product version and is used
+   only to ensure publish snapshots the workspace state the editor observed.
 5. `workspace_sha256 != published_sha256` is the sole definition of unpublished
    changes. A Skill lifecycle is `draft | published | archived`; `is_enabled`
    independently controls runtime availability.
@@ -41,6 +42,9 @@ live chat runs.
 7. Admin validates the root `SKILL.md`, frontmatter, parent chains, node count,
    and file operations before publishing. Uploaded scripts remain package files;
    this decision does not authorize executing them in admin or chat processes.
+8. Admin startup performs no remote Skill discovery or import. GitHub/network
+   imports are explicit management operations, never lifespan dependencies or
+   implicit background work.
 
 ## Data shape
 

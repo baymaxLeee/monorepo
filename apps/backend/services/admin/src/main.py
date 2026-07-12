@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from config import get_settings
-from db import close_db, seed_demo_bots, seed_demo_skills
+from db import close_db, seed_demo_bots
 from fastapi import FastAPI
 from kernel.errors import register_exception_handlers
 from kernel.logging import RequestLoggingMiddleware, configure_logging
@@ -30,7 +30,6 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await init_redis()
     if not get_settings().is_production:
         await seed_demo_bots()
-        await seed_demo_skills()
     yield
     await close_redis()
     await close_db()

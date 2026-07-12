@@ -1,20 +1,26 @@
 """Skill HTTP router."""
 
+from typing import Annotated
+
 from deps import AdminUser, CurrentUser, DbSession
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from schemas.skill import (
     BulkDeleteSkillsInput,
     BulkDeleteSkillsResult,
     CreateSkillInput,
+    CreateSkillNodeInput,
+    MoveSkillNodeInput,
     PublishSkillInput,
     PublishSkillResult,
+    RenameSkillNodeInput,
     Skill,
     SkillFileContent,
+    SkillNodeMutationResult,
     SkillSummary,
     SkillValidationResult,
     SkillWorkspace,
+    UpdateSkillFileContentInput,
     UpdateSkillInput,
-    UpdateSkillWorkspaceInput,
 )
 from services.skills import SkillService
 
@@ -62,14 +68,58 @@ async def get_skill_file(
     return await SkillService(session, current_user).get_file(skill_id, node_id)
 
 
-@router.patch("/{skill_id}/workspace", response_model=SkillWorkspace)
-async def update_skill_workspace(
+@router.post("/{skill_id}/workspace/nodes", response_model=SkillNodeMutationResult)
+async def create_skill_node(
     skill_id: str,
-    payload: UpdateSkillWorkspaceInput,
+    payload: CreateSkillNodeInput,
     current_user: AdminUser,
     session: DbSession,
-) -> SkillWorkspace:
-    return await SkillService(session, current_user).update_workspace(skill_id, payload)
+) -> SkillNodeMutationResult:
+    return await SkillService(session, current_user).create_node(skill_id, payload)
+
+
+@router.put("/{skill_id}/workspace/nodes/{node_id}/content", response_model=SkillNodeMutationResult)
+async def update_skill_file_content(
+    skill_id: str,
+    node_id: str,
+    payload: UpdateSkillFileContentInput,
+    current_user: AdminUser,
+    session: DbSession,
+) -> SkillNodeMutationResult:
+    return await SkillService(session, current_user).update_file_content(skill_id, node_id, payload)
+
+
+@router.put("/{skill_id}/workspace/nodes/{node_id}/name", response_model=SkillNodeMutationResult)
+async def rename_skill_node(
+    skill_id: str,
+    node_id: str,
+    payload: RenameSkillNodeInput,
+    current_user: AdminUser,
+    session: DbSession,
+) -> SkillNodeMutationResult:
+    return await SkillService(session, current_user).rename_node(skill_id, node_id, payload)
+
+
+@router.put("/{skill_id}/workspace/nodes/{node_id}/parent", response_model=SkillNodeMutationResult)
+async def move_skill_node(
+    skill_id: str,
+    node_id: str,
+    payload: MoveSkillNodeInput,
+    current_user: AdminUser,
+    session: DbSession,
+) -> SkillNodeMutationResult:
+    return await SkillService(session, current_user).move_node(skill_id, node_id, payload)
+
+
+@router.delete("/{skill_id}/workspace/nodes/{node_id}", response_model=SkillNodeMutationResult)
+async def delete_skill_node(
+    skill_id: str,
+    node_id: str,
+    base_etag: Annotated[str, Query(min_length=64, max_length=64)],
+    current_user: AdminUser,
+    session: DbSession,
+) -> SkillNodeMutationResult:
+    return await SkillService(session, current_user).delete_node(skill_id, node_id, base_etag)
 
 
 @router.post("/{skill_id}/validate", response_model=SkillValidationResult)

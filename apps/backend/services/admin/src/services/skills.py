@@ -19,20 +19,23 @@ from models.skill_node import SkillNodeRow
 from models.skill_published_node import SkillPublishedNodeRow
 from schemas.skill import (
     CreateSkillInput,
+    CreateSkillNodeInput,
     InternalSkill,
     InternalSkillFile,
+    MoveSkillNodeInput,
     PublishSkillInput,
     PublishSkillResult,
+    RenameSkillNodeInput,
     Skill,
-    SkillFileChange,
     SkillFileContent,
     SkillFileNode,
+    SkillNodeMutationResult,
     SkillSummary,
     SkillValidationIssue,
     SkillValidationResult,
     SkillWorkspace,
+    UpdateSkillFileContentInput,
     UpdateSkillInput,
-    UpdateSkillWorkspaceInput,
 )
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -136,6 +139,21 @@ def _workspace_hash(nodes: Sequence[SkillNodeRow]) -> str:
     return digest.hexdigest()
 
 
+def _node_etag(node: SkillNodeRow) -> str:
+    digest = hashlib.sha256()
+    for value in (
+        node.id,
+        node.parent_id or "",
+        node.name,
+        node.node_type,
+        node.mime_type or "",
+        node.content or "",
+    ):
+        digest.update(value.encode())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def _build_tree(nodes: Sequence[SkillNodeRow], *, include_content: bool) -> list[SkillFileNode]:
     children: dict[str | None, list[SkillNodeRow]] = {}
     for node in nodes:
@@ -149,6 +167,7 @@ def _build_tree(nodes: Sequence[SkillNodeRow], *, include_content: bool) -> list
             type=node.node_type,  # type: ignore[arg-type]
             parent_id=node.parent_id,
             mime_type=node.mime_type,
+            etag=_node_etag(node),
             content=node.content if include_content and node.node_type == "file" else None,
             children=nested if node.node_type == "directory" else None,
         )
@@ -225,31 +244,90 @@ class SkillService:
         node = await node_crud.get_workspace_node(self._session, skill_id, node_id)
         if node is None or node.node_type != "file":
             raise NotFoundError(f"skill file {node_id} not found")
-        return SkillFileContent(id=node.id, content=node.content or "")
+        return SkillFileContent(id=node.id, content=node.content or "", etag=_node_etag(node))
 
-    async def update_workspace(self, skill_id: str, payload: UpdateSkillWorkspaceInput) -> SkillWorkspace:
+    async def create_node(self, skill_id: str, payload: CreateSkillNodeInput) -> SkillNodeMutationResult:
         async with write_tx(self._session):
             row = await self._get_locked_row(skill_id)
-            self._assert_workspace_seq(row, payload.base_workspace_seq)
-            for change in payload.changes:
-                await self._apply_change(row, change)
-            nodes = await node_crud.list_workspace_nodes(self._session, skill_id)
-            self._validate_structure(nodes)
-            skill_md = self._root_skill_md(nodes)
-            name, description, _ = _parse_skill_md(skill_md.content or "")
-            if name != row.name:
-                await self._assert_name_free(name, excluding_id=row.id)
-            row.name = name
-            row.description = description
-            row.workspace_seq += 1
-            row.workspace_sha256 = _workspace_hash(nodes)
-            row.updated_at = datetime.now(UTC)
+            if await node_crud.get_workspace_node(self._session, skill_id, payload.id):
+                raise ConflictError(f"skill node {payload.id} already exists")
+            await self._assert_parent_directory(skill_id, payload.parent_id)
+            await self._assert_sibling_name_free(skill_id, payload.parent_id, payload.name)
+            self._validate_node_name(payload.name)
+            now = datetime.now(UTC)
+            node = SkillNodeRow(
+                id=payload.id,
+                skill_id=skill_id,
+                parent_id=payload.parent_id,
+                name=payload.name,
+                node_type=payload.type,
+                mime_type="text/markdown" if payload.name.endswith(".md") else "text/plain",
+                content=(payload.content or "") if payload.type == "file" else None,
+                sort_order=0,
+                created_at=now,
+                updated_at=now,
+            )
+            self._session.add(node)
             await self._session.flush()
-        return SkillWorkspace(
-            skill_id=skill_id,
-            workspace_seq=row.workspace_seq,
-            tree=_build_tree(nodes, include_content=False),
-        )
+            await self._finish_draft_mutation(row)
+        return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=_node_etag(node))
+
+    async def update_file_content(
+        self, skill_id: str, node_id: str, payload: UpdateSkillFileContentInput
+    ) -> SkillNodeMutationResult:
+        async with write_tx(self._session):
+            row = await self._get_locked_row(skill_id)
+            node = await self._get_node(skill_id, node_id)
+            self._assert_node_etag(node, payload.base_etag)
+            if node.node_type != "file":
+                raise RequestError("only files have editable content")
+            node.content = payload.content
+            node.updated_at = datetime.now(UTC)
+            await self._session.flush()
+            await self._finish_draft_mutation(row)
+        return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=_node_etag(node))
+
+    async def rename_node(self, skill_id: str, node_id: str, payload: RenameSkillNodeInput) -> SkillNodeMutationResult:
+        async with write_tx(self._session):
+            row = await self._get_locked_row(skill_id)
+            node = await self._get_node(skill_id, node_id)
+            self._assert_node_etag(node, payload.base_etag)
+            self._assert_mutable_root(node, "renamed")
+            self._validate_node_name(payload.name)
+            await self._assert_sibling_name_free(skill_id, node.parent_id, payload.name, excluding_id=node.id)
+            node.name = payload.name
+            node.mime_type = "text/markdown" if payload.name.endswith(".md") else "text/plain"
+            node.updated_at = datetime.now(UTC)
+            await self._session.flush()
+            await self._finish_draft_mutation(row)
+        return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=_node_etag(node))
+
+    async def move_node(self, skill_id: str, node_id: str, payload: MoveSkillNodeInput) -> SkillNodeMutationResult:
+        async with write_tx(self._session):
+            row = await self._get_locked_row(skill_id)
+            node = await self._get_node(skill_id, node_id)
+            self._assert_node_etag(node, payload.base_etag)
+            self._assert_mutable_root(node, "moved")
+            if payload.parent_id == node.id:
+                raise RequestError("a node cannot be its own parent")
+            await self._assert_parent_directory(skill_id, payload.parent_id)
+            await self._assert_sibling_name_free(skill_id, payload.parent_id, node.name, excluding_id=node.id)
+            node.parent_id = payload.parent_id
+            node.updated_at = datetime.now(UTC)
+            await self._session.flush()
+            await self._finish_draft_mutation(row)
+        return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=_node_etag(node))
+
+    async def delete_node(self, skill_id: str, node_id: str, base_etag: str) -> SkillNodeMutationResult:
+        async with write_tx(self._session):
+            row = await self._get_locked_row(skill_id)
+            node = await self._get_node(skill_id, node_id)
+            self._assert_node_etag(node, base_etag)
+            self._assert_mutable_root(node, "deleted")
+            await self._session.delete(node)
+            await self._session.flush()
+            await self._finish_draft_mutation(row)
+        return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node_id)
 
     async def validate(self, skill_id: str) -> SkillValidationResult:
         await self._get_row(skill_id)
@@ -321,60 +399,74 @@ class SkillService:
             raise NotFoundError(f"published skill file {path} not found")
         return InternalSkillFile(path=path, content=node.content or "")
 
-    async def _apply_change(self, row: SkillRow, change: SkillFileChange) -> None:
-        now = datetime.now(UTC)
-        node = await node_crud.get_workspace_node(self._session, row.id, change.id)
-        if change.action == "create":
-            if node is not None or not change.name or not change.type:
-                raise RequestError("invalid create change")
-            if change.name in {".", ".."} or "/" in change.name or "\\" in change.name:
-                raise RequestError("file names may not contain path separators")
-            if change.parent_id:
-                parent = await node_crud.get_workspace_node(self._session, row.id, change.parent_id)
-                if parent is None or parent.node_type != "directory":
-                    raise RequestError("parent directory not found")
-            self._session.add(
-                SkillNodeRow(
-                    id=change.id,
-                    skill_id=row.id,
-                    parent_id=change.parent_id,
-                    name=change.name,
-                    node_type=change.type,
-                    mime_type="text/markdown" if change.name.endswith(".md") else "text/plain",
-                    content=(change.content or "") if change.type == "file" else None,
-                    sort_order=0,
-                    created_at=now,
-                    updated_at=now,
-                )
-            )
-            await self._session.flush()
-            return
-        if node is None:
-            raise NotFoundError(f"skill node {change.id} not found")
-        if change.action == "update":
-            if node.node_type != "file" or change.content is None:
-                raise RequestError("only files can be updated")
-            node.content = change.content
-        elif change.action == "rename":
-            if node.parent_id is None and node.name == "SKILL.md":
-                raise RequestError("root SKILL.md cannot be renamed")
-            if not change.name or "/" in change.name or "\\" in change.name:
-                raise RequestError("invalid file name")
-            node.name = change.name
-        elif change.action == "move":
-            if node.parent_id is None and node.name == "SKILL.md":
-                raise RequestError("root SKILL.md cannot be moved")
-            if change.parent_id == node.id:
-                raise RequestError("a node cannot be its own parent")
-            node.parent_id = change.parent_id
-        elif change.action == "delete":
-            if node.parent_id is None and node.name == "SKILL.md":
-                raise RequestError("root SKILL.md cannot be deleted")
-            await self._session.delete(node)
-            await self._session.flush()
-            return
-        node.updated_at = now
+    async def _finish_draft_mutation(self, row: SkillRow) -> None:
+        nodes = await node_crud.list_workspace_nodes(self._session, row.id)
+        self._validate_structure(nodes)
+        skill_md = self._root_skill_md(nodes)
+        try:
+            name, description, _ = _parse_skill_md(skill_md.content or "")
+        except RequestError:
+            pass
+        else:
+            if name != row.name:
+                await self._assert_name_free(name, excluding_id=row.id)
+            row.name = name
+            row.description = description
+        row.workspace_seq += 1
+        row.workspace_sha256 = _workspace_hash(nodes)
+        row.updated_at = datetime.now(UTC)
         await self._session.flush()
+
+    async def _get_node(self, skill_id: str, node_id: str) -> SkillNodeRow:
+        node = await node_crud.get_workspace_node(self._session, skill_id, node_id)
+        if node is None:
+            raise NotFoundError(f"skill node {node_id} not found")
+        return node
+
+    async def _assert_parent_directory(self, skill_id: str, parent_id: str | None) -> None:
+        if parent_id is None:
+            return
+        parent = await self._get_node(skill_id, parent_id)
+        if parent.node_type != "directory":
+            raise RequestError("parent must be a directory")
+
+    async def _assert_sibling_name_free(
+        self,
+        skill_id: str,
+        parent_id: str | None,
+        name: str,
+        *,
+        excluding_id: str | None = None,
+    ) -> None:
+        parent_filter = SkillNodeRow.parent_id.is_(None) if parent_id is None else SkillNodeRow.parent_id == parent_id
+        stmt = select(SkillNodeRow.id).where(
+            SkillNodeRow.skill_id == skill_id,
+            parent_filter,
+            SkillNodeRow.name == name,
+        )
+        if excluding_id:
+            stmt = stmt.where(SkillNodeRow.id != excluding_id)
+        if await self._session.scalar(stmt) is not None:
+            raise ConflictError(f"a node named '{name}' already exists in this directory")
+
+    @staticmethod
+    def _assert_node_etag(node: SkillNodeRow, expected: str) -> None:
+        current = _node_etag(node)
+        if current != expected:
+            raise ConflictError(
+                f"skill node {node.id} changed in another session",
+                details={"expected": expected, "current": current},
+            )
+
+    @staticmethod
+    def _validate_node_name(name: str) -> None:
+        if name in {".", ".."} or "/" in name or "\\" in name:
+            raise RequestError("file names may not contain path separators")
+
+    @staticmethod
+    def _assert_mutable_root(node: SkillNodeRow, action: str) -> None:
+        if node.parent_id is None and node.name == "SKILL.md":
+            raise RequestError(f"root SKILL.md cannot be {action}")
 
     def _validation_result(self, nodes: Sequence[SkillNodeRow]) -> SkillValidationResult:
         issues: list[SkillValidationIssue] = []

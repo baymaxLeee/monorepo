@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field, field_validator
 
 SkillStatus = Literal["draft", "published", "archived"]
 NodeType = Literal["file", "directory"]
-ChangeAction = Literal["create", "update", "delete", "move", "rename"]
 
 _NAME_RE = re.compile(r"^[a-z](?:[a-z0-9]|-(?=[a-z0-9]))*[a-z0-9]$|^[a-z]$")
 
@@ -77,6 +76,7 @@ class SkillFileNode(BaseModel):
     type: NodeType
     parent_id: str | None = None
     mime_type: str | None = None
+    etag: str
     content: str | None = None
     children: list[SkillFileNode] | None = None
 
@@ -90,20 +90,36 @@ class SkillWorkspace(BaseModel):
 class SkillFileContent(BaseModel):
     id: str
     content: str
+    etag: str
 
 
-class SkillFileChange(BaseModel):
-    action: ChangeAction
+class CreateSkillNodeInput(BaseModel):
     id: str = Field(min_length=1, max_length=64)
     parent_id: str | None = None
-    name: str | None = Field(default=None, max_length=255)
-    type: NodeType | None = None
+    name: str = Field(min_length=1, max_length=255)
+    type: NodeType
     content: str | None = Field(default=None, max_length=200_000)
 
 
-class UpdateSkillWorkspaceInput(BaseModel):
-    base_workspace_seq: int = Field(ge=1)
-    changes: list[SkillFileChange] = Field(min_length=1, max_length=200)
+class UpdateSkillFileContentInput(BaseModel):
+    base_etag: str = Field(min_length=64, max_length=64)
+    content: str = Field(max_length=200_000)
+
+
+class RenameSkillNodeInput(BaseModel):
+    base_etag: str = Field(min_length=64, max_length=64)
+    name: str = Field(min_length=1, max_length=255)
+
+
+class MoveSkillNodeInput(BaseModel):
+    base_etag: str = Field(min_length=64, max_length=64)
+    parent_id: str | None = None
+
+
+class SkillNodeMutationResult(BaseModel):
+    workspace_seq: int
+    node_id: str
+    etag: str | None = None
 
 
 class PublishSkillInput(BaseModel):

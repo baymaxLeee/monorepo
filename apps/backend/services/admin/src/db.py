@@ -122,12 +122,6 @@ _DEMO_APPS: list[tuple[str, str, str, str, bool, int]] = [
 ]
 
 
-async def seed_demo_skills() -> None:
-    from demo_skills import seed_demo_skills as _seed_demo_skills
-
-    await _seed_demo_skills()
-
-
 async def seed_demo_bots() -> None:
     app_entries = {
         "admin": "/mfe-admin/mf-manifest.json",
