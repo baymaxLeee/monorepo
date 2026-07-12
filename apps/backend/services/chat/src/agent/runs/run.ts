@@ -46,7 +46,6 @@ import {
   referencedDocumentIdsFromParts,
 } from "../context/file-parts.js";
 import { projectModelContext } from "../context/projector.js";
-import { SYSTEM_SKILL_NAMES } from "../integrations/skills/provider.js";
 import { loadInstructionContext } from "../context/instruction-loader.js";
 import type { BotProfileSnapshot } from "../context/instructions/index.js";
 import { acquireRunLease, registerRunController, releaseRun } from "./lease.js";
@@ -296,18 +295,7 @@ export async function createAgentRunResponse(
     const modelMessages = projected.messages;
     instructionInput.extraContext = projected.instructionContext;
 
-    // Admin skills may never shadow a code-governed system skill, on any path
-    // (load_skill catalog OR explicit `/` activation). Filter reserved names out
-    // of the single source so both consumers see the same safe set.
-    const botSkills = (input.botSkills ?? []).filter((skill) => {
-      if (SYSTEM_SKILL_NAMES.has(skill.name)) {
-        console.warn(
-          `[chat-agent] dropping bot skill "${skill.name}": name is reserved by a built-in system skill`,
-        );
-        return false;
-      }
-      return true;
-    });
+    const botSkills = input.botSkills ?? [];
 
     // Explicit `/` skill activation: inject the picked skill's full body into
     // this turn so it is consumed deterministically, independent of whether the

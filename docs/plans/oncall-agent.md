@@ -3,12 +3,12 @@
 > 状态：**已落地并演进**。Phase 1 画像链路 + org 团队知识共享见
 > `docs/ADR/0026-oncall-agent-org-knowledge-sharing.md`。
 >
-> **架构演进（ADR-0028）**：面向 to-B 前场支持场景，能力沉淀为系统内置
-> `field-support` Skill。Chat 初始上下文只暴露名称与描述，命中场景后由通用
+> **架构演进（ADR-0033）**：面向 to-B 前场支持场景，能力沉淀为 Admin 管理并绑定到 Bot 的
+> `oncall-rca` Skill。Chat 初始上下文只暴露名称与描述，命中场景后由通用
 > `load_skill` 按需载入完整工作流；主 `ToolLoopAgent` 继续使用 `ask_user`、
 > `knowledge_search`、`web_search` 和 `write_file` 等通用工具，不增加专用 oncall tool、
 > 嵌套 agent 或手写模型 pipeline。持久决策见
-> `docs/ADR/0028-field-support-system-skill.md`。
+> `docs/ADR/0033-admin-managed-skills-end-to-end.md`。
 
 ## 落地状态（as-built）
 
@@ -47,7 +47,7 @@ Phase 1 的 oncall 画像链路，还额外落地了一层 org 多租户基座�
 批量导入接口（Phase 2）；MCP 现场只读工具（Phase 3，作为 Skill 可调用的只读数据源，
 按 org/环境可配）；文档治理元数据（只有出现明确的运营、过滤或排序需求时再做完整竖切）。
 
-已落地（ADR-0028）：系统内置 `field-support` Skill + 渐进披露 `load_skill`；
+已落地（ADR-0033）：Admin 管理的 `oncall-rca` Skill + 渐进披露 `load_skill`；
 Knowledge 继续聚焦 chunking、embedding、BM25、RRF、rerank、org ACL 与可验证 chunk 引用。
 
 ## 概述
@@ -195,7 +195,7 @@ chat 消费入口：
 - [x] Phase 1：admin 前端 bot 配置加「人设/系统提示词」编辑；chat 端复用既有智能体选择器选中 oncall bot
 - [x] 团队共享（原 Phase 2 决策 2，提前落地）：org 多租户基座（IAM organizations + JWT + gateway header）+ 知识库 `org_id` 检索/ACL + admin bot org 化
 - [x] 全资源表 org 隔离（用户追加诉求，破坏性迁移已获准）：`scenes`/`intentions`/`model_providers` 加 `org_id` + migration `v1.8.0.sql`（回填 `guest-org` → `NOT NULL`）+ `bots.org_id` 收紧 `NOT NULL`；provider 团队共享 + 内部 by-id 解析不带 org（Option Y）；`gen-openapi` + `just sync` 回流
-- [x] 前场支持能力演进（ADR-0028）：系统内置 `field-support` Skill；L1 名称/描述常驻，`load_skill` 按需加载 L2 正文；主 agent 复用 `ask_user` / `knowledge_search` / `web_search` / `write_file`
+- [x] 前场支持能力演进（ADR-0033）：Bot 绑定 Admin 管理的 `oncall-rca` Skill；L1 名称/描述常驻，`load_skill` 按需加载 L2 正文；主 agent 复用 `ask_user` / `knowledge_search` / `web_search` / `write_file`
 - [ ] Phase 2 知识治理元数据：仅在出现明确的运营流程与检索策略后再做，不预埋 `knowledge_version` 等无人消费字段
 - [ ] Phase 2：批量导入接口/脚本（`create_document` + `index_document`）
 - [ ] 完整 org 管理 UI（建组/邀请成员）+ IAM org CRUD 端点（当前仅 demo 单 org 种子）

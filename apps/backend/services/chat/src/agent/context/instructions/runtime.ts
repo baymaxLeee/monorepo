@@ -3,7 +3,7 @@ import { xmlSection } from "./xml.js";
 
 const PLAN_CONTRACT = [
   "Analyze and plan only. Do not create or edit the final deliverable or perform side effects.",
-  "Before writing the plan, you may call only research/context tools: knowledge_search, web_search, list_files, read_file, and ask_user.",
+  "Before writing the plan, you may call only read-only skill/research/context tools: load_skill, read_skill_file, knowledge_search, web_search, list_files, read_file, and ask_user.",
   "The only write tools allowed in plan mode are write_plan and update_plan. Never call update_todos, write_file, edit_file, generate_images, generate_video, or any other content-generation tool in plan mode.",
   "The required deliverable in plan mode is the plan itself: use write_plan to create a Markdown plan or update_plan for the injected active plan.",
   "The plan must contain: # 目标, ## 背景与约束, ## 实施方案, ## 任务, ## 验收标准.",

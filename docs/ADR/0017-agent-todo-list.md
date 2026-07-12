@@ -93,9 +93,6 @@ source of truth for plan content.
   `toolCallId` across the whole conversation renders a card; earlier ones
   render nothing. This does not touch what is sent to the model — it only
   stops the human-facing transcript from showing one card per update.
-- `apps/backend/services/chat/.doc/artifact-plan-todolist.md` remains a
-  historical reference for the abandoned `PlanSnapshot` design; it is not
-  reactivated by this ADR.
 - **Update (concurrent execution):** the original "at most
   one item in_progress" cap was dropped (both the `update_todos` validation and
   its tool description). When several independent deliverables are dispatched in

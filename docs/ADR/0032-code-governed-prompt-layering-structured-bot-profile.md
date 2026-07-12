@@ -3,8 +3,8 @@
 ## Status
 
 Accepted. Supersedes ADR-0026 decisions 4–6 (free-text `system_prompt` /
-`<agent_persona>`); refines ADR-0011 (ToolLoopAgent core) and ADR-0028
-(system Skills) without changing the single-agent runtime.
+`<agent_persona>`); refines ADR-0011 (ToolLoopAgent core) and the Skill
+instruction channel without changing the single-agent runtime.
 
 ## Context
 
@@ -123,7 +123,7 @@ only narrows their injection seam to a typed contract.
 - ADR-0011: ToolLoopAgent core
 - ADR-0026: oncall agent, org knowledge sharing, and the (now-superseded)
   free-text bot persona
-- ADR-0028: field support as a progressively disclosed system Skill
+- ADR-0033: Admin-managed Skill packages
 - `apps/backend/services/chat/src/agent/context/instructions/README.md`
 - `docs/plans/prompt-engineering-plan.md`
 - `docs/plans/agent-extensions-mcp-skill-subagent.md`

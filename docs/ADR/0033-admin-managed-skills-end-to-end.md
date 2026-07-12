@@ -45,6 +45,12 @@ live chat runs.
 8. Admin startup performs no remote Skill discovery or import. GitHub/network
    imports are explicit management operations, never lifespan dependencies or
    implicit background work.
+9. Both normal and plan runs advertise the bot-bound Skill catalog and expose
+   the read-only `load_skill` / `read_skill_file` tools. Plan mode may therefore
+   use all three progressive-disclosure levels while its runtime contract still
+   withholds execution tools such as artifact and media generation.
+10. Admin-managed packages are the only Skill source. Chat has no filesystem
+    Skill registry, reserved Skill names, or code-owned workflow packages.
 
 ## Data shape
 
@@ -73,5 +79,5 @@ Skills receive a published snapshot; other records remain drafts.
 
 - Agent Skills specification: directory, `SKILL.md`, progressive disclosure
 - Codex Skills: explicit/implicit activation and optional resources/scripts
-- ADR-0028: code-governed system Skills
+- ADR-0028: superseded code-governed system Skill design
 - ADR-0036: persisted explicit Skill activation

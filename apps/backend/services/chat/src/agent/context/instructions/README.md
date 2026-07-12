@@ -40,9 +40,9 @@ interface InstructionContributions {
 }
 ```
 
-`tools/catalog.ts#resolve()` populates it. Today only built-in system skills
-(`<available_skills>`) and the plan-mode capability projection feed it. **Future
-skill / MCP assembly plugs in here** by contributing structured `skills` /
+`tools/catalog.ts#resolve()` populates it. Published, enabled Admin Skills bound
+to the current Bot feed `<available_skills>`; the plan-mode capability projection
+feeds `capabilities`. **Future MCP assembly plugs in here** by contributing structured `skills` /
 `capabilities` — the assembler owns the markup and escapes every value, so there
 is deliberately **no free-text instruction channel**: a contributor can never
 append a raw `string` to the assembled prompt.

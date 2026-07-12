@@ -90,7 +90,7 @@ export class ToolCatalog {
     contributions: InstructionContributions;
     dispose: () => Promise<void>;
   }> {
-    const resolvedSkills = resolveSkills(context.mode, skillSource);
+    const resolvedSkills = resolveSkills(skillSource);
     const manifests = [...builtinManifests(context.mode, providers), ...resolvedSkills.manifests];
     const skills = [...resolvedSkills.skills];
     const disposers: Array<() => void | Promise<void>> = [];

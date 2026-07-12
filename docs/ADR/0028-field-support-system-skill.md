@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted. Evolves ADR-0026 without changing the single-agent runtime.
+Superseded by ADR-0033. The code-governed `field-support` package was removed;
+all Skills are Admin-managed, published, enabled, and explicitly bound to Bots.
 
 ## Context
 

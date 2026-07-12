@@ -193,7 +193,7 @@ export function Chat() {
       .then((list) => {
         if (alive)
           setAgentSkills(
-            list.filter((s) => s.is_enabled && s.status === "active"),
+            list.filter((s) => s.is_enabled && s.status === "published"),
           );
       })
       .catch(() => alive && setAgentSkills([]));
