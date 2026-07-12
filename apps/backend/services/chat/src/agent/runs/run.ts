@@ -362,6 +362,7 @@ export async function createAgentRunResponse(
       { conversationId: conversation.id, runId, setupMs: Math.round(performance.now() - startedAt) },
       "run accepted",
     );
+    let streamFailure: unknown = null;
     const agentUiStream = toUIMessageStream({
       stream: result.stream,
       tools: agent.tools,
@@ -369,6 +370,7 @@ export async function createAgentRunResponse(
       generateMessageId: () => assistantMessageId,
       sendSources: true,
       onError: (error) => {
+        streamFailure = error;
         logger.error({ err: error }, "stream failed");
         return describeStreamError(error);
       },
@@ -376,7 +378,7 @@ export async function createAgentRunResponse(
         const currentRun = await getAgentRunById(runId).catch(() => null);
         const aborted =
           isAborted || runSignal.aborted || currentRun?.status === "cancel_requested";
-        const failed = finishReason === "error";
+        const failed = streamFailure != null || finishReason === "error";
         try {
           const sanitizedParts = sanitizePersistedParts(responseMessage.parts);
           const parts = aborted
@@ -411,6 +413,7 @@ export async function createAgentRunResponse(
           await finishAgentRun({
             runId,
             status: aborted ? "cancelled" : failed ? "failed" : "completed",
+            error: failed ? streamFailure ?? "model stream ended with an error" : undefined,
             outputMessageId,
             inputTokens: tokens.inputTokens,
             outputTokens: tokens.outputTokens,

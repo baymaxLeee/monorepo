@@ -82,20 +82,45 @@ export async function finishAgentRun(input: {
   reasoningTokens?: number | null;
   totalTokens?: number | null;
 }): Promise<void> {
-  await getDb()
-    .update(agentRuns)
-    .set({
-      status: input.status,
-      error: input.error == null ? null : errorText(input.error).slice(0, 4000),
-      outputMessageId: input.outputMessageId ?? undefined,
-      inputTokens: input.inputTokens ?? undefined,
-      outputTokens: input.outputTokens ?? undefined,
-      cachedInputTokens: input.cachedInputTokens ?? undefined,
-      reasoningTokens: input.reasoningTokens ?? undefined,
-      totalTokens: input.totalTokens ?? undefined,
-      finishedAt: new Date(),
-    })
-    .where(eq(agentRuns.id, input.runId));
+  await getDb().transaction(async (tx) => {
+    const [unfinishedStep] = await tx
+      .select({ id: agentSteps.id })
+      .from(agentSteps)
+      .where(and(eq(agentSteps.runId, input.runId), eq(agentSteps.status, "running")))
+      .limit(1);
+    const incompleteCompletion = input.status === "completed" && unfinishedStep != null;
+    const status = incompleteCompletion ? "failed" : input.status;
+    const error = incompleteCompletion
+      ? input.error ?? "run ended before its model step completed"
+      : input.error;
+    const now = new Date();
+
+    if (status !== "completed") {
+      await tx
+        .update(agentSteps)
+        .set({
+          status: "failed",
+          summary: error == null ? `run ${status}` : errorText(error).slice(0, 4000),
+          finishedAt: now,
+        })
+        .where(and(eq(agentSteps.runId, input.runId), eq(agentSteps.status, "running")));
+    }
+
+    await tx
+      .update(agentRuns)
+      .set({
+        status,
+        error: error == null ? null : errorText(error).slice(0, 4000),
+        outputMessageId: input.outputMessageId ?? undefined,
+        inputTokens: input.inputTokens ?? undefined,
+        outputTokens: input.outputTokens ?? undefined,
+        cachedInputTokens: input.cachedInputTokens ?? undefined,
+        reasoningTokens: input.reasoningTokens ?? undefined,
+        totalTokens: input.totalTokens ?? undefined,
+        finishedAt: now,
+      })
+      .where(eq(agentRuns.id, input.runId));
+  });
 }
 
 export async function requestAgentRunCancellation(runId: string): Promise<void> {
