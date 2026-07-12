@@ -2,6 +2,17 @@ import { ChangeAction, type FileChange, type FileNode } from "./interface";
 
 export { getLanguageExtension } from "../CodeEditor/utils";
 
+/** Tree listing omitted file body — fetch via `onLoadContent`. */
+export function isFileContentPending(node: FileNode): boolean {
+  return node.type === "file" && node.content === null;
+}
+
+function hasLoadedFileContent(
+  content: string | null | undefined,
+): content is string {
+  return typeof content === "string";
+}
+
 /** 递归遍历树，构建 id → FileNode 索引，同时填充每个节点的 parent_id */
 export function buildNodeMap(tree: FileNode[]): Map<string, FileNode> {
   const map = new Map<string, FileNode>();
@@ -121,7 +132,7 @@ export function diffTree(
       parent_id: n.parent_id ?? null,
       name: n.name,
       type: n.type,
-      ...(n.type === "file" && n.content !== undefined
+      ...(n.type === "file" && hasLoadedFileContent(n.content)
         ? { content: n.content }
         : {}),
     });
@@ -143,8 +154,8 @@ export function diffTree(
     }
     if (
       newNode.type === "file" &&
-      oldNode.content !== undefined &&
-      newNode.content !== undefined &&
+      hasLoadedFileContent(oldNode.content) &&
+      hasLoadedFileContent(newNode.content) &&
       oldNode.content !== newNode.content
     ) {
       changes.push({

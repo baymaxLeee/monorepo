@@ -14,9 +14,9 @@ export interface FileNode {
   /**
    * @zh 文件文本内容
    * @default undefined
-   * @description 简易模式可初始化即带值；未带且提供 `onLoadContent` 时懒加载填充。`type: 'directory'` 通常无此字段
+   * @description 文件节点：`null` 表示树接口未携带正文（需 `onLoadContent` 懒加载）；`string` 表示已加载（含空串）。目录节点通常无此字段。
    */
-  content?: string;
+  content?: string | null;
   /**
    * @zh 子节点列表
    * @default undefined
@@ -113,7 +113,7 @@ export interface FileWorkspaceProps {
   /**
    * @zh 懒加载文件内容
    * @default undefined
-   * @description 当某文件节点尚无 `content` 且被打开时调用，返回文件文本；未传则仅使用树里已带的 `content`
+   * @description 当文件节点 `content === null`（树接口未带正文）且被打开时调用；未传则仅使用树里已带的 `content`
    */
   onLoadContent?: (id: string) => Promise<string>;
   /**

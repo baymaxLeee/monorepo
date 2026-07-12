@@ -83,7 +83,7 @@ export function deleteBot(id: string): Promise<void> {
   });
 }
 
-export type SkillStatus = "draft" | "active" | "disabled";
+export type SkillStatus = "draft" | "published" | "archived";
 
 // L1 list view: no `body`. Every listing surface (skills table, a bot's bound
 // skills, the chat `/` picker) uses this so bodies are never fetched in bulk.
@@ -96,24 +96,64 @@ export interface SkillSummary {
   description: string;
   status: SkillStatus;
   is_enabled: boolean;
+  has_unpublished_changes: boolean;
+  published_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
-// L2 detail: the summary plus the `body`, fetched one skill at a time.
 export interface Skill extends SkillSummary {
-  body: string;
+  workspace_seq: number;
 }
 
 export interface CreateSkillInput {
   name: string;
-  description?: string;
-  body?: string;
-  status?: SkillStatus;
-  is_enabled?: boolean;
+  description: string;
 }
 
-export type UpdateSkillInput = Partial<CreateSkillInput>;
+export interface UpdateSkillInput {
+  is_enabled?: boolean;
+  status?: "draft" | "archived";
+}
+
+export interface SkillFileNode {
+  id: string;
+  name: string;
+  type: "file" | "directory";
+  parent_id?: string | null;
+  mime_type?: string | null;
+  /**
+   * File nodes only. `null` = content not included in tree listing (lazy-load via
+   * GET /workspace/files/{id}); string = inline body (including empty file).
+   */
+  content?: string | null;
+  children?: SkillFileNode[] | null;
+}
+
+export interface SkillWorkspace {
+  skill_id: string;
+  workspace_seq: number;
+  tree: SkillFileNode[];
+}
+
+export interface SkillFileChange {
+  action: "create" | "update" | "delete" | "move" | "rename";
+  id: string;
+  parent_id?: string | null;
+  name?: string;
+  type?: "file" | "directory";
+  content?: string;
+}
+
+export interface SkillValidationIssue {
+  path: string;
+  message: string;
+}
+
+export interface SkillValidationResult {
+  ok: boolean;
+  issues: SkillValidationIssue[];
+}
 
 function skillPath(id?: string) {
   return id ? `/api/admin-server/skills/${id}` : "/api/admin-server/skills";
@@ -144,6 +184,50 @@ export function updateSkill(
 
 export function deleteSkill(id: string): Promise<void> {
   return request<void>({ url: skillPath(id), method: "DELETE" });
+}
+
+export function fetchSkillWorkspace(id: string): Promise<SkillWorkspace> {
+  return request<SkillWorkspace>({
+    url: `${skillPath(id)}/workspace`,
+    method: "GET",
+  });
+}
+
+export function fetchSkillFile(id: string, nodeId: string): Promise<string> {
+  return request<{ id: string; content: string }>({
+    url: `${skillPath(id)}/workspace/files/${nodeId}`,
+    method: "GET",
+  }).then((result) => result.content);
+}
+
+export function updateSkillWorkspace(
+  id: string,
+  baseWorkspaceSeq: number,
+  changes: SkillFileChange[],
+): Promise<SkillWorkspace> {
+  return request<SkillWorkspace>({
+    url: `${skillPath(id)}/workspace`,
+    method: "PATCH",
+    data: { base_workspace_seq: baseWorkspaceSeq, changes },
+  });
+}
+
+export function validateSkill(id: string): Promise<SkillValidationResult> {
+  return request<SkillValidationResult>({
+    url: `${skillPath(id)}/validate`,
+    method: "POST",
+  });
+}
+
+export function publishSkill(
+  id: string,
+  baseWorkspaceSeq: number,
+): Promise<{ skill: Skill; validation: SkillValidationResult }> {
+  return request({
+    url: `${skillPath(id)}/publish`,
+    method: "POST",
+    data: { base_workspace_seq: baseWorkspaceSeq },
+  });
 }
 
 export function fetchBotSkills(botId: string): Promise<SkillSummary[]> {

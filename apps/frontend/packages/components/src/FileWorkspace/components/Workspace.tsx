@@ -16,7 +16,7 @@ import {
   type FileWorkspaceProps,
   type FileWorkspaceRef,
 } from "../interface";
-import { buildNodeMap, cloneTree, diffTree, patchNode } from "../utils";
+import { buildNodeMap, cloneTree, diffTree, isFileContentPending, patchNode } from "../utils";
 import { EditorPanel } from "./EditorPanel";
 import { FileTree } from "./FileTree";
 
@@ -118,11 +118,7 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
           : [...prev, { id, name: node.name }],
       );
 
-      if (
-        onLoadContent &&
-        !loadedRef.current.has(id) &&
-        node.content === undefined
-      ) {
+      if (onLoadContent && !loadedRef.current.has(id) && isFileContentPending(node)) {
         loadedRef.current.add(id);
         setLoadingId(id);
         try {
@@ -141,13 +137,13 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
           setLoadingId((prev) => (prev === id ? null : prev));
         }
       }
-    }, []);
+    }, [onLoadContent]);
 
     useEffect(() => {
       if (defaultSelectedFileId) {
         handleSelectFile(defaultSelectedFileId);
       }
-    }, [fileTreeKey]);
+    }, [defaultSelectedFileId, fileTreeKey, handleSelectFile]);
 
     const handleTabClose = useCallback(
       (id: string) => {
