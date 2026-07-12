@@ -262,10 +262,7 @@ export function ProvidersPage() {
           context_window: values.context_window,
           max_output_tokens: values.max_output_tokens,
           supports_image_input: values.supports_image_input,
-          is_default: resolveIsDefault(
-            values.provider_kind,
-            values.is_default,
-          ),
+          is_default: resolveIsDefault(values.provider_kind, values.is_default),
           is_enabled: values.is_enabled,
         };
         if (values.api_key.trim()) patch.api_key = values.api_key.trim();
@@ -287,10 +284,7 @@ export function ProvidersPage() {
           context_window: values.context_window,
           max_output_tokens: values.max_output_tokens,
           supports_image_input: values.supports_image_input,
-          is_default: resolveIsDefault(
-            values.provider_kind,
-            values.is_default,
-          ),
+          is_default: resolveIsDefault(values.provider_kind, values.is_default),
           is_enabled: values.is_enabled,
         };
         await createModelProvider(payload);
@@ -816,7 +810,9 @@ function ProviderFormDialog({
                           />
                           设为默认对话模型
                         </FieldLabel>
-                        <FieldError errors={[form.formState.errors.is_default]} />
+                        <FieldError
+                          errors={[form.formState.errors.is_default]}
+                        />
                       </Field>
                     )}
                   />

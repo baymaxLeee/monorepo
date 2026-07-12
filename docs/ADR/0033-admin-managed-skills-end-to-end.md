@@ -1,83 +1,73 @@
-# ADR 0033: Admin-managed Skills, end-to-end (config → chat consume → `/` invoke)
+# ADR 0033: Admin-managed Skill packages
 
 ## Status
 
-Accepted. Extends ADR-0028 (system Skill / progressive disclosure) and ADR-0032
-(code-governed prompt layering + structured Bot profile). MCP is reserved, not
-implemented (see "MCP reservation"). §4's `/` activation channel is refined by
-ADR-0036 (activation persists as a `data-skill-activation` message part instead
-of a side-band `skill_name` request field; injection semantics unchanged).
+Accepted. Replaces the former `name + description + body` Skill record.
 
 ## Context
 
-ADR-0028 delivered a code-versioned **system** Skill (`field-support`) with the
-single `load_skill` tool and `<available_skills>` L1/L2 progressive disclosure.
-ADR-0032 made the Bot the aggregate root for agent configuration and replaced
-free-text `system_prompt` with a structured profile, explicitly deferring "the
-full RCA workflow" to "a code-versioned skill later".
+An Agent Skill is a directory whose required `SKILL.md` entrypoint may reference
+focused documentation, templates, schemas, assets, and scripts. Storing only one
+body string prevented operators from authoring or reusing those resources and
+could not use the existing frontend `FileWorkspace` editor.
 
-What was missing: skills authored and bound by an **operator** (not code). The
-oncall bot lost its RCA playbook when `system_prompt` was dropped, and there was
-no way for a team to add a skill without shipping a `SKILL.md`. The user also
-wants a chat affordance to invoke a skill directly via `/`.
+The product does not need release history during the demo phase. It does need a
+stable boundary between an operator's in-progress edits and the package used by
+live chat runs.
 
 ## Decision
 
-1. **Admin owns Skills as a first-class managed resource.** New `skills` table
-   (team/org-scoped, like scenes/intentions/providers) with the Agent Skills
-   spec shape: `name` (kebab-case, unique per org, doubles as the model-facing
-   invocation name), `description` (L1 "when to use"), `body` (L2 SKILL.md),
-   plus our `status`/`is_enabled` management fields. `bot_skills` binds skills to
-   a Bot (the aggregate root). Public CRUD under `/skills`; bot attach/detach
-   under `/bot/{id}/skills`.
-2. **Storage is the source of truth; the body never sits in the prompt.**
-   `ResolvedAgent.skills` carries only L1 (`id`/`name`/`description`). The L2
-   body is pulled on demand from `/internal/skills/{id}` (decrypted trust
-   boundary = internal token), mirroring provider resolution.
-3. **Chat merges system + admin skills behind ONE `load_skill` tool.**
-   `resolveSkills(mode, adminSource)` unions filesystem system skills and the
-   bot's admin skills by name (admin wins on collision) and advertises them in
-   `<available_skills>`. `load_skill` refuses any name not advertised, so a bot
-   can only load skills it actually offers. Only `active` + `is_enabled` skills
-   are advertised.
-4. **`/` explicit activation is deterministic.** When the user picks a skill via
-   the composer `/` menu, chat sends `skill_name`; the run injects that skill's
-   full body as a trusted `<activated_skill>` context block for that turn, so the
-   model consumes it without depending on it choosing to call `load_skill`. The
-   model-driven `load_skill` path remains for autonomous matching.
-5. **Trust classification.** An activated skill body is operator-authored
-   configuration and is rendered as a directive (like the bot profile), NOT as
-   untrusted `referenced_documents`.
-6. **Bot pinning stays per-request.** The active bot is threaded via the existing
-   `agent_id` on each run request; no `conversations.bot_id` column was added
-   (client already persists `selectedAgentId`). Keeps the migration structural.
+1. Admin owns a PostgreSQL-backed mutable file tree in `skill_nodes`. Nodes have
+   stable IDs, `parent_id`, name, type, MIME type, textual content, and ordering.
+   The public workspace API returns a nested tree and lazily reads file content.
+2. `SKILL.md` YAML frontmatter is the content source of truth for `name` and
+   `description`. Admin projects those fields onto `skills` for list and binding
+   queries; they are not edited in a second form.
+3. There is no revision history. Publishing atomically replaces the one
+   `skill_published_nodes` snapshot and records its hash and timestamp. Draft
+   editing never changes the live package; chat reads only the published
+   snapshot.
+4. `workspace_seq` is an internal optimistic-concurrency token, not a product
+   version. A stale change set fails with HTTP 409 instead of overwriting another
+   editor's work.
+5. `workspace_sha256 != published_sha256` is the sole definition of unpublished
+   changes. A Skill lifecycle is `draft | published | archived`; `is_enabled`
+   independently controls runtime availability.
+6. Bot bindings advertise only published, enabled Skills. L1 discovery still
+   includes only the published name and description. `load_skill` and explicit
+   `/` activation fetch the published `SKILL.md` body through the existing
+   internal API; `read_skill_file` fetches only a listed published resource when
+   the activated instructions require it, preserving progressive disclosure.
+7. Admin validates the root `SKILL.md`, frontmatter, parent chains, node count,
+   and file operations before publishing. Uploaded scripts remain package files;
+   this decision does not authorize executing them in admin or chat processes.
+
+## Data shape
+
+```text
+skills
+├── workspace_seq / workspace_sha256
+├── published_sha256 / published_at
+├── skill_nodes                 mutable workspace tree
+└── skill_published_nodes       one replaceable live snapshot
+```
+
+Existing body-only Skills are migrated to a root `SKILL.md`. Previously active
+Skills receive a published snapshot; other records remain drafts.
 
 ## Consequences
 
-- A team can author a skill in admin, bind it to a bot, and the chat user can
-  invoke it via `/` — no code deploy. The oncall bot's RCA playbook is expressed
-  as an admin `oncall-rca` skill an operator authors and binds; nothing is seeded
-  by default (the demo oncall bot/skill seed was removed so tenant-authored data
-  is never confused with built-in data).
-- One migration (`admin v1.10.0`), purely structural, and never carries demo
-  data. `seed_demo_bots` only seeds apps/scenes/intentions (non-production only).
-- `load_skill` is still a single general tool; adding skills is data, not new
-  tools. The system-skill mechanism (ADR-0028) is unchanged and coexists.
-- The dead `AgentExtensionContribution.instructions` field stayed removed;
-  skills are threaded directly through `ToolCatalog.resolve`, and the
-  `AgentExtension` seam is reserved for MCP.
-
-## MCP reservation (not implemented)
-
-MCP remains deferred. The seams are in place and unchanged: `AgentExtension` /
-`AgentExtensionContribution { tools?, dispose? }`, the `mcp__server__tool`
-namespacing in `ToolCatalog`, and the `mcp__*` user-approval policy. A full MCP
-end-to-end (admin `mcp_servers` table + credentials + `@ai-sdk/mcp` client) is a
-separate follow-up plan.
+- The editor is a full-page `FileWorkspace` with save, validate, and publish
+  actions rather than a textarea dialog.
+- Publishing is atomic and live chat runs never observe a partially copied tree.
+- There is intentionally no history, diff, pinning, or rollback. Adding those
+  later requires a product requirement and a separate immutable-revision ADR.
+- The runtime remains one `ToolLoopAgent`; a Skill is a lazily loaded capability
+  package, not a sub-agent or role-play persona.
 
 ## References
 
-- ADR-0028: field support as a progressively disclosed system Skill
-- ADR-0032: code-governed prompt layering + structured Bot profile
-- Agent Skills spec: name/description/body progressive disclosure
-- `docs/plans/skill-mcp-assembly-plan.md`
+- Agent Skills specification: directory, `SKILL.md`, progressive disclosure
+- Codex Skills: explicit/implicit activation and optional resources/scripts
+- ADR-0028: code-governed system Skills
+- ADR-0036: persisted explicit Skill activation

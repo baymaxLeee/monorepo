@@ -9,10 +9,8 @@ import { Badge, Button, Skeleton, Switch, toast } from "components";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-// A skill only reaches the model when it is BOTH activated and enabled AND
-// bound to the bot (mirrors the backend's `list_active_skills_for_bot`).
 function isEffective(skill: SkillSummary) {
-  return skill.is_enabled && skill.status === "active";
+  return skill.is_enabled && skill.status === "published";
 }
 
 /**
@@ -71,8 +69,7 @@ export function BotSkillsPanel({ botId }: { botId: string }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
-          已挂载 {boundIds.size} 个 ·
-          仅「已激活且已启用」的技能会进入模型，改动即时生效
+          已挂载 {boundIds.size} 个 · 仅「已发布且已启用」的技能会进入模型
         </p>
         <Button
           variant="link"
@@ -106,9 +103,9 @@ export function BotSkillsPanel({ botId }: { botId: string }) {
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs">{skill.name}</span>
                     {isEffective(skill) ? (
-                      <Badge variant="outline">已激活</Badge>
+                      <Badge variant="outline">可用</Badge>
                     ) : (
-                      <Badge variant="secondary">未激活</Badge>
+                      <Badge variant="secondary">未发布</Badge>
                     )}
                   </div>
                   {skill.description ? (

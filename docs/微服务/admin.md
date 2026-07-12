@@ -5,17 +5,23 @@
 
 ## Owner / 责任范围
 
-- DB 表：`bots`、`scenes`、`intentions`、`model_providers`（外加
+- DB 表：`bots`、`scenes`、`intentions`、`model_providers`、`skills`、
+  `skill_nodes`、`skill_published_nodes`（外加
   `migration` 单行版本表）
 - 公开 HTTP API（gateway 前置鉴权，路径 `/api/admin-server/*`）：
   - `/bots`、`/scenes`、`/intentions` —— 各资源 CRUD + 批删
   - `/providers` —— LLM Provider 管理（CRUD、`set-default`、`test`）
+  - `/skills` —— Skill 工作区、文件懒加载、验证与发布
 - 内部 HTTP API（gateway **不**代理；仅集群内 sibling 服务可调）：
   - `GET /internal/providers/default?user_id=<uid>` —— 取用户默认 provider 快照
   - `GET /internal/providers/{id}?user_id=<uid>` —— 取指定 provider 快照
+  - `GET /internal/skills/{id}?org_id=<org>` —— 读取已发布 `SKILL.md`
   - 鉴权：`X-Internal-Token: <INTERNAL_API_TOKEN>`（constant-time 校验）
 
 ## 域所有权
+
+- **Skill package** —— PostgreSQL 文件树是编辑真相源，发布时原子覆盖唯一
+  `skill_published_nodes` 快照；没有版本历史。Chat 只读取已发布且启用的快照。
 
 - **`model_providers`** —— 所有 LLM 凭据的真相之源
   - `(user_id, name)` 维度，多 provider 共存，单个 default

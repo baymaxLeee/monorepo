@@ -9,7 +9,7 @@ import {
 } from "ai";
 
 import type { AgentSkillRef, ProviderSnapshot } from "../../clients/admin.js";
-import { getSkillBody } from "../../clients/admin.js";
+import { getSkillBody, getSkillFile } from "../../clients/admin.js";
 import { getDocument } from "../../clients/knowledge.js";
 import type { PersistedMessageContent } from "../../db/schema.js";
 import { NotFoundError, RequestError } from "../../lib/errors.js";
@@ -328,13 +328,17 @@ export async function createAgentRunResponse(
       }
       // getSkillBody throws RequestError (404) / AdminUnavailableError (502);
       // let those propagate so the client sees why the skill could not load.
-      const { body } = await getSkillBody(picked.id, auth.orgId);
+      const { body, files } = await getSkillBody(picked.id, auth.orgId);
       if (!body.trim()) {
         throw new RequestError(`skill "${picked.name}" has no content to load`);
       }
       instructionInput.extraContext = [
         ...instructionInput.extraContext,
-        { kind: "activated_skill", name: picked.name, body },
+        {
+          kind: "activated_skill",
+          name: picked.name,
+          body: files.length ? `${body}\n\nAvailable skill files:\n${files.join("\n")}` : body,
+        },
       ];
     }
     const assistantMessageId = randomBytes(8).toString("hex");
@@ -353,7 +357,14 @@ export async function createAgentRunResponse(
         : [],
       instructionInput,
       botSkills,
-      loadSkillBody: async (skillId: string) => (await getSkillBody(skillId, auth.orgId)).body,
+      loadSkillBody: async (skillId: string) => {
+        const skill = await getSkillBody(skillId, auth.orgId);
+        return skill.files.length
+          ? `${skill.body}\n\nAvailable skill files:\n${skill.files.join("\n")}`
+          : skill.body;
+      },
+      loadSkillFile: (skillId: string, path: string) =>
+        getSkillFile(skillId, auth.orgId, path),
     });
     const agent = agentInstance.agent;
     disposeAgentResources = agentInstance.dispose;

@@ -67,6 +67,9 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   和前端 `toolMetadata.agent.uiKind`。
 - Plan mode 只加载研究、交互和计划工具，同时获得执行能力摘要，因此能规划
   `write_file`、`generate_images`、`generate_video`，但不能提前执行。
+- Admin Skill 只广告已发布快照的名称与描述；`load_skill` 读取已发布
+  `SKILL.md`，`read_skill_file` 再按需读取该快照列出的 references/templates/
+  scripts 等文本资源，草稿树永不进入运行时。
 
 跨服务调用必须经过 `@backend/transport-ts`；provider 配置归 admin，artifact 存储
 归 knowledge，长任务执行归 executor。架构决策见 ADR-0011、ADR-0012、ADR-0013、

@@ -1,13 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  createSkill,
-  deleteSkill,
-  fetchSkill,
-  fetchSkills,
-  type Skill,
-  type SkillSummary,
-  updateSkill,
-} from "api";
+import { createSkill, deleteSkill, fetchSkills, type SkillSummary } from "api";
 import {
   Alert,
   AlertDescription,
@@ -53,54 +45,47 @@ import {
 } from "components";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import { getErrorMessage } from "shared";
 import { z } from "zod";
 
-const skillSchema = z.object({
+const schema = z.object({
   name: z
     .string()
     .trim()
     .min(1, "请输入名称")
     .max(64)
     .regex(
-      /^[a-z][a-z0-9-]*[a-z0-9]$/,
-      "只能小写字母、数字、连字符，以字母开头（如 oncall-rca）",
+      /^[a-z](?:[a-z0-9]|-(?=[a-z0-9]))*[a-z0-9]$|^[a-z]$/,
+      "请使用 kebab-case",
     ),
-  description: z.string().max(1024),
-  body: z.string().max(20000),
-  status: z.enum(["draft", "active", "disabled"]),
-  is_enabled: z.boolean(),
+  description: z.string().trim().min(1, "请输入使用场景").max(1024),
 });
 
-type SkillValues = z.infer<typeof skillSchema>;
+type Values = z.infer<typeof schema>;
 
-const defaults: SkillValues = {
-  name: "",
-  description: "",
-  body: "",
-  status: "draft",
-  is_enabled: true,
-};
-
-function statusBadge(item: SkillSummary) {
-  if (!item.is_enabled) return <Badge variant="secondary">停用</Badge>;
-  const labels = { active: "启用", draft: "草稿", disabled: "停用" };
+function SkillState({ skill }: { skill: SkillSummary }) {
+  if (skill.status !== "published")
+    return <Badge variant="secondary">草稿</Badge>;
   return (
-    <Badge variant={item.status === "active" ? "default" : "secondary"}>
-      {labels[item.status]}
-    </Badge>
+    <div className="flex gap-2">
+      <Badge>已发布</Badge>
+      {skill.has_unpublished_changes && (
+        <Badge variant="secondary">有未发布修改</Badge>
+      )}
+    </div>
   );
 }
 
 export function SkillsPage() {
+  const navigate = useNavigate();
   const [skills, setSkills] = useState<SkillSummary[] | null>(null);
-  const [editing, setEditing] = useState<Skill | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const form = useForm<SkillValues>({
-    resolver: zodResolver(skillSchema as never),
-    defaultValues: defaults,
+  const form = useForm<Values>({
+    resolver: zodResolver(schema),
+    defaultValues: { name: "", description: "" },
   });
 
   const load = useCallback(() => {
@@ -108,54 +93,22 @@ export function SkillsPage() {
     setError(null);
     fetchSkills({ skipErrorNotify: true })
       .then(setSkills)
-      .catch((e) => setError(getErrorMessage(e)))
+      .catch((reason: unknown) => setError(getErrorMessage(reason)))
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(load, [load]);
 
-  function openCreate() {
-    setEditing(null);
-    form.reset(defaults);
-    setCreateOpen(true);
-  }
-
-  async function openEdit(summary: SkillSummary) {
+  async function create(values: Values) {
+    const skill = await createSkill(values);
+    toast.success("技能工作区已创建");
     setCreateOpen(false);
-    try {
-      // Body is L2 — fetch the full skill only when actually editing one.
-      const skill = await fetchSkill(summary.id);
-      setEditing(skill);
-      form.reset({
-        name: skill.name,
-        description: skill.description,
-        body: skill.body,
-        status: skill.status,
-        is_enabled: skill.is_enabled,
-      });
-    } catch {}
-  }
-
-  async function save(values: SkillValues) {
-    try {
-      if (editing) {
-        await updateSkill(editing.id, values);
-        toast.success("技能已更新");
-        setEditing(null);
-      } else {
-        await createSkill(values);
-        toast.success("技能已创建");
-        setCreateOpen(false);
-      }
-      form.reset(defaults);
-      load();
-    } catch {}
+    form.reset();
+    navigate(skill.id);
   }
 
   async function remove(skill: SkillSummary) {
-    if (!window.confirm(`确认删除「${skill.name}」？`)) return;
+    if (!window.confirm(`确认删除「${skill.name}」及其文件树？`)) return;
     await deleteSkill(skill.id);
     toast.success("技能已删除");
     load();
@@ -167,14 +120,15 @@ export function SkillsPage() {
         <PageHeaderContent>
           <PageTitle>技能管理</PageTitle>
           <PageDescription>
-            维护可被智能体挂载的技能（SKILL.md）。仅名称与描述进入提示词，正文在命中时按需加载。
+            Skill 是包含
+            SKILL.md、参考资料、模板和脚本的文件工作区；发布后才会被智能体使用。
           </PageDescription>
         </PageHeaderContent>
         <PageActions>
           <Button variant="outline" onClick={load} disabled={loading}>
             刷新
           </Button>
-          <Button onClick={openCreate}>新建技能</Button>
+          <Button onClick={() => setCreateOpen(true)}>新建技能</Button>
         </PageActions>
       </PageHeader>
 
@@ -189,20 +143,16 @@ export function SkillsPage() {
         <CardHeader>
           <CardTitle>全部技能</CardTitle>
           <CardDescription>
-            {loading
-              ? "加载中…"
-              : skills
-                ? `共 ${skills.length} 条`
-                : "暂无数据"}
+            {skills ? `共 ${skills.length} 条` : "加载中…"}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="space-y-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10" />
+              <Skeleton className="h-10" />
             </div>
-          ) : skills && skills.length > 0 ? (
+          ) : skills?.length ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -222,24 +172,24 @@ export function SkillsPage() {
                     <TableCell className="max-w-md truncate text-muted-foreground">
                       {skill.description}
                     </TableCell>
-                    <TableCell>{statusBadge(skill)}</TableCell>
+                    <TableCell>
+                      <SkillState skill={skill} />
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(skill.updated_at).toLocaleString()}
                     </TableCell>
-                    <TableCell className="space-x-1 text-right">
+                    <TableCell className="text-right">
                       <Button
                         variant="link"
                         size="sm"
-                        onClick={() => {
-                          void openEdit(skill);
-                        }}
+                        onClick={() => navigate(skill.id)}
                       >
-                        编辑
+                        打开
                       </Button>
                       <Button
                         variant="link"
                         size="sm"
-                        onClick={() => remove(skill)}
+                        onClick={() => void remove(skill)}
                       >
                         删除
                       </Button>
@@ -249,156 +199,69 @@ export function SkillsPage() {
               </TableBody>
             </Table>
           ) : (
-            <Muted>列表为空，可点击「新建技能」添加。</Muted>
+            <Muted>暂无技能。</Muted>
           )}
         </CardContent>
       </Card>
 
-      <SkillFormDialog
-        open={createOpen || Boolean(editing)}
-        title={editing ? "编辑技能" : "新建技能"}
-        form={form}
-        onOpenChange={(open) => {
-          if (!open) {
-            setCreateOpen(false);
-            setEditing(null);
-            form.reset(defaults);
-          }
-        }}
-        onSubmit={save}
-      />
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>新建技能</DialogTitle>
+            <DialogDescription>
+              创建后进入文件工作区，系统会生成标准 SKILL.md。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <Form {...form}>
+              <form id="create-skill" onSubmit={form.handleSubmit(create)}>
+                <FieldGroup>
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <Field>
+                        <FieldLabel>名称</FieldLabel>
+                        <FormControl>
+                          <Input placeholder="product-launch" {...field} />
+                        </FormControl>
+                        <FieldError errors={[form.formState.errors.name]} />
+                      </Field>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <Field>
+                        <FieldLabel>描述（做什么、何时使用）</FieldLabel>
+                        <FormControl>
+                          <Textarea rows={3} {...field} />
+                        </FormControl>
+                        <FieldError
+                          errors={[form.formState.errors.description]}
+                        />
+                      </Field>
+                    )}
+                  />
+                </FieldGroup>
+              </form>
+            </Form>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+              取消
+            </Button>
+            <Button
+              type="submit"
+              form="create-skill"
+              disabled={form.formState.isSubmitting}
+            >
+              创建
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Page>
-  );
-}
-
-function SkillFormDialog({
-  form,
-  onOpenChange,
-  onSubmit,
-  open,
-  title,
-}: {
-  form: ReturnType<typeof useForm<SkillValues>>;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (values: SkillValues) => void;
-  open: boolean;
-  title: string;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            名称为 kebab-case，同时作为模型调用名；正文写清「何时用 / 怎么做」。
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <Form {...form}>
-            <form id="skill-form" onSubmit={form.handleSubmit(onSubmit)}>
-              <FieldGroup>
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>名称</FieldLabel>
-                      <FormControl>
-                        <Input placeholder="oncall-rca" {...field} />
-                      </FormControl>
-                      <FieldError errors={[form.formState.errors.name]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>描述（何时使用）</FieldLabel>
-                      <FormControl>
-                        <Textarea rows={2} {...field} />
-                      </FormControl>
-                      <FieldError
-                        errors={[form.formState.errors.description]}
-                      />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="body"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>正文（SKILL.md，命中时加载）</FieldLabel>
-                      <FormControl>
-                        <Textarea
-                          rows={10}
-                          className="font-mono text-xs"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FieldError errors={[form.formState.errors.body]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>状态</FieldLabel>
-                      <FormControl>
-                        <select
-                          className="h-9 rounded-md border bg-background px-3 text-sm"
-                          {...field}
-                        >
-                          <option value="draft">草稿</option>
-                          <option value="active">启用</option>
-                          <option value="disabled">停用</option>
-                        </select>
-                      </FormControl>
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="is_enabled"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>
-                        <input
-                          type="checkbox"
-                          className="mr-2"
-                          checked={field.value}
-                          onChange={(e) => field.onChange(e.target.checked)}
-                        />
-                        是否启用
-                      </FieldLabel>
-                    </Field>
-                  )}
-                />
-              </FieldGroup>
-            </form>
-          </Form>
-        </DialogBody>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            取消
-          </Button>
-          <Button
-            type="submit"
-            form="skill-form"
-            disabled={form.formState.isSubmitting}
-          >
-            保存
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

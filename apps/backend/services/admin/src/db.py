@@ -13,6 +13,8 @@ from models.intention import IntentionRow
 from models.provider import ModelProviderRow  # noqa: F401 — registers with Base.metadata
 from models.scene import SceneRow
 from models.skill import SkillRow  # noqa: F401 — registers with Base.metadata
+from models.skill_node import SkillNodeRow  # noqa: F401 — registers with Base.metadata
+from models.skill_published_node import SkillPublishedNodeRow  # noqa: F401 — registers with Base.metadata
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -118,6 +120,12 @@ _DEMO_APPS: list[tuple[str, str, str, str, bool, int]] = [
     ("admin", "后台管理", "/platform/admin", "mfe_admin", True, 10),
     ("chat", "对话", "/platform/chat", "mfe_chat", False, 20),
 ]
+
+
+async def seed_demo_skills() -> None:
+    from demo_skills import seed_demo_skills as _seed_demo_skills
+
+    await _seed_demo_skills()
 
 
 async def seed_demo_bots() -> None:

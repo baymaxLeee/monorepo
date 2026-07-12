@@ -218,6 +218,75 @@ export interface paths {
         patch: operations["update_skill_skills__skill_id__patch"];
         trace?: never;
     };
+    "/skills/{skill_id}/workspace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Skill Workspace */
+        get: operations["get_skill_workspace_skills__skill_id__workspace_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Skill Workspace */
+        patch: operations["update_skill_workspace_skills__skill_id__workspace_patch"];
+        trace?: never;
+    };
+    "/skills/{skill_id}/workspace/files/{node_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Skill File */
+        get: operations["get_skill_file_skills__skill_id__workspace_files__node_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skills/{skill_id}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Validate Skill */
+        post: operations["validate_skill_skills__skill_id__validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skills/{skill_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish Skill */
+        post: operations["publish_skill_skills__skill_id__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/skills/bulk-delete": {
         parameters: {
             query?: never;
@@ -229,6 +298,23 @@ export interface paths {
         put?: never;
         /** Bulk Delete Skills */
         post: operations["bulk_delete_skills_skills_bulk_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/skills/{skill_id}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Skill File Internal */
+        get: operations["get_skill_file_internal_internal_skills__skill_id__files_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -509,12 +595,7 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /**
-         * AgentSkill
-         * @description L1 discovery view carried on ResolvedAgent — name + description only, no
-         *     body. Chat advertises these in `<available_skills>` and pulls the body via
-         *     `/internal/skills/{id}` only when `load_skill` fires.
-         */
+        /** AgentSkill */
         AgentSkill: {
             /** Id */
             id: string;
@@ -783,27 +864,8 @@ export interface components {
         CreateSkillInput: {
             /** Name */
             name: string;
-            /**
-             * Description
-             * @default
-             */
+            /** Description */
             description: string;
-            /**
-             * Body
-             * @default
-             */
-            body: string;
-            /**
-             * Status
-             * @default draft
-             * @enum {string}
-             */
-            status: "draft" | "active" | "disabled";
-            /**
-             * Is Enabled
-             * @default true
-             */
-            is_enabled: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -877,10 +939,7 @@ export interface components {
             /** Is Enabled */
             is_enabled: boolean;
         };
-        /**
-         * InternalSkill
-         * @description Internal (service-to-service) view including the full body.
-         */
+        /** InternalSkill */
         InternalSkill: {
             /** Id */
             id: string;
@@ -890,6 +949,15 @@ export interface components {
             description: string;
             /** Body */
             body: string;
+            /** Files */
+            files: string[];
+        };
+        /** InternalSkillFile */
+        InternalSkillFile: {
+            /** Path */
+            path: string;
+            /** Content */
+            content: string;
         };
         /**
          * ModelProvider
@@ -933,6 +1001,16 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
+        };
+        /** PublishSkillInput */
+        PublishSkillInput: {
+            /** Base Workspace Seq */
+            base_workspace_seq: number;
+        };
+        /** PublishSkillResult */
+        PublishSkillResult: {
+            skill: components["schemas"]["Skill"];
+            validation: components["schemas"]["SkillValidationResult"];
         };
         /**
          * ResolvedAgent
@@ -1013,23 +1091,66 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "draft" | "active" | "disabled";
+            status: "draft" | "published" | "archived";
             /** Is Enabled */
             is_enabled: boolean;
+            /** Has Unpublished Changes */
+            has_unpublished_changes: boolean;
+            /** Published At */
+            published_at: string | null;
             /** Created At */
             created_at: string;
             /** Updated At */
             updated_at: string;
-            /** Body */
-            body: string;
+            /** Workspace Seq */
+            workspace_seq: number;
         };
-        /**
-         * SkillSummary
-         * @description L1 list view: everything except the L2 `body`. Used by every listing
-         *     surface (the skills table and a bot's bound skills) so the browser never
-         *     downloads skill bodies in bulk — the body is fetched only when editing a
-         *     single skill (`GET /skills/{id}`) or when a skill is actually loaded.
-         */
+        /** SkillFileChange */
+        SkillFileChange: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "create" | "update" | "delete" | "move" | "rename";
+            /** Id */
+            id: string;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Type */
+            type?: ("file" | "directory") | null;
+            /** Content */
+            content?: string | null;
+        };
+        /** SkillFileContent */
+        SkillFileContent: {
+            /** Id */
+            id: string;
+            /** Content */
+            content: string;
+        };
+        /** SkillFileNode */
+        SkillFileNode: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "file" | "directory";
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Mime Type */
+            mime_type?: string | null;
+            /** Content */
+            content?: string | null;
+            /** Children */
+            children?: components["schemas"]["SkillFileNode"][] | null;
+        };
+        /** SkillSummary */
         SkillSummary: {
             /** Id */
             id: string;
@@ -1047,13 +1168,40 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "draft" | "active" | "disabled";
+            status: "draft" | "published" | "archived";
             /** Is Enabled */
             is_enabled: boolean;
+            /** Has Unpublished Changes */
+            has_unpublished_changes: boolean;
+            /** Published At */
+            published_at: string | null;
             /** Created At */
             created_at: string;
             /** Updated At */
             updated_at: string;
+        };
+        /** SkillValidationIssue */
+        SkillValidationIssue: {
+            /** Path */
+            path: string;
+            /** Message */
+            message: string;
+        };
+        /** SkillValidationResult */
+        SkillValidationResult: {
+            /** Ok */
+            ok: boolean;
+            /** Issues */
+            issues: components["schemas"]["SkillValidationIssue"][];
+        };
+        /** SkillWorkspace */
+        SkillWorkspace: {
+            /** Skill Id */
+            skill_id: string;
+            /** Workspace Seq */
+            workspace_seq: number;
+            /** Tree */
+            tree: components["schemas"]["SkillFileNode"][];
         };
         /**
          * TestModelProviderInput
@@ -1181,16 +1329,17 @@ export interface components {
         };
         /** UpdateSkillInput */
         UpdateSkillInput: {
-            /** Name */
-            name?: string | null;
-            /** Description */
-            description?: string | null;
-            /** Body */
-            body?: string | null;
-            /** Status */
-            status?: ("draft" | "active" | "disabled") | null;
             /** Is Enabled */
             is_enabled?: boolean | null;
+            /** Status */
+            status?: ("draft" | "archived") | null;
+        };
+        /** UpdateSkillWorkspaceInput */
+        UpdateSkillWorkspaceInput: {
+            /** Base Workspace Seq */
+            base_workspace_seq: number;
+            /** Changes */
+            changes: components["schemas"]["SkillFileChange"][];
         };
         /** ValidationError */
         ValidationError: {
@@ -2015,6 +2164,205 @@ export interface operations {
             };
         };
     };
+    get_skill_workspace_skills__skill_id__workspace_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillWorkspace"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_skill_workspace_skills__skill_id__workspace_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSkillWorkspaceInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillWorkspace"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_skill_file_skills__skill_id__workspace_files__node_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+                node_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillFileContent"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_skill_skills__skill_id__validate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillValidationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_skill_skills__skill_id__publish_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishSkillInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishSkillResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     bulk_delete_skills_skills_bulk_delete_post: {
         parameters: {
             query?: never;
@@ -2042,6 +2390,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BulkDeleteSkillsResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_skill_file_internal_internal_skills__skill_id__files_get: {
+        parameters: {
+            query: {
+                path: string;
+                /** @description Team that owns the skill */
+                org_id: string;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalSkillFile"];
                 };
             };
             /** @description Validation Error */

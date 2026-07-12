@@ -8,6 +8,7 @@ import type { components, paths } from "./schema/admin.js";
 export type AdminProviderSnapshot = components["schemas"]["InternalModelProvider"];
 export type AdminResolvedAgent = components["schemas"]["ResolvedAgent"];
 export type AdminInternalSkill = components["schemas"]["InternalSkill"];
+export type AdminInternalSkillFile = components["schemas"]["InternalSkillFile"];
 
 export interface AdminClientOptions {
   baseUrl: string;
@@ -52,6 +53,21 @@ export class AdminInternalClient {
     const { data, error, response } = await this.client.GET("/internal/skills/{skill_id}", {
       params: { path: { skill_id: skillId }, query: { org_id: orgId } },
     });
+    if (data) return data;
+    throw toTransportError(response, error);
+  }
+
+  async getSkillFile(
+    skillId: string,
+    orgId: string,
+    path: string,
+  ): Promise<AdminInternalSkillFile> {
+    const { data, error, response } = await this.client.GET(
+      "/internal/skills/{skill_id}/files",
+      {
+        params: { path: { skill_id: skillId }, query: { org_id: orgId, path } },
+      },
+    );
     if (data) return data;
     throw toTransportError(response, error);
   }

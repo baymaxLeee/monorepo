@@ -48,6 +48,7 @@ export const SYSTEM_SKILL_NAMES: ReadonlySet<string> = new Set(SYSTEM_SKILLS.map
 export interface AdminSkillSource {
   skills: { id: string; name: string; description: string }[];
   loadBody: (skillId: string) => Promise<string>;
+  loadFile?: (skillId: string, path: string) => Promise<string>;
 }
 
 const loadSkillOutputSchema = z.object({
@@ -77,6 +78,7 @@ export function resolveSkills(
   // name -> body loader. System skills claim their names first and are never
   // overridden; a colliding admin skill is skipped (see SYSTEM_SKILL_NAMES).
   const loaders = new Map<string, () => Promise<string>>();
+  const fileLoaders = new Map<string, (path: string) => Promise<string>>();
   const listings = new Map<string, SkillListing>();
 
   for (const skill of SYSTEM_SKILLS) {
@@ -91,6 +93,9 @@ export function resolveSkills(
       continue;
     }
     loaders.set(skill.name, () => adminSource!.loadBody(skill.id));
+    if (adminSource?.loadFile) {
+      fileLoaders.set(skill.name, (path) => adminSource.loadFile!(skill.id, path));
+    }
     listings.set(skill.name, { name: skill.name, description: skill.description });
   }
 
@@ -128,5 +133,44 @@ export function resolveSkills(
     },
   );
 
-  return { manifests: [loadSkill], skills: [...listings.values()] };
+  if (fileLoaders.size === 0) {
+    return { manifests: [loadSkill], skills: [...listings.values()] };
+  }
+
+  const readSkillFile = defineAgentTool(
+    "read_skill_file",
+    tool({
+      description:
+        "Read one relative file listed by a loaded admin-managed skill. Use only when SKILL.md requires that resource.",
+      inputSchema: z.object({
+        name: z.string().min(1).max(64),
+        path: z.string().min(1).max(1024),
+      }),
+      outputSchema: z.object({ name: z.string(), path: z.string(), content: z.string() }),
+      execute: async ({ name, path }) => {
+        const loader = fileLoaders.get(name);
+        if (!loader) throw new Error(`skill has no readable files: ${name}`);
+        return { name, path, content: await loader(path) };
+      },
+      toModelOutput: ({ output }) => ({
+        type: "text",
+        value: `<skill_file>\nName: ${output.name}\nPath: ${JSON.stringify(output.path)}\n${output.content}\n</skill_file>`,
+      }),
+    }),
+    {
+      capability: "external",
+      effect: "read",
+      trust: "closed",
+      execution: "inline",
+      modes: ["normal"],
+      source: "skill",
+    },
+    {
+      summary: "Read one resource from a loaded Skill package.",
+      constraints: ["Read only paths advertised by the loaded Skill."],
+      parallelizable: true,
+    },
+  );
+
+  return { manifests: [loadSkill, readSkillFile], skills: [...listings.values()] };
 }

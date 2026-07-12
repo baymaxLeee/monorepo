@@ -86,9 +86,7 @@ class BotService:
 
     async def create(self, name: str) -> Bot:
         async with write_tx(self._session):
-            row = await bot_crud.create_bot(
-                self._session, name, self._current_user.user_id, self._current_user.org_id
-            )
+            row = await bot_crud.create_bot(self._session, name, self._current_user.user_id, self._current_user.org_id)
         if self._redis is not None:
             await self._redis.incr("admin:bots:created")
         return to_schema(row)
@@ -156,7 +154,14 @@ class BotService:
             text_provider=await self._resolve_provider(row.text_provider_id, row.org_id),
             image_provider=await self._resolve_provider(row.image_provider_id, row.org_id),
             video_provider=await self._resolve_provider(row.video_provider_id, row.org_id),
-            skills=[AgentSkill(id=s.id, name=s.name, description=s.description) for s in skill_rows],
+            skills=[
+                AgentSkill(
+                    id=s.id,
+                    name=s.published_name or s.name,
+                    description=s.published_description or s.description,
+                )
+                for s in skill_rows
+            ],
         )
 
     # `builtins.list` because the `list` method above shadows the builtin inside

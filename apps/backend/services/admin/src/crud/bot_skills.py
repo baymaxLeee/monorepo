@@ -25,7 +25,7 @@ async def list_active_skills_for_bot(session: AsyncSession, bot_id: str) -> list
         .join(BotSkillRow, BotSkillRow.skill_id == SkillRow.id)
         .where(
             BotSkillRow.bot_id == bot_id,
-            SkillRow.status == "active",
+            SkillRow.status == "published",
             SkillRow.is_enabled.is_(True),
         )
         .order_by(BotSkillRow.sort, SkillRow.updated_at.desc())

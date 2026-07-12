@@ -9,7 +9,7 @@ the full body is pulled on demand via the chat `load_skill` tool.
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base
@@ -26,8 +26,13 @@ class SkillRow(Base):
     # kebab-case, doubles as the model-facing invocation name (Agent Skills spec).
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     description: Mapped[str] = mapped_column(String(1024), nullable=False, default="")
-    body: Mapped[str] = mapped_column(Text, nullable=False, default="")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    workspace_seq: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    workspace_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    published_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    published_description: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

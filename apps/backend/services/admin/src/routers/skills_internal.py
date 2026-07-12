@@ -11,10 +11,22 @@ from typing import Annotated
 
 from deps import AuthContext, DbSession, InternalCaller
 from fastapi import APIRouter, Query
-from schemas.skill import InternalSkill
+from schemas.skill import InternalSkill, InternalSkillFile
 from services.skills import SkillService
 
 router = APIRouter(prefix="/internal/skills", tags=["internal-skills"])
+
+
+@router.get("/{skill_id}/files", response_model=InternalSkillFile)
+async def get_skill_file_internal(
+    skill_id: str,
+    path: Annotated[str, Query(min_length=1, max_length=1024)],
+    org_id: Annotated[str, Query(min_length=1, description="Team that owns the skill")],
+    session: DbSession,
+    _caller: InternalCaller,
+) -> InternalSkillFile:
+    service = SkillService(session, AuthContext(user_id="", username="", email="", org_id=org_id))
+    return await service.get_internal_file(skill_id, org_id, path)
 
 
 @router.get("/{skill_id}", response_model=InternalSkill)

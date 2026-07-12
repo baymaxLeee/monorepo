@@ -142,7 +142,7 @@ export async function getAgent(
 export async function getSkillBody(
   skillId: string,
   orgId: string,
-): Promise<{ id: string; name: string; body: string }> {
+): Promise<{ id: string; name: string; body: string; files: string[] }> {
   let data;
   try {
     data = await adminClient().getSkill(skillId, orgId);
@@ -152,5 +152,20 @@ export async function getSkillBody(
     }
     throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
   }
-  return { id: data.id, name: data.name, body: data.body };
+  return { id: data.id, name: data.name, body: data.body, files: data.files };
+}
+
+export async function getSkillFile(
+  skillId: string,
+  orgId: string,
+  path: string,
+): Promise<string> {
+  try {
+    return (await adminClient().getSkillFile(skillId, orgId, path)).content;
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      throw new RequestError(`skill file ${path} not found`);
+    }
+    throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
+  }
 }

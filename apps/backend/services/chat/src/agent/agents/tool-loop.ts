@@ -119,9 +119,10 @@ export async function createToolLoopAgent(
   const provider = input.provider;
   const botSkills = input.botSkills ?? [];
   const loadSkillBody = input.loadSkillBody;
+  const loadSkillFile = input.loadSkillFile;
   const skillSource =
     botSkills.length > 0 && loadSkillBody
-      ? { skills: botSkills, loadBody: loadSkillBody }
+      ? { skills: botSkills, loadBody: loadSkillBody, loadFile: loadSkillFile }
       : null;
   const resolvedTools = await toolCatalog.resolve(
     {

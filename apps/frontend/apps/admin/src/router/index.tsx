@@ -16,6 +16,7 @@ import { ProfilePage } from "../pages/ProfilePage";
 import { ProvidersPage } from "../pages/ProvidersPage";
 import { ScenesPage } from "../pages/ScenesPage";
 import { SkillsPage } from "../pages/SkillsPage";
+import { SkillWorkspacePage } from "../pages/SkillWorkspacePage";
 
 /**
  * Mounted by platform at `/platform/admin/*`.
@@ -33,6 +34,7 @@ export const routes: RouteObject[] = [
       { path: "bots/:id", element: <BotDetailPage /> },
       { path: "scenes", element: <ScenesPage /> },
       { path: "skills", element: <SkillsPage /> },
+      { path: "skills/:id", element: <SkillWorkspacePage /> },
       { path: "intentions", element: <IntentionsPage /> },
       { path: "providers", element: <ProvidersPage /> },
       { path: "knowledge", element: <KnowledgeBasePage /> },

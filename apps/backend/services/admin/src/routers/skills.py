@@ -6,9 +6,15 @@ from schemas.skill import (
     BulkDeleteSkillsInput,
     BulkDeleteSkillsResult,
     CreateSkillInput,
+    PublishSkillInput,
+    PublishSkillResult,
     Skill,
+    SkillFileContent,
     SkillSummary,
+    SkillValidationResult,
+    SkillWorkspace,
     UpdateSkillInput,
+    UpdateSkillWorkspaceInput,
 )
 from services.skills import SkillService
 
@@ -42,6 +48,43 @@ async def update_skill(
     session: DbSession,
 ) -> Skill:
     return await SkillService(session, current_user).update(skill_id, payload)
+
+
+@router.get("/{skill_id}/workspace", response_model=SkillWorkspace)
+async def get_skill_workspace(skill_id: str, current_user: CurrentUser, session: DbSession) -> SkillWorkspace:
+    return await SkillService(session, current_user).get_workspace(skill_id)
+
+
+@router.get("/{skill_id}/workspace/files/{node_id}", response_model=SkillFileContent)
+async def get_skill_file(
+    skill_id: str, node_id: str, current_user: CurrentUser, session: DbSession
+) -> SkillFileContent:
+    return await SkillService(session, current_user).get_file(skill_id, node_id)
+
+
+@router.patch("/{skill_id}/workspace", response_model=SkillWorkspace)
+async def update_skill_workspace(
+    skill_id: str,
+    payload: UpdateSkillWorkspaceInput,
+    current_user: AdminUser,
+    session: DbSession,
+) -> SkillWorkspace:
+    return await SkillService(session, current_user).update_workspace(skill_id, payload)
+
+
+@router.post("/{skill_id}/validate", response_model=SkillValidationResult)
+async def validate_skill(skill_id: str, current_user: AdminUser, session: DbSession) -> SkillValidationResult:
+    return await SkillService(session, current_user).validate(skill_id)
+
+
+@router.post("/{skill_id}/publish", response_model=PublishSkillResult)
+async def publish_skill(
+    skill_id: str,
+    payload: PublishSkillInput,
+    current_user: AdminUser,
+    session: DbSession,
+) -> PublishSkillResult:
+    return await SkillService(session, current_user).publish(skill_id, payload)
 
 
 @router.delete("/{skill_id}", status_code=204)
