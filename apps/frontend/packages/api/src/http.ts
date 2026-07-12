@@ -5,7 +5,7 @@ import axios, {
 } from "axios";
 import { attachAxios, type MinimalAxiosInstance } from "observability";
 import { toast } from "sonner";
-import { getToken } from "./storage";
+import { getToken, isAccessTokenValid } from "./storage";
 
 declare const process: { env: { API_BASE_URL?: string } } | undefined;
 
@@ -85,10 +85,18 @@ const GATEWAY_PREFIX_BY_LOCAL_PORT: Record<string, string> = {
   "8010": "/api/knowledge-server",
 };
 
-apiHttp.interceptors.request.use((config) => {
+apiHttp.interceptors.request.use(async (config) => {
   const target = normalizeRequestTarget(config.url, config.baseURL);
   config.url = target.url;
   config.baseURL = target.baseURL;
+
+  const skipProactiveRefresh = NO_REFRESH_PATHS.some((path) =>
+    config.url?.includes(path),
+  );
+  if (!skipProactiveRefresh && !isAccessTokenValid()) {
+    await refreshAccessToken?.();
+  }
+
   const token = getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
