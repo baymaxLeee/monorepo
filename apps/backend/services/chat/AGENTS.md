@@ -64,9 +64,10 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   no `contextSchema`, no knowledge writes, and no revision/CAS. State lives only
   in the `tool-update_todos` UIMessage part, same as every other tool output.
   It never becomes a second truth source for the plan body (ADR-0017).
-  Because it has no read-back tool, `projectModelContext` always reinjects
-  the latest completed call (via `latestCompletedToolOutput`) as
-  `<current_todo_list>` so it survives `pruneMessages`/compaction; the
+  `projectModelContext` derives the latest snapshot from persisted UIMessage
+  parts. It preserves the official tool result while recent; only when pruning
+  removes that result does it add a bounded `<current_todo_snapshot>` inside a
+  low-authority historical replacement message. The
   frontend separately renders only the newest `tool-update_todos` part so
   the UI shows one live card instead of one per call (ADR-0017). The optional
   `deliverable` tag (`artifact`/`image`/`video`) links a todo to the one

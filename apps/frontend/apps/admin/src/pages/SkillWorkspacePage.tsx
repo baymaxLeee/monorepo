@@ -20,10 +20,6 @@ import {
   AlertTitle,
   Badge,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Page,
   PageActions,
   PageDescription,
@@ -34,6 +30,7 @@ import {
   toast,
 } from "components";
 import {
+  ChangeAction,
   type FileChange,
   type FileNode,
   FileWorkspace,
@@ -42,6 +39,17 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getErrorMessage } from "shared";
+
+function notifyValidationResult(result: SkillValidationResult) {
+  if (result.ok) {
+    toast.success("验证通过，当前工作区可以发布");
+    return;
+  }
+  const detail = result.issues
+    .map((issue) => `${issue.path}: ${issue.message}`)
+    .join("；");
+  toast.error(detail || "验证未通过");
+}
 
 export function SkillWorkspacePage() {
   const { id = "" } = useParams();
@@ -53,9 +61,6 @@ export function SkillWorkspacePage() {
   const [workspaceSeq, setWorkspaceSeq] = useState(1);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [validation, setValidation] = useState<SkillValidationResult | null>(
-    null,
-  );
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -78,7 +83,6 @@ export function SkillWorkspacePage() {
       setTree(workspace.tree);
       setWorkspaceSeq(workspace.workspace_seq);
       setDirty(false);
-      setValidation(null);
     } catch (reason) {
       setError(getErrorMessage(reason));
     }
@@ -110,7 +114,6 @@ export function SkillWorkspacePage() {
     setWorkspaceSeq(nextWorkspaceSeq);
     workspaceRef.current?.resetBaseline();
     setDirty(false);
-    setValidation(null);
     setSkill(await fetchSkill(id));
     toast.success("工作区已保存");
     return nextWorkspaceSeq;
@@ -124,7 +127,7 @@ export function SkillWorkspacePage() {
 
   function persistChange(change: FileChange): Promise<SkillNodeMutationResult> {
     switch (change.action) {
-      case "create":
+      case ChangeAction.CREATE:
         return createSkillNode(id, {
           id: change.id,
           parent_id: change.parent_id,
@@ -132,18 +135,18 @@ export function SkillWorkspacePage() {
           type: change.type,
           ...(change.content === undefined ? {} : { content: change.content }),
         });
-      case "update":
+      case ChangeAction.UPDATE:
         return updateSkillFileContent(
           id,
           change.id,
           etag(change.id),
           change.content,
         );
-      case "rename":
+      case ChangeAction.RENAME:
         return renameSkillNode(id, change.id, etag(change.id), change.name);
-      case "move":
+      case ChangeAction.MOVE:
         return moveSkillNode(id, change.id, etag(change.id), change.parent_id);
-      case "delete":
+      case ChangeAction.DELETE:
         return deleteSkillNode(id, change.id, etag(change.id));
     }
     const unsupported: never = change;
@@ -176,8 +179,8 @@ export function SkillWorkspacePage() {
   )?.id;
 
   return (
-    <Page className="min-h-0">
-      <PageHeader>
+    <Page className="min-h-0 flex-1 overflow-hidden">
+      <PageHeader className="shrink-0">
         <PageHeaderContent>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => navigate("..")}>
@@ -208,7 +211,7 @@ export function SkillWorkspacePage() {
             onClick={() =>
               void run(async () => {
                 await save();
-                setValidation(await validateSkill(id));
+                notifyValidationResult(await validateSkill(id));
               })
             }
           >
@@ -221,7 +224,10 @@ export function SkillWorkspacePage() {
                 const seq = await save();
                 const result = await publishSkill(id, seq);
                 setSkill(result.skill);
-                setValidation(result.validation);
+                if (!result.validation.ok) {
+                  notifyValidationResult(result.validation);
+                  return;
+                }
                 toast.success("技能已发布");
               })
             }
@@ -232,16 +238,16 @@ export function SkillWorkspacePage() {
       </PageHeader>
 
       {error && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="shrink-0">
           <AlertTitle>操作失败</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       {!tree ? (
-        <Skeleton className="min-h-[560px] flex-1" />
+        <Skeleton className="min-h-0 flex-1" />
       ) : (
-        <div className="grid min-h-[560px] flex-1 grid-cols-[minmax(0,1fr)_280px] gap-4">
+        <div className="min-h-0 flex-1 overflow-hidden">
           <FileWorkspace
             ref={workspaceRef}
             value={tree}
@@ -260,33 +266,6 @@ export function SkillWorkspacePage() {
                 }),
             }}
           />
-          <Card className="overflow-auto">
-            <CardHeader>
-              <CardTitle>检查结果</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              {!validation && (
-                <p className="text-muted-foreground">
-                  保存后运行验证，检查 SKILL.md 和文件树结构。
-                </p>
-              )}
-              {validation?.ok && (
-                <Alert>
-                  <AlertTitle>验证通过</AlertTitle>
-                  <AlertDescription>当前工作区可以发布。</AlertDescription>
-                </Alert>
-              )}
-              {validation?.issues.map((issue) => (
-                <Alert
-                  key={`${issue.path}-${issue.message}`}
-                  variant="destructive"
-                >
-                  <AlertTitle>{issue.path}</AlertTitle>
-                  <AlertDescription>{issue.message}</AlertDescription>
-                </Alert>
-              ))}
-            </CardContent>
-          </Card>
         </div>
       )}
     </Page>

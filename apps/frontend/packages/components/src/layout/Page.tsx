@@ -6,7 +6,7 @@ export function Page({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "flex flex-1 flex-col gap-4 p-4 md:gap-6 md:p-6",
+        "flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 md:gap-6 md:p-6",
         className,
       )}
       {...props}

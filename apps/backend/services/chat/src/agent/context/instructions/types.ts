@@ -25,33 +25,17 @@ export interface MemoryDatum {
   content: string;
 }
 
-export interface ReferencedDocument {
-  id: string;
-  title: string;
-  filename: string;
-  kind: string;
+export interface ActivatedSkillInstruction {
+  name: string;
+  body: string;
 }
-
-/**
- * A projector-supplied context block, discriminated by `kind`. The renderer maps
- * each `kind` to a fixed tag (and fixed attribute set) and escapes every value —
- * callers cannot choose the tag/attrs or hand over pre-rendered XML, so
- * user/model-authored content cannot break out of the `<context_data>` boundary.
- */
-export type InstructionContextBlock =
-  | { kind: "conversation_summary"; body: string }
-  | { kind: "conversation_state"; body: string }
-  | { kind: "current_todo_list"; body: string }
-  | { kind: "active_plan_artifact"; documentId: string; revisionId: string; body: string }
-  | { kind: "activated_skill"; name: string; body: string };
 
 /** Non-tool-derived inputs to the instruction assembler, gathered per run. */
 export interface InstructionInput {
   mode: AgentMode;
   botProfile?: BotProfileSnapshot | null;
   memories: MemoryDatum[];
-  documents: ReferencedDocument[];
-  extraContext: InstructionContextBlock[];
+  activatedSkill?: ActivatedSkillInstruction | null;
   now?: Date;
 }
 

@@ -203,7 +203,7 @@
   }
 
   .code-editor .cm-scroller {
-    @apply min-w-0;
+    @apply min-h-0 min-w-0 overflow-auto;
   }
 
   /* FileWorkspace 已迁移为 inline Tailwind utility，BEM 选择器全部移除。 */

@@ -38,7 +38,13 @@ import {
 import { finalizeCancelledParts } from "./cancellation.js";
 import { createAgent } from "../agents/factory.js";
 import { extractMemoryCandidates } from "../memory/extractor.js";
-import { extractUsageTokens, failAgentRun } from "../observability/lifecycle.js";
+import {
+  addUsage,
+  EMPTY_USAGE,
+  extractUsageTokens,
+  failAgentRun,
+  type UsageTokens,
+} from "../observability/lifecycle.js";
 import {
   activatedSkillNameFromParts,
   attachedImageDocumentIdsFromParts,
@@ -220,14 +226,13 @@ export async function createAgentRunResponse(
   }
 
   let disposeAgentResources: (() => Promise<void>) | null = null;
+  let contextUsage: UsageTokens = EMPTY_USAGE;
   try {
     const mode = input.mode === "plan" ? "plan" : "normal";
     const [persistedMessages, instructionInput] = await Promise.all([
       listMessages(conversation.id),
       loadInstructionContext({
         userId: conversation.userId,
-        conversationId: conversation.id,
-        documentIds: requestedDocumentIds,
         mode,
         botProfile: input.botProfile,
       }),
@@ -283,17 +288,17 @@ export async function createAgentRunResponse(
 
     const runSignal = registerRunController(runId);
     const projected = await projectModelContext({
+      runId,
       conversationId: conversation.id,
       userId: conversation.userId,
       mode,
       activePlanDocumentId: conversation.activePlanDocumentId,
-      contextWindow: provider.contextWindow,
-      maxOutputTokens: provider.maxOutputTokens,
-      supportsImageInput: provider.supportsImageInput,
+      provider,
+      abortSignal: runSignal,
       messages: await validateUIMessages<AnyUIMessage>({ messages: modelUiMessages }),
     });
     const modelMessages = projected.messages;
-    instructionInput.extraContext = projected.instructionContext;
+    contextUsage = projected.compactionUsage;
 
     const botSkills = input.botSkills ?? [];
 
@@ -320,14 +325,10 @@ export async function createAgentRunResponse(
       if (!body.trim()) {
         throw new RequestError(`skill "${picked.name}" has no content to load`);
       }
-      instructionInput.extraContext = [
-        ...instructionInput.extraContext,
-        {
-          kind: "activated_skill",
-          name: picked.name,
-          body: files.length ? `${body}\n\nAvailable skill files:\n${files.join("\n")}` : body,
-        },
-      ];
+      instructionInput.activatedSkill = {
+        name: picked.name,
+        body: files.length ? `${body}\n\nAvailable skill files:\n${files.join("\n")}` : body,
+      };
     }
     const assistantMessageId = randomBytes(8).toString("hex");
     const agentInstance = await createAgent({
@@ -406,7 +407,7 @@ export async function createAgentRunResponse(
             }
           }
           const usage = await Promise.resolve(result.totalUsage).catch(() => null);
-          const tokens = extractUsageTokens(usage);
+          const tokens = addUsage(extractUsageTokens(usage), contextUsage);
           if (aborted) await finalizeCancelledRunToolCalls(runId);
           else await finalizeRunToolCallsFromParts(runId, parts);
           await finishAgentRun({
@@ -483,7 +484,7 @@ export async function createAgentRunResponse(
         logger.error({ err: streamError }, "failed to clear resumable stream"),
       );
     }
-    await failAgentRun({ runId, error });
+    await failAgentRun({ runId, error, usage: contextUsage });
     await releaseRun(runId).catch(() => undefined);
     throw error;
   }

@@ -23,6 +23,29 @@ export interface UsageTokens {
   totalTokens: number | null;
 }
 
+export const EMPTY_USAGE: UsageTokens = {
+  inputTokens: null,
+  outputTokens: null,
+  cachedInputTokens: null,
+  reasoningTokens: null,
+  totalTokens: null,
+};
+
+function addToken(left: number | null, right: number | null): number | null {
+  if (left == null && right == null) return null;
+  return (left ?? 0) + (right ?? 0);
+}
+
+export function addUsage(left: UsageTokens, right: UsageTokens): UsageTokens {
+  return {
+    inputTokens: addToken(left.inputTokens, right.inputTokens),
+    outputTokens: addToken(left.outputTokens, right.outputTokens),
+    cachedInputTokens: addToken(left.cachedInputTokens, right.cachedInputTokens),
+    reasoningTokens: addToken(left.reasoningTokens, right.reasoningTokens),
+    totalTokens: addToken(left.totalTokens, right.totalTokens),
+  };
+}
+
 /** Flatten AI SDK `LanguageModelUsage` (step `event.usage` or run `result.totalUsage`,
  *  same shape) into the billable columns we persist. Cache-hit input and reasoning
  *  output live in the nested `*Details` objects; everything else is top-level. */
@@ -79,6 +102,19 @@ export async function recordToolEnd(input: { toolCallId: string; toolName: strin
   });
 }
 
-export async function failAgentRun(input: { runId: string; error: unknown }): Promise<void> {
-  await finishAgentRun({ runId: input.runId, status: "failed", error: input.error });
+export async function failAgentRun(input: {
+  runId: string;
+  error: unknown;
+  usage?: UsageTokens;
+}): Promise<void> {
+  await finishAgentRun({
+    runId: input.runId,
+    status: "failed",
+    error: input.error,
+    inputTokens: input.usage?.inputTokens,
+    outputTokens: input.usage?.outputTokens,
+    cachedInputTokens: input.usage?.cachedInputTokens,
+    reasoningTokens: input.usage?.reasoningTokens,
+    totalTokens: input.usage?.totalTokens,
+  });
 }

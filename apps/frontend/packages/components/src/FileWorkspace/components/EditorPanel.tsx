@@ -54,7 +54,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
 
   if (!tabs.length) {
     return (
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
           <div className="text-5xl opacity-40">📝</div>
           <p className="mt-3 text-sm">选择文件开始编辑</p>
@@ -66,7 +66,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   const readyFileId = !loading && file ? file.id : null;
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div
         ref={tabBarRef}
         className={cn(
@@ -115,7 +115,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
           );
         })}
       </div>
-      <div className="relative min-h-0 flex-1 overflow-auto">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         {loading && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/75 text-sm text-muted-foreground">
             <p>加载中...</p>

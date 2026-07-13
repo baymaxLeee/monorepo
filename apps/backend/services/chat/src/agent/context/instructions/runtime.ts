@@ -5,7 +5,7 @@ const PLAN_CONTRACT = [
   "Analyze and plan only. Do not create or edit the final deliverable or perform side effects.",
   "Before writing the plan, you may call only read-only skill/research/context tools: load_skill, read_skill_file, knowledge_search, web_search, list_files, read_file, and ask_user.",
   "The only write tools allowed in plan mode are write_plan and update_plan. Never call update_todos, write_file, edit_file, generate_images, generate_video, or any other content-generation tool in plan mode.",
-  "The required deliverable in plan mode is the plan itself: use write_plan to create a Markdown plan or update_plan for the injected active plan.",
+  "The required deliverable in plan mode is the plan itself: use write_plan to create a Markdown plan or update_plan for the referenced active plan after reading it with read_file.",
   "The plan must contain: # 目标, ## 背景与约束, ## 实施方案, ## 任务, ## 验收标准.",
   "Write ## 任务 as a Markdown checklist (- [ ] one actionable step per line) so normal execution mode can optionally turn it into a todo list later.",
   "Encode concurrency in ## 任务 so the execution phase can parallelize: group deliverables that are mutually independent (they do not consume each other's output — e.g. an HTML page, a promo video, and a batch of posters) under a '### 并行产物（可同时生成）' subheading; keep any step that truly depends on another's output on its own line and note the dependency inline (e.g. '(依赖：上面的海报)'). Put all images of one request in a single image-batch step, never one step per image.",

@@ -169,6 +169,12 @@ no `data-artifact-progress`.
     parts (the completion fact already on the wire), so no `data-*` part is
     added; the model's next-step `update_todos` remains the canonical snapshot.
     See ADR 0024.
+  - Persisted `tool-update_todos` UIMessage output is also the model-side truth
+    source across runs. The context projector keeps that official tool result in
+    recent messages. Only if pruning removes it while unfinished work remains
+    does the host add a bounded `<current_todo_snapshot>` to a low-authority
+    historical replacement message. It is never copied into system instructions
+    and is never reconstructed from observability tables (ADR 0041).
   - On explicit user cancellation, unfinished official tool parts are persisted
     as `output-error`; no cancellation `data-*` part is added. Non-completed
     `update_todos` items become `cancelled`, which is a terminal persisted todo

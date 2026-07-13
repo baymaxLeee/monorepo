@@ -4,7 +4,8 @@
 
 Accepted. Supersedes ADR-0026 decisions 4–6 (free-text `system_prompt` /
 `<agent_persona>`); refines ADR-0011 (ToolLoopAgent core) and the Skill
-instruction channel without changing the single-agent runtime.
+instruction channel without changing the single-agent runtime. ADR-0041 later
+removes dynamic conversation state from the instruction layer.
 
 ## Context
 
@@ -44,8 +45,8 @@ are discarded, not migrated into the new fields.
    cannot be reordered by callers; trust decreases top→bottom:
 
    ```
-   core_policy → runtime_contract → capability_contract →
-   available_skills → bot_profile → context_data → environment
+   core_policy → runtime_contract → execution_protocol → capability_contract →
+   available_skills → activated_skill → bot_profile → user_memory_data → environment
    ```
 
    `core_policy` / `runtime_contract` are code constants; `capability_contract`
@@ -71,10 +72,9 @@ are discarded, not migrated into the new fields.
    `routes/agents.ts` → `RunAgentInput.botProfile` → `loadInstructionContext` →
    the assembler, which renders `<bot_profile>` from structured leaves via
    `xml.ts` escaping. When a bot has no structured identity yet, `<bot_profile>`
-   is simply omitted. Dynamic `context_data` blocks (summary / todo / active
-   plan) arrive as a discriminated `InstructionContextBlock` union; the renderer
-   — not the caller — maps each `kind` to a fixed tag/attribute set and escapes
-   every value, so model/user-authored content cannot break out of the section.
+   is simply omitted. As revised by ADR-0041, dynamic summary, Todo, active-plan,
+   and document state is projected into messages; only bounded approved memory
+   remains as low-authority instruction data.
 
 5. **The thin router is structured-only; every raw-string seam is removed.**
    `ToolCatalog.resolve()` returns a typed `InstructionContributions`:

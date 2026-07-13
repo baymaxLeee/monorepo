@@ -128,8 +128,8 @@ export function AdminLayout() {
   }
 
   return (
-    <Layout className="min-h-svh flex-row">
-      <Aside className="w-52 shrink-0 gap-2 p-2">
+    <Layout className="h-svh min-h-0 flex-row overflow-hidden">
+      <Aside className="w-52 shrink-0 gap-2 overflow-y-auto p-2">
         <Button
           asChild
           variant="ghost"
@@ -168,7 +168,7 @@ export function AdminLayout() {
           <MenuList items={utilityMenus} />
         </Section>
       </Aside>
-      <Main className="overflow-auto">
+      <Main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <Outlet />
       </Main>
     </Layout>

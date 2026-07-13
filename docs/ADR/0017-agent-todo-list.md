@@ -68,25 +68,13 @@ source of truth for plan content.
 - No database schema change; no new HTTP route.
 - Because `update_todos` is a normal tool call, its history is visible and
   inspectable like any other tool part.
-- **Update (context design):** the gap noted in the original version of this
-  ADR — nothing recovered "the current todo list" across a
-  context-compaction or pruning boundary — is closed.
-  `apps/backend/services/chat/src/agent/context/projector.ts`'s
-  `projectModelContext` now always looks up
-  `latestCompletedToolOutput(conversationId, "update_todos")` and, when
-  present, injects it as `<current_todo_list>` in `instructionContext` on
-  every turn, independent of `pruneMessages({ toolCalls:
-  "before-last-2-messages" })` and independent of whether the conversation
-  has triggered summary compaction yet. This matters because `update_todos`
-  has no read-back tool, unlike `read_file`/`web_search`/knowledge search,
-  whose outputs the generic prune pass can safely drop because the model can
-  re-fetch them — dropping the *only* copy of the todo state is not
-  recoverable the same way. This mirrors, at a much smaller scale, why
-  Claude Code moved `TodoWrite` (an in-context, full-list-replace tool with
-  the same failure mode) to a persistent `TaskCreate`/`TaskUpdate`/`TaskGet`
-  API in 2026 — the fix here reuses the existing trace table and
-  `<conversation_state>`-style reinjection instead of adding a new storage
-  layer or query tool, since the todo list is small and already recorded.
+- **Update (context design, superseded by ADR-0041):** persisted UIMessage tool
+  parts are the Todo truth source. `projectModelContext` keeps the official
+  `tool-update_todos` result while it remains in the recent window. If pruning
+  removes that only copy while unfinished items remain, the projector derives a
+  bounded `<current_todo_snapshot>` and places it in the low-authority historical
+  replacement message. Todo state is no longer queried from observability tables
+  or injected into system instructions.
 - The frontend applies a matching, purely presentational fix in
   `apps/frontend/apps/chat/src/pages/Chat.tsx` /
   `ChatMessageView.tsx`: only the `tool-update_todos` part with the latest

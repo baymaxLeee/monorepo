@@ -13,8 +13,9 @@ layers** into one fixed-order XML document. There is no free-text prompt slot:
   <execution_protocol>...</execution_protocol>   <!-- execution.ts     — per-step context/skill/tool loop -->
   <capability_contract>...</capability_contract> <!-- assembler.ts     — from resolved tool manifests (plan mode only today) -->
   <available_skills>...</available_skills>       <!-- assembler.ts     — from structured SkillListing[] contributions -->
+  <activated_skill>...</activated_skill>         <!-- assembler.ts     — explicit per-turn Skill activation -->
   <bot_profile>...</bot_profile>                 <!-- bot-profile.ts   — configured identity, XML-escaped -->
-  <context_data>...</context_data>               <!-- context-data.ts  — memory + docs + projected todo/plan (DATA) -->
+  <user_memory_data>...</user_memory_data>       <!-- context-data.ts  — bounded, low-authority approved memory -->
   <environment>...</environment>                 <!-- assembler.ts     — server-owned date -->
 </agent_instructions>
 ```
@@ -24,8 +25,8 @@ Files: `assembler.ts` (composition + capability/skills/environment rendering),
 `types.ts`. IO (memory/doc loading) lives one level up in
 `context/instruction-loader.ts` so this directory stays a pure rendering layer.
 
-Trust decreases top→bottom. `core_policy` states that everything below
-(`bot_profile`, `context_data`) is configuration/data and never authority:
+Trust decreases top→bottom. `core_policy` states that Bot profile and memory are
+configuration/data rather than capability authority:
 capabilities, approval, mode and safety are enforced in code
 (`activeTools` / `toolApproval` / tool implementations), **not** by this text.
 
@@ -53,11 +54,10 @@ append a raw `string` to the assembled prompt.
 - Admin config is data. `bot_profile` renders only structured fields; every
   admin/user string is XML-escaped (`xml.ts`). Escaping stops tag breakout, not
   semantic injection — the hard guarantee is the code policy layer above.
-- `context_data` blocks (summary / todo / active plan) arrive as a discriminated
-  `InstructionContextBlock` union (by `kind`); the renderer — not the caller —
-  maps each `kind` to a fixed tag/attribute set and escapes every value, so
-  user/model-authored content cannot break out of the section. Callers never
-  choose tags/attrs or pass pre-rendered XML.
+- Conversation summaries, Todo snapshots, active-plan references, and document
+  references are projected into `messages`, not `instructions`. This keeps the
+  system prefix stable and preserves their historical/data semantics. Plan and
+  document bodies are read on demand with `read_file`.
 - `bot_profile` renders schema-bound `BotProfileSnapshot` fields only (name,
   role, domain, audience, tone) resolved per run from admin — there is no
   free-text path. The admin `system_prompt` column has been dropped; when a bot

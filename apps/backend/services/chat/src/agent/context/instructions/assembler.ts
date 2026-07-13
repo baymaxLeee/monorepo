@@ -1,5 +1,5 @@
 import { renderBotProfile } from "./bot-profile.js";
-import { renderContextData } from "./context-data.js";
+import { renderMemory } from "./context-data.js";
 import { CORE_POLICY } from "./core-policy.js";
 import { renderExecutionProtocol } from "./execution.js";
 import { renderRuntimeContract } from "./runtime.js";
@@ -27,12 +27,13 @@ export function assembleInstructions(
     renderExecutionProtocol(),
     xmlSection("capability_contract", contributions.capabilities ?? null),
     renderAvailableSkills(contributions.skills),
+    input.activatedSkill
+      ? xmlSection("activated_skill", escapeXmlText(input.activatedSkill.body), {
+          name: input.activatedSkill.name,
+        })
+      : null,
     renderBotProfile(input.botProfile),
-    renderContextData({
-      memories: input.memories,
-      documents: input.documents,
-      extraContext: input.extraContext,
-    }),
+    renderMemory(input.memories),
     renderEnvironment(input.now),
   ].filter((section): section is string => Boolean(section));
 

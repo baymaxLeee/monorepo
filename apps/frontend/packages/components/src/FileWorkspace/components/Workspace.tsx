@@ -313,7 +313,7 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
         >
           <span className="pointer-events-none absolute inset-y-0 -left-px w-0.5 bg-transparent transition-colors group-hover:bg-[#1677ff] group-active:bg-[#1677ff]" />
         </button>
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <EditorPanel
             tabs={tabs}
             activeFileId={activeFileId}
