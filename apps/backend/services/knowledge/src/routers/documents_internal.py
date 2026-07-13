@@ -235,12 +235,14 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
         raise RequestError("invalid base64 media payload") from exc
     if not raw:
         raise RequestError("empty media payload")
+    storage_document_id = document_id or document_crud.new_document_id()
     stored = ObjectStore().put_bytes(
         content=raw,
         filename=payload.filename,
         mime_type=payload.mime_type,
         user_id=payload.user_id,
         prefix=f"media/{payload.conversation_id or 'general'}",
+        unique_segment=storage_document_id,
         max_bytes=get_settings().media_max_object_bytes,
     )
     try:
@@ -266,7 +268,7 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
                 object_sha256=stored.sha256,
                 ingest_status="ready",
                 ingest_progress=100,
-                document_id=document_id,
+                document_id=document_id or storage_document_id,
             )
     except IntegrityError:
         # Lost an idempotency-key race: the begin block already rolled back, so

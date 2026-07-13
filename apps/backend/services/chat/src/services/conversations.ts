@@ -234,13 +234,14 @@ export async function getConversationDocumentSource(
   auth: AuthContext,
   conversationId: string,
   documentId: string,
+  options?: { maxDim?: number },
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
   const conversation = await getConversationRow(auth, conversationId);
   const doc = assertConversationDocument(
     await getDocument(conversation.userId, documentId),
     conversationId,
   );
-  return getDocumentSource(conversation.userId, doc.id);
+  return getDocumentSource(conversation.userId, doc.id, options);
 }
 
 export async function updateConversationDocument(

@@ -77,23 +77,25 @@ export function ChatMessageView({
   const variant = isUser ? "user" : "assistant";
 
   const openImagePreview = useChatStore((s) => s.openImagePreview);
-  const imageGroup = useMemo(
+  const imageRefs = useMemo(
     () =>
-      message.parts.flatMap((part) => {
+      message.parts.flatMap((part, partIndex) => {
         if (!isFileUIPart(part) || !part.mediaType.startsWith("image/")) {
           return [];
         }
         const documentId = documentIdFromFilePart(part);
-        return documentId ? [{ documentId, filename: part.filename }] : [];
+        return documentId
+          ? [{ documentId, filename: part.filename, partIndex }]
+          : [];
       }),
     [message.parts],
   );
   const onOpenImage = useCallback(
-    (documentId: string) => {
-      const idx = imageGroup.findIndex((ref) => ref.documentId === documentId);
-      openImagePreview(conversationId, imageGroup, Math.max(idx, 0));
+    (partIndex: number) => {
+      const idx = imageRefs.findIndex((ref) => ref.partIndex === partIndex);
+      openImagePreview(conversationId, imageRefs, Math.max(idx, 0));
     },
-    [conversationId, imageGroup, openImagePreview],
+    [conversationId, imageRefs, openImagePreview],
   );
 
   return (
@@ -119,6 +121,7 @@ export function ChatMessageView({
             <MessagePartView
               key={partKey(message.id, part, index)}
               part={part}
+              partIndex={index}
               conversationId={conversationId}
               streaming={streaming}
               variant={variant}
@@ -151,6 +154,7 @@ function partKey(
 
 function MessagePartView({
   part,
+  partIndex,
   conversationId,
   streaming,
   variant,
@@ -166,6 +170,7 @@ function MessagePartView({
   planBusy,
 }: {
   part: UIMessage["parts"][number];
+  partIndex: number;
   conversationId: string;
   streaming: boolean;
   variant: "user" | "assistant";
@@ -173,7 +178,7 @@ function MessagePartView({
   latestTodoCallId: string | null;
   deliverableCompletion: DeliverableCompletion;
   onOpenArtifact: (documentId: string) => void;
-  onOpenImage: (documentId: string) => void;
+  onOpenImage: (partIndex: number) => void;
   onAnswerClientTool: (
     toolName: string,
     toolCallId: string,
@@ -238,6 +243,8 @@ function MessagePartView({
     return (
       <ChatMessageFilePart
         part={part}
+        conversationId={conversationId}
+        partIndex={partIndex}
         variant={variant}
         onOpen={onOpenArtifact}
         onOpenImage={onOpenImage}

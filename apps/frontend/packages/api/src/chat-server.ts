@@ -194,16 +194,21 @@ export function fetchConversationDocument(
 export function conversationDocumentSourceUrl(
   conversationId: string,
   documentId: string,
+  options?: { maxDim?: number },
 ): string {
-  return `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/documents/${encodeURIComponent(documentId)}/source`;
+  const path = `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/documents/${encodeURIComponent(documentId)}/source`;
+  if (!options?.maxDim) return path;
+  const params = new URLSearchParams({ max_dim: String(options.maxDim) });
+  return `${path}?${params.toString()}`;
 }
 
 export async function fetchConversationDocumentSource(
   conversationId: string,
   documentId: string,
+  options?: { maxDim?: number },
 ): Promise<Blob> {
   const response = await authFetch(
-    conversationDocumentSourceUrl(conversationId, documentId),
+    conversationDocumentSourceUrl(conversationId, documentId, options),
   );
   if (!response.ok) {
     throw new Error(`document source failed: ${response.status}`);

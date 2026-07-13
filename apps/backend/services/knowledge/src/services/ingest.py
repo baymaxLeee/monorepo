@@ -14,6 +14,7 @@ from deps import AuthContext
 from kernel.errors import BaseError
 from models.document import DocumentRow
 from schemas.document import IngestFailure, IngestReceipt, IngestResult
+
 from services.convert import AttachmentTooLargeError
 from services.documents import document_to_schema
 from services.object_store import ObjectStore
@@ -77,6 +78,7 @@ async def ingest_documents(
                         mime_type=item.mime_type,
                         user_id=current_user.user_id,
                         prefix=prefix,
+                        unique_segment=row.id,
                     )
                     stored_bucket = stored.bucket
                     stored_key = stored.key

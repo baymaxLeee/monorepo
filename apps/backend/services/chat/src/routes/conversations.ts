@@ -64,10 +64,15 @@ conversationsRoutes.get("/:conversationId/documents/:documentId", async (c) => {
 
 conversationsRoutes.get("/:conversationId/documents/:documentId/source", async (c) => {
   const auth = getAuth(c);
+  const maxDimRaw = c.req.query("max_dim");
+  const parsedMaxDim = maxDimRaw ? Number.parseInt(maxDimRaw, 10) : Number.NaN;
+  const maxDim =
+    Number.isFinite(parsedMaxDim) && parsedMaxDim > 0 ? parsedMaxDim : undefined;
   const source = await getConversationDocumentSource(
     auth,
     c.req.param("conversationId"),
     c.req.param("documentId"),
+    maxDim ? { maxDim } : undefined,
   );
   const body = source.bytes.buffer.slice(
     source.bytes.byteOffset,

@@ -49,6 +49,7 @@ class ObjectStore:
         mime_type: str,
         user_id: str,
         prefix: str = "uploads",
+        unique_segment: str | None = None,
         max_bytes: int | None = None,
     ) -> StoredObject:
         limit = max_bytes if max_bytes is not None else self._settings.max_object_bytes
@@ -59,7 +60,7 @@ class ObjectStore:
             )
         bucket = self._settings.default_bucket
         safe_name = self._safe_filename_segment(filename)
-        key = self._safe_key(prefix, user_id, safe_name)
+        key = self._safe_key(prefix, user_id, safe_name, unique_segment=unique_segment)
         if not _SAFE_SEGMENT.match(bucket) or not self._valid_key(key):
             raise RequestError("invalid bucket or object key")
 
@@ -120,8 +121,17 @@ class ObjectStore:
         return f"{safe_stem}.{safe_ext}" if safe_ext else safe_stem
 
     @staticmethod
-    def _safe_key(prefix: str, user_id: str, filename: str) -> str:
-        parts = [p for p in [prefix.strip("/"), user_id, filename] if p]
+    def _safe_key(
+        prefix: str,
+        user_id: str,
+        filename: str,
+        *,
+        unique_segment: str | None = None,
+    ) -> str:
+        segment = unique_segment.strip() if unique_segment else ""
+        if segment and not _SAFE_SEGMENT.match(segment):
+            raise RequestError("invalid unique object key segment")
+        parts = [p for p in [prefix.strip("/"), user_id, segment, filename] if p]
         return "/".join(parts)
 
     @staticmethod

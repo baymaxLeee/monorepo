@@ -2,22 +2,44 @@ import { fetchConversationDocumentSource } from "api";
 import { useEffect, useState } from "react";
 
 const MAX_CACHED_DOCUMENTS = 8;
+
+export type DocumentSourceOptions = {
+  version?: string;
+  maxDim?: number;
+};
+
 const sourceCache = new Map<string, Promise<Blob>>();
 
 function docPrefix(conversationId: string, documentId: string) {
   return `${conversationId}:${documentId}:`;
 }
 
-function cacheKey(conversationId: string, documentId: string, version: string) {
-  return `${docPrefix(conversationId, documentId)}${version}`;
+function normalizeSourceOptions(
+  versionOrOptions?: string | DocumentSourceOptions,
+): DocumentSourceOptions {
+  if (typeof versionOrOptions === "string") {
+    return { version: versionOrOptions };
+  }
+  return versionOrOptions ?? {};
+}
+
+function cacheKey(
+  conversationId: string,
+  documentId: string,
+  version: string,
+  maxDim?: number,
+) {
+  const variant = maxDim ? `thumb-${maxDim}` : "full";
+  return `${docPrefix(conversationId, documentId)}${variant}:${version}`;
 }
 
 export function fetchCachedDocumentSource(
   conversationId: string,
   documentId: string,
-  version = "",
+  versionOrOptions?: string | DocumentSourceOptions,
 ): Promise<Blob> {
-  const key = cacheKey(conversationId, documentId, version);
+  const { version = "", maxDim } = normalizeSourceOptions(versionOrOptions);
+  const key = cacheKey(conversationId, documentId, version, maxDim);
   const cached = sourceCache.get(key);
   if (cached) {
     sourceCache.delete(key);
@@ -25,18 +47,15 @@ export function fetchCachedDocumentSource(
     return cached;
   }
 
-  // Artifacts are edited in place (same id, bumped updated_at), so a stale entry
-  // for an earlier version would otherwise be served forever. Drop every prior
-  // version of this document before fetching the new one.
-  const prefix = docPrefix(conversationId, documentId);
+  const variant = maxDim ? `thumb-${maxDim}` : "full";
+  const variantPrefix = `${docPrefix(conversationId, documentId)}${variant}:`;
   for (const existing of sourceCache.keys()) {
-    if (existing.startsWith(prefix)) sourceCache.delete(existing);
+    if (existing.startsWith(variantPrefix)) sourceCache.delete(existing);
   }
 
-  const request = fetchConversationDocumentSource(
-    conversationId,
-    documentId,
-  ).catch((error) => {
+  const request = fetchConversationDocumentSource(conversationId, documentId, {
+    maxDim,
+  }).catch((error) => {
     sourceCache.delete(key);
     throw error;
   });
@@ -52,8 +71,9 @@ export function useDocumentBlobUrl(
   conversationId: string | undefined,
   documentId: string | null,
   enabled: boolean,
-  version = "",
+  versionOrOptions?: string | DocumentSourceOptions,
 ) {
+  const { version = "", maxDim } = normalizeSourceOptions(versionOrOptions);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -69,7 +89,10 @@ export function useDocumentBlobUrl(
     let objectUrl: string | null = null;
     setLoading(true);
     setError(null);
-    void fetchCachedDocumentSource(conversationId, documentId, version)
+    void fetchCachedDocumentSource(conversationId, documentId, {
+      version,
+      maxDim,
+    })
       .then((blob) => {
         if (!active) return;
         objectUrl = URL.createObjectURL(blob);
@@ -85,7 +108,7 @@ export function useDocumentBlobUrl(
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [conversationId, documentId, enabled, version]);
+  }, [conversationId, documentId, enabled, maxDim, version]);
 
   return { blobUrl, loading, error };
 }
@@ -118,7 +141,9 @@ export function useDocumentBlobUrls(
           const blob = await fetchCachedDocumentSource(
             conversationId,
             documentId,
-            version,
+            {
+              version,
+            },
           );
           if (!active) return;
           const url = URL.createObjectURL(blob);
