@@ -3,7 +3,7 @@ import { fetchConversationDocument, updateConversationDocument } from "api";
 import { Button } from "components";
 import { ArtifactPreview } from "components/ai-chat";
 import { MarkdownEditor } from "components/markdown-editor";
-import { XIcon } from "lucide-react";
+import { Maximize2Icon, Minimize2Icon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -60,6 +60,8 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftRef = useRef("");
   const savedContentRef = useRef<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const binarySource = needsBinarySource(artifact?.mime_type);
   const editable = isEditableMarkdown(artifact);
   const {
@@ -154,6 +156,44 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
     sourceLoading ||
     Boolean(artifact && binarySource && blobLoading);
   const previewFailed = sourceError || Boolean(blobError);
+  const isHtmlPreview = artifact?.mime_type === "text/html";
+
+  useEffect(() => {
+    const sync = () => {
+      const root = panelRef.current;
+      if (!root) {
+        setIsFullscreen(false);
+        return;
+      }
+      const el = document.fullscreenElement;
+      setIsFullscreen(Boolean(el && (el === root || root.contains(el))));
+    };
+    sync();
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+
+  useEffect(() => {
+    if (open && isHtmlPreview) return;
+    const el = document.fullscreenElement;
+    if (el && panelRef.current?.contains(el)) {
+      void document.exitFullscreen();
+    }
+  }, [isHtmlPreview, open]);
+
+  const toggleFullscreen = useCallback(async () => {
+    const root = panelRef.current;
+    if (!root) return;
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await root.requestFullscreen();
+      }
+    } catch {
+      // Fullscreen API may reject without a user gesture or in unsupported contexts.
+    }
+  }, []);
 
   const runSave = useCallback(
     async (cid: string, did: string, content: string) => {
@@ -215,7 +255,10 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
   }, [conversationId, documentId, token, runSave]);
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
+    <div
+      ref={panelRef}
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background"
+    >
       <div className="flex h-11 shrink-0 items-center gap-2 px-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">
@@ -239,6 +282,22 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
                 ? "已保存"
                 : "保存失败"}
           </span>
+        ) : null}
+        {isHtmlPreview && !previewLoading && !previewFailed ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0"
+            aria-label={isFullscreen ? "退出全屏" : "全屏"}
+            onClick={() => void toggleFullscreen()}
+          >
+            {isFullscreen ? (
+              <Minimize2Icon className="size-4" />
+            ) : (
+              <Maximize2Icon className="size-4" />
+            )}
+          </Button>
         ) : null}
         <Button
           type="button"
