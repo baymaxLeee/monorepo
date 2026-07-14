@@ -78,6 +78,14 @@ surface small.
 10. Backend AI SDK dependencies are declared once in the pnpm workspace catalog
     and consumed by chat, executor, and transport-ts. Compatible major ranges
     replace service-specific resolutions and the physical-copy override.
+11. `ask_user` batches every currently known independent clarification into one
+    native `tool-ask_user` part. Its input is `questions[]`, each question has a
+    stable semantic `id`, and its client-produced output is structured as
+    `{ answers: [{ id, values[] }] }`. The browser submits one `addToolOutput`
+    only after every question has an answer. Questions whose content depends on
+    an earlier response remain separate client-tool continuations. The previous
+    singular-question/plain-string contract is removed rather than retained as
+    a compatibility branch.
 
 ## Consequences
 
@@ -85,6 +93,9 @@ surface small.
   phase are not rewritten and no alias tools are retained.
 - Plan quality does not depend on exposing inert execution schemas. Provider
   availability and prerequisites appear in the generated capability projection.
+- Skills can collect independent required fields in one pause and reliably
+  recognize answered fields by ID on continuation, avoiding prompt-only
+  step counters and repeated first questions.
 - Tool policy can evolve independently along effect, trust, execution, and
   source dimensions instead of overloading a `sideEffecting` group.
 - Frontend and observability consume stable metadata and typed outputs instead

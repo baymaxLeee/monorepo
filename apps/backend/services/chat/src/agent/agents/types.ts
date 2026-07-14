@@ -28,6 +28,8 @@ export interface ChatAgentInput {
   modelMessages: ModelMessage[];
   attachedImageDocumentIds?: string[];
   instructionInput: InstructionInput;
+  /** Skill already active in the logical turn, including client-tool continuations. */
+  activeSkillName?: string | null;
   /** Bot-bound skills advertised to the model (L1). Empty when no bot / no skills. */
   botSkills?: AgentSkillRef[];
   /** Pulls a skill's full body by id, for the shared `load_skill` tool. */

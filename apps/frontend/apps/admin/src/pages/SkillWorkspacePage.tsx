@@ -101,6 +101,19 @@ export function SkillWorkspacePage() {
     return () => window.removeEventListener("beforeunload", guard);
   }, [dirty]);
 
+  const handleLoadContent = useCallback(
+    async (nodeId: string) => {
+      const file = await fetchSkillFile(id, nodeId);
+      etagsRef.current.set(nodeId, file.etag);
+      return file.content;
+    },
+    [id],
+  );
+
+  const handleWorkspaceChange = useCallback(() => {
+    setDirty(true);
+  }, []);
+
   async function save(options?: { silent?: boolean }): Promise<number> {
     const changes = workspaceRef.current?.getChanges() ?? [];
     if (!changes.length) return workspaceSeq;
@@ -252,12 +265,8 @@ export function SkillWorkspacePage() {
             ref={workspaceRef}
             value={tree}
             defaultSelectedFileId={skillMdId}
-            onLoadContent={async (nodeId) => {
-              const file = await fetchSkillFile(id, nodeId);
-              etagsRef.current.set(nodeId, file.etag);
-              return file.content;
-            }}
-            onChange={() => setDirty(true)}
+            onLoadContent={handleLoadContent}
+            onChange={handleWorkspaceChange}
             height="100%"
             codeEditorProps={{
               onSave: () =>

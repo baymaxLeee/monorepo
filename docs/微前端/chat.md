@@ -15,7 +15,8 @@
 - 会话路由按 conversation id 隔离 `useChat` 实例；切出会话时只 abort 旧实例的
   subscriber，防止多个 running 会话占满浏览器连接池，切回后再从 Redis 回放。
 - `ask_user` 等 client tool 通过 `addToolOutput` 回填；所有 client tool 完成后由
-  `lastAssistantMessageIsCompleteWithToolCalls` 自动发起下一次 run。
+  `lastAssistantMessageIsCompleteWithToolCalls` 自动发起下一次 run。一个 `ask_user`
+  卡片可展示多个带稳定 ID 的问题，全部回答后只提交一次结构化 tool output。
 - POST 与恢复 GET 都返回 `x-agent-run-id`，用于 Stop 和执行轨迹查询；stream 内容
   仍完全遵循 AI SDK UIMessage 协议。
 - plan 作为 `tool-write_plan` / `tool-update_plan` part 随消息持久化；后续 run 从

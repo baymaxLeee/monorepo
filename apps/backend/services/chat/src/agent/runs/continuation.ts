@@ -6,6 +6,11 @@ import { RequestError } from "../../lib/errors.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
+export interface ContinuedSkillInstruction {
+  name: string;
+  body: string;
+}
+
 const CLIENT_RESPONSE_STATES = new Set([
   "output-available",
   "output-error",
@@ -80,4 +85,46 @@ export function mergeClientContinuation(persisted: AnyUIMessage, client: AnyUIMe
   });
 
   return { ...persisted, parts: mergedParts };
+}
+
+export function continuedSkillInstruction(
+  message: AnyUIMessage,
+): ContinuedSkillInstruction | null {
+  let loaded: ContinuedSkillInstruction | null = null;
+  for (const part of message.parts) {
+    if (part.type !== "tool-load_skill" || toolState(part) !== "output-available") continue;
+    const output = "output" in part ? part.output : null;
+    if (!output || typeof output !== "object") continue;
+    const name = "name" in output && typeof output.name === "string" ? output.name : "";
+    const body =
+      "instructions" in output && typeof output.instructions === "string"
+        ? output.instructions
+        : "";
+    if (!name || !body) continue;
+    if (loaded && loaded.name !== name) {
+      throw new RequestError("client continuation contains multiple loaded skills");
+    }
+    loaded ??= { name, body };
+  }
+  return loaded;
+}
+
+export function compactHistoricalSkillOutputs(message: AnyUIMessage): AnyUIMessage {
+  return {
+    ...message,
+    parts: message.parts.map((part) => {
+      if (part.type !== "tool-load_skill" || toolState(part) !== "output-available") {
+        return part;
+      }
+      const output = "output" in part ? part.output : null;
+      if (!output || typeof output !== "object" || !("instructions" in output)) return part;
+      return {
+        ...part,
+        output: {
+          ...output,
+          instructions: "[omitted from historical model projection]",
+        },
+      } as typeof part;
+    }),
+  };
 }

@@ -1,6 +1,6 @@
 import { getToolName, isFileUIPart, isToolUIPart, type UIMessage } from "ai";
 import type { ConversationDocument } from "api";
-import { Badge, Button, Checkbox, Input } from "components";
+import { Badge, Button } from "components";
 import {
   Message as AiMessage,
   MessageContent,
@@ -16,10 +16,13 @@ import {
   withoutReasoningParts,
 } from "components/ai-chat";
 import { SparklesIcon } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { cn, isPublicHttpUrl } from "shared";
+import { parseAskUserInput } from "../lib/ask-user";
 import { documentIdFromFilePart } from "../lib/file-parts";
 import { useChatStore } from "../store/useChatStore";
+import { AskUserAnsweredCard } from "./AskUserAnsweredCard";
+import { AskUserToolCard } from "./AskUserToolCard";
 import {
   ArtifactDocumentCard,
   ArtifactTaskCard,
@@ -446,12 +449,10 @@ function ToolPartView({
             }
           />
         ) : null}
-        {kind === "ask-user" && part.state === "output-available" ? (
-          <AskUserAnsweredCard
-            question={askUserInput?.question}
-            input={askUserInput}
-            output={output}
-          />
+        {kind === "ask-user" &&
+        part.state === "output-available" &&
+        askUserInput ? (
+          <AskUserAnsweredCard input={askUserInput} output={output} />
         ) : null}
         {hasError ? (
           <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">
@@ -520,224 +521,5 @@ function compactRawInput(rawInput: unknown) {
   return rawInput.replace(
     /"content"\s*:\s*"[\s\S]*/m,
     `"content":"[redacted malformed artifact content: ${contentMatch[1].length} chars]"`,
-  );
-}
-
-type AskUserInput = {
-  question: string;
-  choices: Array<{ label: string; value: string }>;
-  mode: "single" | "multiple";
-  allowFreeform: boolean;
-  freeformLabel: string;
-};
-
-function parseAskUserInput(input: unknown): AskUserInput | null {
-  if (!input || typeof input !== "object") return null;
-  const raw = input as {
-    question?: unknown;
-    choices?: unknown;
-    mode?: unknown;
-    allow_freeform?: unknown;
-    freeform_label?: unknown;
-  };
-  if (typeof raw.question !== "string" || !raw.question.trim()) return null;
-  const choices = Array.isArray(raw.choices)
-    ? raw.choices
-        .map((item) => {
-          if (!item || typeof item !== "object") return null;
-          const choice = item as { label?: unknown; value?: unknown };
-          if (
-            typeof choice.label !== "string" ||
-            typeof choice.value !== "string"
-          ) {
-            return null;
-          }
-          return { label: choice.label, value: choice.value };
-        })
-        .filter(
-          (item): item is { label: string; value: string } => item != null,
-        )
-    : [];
-  return {
-    question: raw.question,
-    choices,
-    mode: raw.mode === "multiple" ? "multiple" : "single",
-    allowFreeform: raw.allow_freeform !== false,
-    freeformLabel:
-      typeof raw.freeform_label === "string" && raw.freeform_label.trim()
-        ? raw.freeform_label.trim()
-        : "其他",
-  };
-}
-
-function parseAskUserAnswer(output: unknown): string {
-  // ask_user now returns the answer as plain text (multiple selections are
-  // joined on submit). The object branch only tolerates conversations
-  // persisted before that change.
-  if (typeof output === "string") return output.trim();
-  if (!output || typeof output !== "object") return "";
-  const raw = output as {
-    answer?: unknown;
-    label?: unknown;
-    answers?: unknown;
-    labels?: unknown;
-    other?: unknown;
-  };
-  if (Array.isArray(raw.labels) || Array.isArray(raw.answers)) {
-    const source = Array.isArray(raw.labels) ? raw.labels : raw.answers;
-    const values = (source as unknown[]).filter(
-      (item): item is string => typeof item === "string" && item.trim() !== "",
-    );
-    if (typeof raw.other === "string" && raw.other.trim()) {
-      values.push(raw.other.trim());
-    }
-    return values.join("、");
-  }
-  if (raw.other !== true && typeof raw.label === "string" && raw.label.trim()) {
-    return raw.label.trim();
-  }
-  if (typeof raw.answer === "string" && raw.answer.trim()) {
-    return raw.answer.trim();
-  }
-  return typeof raw.label === "string" ? raw.label.trim() : "";
-}
-
-function answerToLabels(answer: string, input: AskUserInput | null): string {
-  if (!input || input.choices.length === 0) return answer;
-  const valueToLabel = new Map(
-    input.choices.map((choice) => [choice.value, choice.label] as const),
-  );
-  return answer
-    .split("、")
-    .map((token) => valueToLabel.get(token.trim()) ?? token)
-    .join("、");
-}
-
-function AskUserAnsweredCard({
-  question,
-  input,
-  output,
-}: {
-  question?: string;
-  input: AskUserInput | null;
-  output: unknown;
-}) {
-  const answer = answerToLabels(parseAskUserAnswer(output), input);
-  if (!answer) return <ToolJsonBlock value={output} />;
-  return (
-    <div className="space-y-1.5 rounded-md border bg-muted/30 p-3">
-      {question ? (
-        <div className="text-xs text-muted-foreground">{question}</div>
-      ) : null}
-      <div className="whitespace-pre-wrap break-words text-sm">{answer}</div>
-    </div>
-  );
-}
-
-function AskUserToolCard({
-  input,
-  onSubmit,
-}: {
-  input: AskUserInput;
-  onSubmit: (answer: string) => void;
-}) {
-  const [selected, setSelected] = useState<string[]>([]);
-  const [other, setOther] = useState("");
-  const trimmedOther = other.trim();
-  const canSubmit =
-    input.mode === "multiple"
-      ? selected.length > 0 || Boolean(trimmedOther)
-      : Boolean(trimmedOther);
-
-  function submitMultiple() {
-    const values = input.choices
-      .filter((choice) => selected.includes(choice.value))
-      .map((choice) => choice.value);
-    if (trimmedOther) values.push(trimmedOther);
-    onSubmit(values.join("、"));
-  }
-
-  function submitOther() {
-    if (!trimmedOther) return;
-    onSubmit(trimmedOther);
-    setOther("");
-  }
-
-  return (
-    <div className="space-y-3 rounded-md border bg-muted/30 p-3">
-      <div className="text-sm font-medium leading-relaxed">
-        {input.question}
-      </div>
-      {input.choices.length > 0 ? (
-        input.mode === "multiple" ? (
-          <div className="space-y-2">
-            {input.choices.map((choice) => {
-              const checked = selected.includes(choice.value);
-              return (
-                <button
-                  key={choice.value}
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-md border bg-background px-3 py-2 text-left text-sm"
-                  onClick={() => {
-                    setSelected((current) =>
-                      checked
-                        ? current.filter((item) => item !== choice.value)
-                        : [...current, choice.value],
-                    );
-                  }}
-                >
-                  <Checkbox
-                    checked={checked}
-                    aria-label={choice.label}
-                    tabIndex={-1}
-                  />
-                  <span>{choice.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {input.choices.map((choice) => (
-              <Button
-                key={choice.value}
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => onSubmit(choice.value)}
-              >
-                {choice.label}
-              </Button>
-            ))}
-          </div>
-        )
-      ) : null}
-      {input.allowFreeform ? (
-        <div className="flex gap-2">
-          <Input
-            value={other}
-            onChange={(event) => setOther(event.target.value)}
-            placeholder={input.freeformLabel}
-          />
-          <Button
-            type="button"
-            variant={input.mode === "multiple" ? "outline" : "default"}
-            disabled={!canSubmit}
-            onClick={input.mode === "multiple" ? submitMultiple : submitOther}
-          >
-            提交
-          </Button>
-        </div>
-      ) : input.mode === "multiple" ? (
-        <Button
-          type="button"
-          size="sm"
-          disabled={!canSubmit}
-          onClick={submitMultiple}
-        >
-          提交
-        </Button>
-      ) : null}
-    </div>
   );
 }

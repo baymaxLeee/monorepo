@@ -18,7 +18,9 @@ export function Conversation({ className, ...props }: ConversationProps) {
   return (
     <StickToBottom
       className={cn(
-        "relative min-h-0 flex-1 overflow-y-auto overscroll-contain",
+        // StickToBottom.Content owns the scrollport; overflow-y-auto here
+        // nests a second scroller and can trap wheel mid-thread (AI Elements #133).
+        "relative min-h-0 flex-1 overflow-y-hidden",
         className,
       )}
       initial="smooth"
@@ -35,11 +37,13 @@ export type ConversationContentProps = ComponentProps<
 
 export function ConversationContent({
   className,
+  scrollClassName,
   ...props
 }: ConversationContentProps) {
   return (
     <StickToBottom.Content
       className={cn("flex flex-col gap-4 p-4", className)}
+      scrollClassName={cn("overscroll-contain", scrollClassName)}
       {...props}
     />
   );

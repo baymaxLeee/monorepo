@@ -22,7 +22,9 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   不影响继续写 Redis Stream 的 run producer。
 - 该能力不恢复 ToolLoopAgent 的进程栈：服务进程丢失后仍依靠已持久化消息、plan
   snapshot 和 artifact 状态创建新 run。
-- `ask_user` 没有服务端 execute；客户端 `addToolOutput` 后发起下一次 run。
+- `ask_user` 没有服务端 execute；一次调用以稳定语义 ID 批量携带当前所有独立问题，
+  客户端一次性回填结构化 `answers` 后由 `addToolOutput` 发起下一次 run；依赖前序答案的
+  问题才使用后续 continuation。
 - assistant UIMessage 在 stream end（包括 abort 的部分输出）持久化；run trace 写入
   失败不能影响用户流。
 - 主动 Stop 会在落库前把所有未终态/preliminary tool part 收口为官方

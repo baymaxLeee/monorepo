@@ -139,11 +139,15 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
       }
     }, [onLoadContent]);
 
+    const handleSelectFileRef = useRef(handleSelectFile);
+    handleSelectFileRef.current = handleSelectFile;
+
+    // Initial open only — do not re-run when handleSelectFile identity changes.
     useEffect(() => {
       if (defaultSelectedFileId) {
-        handleSelectFile(defaultSelectedFileId);
+        void handleSelectFileRef.current(defaultSelectedFileId);
       }
-    }, [defaultSelectedFileId, fileTreeKey, handleSelectFile]);
+    }, [defaultSelectedFileId, fileTreeKey]);
 
     const handleTabClose = useCallback(
       (id: string) => {

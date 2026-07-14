@@ -55,7 +55,12 @@ import { projectModelContext } from "../context/projector.js";
 import { loadInstructionContext } from "../context/instruction-loader.js";
 import type { BotProfileSnapshot } from "../context/instructions/index.js";
 import { acquireRunLease, registerRunController, releaseRun } from "./lease.js";
-import { mergeClientContinuation } from "./continuation.js";
+import {
+  compactHistoricalSkillOutputs,
+  continuedSkillInstruction,
+  mergeClientContinuation,
+  type ContinuedSkillInstruction,
+} from "./continuation.js";
 import {
   activateAgentStream,
   consumeAgentSseStream,
@@ -247,6 +252,7 @@ export async function createAgentRunResponse(
       firstUserText.length > 0;
 
     let modelUiMessages: AnyUIMessage[];
+    let continuedSkill: ContinuedSkillInstruction | null = null;
     if (latestMessage.role === "user") {
       const storedMessageId = persistedMessageId(latestMessage.id);
       const alreadyPersisted = persistedMessages.some((message) => message.id === storedMessageId);
@@ -268,10 +274,9 @@ export async function createAgentRunResponse(
       if (continuationIndex < 0) {
         throw new RequestError("client tool continuation message was not found");
       }
-      const mergedMessage = mergeClientContinuation(
-        historyMessages[continuationIndex]!,
-        latestMessage,
-      );
+      const persistedContinuation = historyMessages[continuationIndex]!;
+      continuedSkill = continuedSkillInstruction(persistedContinuation);
+      const mergedMessage = mergeClientContinuation(persistedContinuation, latestMessage);
       await updateMessageContent({
         id: mergedMessage.id,
         conversationId: conversation.id,
@@ -287,6 +292,7 @@ export async function createAgentRunResponse(
     const memorySourceText = memorySourceUser ? textFromUiMessage(memorySourceUser) : "";
 
     const runSignal = registerRunController(runId);
+    const projectionUiMessages = modelUiMessages.map(compactHistoricalSkillOutputs);
     const projected = await projectModelContext({
       runId,
       conversationId: conversation.id,
@@ -295,26 +301,23 @@ export async function createAgentRunResponse(
       activePlanDocumentId: conversation.activePlanDocumentId,
       provider,
       abortSignal: runSignal,
-      messages: await validateUIMessages<AnyUIMessage>({ messages: modelUiMessages }),
+      messages: await validateUIMessages<AnyUIMessage>({ messages: projectionUiMessages }),
     });
     const modelMessages = projected.messages;
     contextUsage = projected.compactionUsage;
 
     const botSkills = input.botSkills ?? [];
 
-    // Explicit `/` skill activation: inject the picked skill's full body into
-    // this turn so it is consumed deterministically, independent of whether the
-    // model also chooses to call load_skill. The activation rides the latest
-    // user message as a `data-skill-activation` part (persisted, so reload and
-    // tool continuation keep it); older turns' parts are dropped from model
-    // context by the projector, so the body is only ever injected for the turn
-    // that message triggers. The user explicitly asked for this skill, so any
-    // failure here fails the run with a visible error rather than silently
-    // degrading to a plain chat.
-    const activatedSkillName = latestUser
-      ? activatedSkillNameFromParts(latestUser.parts)
-      : null;
-    if (activatedSkillName) {
+    // The active Skill body is authoritative instruction state for one logical
+    // turn. A client-tool continuation restores the server-persisted body;
+    // explicit `/` activation resolves it from admin.
+    const activatedSkillName = latestUser ? activatedSkillNameFromParts(latestUser.parts) : null;
+    if (continuedSkill) {
+      instructionInput.activatedSkill = {
+        name: continuedSkill.name,
+        body: continuedSkill.body,
+      };
+    } else if (activatedSkillName) {
       const picked = botSkills.find((skill) => skill.name === activatedSkillName);
       if (!picked) {
         throw new RequestError(`skill "${activatedSkillName}" is not available for this agent`);
@@ -345,6 +348,7 @@ export async function createAgentRunResponse(
         ? attachedImageDocumentIdsFromParts(latestUser.parts)
         : [],
       instructionInput,
+      activeSkillName: instructionInput.activatedSkill?.name ?? null,
       botSkills,
       loadSkillBody: async (skillId: string) => {
         const skill = await getSkillBody(skillId, auth.orgId);

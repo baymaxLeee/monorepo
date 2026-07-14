@@ -4,7 +4,14 @@ import { z } from "zod";
 import type { AgentMode } from "../../agents/types.js";
 import { defineAgentTool } from "../manifest.js";
 
-const askUserInputSchema = z.object({
+const askUserQuestionSchema = z.object({
+  id: z
+    .string()
+    .min(1)
+    .max(80)
+    .describe(
+      "Stable semantic identifier for this missing detail, reused by Skills when checking prior answers.",
+    ),
   question: z
     .string()
     .min(1)
@@ -62,11 +69,38 @@ const askUserInputSchema = z.object({
   }
 });
 
-// The interactive UI (single / multiple / freeform) lives entirely on the
-// client; what the model and history need is only the user's answer as plain
-// text. Multiple selections are joined into one string on submit, so the
-// persisted output stays a single request→response string regardless of mode.
-const askUserOutputSchema = z.string();
+const askUserInputSchema = z.object({
+  questions: z
+    .array(askUserQuestionSchema)
+    .min(1)
+    .max(5)
+    .describe(
+      "All currently known independent missing details. Ask them together instead of pausing once per question.",
+    ),
+}).superRefine((input, ctx) => {
+  const ids = new Set<string>();
+  for (const [index, question] of input.questions.entries()) {
+    if (ids.has(question.id)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "question ids must be unique",
+        path: ["questions", index, "id"],
+      });
+    }
+    ids.add(question.id);
+  }
+});
+
+const askUserOutputSchema = z.object({
+  answers: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(80),
+        values: z.array(z.string().min(1).max(160)).min(1),
+      }),
+    )
+    .min(1),
+});
 
 export function createInteractionToolManifests(mode: AgentMode) {
   return [
@@ -75,8 +109,8 @@ export function createInteractionToolManifests(mode: AgentMode) {
       tool({
         description:
           mode === "plan"
-            ? "Pause and ask the user for a missing detail that would materially change the plan. Use this instead of guessing when scope, target, source material, constraints, or success criteria are ambiguous."
-            : "Pause and ask the user for a missing detail that would materially change the answer or deliverable. Use this before committing to an uncertain artifact, search, private-context lookup, irreversible action, or high-impact assumption.",
+            ? "Pause and ask the user for missing details that would materially change the plan. Put all currently known independent questions in one call, give each a stable semantic id, and never ask an id already answered in this turn."
+            : "Pause and ask the user for missing details that would materially change the answer or deliverable. Put all currently known independent questions in one call, give each a stable semantic id, and never ask an id already answered in this turn.",
         inputSchema: askUserInputSchema,
         outputSchema: askUserOutputSchema,
       }),
@@ -88,7 +122,7 @@ export function createInteractionToolManifests(mode: AgentMode) {
         modes: ["normal", "plan"],
         uiKind: "ask-user",
       },
-      { summary: "Pause and ask the user for a material clarification instead of guessing." },
+      { summary: "Pause once to collect one or more material clarifications instead of guessing." },
     ),
   ];
 }

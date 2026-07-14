@@ -52,7 +52,7 @@ export function assembleInstructions(
 function renderAvailableSkills(skills: SkillListing[] | null | undefined): string | null {
   if (!skills || skills.length === 0) return null;
   const body = [
-    "Load a skill before substantive work when the user's request clearly matches its description. Do not load skills for unrelated requests.",
+    "Load one skill before substantive work when the user's request clearly matches its description. At most one Skill may be loaded in the current logical turn. A Skill loaded in an earlier logical turn is not active now; load it again before reading its files when the current request clearly needs it. The load_skill call must be the only tool call in that step: observe the loaded instructions before deciding any clarification or workflow action. Do not load skills for unrelated requests.",
     ...skills.map((skill) => `- ${escapeXmlText(skill.name)}: ${escapeXmlText(skill.description)}`),
   ].join("\n");
   return xmlSection("available_skills", body);

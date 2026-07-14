@@ -26,6 +26,9 @@ Three requirements drove this change:
    `useChat` UIMessage stream. It should collapse into the one AI SDK stream.
 3. md / html / image / video deliverables must run concurrently, not block each
    other.
+4. An automatically matched Skill may define required inputs that are absent
+   from its L1 listing. Downstream calls therefore cannot be chosen until the
+   `load_skill` result has been observed.
 
 Verified constraints (against `ai@7.0.15`):
 
@@ -57,6 +60,24 @@ Verified constraints (against `ai@7.0.15`):
   for substantial multi-item execution, skipped for Q&A / single deliverables /
   one-item lists (multi-page single artifacts still skip). Duration alone is
   not a reason — the deliverable tool card shows progress.
+- **Skill loading is a real data dependency, not independent work.**
+  `load_skill` is called alone in its step; clarification and workflow calls are
+  selected in the next model step after the full Skill instructions are
+  visible. Co-emitting them would finalize downstream inputs before the Skill
+  result exists, even if the UI happens to render the completed load first.
+  A successful load removes `load_skill` from subsequent steps in that
+  ToolLoopAgent execution; the tool also rejects parallel duplicate calls in the
+  same step. A client tool such as `ask_user` resumes through another HTTP
+  execution but extends the same assistant message and therefore the same
+  logical turn. The server restores that message's successful `load_skill`
+  output as `activated_skill`, keeps `load_skill` disabled, and leaves
+  `read_skill_file` available. The model-only projection replaces every
+  persisted `load_skill` output's full body with a short marker. This both avoids
+  sending the current Skill body twice and prevents an older turn's body from
+  acting as accidental session state; UI persistence remains lossless. A later
+  real user message starts a new logical turn and must load a matching Skill
+  again before reading its files. This scopes continuation state to one
+  assistant message rather than creating a conversation-wide Skill session.
 - **No run-scoped scheduler or concurrency lock.** On this SDK there is no
   public hook to see a step's full tool-call batch before execution, so a hard
   intra-step guarantee is impossible; an earlier writer-priority gate was

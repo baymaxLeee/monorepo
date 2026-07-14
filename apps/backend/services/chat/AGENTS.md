@@ -18,7 +18,9 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 - Replay is a transport concern only: never model it as ToolLoopAgent state or
   claim process-crash resume. Plans and messages remain durable business context.
 - `ask_user` is a client tool without `execute`. The browser supplies
-  `addToolOutput`; AI SDK automatically starts the next request.
+  `addToolOutput`; AI SDK automatically starts the next request. One call
+  batches all currently known independent questions with stable semantic IDs
+  and returns structured answers; dependent follow-ups use later continuations.
 - Trace persistence is observability and must never fail generation.
 - The UIMessage SSE stream is a cross-stack contract. Before adding any custom
   `data-*` part / streamed field, read

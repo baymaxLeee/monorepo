@@ -9,6 +9,7 @@ import type { AgentToolManifest } from "../../tools/types.js";
  *  loader keyed by skill id. */
 export interface AdminSkillSource {
   skills: { id: string; name: string; description: string }[];
+  activeSkillName?: string | null;
   loadBody: (skillId: string) => Promise<string>;
   loadFile?: (skillId: string, path: string) => Promise<string>;
 }
@@ -29,6 +30,8 @@ export function resolveSkills(
   const loaders = new Map<string, () => Promise<string>>();
   const fileLoaders = new Map<string, (path: string) => Promise<string>>();
   const listings = new Map<string, SkillListing>();
+  let loadedSkillName = adminSource?.activeSkillName ?? null;
+  let skillLoadPending = false;
 
   for (const skill of adminSource?.skills ?? []) {
     loaders.set(skill.name, () => adminSource!.loadBody(skill.id));
@@ -40,17 +43,28 @@ export function resolveSkills(
 
   if (loaders.size === 0) return { manifests: [], skills: [] };
 
+  const manifests: AgentToolManifest[] = [];
   const loadSkill = defineAgentTool(
     "load_skill",
     tool({
       description:
-        "Load the full instructions for one skill listed in <available_skills>. Call this before following a matching skill workflow.",
+        "Load the full instructions for one skill listed in <available_skills>. At most one skill may be loaded per logical turn. Call this as the only tool in the current step, observe its result, then follow the loaded instructions in the next step.",
       inputSchema: z.object({ name: z.string().min(1).max(64) }),
       outputSchema: loadSkillOutputSchema,
       execute: async ({ name }) => {
+        if (loadedSkillName || skillLoadPending) {
+          throw new Error(`a skill is already loaded in this logical turn: ${loadedSkillName ?? "pending"}`);
+        }
         const loader = loaders.get(name);
         if (!loader) throw new Error(`unknown skill: ${name}`);
-        return { name, instructions: await loader() };
+        skillLoadPending = true;
+        try {
+          const instructions = await loader();
+          loadedSkillName = name;
+          return { name, instructions };
+        } finally {
+          skillLoadPending = false;
+        }
       },
       toModelOutput: ({ output }) => ({
         type: "text",
@@ -67,14 +81,15 @@ export function resolveSkills(
     },
     {
       summary: "Load detailed instructions for a matching skill on demand.",
-      constraints: ["Load only skills advertised in <available_skills>."],
+      constraints: [
+        "Load only skills advertised in <available_skills>.",
+        "Load at most one skill per logical turn.",
+        "Call alone, then observe the instructions before choosing downstream actions.",
+      ],
       parallelizable: false,
     },
   );
-
-  if (fileLoaders.size === 0) {
-    return { manifests: [loadSkill], skills: [...listings.values()] };
-  }
+  if (!loadedSkillName) manifests.push(loadSkill);
 
   const readSkillFile = defineAgentTool(
     "read_skill_file",
@@ -87,6 +102,9 @@ export function resolveSkills(
       }),
       outputSchema: z.object({ name: z.string(), path: z.string(), content: z.string() }),
       execute: async ({ name, path }) => {
+        if (name !== loadedSkillName) {
+          throw new Error(`skill is not active in this logical turn: ${name}`);
+        }
         const loader = fileLoaders.get(name);
         if (!loader) throw new Error(`skill has no readable files: ${name}`);
         return { name, path, content: await loader(path) };
@@ -110,6 +128,10 @@ export function resolveSkills(
       parallelizable: true,
     },
   );
+  if (fileLoaders.size > 0) manifests.push(readSkillFile);
 
-  return { manifests: [loadSkill, readSkillFile], skills: [...listings.values()] };
+  return {
+    manifests,
+    skills: loadedSkillName ? [] : [...listings.values()],
+  };
 }

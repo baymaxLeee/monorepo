@@ -122,7 +122,12 @@ export async function createToolLoopAgent(
   const loadSkillFile = input.loadSkillFile;
   const skillSource =
     botSkills.length > 0 && loadSkillBody
-      ? { skills: botSkills, loadBody: loadSkillBody, loadFile: loadSkillFile }
+      ? {
+          skills: botSkills,
+          activeSkillName: input.activeSkillName,
+          loadBody: loadSkillBody,
+          loadFile: loadSkillFile,
+        }
       : null;
   const resolvedTools = await toolCatalog.resolve(
     {
@@ -177,6 +182,7 @@ export async function createToolLoopAgent(
     ArtifactVerificationDirective,
     { toolName: "html_validate" | "edit_file" }
   > | null = null;
+  const loadSkillActiveTools = resolvedTools.activeTools.filter((name) => name !== "load_skill");
   const agent = new ToolLoopAgent<never, typeof tools, AgentRuntimeContext>({
     id: "chat-agent",
     model: defaultModel,
@@ -192,6 +198,14 @@ export async function createToolLoopAgent(
     prepareCall: (settings) =>
       Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
     prepareStep: ({ runtimeContext: stepContext, steps, initialInstructions }) => {
+      const skillLoadedThisRun = steps.some((step) =>
+        step.content.some((part) =>
+          part.type === "tool-result" && part.toolName === "load_skill",
+        ),
+      );
+      const activeTools = skillLoadedThisRun
+        ? loadSkillActiveTools
+        : resolvedTools.activeTools;
       const artifactVerification = reduceArtifactVerificationSteps(
         stepContext.artifactVerification,
         steps,
@@ -205,7 +219,7 @@ export async function createToolLoopAgent(
       artifactGateDirective = directive?.toolName ? directive : null;
       const nextContext = { ...stepContext, artifactVerification };
       if (!directive) {
-        return { runtimeContext: nextContext, instructions: initialInstructions };
+        return { runtimeContext: nextContext, activeTools, instructions: initialInstructions };
       }
       if (!directive.toolName) {
         return {

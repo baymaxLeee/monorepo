@@ -13,7 +13,7 @@ layers** into one fixed-order XML document. There is no free-text prompt slot:
   <execution_protocol>...</execution_protocol>   <!-- execution.ts     — per-step context/skill/tool loop -->
   <capability_contract>...</capability_contract> <!-- assembler.ts     — from resolved tool manifests (plan mode only today) -->
   <available_skills>...</available_skills>       <!-- assembler.ts     — from structured SkillListing[] contributions -->
-  <activated_skill>...</activated_skill>         <!-- assembler.ts     — explicit per-turn Skill activation -->
+  <activated_skill>...</activated_skill>         <!-- assembler.ts     — active logical-turn Skill -->
   <bot_profile>...</bot_profile>                 <!-- bot-profile.ts   — configured identity, XML-escaped -->
   <user_memory_data>...</user_memory_data>       <!-- context-data.ts  — bounded, low-authority approved memory -->
   <environment>...</environment>                 <!-- assembler.ts     — server-owned date -->
@@ -29,6 +29,21 @@ Trust decreases top→bottom. `core_policy` states that Bot profile and memory a
 configuration/data rather than capability authority:
 capabilities, approval, mode and safety are enforced in code
 (`activeTools` / `toolApproval` / tool implementations), **not** by this text.
+Concrete tool routing and invocation policy belongs to tool schemas, Skills, or
+the mode-specific runtime contract; `core_policy` intentionally names no tools.
+Automatic Skill loading is a true data dependency: `load_skill` runs alone in
+its step, and clarification or workflow calls are chosen only after its output
+has been observed. A successful load removes `load_skill` from later steps in
+that ToolLoopAgent execution, and the tool implementation rejects same-step
+duplicate loads. A client-tool continuation starts another HTTP execution but
+extends the same assistant message and logical turn. Its persisted successful
+`load_skill` output is restored as `activated_skill`, `load_skill` stays disabled,
+and `read_skill_file` remains available. The model projection replaces every
+historical tool output's full body with a short marker, so only the current
+logical turn receives the body through `activated_skill`; persisted UI parts are
+unchanged. A later real user message starts a new logical turn and must load a
+matching Skill again before reading its files. Skills are not
+conversation-session state.
 
 ## The thin router (extension seam for skills / MCP)
 
