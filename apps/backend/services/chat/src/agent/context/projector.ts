@@ -292,19 +292,29 @@ export async function projectModelContext(input: {
       compactionCoveredThroughMessageId = older.at(-1)!.id;
       if (!compacted.complete) {
         logger.warn(
-          { err: compacted.error, conversationId: input.conversationId },
-          "context compaction fell back to deterministic truncation",
+          {
+            err: compacted.error,
+            conversationId: input.conversationId,
+            coveredMessageCount: compacted.coveredMessageCount,
+            pendingMessageCount: messagesToCompact.length - compacted.coveredMessageCount,
+          },
+          "context compaction used a run-local deterministic fallback",
         );
       }
-      await saveSnapshot({
-        conversationId: input.conversationId,
-        currentRevision: stored?.revision ?? null,
-        currentCreatedAt: stored?.createdAt ?? null,
-        coveredThroughMessageId: compactionCoveredThroughMessageId,
-        state: compactionState,
-      }).catch((error) => {
-        logger.warn({ err: error, conversationId: input.conversationId }, "context snapshot persistence skipped");
-      });
+      const successfullyCoveredMessage = compacted.coveredMessageCount > 0
+        ? messagesToCompact[compacted.coveredMessageCount - 1]
+        : null;
+      if (compacted.successfulState && successfullyCoveredMessage) {
+        await saveSnapshot({
+          conversationId: input.conversationId,
+          currentRevision: stored?.revision ?? null,
+          currentCreatedAt: stored?.createdAt ?? null,
+          coveredThroughMessageId: successfullyCoveredMessage.id,
+          state: compacted.successfulState,
+        }).catch((error) => {
+          logger.warn({ err: error, conversationId: input.conversationId }, "context snapshot persistence skipped");
+        });
+      }
     } else {
       compactionState = storedState;
       compactionCoveredThroughMessageId = stored?.coveredThroughMessageId ?? null;

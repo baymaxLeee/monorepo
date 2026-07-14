@@ -150,6 +150,8 @@ export async function compactConversationPrefix(input: {
   abortSignal: AbortSignal;
 }): Promise<{
   state: CompactionState;
+  successfulState: CompactionState | null;
+  coveredMessageCount: number;
   usage: UsageTokens;
   complete: boolean;
   error?: unknown;
@@ -162,6 +164,7 @@ export async function compactConversationPrefix(input: {
   let state = input.previous;
   let usage = EMPTY_USAGE;
   let batchCount = 0;
+  let cursor = 0;
   try {
     const model = wrapLanguageModel({
       model: createProviderModel(input.provider, { disableReasoning: true }),
@@ -179,7 +182,6 @@ export async function compactConversationPrefix(input: {
       512,
       input.provider.contextWindow - maxOutputTokens - COMPACTION_PROMPT_OVERHEAD_TOKENS,
     );
-    let cursor = 0;
     while (cursor < input.messages.length) {
       const rawPrevious = state ? escapePromptData(JSON.stringify(state)) : "(none)";
       const previousBudget = Math.max(BATCH_TOKEN_RESERVE, inputTokenBudget - BATCH_TOKEN_RESERVE);
@@ -214,11 +216,19 @@ export async function compactConversationPrefix(input: {
     if (!state) throw new Error("context compaction received no messages");
     finishSpan(span, {
       "agent.context_compaction.batch_count": batchCount,
+      "agent.context_compaction.covered_message_count": cursor,
+      "agent.context_compaction.complete": true,
       "gen_ai.usage.input_tokens": usage.inputTokens,
       "gen_ai.usage.output_tokens": usage.outputTokens,
       "gen_ai.usage.total_tokens": usage.totalTokens,
     });
-    return { state, usage, complete: true };
+    return {
+      state,
+      successfulState: state,
+      coveredMessageCount: cursor,
+      usage,
+      complete: true,
+    };
   } catch (error) {
     if (input.abortSignal.aborted || isAbortError(error)) {
       finishSpan(span, { "agent.context_compaction.batch_count": batchCount }, error);
@@ -245,10 +255,19 @@ export async function compactConversationPrefix(input: {
     };
     finishSpan(span, {
       "agent.context_compaction.batch_count": batchCount,
+      "agent.context_compaction.covered_message_count": cursor,
+      "agent.context_compaction.complete": false,
       "gen_ai.usage.input_tokens": usage.inputTokens,
       "gen_ai.usage.output_tokens": usage.outputTokens,
       "gen_ai.usage.total_tokens": usage.totalTokens,
     }, error);
-    return { state: fallbackState, usage, complete: false, error };
+    return {
+      state: fallbackState,
+      successfulState: state,
+      coveredMessageCount: cursor,
+      usage,
+      complete: false,
+      error,
+    };
   }
 }

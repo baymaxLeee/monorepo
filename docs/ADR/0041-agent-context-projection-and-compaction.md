@@ -50,10 +50,13 @@ messages; tool contracts belong in tools.
    context budget using a conservative multilingual token estimate. Its model
    usage, including successful batches before a later failure, is added to run
    usage and emitted on an `agent.context_compaction` span. Invalid output or
-   provider failure keeps the last successful state, or records deterministic
-   truncation when none exists, and advances coverage so the same prefix is not
-   retried every turn. Snapshot write conflicts are logged and skipped. Explicit
-   user cancellation still aborts the run.
+   provider failure uses the last successful state, or deterministic truncation
+   when none exists, only as a projection for the current run. Snapshot state and
+   `coveredThroughMessageId` advance only through batches with valid structured
+   output, so an unresolved suffix remains eligible for a later run. Retryable
+   provider failures use AI SDK's bounded exponential-backoff retries; explicit
+   user cancellation still aborts immediately. Snapshot write conflicts are
+   logged and skipped.
 
 5. **Todo state has one durable representation.** The latest successful
    `tool-update_todos` UIMessage part is canonical. If pruning removes its tool
@@ -76,6 +79,9 @@ messages; tool contracts belong in tools.
 - Recent conversations do not receive a duplicate summary or state block.
 - Long conversations incur an additional model call only when a prefix actually
   leaves the recent budget; later calls compact only the newly covered prefix.
+- A failed batch does not corrupt durable coverage. The current run continues
+  with bounded fallback context, while a later run retries only the unresolved
+  suffix after any successfully committed batches.
 - No API, stream part, database schema, or migration changes are required.
 - Existing version-1 context snapshots are intentionally rebuilt on demand.
 - Demo-phase policy applies: this refactor adds no test scaffolding. Chat scoped
@@ -87,3 +93,6 @@ messages; tool contracts belong in tools.
 - ADR-0024: Deliverable-tagged live Todos
 - ADR-0032: Code-governed prompt layering and structured Bot profile
 - `schemas/streaming/chat-uimessage-stream.md`
+- [OpenAI Codex compaction implementation](https://github.com/openai/codex/blob/main/codex-rs/core/src/compact.rs)
+- [Claude Code context windows and compaction](https://code.claude.com/docs/en/context-window)
+- [AI SDK message modification for longer agent loops](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling#message-modification-for-longer-agentic-loops)
