@@ -24,12 +24,14 @@ import {
   type CompactionState,
 } from "./compaction-state.js";
 import { documentIdFromFilePart } from "./file-parts.js";
+import { estimateTextTokens, truncateToTokenBudget } from "./token-estimate.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
 const COMPACTION_MAX_OUTPUT_TOKENS = 4_096;
 const COMPACTION_PROMPT_OVERHEAD_TOKENS = 1_000;
-const ESTIMATED_CHARS_PER_TOKEN = 3;
+const BATCH_TOKEN_RESERVE = 256;
+const FALLBACK_SUMMARY = "Some later historical messages were omitted because context compaction became unavailable.";
 
 const COMPACTION_INSTRUCTIONS = [
   "Compress an older conversation prefix into durable historical context for a later agent turn.",
@@ -77,23 +79,50 @@ function escapePromptData(value: string): string {
   return value.replaceAll("<", "\\u003c").replaceAll(">", "\\u003e");
 }
 
+function isAbortError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error.name === "AbortError") return true;
+  return "cause" in error && isAbortError(error.cause);
+}
+
+function renderPrompt(previous: string, batch: string): string {
+  return [
+    "<previous_compaction>",
+    previous,
+    "</previous_compaction>",
+    "<older_conversation_batch>",
+    batch,
+    "</older_conversation_batch>",
+  ].join("\n");
+}
+
 function takeMessageBatch(
   messages: AnyUIMessage[],
   start: number,
-  maxChars: number,
-): { batch: AnyUIMessage[]; next: number } {
+  previous: string,
+  inputTokenBudget: number,
+): { batch: AnyUIMessage[]; serialized: string; next: number } {
   const batch: AnyUIMessage[] = [];
-  let chars = 0;
+  let serialized = "";
   let next = start;
   while (next < messages.length) {
     const message = messages[next]!;
-    const size = serializeMessage(message).length;
-    if (batch.length > 0 && chars + size > maxChars) break;
+    const candidate = escapePromptData(serializeMessage(message));
+    const candidateBatch = serialized ? `${serialized}\n${candidate}` : candidate;
+    if (estimateTextTokens(renderPrompt(previous, candidateBatch)) > inputTokenBudget) {
+      if (batch.length > 0) break;
+      const emptyPromptTokens = estimateTextTokens(renderPrompt(previous, ""));
+      const availableTokens = Math.max(1, inputTokenBudget - emptyPromptTokens);
+      serialized = truncateToTokenBudget(candidate, availableTokens);
+      batch.push(message);
+      next += 1;
+      break;
+    }
     batch.push(message);
-    chars += size;
+    serialized = candidateBatch;
     next += 1;
   }
-  return { batch, next };
+  return { batch, serialized, next };
 }
 
 function documentReferences(messages: AnyUIMessage[]): string[] {
@@ -119,20 +148,25 @@ export async function compactConversationPrefix(input: {
   messages: AnyUIMessage[];
   previous: CompactionState | null;
   abortSignal: AbortSignal;
-}): Promise<{ state: CompactionState; usage: UsageTokens }> {
+}): Promise<{
+  state: CompactionState;
+  usage: UsageTokens;
+  complete: boolean;
+  error?: unknown;
+}> {
   const span = startSpan("agent.context_compaction", {
     "agent.run_id": input.runId,
     "agent.conversation_id": input.conversationId,
     "gen_ai.request.model": input.provider.model,
   });
-  const model = wrapLanguageModel({
-    model: createProviderModel(input.provider, { disableReasoning: true }),
-    middleware: extractJsonMiddleware(),
-  });
   let state = input.previous;
   let usage = EMPTY_USAGE;
   let batchCount = 0;
   try {
+    const model = wrapLanguageModel({
+      model: createProviderModel(input.provider, { disableReasoning: true }),
+      middleware: extractJsonMiddleware(),
+    });
     const maxOutputTokens = Math.max(
       1,
       Math.min(
@@ -147,30 +181,24 @@ export async function compactConversationPrefix(input: {
     );
     let cursor = 0;
     while (cursor < input.messages.length) {
-      const previousStateTokens = state
-        ? Math.ceil(JSON.stringify(state).length / ESTIMATED_CHARS_PER_TOKEN)
-        : 0;
-      const batchTokenBudget = Math.max(512, inputTokenBudget - previousStateTokens);
-      const batchMaxChars = Math.max(
-        1_500,
-        Math.min(48_000, batchTokenBudget * ESTIMATED_CHARS_PER_TOKEN),
+      const rawPrevious = state ? escapePromptData(JSON.stringify(state)) : "(none)";
+      const previousBudget = Math.max(BATCH_TOKEN_RESERVE, inputTokenBudget - BATCH_TOKEN_RESERVE);
+      const previous = truncateToTokenBudget(rawPrevious, previousBudget);
+      const { batch, serialized, next } = takeMessageBatch(
+        input.messages,
+        cursor,
+        previous,
+        inputTokenBudget,
       );
-      const { batch, next } = takeMessageBatch(input.messages, cursor, batchMaxChars);
       const result = await generateText({
         model,
         output: Output.object({ schema: compactionModelOutputSchema }),
         instructions: COMPACTION_INSTRUCTIONS,
-        prompt: [
-          "<previous_compaction>",
-          state ? escapePromptData(JSON.stringify(state)) : "(none)",
-          "</previous_compaction>",
-          "<older_conversation_batch>",
-          escapePromptData(batch.map(serializeMessage).join("\n")),
-          "</older_conversation_batch>",
-        ].join("\n"),
+        prompt: renderPrompt(previous, serialized),
         maxOutputTokens,
         abortSignal: input.abortSignal,
       });
+      usage = addUsage(usage, extractUsageTokens(result.usage));
       if (!result.output) throw new Error("context compaction returned no structured output");
       state = {
         version: COMPACTION_STATE_VERSION,
@@ -180,7 +208,6 @@ export async function compactConversationPrefix(input: {
           ...documentReferences(batch),
         ])].slice(-32),
       };
-      usage = addUsage(usage, extractUsageTokens(result.usage));
       batchCount += 1;
       cursor = next;
     }
@@ -191,9 +218,37 @@ export async function compactConversationPrefix(input: {
       "gen_ai.usage.output_tokens": usage.outputTokens,
       "gen_ai.usage.total_tokens": usage.totalTokens,
     });
-    return { state, usage };
+    return { state, usage, complete: true };
   } catch (error) {
-    finishSpan(span, { "agent.context_compaction.batch_count": batchCount }, error);
-    throw new Error("conversation context compaction failed", { cause: error });
+    if (input.abortSignal.aborted || isAbortError(error)) {
+      finishSpan(span, { "agent.context_compaction.batch_count": batchCount }, error);
+      throw error;
+    }
+    const fallbackState: CompactionState = {
+      ...(state ?? {
+        version: COMPACTION_STATE_VERSION,
+        summary: FALLBACK_SUMMARY,
+        goals: [],
+        constraints: [],
+        decisions: [],
+        completedWork: [],
+        openQuestions: [],
+        documentReferences: [],
+      }),
+      summary: state
+        ? `${state.summary.slice(0, 12_000 - FALLBACK_SUMMARY.length - 2)}\n\n${FALLBACK_SUMMARY}`
+        : FALLBACK_SUMMARY,
+      documentReferences: [...new Set([
+        ...(state?.documentReferences ?? []),
+        ...documentReferences(input.messages),
+      ])].slice(-32),
+    };
+    finishSpan(span, {
+      "agent.context_compaction.batch_count": batchCount,
+      "gen_ai.usage.input_tokens": usage.inputTokens,
+      "gen_ai.usage.output_tokens": usage.outputTokens,
+      "gen_ai.usage.total_tokens": usage.totalTokens,
+    }, error);
+    return { state: fallbackState, usage, complete: false, error };
   }
 }

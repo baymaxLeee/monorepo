@@ -5,7 +5,8 @@
  *   React is strictVersion so an incompatible copy fails loudly, not silently.
  * - Tier2 runtime/shared/observability: cross-MFE runtime identity → singleton.
  *   (UI kit `components` + `api` stay normal deps so each app tree-shakes them.)
- * - Tier3 Zustand: singleton for the shared platform store.
+ * - Tier3 shared state/notifications: singleton where host-owned React context
+ *   or global emitters require one runtime identity.
  * - Tier4 editor runtimes (tiptap/prosemirror): singleton because editor state,
  *   plugin decorations, node views, and commands carry runtime object identity.
  *   Remotes provide them on demand; the first loaded remote owns the singleton.
@@ -74,7 +75,7 @@ const TIER2 = {
   observability: { singleton: true, requiredVersion: false },
 };
 
-// global store must singleton
+// host-owned shared state and notification runtimes must singleton
 const TIER3 = {
   zustand: { singleton: true, requiredVersion: "^5.0.0", strictVersion: false },
   "zustand/middleware": {
@@ -95,6 +96,7 @@ const TIER3 = {
     requiredVersion: "^5.0.0",
     strictVersion: false,
   },
+  sonner: { singleton: true, requiredVersion: "^2.0.0", strictVersion: false },
 };
 
 const EDITOR_SINGLETON_SPEC = {

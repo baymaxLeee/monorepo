@@ -45,7 +45,7 @@ function notifyValidationResult(result: SkillValidationResult) {
     toast.success("验证通过，当前工作区可以发布");
     return;
   }
-  const detail = result.issues
+  const detail = (result.issues ?? [])
     .map((issue) => `${issue.path}: ${issue.message}`)
     .join("；");
   toast.error(detail || "验证未通过");
@@ -101,7 +101,7 @@ export function SkillWorkspacePage() {
     return () => window.removeEventListener("beforeunload", guard);
   }, [dirty]);
 
-  async function save(): Promise<number> {
+  async function save(options?: { silent?: boolean }): Promise<number> {
     const changes = workspaceRef.current?.getChanges() ?? [];
     if (!changes.length) return workspaceSeq;
     let nextWorkspaceSeq = workspaceSeq;
@@ -115,7 +115,7 @@ export function SkillWorkspacePage() {
     workspaceRef.current?.resetBaseline();
     setDirty(false);
     setSkill(await fetchSkill(id));
-    toast.success("工作区已保存");
+    if (!options?.silent) toast.success("工作区已保存");
     return nextWorkspaceSeq;
   }
 
@@ -210,7 +210,7 @@ export function SkillWorkspacePage() {
             disabled={busy}
             onClick={() =>
               void run(async () => {
-                await save();
+                await save({ silent: true });
                 notifyValidationResult(await validateSkill(id));
               })
             }

@@ -11,13 +11,13 @@ import { compactConversationPrefix } from "./compactor.js";
 import { parseCompactionState, type CompactionState } from "./compaction-state.js";
 import { documentIdFromFilePart, isImageMediaType } from "./file-parts.js";
 import { escapeXmlText } from "./instructions/xml.js";
+import { estimateTextTokens } from "./token-estimate.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
 // A live no-tool run consumed ~6.5k tokens before user content; keep headroom for larger catalogs.
 const CONTEXT_OVERHEAD_TOKENS = 8_000;
-const COMPACTION_MESSAGE_RESERVE_CHARS = 20_000;
-const ESTIMATED_CHARS_PER_TOKEN = 3;
+const COMPACTION_MESSAGE_RESERVE_TOKENS = 6_000;
 // The original stays in Knowledge; only model-bound bytes are normalized.
 const VISION_MAX_DIM = 1536;
 
@@ -48,11 +48,11 @@ function textParts(message: AnyUIMessage): string {
     .trim();
 }
 
-function estimatedMessageChars(message: AnyUIMessage): number {
+function estimatedMessageTokens(message: AnyUIMessage): number {
   try {
-    return JSON.stringify(message.parts).length + 200;
+    return estimateTextTokens(JSON.stringify(message.parts)) + 64;
   } catch {
-    return textParts(message).length + 400;
+    return estimateTextTokens(textParts(message)) + 128;
   }
 }
 
@@ -99,12 +99,6 @@ function containsReference(messages: ModelMessage[], value: string): boolean {
   }
 }
 
-function isAbortError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  if (error.name === "AbortError") return true;
-  return "cause" in error && isAbortError(error.cause);
-}
-
 async function saveSnapshot(input: {
   conversationId: string;
   currentRevision: number | null;
@@ -115,7 +109,7 @@ async function saveSnapshot(input: {
   const db = getDb();
   const now = new Date();
   const stateJson = input.state as unknown as Record<string, unknown>;
-  const estimatedTokens = Math.ceil(JSON.stringify(stateJson).length / 4);
+  const estimatedTokens = estimateTextTokens(JSON.stringify(stateJson));
   if (input.currentRevision != null) {
     const updated = await db
       .update(conversationContexts)
@@ -231,17 +225,14 @@ function renderCompaction(state: CompactionState, coveredThroughMessageId: strin
 }
 
 function injectHostContext(messages: ModelMessage[], body: string): ModelMessage[] {
-  const index = messages.findIndex((message) => message.role === "user");
-  if (index < 0) return [{ role: "user", content: body }, ...messages];
-  return messages.map((message, messageIndex) => {
-    if (messageIndex !== index || message.role !== "user") return message;
-    return {
-      ...message,
-      content: typeof message.content === "string"
-        ? `${body}\n\n${message.content}`
-        : [{ type: "text", text: body }, ...message.content],
-    } as ModelMessage;
-  });
+  const first = messages[0];
+  if (!first || first.role !== "user") return [{ role: "user", content: body }, ...messages];
+  return [{
+    ...first,
+    content: typeof first.content === "string"
+      ? `${body}\n\n${first.content}`
+      : [{ type: "text", text: body }, ...first.content],
+  } as ModelMessage, ...messages.slice(1)];
 }
 
 export async function projectModelContext(input: {
@@ -262,16 +253,16 @@ export async function projectModelContext(input: {
     .select()
     .from(conversationContexts)
     .where(eq(conversationContexts.conversationId, input.conversationId));
-  const charBudget = Math.max(
-    1_500,
-    inputTokenBudget * ESTIMATED_CHARS_PER_TOKEN - COMPACTION_MESSAGE_RESERVE_CHARS,
+  const recentTokenBudget = Math.max(
+    512,
+    inputTokenBudget - COMPACTION_MESSAGE_RESERVE_TOKENS,
   );
-  let recentChars = 0;
+  let recentTokens = 0;
   let splitAt = input.messages.length;
   while (splitAt > 0) {
-    const next = estimatedMessageChars(input.messages[splitAt - 1]!);
-    if (recentChars + next > charBudget && splitAt < input.messages.length) break;
-    recentChars += next;
+    const next = estimatedMessageTokens(input.messages[splitAt - 1]!);
+    if (recentTokens + next > recentTokenBudget && splitAt < input.messages.length) break;
+    recentTokens += next;
     splitAt -= 1;
   }
   const older = input.messages.slice(0, splitAt);
@@ -288,35 +279,32 @@ export async function projectModelContext(input: {
     const canIncrement = Boolean(storedState && coveredIndex >= 0);
     const messagesToCompact = canIncrement ? older.slice(coveredIndex + 1) : older;
     if (messagesToCompact.length > 0) {
-      try {
-        const compacted = await compactConversationPrefix({
-          runId: input.runId,
-          conversationId: input.conversationId,
-          provider: input.provider,
-          messages: messagesToCompact,
-          previous: canIncrement ? storedState : null,
-          abortSignal: input.abortSignal,
-        });
-        compactionState = compacted.state;
-        compactionUsage = compacted.usage;
-        compactionCoveredThroughMessageId = older.at(-1)!.id;
-        await saveSnapshot({
-          conversationId: input.conversationId,
-          currentRevision: stored?.revision ?? null,
-          currentCreatedAt: stored?.createdAt ?? null,
-          coveredThroughMessageId: compactionCoveredThroughMessageId,
-          state: compactionState,
-        }).catch((error) => {
-          logger.warn({ err: error, conversationId: input.conversationId }, "context snapshot persistence skipped");
-        });
-      } catch (error) {
-        if (isAbortError(error) || input.abortSignal.aborted) throw error;
-        logger.warn({ err: error, conversationId: input.conversationId }, "context compaction skipped");
-        compactionState = canIncrement ? storedState : null;
-        compactionCoveredThroughMessageId = canIncrement
-          ? stored?.coveredThroughMessageId ?? null
-          : null;
+      const compacted = await compactConversationPrefix({
+        runId: input.runId,
+        conversationId: input.conversationId,
+        provider: input.provider,
+        messages: messagesToCompact,
+        previous: canIncrement ? storedState : null,
+        abortSignal: input.abortSignal,
+      });
+      compactionState = compacted.state;
+      compactionUsage = compacted.usage;
+      compactionCoveredThroughMessageId = older.at(-1)!.id;
+      if (!compacted.complete) {
+        logger.warn(
+          { err: compacted.error, conversationId: input.conversationId },
+          "context compaction fell back to deterministic truncation",
+        );
       }
+      await saveSnapshot({
+        conversationId: input.conversationId,
+        currentRevision: stored?.revision ?? null,
+        currentCreatedAt: stored?.createdAt ?? null,
+        coveredThroughMessageId: compactionCoveredThroughMessageId,
+        state: compactionState,
+      }).catch((error) => {
+        logger.warn({ err: error, conversationId: input.conversationId }, "context snapshot persistence skipped");
+      });
     } else {
       compactionState = storedState;
       compactionCoveredThroughMessageId = stored?.coveredThroughMessageId ?? null;

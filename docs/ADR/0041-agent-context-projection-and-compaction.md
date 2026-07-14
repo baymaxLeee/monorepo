@@ -37,20 +37,23 @@ messages; tool contracts belong in tools.
 3. **Old history is replaced only when the input budget requires it.** The
    projector reserves output and instruction overhead, keeps the newest messages,
    and incrementally compacts only the older prefix. The host context is merged
-   into the earliest retained user/assistant message, avoiding a synthetic
-   consecutive user turn, and is explicitly marked as untrusted history rather
-   than a new request. It carries structured goals, constraints, decisions,
-   completed work, open questions, and document identifiers.
+   into the first retained message when it is a user message; otherwise a
+   bounded synthetic user message is prepended so historical state never moves
+   after retained conversation content. It is explicitly marked as untrusted
+   history rather than a new request and carries structured goals, constraints,
+   decisions, completed work, open questions, and document identifiers.
 
 4. **Compaction is incremental, versioned, observable, and best-effort.** The
    snapshot records `coveredThroughMessageId` and uses revision compare-and-swap.
    A schema version mismatch rebuilds the snapshot directly; there is no legacy
    adapter. Compaction batch size is bounded by the selected provider's current
-   context budget. Its model usage is added to run usage and emitted on an
-   `agent.context_compaction` span. Invalid output or provider failure falls back
-   to the last valid snapshot, or direct truncation when none exists. Snapshot
-   write conflicts are logged and skipped. Explicit user cancellation still
-   aborts the run.
+   context budget using a conservative multilingual token estimate. Its model
+   usage, including successful batches before a later failure, is added to run
+   usage and emitted on an `agent.context_compaction` span. Invalid output or
+   provider failure keeps the last successful state, or records deterministic
+   truncation when none exists, and advances coverage so the same prefix is not
+   retried every turn. Snapshot write conflicts are logged and skipped. Explicit
+   user cancellation still aborts the run.
 
 5. **Todo state has one durable representation.** The latest successful
    `tool-update_todos` UIMessage part is canonical. If pruning removes its tool

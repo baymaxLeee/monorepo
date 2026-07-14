@@ -25,6 +25,7 @@
     "react-router-dom": "catalog:",
     "runtime": "workspace:*",
     "shared": "workspace:*",
+    "sonner": "catalog:",
     "zod": "catalog:",
     "zustand": "catalog:"
   },

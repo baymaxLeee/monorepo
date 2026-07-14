@@ -61,7 +61,7 @@ must declare the workspace dependency in its own `package.json` using
 Host provides only runtime-critical shared packages:
 
 - `react`, `react-dom`, `react-router-dom`
-- `zustand`
+- `zustand`, `@tanstack/react-query`, `sonner`
 - `runtime`, `shared`, `observability`
 
 Remotes consume these from the host with `import: false`; they must not bundle
