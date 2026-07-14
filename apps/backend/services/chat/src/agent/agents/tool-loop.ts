@@ -242,7 +242,7 @@ export async function createToolLoopAgent(
         instructions: `${String(initialInstructions ?? instructions)}\n<artifact_quality_gate>${directive.instruction}</artifact_quality_gate>`,
       };
     },
-    experimental_repairToolCall: async ({ toolCall, tools: stepTools, error }) => {
+    repairToolCall: async ({ toolCall, tools: stepTools, error }) => {
       if (
         !NoSuchToolError.isInstance(error) ||
         !artifactGateDirective ||

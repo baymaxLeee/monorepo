@@ -5,11 +5,11 @@ packages:
   - "services/executor"
 
 catalog:
-  ai: ^7.0.15
+  ai: ^7.0.26
   "@typescript/native": npm:typescript@^7.0.2
-  "@ai-sdk/provider": ^4.0.2
-  "@ai-sdk/provider-utils": ^5.0.5
-  "@ai-sdk/openai-compatible": ^3.0.5
+  "@ai-sdk/provider": ^4.0.3
+  "@ai-sdk/provider-utils": ^5.0.9
+  "@ai-sdk/openai-compatible": ^3.0.9
   workflow: ^4.5.0
   "@workflow/world-postgres": ^4.2.0
 
@@ -21,10 +21,10 @@ allowBuilds:
   protobufjs: false
 
 minimumReleaseAgeExclude:
-  - '@ai-sdk/openai-compatible@3.0.5'
-  - '@ai-sdk/provider-utils@5.0.5'
-  - '@ai-sdk/provider@4.0.2'
-  - ai@7.0.15
+  - '@ai-sdk/openai-compatible@3.0.9'
+  - '@ai-sdk/provider-utils@5.0.9'
+  - '@ai-sdk/provider@4.0.3'
+  - ai@7.0.26
   - '@aws-sdk/core@3.974.25'
   - '@aws-sdk/nested-clients@3.997.25'
   - '@aws-sdk/signature-v4-multi-region@3.996.37'
@@ -32,7 +32,7 @@ minimumReleaseAgeExclude:
   - env-runner@0.1.15
   - httpxy@0.5.4
   - srvx@0.11.18
-  - '@ai-sdk/gateway@4.0.12'
+  - '@ai-sdk/gateway@4.0.19'
   - nf3@0.3.19
 
 # nitro's file tracer nf3 shipped a broken `import { nodeFileTrace }` named

@@ -5,7 +5,7 @@ packages:
 catalogMode: strict
 
 catalog:
-  "@ai-sdk/react": ^4.0.16
+  "@ai-sdk/react": ^4.0.27
   "@hookform/resolvers": ^5.4.0
   "@module-federation/enhanced": ^2.4.0
   "@rspack/cli": ^2.1.2
@@ -17,7 +17,7 @@ catalog:
   "@tanstack/react-query": ^5.101.2
   "@types/react": ^18.3.0
   "@types/react-dom": ^18.3.0
-  ai: ^7.0.15
+  ai: ^7.0.26
   html-webpack-plugin: ^5.6.0
   lucide-react: ^0.468.0
   react: ^18.3.0
@@ -46,8 +46,8 @@ allowBuilds:
   msw: false
 
 minimumReleaseAgeExclude:
-  - '@ai-sdk/gateway@4.0.12'
-  - '@ai-sdk/mcp@2.0.7'
-  - '@ai-sdk/provider-utils@5.0.5'
-  - '@ai-sdk/react@4.0.16'
-  - ai@7.0.15
+  - '@ai-sdk/gateway@4.0.19'
+  - '@ai-sdk/mcp@2.0.12'
+  - '@ai-sdk/provider-utils@5.0.9'
+  - '@ai-sdk/react@4.0.27'
+  - ai@7.0.26
