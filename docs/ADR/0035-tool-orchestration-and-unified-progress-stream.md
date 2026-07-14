@@ -40,6 +40,9 @@ Verified constraints (against `ai@7.0.15`):
 - Node's single-threaded event loop already overlaps IO-bound tool calls in a
   step's `Promise.all` — concurrency (#3) is free as long as tools stay
   non-blocking and nothing serializes them artificially.
+- AI SDK model middleware runs before `executeToolsFromStream`; it can filter a
+  conflicting model output while leaving the SDK's same-step `Promise.all`
+  execution intact for every retained tool call.
 - `getTask` (`TaskSnapshot`) already returns `progress {done,total}`, and the
   HTML/video tools already foreground-poll `GET /tasks/:id`. So progress can be
   read from the tool's own poll and surfaced on the main stream.
@@ -48,6 +51,13 @@ Verified constraints (against `ai@7.0.15`):
 
 ### 1. Orchestration: thin harness — step boundary + prompt, no runtime gate
 
+- **Plan mode enforces one selective dependency edge.** Parallel tool calls stay
+  enabled. A model middleware buffers only `write_plan`/`update_plan` stream
+  parts until the model call finishes. If that same step contains `ask_user`, it
+  drops the buffered plan call; every other call remains in the stream and runs
+  with native same-step concurrency. The browser supplies the answer in a
+  continuation run, and only that later run can persist the plan. When no ask is
+  present, the buffered plan call is released unchanged before SDK execution.
 - **Ordering comes from the SDK step boundary + the prompt.** Plan mode only
   writes the plan (`write_plan`/`update_plan`) after optional research/context
   tools. After the user switches to normal/agent execution mode, when a todo
@@ -80,12 +90,14 @@ Verified constraints (against `ai@7.0.15`):
   assistant message rather than creating a conversation-wide Skill session.
 - **No run-scoped scheduler or concurrency lock.** On this SDK there is no
   public hook to see a step's full tool-call batch before execution, so a hard
-  intra-step guarantee is impossible; an earlier writer-priority gate was
-  removed because it (a) could not provide that guarantee, (b) triggered
+  execution-time priority gate is impossible; an earlier writer-priority gate
+  was removed because it (a) could not provide that guarantee, (b) triggered
   essentially never once the prompt makes `update_todos` a barrier step, and
-  (c) fought the thin-harness principle (the SDK owns the tool loop; the prompt
-  supplies policy). If the model rarely co-emits plan/todos with a deliverable,
-  that is an accepted, cosmetic glitch — not worth a runtime mechanism.
+  (c) fought the thin-harness principle. The plan-mode middleware instead edits
+  the model output before it reaches SDK execution and encodes only the required
+  `ask_user` → plan-write dependency. Normal-mode todo ordering remains
+  prompt-enforced and rare co-emission with a deliverable remains an accepted
+  cosmetic glitch.
 - Deliverables in one step run concurrently via the SDK's per-step
   `Promise.all` + Node's non-blocking IO (#3); tools stay non-blocking so the
   event loop overlaps their IO. Nothing serializes independent deliverables.
@@ -137,8 +149,8 @@ artificial concurrency caps (provider limits + executor bound it).
   on the tool card.
 - Executor is simpler: no outbound notifications, progress is a plain column the
   owner polls. `reportTaskProgress` keeps writing `tasks.progress`.
-- plan/todos-before-deliverables ordering is prompt-enforced (the barrier step)
-  plus the SDK step boundary; there is no runtime guarantee, and none is
-  attempted. A true intra-step guarantee would require forking the SDK's
-  `executeToolsFromStream` and is explicitly out of scope. Rare co-emission is an
-  accepted cosmetic glitch.
+- Plan-mode clarification-before-plan ordering is enforced before SDK tool
+  execution without disabling unrelated parallel calls. Normal-mode
+  todos-before-deliverables ordering remains prompt-enforced (the barrier step)
+  plus the SDK step boundary; there is no runtime guarantee for that cosmetic
+  progress ordering.

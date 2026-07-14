@@ -32,11 +32,15 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 ## Tools and artifacts
 
 - Tool orchestration (ADR-0035): **thin harness — no general runtime
-  scheduler/lock and no `concurrency` policy.** The SDK owns the tool loop; the
-  prompt supplies normal policy. Deterministic completion postconditions use
+  scheduler/lock.** The SDK owns the tool loop and same-step concurrency; the
+  prompt supplies normal policy. A plan-mode model middleware makes only
+  `ask_user` and `write_plan`/`update_plan` mutually exclusive: if the model
+  co-emits them, the ask remains and the plan write is deferred to the client
+  continuation. All other independent tool calls retain native concurrency.
+  Deterministic completion postconditions use
   AI SDK `prepareStep` narrowly: an HTML write cannot end the turn before its
   internal validate/repair/revalidate gate completes.
-  plan/todos-before-deliverables ordering is carried by the prompt
+  todos-before-deliverables ordering is carried by the prompt
   (`renderRuntimeContract` "barrier step": `update_todos` called alone, then
   deliverables dispatched together in the NEXT step) plus the SDK step boundary.
   Todos are not mandatory for every query: plan mode may research, then must

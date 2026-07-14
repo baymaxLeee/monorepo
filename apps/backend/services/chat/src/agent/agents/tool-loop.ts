@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import { NoSuchToolError, ToolLoopAgent } from "ai";
+import { NoSuchToolError, ToolLoopAgent, wrapLanguageModel } from "ai";
 import type { ToolSet } from "ai";
 import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
@@ -26,6 +26,7 @@ import {
   reduceArtifactVerificationSteps,
 } from "./artifact-verification.js";
 import type { ArtifactVerificationDirective } from "./artifact-verification.js";
+import { planToolOrderingMiddleware } from "./plan-tool-ordering.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {
   return operation.catch((error) => {
@@ -173,9 +174,16 @@ export async function createToolLoopAgent(
     input.instructionInput,
     resolvedTools.contributions,
   );
-  const defaultModel = createProviderModel(provider, {
+  const providerModel = createProviderModel(provider, {
     parallelToolCalls: true,
   });
+  const defaultModel =
+    input.mode === "plan"
+      ? wrapLanguageModel({
+          model: providerModel,
+          middleware: planToolOrderingMiddleware,
+        })
+      : providerModel;
   const toolApprovalSecret = getSettings().toolApprovalSecret;
   let artifactGatePending = false;
   let artifactGateDirective: Extract<
@@ -193,10 +201,7 @@ export async function createToolLoopAgent(
     toolOrder: [...resolvedTools.activeTools].sort(),
     toolApproval: createToolApprovalPolicy(input.mode),
     stopWhen: ({ steps }) => steps.length >= 20 && !artifactGatePending,
-    // ToolLoopAgentSettings omits experimental_toolApprovalSecret; streamText
-    // accepts it and HMAC-binds approvals at issuance/replay.
-    prepareCall: (settings) =>
-      Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
+    prepareCall: (settings) => Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
     prepareStep: ({ runtimeContext: stepContext, steps, initialInstructions }) => {
       const skillLoadedThisRun = steps.some((step) =>
         step.content.some((part) =>

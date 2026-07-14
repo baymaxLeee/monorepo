@@ -24,7 +24,9 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   snapshot 和 artifact 状态创建新 run。
 - `ask_user` 没有服务端 execute；一次调用以稳定语义 ID 批量携带当前所有独立问题，
   客户端一次性回填结构化 `answers` 后由 `addToolOutput` 发起下一次 run；依赖前序答案的
-  问题才使用后续 continuation。
+  问题才使用后续 continuation。Plan mode 保留 provider 并行 tool calls，但模型
+  middleware 会过滤与 `ask_user` 同 step 的 `write_plan`/`update_plan`，使计划只能在
+  用户回答后的 continuation 落库；搜索、读取等其他独立工具仍可同 step 并发。
 - assistant UIMessage 在 stream end（包括 abort 的部分输出）持久化；run trace 写入
   失败不能影响用户流。
 - 主动 Stop 会在落库前把所有未终态/preliminary tool part 收口为官方
