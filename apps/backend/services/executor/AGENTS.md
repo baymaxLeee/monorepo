@@ -81,8 +81,8 @@ generation.
     several angles in one generation is what produced **块内剧情重复** (the same
     moment re-shot). Cut density comes from MORE short segments hard-cut at
     assembly (Seedance renders a single take per generation; true cuts = concat).
-  - **Length is deterministic: segment count = 秒数 / 6** (`deriveSegmentCount` in
-    `src/video/limits.ts`), each segment ~4–12s (sweet spot; `ark.ts` clamps to
+  - **Length is deterministic: segment count = 秒数 / 12** (`deriveSegmentCount` in
+    `src/video/limits.ts`), each segment ~12s (sweet spot; `ark.ts` clamps to
     the real integer 4–15 range). The pipeline always sends an explicit integer
     `duration` in EVERY mode including reference mode (the official 2.x API
     accepts it — there is no "strip duration in reference mode" case).

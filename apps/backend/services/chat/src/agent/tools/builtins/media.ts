@@ -376,7 +376,7 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
     summary: "Generate a video. The current implementation produces 5–120 second vertical short-drama reels.",
     constraints: [
       "Current implementation supports vertical short-drama output; the public capability remains format-neutral.",
-      "In any storyboard plan, distinguish narrative sections from generation shots. Each generation shot is one Seedance call and must last 4–6 seconds, never more than 6 seconds; split every longer narrative section into multiple shots with contiguous, non-overlapping time ranges. A 60-second video therefore needs at least 10 generation shots even when they are grouped into fewer narrative sections.",
+      "In any storyboard plan, distinguish narrative sections from generation shots. Each generation shot is one Seedance call and should last about 12 seconds, never more than 15 seconds; split every longer narrative section into multiple shots with contiguous, non-overlapping time ranges. A 60-second video therefore needs at least 5 generation shots even when they are grouped into fewer narrative sections.",
       "Every adjacent generation shot must advance a distinct information or action beat and vary the framing, subject action, or on-screen content. Never pad, loop, or restage the same moment to fill time.",
     ],
     prerequisites: providers.videoProviderId ? undefined : ["Configure a video provider."],

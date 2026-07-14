@@ -65,6 +65,8 @@ import { useForm } from "react-hook-form";
 import { getErrorMessage } from "shared";
 import { z } from "zod";
 
+import { resolveChatTokenBudget } from "./provider-token-budgets";
+
 const providerSchema = z
   .object({
     name: z.string().trim().min(1, "请输入名称").max(100),
@@ -116,8 +118,8 @@ const kindPresets: Record<
   Pick<ProviderValues, "base_url" | "model" | "extra_body">
 > = {
   chat: {
-    base_url: "https://api.deepseek.com",
-    model: "deepseek-v4-pro",
+    base_url: ARK_BASE_URL,
+    model: "deepseek-v4-pro-260425",
     extra_body:
       '{\n  "thinking": {"type": "enabled"},\n  "reasoning_effort": "high"\n}',
   },
@@ -153,6 +155,8 @@ const kindLabels: Record<ProviderKind, string> = {
   rerank: "重排",
 };
 
+const chatTokenBudget = resolveChatTokenBudget(kindPresets.chat.model);
+
 const defaults: ProviderValues = {
   name: "",
   provider_kind: "chat",
@@ -160,8 +164,8 @@ const defaults: ProviderValues = {
   base_url: kindPresets.chat.base_url,
   api_key: "",
   extra_body: kindPresets.chat.extra_body,
-  context_window: 128_000,
-  max_output_tokens: 8_192,
+  context_window: chatTokenBudget.context_window,
+  max_output_tokens: chatTokenBudget.max_output_tokens,
   supports_image_input: false,
   is_default: false,
   is_enabled: true,
@@ -565,9 +569,20 @@ function ProviderFormDialog({
     form.setValue("base_url", preset.base_url);
     form.setValue("model", preset.model);
     form.setValue("extra_body", preset.extra_body);
-    if (kind !== "chat") {
+    if (kind === "chat") {
+      const budget = resolveChatTokenBudget(preset.model);
+      form.setValue("context_window", budget.context_window);
+      form.setValue("max_output_tokens", budget.max_output_tokens);
+    } else {
       form.setValue("is_default", false);
     }
+  }
+
+  function applyChatTokenBudgetForModel(model: string) {
+    if (providerKind !== "chat") return;
+    const budget = resolveChatTokenBudget(model);
+    form.setValue("context_window", budget.context_window);
+    form.setValue("max_output_tokens", budget.max_output_tokens);
   }
 
   return (
@@ -653,12 +668,17 @@ function ProviderFormDialog({
                       <FormControl>
                         <Input
                           {...field}
+                          onBlur={(event) => {
+                            field.onBlur();
+                            if (!isEditing)
+                              applyChatTokenBudgetForModel(event.target.value);
+                          }}
                           placeholder={
                             providerKind === "image"
                               ? "doubao-seedream-5-0-260128"
                               : providerKind === "video"
                                 ? "doubao-seedance-2-0-260128"
-                                : "deepseek-chat / deepseek-v4-pro / gpt-4o"
+                                : "deepseek-v4-pro-260425 / glm-5-2-260617 / doubao-seed-2-1-pro-260628"
                           }
                         />
                       </FormControl>

@@ -899,12 +899,12 @@ export interface components {
             };
             /**
              * Context Window
-             * @default 128000
+             * @default 524288
              */
             context_window: number;
             /**
              * Max Output Tokens
-             * @default 8192
+             * @default 262144
              */
             max_output_tokens: number;
             /**

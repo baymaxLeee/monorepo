@@ -7892,14 +7892,14 @@
             "maximum": 2000000.0,
             "minimum": 1024.0,
             "title": "Context Window",
-            "default": 128000
+            "default": 524288
           },
           "max_output_tokens": {
             "type": "integer",
             "maximum": 1000000.0,
             "minimum": 256.0,
             "title": "Max Output Tokens",
-            "default": 8192
+            "default": 262144
           },
           "supports_image_input": {
             "type": "boolean",

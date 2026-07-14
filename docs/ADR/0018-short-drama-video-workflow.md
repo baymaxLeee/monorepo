@@ -295,11 +295,11 @@ relevant parts of the previous one.
 2. **Cut density comes from MORE short segments**, hard-cut at assembly — the
    native 投流 shape (Seedance renders a single take per generation; true cuts are
    made by concatenation, per Seedance/MindStudio guidance).
-3. **Deterministic length: segment count = 秒数 / 6** (`deriveSegmentCount`), each
-   segment ~4–12s (sweet spot; the old 镜头重复-avoiding window), clamped on the
-   wire to the model's real integer **4–15** range (`clampArkDuration`). This is
-   the "固定按秒数/6切分" logic the pre-storyboard pipeline used, now feeding the
-   script stage instead of raw slicing.
+3. **Deterministic length: segment count = 秒数 / 12** (`deriveSegmentCount`), each
+   segment targets ~12s and is clamped on the wire to the model's real integer
+   **4–15** range (`clampArkDuration`). This is the fixed-duration segmentation
+   logic the pre-storyboard pipeline used, now feeding the script stage instead
+   of raw slicing.
 4. **Anti-repetition stays the script's job, hardened.** `planScript` writes
    EXACTLY N distinct beats; `dedupeBeats` drops near-duplicates; if the sheet
    still collapses, a deterministic DISTINCT dramatic arc (`arcBeats`) is
@@ -431,26 +431,25 @@ parts when reference images are present.
   pixel-perfect upload passthrough (knowledge `/source` URLs are auth-gated and
   unreachable by Seedance).
 
-## Update (2026-07-10): Plan Mode uses generation-level shots capped at 6 seconds
+## Update (2026-07-14): Plan Mode uses 12-second generation shots
 
-Plan Mode previously described long-form videos as a small set of 8–10 second
-"scenes". That confused narrative sections with provider generations: execution
-could preserve those rows as long single takes, increasing the chance of padded
-or repeated action even though the auto pipeline targets six-second segments.
+Seedance 2.0 can generate up to 15 seconds in one call. The retained default is
+12 seconds per generation shot, which improves within-shot continuity while
+leaving three seconds of provider headroom.
 
 The `generate_video` manifest now projects the following constraints into Plan
 Mode's generated `<execution_capabilities>` prompt:
 
 - A narrative section may group several shots, but every generation shot maps to
-  one Seedance call and lasts 4–6 seconds, never more than 6 seconds.
+  one Seedance call and targets about 12 seconds, never more than 15 seconds.
 - Longer narrative sections are split into contiguous, non-overlapping shots; a
-  60-second plan therefore contains at least 10 generation shots.
+  60-second plan therefore contains at least 5 generation shots.
 - Adjacent shots must advance a distinct information/action beat and vary
   framing, subject action, or on-screen content instead of padding or restaging
   the same moment.
 
-The six-second ceiling is a product quality policy, not a claim about the
-provider wire limit: Seedance 2.0 currently accepts integer durations from 4 to
-15 seconds. Normal execution preserves a plan's generation-level shots as
-one-to-one `segments[]` entries rather than merging them back into narrative
-sections.
+Auto mode derives segment count from total duration divided by 12. In scripted
+direct mode, an omitted per-segment and total duration defaults each scene to 12
+seconds; explicit per-segment duration remains authoritative, and an explicit
+total duration is distributed across unspecified scenes. Normal execution
+preserves generation shots as one-to-one `segments[]` entries.

@@ -1,8 +1,8 @@
 
 export const SEGMENT_SECONDS_MIN = 4;
-export const SEGMENT_SECONDS_MAX = 12;
+export const SEGMENT_SECONDS_MAX = 15;
 
-export const SEGMENT_SECONDS_TARGET = 6;
+export const SEGMENT_SECONDS_TARGET = 12;
 
 export const MAX_SEGMENTS = 12;
 export const MIN_SEGMENTS = 2;
@@ -41,12 +41,13 @@ export type ScriptedSegmentDurationInput = {
 };
 
 export function scriptedSegmentSeconds(
-  targetDurationSec: number,
+  targetDurationSec: number | undefined,
   segments: readonly ScriptedSegmentDurationInput[],
 ): number[] {
   if (!segments.length) return [];
   return segments.map((segment) => {
     if (segment.seconds != null) return clampArkDuration(segment.seconds);
+    if (targetDurationSec == null) return SEGMENT_SECONDS_TARGET;
     return clampArkDuration(Math.round(targetDurationSec / segments.length));
   });
 }

@@ -64,8 +64,8 @@ class CreateModelProviderInput(BaseModel):
     base_url: HttpUrl
     api_key: str = Field(min_length=1, max_length=4096)
     extra_body: dict[str, Any] = Field(default_factory=dict)
-    context_window: int = Field(default=128_000, ge=1024, le=2_000_000)
-    max_output_tokens: int = Field(default=8_192, ge=256, le=1_000_000)
+    context_window: int = Field(default=524_288, ge=1024, le=2_000_000)
+    max_output_tokens: int = Field(default=262_144, ge=256, le=1_000_000)
     supports_image_input: bool = False
     is_default: bool = False
     is_enabled: bool = True

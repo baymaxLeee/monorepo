@@ -251,8 +251,13 @@ async function planStep(input: VideoGenerationInput): Promise<{
   characterRefs: CharacterRef[];
   baseSeed: number;
 }> {
-  const targetDurationSec = input.targetDurationSec ?? DEFAULT_TARGET_DURATION_S;
   const scripted = Boolean(input.segments?.length);
+  const segmentSeconds = scripted && input.segments
+    ? scriptedSegmentSeconds(input.targetDurationSec, input.segments)
+    : undefined;
+  const targetDurationSec = input.targetDurationSec
+    ?? segmentSeconds?.reduce((total, seconds) => total + seconds, 0)
+    ?? DEFAULT_TARGET_DURATION_S;
   let script = scripted
     ? await scriptedScriptStep(input)
     : await scriptStep(input);
@@ -273,10 +278,6 @@ async function planStep(input: VideoGenerationInput): Promise<{
     ...(segment.narration ? { narration: segment.narration } : {}),
     ...(segment.dialogue ? { dialogue: segment.dialogue } : {}),
   }));
-  const segmentSeconds = scripted && input.segments
-    ? scriptedSegmentSeconds(targetDurationSec, input.segments)
-    : undefined;
-
   const segments = await storyboardStep({
     script,
     targetDurationSec,
