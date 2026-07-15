@@ -313,8 +313,12 @@ relevant parts of the previous one.
 6. **Reliability.** `createArkVideoTask` throws a classified `ArkRequestError`;
    `createSegmentStep` **rethrows** retryable faults (429/5xx/network) so Workflow
    DevKit retries the step, and degrades only non-retryable 4xx (bad params /
-   moderation). Before assembly a quality bar requires the **hook** (segment 0)
-   plus ≥60% of segments, else the run fails instead of shipping a plot hole.
+   moderation). The pre-assembly completion gate requires every user-supplied
+   `segments[]` entry. Auto-planned reels may degrade only to a contiguous
+   successful prefix starting at the **hook** (segment 0): a single-segment
+   one-shot passes when it succeeds, while multi-segment reels require ≥60%
+   (≥2 segments). Later successes after a failure are discarded instead of
+   being assembled across a plot hole.
 7. **Assembler normalizes to 24fps** (Seedance's native rate), not 30 — forcing
    30 inserted duplicate frames.
 

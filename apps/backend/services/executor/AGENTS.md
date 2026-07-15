@@ -93,8 +93,11 @@ generation.
     impossible (one action per segment).
   - **Reliability**: a non-retryable Ark 4xx (bad params / moderation) degrades
     that one segment; 429/5xx/network **rethrow** so Workflow DevKit retries the
-    step. Before assembly a quality bar requires the **hook** (segment 0) plus
-    ≥60% of segments, else the run fails rather than shipping a plot with holes.
+    step. The pre-assembly completion gate requires every user-supplied
+    `segments[]` entry. Auto-planned reels may degrade only to a contiguous
+    successful prefix starting at the hook: multi-segment reels require ≥60%
+    (≥2 segments), while a single-segment one-shot passes when that clip succeeds.
+    Later successes after a failed segment are not assembled across the plot hole.
   - **Assembly is hard-cut ONLY, always parallel.** Every segment references the
     character sheet and fans out via `mapConcurrent` with
     `VIDEO_SEGMENT_CONCURRENCY` (default 12, matching the max segment count), then

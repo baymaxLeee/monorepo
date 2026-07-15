@@ -59,3 +59,8 @@ export function randomBaseSeed(): number {
 export function deriveSegmentSeed(baseSeed: number, order: number): number {
   return (baseSeed + order * 2_654_435_761) % 2 ** 31;
 }
+
+export function minimumUsableSegments(total: number): number {
+  if (total <= 1) return Math.max(0, total);
+  return Math.max(MIN_SEGMENTS, Math.ceil(total * 0.6));
+}

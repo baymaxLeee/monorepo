@@ -34,6 +34,7 @@ import {
   MIN_TARGET_DURATION_S,
   deriveSegmentCount,
   deriveSegmentSeed,
+  minimumUsableSegments,
   randomBaseSeed,
   scriptedSegmentSeconds,
 } from "../src/video/limits.js";
@@ -534,20 +535,28 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
     return result;
   });
 
-  const urls = results
-    .filter((r) => r.ok && r.videoUrl)
-    .sort((a, b) => a.order - b.order)
-    .map((r) => r.videoUrl as string);
+  const ordered = results.sort((a, b) => a.order - b.order);
+  const scripted = Boolean(input.segments?.length);
+  const firstFailed = ordered.findIndex((result) => !result.ok || !result.videoUrl);
+  if (scripted && firstFailed !== -1) {
+    throw new Error(
+      `scripted video completion gate failed: ${firstFailed}/${total} ordered segments completed`,
+    );
+  }
+
+  const usable = scripted
+    ? ordered
+    : ordered.slice(0, firstFailed === -1 ? ordered.length : firstFailed);
+  const urls = usable.map((result) => result.videoUrl as string);
   const segmentsFailed = total - urls.length;
-  const hookOk = results.some((r) => r.order === 0 && r.ok);
-  const minRequired = Math.max(2, Math.ceil(total * 0.6));
+  const minRequired = minimumUsableSegments(total);
   if (urls.length === 0) {
     throw new Error(`video generation produced no usable segments (${segmentsFailed} failed)`);
   }
-  if (!hookOk || urls.length < minRequired) {
+  if (urls.length < minRequired) {
     throw new Error(
-      `video generation degraded below the quality bar: ${urls.length}/${total} segments ok` +
-        `${hookOk ? "" : " (hook segment failed)"} — need ≥${minRequired} including the hook`,
+      `video generation degraded below the completion gate: ` +
+        `${urls.length}/${total} contiguous segments completed — need ≥${minRequired} from the hook`,
     );
   }
 
