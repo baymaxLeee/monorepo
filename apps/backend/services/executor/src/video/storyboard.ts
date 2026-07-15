@@ -5,6 +5,7 @@ import { generateArkImageUrl, type ArkImageRef } from "../clients/ark.js";
 import { getProvider } from "../clients/admin.js";
 import { JSON_OBJECT_MODE_INSTRUCTION } from "@backend/transport-ts/provider-model";
 import { MAX_SEGMENTS, perSegmentSeconds } from "./limits.js";
+import type { VideoOutputConfig } from "./output-config.js";
 import { buildVideoTextModel, type Character, type Script, type UserVideoSegment } from "./script.js";
 
 export const STORYBOARD_TIMEOUT_MS = 3 * 60_000;
@@ -47,6 +48,7 @@ function faithfulStoryboardInstructions(
   script: Script,
   userSegments: UserVideoSegment[],
   perSegmentSec: number,
+  aspectLabel: string,
 ): string {
   const beatList = script.beats
     .map((beat, index) => {
@@ -61,7 +63,7 @@ function faithfulStoryboardInstructions(
     })
     .join("\n");
   return [
-    "You are storyboarding a pre-written vertical (9:16) short-drama reel. The plot for each segment is FIXED — do NOT invent new events or change the story.",
+    `You are storyboarding a pre-written ${aspectLabel} short-drama reel. The plot for each segment is FIXED — do NOT invent new events or change the story.`,
     `Produce EXACTLY ONE segment per beat, IN THE SAME ORDER (${script.beats.length} beats → ${script.beats.length} segments).`,
     `Each segment is ONE Seedance generation of ONE continuous, single-take action lasting about ${perSegmentSec}s.`,
     "For EACH segment output: `shot_size`, `camera`, `action`, optional `dialogue`, and `mood`.",
@@ -78,12 +80,12 @@ function faithfulStoryboardInstructions(
   ].join("\n");
 }
 
-function storyboardInstructions(script: Script, perSegmentSec: number): string {
+function storyboardInstructions(script: Script, perSegmentSec: number, aspectLabel: string): string {
   const beatList = script.beats
     .map((b, i) => `  ${i}. [${b.purpose}] ${b.plot} (mood: ${b.emotion}; on screen: ${b.characters.join(", ") || "protagonist"})`)
     .join("\n");
   return [
-    "You are a senior director storyboarding a VERTICAL (9:16) short-drama reel. You are given a finished SCRIPT; do NOT invent new plot — render the existing beats.",
+    `You are a senior director storyboarding a ${aspectLabel} short-drama reel. You are given a finished SCRIPT; do NOT invent new plot — render the existing beats.`,
     `Produce EXACTLY ONE segment per beat, IN THE SAME ORDER as the beats (${script.beats.length} beats → ${script.beats.length} segments).`,
     `Each segment is ONE Seedance generation of ONE continuous, single-take action lasting about ${perSegmentSec}s — NOT a multi-shot sequence. One camera setup, one continuous action.`,
     "For EACH segment output: `shot_size` (extreme close-up / close-up / medium / wide / establishing); `camera` (EXACTLY ONE precise move — static, slow push-in, pull-out, pan, tilt, tracking, or orbit; prefer static, use motion sparingly; never 'cinematic movement' or 'fast'); `action` (ONE concrete continuous action that renders the beat, naming the character(s) involved); optional `dialogue` (one short spoken line); and `mood`.",
@@ -160,6 +162,7 @@ export async function planSegments(input: {
   faithful?: boolean;
   userSegments?: UserVideoSegment[];
   segmentSeconds?: number[];
+  outputConfig?: Pick<VideoOutputConfig, "aspectLabel">;
 }): Promise<Segment[]> {
   const beats = input.script.beats;
   const beatCount = Math.max(1, beats.length);
@@ -175,9 +178,10 @@ export async function planSegments(input: {
   }));
   try {
     const structuredModel = wrapLanguageModel({ model: input.model, middleware: extractJsonMiddleware() });
+    const aspectLabel = input.outputConfig?.aspectLabel ?? "Vertical 9:16";
     const instructions = input.faithful
-      ? faithfulStoryboardInstructions(input.script, input.userSegments ?? [], defaultSeconds)
-      : storyboardInstructions(input.script, defaultSeconds);
+      ? faithfulStoryboardInstructions(input.script, input.userSegments ?? [], defaultSeconds, aspectLabel)
+      : storyboardInstructions(input.script, defaultSeconds, aspectLabel);
     const result = await generateText({
       model: structuredModel,
       output: Output.object({ schema: segmentsSchema }),
@@ -268,6 +272,7 @@ export function buildSegmentContent(
   opts: {
     characterRefs: CharacterRef[];
     mode: "reference" | "text";
+    outputConfig?: Pick<VideoOutputConfig, "aspectLabel">;
   },
 ): { prompt: string; images: ArkImageRef[] } {
   const appearing =
@@ -307,9 +312,10 @@ export function buildSegmentContent(
 
   lines.push(`Setting: ${script.settingBible}. Recurring motif: ${script.motif}.`);
   lines.push(`Style: ${script.styleBible}. Mood: ${segment.mood}.`);
+  const aspectLabel = opts.outputConfig?.aspectLabel ?? "Vertical 9:16";
   lines.push(
     "Keep the character's face, hair, and wardrobe identical to the reference; consistent lighting logic and colour grade.",
-    "One continuous single-take action that keeps progressing forward and fills the whole clip — motion stays flowing, never paused, frozen, or looping. Natural, physically plausible movement; smooth stable motion; no distortion. Vertical 9:16.",
+    `One continuous single-take action that keeps progressing forward and fills the whole clip — motion stays flowing, never paused, frozen, or looping. Natural, physically plausible movement; smooth stable motion; no distortion. ${aspectLabel}.`,
   );
 
   const images: ArkImageRef[] =

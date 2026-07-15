@@ -133,7 +133,7 @@ const kindPresets: Record<
     base_url: ARK_BASE_URL,
     model: "doubao-seedance-2-0-260128",
     extra_body:
-      '{\n  "generate_audio": true,\n  "ratio": "9:16",\n  "watermark": true\n}',
+      '{\n  "generate_audio": true,\n  "ratio": "9:16",\n  "resolution": "720p",\n  "watermark": false,\n  "framespersecond": 24\n}',
   },
   embedding: {
     base_url: ARK_BASE_URL,
@@ -745,6 +745,14 @@ function ProviderFormDialog({
                           placeholder={kindPresets[providerKind].extra_body}
                         />
                       </FormControl>
+                      {providerKind === "video" ? (
+                        <Muted className="text-xs">
+                          视频输出：ratio（16:9 / 9:16 / 1:1
+                          等）、resolution（480p / 720p /
+                          1080p）、generate_audio、watermark、framespersecond（24
+                          / 25 / 30 / 60）；同时影响 Ark 生成与拼接规格。
+                        </Muted>
+                      ) : null}
                       <FieldError errors={[form.formState.errors.extra_body]} />
                     </Field>
                   )}

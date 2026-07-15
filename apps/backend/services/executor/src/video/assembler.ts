@@ -6,18 +6,17 @@ import { join } from "node:path";
 import { secureProviderFetch } from "@backend/transport-ts/provider-url";
 
 import { getSettings } from "../config.js";
+import type { VideoOutputConfig } from "./output-config.js";
 
-const TARGET_W = 720;
-const TARGET_H = 1280;
-const TARGET_FPS = 24;
-
-const NORMALIZE_VF = [
-  `scale=${TARGET_W}:${TARGET_H}:force_original_aspect_ratio=decrease`,
-  `pad=${TARGET_W}:${TARGET_H}:(ow-iw)/2:(oh-ih)/2`,
-  "setsar=1",
-  `fps=${TARGET_FPS}`,
-  "format=yuv420p",
-].join(",");
+function buildNormalizeVf(config: Pick<VideoOutputConfig, "width" | "height" | "fps">): string {
+  return [
+    `scale=${config.width}:${config.height}:force_original_aspect_ratio=decrease`,
+    `pad=${config.width}:${config.height}:(ow-iw)/2:(oh-ih)/2`,
+    "setsar=1",
+    `fps=${config.fps}`,
+    "format=yuv420p",
+  ].join(",");
+}
 
 function runFfmpeg(args: string[], signal?: AbortSignal): Promise<void> {
   const bin = getSettings().ffmpegPath;
@@ -64,7 +63,12 @@ function hasAudioStream(path: string, signal?: AbortSignal): Promise<boolean> {
   });
 }
 
-async function normalizeClip(src: string, norm: string, signal?: AbortSignal): Promise<void> {
+async function normalizeClip(
+  src: string,
+  norm: string,
+  normalizeVf: string,
+  signal?: AbortSignal,
+): Promise<void> {
   const withAudio = await hasAudioStream(src, signal);
   const args = withAudio
     ? ["-i", src, "-map", "0:v:0", "-map", "0:a:0"]
@@ -84,7 +88,7 @@ async function normalizeClip(src: string, norm: string, signal?: AbortSignal): P
   await runFfmpeg(
     [
       ...args,
-      "-vf", NORMALIZE_VF,
+      "-vf", normalizeVf,
       "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
       "-c:a", "aac", "-ar", "44100", "-ac", "2",
       "-movflags", "+faststart",
@@ -104,9 +108,11 @@ async function downloadTo(url: string, path: string, signal?: AbortSignal): Prom
 
 export async function assembleClips(input: {
   urls: string[];
+  outputConfig: Pick<VideoOutputConfig, "width" | "height" | "fps">;
   signal?: AbortSignal;
 }): Promise<Uint8Array> {
   if (input.urls.length === 0) throw new Error("no clips to assemble");
+  const normalizeVf = buildNormalizeVf(input.outputConfig);
   const dir = await mkdtemp(join(tmpdir(), "video-assemble-"));
   try {
     const normalized: string[] = [];
@@ -114,7 +120,7 @@ export async function assembleClips(input: {
       const src = join(dir, `src-${index}.mp4`);
       const norm = join(dir, `norm-${index}.mp4`);
       await downloadTo(url, src, input.signal);
-      await normalizeClip(src, norm, input.signal);
+      await normalizeClip(src, norm, normalizeVf, input.signal);
       normalized.push(norm);
     }
 

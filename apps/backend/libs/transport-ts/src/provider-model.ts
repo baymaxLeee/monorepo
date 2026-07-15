@@ -6,20 +6,10 @@ import type {
   LanguageModelV4,
   LanguageModelV4CallOptions,
 } from "@ai-sdk/provider";
-import { createSecureProviderFetch, secureProviderFetch } from "./provider-url.js";
+import { secureProviderFetch } from "./provider-url.js";
 
 export const JSON_OBJECT_MODE_INSTRUCTION =
   "Return your entire response as a single JSON object that matches the required schema.";
-
-// Streaming LLM/vision calls get a stall guard so a provider that accepts the
-// request then goes silent (e.g. an oversized vision body it can't handle) can
-// never pin a run forever — it aborts after this long with no headers/bytes.
-// Image generation (createProviderImageModel) intentionally keeps the raw fetch:
-// those are blocking POSTs that legitimately return nothing for minutes.
-const PROVIDER_STALL_TIMEOUT_MS = 120_000;
-const streamingProviderFetch = createSecureProviderFetch({
-  stallTimeoutMs: PROVIDER_STALL_TIMEOUT_MS,
-});
 
 export interface ChatProvider {
   id: string;
@@ -149,7 +139,7 @@ class AdminOpenAICompatibleModel implements LanguageModelV4 {
       baseURL: normalizeOpenAICompatibleBaseUrl(provider.baseUrl),
       apiKey: provider.apiKey,
       includeUsage: true,
-      fetch: streamingProviderFetch,
+      fetch: secureProviderFetch,
     });
     return openai(provider.model);
   }

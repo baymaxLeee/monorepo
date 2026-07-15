@@ -1,6 +1,6 @@
 import { type ApiRequestConfig, request } from "./http";
 
-type RequestOptions = Pick<ApiRequestConfig, "skipErrorNotify">;
+type RequestOptions = Pick<ApiRequestConfig, "signal" | "skipErrorNotify">;
 
 export type BotStatus = "draft" | "published" | "archived";
 
@@ -293,10 +293,14 @@ export function publishSkill(
   });
 }
 
-export function fetchBotSkills(botId: string): Promise<SkillSummary[]> {
+export function fetchBotSkills(
+  botId: string,
+  options?: RequestOptions,
+): Promise<SkillSummary[]> {
   return request<SkillSummary[]>({
     url: `/api/admin-server/bot/${botId}/skills`,
     method: "GET",
+    ...options,
   });
 }
 

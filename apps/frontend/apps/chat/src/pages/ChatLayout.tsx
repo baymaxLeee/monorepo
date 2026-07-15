@@ -34,6 +34,7 @@ export function ChatLayout() {
     setTracePanelOpen,
     artifactPreview,
     conversationTitleUpdate,
+    loadAgents,
   } = useChatStore(
     useShallow((s) => ({
       memoryPanelOpen: s.memoryPanelOpen,
@@ -46,6 +47,7 @@ export function ChatLayout() {
       setTracePanelOpen: s.setTracePanelOpen,
       artifactPreview: s.artifactPreview,
       conversationTitleUpdate: s.conversationTitleUpdate,
+      loadAgents: s.loadAgents,
     })),
   );
 
@@ -93,6 +95,10 @@ export function ChatLayout() {
       return [] as Conversation[];
     }
   }, []);
+
+  useEffect(() => {
+    void loadAgents();
+  }, [loadAgents]);
 
   useEffect(() => {
     load();

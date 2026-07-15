@@ -196,6 +196,7 @@ export async function createToolLoopAgent(
     model: defaultModel,
     instructions,
     maxOutputTokens: provider.maxOutputTokens,
+    timeout: { chunkMs: 120_000 },
     tools: instrumentedTools,
     activeTools: resolvedTools.activeTools,
     toolOrder: [...resolvedTools.activeTools].sort(),

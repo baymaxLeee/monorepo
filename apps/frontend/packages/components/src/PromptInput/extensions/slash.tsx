@@ -2,6 +2,7 @@ import { PluginKey } from "@tiptap/pm/state";
 import { Sparkles } from "lucide-react";
 import type {
   PromptInputApi,
+  PromptSkillsLoad,
   PromptSlashCommand,
   PromptSlashSource,
 } from "../interface";
@@ -64,7 +65,8 @@ function filterCommands(list: PromptSlashCommand[], query: string) {
  * persisted token like a mention.
  */
 export function buildSlashExtension(options: {
-  getSource: () => PromptSlashSource;
+  getSource: () => PromptSlashSource | undefined;
+  getOnSkillsLoad: () => PromptSkillsLoad | undefined;
   getApi: () => PromptInputApi | null;
   onCommand: (command: PromptSlashCommand, api: PromptInputApi) => void;
 }) {
@@ -74,8 +76,14 @@ export function buildSlashExtension(options: {
     pluginKey: slashPluginKey,
     allowSpaces: false,
     emptyLabel: "没有可用技能（请在智能体设置中启用技能）",
-    items: (query) => {
-      const source = options.getSource();
+    items: async (query, signal) => {
+      const onSkillsLoad = options.getOnSkillsLoad();
+      if (onSkillsLoad) {
+        const loaded = await onSkillsLoad(signal);
+        if (signal.aborted) return [];
+        return filterCommands(loaded, query);
+      }
+      const source = options.getSource() ?? DEFAULT_SLASH_COMMANDS;
       const list = typeof source === "function" ? source(query) : source;
       return filterCommands(list, query);
     },

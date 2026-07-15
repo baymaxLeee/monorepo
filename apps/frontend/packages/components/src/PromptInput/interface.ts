@@ -62,6 +62,11 @@ export type PromptSlashSource =
   | PromptSlashCommand[]
   | ((query: string) => PromptSlashCommand[]);
 
+/** Async skill list for the `/` menu — invoked when the slash popup opens. */
+export type PromptSkillsLoad = (
+  signal: AbortSignal,
+) => PromptSlashCommand[] | Promise<PromptSlashCommand[]>;
+
 export interface PromptInputProps {
   defaultValue?: string;
   placeholder?: string;
@@ -94,6 +99,8 @@ export interface PromptInputProps {
   mentionSource?: PromptMentionSource;
   /** Enables the `/` slash popup. Static list or a per-query resolver. */
   slashCommands?: PromptSlashSource;
+  /** Loads slash skills asynchronously when the `/` menu opens. */
+  onSkillsLoad?: PromptSkillsLoad;
   /** Fallback handler when a picked slash command has no own `run`. */
   onSlashCommand?: (command: PromptSlashCommand, api: PromptInputApi) => void;
 }

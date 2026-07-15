@@ -478,7 +478,11 @@ export async function createAgentRunResponse(
       stream: uiStream,
       headers: { "x-agent-run-id": runId },
       consumeSseStream: resumable
-        ? ({ stream }) => consumeAgentSseStream(conversation.id, runId, stream)
+        ? ({ stream }) => {
+            void consumeAgentSseStream(conversation.id, runId, stream).catch((error) =>
+              logger.error({ err: error }, "resumable stream consumption failed"),
+            );
+          }
         : undefined,
     });
   } catch (error) {

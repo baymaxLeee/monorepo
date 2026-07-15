@@ -38,6 +38,7 @@ import {
   scriptedSegmentSeconds,
 } from "../src/video/limits.js";
 import { assembleClips } from "../src/video/assembler.js";
+import { parseVideoOutputConfig, type VideoOutputConfig } from "../src/video/output-config.js";
 import { observeTaskCancellation } from "../src/tasks/cancellation.js";
 
 export const videoSegmentInputSchema = z.object({
@@ -89,7 +90,16 @@ type SegmentResult = {
   error?: string;
 };
 
-async function scriptedScriptStep(input: VideoGenerationInput): Promise<Script> {
+async function loadVideoOutputConfigStep(input: {
+  orgId: string;
+  providerId: string;
+}): Promise<VideoOutputConfig> {
+  "use step";
+  const provider = await getProvider(input.providerId, input.orgId);
+  return parseVideoOutputConfig(provider.extraBody);
+}
+
+async function scriptedScriptStep(input: VideoGenerationInput, aspectLabel: string): Promise<Script> {
   "use step";
   const segments = input.segments!;
   const { model } = await buildVideoTextModel(input.textProviderId, input.orgId);
@@ -112,6 +122,7 @@ async function scriptedScriptStep(input: VideoGenerationInput): Promise<Script> 
         cancellation.signal,
         AbortSignal.timeout(SCRIPT_TIMEOUT_MS),
       ]),
+      aspectLabel,
     });
     if (cancellation.signal.aborted) throw cancellation.signal.reason;
     return script;
@@ -157,7 +168,7 @@ async function describeCharactersStep(input: {
   }
 }
 
-async function scriptStep(input: VideoGenerationInput): Promise<Script> {
+async function scriptStep(input: VideoGenerationInput, aspectLabel: string): Promise<Script> {
   "use step";
   const targetDurationSec = input.targetDurationSec ?? DEFAULT_TARGET_DURATION_S;
   const count = deriveSegmentCount(targetDurationSec);
@@ -174,6 +185,7 @@ async function scriptStep(input: VideoGenerationInput): Promise<Script> {
         cancellation.signal,
         AbortSignal.timeout(SCRIPT_TIMEOUT_MS),
       ]),
+      aspectLabel,
     });
     if (cancellation.signal.aborted) throw cancellation.signal.reason;
     return script;
@@ -190,6 +202,7 @@ async function storyboardStep(input: {
   faithful?: boolean;
   userSegments?: UserVideoSegment[];
   segmentSeconds?: number[];
+  outputConfig: VideoOutputConfig;
 }): Promise<Segment[]> {
   "use step";
   const { model } = await buildVideoTextModel(input.textProviderId, input.orgId);
@@ -207,6 +220,7 @@ async function storyboardStep(input: {
       faithful: input.faithful,
       userSegments: input.userSegments,
       segmentSeconds: input.segmentSeconds,
+      outputConfig: input.outputConfig,
     });
     if (cancellation.signal.aborted) throw cancellation.signal.reason;
     return segments;
@@ -245,7 +259,10 @@ async function characterSheetStep(input: {
   }
 }
 
-async function planStep(input: VideoGenerationInput): Promise<{
+async function planStep(
+  input: VideoGenerationInput,
+  outputConfig: VideoOutputConfig,
+): Promise<{
   script: Script;
   segments: Segment[];
   characterRefs: CharacterRef[];
@@ -259,8 +276,8 @@ async function planStep(input: VideoGenerationInput): Promise<{
     ?? segmentSeconds?.reduce((total, seconds) => total + seconds, 0)
     ?? DEFAULT_TARGET_DURATION_S;
   let script = scripted
-    ? await scriptedScriptStep(input)
-    : await scriptStep(input);
+    ? await scriptedScriptStep(input, outputConfig.aspectLabel)
+    : await scriptStep(input, outputConfig.aspectLabel);
 
   const describedCharacters = await describeCharactersStep({
     orgId: input.orgId,
@@ -286,6 +303,7 @@ async function planStep(input: VideoGenerationInput): Promise<{
     faithful: scripted,
     userSegments,
     segmentSeconds,
+    outputConfig,
   });
   const characterRefs = await characterSheetStep({
     script,
@@ -303,6 +321,7 @@ async function createSegmentStep(input: {
   characterRefs: CharacterRef[];
   mode: SegmentMode;
   seed: number;
+  outputConfig: VideoOutputConfig;
 }): Promise<{ taskId?: string; error?: string }> {
   "use step";
   const { workflowRunId } = getWorkflowMetadata();
@@ -312,6 +331,7 @@ async function createSegmentStep(input: {
     const { prompt, images } = buildSegmentContent(input.segment, input.script, {
       characterRefs: input.characterRefs,
       mode: input.mode,
+      outputConfig: input.outputConfig,
     });
     const taskId = await createArkVideoTask({
       baseUrl: provider.baseUrl,
@@ -409,6 +429,7 @@ async function assembleStep(input: {
   filename: string;
   idempotencyKey?: string;
   urls: string[];
+  outputConfig: VideoOutputConfig;
 }): Promise<{ documentId: string; sizeBytes: number }> {
   "use step";
   const { workflowRunId } = getWorkflowMetadata();
@@ -417,6 +438,7 @@ async function assembleStep(input: {
   try {
     bytes = await assembleClips({
       urls: input.urls,
+      outputConfig: input.outputConfig,
       signal: AbortSignal.any([
         cancellation.signal,
         AbortSignal.timeout(ASSEMBLE_TIMEOUT_MS),
@@ -472,8 +494,12 @@ async function mapConcurrent<T, R>(
 
 export async function videoGenerationWorkflow(input: VideoGenerationInput) {
   "use workflow";
+  const outputConfig = await loadVideoOutputConfigStep({
+    orgId: input.orgId,
+    providerId: input.providerId,
+  });
   const segmentConcurrency = await getVideoSegmentConcurrencyStep();
-  const { script, segments, characterRefs, baseSeed } = await planStep(input);
+  const { script, segments, characterRefs, baseSeed } = await planStep(input, outputConfig);
   const total = segments.length;
   const hasRefs = characterRefs.length > 0;
   let done = 0;
@@ -489,6 +515,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
       characterRefs,
       mode,
       seed: deriveSegmentSeed(baseSeed, segment.order),
+      outputConfig,
     });
     let result: SegmentResult;
     if (!created.taskId) {
@@ -532,6 +559,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
     filename: input.filename,
     idempotencyKey: input.idempotencyKey,
     urls,
+    outputConfig,
   });
 
   return {

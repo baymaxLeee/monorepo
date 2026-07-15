@@ -57,9 +57,9 @@ const scriptSchema = z.object({
   beats: z.array(beatSchema).min(1).max(MAX_SEGMENTS),
 });
 
-function scriptInstructions(beatCount: number, targetDurationSec: number): string {
+function scriptInstructions(beatCount: number, targetDurationSec: number, aspectLabel: string): string {
   return [
-    "You are a senior short-drama screenwriter writing a VERTICAL (9:16) reel for 抖音/小红书 投流 (paid distribution). Output a SCRIPT, not a shot list — the storyboard comes later.",
+    `You are a senior short-drama screenwriter writing a ${aspectLabel} reel for 抖音/小红书 投流 (paid distribution). Output a SCRIPT, not a shot list — the storyboard comes later.`,
     "Write a retention-first arc with a clear 4-part shape: a 3-second HOOK (conflict / question / striking image) → develop the character and stakes → a turn/反转 → a payoff or cliffhanger.",
     `Write EXACTLY ${beatCount} BEATS for this ~${targetDurationSec}s reel — no more, no fewer. Each beat becomes ONE ~${Math.round(targetDurationSec / beatCount)}s clip.`,
     `CRITICAL — the ${beatCount} beats must be ${beatCount} DIFFERENT scenes. Every beat must carry a DISTINCT, concrete plot event that MOVES THE STORY FORWARD, and must CHANGE the location, the on-screen action, OR the situation from the beat before it. No two beats may show the same moment, the same action, or the same emotional note. If you cannot make a beat genuinely new, you have too many beats — but you must still output exactly ${beatCount}, so invent a real new development instead of restating. Write \`plot\` as a specific visible event ('she finds his phone open to a message', not 'she is upset').`,
@@ -196,9 +196,9 @@ export type UserVideoCharacter = {
   appearance?: string;
 };
 
-function anchorsInstructions(extractCharacters: boolean): string {
+function anchorsInstructions(extractCharacters: boolean, aspectLabel: string): string {
   const lines = [
-    "You are a short-drama production designer. Output global visual anchors for a vertical (9:16) reel.",
+    `You are a short-drama production designer. Output global visual anchors for a ${aspectLabel} reel.`,
     "Do NOT write beats, scenes, or a shot list — those are already fixed.",
     "Keep every field tight and concrete; these anchors get restated downstream.",
   ];
@@ -237,6 +237,7 @@ export async function buildScriptFromSegments(input: {
   characters?: UserVideoCharacter[];
   model: Awaited<ReturnType<typeof buildVideoTextModel>>["model"];
   abortSignal: AbortSignal;
+  aspectLabel?: string;
 }): Promise<Script> {
   const userProvidedCharacters = Boolean(input.characters?.length);
   let scriptCharacters: Character[] = userProvidedCharacters
@@ -244,6 +245,7 @@ export async function buildScriptFromSegments(input: {
     : defaultScriptCharacters(input.prompt);
 
   let anchors = deterministicAnchors(input.prompt);
+  const aspectLabel = input.aspectLabel ?? "Vertical 9:16";
   try {
     const structuredModel = wrapLanguageModel({ model: input.model, middleware: extractJsonMiddleware() });
     const segmentOutline = input.segments
@@ -252,7 +254,7 @@ export async function buildScriptFromSegments(input: {
     const result = await generateText({
       model: structuredModel,
       output: Output.object({ schema: anchorsSchema }),
-      instructions: anchorsInstructions(!userProvidedCharacters),
+      instructions: anchorsInstructions(!userProvidedCharacters, aspectLabel),
       prompt: [
         `<premise>${input.prompt}</premise>`,
         `<segments>\n${segmentOutline}\n</segments>`,
@@ -298,15 +300,17 @@ export async function planScript(input: {
   count: number;
   model: Awaited<ReturnType<typeof buildVideoTextModel>>["model"];
   abortSignal: AbortSignal;
+  aspectLabel?: string;
 }): Promise<Script> {
   const count = Math.max(2, Math.min(input.count, MAX_SEGMENTS));
   const fallback = deterministicScript(input.prompt, count);
+  const aspectLabel = input.aspectLabel ?? "Vertical 9:16";
   try {
     const structuredModel = wrapLanguageModel({ model: input.model, middleware: extractJsonMiddleware() });
     const result = await generateText({
       model: structuredModel,
       output: Output.object({ schema: scriptSchema }),
-      instructions: scriptInstructions(count, input.targetDurationSec),
+      instructions: scriptInstructions(count, input.targetDurationSec, aspectLabel),
       prompt: [
         `<premise>${input.prompt}</premise>`,
         `<target_duration_seconds>${input.targetDurationSec}</target_duration_seconds>`,

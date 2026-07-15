@@ -14,7 +14,6 @@ import {
   fetchBotSkills,
   fetchConversation,
   ingestConversationDocuments,
-  type SkillSummary,
 } from "api";
 import { toast } from "components";
 import {
@@ -27,6 +26,7 @@ import {
 import {
   type PromptInputRef,
   type PromptInputValue,
+  type PromptSlashCommand,
   PromptInput as RichPromptInput,
 } from "components/prompt-input";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -129,7 +129,6 @@ export function Chat() {
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<"normal" | "plan">("normal");
-  const [agentSkills, setAgentSkills] = useState<SkillSummary[]>([]);
   const [activatedSkillName, setActivatedSkillName] = useState<string | null>(
     null,
   );
@@ -137,6 +136,12 @@ export function Chat() {
   const conversationScrollRef = useRef<StickToBottomContext | null>(null);
   const resumedConversationRef = useRef<string | null>(null);
   const reconnectAbortRef = useRef<AbortController | null>(null);
+  const skillCommandsCacheRef = useRef(new Map<string, PromptSlashCommand[]>());
+  const skillRequestRef = useRef<{
+    agentId: string;
+    controller: AbortController;
+    promise: Promise<PromptSlashCommand[]>;
+  } | null>(null);
   const messagesRef = useRef<ChatUIMessage[]>([]);
   const titleRafRef = useRef<number | null>(null);
   const pendingTitleRef = useRef<{ id: string; title: string } | null>(null);
@@ -144,7 +149,6 @@ export function Chat() {
     agents,
     selectedAgentId,
     setSelectedAgentId,
-    loadAgents,
     setTraceRun,
     clearTraceRun,
     bumpTraceRefresh,
@@ -157,7 +161,6 @@ export function Chat() {
       agents: s.agents,
       selectedAgentId: s.selectedAgentId,
       setSelectedAgentId: s.setSelectedAgentId,
-      loadAgents: s.loadAgents,
       setTraceRun: s.setTraceRun,
       clearTraceRun: s.clearTraceRun,
       bumpTraceRefresh: s.bumpTraceRefresh,
@@ -177,39 +180,68 @@ export function Chat() {
   );
 
   useEffect(() => {
-    if (!agents) void loadAgents();
-  }, [agents, loadAgents]);
-
-  // Only active + enabled skills are advertised to the model, so those are the
-  // only ones the `/` picker offers (matches the backend's advertised set).
-  useEffect(() => {
     setActivatedSkillName(null);
-    if (!selectedAgentId) {
-      setAgentSkills([]);
-      return;
+    if (
+      skillRequestRef.current &&
+      skillRequestRef.current.agentId !== selectedAgentId
+    ) {
+      skillRequestRef.current.controller.abort();
+      skillRequestRef.current = null;
     }
-    let alive = true;
-    fetchBotSkills(selectedAgentId)
-      .then((list) => {
-        if (alive)
-          setAgentSkills(
-            list.filter((s) => s.is_enabled && s.status === "published"),
-          );
-      })
-      .catch(() => alive && setAgentSkills([]));
-    return () => {
-      alive = false;
-    };
   }, [selectedAgentId]);
 
-  const skillCommands = useMemo(
-    () =>
-      agentSkills.map((skill) => ({
-        id: skill.name,
-        title: skill.name,
-        description: skill.description,
-      })),
-    [agentSkills],
+  useEffect(
+    () => () => {
+      skillRequestRef.current?.controller.abort();
+    },
+    [],
+  );
+
+  const loadSkills = useCallback(
+    async (signal: AbortSignal) => {
+      const agentId = selectedAgentId;
+      if (!agentId) return [];
+      const cached = skillCommandsCacheRef.current.get(agentId);
+      if (cached) return cached;
+
+      let request = skillRequestRef.current;
+      if (!request || request.agentId !== agentId) {
+        request?.controller.abort();
+        const controller = new AbortController();
+        const promise = fetchBotSkills(agentId, {
+          signal: controller.signal,
+          skipErrorNotify: true,
+        })
+          .then((list) =>
+            list
+              .filter(
+                (skill) => skill.is_enabled && skill.status === "published",
+              )
+              .map((skill) => ({
+                id: skill.name,
+                title: skill.name,
+                description: skill.description,
+              })),
+          )
+          .then((commands) => {
+            skillCommandsCacheRef.current.set(agentId, commands);
+            return commands;
+          })
+          .catch(() => []);
+        request = { agentId, controller, promise };
+        skillRequestRef.current = request;
+        void promise.finally(() => {
+          if (skillRequestRef.current?.controller === controller) {
+            skillRequestRef.current = null;
+          }
+        });
+      }
+
+      const list = await request.promise;
+      if (signal.aborted) return [];
+      return list;
+    },
+    [selectedAgentId],
   );
 
   const transport = useMemo(
@@ -684,7 +716,7 @@ export function Chat() {
                 meta: { artifactId: document.id },
               }));
           }}
-          slashCommands={skillCommands}
+          onSkillsLoad={loadSkills}
           onSlashCommand={(command) => {
             setActivatedSkillName(command.id);
             toast(`已选择技能：${command.title}`);

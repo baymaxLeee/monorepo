@@ -17,11 +17,7 @@ import { cn, randomId } from "shared";
 import { Button } from "../../shadcn/button";
 import { buildMentionExtension, mentionPluginKey } from "../extensions/mention";
 import { createPromptTokenExtension } from "../extensions/PromptToken";
-import {
-  buildSlashExtension,
-  DEFAULT_SLASH_COMMANDS,
-  slashPluginKey,
-} from "../extensions/slash";
+import { buildSlashExtension, slashPluginKey } from "../extensions/slash";
 import type {
   PromptInputApi,
   PromptInputProps,
@@ -122,6 +118,7 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
       footerRender,
       mentionSource,
       slashCommands,
+      onSkillsLoad,
       onSlashCommand,
     } = props;
     const filesRef = useRef<Record<string, File>>({});
@@ -133,6 +130,7 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
     const renderTokenRef = useRef(renderToken);
     const mentionSourceRef = useRef(mentionSource);
     const slashCommandsRef = useRef(slashCommands);
+    const onSkillsLoadRef = useRef(onSkillsLoad);
     const onSlashCommandRef = useRef(onSlashCommand);
     const apiRef = useRef<PromptInputApi | null>(null);
     const [attachmentsUploading, setAttachmentsUploading] = useState(false);
@@ -142,6 +140,7 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
     renderTokenRef.current = renderToken;
     mentionSourceRef.current = mentionSource;
     slashCommandsRef.current = slashCommands;
+    onSkillsLoadRef.current = onSkillsLoad;
     onSlashCommandRef.current = onSlashCommand;
 
     const extensions = useMemo<Extensions>(() => {
@@ -173,10 +172,11 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>(
           ),
         );
       }
-      if (slashCommands || onSlashCommand) {
+      if (slashCommands || onSkillsLoad || onSlashCommand) {
         list.push(
           buildSlashExtension({
-            getSource: () => slashCommandsRef.current ?? DEFAULT_SLASH_COMMANDS,
+            getSource: () => slashCommandsRef.current,
+            getOnSkillsLoad: () => onSkillsLoadRef.current,
             getApi: () => apiRef.current,
             onCommand: (command, currentApi) =>
               onSlashCommandRef.current?.(command, currentApi),

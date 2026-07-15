@@ -338,9 +338,8 @@ Codex/Cursor keep upload instant and process asynchronously.
   internally anyway (~1568px Anthropic / ≤2048px OpenAI), so sending the raw
   multi-megapixel photo only wastes tokens/latency and can stall weaker
   providers on request size; normalizing keeps the body small and reliable while
-  the original is preserved for download/RAG. A stall timeout on the streaming
-  provider fetch (`transport-ts` `createSecureProviderFetch`) is the last-resort
-  backstop so a silent provider can never pin a run.
+  the original is preserved for download/RAG. AI SDK's per-chunk timeout is the
+  last-resort backstop so a silent provider can never pin a run.
 - **Convert cache:** identical re-uploads reuse a prior `ready` document's
   `content_md` by `object_sha256`, scoped to the same org/user trust boundary and
   restricted to deterministic (non-media) MarkItDown output — vision captions

@@ -1,6 +1,7 @@
 import { secureProviderFetch } from "@backend/transport-ts/provider-url";
 
 import { clampArkDuration } from "../video/limits.js";
+import { pickArkVideoBody } from "../video/output-config.js";
 
 const VIDEO_TASKS_PATH = "/contents/generations/tasks";
 
@@ -37,22 +38,6 @@ export class ArkRequestError extends Error {
   }
 }
 
-const ARK_VIDEO_PARAMS = new Set([
-  "ratio",
-  "resolution",
-  "framespersecond",
-  "watermark",
-  "generate_audio",
-  "seed",
-  "size",
-  "service_tier",
-  "tools",
-]);
-
-const ARK_VIDEO_ALIASES: Record<string, string> = {
-  fps: "framespersecond",
-};
-
 export type ArkVideoStatus =
   | "queued"
   | "running"
@@ -84,25 +69,9 @@ export function arkApiRoot(baseUrl: string): string {
   return root;
 }
 
-function videoBodyOptions(extraBody: Record<string, unknown>): Record<string, unknown> {
-  const options: Record<string, unknown> = {};
-  for (const [rawKey, rawValue] of Object.entries(extraBody)) {
-    const key = ARK_VIDEO_ALIASES[rawKey] ?? rawKey;
-    if (!ARK_VIDEO_PARAMS.has(key)) continue;
-    options[key] = rawValue;
-  }
-  return options;
-}
-
 type ArkContentItem =
   | { type: "text"; text: string }
   | { type: "image_url"; image_url: { url: string }; role: ArkImageRole };
-
-const ARK_VIDEO_DEFAULTS = {
-  ratio: "9:16",
-  resolution: "720p",
-  generate_audio: true,
-} as const;
 
 export async function createArkVideoTask(input: {
   baseUrl: string;
@@ -132,8 +101,7 @@ export async function createArkVideoTask(input: {
   const body: Record<string, unknown> = {
     model: input.model,
     content,
-    ...ARK_VIDEO_DEFAULTS,
-    ...videoBodyOptions(input.extraBody),
+    ...pickArkVideoBody(input.extraBody),
     ...(input.seed != null ? { seed: input.seed } : {}),
     [caps.durationField]: durationValue,
   };
