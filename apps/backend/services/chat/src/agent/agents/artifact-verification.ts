@@ -1,3 +1,5 @@
+import { isToolOutcome, toolOutcomeData } from "../tools/outcome.js";
+
 type VerificationFinding = {
   code: string;
   reason: string;
@@ -102,10 +104,27 @@ function applyToolResult(
   toolName: string,
   outputValue: unknown,
 ): ArtifactVerificationState {
-  const output = recordValue(outputValue);
+  if (!isToolOutcome(outputValue) || outputValue.status !== "completed") {
+    const expectedTool = state.current?.phase === "verify" ? "html_validate" : "edit_file";
+    if (state.current && toolName === expectedTool) {
+      return {
+        ...state,
+        current: {
+          ...state.current,
+          phase: "failed",
+          failure:
+            isToolOutcome(outputValue) && outputValue.ok === false
+              ? outputValue.error.message
+              : `${toolName} returned an invalid outcome during the internal quality gate`,
+        },
+      };
+    }
+    return state;
+  }
+  const output = recordValue(toolOutcomeData(outputValue));
   if (!output) return state;
   if (toolName === "write_file" || toolName === "edit_file") {
-    if (output.ok !== true || output.status !== "completed" || output.kind !== "html" || typeof output.document_id !== "string") {
+    if (output.kind !== "html" || typeof output.document_id !== "string") {
       if (toolName === "edit_file" && state.current?.phase === "repair") {
         return { ...state, current: { ...state.current, phase: "failed", failure: "edit_file did not complete during artifact repair" } };
       }
@@ -120,7 +139,7 @@ function applyToolResult(
     return enqueue(state, output.document_id);
   }
   if (toolName !== "html_validate" || !state.current) return state;
-  if (output.status !== "completed" || output.file_id !== state.current.documentId) {
+  if (output.file_id !== state.current.documentId) {
     return { ...state, current: { ...state.current, phase: "failed", failure: "html_validate did not complete for the expected revision" } };
   }
   const unaddressable = Array.isArray(output.errors) && output.errors.some((value) => {

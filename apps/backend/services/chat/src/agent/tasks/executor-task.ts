@@ -86,23 +86,10 @@ export async function* pollTaskSnapshots(
   }
 }
 
-export async function startTaskResilient(
+export async function startExecutorTask(
   input: Parameters<typeof startTask>[0],
   signal?: AbortSignal,
 ): Promise<Task> {
-  let attempts = 0;
-  while (true) {
-    if (signal?.aborted) throw new DOMException("aborted", "AbortError");
-    try {
-      return await startTask(input);
-    } catch (error) {
-      attempts += 1;
-      if (!isTransientPollError(error) || attempts >= 5) throw error;
-      logger.warn(
-        { ownerRef: input.ownerRef, attempts, err: String(error).slice(0, 200) },
-        "task dispatch transient failure, retrying",
-      );
-      await abortableSleep(TASK_POLL_MS, signal);
-    }
-  }
+  if (signal?.aborted) throw new DOMException("aborted", "AbortError");
+  return startTask(input);
 }

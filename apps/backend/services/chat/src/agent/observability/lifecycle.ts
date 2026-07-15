@@ -5,6 +5,7 @@ import {
   recordToolCallStart,
   startAgentStep,
 } from "../runs/repository.js";
+import { isToolOutcome } from "../tools/outcome.js";
 
 function stepId(runId: string, stepNumber: number): string {
   const compact = runId.replace(/[^a-f0-9]/gi, "").padEnd(30, "0").slice(0, 30);
@@ -91,13 +92,17 @@ export async function recordToolStart(input: { runId: string; toolCallId: string
 }
 
 export async function recordToolEnd(input: { toolCallId: string; toolName: string; success: boolean; output?: unknown; error?: unknown; durationMs: number }): Promise<void> {
-  const semanticFailure = input.toolName !== "html_validate" && input.success && typeof input.output === "object" && input.output !== null && "ok" in input.output && (input.output as { ok?: unknown }).ok === false;
+  const outcome = isToolOutcome(input.output) ? input.output : null;
+  const semanticFailure = input.success && outcome?.ok === false;
   const success = input.success && !semanticFailure;
   await recordToolCallFinish({
     toolCallId: input.toolCallId,
     status: success ? "completed" : "failed",
-    output: success ? input.output : undefined,
-    error: success ? undefined : input.error ?? input.output,
+    output: input.success ? input.output : undefined,
+    error:
+      success
+        ? undefined
+        : input.error ?? (outcome && outcome.ok === false ? outcome.error.message : input.output),
     durationMs: input.durationMs,
   });
 }

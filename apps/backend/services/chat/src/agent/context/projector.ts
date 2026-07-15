@@ -12,6 +12,7 @@ import { parseCompactionState, type CompactionState } from "./compaction-state.j
 import { documentIdFromFilePart, isImageMediaType } from "./file-parts.js";
 import { escapeXmlText } from "./instructions/xml.js";
 import { estimateTextTokens } from "./token-estimate.js";
+import { toolOutcomeData } from "../tools/outcome.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
@@ -34,8 +35,9 @@ function textParts(message: AnyUIMessage): string {
       if (part.type === "text") return [part.text];
       if (part.type === "source-url") return [`source: ${part.title ?? part.url} ${part.url}`];
       if (part.type.startsWith("tool-") && "state" in part && part.state === "output-available") {
-        const output = "output" in part && part.output && typeof part.output === "object"
-          ? part.output as Record<string, unknown>
+        const data = "output" in part ? toolOutcomeData(part.output) : undefined;
+        const output = data && typeof data === "object"
+          ? data as Record<string, unknown>
           : null;
         const reference = output && (
           output.document_id ?? output.file_id ?? output.url ?? output.status
@@ -57,8 +59,9 @@ function estimatedMessageTokens(message: AnyUIMessage): number {
 }
 
 function parseTodoSnapshot(output: unknown): TodoSnapshotItem[] | null {
-  if (!output || typeof output !== "object") return null;
-  const todos = (output as { todos?: unknown }).todos;
+  const data = toolOutcomeData(output);
+  if (!data || typeof data !== "object") return null;
+  const todos = (data as { todos?: unknown }).todos;
   if (!Array.isArray(todos)) return null;
   const parsed = todos.filter((item): item is TodoSnapshotItem => {
     if (!item || typeof item !== "object") return false;

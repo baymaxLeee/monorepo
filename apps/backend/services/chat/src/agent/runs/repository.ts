@@ -4,6 +4,7 @@ import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
 import { getDb } from "../../db/index.js";
 import { agentRuns, agentSteps, agentToolCalls, conversationRunLeases } from "../../db/schema.js";
+import { isToolOutcome } from "../tools/outcome.js";
 import { cancelTodoOutput } from "./cancellation.js";
 
 export type AgentRunStatus = "running" | "cancel_requested" | "completed" | "failed" | "cancelled" | "interrupted";
@@ -23,7 +24,13 @@ function asJsonValue(value: unknown): unknown {
 }
 
 function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error) ?? String(error);
+  } catch {
+    return String(error);
+  }
 }
 
 export async function createAgentRun(input: {
@@ -352,16 +359,12 @@ function terminalToolPart(part: unknown): {
   if (typeof row.toolCallId !== "string") return null;
   if (row.state === "output-available") {
     const output = row.output;
-    const semanticFailure =
-      output &&
-      typeof output === "object" &&
-      "ok" in output &&
-      (output as { ok?: unknown }).ok === false;
+    const semanticFailure = isToolOutcome(output) && output.ok === false;
     return {
       toolCallId: row.toolCallId,
       status: semanticFailure ? "failed" : "completed",
-      output: semanticFailure ? undefined : output,
-      error: semanticFailure ? output : undefined,
+      output,
+      error: semanticFailure ? output.error.message : undefined,
     };
   }
   if (row.state === "output-error") {
@@ -403,10 +406,7 @@ export async function finalizeRunToolCallsFromParts(runId: string, parts: unknow
         .update(agentToolCalls)
         .set({
           status: terminal.status,
-          outputJson:
-            terminal.status === "completed" && terminal.output !== undefined
-              ? asJsonValue(terminal.output)
-              : undefined,
+          outputJson: terminal.output === undefined ? undefined : asJsonValue(terminal.output),
           error: terminal.status === "failed" ? errorText(terminal.error).slice(0, 4000) : null,
           durationMs: Math.max(0, now.getTime() - row.createdAt.getTime()),
           finishedAt: now,

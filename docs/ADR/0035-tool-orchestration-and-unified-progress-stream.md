@@ -113,12 +113,11 @@ Verified constraints (against `ai@7.0.15`):
   part; no second connection.
 - `generate_images` stays chat-internal and two-phase (`generating` →
   `completed` with `images[]`); it has no executor task and needs no polling.
-- An **executor-reported terminal failure/cancellation** is surfaced as a
-  structured tool output — a final `yield { ok: false, status: "failed" |
-  "cancelled", error, ... }` — not a thrown error, so the artifact/video card
-  renders its failed state off the tool part. Only poll network errors, the
-  wait timeout, run-abort (user Stop), and tool implementation bugs still throw
-  (→ `output-error`).
+- Executor-reported artifact and video business failures are structured
+  ToolOutcome values on `output-available`, so the model receives the real
+  failure through AI SDK's model-side `error-json` result and decides the next
+  step; see ADR 0042. Abort and protocol failures remain native `output-error`
+  parts.
 - **Progress source matrix:** HTML/video → poll executor `tasks.progress`
   (executor keeps writing it via `reportTaskProgress`, minus the push); images →
   chat-internal `Promise.allSettled` two-phase output; Knowledge stores only

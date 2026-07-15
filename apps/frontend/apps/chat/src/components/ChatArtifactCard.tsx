@@ -8,6 +8,7 @@ import {
   ArtifactTitle,
 } from "components/ai-chat";
 import { FileTextIcon, Loader2Icon } from "lucide-react";
+import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
 
 export type ArtifactOutput = {
   documentId: string;
@@ -19,8 +20,11 @@ export type ArtifactOutput = {
 };
 
 export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
-  if (!output || typeof output !== "object") return null;
-  const raw = output as Record<string, unknown>;
+  const outcome = parseToolOutcome(output);
+  if (!outcome || outcome.ok === false) return null;
+  const payload = toolOutcomePayload(outcome);
+  if (!payload || typeof payload !== "object") return null;
+  const raw = payload as Record<string, unknown>;
   if (typeof raw.document_id !== "string") return null;
   return {
     documentId: raw.document_id,
@@ -49,8 +53,11 @@ export type ArtifactTaskOutput = {
 export function parseArtifactTaskOutput(
   output: unknown,
 ): ArtifactTaskOutput | null {
-  if (!output || typeof output !== "object") return null;
-  const raw = output as Record<string, unknown>;
+  const outcome = parseToolOutcome(output);
+  if (!outcome) return null;
+  const payload = toolOutcomePayload(outcome);
+  if (!payload || typeof payload !== "object") return null;
+  const raw = payload as Record<string, unknown>;
   if (typeof raw.task_id !== "string") return null;
   return {
     taskId: raw.task_id,
@@ -58,7 +65,9 @@ export function parseArtifactTaskOutput(
     filename: typeof raw.filename === "string" ? raw.filename : "artifact",
     kind: typeof raw.kind === "string" ? raw.kind : "html",
     status:
-      typeof raw.status === "string" ? (raw.status as TaskStatus) : undefined,
+      outcome.status === "running" || outcome.status === "completed"
+        ? outcome.status
+        : undefined,
     blocksDone:
       typeof raw.blocks_done === "number" ? raw.blocks_done : undefined,
     blocksTotal:
@@ -67,7 +76,12 @@ export function parseArtifactTaskOutput(
       typeof raw.document_id === "string" ? raw.document_id : undefined,
     totalChars:
       typeof raw.total_chars === "number" ? raw.total_chars : undefined,
-    error: typeof raw.error === "string" ? raw.error : undefined,
+    error:
+      outcome.ok === false
+        ? outcome.error.message
+        : typeof raw.error === "string"
+          ? raw.error
+          : undefined,
   };
 }
 

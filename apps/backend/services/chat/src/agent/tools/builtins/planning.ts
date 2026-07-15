@@ -9,9 +9,9 @@ import {
 } from "../../plans/service.js";
 import { planToolContextSchema } from "../context.js";
 import { defineAgentTool } from "../manifest.js";
+import { ToolBlockedError } from "../outcome.js";
 
 const planArtifactOutputSchema = z.object({
-  ok: z.literal(true),
   status: z.literal("persisted"),
   document_id: z.string(),
   revision_id: z.string(),
@@ -20,16 +20,6 @@ const planArtifactOutputSchema = z.object({
   kind: z.literal("plan"),
   next_suggestion: z.string(),
 });
-
-const updatePlanOutputSchema = z.union([
-  planArtifactOutputSchema,
-  z.object({
-    ok: z.literal(false),
-    conflict: z.literal(true),
-    error: z.string(),
-    revision_id: z.string().optional(),
-  }),
-]);
 
 const todoItemSchema = z.object({
   id: z.string().min(1).max(64),
@@ -40,22 +30,27 @@ const todoItemSchema = z.object({
 
 export const updateTodosInputSchema = z.object({
   todos: z.array(todoItemSchema).max(50),
+}).superRefine((input, context) => {
+  const ids = new Set<string>();
+  for (const [index, item] of input.todos.entries()) {
+    if (ids.has(item.id)) {
+      context.addIssue({ code: "custom", path: ["todos", index, "id"], message: `duplicate todo id: ${item.id}` });
+    }
+    ids.add(item.id);
+  }
 });
 
-const updateTodosOutputSchema = z.union([
-  z.object({ ok: z.literal(true), todos: z.array(todoItemSchema) }),
-  z.object({ ok: z.literal(false), error: z.string() }),
-]);
+const updateTodosOutputSchema = z.object({ todos: z.array(todoItemSchema) });
 
 export type UpdateTodosOutput = z.infer<typeof updateTodosOutputSchema>;
 
 function updateTodos(input: z.infer<typeof updateTodosInputSchema>): UpdateTodosOutput {
-  const ids = new Set<string>();
-  for (const item of input.todos) {
-    if (ids.has(item.id)) return { ok: false, error: `duplicate todo id: ${item.id}` };
-    ids.add(item.id);
-  }
-  return { ok: true, todos: input.todos };
+  return { todos: input.todos };
+}
+
+function planArtifactData(output: Awaited<ReturnType<typeof writePlanTool>>) {
+  const { ok: _ok, ...data } = output;
+  return data;
 }
 
 export function createPlanningToolManifests() {
@@ -68,7 +63,7 @@ export function createPlanningToolManifests() {
         inputSchema: writePlanInputSchema,
         outputSchema: planArtifactOutputSchema,
         contextSchema: planToolContextSchema,
-        execute: writePlanTool,
+        execute: async (input, options) => planArtifactData(await writePlanTool(input, options)),
       }),
       {
         capability: "planning",
@@ -86,9 +81,23 @@ export function createPlanningToolManifests() {
         description:
           "Replace the active Markdown plan using its document id and latest revision id. The returned `next_suggestion` is advisory for a later normal-mode execution turn: for medium or difficult approved plans, consider update_todos first.",
         inputSchema: updatePlanInputSchema,
-        outputSchema: updatePlanOutputSchema,
+        outputSchema: planArtifactOutputSchema,
         contextSchema: planToolContextSchema,
-        execute: updatePlanTool,
+        execute: async (input, options) => {
+          const output = await updatePlanTool(input, options);
+          if (!output.ok) {
+            throw new ToolBlockedError({
+              code: "PLAN_REVISION_CONFLICT",
+              message: output.error,
+              retryable: false,
+              source: "planning",
+              ...(output.revision_id
+                ? { details: { revision_id: output.revision_id } }
+                : {}),
+            });
+          }
+          return planArtifactData(output);
+        },
       }),
       {
         capability: "planning",

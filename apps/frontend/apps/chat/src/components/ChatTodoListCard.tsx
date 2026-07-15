@@ -6,6 +6,7 @@ import {
   Task,
   TaskTitle,
 } from "components/ai-chat";
+import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
 import {
   parseArtifactOutput,
   parseArtifactTaskOutput,
@@ -44,8 +45,11 @@ function uiKind(part: ToolPart) {
 export function parseTodoListOutput(
   output: unknown,
 ): { todos: TodoItem[] } | null {
-  if (!output || typeof output !== "object") return null;
-  const raw = output as Record<string, unknown>;
+  const outcome = parseToolOutcome(output);
+  if (outcome?.status !== "completed") return null;
+  const payload = toolOutcomePayload(outcome);
+  if (!payload || typeof payload !== "object") return null;
+  const raw = payload as Record<string, unknown>;
   if (!Array.isArray(raw.todos)) return null;
   const todos = raw.todos.flatMap((item): TodoItem[] => {
     if (!item || typeof item !== "object") return [];
@@ -103,6 +107,8 @@ function deliverablePartStatus(part: ToolPart): DeliverablePartStatus {
   switch (uiKind(part)) {
     case "image-gallery": {
       const parsed = parseGenerateImageOutput(output);
+      if (parsed?.status === "partial" && parsed.images.length > 0)
+        return "completed";
       if (parsed?.ok === false) return "error";
       if (parsed?.status === "cancelled") return "cancelled";
       if (parsed?.status === "failed") return "error";

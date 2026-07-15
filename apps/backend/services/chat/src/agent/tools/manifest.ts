@@ -1,5 +1,7 @@
-import type { JSONObject } from "@ai-sdk/provider";
+import type { JSONObject, JSONValue } from "@ai-sdk/provider";
+import type { ToolResultOutput } from "@ai-sdk/provider-utils";
 import type { ToolSet } from "ai";
+import { z } from "zod";
 
 import type {
   AgentToolManifest,
@@ -7,6 +9,135 @@ import type {
   AgentToolPolicy,
   ToolAvailability,
 } from "./types.js";
+import {
+  isToolEmission,
+  normalizeToolIssue,
+  outcomeFromEmission,
+  shouldRethrowToolError,
+  toolFailed,
+  toolBlocked,
+  toolOutcomeSchema,
+  ToolBlockedError,
+  type ToolOutcome,
+} from "./outcome.js";
+
+function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
+  return Boolean(
+    value &&
+      (typeof value === "object" || typeof value === "function") &&
+      Symbol.asyncIterator in value,
+  );
+}
+
+function caughtErrorOutcome(error: unknown, toolCallId?: string): ToolOutcome {
+  return outcomeFromEmission(
+    error instanceof ToolBlockedError
+      ? toolBlocked(error.issue)
+      : toolFailed(
+          normalizeToolIssue(error, {
+            ...(toolCallId ? { details: { tool_call_id: toolCallId } } : {}),
+          }),
+        ),
+  );
+}
+
+async function* wrapAsyncToolResult(
+  iterable: AsyncIterable<unknown>,
+  options: { abortSignal?: AbortSignal; toolCallId?: string },
+): AsyncGenerator<ToolOutcome> {
+  try {
+    for await (const value of iterable) {
+      if (!isToolEmission(value)) {
+        yield outcomeFromEmission(
+          toolFailed({
+            code: "INTERNAL_TOOL_PROTOCOL_ERROR",
+            message: "streaming tool yielded a value without an explicit ToolEmission",
+            retryable: false,
+            source: "chat",
+          }),
+        );
+        return;
+      }
+      const outcome = outcomeFromEmission(value);
+      yield outcome;
+      if (outcome.status !== "running") return;
+    }
+    yield outcomeFromEmission(
+      toolFailed({
+        code: "INTERNAL_TOOL_PROTOCOL_ERROR",
+        message: "streaming tool ended without a terminal result",
+        retryable: false,
+        source: "chat",
+      }),
+    );
+  } catch (error) {
+    if (shouldRethrowToolError(error, options.abortSignal)) throw error;
+    yield caughtErrorOutcome(error, options.toolCallId);
+  }
+}
+
+function wrapToolDefinition(definition: ToolSet[string]): ToolSet[string] {
+  const candidate = definition as ToolSet[string] & {
+    outputSchema?: z.ZodType<unknown>;
+    execute?: (
+      input: unknown,
+      options: { abortSignal?: AbortSignal; toolCallId?: string },
+    ) => unknown;
+    toModelOutput?: (options: Record<string, unknown> & { output: unknown }) => unknown;
+  };
+  const dataSchema = candidate.outputSchema ?? z.unknown();
+  const execute = candidate.execute;
+  const toModelOutput = candidate.toModelOutput;
+
+  const modelOutput = (
+    options: Record<string, unknown> & { output: ToolOutcome },
+  ): ToolResultOutput | PromiseLike<ToolResultOutput> => {
+    const { output } = options;
+    if (output.status === "completed") {
+      return toModelOutput
+        ? (toModelOutput({ ...options, output: output.data }) as
+            | ToolResultOutput
+            | PromiseLike<ToolResultOutput>)
+        : { type: "json", value: (output.data ?? null) as JSONValue };
+    }
+    if (output.status === "blocked" || output.status === "failed") {
+      return { type: "error-json", value: output.error as JSONValue };
+    }
+    return { type: "json", value: output as JSONValue };
+  };
+
+  return {
+    ...candidate,
+    outputSchema: toolOutcomeSchema(dataSchema),
+    ...(execute
+      ? {
+          execute: (
+            input: unknown,
+            options: { abortSignal?: AbortSignal; toolCallId?: string },
+          ) => {
+            try {
+              const result = execute(input, options);
+              if (isAsyncIterable(result)) return wrapAsyncToolResult(result, options);
+              return Promise.resolve(result)
+                .then((data) =>
+                  isToolEmission(data)
+                    ? outcomeFromEmission(data)
+                    : ({ ok: true, status: "completed", data } satisfies ToolOutcome),
+                )
+                .catch((error: unknown) => {
+                  if (shouldRethrowToolError(error, options.abortSignal)) throw error;
+                  return caughtErrorOutcome(error, options.toolCallId);
+                });
+            } catch (error) {
+              if (shouldRethrowToolError(error, options.abortSignal)) throw error;
+              return caughtErrorOutcome(error, options.toolCallId);
+            }
+          },
+        }
+      : {}),
+    toModelOutput: modelOutput,
+  } as unknown as ToolSet[string];
+}
 
 export function defineAgentTool(
   name: string,
@@ -30,7 +161,7 @@ export function defineAgentTool(
   return {
     name,
     tool: {
-      ...definition,
+      ...wrapToolDefinition(definition),
       metadata: {
         ...(definition.metadata ?? {}),
         agent: agentMetadata,

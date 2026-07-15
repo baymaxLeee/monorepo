@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createMemoryCandidate, listActiveMemories } from "../../memory/repository.js";
 import { memoryToolContextSchema, type MemoryToolContext } from "../context.js";
 import { defineAgentTool } from "../manifest.js";
+import { ToolBlockedError } from "../outcome.js";
 
 type MemoryInput = {
   category: "preference" | "profile" | "project" | "instruction";
@@ -22,15 +23,6 @@ const memoryProposalOutputSchema = z.object({
   candidate_id: z.string(),
   supersedes_id: z.string().optional(),
 });
-
-const updateMemoryOutputSchema = z.discriminatedUnion("status", [
-  memoryProposalOutputSchema,
-  z.object({
-    status: z.literal("blocked"),
-    code: z.literal("MEMORY_NOT_FOUND"),
-    message: z.string(),
-  }),
-]);
 
 async function createMemory(input: MemoryInput, { context }: { context: MemoryToolContext }) {
   const candidate = await createMemoryCandidate({
@@ -52,11 +44,13 @@ async function updateMemory(
     (memory) => memory.id === input.memory_id,
   );
   if (!active) {
-    return {
-      status: "blocked" as const,
-      code: "MEMORY_NOT_FOUND" as const,
+    throw new ToolBlockedError({
+      code: "MEMORY_NOT_FOUND",
       message: `active memory ${input.memory_id} was not found`,
-    };
+      retryable: false,
+      source: "memory",
+      details: { memory_id: input.memory_id },
+    });
   }
   const candidate = await createMemoryCandidate({
     userId: context.userId,
@@ -99,7 +93,7 @@ export function createMemoryToolManifests() {
       tool({
         description: "Propose a replacement for an active memory. The current memory remains active until approval.",
         inputSchema: memoryInputSchema.extend({ memory_id: z.string().min(1).max(32) }),
-        outputSchema: updateMemoryOutputSchema,
+        outputSchema: memoryProposalOutputSchema,
         contextSchema: memoryToolContextSchema,
         execute: updateMemory,
       }),

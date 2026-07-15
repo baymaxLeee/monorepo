@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { AgentMode } from "../../agents/types.js";
 import { defineAgentTool } from "../manifest.js";
+import { toolOutcomeSchema } from "../outcome.js";
 
 const askUserQuestionSchema = z.object({
   id: z
@@ -91,7 +92,7 @@ const askUserInputSchema = z.object({
   }
 });
 
-const askUserOutputSchema = z.object({
+export const askUserOutputSchema = z.object({
   answers: z
     .array(
       z.object({
@@ -101,6 +102,8 @@ const askUserOutputSchema = z.object({
     )
     .min(1),
 });
+
+export const askUserOutcomeSchema = toolOutcomeSchema(askUserOutputSchema);
 
 export function createInteractionToolManifests(mode: AgentMode) {
   return [

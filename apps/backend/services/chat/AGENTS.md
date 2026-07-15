@@ -22,6 +22,15 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   batches all currently known independent questions with stable semantic IDs
   and returns structured answers; dependent follow-ups use later continuations.
 - Trace persistence is observability and must never fail generation.
+- Every model-visible tool returns a ToolOutcome. Business failures stay
+  `output-available` for UI/persistence and map to AI SDK `error-json` through
+  `toModelOutput` for the primary LLM; Abort, Stop, approval denial, invalid
+  input, and protocol failures retain native control flow. Full failed outcomes
+  persist in `output_json` with a readable error summary. Do not add automatic
+  retry to the wrapper.
+- Tool data and progress schemas contain domain payload only. Use
+  `toolCompleted`, `toolRunning`, `toolPartial`, `toolBlocked`, or `toolFailed`;
+  never repeat protocol-level `ok/status` inside `data` or `progress`.
 - The UIMessage SSE stream is a cross-stack contract. Before adding any custom
   `data-*` part / streamed field, read
   `schemas/streaming/chat-uimessage-stream.md` and register it there. Reuse

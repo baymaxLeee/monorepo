@@ -1,4 +1,5 @@
 import { Loader2Icon, PlaySquareIcon } from "lucide-react";
+import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
 import { ChatMediaCard } from "./ChatMediaCard";
 
 export type GenerateVideoOutput = {
@@ -13,14 +14,25 @@ export function parseGenerateVideoOutput(
   output: unknown,
 ): GenerateVideoOutput | null {
   if (!output || typeof output !== "object") return null;
-  const raw = output as Record<string, unknown>;
+  const outcome = parseToolOutcome(output);
+  if (!outcome) return null;
+  const payload = toolOutcomePayload(outcome);
+  const raw =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : {};
   return {
-    ok: raw.ok !== false,
-    status: typeof raw.status === "string" ? raw.status : "generating",
+    ok: outcome.ok,
+    status:
+      outcome.status === "partial"
+        ? "partial"
+        : typeof raw.status === "string"
+          ? raw.status
+          : outcome.status,
     prompt: typeof raw.prompt === "string" ? raw.prompt : undefined,
     documentId:
       typeof raw.document_id === "string" ? raw.document_id : undefined,
-    error: typeof raw.error === "string" ? raw.error : undefined,
+    error: outcome.ok === false ? outcome.error.message : undefined,
   };
 }
 

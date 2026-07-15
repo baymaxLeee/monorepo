@@ -19,6 +19,7 @@ import { createProviderModel } from "@backend/transport-ts/provider-model";
 import { assembleInstructions } from "../context/instructions/index.js";
 import { ToolCatalog } from "../tools/catalog.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
+import { isToolOutcome } from "../tools/outcome.js";
 import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
 import {
   artifactVerificationDirective,
@@ -352,6 +353,7 @@ export async function createToolLoopAgent(
     },
     onToolExecutionEnd: (event) => {
       const success = event.toolOutput.type === "tool-result";
+      const outcome = success && isToolOutcome(event.toolOutput.output) ? event.toolOutput.output : null;
       const span = toolSpans.get(event.toolCall.toolCallId);
       if (span) {
         toolSpans.delete(event.toolCall.toolCallId);
@@ -360,6 +362,10 @@ export async function createToolLoopAgent(
           {
             "agent.tool_success": success,
             "agent.tool_duration_ms": event.toolExecutionMs,
+            ...(outcome ? { "agent.tool_outcome_status": outcome.status } : {}),
+            ...(outcome && outcome.ok === false
+              ? { "agent.tool_retryable": outcome.error.retryable }
+              : {}),
           },
           success ? undefined : event.toolOutput.error,
         );

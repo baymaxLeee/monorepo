@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import { isToolOutcome, toolOutcomeData } from "../tools/outcome.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
@@ -11,16 +12,21 @@ const NON_TERMINAL_OUTPUT_STATUSES = new Set([
 ]);
 
 export function cancelTodoOutput(output: unknown): unknown {
-  if (!output || typeof output !== "object") return output;
-  const row = output as Record<string, unknown>;
+  if (!isToolOutcome(output) || output.status !== "completed") return output;
+  const data = toolOutcomeData(output);
+  if (!data || typeof data !== "object") return output;
+  const row = data as Record<string, unknown>;
   if (!Array.isArray(row.todos)) return output;
   return {
-    ...row,
-    todos: row.todos.map((item) => {
-      if (!item || typeof item !== "object") return item;
-      const todo = item as Record<string, unknown>;
-      return todo.status === "completed" ? todo : { ...todo, status: "cancelled" };
-    }),
+    ...output,
+    data: {
+      ...row,
+      todos: row.todos.map((item) => {
+        if (!item || typeof item !== "object") return item;
+        const todo = item as Record<string, unknown>;
+        return todo.status === "completed" ? todo : { ...todo, status: "cancelled" };
+      }),
+    },
   };
 }
 
@@ -56,6 +62,7 @@ export function finalizeCancelledParts(
 }
 
 function hasNonTerminalOutput(output: unknown): boolean {
+  if (isToolOutcome(output)) return output.status === "running";
   if (!output || typeof output !== "object") return false;
   const status = (output as { status?: unknown }).status;
   return typeof status === "string" && NON_TERMINAL_OUTPUT_STATUSES.has(status);

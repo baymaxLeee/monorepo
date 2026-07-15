@@ -8,6 +8,7 @@ import {
   type KnowledgeSearchToolContext,
 } from "../context.js";
 import { defineAgentTool } from "../manifest.js";
+import { ToolBlockedError } from "../outcome.js";
 
 const searchResultSchema = z.object({
   title: z.string(),
@@ -17,19 +18,11 @@ const searchResultSchema = z.object({
   score: z.number().nullable(),
 });
 
-const webSearchOutputSchema = z.discriminatedUnion("status", [
-  z.object({
-    status: z.literal("completed"),
-    query: z.string(),
-    untrusted: z.literal(true),
-    results: z.array(searchResultSchema),
-  }),
-  z.object({
-    status: z.literal("blocked"),
-    code: z.literal("WEB_SEARCH_NOT_CONFIGURED"),
-    message: z.string(),
-  }),
-]);
+const webSearchOutputSchema = z.object({
+  query: z.string(),
+  untrusted: z.literal(true),
+  results: z.array(searchResultSchema),
+});
 
 type WebSearchInput = {
   query: string;
@@ -56,7 +49,7 @@ const TIME_RANGE_HOURS: Record<NonNullable<WebSearchInput["time_range"]>, number
   year: 8760,
 };
 
-type WebSearchCompleted = Extract<z.infer<typeof webSearchOutputSchema>, { status: "completed" }>;
+type WebSearchCompleted = z.infer<typeof webSearchOutputSchema>;
 
 interface ExaSearchResult {
   title?: string | null;
@@ -74,6 +67,23 @@ interface TavilySearchResult {
   content?: string;
   published_date?: string | null;
   score?: number;
+}
+
+function searchHttpError(provider: string, status: number, body: string): Error {
+  return Object.assign(new Error(`${provider} HTTP ${status}: ${body.slice(0, 500)}`), {
+    code: `${provider.toUpperCase()}_REQUEST_FAILED`,
+    statusCode: status,
+    details: { provider, status_code: status, body: body.slice(0, 500) },
+  });
+}
+
+function errorSummary(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  try {
+    return JSON.stringify(error) ?? `non-Error ${typeof error}`;
+  } catch {
+    return `non-Error ${typeof error}`;
+  }
 }
 
 function timeoutSignal(abortSignal?: AbortSignal): AbortSignal {
@@ -131,11 +141,10 @@ async function searchExa(
     signal: timeoutSignal(abortSignal),
   });
   if (!response.ok) {
-    throw new Error(`Exa HTTP ${response.status}: ${(await response.text()).slice(0, 500)}`);
+    throw searchHttpError("exa", response.status, await response.text());
   }
   const data = (await response.json()) as { results?: ExaSearchResult[] };
   return {
-    status: "completed",
     query: input.query,
     untrusted: true,
     results: (data.results ?? []).map((row) => ({
@@ -176,11 +185,10 @@ async function searchTavily(
     signal: timeoutSignal(abortSignal),
   });
   if (!response.ok) {
-    throw new Error(`Tavily HTTP ${response.status}: ${(await response.text()).slice(0, 500)}`);
+    throw searchHttpError("tavily", response.status, await response.text());
   }
   const data = (await response.json()) as { results?: TavilySearchResult[] };
   return {
-    status: "completed",
     query: input.query,
     untrusted: true,
     results: (data.results ?? []).map((row) => ({
@@ -199,11 +207,12 @@ async function webSearch(
 ): Promise<z.infer<typeof webSearchOutputSchema>> {
   const settings = getSettings();
   if (!settings.exaApiKey && !settings.tavilyApiKey) {
-    return {
-      status: "blocked",
+    throw new ToolBlockedError({
       code: "WEB_SEARCH_NOT_CONFIGURED",
       message: "EXA_API_KEY or TAVILY_API_KEY is not configured",
-    };
+      retryable: false,
+      source: "web-search",
+    });
   }
 
   let exaError: unknown;
@@ -220,13 +229,20 @@ async function webSearch(
   try {
     return await searchTavily(settings.tavilyApiKey, input, abortSignal);
   } catch (error) {
-    if (exaError) throw new Error(`Exa primary failed, then Tavily fallback failed: ${String(error)}`);
+    if (exaError) {
+      throw Object.assign(
+        new Error(`Exa primary failed, then Tavily fallback failed: ${errorSummary(error)}`),
+        {
+          code: "WEB_SEARCH_PROVIDERS_FAILED",
+          details: { exa: errorSummary(exaError), tavily: errorSummary(error) },
+        },
+      );
+    }
     throw error;
   }
 }
 
 const knowledgeSearchOutputSchema = z.object({
-  status: z.literal("completed"),
   query: z.string(),
   note: z.string().nullable(),
   untrusted: z.literal(true),
@@ -256,7 +272,6 @@ async function knowledgeSearch(
   const emptyNote =
     "no relevant knowledge base passages found; use web_search for public information or report that private knowledge does not cover the question";
   return {
-    status: "completed",
     query: result.query,
     note: result.chunks.length === 0 ? (result.note ?? emptyNote) : (result.note ?? null),
     untrusted: true,

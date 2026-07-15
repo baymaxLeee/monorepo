@@ -23,15 +23,20 @@ import { artifactToolContextSchema, type ArtifactToolContext } from "../context.
 import {
   MAX_TASK_WAIT_MS,
   pollTaskSnapshots,
-  startTaskResilient,
+  startExecutorTask,
   TaskWaitTimeoutError,
 } from "../../tasks/executor-task.js";
 import { streamText } from "ai";
 import { defineAgentTool } from "../manifest.js";
+import {
+  toolBlocked,
+  toolCompleted,
+  toolFailed,
+  toolRunning,
+  type ToolEmission,
+} from "../outcome.js";
 
 const artifactPersistedOutputSchema = z.object({
-  ok: z.literal(true),
-  status: z.literal("persisted"),
   document_id: z.string(),
   title: z.string(),
   filename: z.string(),
@@ -40,8 +45,6 @@ const artifactPersistedOutputSchema = z.object({
 });
 
 const artifactTaskOutputSchema = z.object({
-  ok: z.literal(true),
-  status: z.string(),
   title: z.string(),
   filename: z.string(),
   kind: z.literal("html"),
@@ -57,35 +60,9 @@ const artifactTaskOutputSchema = z.object({
   generated_block_ids: z.array(z.string()).optional(),
 });
 
-const artifactBlockedOutputSchema = z.object({
-  ok: z.literal(false),
-  status: z.literal("blocked"),
-  code: z.enum([
-    "ARTIFACT_NOT_EDITABLE",
-    "FILE_NOT_ATTACHED",
-    "NOT_HTML",
-  ]),
-  error: z.string(),
-});
-
-// Executor-reported terminal failure/cancellation is a structured tool output
-// (not a thrown error) so the artifact card renders its failed/cancelled state
-// off the tool part (ADR-0035). Poll errors/timeout/abort still throw.
-const artifactTaskFailedOutputSchema = z.object({
-  ok: z.literal(false),
-  status: z.enum(["failed", "cancelled"]),
-  kind: z.literal("html"),
-  task_id: z.string(),
-  title: z.string(),
-  filename: z.string(),
-  error: z.string().optional(),
-});
-
 const artifactToolOutputSchema = z.union([
   artifactPersistedOutputSchema,
   artifactTaskOutputSchema,
-  artifactTaskFailedOutputSchema,
-  artifactBlockedOutputSchema,
 ]);
 
 const compactValidationFindingSchema = z.object({
@@ -96,41 +73,32 @@ const compactValidationFindingSchema = z.object({
   suggestion: z.string(),
 });
 
-const htmlValidateOutputSchema = z.union([
-  z
-    .object({
-      ok: z.boolean(),
-      status: z.literal("completed"),
-      file_id: z.string(),
-      errors: z.array(compactValidationFindingSchema),
-      advisories: z.array(compactValidationFindingSchema),
-    })
-    .refine((output) => output.ok === (output.errors.length === 0), {
-      message: "ok must be true exactly when no actionable errors remain",
-    }),
-  artifactBlockedOutputSchema,
-]);
+const htmlValidateOutputSchema = z
+  .object({
+    valid: z.boolean(),
+    file_id: z.string(),
+    errors: z.array(compactValidationFindingSchema),
+    advisories: z.array(compactValidationFindingSchema),
+  })
+  .refine((output) => output.valid === (output.errors.length === 0), {
+    message: "valid must be true exactly when no actionable errors remain",
+  });
 
-const listArtifactBlocksOutputSchema = z.union([
-  z.object({
-    ok: z.literal(true),
-    status: z.literal("completed"),
-    document_id: z.string(),
-    mode: z.string(),
-    blocks: z.array(
-      z.object({
-        id: z.string(),
-        position: z.number(),
-        type: z.string(),
-        title: z.string(),
-        brief: z.string(),
-        char_count: z.number(),
-        status: z.enum(["ok", "failed"]),
-      }),
-    ),
-  }),
-  artifactBlockedOutputSchema,
-]);
+const listArtifactBlocksOutputSchema = z.object({
+  document_id: z.string(),
+  mode: z.string(),
+  blocks: z.array(
+    z.object({
+      id: z.string(),
+      position: z.number(),
+      type: z.string(),
+      title: z.string(),
+      brief: z.string(),
+      char_count: z.number(),
+      status: z.enum(["ok", "failed"]),
+    }),
+  ),
+});
 
 function parseStoredArtifactBlock(content: string): { title?: string; html?: string; error?: string } {
   try {
@@ -175,14 +143,14 @@ async function* streamHtmlArtifactTask(
   task: Task,
   meta: { title: string; filename: string },
   signal: AbortSignal | undefined,
-): AsyncGenerator<z.infer<typeof artifactToolOutputSchema>> {
+): AsyncGenerator<z.infer<typeof artifactToolOutputSchema> | ToolEmission> {
   const base = {
     title: meta.title,
     filename: meta.filename,
     kind: "html" as const,
     task_id: task.id,
   };
-  yield { ok: true, status: task.status, ...base };
+  yield toolRunning(base);
   let terminal: Task | null = null;
   try {
     for await (const snapshot of pollTaskSnapshots(task.id, task.ownerRef, signal)) {
@@ -190,13 +158,11 @@ async function* streamHtmlArtifactTask(
         terminal = snapshot;
         break;
       }
-      yield {
-        ok: true,
-        status: "running",
+      yield toolRunning({
         blocks_done: snapshot.progress?.done,
         blocks_total: snapshot.progress?.total,
         ...base,
-      };
+      });
     }
   } catch (error) {
     if (error instanceof TaskWaitTimeoutError) {
@@ -214,9 +180,7 @@ async function* streamHtmlArtifactTask(
       regeneratedBlockIds,
       generatedBlockIds,
     } = taskResultFields(terminal.result);
-    yield {
-      ok: true,
-      status: "completed",
+    yield toolCompleted({
       document_id: documentId,
       total_chars: totalChars,
       blocks_failed: blocksFailed,
@@ -225,16 +189,17 @@ async function* streamHtmlArtifactTask(
       regenerated_block_ids: regeneratedBlockIds,
       generated_block_ids: generatedBlockIds,
       ...base,
-    };
+    });
     return;
   }
   if (terminal?.status === "failed" || terminal?.status === "cancelled") {
-    yield {
-      ok: false,
-      status: terminal.status,
-      error: terminal.error ?? (terminal.status === "cancelled" ? "已取消" : "生成失败"),
-      ...base,
-    };
+    yield toolFailed({
+      code: terminal.status === "cancelled" ? "ARTIFACT_TASK_CANCELLED" : "ARTIFACT_TASK_FAILED",
+      message: terminal.error ?? (terminal.status === "cancelled" ? "已取消" : "生成失败"),
+      retryable: false,
+      source: "executor",
+      details: { ...base, terminal_status: terminal.status },
+    });
     return;
   }
   throw new Error("生成失败");
@@ -244,26 +209,34 @@ async function validateHtml(
   input: { file_id: string },
   { context, abortSignal }: { context: ArtifactToolContext; abortSignal?: AbortSignal },
   textProvider: ChatProvider,
-): Promise<z.infer<typeof htmlValidateOutputSchema>> {
+): Promise<z.infer<typeof htmlValidateOutputSchema> | ToolEmission> {
   const document = await getDocument(context.userId, input.file_id);
   if (document.conversation_id !== context.conversationId) {
-    return {
-      ok: false,
-      status: "blocked",
+    return toolBlocked({
       code: "FILE_NOT_ATTACHED",
-      error: `file ${input.file_id} is not attached to this conversation`,
-    };
+      message: `file ${input.file_id} is not attached to this conversation`,
+      retryable: false,
+      source: "knowledge",
+      details: { file_id: input.file_id },
+    });
   }
   if (document.mime_type !== "text/html") {
-    return { ok: false, status: "blocked", code: "NOT_HTML", error: "html_validate only supports HTML files" };
+    return toolBlocked({
+      code: "NOT_HTML",
+      message: "html_validate only supports HTML files",
+      retryable: false,
+      source: "chat",
+      details: { file_id: input.file_id, mime_type: document.mime_type },
+    });
   }
   if (document.kind !== "artifact") {
-    return {
-      ok: false,
-      status: "blocked",
+    return toolBlocked({
       code: "ARTIFACT_NOT_EDITABLE",
-      error: `file ${input.file_id} is not a generated artifact`,
-    };
+      message: `file ${input.file_id} is not a generated artifact`,
+      retryable: false,
+      source: "chat",
+      details: { file_id: input.file_id },
+    });
   }
   const decision = await validateHtmlWithExecutor({
     userId: context.userId,
@@ -275,34 +248,46 @@ async function validateHtml(
   if (document.object_sha256 && decision.content_sha256 !== document.object_sha256) {
     throw new Error("html_validate result does not match the current artifact revision");
   }
-  return {
-    ok: decision.ok,
-    status: "completed",
+  return toolCompleted({
+    valid: decision.ok,
     file_id: input.file_id,
     errors: decision.errors,
     advisories: decision.advisories,
-  };
+  });
 }
 
 async function listArtifactBlocks(
   input: { document_id: string },
   { context }: { context: ArtifactToolContext },
-): Promise<z.infer<typeof listArtifactBlocksOutputSchema>> {
+): Promise<z.infer<typeof listArtifactBlocksOutputSchema> | ToolEmission> {
   const document = await getDocument(context.userId, input.document_id);
   if (document.conversation_id !== context.conversationId) {
-    return {
-      ok: false,
-      status: "blocked",
+    return toolBlocked({
       code: "FILE_NOT_ATTACHED",
-      error: `file ${input.document_id} is not attached to this conversation`,
-    };
+      message: `file ${input.document_id} is not attached to this conversation`,
+      retryable: false,
+      source: "knowledge",
+      details: { document_id: input.document_id },
+    });
   }
   if (document.kind !== "artifact") {
-    return { ok: false, status: "blocked", code: "ARTIFACT_NOT_EDITABLE", error: `file ${input.document_id} is not editable` };
+    return toolBlocked({
+      code: "ARTIFACT_NOT_EDITABLE",
+      message: `file ${input.document_id} is not editable`,
+      retryable: false,
+      source: "chat",
+      details: { document_id: input.document_id },
+    });
   }
   const isHtml = document.mime_type === "text/html" || document.filename.toLowerCase().endsWith(".html");
   if (!isHtml) {
-    return { ok: false, status: "blocked", code: "NOT_HTML", error: "list_artifact_blocks only supports HTML artifacts" };
+    return toolBlocked({
+      code: "NOT_HTML",
+      message: "list_artifact_blocks only supports HTML artifacts",
+      retryable: false,
+      source: "chat",
+      details: { document_id: input.document_id, mime_type: document.mime_type },
+    });
   }
   const workspace = await getLatestArtifactWorkspace(context.userId, input.document_id);
   const manifest = (workspace?.manifest ?? {}) as Record<string, unknown>;
@@ -324,7 +309,7 @@ async function listArtifactBlocks(
       const status = parsed.error && !parsed.html ? ("failed" as const) : ("ok" as const);
       return { id: stored.id, position: stored.position, type, title, brief, char_count: charCount, status };
     });
-  return { ok: true, status: "completed", document_id: input.document_id, mode, blocks };
+  return toolCompleted({ document_id: input.document_id, mode, blocks });
 }
 
 export function createArtifactToolManifests(textProvider: ChatProvider) {
@@ -477,7 +462,7 @@ export async function* writeFileTool(
   },
   { context, toolCallId, abortSignal }: { context: ArtifactToolContext; toolCallId: string; abortSignal?: AbortSignal },
   textProvider: ChatProvider,
-): AsyncGenerator<z.infer<typeof artifactToolOutputSchema>> {
+): AsyncGenerator<z.infer<typeof artifactToolOutputSchema> | ToolEmission> {
   const filename = safeFilename(input.filename);
   try {
     if (input.kind === "markdown") {
@@ -506,11 +491,17 @@ export async function* writeFileTool(
         mimeType: "text/markdown",
         idempotencyKey: toolCallId,
       });
-      yield { ok: true, status: "persisted", document_id: document.id, title: document.title, filename: document.filename, kind: "markdown", total_chars: content.length };
+      yield toolCompleted({
+        document_id: document.id,
+        title: document.title,
+        filename: document.filename,
+        kind: "markdown" as const,
+        total_chars: content.length,
+      });
       return;
     }
 
-    const task = await startTaskResilient(
+    const task = await startExecutorTask(
       {
         type: "html-artifact",
         ownerRef: toolCallId,
@@ -548,16 +539,17 @@ export async function* editFileTool(
   },
   { context, toolCallId, abortSignal }: { context: ArtifactToolContext; toolCallId: string; abortSignal?: AbortSignal },
   textProvider: ChatProvider,
-): AsyncGenerator<z.infer<typeof artifactToolOutputSchema>> {
+): AsyncGenerator<z.infer<typeof artifactToolOutputSchema> | ToolEmission> {
   try {
     const current = await getDocument(context.userId, input.document_id);
     if (current.kind !== "artifact") {
-      yield {
-        ok: false,
-        status: "blocked",
+      yield toolBlocked({
         code: "ARTIFACT_NOT_EDITABLE",
-        error: `file ${input.document_id} is not editable`,
-      };
+        message: `file ${input.document_id} is not editable`,
+        retryable: false,
+        source: "chat",
+        details: { document_id: input.document_id },
+      });
       return;
     }
     const isHtml = current.mime_type === "text/html" || current.filename.toLowerCase().endsWith(".html");
@@ -582,7 +574,13 @@ export async function* editFileTool(
         mimeType: "text/markdown",
         expectedUpdatedAt: current.updated_at,
       });
-      yield { ok: true, status: "persisted", document_id: document.id, title: document.title, filename: document.filename, kind: "markdown", total_chars: content.length };
+      yield toolCompleted({
+        document_id: document.id,
+        title: document.title,
+        filename: document.filename,
+        kind: "markdown" as const,
+        total_chars: content.length,
+      });
       return;
     }
 
@@ -592,7 +590,7 @@ export async function* editFileTool(
     const blockBriefs: Record<string, string> = {};
     for (const change of changes) blockBriefs[change.block_id] = change.brief;
     const targetedIds = Array.from(new Set([...(input.block_ids ?? []), ...changes.map((c) => c.block_id)]));
-    const task = await startTaskResilient(
+    const task = await startExecutorTask(
       {
         type: "html-artifact",
         ownerRef: toolCallId,

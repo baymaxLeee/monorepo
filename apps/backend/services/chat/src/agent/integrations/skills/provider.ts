@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { SkillListing } from "../../context/instructions/index.js";
 import { defineAgentTool } from "../../tools/manifest.js";
 import type { AgentToolManifest } from "../../tools/types.js";
+import { ToolBlockedError } from "../../tools/outcome.js";
 
 /** Per-run admin (bot-bound) skill source: L1 listings + an on-demand body
  *  loader keyed by skill id. */
@@ -53,10 +54,22 @@ export function resolveSkills(
       outputSchema: loadSkillOutputSchema,
       execute: async ({ name }) => {
         if (loadedSkillName || skillLoadPending) {
-          throw new Error(`a skill is already loaded in this logical turn: ${loadedSkillName ?? "pending"}`);
+          throw new ToolBlockedError({
+            code: "SKILL_ALREADY_LOADED",
+            message: `a skill is already loaded in this logical turn: ${loadedSkillName ?? "pending"}`,
+            retryable: false,
+            source: "skill",
+          });
         }
         const loader = loaders.get(name);
-        if (!loader) throw new Error(`unknown skill: ${name}`);
+        if (!loader) {
+          throw new ToolBlockedError({
+            code: "SKILL_NOT_AVAILABLE",
+            message: `unknown skill: ${name}`,
+            retryable: false,
+            source: "skill",
+          });
+        }
         skillLoadPending = true;
         try {
           const instructions = await loader();
@@ -103,10 +116,22 @@ export function resolveSkills(
       outputSchema: z.object({ name: z.string(), path: z.string(), content: z.string() }),
       execute: async ({ name, path }) => {
         if (name !== loadedSkillName) {
-          throw new Error(`skill is not active in this logical turn: ${name}`);
+          throw new ToolBlockedError({
+            code: "SKILL_NOT_ACTIVE",
+            message: `skill is not active in this logical turn: ${name}`,
+            retryable: false,
+            source: "skill",
+          });
         }
         const loader = fileLoaders.get(name);
-        if (!loader) throw new Error(`skill has no readable files: ${name}`);
+        if (!loader) {
+          throw new ToolBlockedError({
+            code: "SKILL_FILE_NOT_AVAILABLE",
+            message: `skill has no readable files: ${name}`,
+            retryable: false,
+            source: "skill",
+          });
+        }
         return { name, path, content: await loader(path) };
       },
       toModelOutput: ({ output }) => ({

@@ -27,6 +27,15 @@ function newTaskId(): string {
   return randomBytes(16).toString("hex");
 }
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  try {
+    return JSON.stringify(error) ?? "workflow start failed";
+  } catch {
+    return `workflow start failed with ${typeof error}`;
+  }
+}
+
 function toSnapshot(row: TaskRow): TaskSnapshot {
   return {
     id: row.id,
@@ -79,7 +88,7 @@ function watchCompletion(taskId: string, workflowRunId: string): void {
         .update(tasks)
         .set({
           status: cancelled ? "cancelled" : "failed",
-          error: cancelled ? null : String(error).slice(0, 2000),
+          error: cancelled ? null : errorMessage(error).slice(0, 2000),
           updatedAt: new Date(),
           finishedAt: new Date(),
         })
@@ -118,11 +127,40 @@ export async function createTask(input: CreateTaskInput): Promise<TaskSnapshot> 
     throw new ConflictError("failed to create task");
   }
 
-  const run = await start(taskType.workflow, [parsed.data]);
-  await db
-    .update(tasks)
-    .set({ workflowRunId: run.runId, status: "running", updatedAt: new Date() })
-    .where(eq(tasks.id, id));
+  let run: Awaited<ReturnType<typeof start>>;
+  try {
+    run = await start(taskType.workflow, [parsed.data]);
+  } catch (error) {
+    await db
+      .update(tasks)
+      .set({
+        status: "failed",
+        error: `workflow start failed: ${errorMessage(error).slice(0, 1900)}`,
+        updatedAt: new Date(),
+        finishedAt: new Date(),
+      })
+      .where(and(eq(tasks.id, id), isNull(tasks.workflowRunId)));
+    throw error;
+  }
+  try {
+    await db
+      .update(tasks)
+      .set({ workflowRunId: run.runId, status: "running", updatedAt: new Date() })
+      .where(eq(tasks.id, id));
+  } catch (error) {
+    await run.cancel().catch(() => undefined);
+    await db
+      .update(tasks)
+      .set({
+        status: "failed",
+        error: `workflow started but task linkage failed: ${errorMessage(error).slice(0, 1800)}`,
+        updatedAt: new Date(),
+        finishedAt: new Date(),
+      })
+      .where(eq(tasks.id, id))
+      .catch(() => undefined);
+    throw error;
+  }
   watchCompletion(id, run.runId);
 
   const row = await findById(id);

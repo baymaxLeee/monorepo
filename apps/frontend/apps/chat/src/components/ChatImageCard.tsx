@@ -1,4 +1,5 @@
 import { ImageIcon, Loader2Icon } from "lucide-react";
+import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
 import { useChatStore } from "../store/useChatStore";
 import { ChatMediaCard } from "./ChatMediaCard";
 
@@ -21,7 +22,13 @@ export function parseGenerateImageOutput(
   output: unknown,
 ): GenerateImageOutput | null {
   if (!output || typeof output !== "object") return null;
-  const raw = output as Record<string, unknown>;
+  const outcome = parseToolOutcome(output);
+  if (!outcome) return null;
+  const payload = toolOutcomePayload(outcome);
+  const raw =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : {};
   const images = Array.isArray(raw.images)
     ? raw.images.flatMap((item) => {
         if (!item || typeof item !== "object") return [];
@@ -38,15 +45,17 @@ export function parseGenerateImageOutput(
       })
     : [];
   return {
-    ok: raw.ok !== false,
+    ok: outcome.ok,
     status:
-      typeof raw.status === "string"
-        ? raw.status
-        : images.length > 0
-          ? "completed"
-          : "generating",
+      outcome.status === "partial"
+        ? "partial"
+        : typeof raw.status === "string"
+          ? raw.status
+          : outcome.status === "completed" || images.length > 0
+            ? "completed"
+            : "generating",
     images,
-    error: typeof raw.error === "string" ? raw.error : undefined,
+    error: outcome.ok === false ? outcome.error.message : undefined,
     count: typeof raw.count === "number" ? raw.count : undefined,
     failed: typeof raw.failed === "number" ? raw.failed : undefined,
   };
@@ -67,16 +76,11 @@ export function ChatImageCard({
   const parsed = parseGenerateImageOutput(output);
   const failed = state === "output-error" || parsed?.ok === false;
 
-  if (failed) {
-    return (
-      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">
-        {errorText?.trim() || parsed?.error?.trim() || "图片生成失败。"}
-      </div>
-    );
-  }
-
   const images = parsed?.images ?? [];
-  if (parsed?.status === "completed" && images.length > 0) {
+  if (
+    (parsed?.status === "completed" || parsed?.status === "partial") &&
+    images.length > 0
+  ) {
     const refs = images.map((image) => ({
       documentId: image.documentId,
       filename: image.filename,
@@ -87,9 +91,21 @@ export function ChatImageCard({
         icon={ImageIcon}
         title={images.length > 1 ? "图片组" : "图片"}
         description={`共 ${images.length} 张`}
-        note={skipped > 0 ? `${skipped} 张生成失败` : undefined}
+        note={
+          skipped > 0
+            ? `${skipped} 张生成失败${parsed.error ? `：${parsed.error}` : ""}`
+            : undefined
+        }
         onOpen={() => openImagePreview(conversationId, refs, 0)}
       />
+    );
+  }
+
+  if (failed) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">
+        {errorText?.trim() || parsed?.error?.trim() || "图片生成失败。"}
+      </div>
     );
   }
 

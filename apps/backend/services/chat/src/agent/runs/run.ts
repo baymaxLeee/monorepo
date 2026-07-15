@@ -26,6 +26,7 @@ import {
   type Message,
 } from "../../services/conversations.js";
 import { generateConversationTitle } from "../title/generator.js";
+import { isToolOutcome } from "../tools/outcome.js";
 import {
   createAgentRun,
   finishAgentRun,
@@ -541,8 +542,11 @@ function sanitizePersistedPart(part: AnyUIMessage["parts"][number]): AnyUIMessag
 }
 
 function compactWebSearchOutput(output: unknown): unknown {
-  if (!output || typeof output !== "object") return output;
-  const row = output as Record<string, unknown>;
+  if (!isToolOutcome(output) || (output.status !== "completed" && output.status !== "partial")) {
+    return output;
+  }
+  if (!output.data || typeof output.data !== "object") return output;
+  const row = output.data as Record<string, unknown>;
   const results = Array.isArray(row.results)
     ? row.results.map((item) => {
         if (!item || typeof item !== "object") return item;
@@ -555,7 +559,7 @@ function compactWebSearchOutput(output: unknown): unknown {
         };
       })
     : row.results;
-  return { ...row, results };
+  return { ...output, data: { ...row, results } };
 }
 
 function truncateString(value: unknown, maxLength: number): unknown {

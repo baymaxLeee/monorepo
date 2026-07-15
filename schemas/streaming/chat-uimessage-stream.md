@@ -129,10 +129,13 @@ no `data-artifact-progress`.
     There is no separate progress channel (ADR-0035 collapsed the old
     task-progress SSE into these preliminary tool results).
   - `generate_images` (media generation) returns its result **as tool output**,
-    not a custom part: an inline async-generator tool yields
-    `{ status: "generating", count }` then a terminal
-    `{ status: "completed", images: [{ document_id, filename, media_type }], count, failed }`.
-    Execution failures use the official `output-error` state. A multi-image request is ONE call with a
+    not a custom part: an inline async-generator tool emits a running
+    ToolOutcome with progress `{ count }`, then a completed or partial
+    ToolOutcome whose data is
+    `{ images: [{ document_id, filename, media_type }], count, failed }`.
+    Business failures use a structured ToolOutcome on the official
+    `output-available` state and AI SDK `toModelOutput` maps blocked/failed to
+    model-side `error-json`; Abort and protocol failures use `output-error`. A multi-image request is ONE call with a
     `prompts[]` array (one image per prompt, generated concurrently); `count` is
     the requested total and `failed` how many prompts dropped (partial gallery).
     See ADR-0022 for the parallel-deliverable execution model. The frontend

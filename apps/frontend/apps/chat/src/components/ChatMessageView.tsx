@@ -20,6 +20,7 @@ import { useCallback, useMemo } from "react";
 import { cn, isPublicHttpUrl } from "shared";
 import { parseAskUserInput } from "../lib/ask-user";
 import { documentIdFromFilePart } from "../lib/file-parts";
+import { parseToolOutcome } from "../lib/tool-outcome";
 import { useChatStore } from "../store/useChatStore";
 import { AskUserAnsweredCard } from "./AskUserAnsweredCard";
 import { AskUserToolCard } from "./AskUserToolCard";
@@ -506,12 +507,8 @@ function toolIsInternal(
 }
 
 function parseToolOutputError(output: unknown): string | null {
-  if (!output || typeof output !== "object") return null;
-  const row = output as { ok?: unknown; error?: unknown };
-  if (row.ok !== false) return null;
-  if (typeof row.error === "string" && row.error.trim())
-    return row.error.trim();
-  return "工具调用失败，未返回具体原因。";
+  const outcome = parseToolOutcome(output);
+  return outcome && outcome.ok === false ? outcome.error.message : null;
 }
 
 function compactRawInput(rawInput: unknown) {

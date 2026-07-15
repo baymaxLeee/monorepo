@@ -8,32 +8,30 @@ import type { Task } from "../../../clients/executor.js";
 import { createMediaDocument, getDocument } from "../../../clients/knowledge.js";
 import {
   pollTaskSnapshots,
-  startTaskResilient,
+  startExecutorTask,
   TaskWaitTimeoutError,
 } from "../../tasks/executor-task.js";
 import { mediaToolContextSchema, type MediaToolContext } from "../context.js";
 import { defineAgentTool, defineUnavailableCapability } from "../manifest.js";
+import {
+  toolCompleted,
+  toolFailed,
+  toolPartial,
+  toolRunning,
+  type ToolEmission,
+} from "../outcome.js";
 
-const imageOutputSchema = z.union([
-  z.object({ ok: z.literal(true), status: z.literal("generating"), count: z.number() }),
-  z.object({
-    ok: z.literal(true),
-    status: z.literal("completed"),
-    images: z.array(
-      z.object({ document_id: z.string(), filename: z.string(), media_type: z.string() }),
-    ),
-    count: z.number(),
-    failed: z.number(),
-    document_id: z.string().optional(),
-  }),
-]);
+const imageOutputSchema = z.object({
+  images: z.array(
+    z.object({ document_id: z.string(), filename: z.string(), media_type: z.string() }),
+  ),
+  count: z.number(),
+  failed: z.number(),
+  failed_items: z.array(z.object({ index: z.number(), message: z.string() })).optional(),
+  document_id: z.string().optional(),
+});
 
 const videoOutputSchema = z.object({
-  // `ok:false` carries an executor-reported terminal failure/cancellation as a
-  // structured output so ChatVideoCard renders the failed state off the tool
-  // part (ADR-0035); poll errors/timeout/abort still throw.
-  ok: z.boolean(),
-  status: z.string(),
   kind: z.literal("video"),
   title: z.string(),
   filename: z.string(),
@@ -44,7 +42,6 @@ const videoOutputSchema = z.object({
   progress_total: z.number().optional(),
   document_id: z.string().optional(),
   media_type: z.literal("video/mp4").optional(),
-  error: z.string().optional(),
 });
 
 const IMAGE_OWNED_KEYS = new Set(["response_format", "prompt", "model", "n", "test_prompt"]);
@@ -58,6 +55,8 @@ const IMAGE_EXTENSIONS: Record<string, string> = {
 };
 const VIDEO_TARGET_MIN_S = 5;
 const VIDEO_TARGET_MAX_S = 120;
+const NON_RETRYABLE_MEDIA_FAILURE =
+  /moderation|content policy|safety|审核|违规|敏感|unsupported|not supported|不支持|permission|unauthori[sz]ed|forbidden|not configured|缺少配置/i;
 
 const videoSegmentInputSchema = z.object({
   content: z.string().min(1).max(1_000),
@@ -142,6 +141,10 @@ function imageError(error: unknown): Error {
   return error instanceof Error ? error : new Error(`图片生成失败：${String(error).slice(0, 300)}`);
 }
 
+function isRetryableMediaFailure(message: string | undefined): boolean {
+  return !message || !NON_RETRYABLE_MEDIA_FAILURE.test(message);
+}
+
 type GeneratedImage = { document_id: string; filename: string; media_type: string };
 
 async function* generateImages(
@@ -152,8 +155,8 @@ async function* generateImages(
     abortSignal,
   }: { context: MediaToolContext; toolCallId: string; abortSignal?: AbortSignal },
   imageProvider: ProviderSnapshot,
-): AsyncGenerator<z.infer<typeof imageOutputSchema>> {
-  yield { ok: true, status: "generating", count: input.prompts.length };
+): AsyncGenerator<z.infer<typeof imageOutputSchema> | ToolEmission> {
+  yield toolRunning({ count: input.prompts.length });
   try {
     const { model, providerOptionsKey } = createProviderImageModel({
       id: imageProvider.id,
@@ -188,18 +191,51 @@ async function* generateImages(
     const settled = await Promise.allSettled(input.prompts.map(generateOne));
     if (abortSignal?.aborted) throw new DOMException("aborted", "AbortError");
     const images = settled.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
+    const failedItems = settled.flatMap((result, index) =>
+      result.status === "rejected"
+        ? [{ index, message: imageError(result.reason).message }]
+        : [],
+    );
     if (images.length === 0) {
-      const rejected = settled.find((result): result is PromiseRejectedResult => result.status === "rejected");
-      throw imageError(rejected?.reason);
+      const message = failedItems[0]?.message ?? "图片生成失败";
+      yield toolFailed({
+        code: "IMAGE_BATCH_FAILED",
+        message,
+        retryable: isRetryableMediaFailure(message),
+        source: "image-provider",
+        details: {
+          count: input.prompts.length,
+          failed: failedItems.length,
+          failed_items: failedItems,
+        },
+      });
+      return;
     }
-    yield {
-      ok: true,
-      status: "completed",
+    if (failedItems.length > 0) {
+      yield toolPartial(
+        {
+          images,
+          count: input.prompts.length,
+          failed: failedItems.length,
+          failed_items: failedItems,
+          document_id: images[0]?.document_id,
+        },
+        {
+          code: "IMAGE_BATCH_PARTIAL",
+          message: `${failedItems.length} 张图片生成失败`,
+          retryable: failedItems.some((item) => isRetryableMediaFailure(item.message)),
+          source: "image-provider",
+          details: { failed_items: failedItems },
+        },
+      );
+      return;
+    }
+    yield toolCompleted({
       images,
       count: input.prompts.length,
       failed: input.prompts.length - images.length,
       document_id: images[0]?.document_id,
-    };
+    });
   } catch (error) {
     if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
     logger.error({ toolCallId, err: error }, "generate_image failed");
@@ -267,12 +303,12 @@ async function* generateVideo(
     abortSignal,
   }: { context: MediaToolContext; toolCallId: string; abortSignal?: AbortSignal },
   providers: MediaToolProviders & { videoProviderId: string },
-): AsyncGenerator<z.infer<typeof videoOutputSchema>> {
+): AsyncGenerator<z.infer<typeof videoOutputSchema> | ToolEmission> {
   const title = input.prompt.slice(0, 80);
   const filename = mediaFilename(input.prompt, "mp4");
   const characterRefs = await resolveVideoCharacters(input.characters, context);
   try {
-    const task = await startTaskResilient(
+    const task = await startExecutorTask(
       {
         type: "video-generation",
         ownerRef: toolCallId,
@@ -304,7 +340,7 @@ async function* generateVideo(
       abortSignal,
     );
     const base = { kind: "video" as const, title, filename, prompt: input.prompt, duration: input.duration, task_id: task.id };
-    yield { ok: true, status: task.status, ...base };
+    yield toolRunning(base);
     let terminal: Task | null = null;
     try {
       for await (const snapshot of pollTaskSnapshots(task.id, task.ownerRef, abortSignal)) {
@@ -312,37 +348,57 @@ async function* generateVideo(
           terminal = snapshot;
           break;
         }
-        yield {
-          ok: true,
-          status: snapshot.status,
+        yield toolRunning({
           progress_done: snapshot.progress?.done,
           progress_total: snapshot.progress?.total,
           ...base,
-        };
+        });
       }
     } catch (error) {
-      if (error instanceof TaskWaitTimeoutError) throw new Error("视频生成超时：超过 30 分钟未完成，已取消任务。");
+      if (error instanceof TaskWaitTimeoutError) {
+        yield toolFailed({
+          code: "VIDEO_TASK_TIMEOUT",
+          message: "视频生成超时：超过 30 分钟未完成，已取消任务。",
+          retryable: true,
+          source: "executor",
+          details: base,
+        });
+        return;
+      }
       throw error;
     }
     if (terminal?.status === "failed" || terminal?.status === "cancelled") {
-      yield {
-        ok: false,
-        status: terminal.status,
-        error: terminal.error ?? (terminal.status === "cancelled" ? "视频生成已取消" : "视频生成失败"),
-        ...base,
-      };
+      const message =
+        terminal.error ?? (terminal.status === "cancelled" ? "视频生成已取消" : "视频生成失败");
+      yield toolFailed({
+        code: terminal.status === "cancelled" ? "VIDEO_TASK_CANCELLED" : "VIDEO_TASK_FAILED",
+        message,
+        retryable:
+          terminal.status === "cancelled" ? false : isRetryableMediaFailure(message),
+        source: "executor",
+        details: {
+          ...base,
+          progress_done: terminal.progress?.done,
+          progress_total: terminal.progress?.total,
+        },
+      });
       return;
     }
     if (terminal?.status !== "completed") {
-      throw new Error("视频生成失败");
+      yield toolFailed({
+        code: "VIDEO_TASK_UNEXPECTED",
+        message: "视频任务在没有终态结果的情况下结束",
+        retryable: false,
+        source: "executor",
+        details: base,
+      });
+      return;
     }
-    yield {
-      ok: true,
-      status: "completed",
+    yield toolCompleted({
       document_id: videoDocumentId(terminal.result),
       media_type: "video/mp4",
       ...base,
-    };
+    });
   } catch (error) {
     if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
     logger.error({ toolCallId, err: error }, "generate_video failed");

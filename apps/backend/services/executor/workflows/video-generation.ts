@@ -365,21 +365,20 @@ async function createSegmentStep(input: {
     }
     return { taskId };
   } catch (error) {
-    if (error instanceof ArkRequestError && !error.retryable) {
-      console.error("[executor] segment create rejected (non-retryable), degrading", {
-        status: error.status,
-        error: error.message.slice(0, 300),
-      });
-      return { error: error.message.slice(0, 500) };
-    }
-    console.warn("[executor] segment create transient failure, will retry", {
+    if (cancellation.signal.aborted) throw error;
+    console.warn("[executor] segment create failed without automatic retry", {
+      status: error instanceof ArkRequestError ? error.status : undefined,
       error: String(error).slice(0, 300),
     });
-    throw error;
+    return {
+      error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
+    };
   } finally {
     cancellation.dispose();
   }
 }
+
+createSegmentStep.maxRetries = 0;
 
 async function waitSegmentStep(input: {
   orgId: string;
@@ -539,8 +538,13 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
   const scripted = Boolean(input.segments?.length);
   const firstFailed = ordered.findIndex((result) => !result.ok || !result.videoUrl);
   if (scripted && firstFailed !== -1) {
+    const failed = ordered.filter((result) => !result.ok || !result.videoUrl);
+    const completed = total - failed.length;
+    const failedSegments = failed.map((result) => result.order + 1).join(", ");
+    const firstError = failed.find((result) => result.error)?.error ?? "provider returned no video";
     throw new Error(
-      `scripted video completion gate failed: ${firstFailed}/${total} ordered segments completed`,
+      `scripted video completion gate failed: ${completed}/${total} segments completed; ` +
+        `failed segments: ${failedSegments}; first error: ${firstError}`,
     );
   }
 
@@ -551,7 +555,11 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
   const segmentsFailed = total - urls.length;
   const minRequired = minimumUsableSegments(total);
   if (urls.length === 0) {
-    throw new Error(`video generation produced no usable segments (${segmentsFailed} failed)`);
+    const firstError = ordered.find((result) => result.error)?.error;
+    throw new Error(
+      `video generation produced no usable segments (${segmentsFailed} failed)` +
+        (firstError ? `; first error: ${firstError}` : ""),
+    );
   }
   if (urls.length < minRequired) {
     throw new Error(

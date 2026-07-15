@@ -59,7 +59,15 @@ export function parseAskUserInput(input: unknown): AskUserInput | null {
 
 export function parseAskUserOutput(output: unknown): AskUserOutput | null {
   if (!output || typeof output !== "object") return null;
-  const raw = output as { answers?: unknown };
+  const envelope = output as { status?: unknown; data?: unknown };
+  if (
+    envelope.status !== "completed" ||
+    !envelope.data ||
+    typeof envelope.data !== "object"
+  ) {
+    return null;
+  }
+  const raw = envelope.data as { answers?: unknown };
   if (!Array.isArray(raw.answers) || raw.answers.length === 0) return null;
   const answers = raw.answers.flatMap((item) => {
     if (!item || typeof item !== "object") return [];

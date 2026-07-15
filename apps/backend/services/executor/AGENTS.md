@@ -23,9 +23,10 @@ for the full rationale.
   is written to the DB and read by the owner's `GET /tasks/:id` poll (chat
   surfaces it as preliminary tool-results on the main useChat stream). It is
   best-effort UI sugar, never a correctness signal.
-- `owner_service` + `owner_ref` is the idempotency key. Retrying a start
-  request with the same pair returns the existing task, never starts a
-  second workflow run.
+- `owner_service` + `owner_ref` is the task-row idempotency key. It does not make
+  Workflow `start()` itself idempotent. A Workflow start failure marks the
+  inserted row failed immediately; callers must not automatically start a
+  second Workflow under the same user-visible tool call.
 - Task execution durability comes from `workflow` (Workflow DevKit), not
   from this service's own process. `reconcilePendingTasks()` re-attaches to
   any `running` task's workflow run on every boot — safe to call every time,
@@ -91,9 +92,10 @@ generation.
     model still collapsed the sheet, swaps in a deterministic DISTINCT dramatic
     arc built from the same characters. Within-segment repetition is structurally
     impossible (one action per segment).
-  - **Reliability**: a non-retryable Ark 4xx (bad params / moderation) degrades
-    that one segment; 429/5xx/network **rethrow** so Workflow DevKit retries the
-    step. The pre-assembly completion gate requires every user-supplied
+  - **Reliability**: Ark create is a paid side effect without a provider
+    idempotency key, so `createSegmentStep.maxRetries = 0`; 4xx, 429, 5xx, and
+    network errors become that segment's structured failure instead of silently
+    creating another task. The pre-assembly completion gate requires every user-supplied
     `segments[]` entry. Auto-planned reels may degrade only to a contiguous
     successful prefix starting at the hook: multi-segment reels require ≥60%
     (≥2 segments), while a single-segment one-shot passes when that clip succeeds.

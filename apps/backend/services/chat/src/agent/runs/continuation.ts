@@ -3,6 +3,8 @@ import { isDeepStrictEqual } from "node:util";
 import type { UIMessage } from "ai";
 
 import { RequestError } from "../../lib/errors.js";
+import { askUserOutcomeSchema } from "../tools/builtins/interaction.js";
+import { toolOutcomeData } from "../tools/outcome.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
@@ -52,6 +54,15 @@ export function mergeClientContinuation(persisted: AnyUIMessage, client: AnyUIMe
     throw new RequestError("client tool continuation must include at least one tool response");
   }
 
+  for (const part of clientResponses) {
+    if (part.type !== "tool-ask_user" || toolState(part) !== "output-available") continue;
+    const output = "output" in part ? part.output : undefined;
+    const parsed = askUserOutcomeSchema.safeParse(output);
+    if (!parsed.success || parsed.data.status !== "completed") {
+      throw new RequestError("ask_user continuation has an invalid ToolOutcome");
+    }
+  }
+
   const respondedIds = new Set(
     clientResponses.map((part) => (part as { toolCallId: string }).toolCallId),
   );
@@ -93,7 +104,7 @@ export function continuedSkillInstruction(
   let loaded: ContinuedSkillInstruction | null = null;
   for (const part of message.parts) {
     if (part.type !== "tool-load_skill" || toolState(part) !== "output-available") continue;
-    const output = "output" in part ? part.output : null;
+    const output = toolOutcomeData("output" in part ? part.output : null);
     if (!output || typeof output !== "object") continue;
     const name = "name" in output && typeof output.name === "string" ? output.name : "";
     const body =
@@ -116,13 +127,17 @@ export function compactHistoricalSkillOutputs(message: AnyUIMessage): AnyUIMessa
       if (part.type !== "tool-load_skill" || toolState(part) !== "output-available") {
         return part;
       }
-      const output = "output" in part ? part.output : null;
+      const envelope = "output" in part ? part.output : null;
+      const output = toolOutcomeData(envelope);
       if (!output || typeof output !== "object" || !("instructions" in output)) return part;
       return {
         ...part,
         output: {
-          ...output,
-          instructions: "[omitted from historical model projection]",
+          ...(envelope as object),
+          data: {
+            ...output,
+            instructions: "[omitted from historical model projection]",
+          },
         },
       } as typeof part;
     }),

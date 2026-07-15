@@ -9,9 +9,9 @@ import {
 } from "../../../clients/knowledge.js";
 import { fileToolContextSchema, type FileToolContext } from "../context.js";
 import { defineAgentTool } from "../manifest.js";
+import { toolBlocked, ToolBlockedError, type ToolEmission } from "../outcome.js";
 
 const listFilesOutputSchema = z.object({
-  status: z.literal("completed"),
   files: z.array(
     z.object({
       id: z.string(),
@@ -26,37 +26,17 @@ const listFilesOutputSchema = z.object({
   ),
 });
 
-const readFileOutputSchema = z.discriminatedUnion("status", [
-  z.object({
-    status: z.literal("completed"),
-    file_id: z.string(),
-    title: z.string(),
-    filename: z.string(),
-    mime_type: z.string(),
-    offset: z.number(),
-    total_chars: z.number(),
-    next_offset: z.number().nullable(),
-    content: z.string(),
-    untrusted: z.boolean(),
-  }),
-  z.object({
-    status: z.literal("blocked"),
-    code: z.literal("FILE_NOT_ATTACHED"),
-    message: z.string(),
-  }),
-  z.object({
-    status: z.literal("processing"),
-    file_id: z.string(),
-    filename: z.string(),
-    message: z.string(),
-  }),
-  z.object({
-    status: z.literal("failed"),
-    file_id: z.string(),
-    filename: z.string(),
-    message: z.string(),
-  }),
-]);
+const readFileOutputSchema = z.object({
+  file_id: z.string(),
+  title: z.string(),
+  filename: z.string(),
+  mime_type: z.string(),
+  offset: z.number(),
+  total_chars: z.number(),
+  next_offset: z.number().nullable(),
+  content: z.string(),
+  untrusted: z.boolean(),
+});
 
 // The document is referenceable at upload (ingest_status="received"); the heavy
 // MarkItDown/vision convert then runs in the background. When the model reads a
@@ -68,7 +48,6 @@ const READ_FILE_CONVERT_WAIT_MS = 60_000;
 async function listFiles(_input: {}, { context }: { context: FileToolContext }) {
   const rows = await listDocuments(context.userId, context.conversationId);
   return {
-    status: "completed" as const,
     files: rows.map((row) => ({
       id: row.id,
       title: row.title,
@@ -85,14 +64,16 @@ async function listFiles(_input: {}, { context }: { context: FileToolContext }) 
 async function readFile(
   input: { file_id: string; offset: number; max_chars: number },
   { context }: { context: FileToolContext },
-): Promise<z.infer<typeof readFileOutputSchema>> {
+): Promise<z.infer<typeof readFileOutputSchema> | ToolEmission> {
   const document = await getDocument(context.userId, input.file_id);
   if (document.conversation_id !== context.conversationId) {
-    return {
-      status: "blocked" as const,
-      code: "FILE_NOT_ATTACHED" as const,
+    throw new ToolBlockedError({
+      code: "FILE_NOT_ATTACHED",
       message: `file ${input.file_id} is not attached to this conversation`,
-    };
+      retryable: false,
+      source: "knowledge",
+      details: { file_id: input.file_id },
+    });
   }
   if (
     document.kind === "artifact" &&
@@ -107,7 +88,6 @@ async function readFile(
         ? input.offset + chunk.length
         : null;
     return {
-      status: "completed" as const,
       file_id: document.id,
       title: document.title,
       filename: document.filename,
@@ -128,24 +108,22 @@ async function readFile(
     alreadyConverted ? 0 : READ_FILE_CONVERT_WAIT_MS,
   );
   if (slice.state === "processing") {
-    return {
-      status: "processing" as const,
-      file_id: document.id,
-      filename: document.filename,
+    return toolBlocked({
+      code: "FILE_PROCESSING",
       message:
         "file received but still being processed (converting); tell the user it is not readable yet and retry read_file shortly",
-    };
+      retryable: true,
+      source: "knowledge",
+      details: { file_id: document.id, filename: document.filename },
+    });
   }
   if (slice.state === "failed") {
-    return {
-      status: "failed" as const,
-      file_id: document.id,
-      filename: document.filename,
-      message: slice.error ?? "file conversion failed",
-    };
+    throw Object.assign(new Error(slice.error ?? "file conversion failed"), {
+      code: "FILE_CONVERSION_FAILED",
+      details: { file_id: document.id, filename: document.filename },
+    });
   }
   return {
-    status: "completed" as const,
     file_id: document.id,
     title: slice.title,
     filename: slice.filename,

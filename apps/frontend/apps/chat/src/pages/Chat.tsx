@@ -547,7 +547,10 @@ export function Chat() {
     await addToolOutput({
       tool: toolName,
       toolCallId,
-      output,
+      output:
+        toolName === "ask_user"
+          ? { ok: true, status: "completed", data: output }
+          : output,
       options: { body: requestBody },
     });
   }
