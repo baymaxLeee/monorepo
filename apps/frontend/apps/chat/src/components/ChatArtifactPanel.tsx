@@ -1,12 +1,20 @@
 import type { ConversationDocumentDetail } from "api";
 import { fetchConversationDocument, updateConversationDocument } from "api";
-import { Button } from "components";
-import { ArtifactPreview } from "components/ai-chat";
+import { Button, toast } from "components";
+import { ArtifactAction, ArtifactPreview } from "components/ai-chat";
 import { MarkdownEditor } from "components/markdown-editor";
-import { Maximize2Icon, Minimize2Icon, XIcon } from "lucide-react";
+import {
+  DownloadIcon,
+  Loader2Icon,
+  Maximize2Icon,
+  Minimize2Icon,
+  XIcon,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getErrorMessage } from "shared";
 import { useShallow } from "zustand/react/shallow";
 import {
+  downloadConversationDocument,
   fetchCachedDocumentSource,
   useDocumentBlobUrl,
 } from "../hooks/useDocumentSource";
@@ -54,6 +62,7 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [downloading, setDownloading] = useState(false);
   // The debounce timer, the latest draft, and the last persisted content are
   // read from the timer callback / unmount flush, so they live in refs to stay
   // current without re-arming the timer on every keystroke.
@@ -195,6 +204,23 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
     }
   }, []);
 
+  const downloadArtifact = useCallback(async () => {
+    if (!artifact || !conversationId || !documentId) return;
+    setDownloading(true);
+    try {
+      await downloadConversationDocument(
+        conversationId,
+        documentId,
+        artifact,
+        editable ? draftRef.current : artifact.content_md,
+      );
+    } catch (error) {
+      toast.error(getErrorMessage(error, "下载失败"));
+    } finally {
+      setDownloading(false);
+    }
+  }, [artifact, conversationId, documentId, editable]);
+
   const runSave = useCallback(
     async (cid: string, did: string, content: string) => {
       setSaveState("saving");
@@ -282,6 +308,21 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
                 ? "已保存"
                 : "保存失败"}
           </span>
+        ) : null}
+        {artifact ? (
+          <ArtifactAction
+            tooltip={downloading ? "下载中…" : "下载"}
+            label="下载产物"
+            aria-label={downloading ? "下载中" : "下载产物"}
+            disabled={downloading}
+            onClick={() => void downloadArtifact()}
+          >
+            {downloading ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : (
+              <DownloadIcon className="size-4" />
+            )}
+          </ArtifactAction>
         ) : null}
         {isHtmlPreview && !previewLoading && !previewFailed ? (
           <Button

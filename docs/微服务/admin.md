@@ -1,15 +1,15 @@
 # admin service
 
-管理 & 配置面板的后端。除了智能体/场景/意图等业务对象外，admin 还是
+管理 & 配置面板的后端。除了智能体和技能等业务对象外，admin 还是
 "第三方集成"的唯一所有者 —— 当前最重要的就是 LLM Provider。
 
 ## Owner / 责任范围
 
-- DB 表：`bots`、`scenes`、`intentions`、`model_providers`、`skills`、
+- DB 表：`bots`、`model_providers`、`skills`、
   `skill_nodes`、`skill_published_nodes`（外加
   `migration` 单行版本表）
 - 公开 HTTP API（gateway 前置鉴权，路径 `/api/admin-server/*`）：
-  - `/bots`、`/scenes`、`/intentions` —— 各资源 CRUD + 批删
+  - `/bots` —— 智能体 CRUD
   - `/providers` —— LLM Provider 管理（CRUD、`set-default`、`test`）
   - `/skills` —— Skill 工作区、文件懒加载、验证与发布
 - 内部 HTTP API（gateway **不**代理；仅集群内 sibling 服务可调）：

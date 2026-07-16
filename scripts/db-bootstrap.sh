@@ -58,11 +58,11 @@ import sys
 
 sys.path.insert(0, "src")
 
-from db import close_db, seed_demo_bots
+from db import close_db, seed_demo_apps
 
 
 async def main() -> None:
-    await seed_demo_bots()
+    await seed_demo_apps()
     await close_db()
 
 

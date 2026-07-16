@@ -1,7 +1,7 @@
 """App registry ORM model.
 
 The app registry is the operator-managed catalog of micro-frontends the
-platform shell may mount. Unlike bots/scenes/intentions it is NOT user-owned —
+platform shell may mount. Unlike team-owned resources it is NOT user-owned —
 it is global configuration (admin config plane), so there is no `user_id`.
 """
 

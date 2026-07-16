@@ -3,14 +3,11 @@
 The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing.
 
 ## Owns
-- DB tables: `bots`, `bot_versions`, `bot_publish_history`
-- HTTP API: `/bot/*` internally; externally exposed by gateway as
-  `/api/admin-server/bot/*`
+- DB tables for bots, skills, model providers, and the platform app registry
+- HTTP APIs externally exposed by gateway under `/api/admin-server/*`
 - gRPC API: `bot.v1.BotService` (defined in `schemas/proto/bot/v1/`)
 
 ## Does NOT own
-- Bot scenes (→ scene service)
-- Bot intentions (→ intention service)
 - Bot audit log (→ audit service via events)
 
 ## Entry points

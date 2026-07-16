@@ -414,10 +414,12 @@ uv sync --all-packages
 |---|---|
 | gateway | 8000 |
 | bot | 8001 |
-| (预留) iam / scene / intention / ... | 8002-8007 |
+| iam | 8002 |
+| (预留) 其他后端服务 | 8003-8007 |
 | shell | 3000 |
 | mfe-bot | 3001 |
-| (预留) mfe-scene / mfe-intention / ... | 3002-3005 |
+| (预留) 其他微前端 | 3002-3004 |
+| mfe-chat | 3005 |
 
 ```bash
 # 端口被占就杀
@@ -464,7 +466,7 @@ docker ps            # 看是不是有别的项目占了 5432 / 6379
 ## ➕ 下一步可以扩展的点
 
 - 加新微服务:`./scripts/new-service.sh iam`
-- 加新微前端:`./scripts/new-mfe.sh mfe-scene`
+- 加新微前端:`./scripts/new-mfe.sh mfe-reports`
 - 生产迁移:沿用服务内 SQL migration 与 `migration.version` 版本指针
 - 接入 OTel:扩 `libs/observability/`,在 `main.py` 调 `setup("bot")`
 - gRPC 服务间调用:补 `schemas/proto/<svc>/v1/*.proto`,`buf generate`

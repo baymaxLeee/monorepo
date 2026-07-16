@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from config import get_settings
-from db import close_db, seed_demo_bots
+from db import close_db, seed_demo_apps
 from fastapi import FastAPI
 from kernel.errors import register_exception_handlers
 from kernel.logging import RequestLoggingMiddleware, configure_logging
@@ -16,10 +16,8 @@ from routers import (
     apps,
     bots,
     health,
-    intentions,
     providers,
     providers_internal,
-    scenes,
     skills,
     skills_internal,
 )
@@ -29,7 +27,7 @@ from routers import (
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await init_redis()
     if not get_settings().is_production:
-        await seed_demo_bots()
+        await seed_demo_apps()
     yield
     await close_redis()
     await close_db()
@@ -58,10 +56,8 @@ def create_app() -> FastAPI:
     app.add_middleware(TraceIDMiddleware)
     app.include_router(health.router)
     app.include_router(bots.router)
-    app.include_router(scenes.router)
     app.include_router(skills.router)
     app.include_router(skills_internal.router)
-    app.include_router(intentions.router)
     app.include_router(providers.router)
     app.include_router(providers_internal.router)
     app.include_router(agents_internal.router)

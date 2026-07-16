@@ -1,3 +1,4 @@
+import type { ConversationDocumentDetail } from "api";
 import { fetchConversationDocumentSource } from "api";
 import { useEffect, useState } from "react";
 
@@ -65,6 +66,33 @@ export function fetchCachedDocumentSource(
     if (oldest) sourceCache.delete(oldest);
   }
   return request;
+}
+
+export async function downloadConversationDocument(
+  conversationId: string,
+  documentId: string,
+  document: ConversationDocumentDetail,
+  content: string = document.content_md,
+) {
+  const blob =
+    document.source_object_bucket && document.source_object_key
+      ? await fetchCachedDocumentSource(
+          conversationId,
+          documentId,
+          document.updated_at,
+        )
+      : new Blob([content], {
+          type: document.mime_type || "application/octet-stream",
+        });
+  const url = URL.createObjectURL(blob);
+  const anchor = window.document.createElement("a");
+  anchor.href = url;
+  anchor.download =
+    document.source_filename || document.filename || document.title;
+  window.document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }
 
 export function useDocumentBlobUrl(

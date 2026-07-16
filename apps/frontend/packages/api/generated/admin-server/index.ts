@@ -73,18 +73,6 @@ export interface Bot {
   updated_at: string;
 }
 
-export interface BulkDeleteIntentionsInput {
-  /**
-     * @minItems 1
-     * @maxItems 100
-     */
-  ids: string[];
-}
-
-export interface BulkDeleteIntentionsResult {
-  deleted: number;
-}
-
 export interface BulkDeleteModelProvidersInput {
   /**
      * @minItems 1
@@ -94,18 +82,6 @@ export interface BulkDeleteModelProvidersInput {
 }
 
 export interface BulkDeleteModelProvidersResult {
-  deleted: number;
-}
-
-export interface BulkDeleteScenesInput {
-  /**
-     * @minItems 1
-     * @maxItems 100
-     */
-  ids: string[];
-}
-
-export interface BulkDeleteScenesResult {
   deleted: number;
 }
 
@@ -163,31 +139,6 @@ export interface CreateBotInput {
   name: string;
 }
 
-export type CreateIntentionInputStatus = typeof CreateIntentionInputStatus[keyof typeof CreateIntentionInputStatus];
-
-
-export const CreateIntentionInputStatus = {
-  draft: 'draft',
-  active: 'active',
-  disabled: 'disabled',
-} as const;
-
-export interface CreateIntentionInput {
-  /**
-     * @minLength 1
-     * @maxLength 100
-     */
-  name: string;
-  /** @maxLength 500 */
-  description?: string;
-  /** @maxLength 100 */
-  scene_name?: string;
-  /** @minimum 0 */
-  examples?: number;
-  status?: CreateIntentionInputStatus;
-  is_enabled?: boolean;
-}
-
 export type CreateModelProviderInputProviderKind = typeof CreateModelProviderInputProviderKind[keyof typeof CreateModelProviderInputProviderKind];
 
 
@@ -236,27 +187,6 @@ export interface CreateModelProviderInput {
   max_output_tokens?: number;
   supports_image_input?: boolean;
   is_default?: boolean;
-  is_enabled?: boolean;
-}
-
-export type CreateSceneInputStatus = typeof CreateSceneInputStatus[keyof typeof CreateSceneInputStatus];
-
-
-export const CreateSceneInputStatus = {
-  draft: 'draft',
-  active: 'active',
-  disabled: 'disabled',
-} as const;
-
-export interface CreateSceneInput {
-  /**
-     * @minLength 1
-     * @maxLength 100
-     */
-  name: string;
-  /** @maxLength 500 */
-  description?: string;
-  status?: CreateSceneInputStatus;
   is_enabled?: boolean;
 }
 
@@ -309,30 +239,6 @@ export interface ValidationError {
 
 export interface HTTPValidationError {
   detail?: ValidationError[];
-}
-
-export type IntentionStatus = typeof IntentionStatus[keyof typeof IntentionStatus];
-
-
-export const IntentionStatus = {
-  draft: 'draft',
-  active: 'active',
-  disabled: 'disabled',
-} as const;
-
-export interface Intention {
-  id: string;
-  user_id: string;
-  org_id: string;
-  username: string;
-  name: string;
-  description: string;
-  scene_name: string;
-  examples: number;
-  status: IntentionStatus;
-  is_enabled: boolean;
-  created_at: string;
-  updated_at: string;
 }
 
 export type InternalModelProviderProviderKind = typeof InternalModelProviderProviderKind[keyof typeof InternalModelProviderProviderKind];
@@ -516,28 +422,6 @@ export interface ResolvedAgent {
   skills?: AgentSkill[];
 }
 
-export type SceneStatus = typeof SceneStatus[keyof typeof SceneStatus];
-
-
-export const SceneStatus = {
-  draft: 'draft',
-  active: 'active',
-  disabled: 'disabled',
-} as const;
-
-export interface Scene {
-  id: string;
-  user_id: string;
-  org_id: string;
-  username: string;
-  name: string;
-  description: string;
-  status: SceneStatus;
-  is_enabled: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface SkillFileContent {
   id: string;
   content: string;
@@ -663,24 +547,6 @@ export interface UpdateBotInput {
   video_provider_id?: string | null;
 }
 
-export type UpdateIntentionInputStatus = typeof UpdateIntentionInputStatus[keyof typeof UpdateIntentionInputStatus] | null;
-
-
-export const UpdateIntentionInputStatus = {
-  draft: 'draft',
-  active: 'active',
-  disabled: 'disabled',
-} as const;
-
-export interface UpdateIntentionInput {
-  name?: string | null;
-  description?: string | null;
-  scene_name?: string | null;
-  examples?: number | null;
-  status?: UpdateIntentionInputStatus;
-  is_enabled?: boolean | null;
-}
-
 export type UpdateModelProviderInputProviderKind = typeof UpdateModelProviderInputProviderKind[keyof typeof UpdateModelProviderInputProviderKind] | null;
 
 
@@ -705,22 +571,6 @@ export interface UpdateModelProviderInput {
   max_output_tokens?: number | null;
   supports_image_input?: boolean | null;
   is_default?: boolean | null;
-  is_enabled?: boolean | null;
-}
-
-export type UpdateSceneInputStatus = typeof UpdateSceneInputStatus[keyof typeof UpdateSceneInputStatus] | null;
-
-
-export const UpdateSceneInputStatus = {
-  draft: 'draft',
-  active: 'active',
-  disabled: 'disabled',
-} as const;
-
-export interface UpdateSceneInput {
-  name?: string | null;
-  description?: string | null;
-  status?: UpdateSceneInputStatus;
   is_enabled?: boolean | null;
 }
 
@@ -964,85 +814,6 @@ const detachBotSkillBotBotIdSkillsSkillIdDelete = (
     }
 
 /**
- * @summary List Scenes
- */
-const listScenesScenesGet = (
-
- options?: SecondParameter<typeof apiMutator<Scene[]>>,) => {
-      return apiMutator<Scene[]>(
-      {url: `/scenes`, method: 'GET'
-    },
-      options);
-    }
-
-/**
- * @summary Create Scene
- */
-const createSceneScenesPost = (
-    createSceneInput: CreateSceneInput,
- options?: SecondParameter<typeof apiMutator<Scene>>,) => {
-      return apiMutator<Scene>(
-      {url: `/scenes`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: createSceneInput
-    },
-      options);
-    }
-
-/**
- * @summary Get Scene
- */
-const getSceneScenesSceneIdGet = (
-    sceneId: string,
- options?: SecondParameter<typeof apiMutator<Scene>>,) => {
-      return apiMutator<Scene>(
-      {url: `/scenes/${sceneId}`, method: 'GET'
-    },
-      options);
-    }
-
-/**
- * @summary Update Scene
- */
-const updateSceneScenesSceneIdPatch = (
-    sceneId: string,
-    updateSceneInput: UpdateSceneInput,
- options?: SecondParameter<typeof apiMutator<Scene>>,) => {
-      return apiMutator<Scene>(
-      {url: `/scenes/${sceneId}`, method: 'PATCH',
-      headers: {'Content-Type': 'application/json', },
-      data: updateSceneInput
-    },
-      options);
-    }
-
-/**
- * @summary Delete Scene
- */
-const deleteSceneScenesSceneIdDelete = (
-    sceneId: string,
- options?: SecondParameter<typeof apiMutator<void>>,) => {
-      return apiMutator<void>(
-      {url: `/scenes/${sceneId}`, method: 'DELETE'
-    },
-      options);
-    }
-
-/**
- * @summary Bulk Delete Scenes
- */
-const bulkDeleteScenesScenesBulkDeletePost = (
-    bulkDeleteScenesInput: BulkDeleteScenesInput,
- options?: SecondParameter<typeof apiMutator<BulkDeleteScenesResult>>,) => {
-      return apiMutator<BulkDeleteScenesResult>(
-      {url: `/scenes/bulk-delete`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: bulkDeleteScenesInput
-    },
-      options);
-    }
-
-/**
  * @summary List Skills
  */
 const listSkillsSkillsGet = (
@@ -1280,85 +1051,6 @@ const getSkillInternalInternalSkillsSkillIdGet = (
     }
 
 /**
- * @summary List Intentions
- */
-const listIntentionsIntentionsGet = (
-
- options?: SecondParameter<typeof apiMutator<Intention[]>>,) => {
-      return apiMutator<Intention[]>(
-      {url: `/intentions`, method: 'GET'
-    },
-      options);
-    }
-
-/**
- * @summary Create Intention
- */
-const createIntentionIntentionsPost = (
-    createIntentionInput: CreateIntentionInput,
- options?: SecondParameter<typeof apiMutator<Intention>>,) => {
-      return apiMutator<Intention>(
-      {url: `/intentions`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: createIntentionInput
-    },
-      options);
-    }
-
-/**
- * @summary Get Intention
- */
-const getIntentionIntentionsIntentionIdGet = (
-    intentionId: string,
- options?: SecondParameter<typeof apiMutator<Intention>>,) => {
-      return apiMutator<Intention>(
-      {url: `/intentions/${intentionId}`, method: 'GET'
-    },
-      options);
-    }
-
-/**
- * @summary Update Intention
- */
-const updateIntentionIntentionsIntentionIdPatch = (
-    intentionId: string,
-    updateIntentionInput: UpdateIntentionInput,
- options?: SecondParameter<typeof apiMutator<Intention>>,) => {
-      return apiMutator<Intention>(
-      {url: `/intentions/${intentionId}`, method: 'PATCH',
-      headers: {'Content-Type': 'application/json', },
-      data: updateIntentionInput
-    },
-      options);
-    }
-
-/**
- * @summary Delete Intention
- */
-const deleteIntentionIntentionsIntentionIdDelete = (
-    intentionId: string,
- options?: SecondParameter<typeof apiMutator<void>>,) => {
-      return apiMutator<void>(
-      {url: `/intentions/${intentionId}`, method: 'DELETE'
-    },
-      options);
-    }
-
-/**
- * @summary Bulk Delete Intentions
- */
-const bulkDeleteIntentionsIntentionsBulkDeletePost = (
-    bulkDeleteIntentionsInput: BulkDeleteIntentionsInput,
- options?: SecondParameter<typeof apiMutator<BulkDeleteIntentionsResult>>,) => {
-      return apiMutator<BulkDeleteIntentionsResult>(
-      {url: `/intentions/bulk-delete`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: bulkDeleteIntentionsInput
-    },
-      options);
-    }
-
-/**
  * @summary List Providers
  */
 const listProvidersProvidersGet = (
@@ -1588,7 +1280,7 @@ const deleteAppAppsAppIdDelete = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listBotSkillsBotBotIdSkillsGet,attachBotSkillBotBotIdSkillsPost,detachBotSkillBotBotIdSkillsSkillIdDelete,listScenesScenesGet,createSceneScenesPost,getSceneScenesSceneIdGet,updateSceneScenesSceneIdPatch,deleteSceneScenesSceneIdDelete,bulkDeleteScenesScenesBulkDeletePost,listSkillsSkillsGet,createSkillSkillsPost,getSkillSkillsSkillIdGet,updateSkillSkillsSkillIdPatch,deleteSkillSkillsSkillIdDelete,getSkillWorkspaceSkillsSkillIdWorkspaceGet,getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet,createSkillNodeSkillsSkillIdWorkspaceNodesPost,updateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPut,renameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePut,moveSkillNodeSkillsSkillIdWorkspaceNodesNodeIdParentPut,deleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDelete,validateSkillSkillsSkillIdValidatePost,publishSkillSkillsSkillIdPublishPost,bulkDeleteSkillsSkillsBulkDeletePost,getSkillFileInternalInternalSkillsSkillIdFilesGet,getSkillInternalInternalSkillsSkillIdGet,listIntentionsIntentionsGet,createIntentionIntentionsPost,getIntentionIntentionsIntentionIdGet,updateIntentionIntentionsIntentionIdPatch,deleteIntentionIntentionsIntentionIdDelete,bulkDeleteIntentionsIntentionsBulkDeletePost,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderByKindInternalInternalProvidersByKindKindGet,getProviderInternalInternalProvidersProviderIdGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listBotSkillsBotBotIdSkillsGet,attachBotSkillBotBotIdSkillsPost,detachBotSkillBotBotIdSkillsSkillIdDelete,listSkillsSkillsGet,createSkillSkillsPost,getSkillSkillsSkillIdGet,updateSkillSkillsSkillIdPatch,deleteSkillSkillsSkillIdDelete,getSkillWorkspaceSkillsSkillIdWorkspaceGet,getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet,createSkillNodeSkillsSkillIdWorkspaceNodesPost,updateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPut,renameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePut,moveSkillNodeSkillsSkillIdWorkspaceNodesNodeIdParentPut,deleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDelete,validateSkillSkillsSkillIdValidatePost,publishSkillSkillsSkillIdPublishPost,bulkDeleteSkillsSkillsBulkDeletePost,getSkillFileInternalInternalSkillsSkillIdFilesGet,getSkillInternalInternalSkillsSkillIdGet,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderByKindInternalInternalProvidersByKindKindGet,getProviderInternalInternalProvidersProviderIdGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['healthzHealthzGet']>>>
@@ -1600,12 +1292,6 @@ export type DeleteBotBotBotIdDeleteResult = NonNullable<Awaited<ReturnType<Retur
 export type ListBotSkillsBotBotIdSkillsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listBotSkillsBotBotIdSkillsGet']>>>
 export type AttachBotSkillBotBotIdSkillsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['attachBotSkillBotBotIdSkillsPost']>>>
 export type DetachBotSkillBotBotIdSkillsSkillIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['detachBotSkillBotBotIdSkillsSkillIdDelete']>>>
-export type ListScenesScenesGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listScenesScenesGet']>>>
-export type CreateSceneScenesPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createSceneScenesPost']>>>
-export type GetSceneScenesSceneIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getSceneScenesSceneIdGet']>>>
-export type UpdateSceneScenesSceneIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateSceneScenesSceneIdPatch']>>>
-export type DeleteSceneScenesSceneIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['deleteSceneScenesSceneIdDelete']>>>
-export type BulkDeleteScenesScenesBulkDeletePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['bulkDeleteScenesScenesBulkDeletePost']>>>
 export type ListSkillsSkillsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listSkillsSkillsGet']>>>
 export type CreateSkillSkillsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createSkillSkillsPost']>>>
 export type GetSkillSkillsSkillIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getSkillSkillsSkillIdGet']>>>
@@ -1623,12 +1309,6 @@ export type PublishSkillSkillsSkillIdPublishPostResult = NonNullable<Awaited<Ret
 export type BulkDeleteSkillsSkillsBulkDeletePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['bulkDeleteSkillsSkillsBulkDeletePost']>>>
 export type GetSkillFileInternalInternalSkillsSkillIdFilesGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getSkillFileInternalInternalSkillsSkillIdFilesGet']>>>
 export type GetSkillInternalInternalSkillsSkillIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getSkillInternalInternalSkillsSkillIdGet']>>>
-export type ListIntentionsIntentionsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listIntentionsIntentionsGet']>>>
-export type CreateIntentionIntentionsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createIntentionIntentionsPost']>>>
-export type GetIntentionIntentionsIntentionIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getIntentionIntentionsIntentionIdGet']>>>
-export type UpdateIntentionIntentionsIntentionIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateIntentionIntentionsIntentionIdPatch']>>>
-export type DeleteIntentionIntentionsIntentionIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['deleteIntentionIntentionsIntentionIdDelete']>>>
-export type BulkDeleteIntentionsIntentionsBulkDeletePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['bulkDeleteIntentionsIntentionsBulkDeletePost']>>>
 export type ListProvidersProvidersGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listProvidersProvidersGet']>>>
 export type CreateProviderProvidersPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createProviderProvidersPost']>>>
 export type GetProviderProvidersProviderIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getProviderProvidersProviderIdGet']>>>

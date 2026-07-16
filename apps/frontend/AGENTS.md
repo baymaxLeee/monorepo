@@ -8,7 +8,7 @@ React 18 + TypeScript + Tailwind + Rspack + Module Federation 2.0.
 platform (host @ :3000)
   ├── /login                — auth (host-only)
   ├── loads → admin         (remote @ :3001)  routes: /platform/admin/*
-  ├── loads → mfe-scene     (remote @ :3002)  routes: /platform/scene/*  (planned)
+  ├── loads → chat          (remote @ :3005)  routes: /platform/chat/*
   └── …                     — new remotes: /platform/<slug>/*
 ```
 

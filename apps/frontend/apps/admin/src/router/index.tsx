@@ -5,7 +5,6 @@ import { BotDetailPage } from "../pages/BotDetailPage";
 import { BotListPage } from "../pages/BotListPage";
 import { ComponentsDemoPage } from "../pages/ComponentsDemoPage";
 import { DashboardPage } from "../pages/DashboardPage";
-import { IntentionsPage } from "../pages/IntentionsPage";
 import { KnowledgeBasePage } from "../pages/KnowledgeBasePage";
 import { MembersPage } from "../pages/MembersPage";
 import { OrganizationsPage } from "../pages/OrganizationsPage";
@@ -14,7 +13,6 @@ import { TraceExplorerPage } from "../pages/observability/TraceExplorerPage";
 import { PlatformRolesPage } from "../pages/PlatformRolesPage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { ProvidersPage } from "../pages/ProvidersPage";
-import { ScenesPage } from "../pages/ScenesPage";
 import { SkillsPage } from "../pages/SkillsPage";
 import { SkillWorkspacePage } from "../pages/SkillWorkspacePage";
 
@@ -32,10 +30,8 @@ export const routes: RouteObject[] = [
       { path: "dashboard", element: <DashboardPage /> },
       { path: "bots", element: <BotListPage /> },
       { path: "bots/:id", element: <BotDetailPage /> },
-      { path: "scenes", element: <ScenesPage /> },
       { path: "skills", element: <SkillsPage /> },
       { path: "skills/:id", element: <SkillWorkspacePage /> },
-      { path: "intentions", element: <IntentionsPage /> },
       { path: "providers", element: <ProvidersPage /> },
       { path: "knowledge", element: <KnowledgeBasePage /> },
       { path: "apps", element: <AppsRegistryPage /> },

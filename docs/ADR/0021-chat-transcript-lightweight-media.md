@@ -65,6 +65,10 @@ fetched exclusively by the preview surfaces, on demand, after a click.
 - A new shared `apps/frontend/apps/chat/src/components/ChatMediaCard.tsx` is the
   single lightweight-card shell (one `<button>`, no nested interactive element,
   whole card is the click target) used by both image and video cards.
+- `ChatArtifactPanel` exposes a download action in its header. Documents backed
+  by object storage reuse the authenticated `/documents/:id/source` fetch;
+  content-only text artifacts are downloaded from their current `content_md`
+  (or the editor's current draft) as a browser-created Blob.
 
 Only the two preview surfaces call the byte-fetching hooks: `ChatArtifactPanel`
 uses `useDocumentBlobUrl` (single) and `ChatImagePreview` uses
@@ -88,6 +92,8 @@ keeps the tool-output wire contract untouched.
 - No backend, tool-output, or persistence change. `generate_image` still yields
   `{ images: [{ document_id, filename, media_type }] }`; older persisted
   messages render unchanged because only the card presentation changed.
+- Download remains an explicit preview-surface action, so it adds no transcript
+  render-time source requests and preserves the lightweight reference model.
 - Deliberate UX trade-off (chosen over a lazy-thumbnail variant): the transcript
   shows no image thumbnail at all — more aggressive than Claude/ChatGPT, which
   keep a thumbnail/screenshot. Because there are no per-image tiles, the image

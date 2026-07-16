@@ -6,7 +6,7 @@
 # automatically reuses the host's pre-loaded React + @packages/shared, @packages/runtime, @packages/auth-client, @packages/components, @packages/api-client platform packages.
 set -euo pipefail
 
-NAME="${1:?Usage: new-mfe.sh <name> (e.g. mfe-scene)}"
+NAME="${1:?Usage: new-mfe.sh <name> (e.g. mfe-reports)}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MFE_DIR="$ROOT/apps/frontend/apps/$NAME"
 

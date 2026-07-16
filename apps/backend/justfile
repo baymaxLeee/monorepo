@@ -7,7 +7,7 @@ NODE_SERVICES := "chat executor"
 GO_SERVICES := "gateway iam"
 
 # Fixed port allocation so multiple agents/dev servers don't collide
-PORTS := '{"admin":8001,"iam":8002,"scene":8003,"intention":8004,"permission":8005,"audit":8006,"notification":8007,"telemetry":8008,"chat":8009,"knowledge":8010,"gateway":8000,"executor":8011}'
+PORTS := '{"admin":8001,"iam":8002,"permission":8005,"audit":8006,"notification":8007,"telemetry":8008,"chat":8009,"knowledge":8010,"gateway":8000,"executor":8011}'
 
 default:
     @just --list

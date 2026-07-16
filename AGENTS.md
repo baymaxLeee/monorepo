@@ -164,7 +164,7 @@ human operator configures it, other services consume it" lives here:
 - Third-party integrations and credentials (LLM providers, payment keys,
   webhook endpoints, ...) — admin owns the table + CRUD; consuming services
   fetch via admin's internal HTTP API
-- Bots / scenes / intentions / other curated content
+- Bots / skills / other curated content
 
 Consumer services (e.g. `chat`) MUST NOT replicate admin-owned tables in
 their own DB. They fetch on demand and cache short-term (Redis, TTL minutes).
@@ -295,7 +295,7 @@ one process. The `scripts/worktree.sh` helper exists only for the cases above.
 
 - Commits: Conventional Commits with service/mfe scope
   - `feat(bot): add publishing flow`
-  - `fix(mfe-scene): correct pagination`
+  - `fix(mfe-admin): correct pagination`
   - `chore(schema): regen clients`
 - Branches: `feat/<task-id>-<slug>` or `agent/<task-id>/<subagent>`
 - PRs: link to ADR if architectural

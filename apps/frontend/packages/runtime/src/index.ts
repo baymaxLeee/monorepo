@@ -31,5 +31,4 @@ export function on<T = unknown>(
 export const Events = {
   AuthChanged: "auth:changed",
   BotPublished: "bot:published",
-  ScenePicked: "scene:picked",
 } as const;

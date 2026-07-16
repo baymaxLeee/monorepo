@@ -127,60 +127,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/scenes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Scenes */
-        get: operations["list_scenes_scenes_get"];
-        put?: never;
-        /** Create Scene */
-        post: operations["create_scene_scenes_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/scenes/{scene_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Scene */
-        get: operations["get_scene_scenes__scene_id__get"];
-        put?: never;
-        post?: never;
-        /** Delete Scene */
-        delete: operations["delete_scene_scenes__scene_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Scene */
-        patch: operations["update_scene_scenes__scene_id__patch"];
-        trace?: never;
-    };
-    "/scenes/bulk-delete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Bulk Delete Scenes */
-        post: operations["bulk_delete_scenes_scenes_bulk_delete_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/skills": {
         parameters: {
             query?: never;
@@ -416,60 +362,6 @@ export interface paths {
         get: operations["get_skill_internal_internal_skills__skill_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/intentions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Intentions */
-        get: operations["list_intentions_intentions_get"];
-        put?: never;
-        /** Create Intention */
-        post: operations["create_intention_intentions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/intentions/{intention_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Intention */
-        get: operations["get_intention_intentions__intention_id__get"];
-        put?: never;
-        post?: never;
-        /** Delete Intention */
-        delete: operations["delete_intention_intentions__intention_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Intention */
-        patch: operations["update_intention_intentions__intention_id__patch"];
-        trace?: never;
-    };
-    "/intentions/bulk-delete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Bulk Delete Intentions */
-        post: operations["bulk_delete_intentions_intentions_bulk_delete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -762,16 +654,6 @@ export interface components {
             /** Updated At */
             updated_at: string;
         };
-        /** BulkDeleteIntentionsInput */
-        BulkDeleteIntentionsInput: {
-            /** Ids */
-            ids: string[];
-        };
-        /** BulkDeleteIntentionsResult */
-        BulkDeleteIntentionsResult: {
-            /** Deleted */
-            deleted: number;
-        };
         /** BulkDeleteModelProvidersInput */
         BulkDeleteModelProvidersInput: {
             /** Ids */
@@ -779,16 +661,6 @@ export interface components {
         };
         /** BulkDeleteModelProvidersResult */
         BulkDeleteModelProvidersResult: {
-            /** Deleted */
-            deleted: number;
-        };
-        /** BulkDeleteScenesInput */
-        BulkDeleteScenesInput: {
-            /** Ids */
-            ids: string[];
-        };
-        /** BulkDeleteScenesResult */
-        BulkDeleteScenesResult: {
             /** Deleted */
             deleted: number;
         };
@@ -843,37 +715,6 @@ export interface components {
             /** Name */
             name: string;
         };
-        /** CreateIntentionInput */
-        CreateIntentionInput: {
-            /** Name */
-            name: string;
-            /**
-             * Description
-             * @default
-             */
-            description: string;
-            /**
-             * Scene Name
-             * @default
-             */
-            scene_name: string;
-            /**
-             * Examples
-             * @default 0
-             */
-            examples: number;
-            /**
-             * Status
-             * @default draft
-             * @enum {string}
-             */
-            status: "draft" | "active" | "disabled";
-            /**
-             * Is Enabled
-             * @default true
-             */
-            is_enabled: boolean;
-        };
         /** CreateModelProviderInput */
         CreateModelProviderInput: {
             /** Name */
@@ -923,27 +764,6 @@ export interface components {
              */
             is_enabled: boolean;
         };
-        /** CreateSceneInput */
-        CreateSceneInput: {
-            /** Name */
-            name: string;
-            /**
-             * Description
-             * @default
-             */
-            description: string;
-            /**
-             * Status
-             * @default draft
-             * @enum {string}
-             */
-            status: "draft" | "active" | "disabled";
-            /**
-             * Is Enabled
-             * @default true
-             */
-            is_enabled: boolean;
-        };
         /** CreateSkillInput */
         CreateSkillInput: {
             /** Name */
@@ -971,36 +791,6 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
-        };
-        /** Intention */
-        Intention: {
-            /** Id */
-            id: string;
-            /** User Id */
-            user_id: string;
-            /** Org Id */
-            org_id: string;
-            /** Username */
-            username: string;
-            /** Name */
-            name: string;
-            /** Description */
-            description: string;
-            /** Scene Name */
-            scene_name: string;
-            /** Examples */
-            examples: number;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "draft" | "active" | "disabled";
-            /** Is Enabled */
-            is_enabled: boolean;
-            /** Created At */
-            created_at: string;
-            /** Updated At */
-            updated_at: string;
         };
         /**
          * InternalModelProvider
@@ -1160,32 +950,6 @@ export interface components {
             video_provider?: components["schemas"]["InternalModelProvider"] | null;
             /** Skills */
             skills?: components["schemas"]["AgentSkill"][];
-        };
-        /** Scene */
-        Scene: {
-            /** Id */
-            id: string;
-            /** User Id */
-            user_id: string;
-            /** Org Id */
-            org_id: string;
-            /** Username */
-            username: string;
-            /** Name */
-            name: string;
-            /** Description */
-            description: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "draft" | "active" | "disabled";
-            /** Is Enabled */
-            is_enabled: boolean;
-            /** Created At */
-            created_at: string;
-            /** Updated At */
-            updated_at: string;
         };
         /** Skill */
         Skill: {
@@ -1383,21 +1147,6 @@ export interface components {
             /** Video Provider Id */
             video_provider_id?: string | null;
         };
-        /** UpdateIntentionInput */
-        UpdateIntentionInput: {
-            /** Name */
-            name?: string | null;
-            /** Description */
-            description?: string | null;
-            /** Scene Name */
-            scene_name?: string | null;
-            /** Examples */
-            examples?: number | null;
-            /** Status */
-            status?: ("draft" | "active" | "disabled") | null;
-            /** Is Enabled */
-            is_enabled?: boolean | null;
-        };
         /** UpdateModelProviderInput */
         UpdateModelProviderInput: {
             /** Name */
@@ -1422,17 +1171,6 @@ export interface components {
             supports_image_input?: boolean | null;
             /** Is Default */
             is_default?: boolean | null;
-            /** Is Enabled */
-            is_enabled?: boolean | null;
-        };
-        /** UpdateSceneInput */
-        UpdateSceneInput: {
-            /** Name */
-            name?: string | null;
-            /** Description */
-            description?: string | null;
-            /** Status */
-            status?: ("draft" | "active" | "disabled") | null;
             /** Is Enabled */
             is_enabled?: boolean | null;
         };
@@ -1836,238 +1574,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SkillSummary"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_scenes_scenes_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Auth-Email"?: string | null;
-                "X-Auth-User-ID"?: string | null;
-                "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
-                "X-Auth-Roles"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Scene"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_scene_scenes_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Auth-Email"?: string | null;
-                "X-Auth-User-ID"?: string | null;
-                "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
-                "X-Auth-Roles"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateSceneInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Scene"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_scene_scenes__scene_id__get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Auth-Email"?: string | null;
-                "X-Auth-User-ID"?: string | null;
-                "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
-                "X-Auth-Roles"?: string | null;
-            };
-            path: {
-                scene_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Scene"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_scene_scenes__scene_id__delete: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Auth-Email"?: string | null;
-                "X-Auth-User-ID"?: string | null;
-                "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
-                "X-Auth-Roles"?: string | null;
-            };
-            path: {
-                scene_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_scene_scenes__scene_id__patch: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Auth-Email"?: string | null;
-                "X-Auth-User-ID"?: string | null;
-                "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
-                "X-Auth-Roles"?: string | null;
-            };
-            path: {
-                scene_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateSceneInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Scene"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bulk_delete_scenes_scenes_bulk_delete_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Auth-Email"?: string | null;
-                "X-Auth-User-ID"?: string | null;
-                "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
-                "X-Auth-Roles"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BulkDeleteScenesInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BulkDeleteScenesResult"];
                 };
             };
             /** @description Validation Error */
@@ -2744,238 +2250,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InternalSkill"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_intentions_intentions_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Auth-Email"?: string | null;
-                "X-Auth-User-ID"?: string | null;
-                "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
-                "X-Auth-Roles"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Intention"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_intention_intentions_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Auth-Email"?: string | null;
-                "X-Auth-User-ID"?: string | null;
-                "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
-                "X-Auth-Roles"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateIntentionInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Intention"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_intention_intentions__intention_id__get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Auth-Email"?: string | null;
-                "X-Auth-User-ID"?: string | null;
-                "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
-                "X-Auth-Roles"?: string | null;
-            };
-            path: {
-                intention_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Intention"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_intention_intentions__intention_id__delete: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Auth-Email"?: string | null;
-                "X-Auth-User-ID"?: string | null;
-                "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
-                "X-Auth-Roles"?: string | null;
-            };
-            path: {
-                intention_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_intention_intentions__intention_id__patch: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Auth-Email"?: string | null;
-                "X-Auth-User-ID"?: string | null;
-                "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
-                "X-Auth-Roles"?: string | null;
-            };
-            path: {
-                intention_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateIntentionInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Intention"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bulk_delete_intentions_intentions_bulk_delete_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Auth-Email"?: string | null;
-                "X-Auth-User-ID"?: string | null;
-                "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
-                "X-Auth-Roles"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BulkDeleteIntentionsInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BulkDeleteIntentionsResult"];
                 };
             };
             /** @description Validation Error */

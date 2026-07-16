@@ -38,7 +38,7 @@ class AuthContext:
 
     @property
     def can_write_org_config(self) -> bool:
-        """Team-shared org config (bots/scenes/intentions/providers) writes:
+        """Team-shared org config (bots/providers/skills) writes:
         strictly an active org_admin of the bound org. The platform super_admin
         role grants NO standing write over a tenant's data — to act inside an org
         it must hold an active org_admin membership there (same rule as IAM member
