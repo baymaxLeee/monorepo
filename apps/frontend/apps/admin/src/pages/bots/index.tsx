@@ -1,1 +1,1 @@
-export { BotListPage, BotListPage as default } from "./BotListPage";
+export { BotListPage as Component } from "./BotListPage";

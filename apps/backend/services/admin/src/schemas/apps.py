@@ -22,7 +22,7 @@ class CreateAppInput(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     base_path: str = Field(min_length=1, max_length=200)
     remote_name: str = Field(min_length=1, max_length=120)
-    expose_key: str = Field(default="./App", min_length=1, max_length=120)
+    expose_key: str = Field(default="./routes", min_length=1, max_length=120)
     entry: str = Field(default="", max_length=500)
     requires_admin: bool = True
     is_enabled: bool = True

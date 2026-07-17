@@ -15,7 +15,7 @@ import { usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
 import { activeMemberships, isSuperAdmin } from "../../onboarding";
 
-export function SelectOrgPage() {
+function SelectOrgPage() {
   const navigate = useNavigate();
   const { user, setUser } = usePlatformStore(
     useShallow((state) => ({ user: state.user, setUser: state.setUser })),
@@ -103,4 +103,4 @@ export function SelectOrgPage() {
   );
 }
 
-export default SelectOrgPage;
+export { SelectOrgPage as Component };

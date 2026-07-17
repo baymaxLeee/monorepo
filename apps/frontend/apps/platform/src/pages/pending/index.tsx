@@ -38,7 +38,7 @@ const STATUS_LABEL: Record<Membership["status"], string> = {
   rejected: "已被拒绝",
 };
 
-export function PendingPage() {
+function PendingPage() {
   const navigate = useNavigate();
   const { user, setUser } = usePlatformStore(
     useShallow((state) => ({ user: state.user, setUser: state.setUser })),
@@ -251,4 +251,4 @@ export function PendingPage() {
   );
 }
 
-export default PendingPage;
+export { PendingPage as Component };

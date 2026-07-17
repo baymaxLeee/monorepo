@@ -1,51 +1,61 @@
-import { lazy } from "react";
-import { Navigate, type RouteObject } from "react-router-dom";
-import { AdminLayout } from "../pages/layout";
+import { TooltipProvider } from "components";
+import { Navigate, Outlet, type RouteObject } from "react-router-dom";
 
-const AppsRegistryPage = lazy(() => import("../pages/apps"));
-const BotListPage = lazy(() => import("../pages/bots"));
-const BotDetailPage = lazy(() => import("../pages/bots/detail"));
-const ComponentsDemoPage = lazy(() => import("../pages/demo"));
-const DashboardPage = lazy(() => import("../pages/dashboard"));
-const KnowledgeBasePage = lazy(() => import("../pages/knowledge"));
-const MembersPage = lazy(() => import("../pages/members"));
-const OrganizationsPage = lazy(() => import("../pages/organizations"));
-const OperationsObservabilityPage = lazy(
-  () => import("../pages/observability"),
-);
-const TraceExplorerPage = lazy(() => import("../pages/observability/traces"));
-const PlatformRolesPage = lazy(() => import("../pages/platform-roles"));
-const ProfilePage = lazy(() => import("../pages/profile"));
-const ProvidersPage = lazy(() => import("../pages/providers"));
-const SkillsPage = lazy(() => import("../pages/skills"));
-const SkillWorkspacePage = lazy(() => import("../pages/skills/workspace"));
+function AdminRoot() {
+  return (
+    <TooltipProvider>
+      <Outlet />
+    </TooltipProvider>
+  );
+}
 
-/**
- * Mounted by platform at `/platform/admin/*`.
- * Admin owns its local shell and menu. Platform only mounts the entry route.
- */
 export const routes: RouteObject[] = [
   {
-    element: <AdminLayout />,
+    id: "admin-root",
+    Component: AdminRoot,
     children: [
-      { index: true, element: <Navigate to="profile" replace /> },
-      { path: "profile", element: <ProfilePage /> },
-      { path: "telemetry", element: <Navigate to="dashboard" replace />},
-      { path: "dashboard", element: <DashboardPage /> },
-      { path: "bots", element: <BotListPage /> },
-      { path: "bots/:id", element: <BotDetailPage /> },
-      { path: "skills", element: <SkillsPage /> },
-      { path: "skills/:id", element: <SkillWorkspacePage /> },
-      { path: "providers", element: <ProvidersPage /> },
-      { path: "knowledge", element: <KnowledgeBasePage /> },
-      { path: "apps", element: <AppsRegistryPage /> },
-      { path: "organizations", element: <OrganizationsPage /> },
-      { path: "members", element: <MembersPage /> },
-      { path: "platform-roles", element: <PlatformRolesPage /> },
-      { path: "observability", element: <OperationsObservabilityPage /> },
-      { path: "traces", element: <TraceExplorerPage /> },
-      { path: "demo", element: <ComponentsDemoPage /> },
+      {
+        id: "admin-layout",
+        lazy: () => import("../pages/layout"),
+        children: [
+          { index: true, element: <Navigate to="profile" replace /> },
+          { path: "profile", lazy: () => import("../pages/profile") },
+          {
+            path: "telemetry",
+            element: <Navigate to="../dashboard" replace />,
+          },
+          { path: "dashboard", lazy: () => import("../pages/dashboard") },
+          { path: "bots", lazy: () => import("../pages/bots") },
+          { path: "bots/:id", lazy: () => import("../pages/bots/detail") },
+          { path: "skills", lazy: () => import("../pages/skills") },
+          {
+            path: "skills/:id",
+            lazy: () => import("../pages/skills/workspace"),
+          },
+          { path: "providers", lazy: () => import("../pages/providers") },
+          { path: "knowledge", lazy: () => import("../pages/knowledge") },
+          { path: "apps", lazy: () => import("../pages/apps") },
+          {
+            path: "organizations",
+            lazy: () => import("../pages/organizations"),
+          },
+          { path: "members", lazy: () => import("../pages/members") },
+          {
+            path: "platform-roles",
+            lazy: () => import("../pages/platform-roles"),
+          },
+          {
+            path: "observability",
+            lazy: () => import("../pages/observability"),
+          },
+          {
+            path: "traces",
+            lazy: () => import("../pages/observability/traces"),
+          },
+          { path: "demo", lazy: () => import("../pages/demo") },
+          { path: "*", element: <Navigate to="/404" replace /> },
+        ],
+      },
     ],
   },
-  { path: "*", element: <Navigate to="/404" replace /> },
 ];

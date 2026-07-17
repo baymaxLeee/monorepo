@@ -33,16 +33,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getErrorMessage } from "shared";
 import { useShallow } from "zustand/react/shallow";
-import { ChatComposerControls } from "../components/ChatComposerControls";
-import { ChatImagePreview } from "../components/ChatImagePreview";
-import { ChatMessageView } from "../components/ChatMessageView";
+import { ChatComposerControls } from "../../components/ChatComposerControls";
+import { ChatImagePreview } from "../../components/ChatImagePreview";
+import { ChatMessageView } from "../../components/ChatMessageView";
 import {
   collectDeliverableCompletion,
   findLatestUpdateTodosCallId,
-} from "../components/ChatTodoListCard";
-import type { ChatUIMessage } from "../lib/chat-message";
-import { buildUserFilePart } from "../lib/file-parts";
-import { useChatStore } from "../store/useChatStore";
+} from "../../components/ChatTodoListCard";
+import type { ChatUIMessage } from "../../lib/chat-message";
+import { buildUserFilePart } from "../../lib/file-parts";
+import { useChatStore } from "../../store/useChatStore";
 
 function messageToUiMessage(message: ApiMessage): ChatUIMessage {
   const parts = message.content?.parts;

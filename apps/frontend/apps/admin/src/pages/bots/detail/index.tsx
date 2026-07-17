@@ -1,1 +1,1 @@
-export { BotDetailPage, BotDetailPage as default } from "./BotDetailPage";
+export { BotDetailPage as Component } from "./BotDetailPage";

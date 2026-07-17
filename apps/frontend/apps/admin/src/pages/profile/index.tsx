@@ -1,1 +1,1 @@
-export { ProfilePage, ProfilePage as default } from "./ProfilePage";
+export { ProfilePage as Component } from "./ProfilePage";

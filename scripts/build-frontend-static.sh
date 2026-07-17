@@ -1,39 +1,30 @@
 #!/usr/bin/env bash
 # Build the frontend for static hosting (Cloudflare Pages, OSS, S3, etc.).
 #
-# Build target:
-#   APP=platform   (default) → builds the host shell
-#   APP=admin                → builds the mfe-admin remote
+# APP selects any workspace under apps/frontend/apps (default: platform).
 #
 # Required env (consumed by rspack DefinePlugin at build time, baked into
 # the bundle):
-#   APP=platform requires:
-#     API_BASE_URL       https://api.your-domain.com
-#     MFE_ADMIN_ENTRY    mfe_admin@https://mfe-admin.your-domain.com/mf-manifest.json
-#                        (or wherever you deploy the admin remote)
-#     APP_RELEASE        a git sha or semver — shown in telemetry
-#     TELEMETRY_ENDPOINT (optional, defaults to "/api/telemetry-server/rum/batch"
-#                         which is then prefixed with API_BASE_URL at runtime)
-#   APP=admin requires:
-#     (none — admin remote uses publicPath: "auto", asset URLs are inferred
-#      from the host bundle's resolved manifest URL)
+# Platform consumes API_BASE_URL, APP_RELEASE, and optionally TELEMETRY_ENDPOINT.
+# Remotes need no build-time platform wiring; their publicPath is resolved from
+# the manifest URL registered through the admin app registry.
 #
 # Cloudflare Pages typical config:
 #   Build command:   bash scripts/build-frontend-static.sh
 #   Output dir:      apps/frontend/apps/platform/dist
-#   Env vars:        APP=platform (default) + the four above
-#                    For the admin remote, create a SECOND Pages project with:
-#                    Build command: APP=admin bash scripts/build-frontend-static.sh
-#                    Output dir:    apps/frontend/apps/admin/dist
+#   Env vars:        APP=platform (default) + the platform variables above
+#                    Create one additional project or asset target per remote,
+#                    setting APP to its workspace name.
 set -euo pipefail
 
 APP="${APP:-platform}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-case "$APP" in
-  platform|admin) ;;
-  *) echo "✗ unknown APP=$APP (expected: platform|admin)" >&2; exit 1 ;;
-esac
+APP_DIR="$ROOT/apps/frontend/apps/$APP"
+if [ ! -f "$APP_DIR/package.json" ]; then
+  echo "✗ unknown frontend app: $APP" >&2
+  exit 1
+fi
 
 echo "→ building frontend app: ${APP}"
 cd "${ROOT}/apps/frontend"
@@ -50,7 +41,7 @@ pnpm install --frozen-lockfile
 
 NODE_ENV=production pnpm -F "${APP}" build
 
-DIST="${ROOT}/apps/frontend/apps/${APP}/dist"
+DIST="$APP_DIR/dist"
 echo ""
 echo "✓ built ${APP} → ${DIST}"
 ls -la "${DIST}" | head -20

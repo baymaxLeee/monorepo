@@ -15,8 +15,6 @@ import {
   FormControl,
   FormField,
   Input,
-  Muted,
-  Skeleton,
   toast,
 } from "components";
 import {
@@ -30,6 +28,7 @@ import { usePlatformStore } from "runtime";
 import { z } from "zod";
 import { useShallow } from "zustand/react/shallow";
 import { landingPath } from "../../onboarding";
+import { LoginLoadingCard } from "./LoginLoadingCard";
 
 const loginSchema = z.object({
   account: z.string().min(1, "请输入账号").max(64, "账号最多 64 位"),
@@ -38,7 +37,7 @@ const loginSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>;
 
-export function LoginPage() {
+function LoginPage() {
   const navigate = useNavigate();
   const { user, setUser } = usePlatformStore(
     useShallow((state) => ({
@@ -173,23 +172,4 @@ export function LoginPage() {
   );
 }
 
-export function LoginLoadingCard() {
-  return (
-    <div className="flex min-h-svh items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-2">
-          <Skeleton className="h-7 w-24" />
-          <Skeleton className="h-4 w-32" />
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Muted className="text-center text-xs">正在检查登录状态…</Muted>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-export default LoginPage;
+export { LoginPage as Component };

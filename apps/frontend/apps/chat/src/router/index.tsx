@@ -1,25 +1,35 @@
-import { Navigate, type RouteObject, useParams } from "react-router-dom";
-import { Chat } from "../pages/Chat";
-import { ChatLayout } from "../pages/ChatLayout";
-import { ConversationListPage } from "../pages/ConversationListPage";
+import { TooltipProvider } from "components";
+import { Navigate, Outlet, type RouteObject } from "react-router-dom";
 
-function ConversationChatRoute() {
-  const { id } = useParams<{ id: string }>();
-  return <Chat key={id} />;
+function ChatRoot() {
+  return (
+    <TooltipProvider>
+      <Outlet />
+    </TooltipProvider>
+  );
 }
 
-/**
- * Mounted by platform at `/platform/chat/*`.
- * chat owns its local rail (conversation list) + outlet (chat room).
- */
 export const routes: RouteObject[] = [
   {
-    element: <ChatLayout />,
+    id: "chat-root",
+    Component: ChatRoot,
     children: [
-      { index: true, element: <Navigate to="conversations" replace /> },
-      { path: "conversations", element: <ConversationListPage /> },
-      { path: "conversations/:id", element: <ConversationChatRoute /> },
+      {
+        id: "chat-layout",
+        lazy: () => import("../pages/layout"),
+        children: [
+          { index: true, element: <Navigate to="conversations" replace /> },
+          {
+            path: "conversations",
+            lazy: () => import("../pages/conversations"),
+          },
+          {
+            path: "conversations/:id",
+            lazy: () => import("../pages/chat"),
+          },
+          { path: "*", element: <Navigate to="/404" replace /> },
+        ],
+      },
     ],
   },
-  { path: "*", element: <Navigate to="/404" replace /> },
 ];

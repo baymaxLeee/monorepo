@@ -1,1 +1,1 @@
-export { SkillsPage, SkillsPage as default } from "./SkillsPage";
+export { SkillsPage as Component } from "./SkillsPage";

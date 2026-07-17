@@ -24,7 +24,10 @@ Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 
 ## Layout
 
-- `src/pages/Chat.tsx` — chat, tool continuation, artifact panel
+- `src/router/index.tsx` — relative route tree exposed as `./routes`
+- `src/pages/chat/Chat.tsx` — chat and tool continuation
+- `src/pages/layout/ChatLayout.tsx` — conversation shell and artifact panel
+- Route entry modules export the named `Component` expected by `route.lazy`
 - `src/components/ChatMessageView.tsx` — native message-part rendering
 - `src/components/ChatArtifactCard.tsx` — persisted plan / artifact card UI
 - `src/components/ChatTracePanel.tsx` — run observability

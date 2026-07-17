@@ -17,16 +17,15 @@ Manages the "智能体" domain on the frontend. Backed by `apps/backend/services
 
 ## Exposes (via Module Federation)
 
-- `./App` — main route component (mounted by platform)
-- `./routes` — route config (for future platform-driven routing)
+- `./routes` — relative `RouteObject[]` mounted by platform at the registry base path
 
 ## Layout
 
-- `src/App.tsx` — owns admin routes under `/platform/admin/*`
-- Admin owns its local shell and menu. Platform only mounts the MFE entry and
+- `src/router/index.tsx` — owns the relative admin route tree
+- Admin owns its local shell and menu. Platform discovers the route tree but
   does not know admin sub-routes or capabilities.
 - No `src/main.tsx` / `src/index.html`; do not add a standalone or status page
-- `src/pages/<route>/index.tsx` — page module entry; default-exported for module-scope React `lazy()` route loading
+- `src/pages/<route>/index.tsx` — `route.lazy` module entry exporting named `Component`
 - Page-specific business components, dialogs, helpers, and data transforms stay inside that page directory; related nested routes may share their nearest route-group directory
 - `src/components/` — admin-wide UI components reused across unrelated page modules (not shared with other MFEs)
 - `src/store/` — admin-private Zustand stores; import `create` / `useShallow` directly from `zustand` packages
@@ -34,5 +33,6 @@ Manages the "智能体" domain on the frontend. Backed by `apps/backend/services
 
 ## When to extract a component
 
-- Single-use → keep in `src/components/`
+- Single-page use → keep inside that page directory
+- Reused across unrelated admin pages → keep in `src/components/`
 - Used by 2+ MFEs → promote to `components`

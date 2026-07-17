@@ -1,123 +1,124 @@
 import { loadRemote } from "@module-federation/enhanced/runtime";
 import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  ErrorBoundary,
-  type ErrorFallbackProps,
-  type LazyLoader,
-  Skeleton,
-} from "components";
-import { type ComponentType, lazy, Suspense } from "react";
-import {
   createBrowserRouter,
+  type LoaderFunctionArgs,
   Navigate,
+  type PatchRoutesOnNavigationFunctionArgs,
   type RouteObject,
-  useParams,
 } from "react-router-dom";
-import { useShallow } from "zustand/react/shallow";
-import { type AppEntry, remoteModuleId, useAppsStore } from "../store/apps";
+import { isSuperAdmin } from "../onboarding";
+import { type AppEntry, loadApps, remoteModuleId } from "./app-registry";
+import { RouteErrorFallback } from "./RouteErrorFallback";
+import {
+  loadPlatformSession,
+  platformLoader,
+  requirePlatformSession,
+} from "./session";
 
-type RouteLoader = LazyLoader<object>;
+export { RouteLoading } from "./RouteLoading";
 
-/** A federated remote module exposing its app as the default export. */
-type RemoteModule = { default: ComponentType };
+type RemoteRoutesModule = { routes: RouteObject[] };
 
-function lazyPage(loader: RouteLoader): RouteObject["lazy"] {
-  return async () => {
-    const module = await loader();
-    return { Component: module.default as ComponentType };
-  };
+const PLATFORM_ROUTE_ID = "platform";
+const PLATFORM_PREFIX = "/platform/";
+const patchedRemoteIds = new Set<string>();
+const remoteRoutePromises = new Map<string, Promise<RouteObject[]>>();
+
+function normalizedBasePath(app: AppEntry): string {
+  return app.base_path.replace(/\/+$/, "");
 }
 
-const remoteComponents = new Map<string, ComponentType>();
+function relativeAppPath(app: AppEntry): string {
+  const basePath = normalizedBasePath(app);
+  if (!basePath.startsWith(PLATFORM_PREFIX)) {
+    throw new Error(
+      `App "${app.id}" base path must start with ${PLATFORM_PREFIX}`,
+    );
+  }
+  const relativePath = basePath.slice(PLATFORM_PREFIX.length);
+  if (!relativePath) {
+    throw new Error(`App "${app.id}" must define a path below /platform`);
+  }
+  return relativePath;
+}
 
-function getRemoteComponent(app: AppEntry): ComponentType {
-  const moduleId = remoteModuleId(app);
-  const cached = remoteComponents.get(moduleId);
+function findAppForPath(apps: AppEntry[], path: string): AppEntry | undefined {
+  return apps
+    .filter((app) => app.is_enabled)
+    .filter((app) => {
+      const basePath = normalizedBasePath(app);
+      return path === basePath || path.startsWith(`${basePath}/`);
+    })
+    .sort(
+      (left, right) =>
+        normalizedBasePath(right).length - normalizedBasePath(left).length,
+    )[0];
+}
+
+function loadRemoteRoutes(app: AppEntry): Promise<RouteObject[]> {
+  const cached = remoteRoutePromises.get(app.id);
   if (cached) return cached;
-  const RemoteLazy = lazy(async () => {
-    const module = await loadRemote<RemoteModule>(moduleId);
-    if (!module?.default) {
-      throw new Error(
-        `Remote "${app.remote_name}" did not expose ${app.expose_key}`,
-      );
-    }
-    return { default: module.default };
-  });
-  remoteComponents.set(moduleId, RemoteLazy);
-  return RemoteLazy;
+
+  const promise = loadRemote<RemoteRoutesModule>(remoteModuleId(app)).then(
+    (module) => {
+      if (!module || !Array.isArray(module.routes)) {
+        throw new Error(
+          `Remote "${app.remote_name}" did not expose a routes array at ${app.expose_key}`,
+        );
+      }
+      return module.routes;
+    },
+  );
+  remoteRoutePromises.set(app.id, promise);
+  return promise;
 }
 
-function RemoteLoading() {
-  return (
-    <div className="space-y-3 p-6">
-      <Skeleton className="h-8 w-48" />
-      <Skeleton className="h-64 w-full" />
-    </div>
-  );
+async function requireAppAccess(
+  appId: string,
+  args: LoaderFunctionArgs,
+): Promise<null> {
+  await requirePlatformSession(args);
+  const apps = await loadApps({ refresh: true });
+  if (!apps.some((app) => app.id === appId && app.is_enabled)) {
+    throw new Response("Not Found", { status: 404 });
+  }
+  return null;
 }
 
-function RemoteHost() {
-  const { appSlug } = useParams();
-  const { apps, loaded } = useAppsStore(
-    useShallow((state) => ({ apps: state.apps, loaded: state.loaded })),
-  );
+async function discoverRemoteRoutes({
+  path,
+  patch,
+  signal,
+}: PatchRoutesOnNavigationFunctionArgs): Promise<void> {
+  if (!path.startsWith(PLATFORM_PREFIX)) return;
 
-  if (!loaded) return <RemoteLoading />;
+  const user = await loadPlatformSession(signal);
+  if (!user || (!user.activeOrg && !isSuperAdmin(user))) return;
 
-  const app = apps.find((entry) => entry.id === appSlug);
-  // Neutral fallback: never point at the primary landing (chat), or a user
-  // lacking the chat entitlement would loop landing -> RemoteHost -> landing.
-  if (!app) return <Navigate to="/404" replace />;
+  const apps = await loadApps({ refresh: true });
+  const app = findAppForPath(apps, path);
+  if (!app || patchedRemoteIds.has(app.id)) return;
 
-  const Remote = getRemoteComponent(app);
-  return (
-    <ErrorBoundary
-      fallback={(props) => (
-        <RemoteErrorFallback {...props} remoteName={app.remote_name} />
-      )}
-      onError={(error, info) => {
-        console.error(`[${app.remote_name}] remote failed`, error, info);
-      }}
-    >
-      <Suspense fallback={<RemoteLoading />}>
-        <Remote />
-      </Suspense>
-    </ErrorBoundary>
-  );
-}
+  const children = await loadRemoteRoutes(app);
+  if (patchedRemoteIds.has(app.id)) return;
 
-function RemoteErrorFallback({
-  error,
-  remoteName,
-  resetErrorBoundary,
-}: ErrorFallbackProps & { remoteName: string }) {
-  return (
-    <Card className="m-6 max-w-lg">
-      <CardHeader>
-        <CardTitle>微前端加载失败</CardTitle>
-        <CardDescription>
-          无法加载 <code className="text-xs">{remoteName}</code>
-          。本地开发请确认对应 dev server 已启动（admin 一般为端口 3001）。
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground">{error.message}</p>
-        <Button type="button" variant="outline" onClick={resetErrorBoundary}>
-          重试
-        </Button>
-      </CardContent>
-    </Card>
-  );
+  patch(PLATFORM_ROUTE_ID, [
+    {
+      id: `remote:${app.id}`,
+      path: relativeAppPath(app),
+      loader: (args) => requireAppAccess(app.id, args),
+      errorElement: <RouteErrorFallback />,
+      children,
+    },
+  ]);
+  patchedRemoteIds.add(app.id);
 }
 
 export const routes: RouteObject[] = [
   {
+    id: "root",
     path: "/",
+    errorElement: <RouteErrorFallback />,
     children: [
       {
         index: true,
@@ -125,42 +126,40 @@ export const routes: RouteObject[] = [
       },
       {
         path: "404",
-        lazy: lazyPage(() => import("../pages/404")),
+        lazy: () => import("../pages/404"),
       },
       {
         path: "login",
-        lazy: lazyPage(() => import("../pages/login")),
+        lazy: () => import("../pages/login"),
       },
       {
         path: "register",
-        lazy: lazyPage(() => import("../pages/register")),
+        lazy: () => import("../pages/register"),
       },
       {
         path: "pending",
-        lazy: lazyPage(() => import("../pages/pending")),
+        lazy: () => import("../pages/pending"),
       },
       {
         path: "select-org",
-        lazy: lazyPage(() => import("../pages/select-org")),
+        lazy: () => import("../pages/select-org"),
       },
       {
+        id: PLATFORM_ROUTE_ID,
         path: "platform",
-        lazy: lazyPage(() => import("../pages/layout")),
+        lazy: () => import("../pages/layout"),
+        loader: platformLoader,
+        errorElement: <RouteErrorFallback />,
         children: [
           {
             index: true,
             element: <Navigate to="/platform/chat" replace />,
           },
           {
-            path: ":appSlug/*",
-            element: <RemoteHost />,
+            path: "*",
+            element: <Navigate to="/404" replace />,
           },
         ],
-      },
-      {
-        id: "fallback",
-        path: "*",
-        element: <Navigate to="/404" replace />,
       },
     ],
   },
@@ -168,4 +167,5 @@ export const routes: RouteObject[] = [
 
 export const router = createBrowserRouter(routes, {
   future: { v7_relativeSplatPath: true },
+  patchRoutesOnNavigation: discoverRemoteRoutes,
 });

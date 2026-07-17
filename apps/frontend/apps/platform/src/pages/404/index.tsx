@@ -10,7 +10,7 @@ import {
 import { Link } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 
-export function NotFoundPage() {
+function NotFoundPage() {
   const user = usePlatformStore((state) => state.user);
   const target = user ? "/" : "/login";
 
@@ -31,4 +31,4 @@ export function NotFoundPage() {
   );
 }
 
-export default NotFoundPage;
+export { NotFoundPage as Component };

@@ -1,4 +1,1 @@
-export {
-  ComponentsDemoPage,
-  ComponentsDemoPage as default,
-} from "./ComponentsDemoPage";
+export { ComponentsDemoPage as Component } from "./ComponentsDemoPage";

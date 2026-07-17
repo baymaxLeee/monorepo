@@ -1,4 +1,4 @@
-import { Aside, Button, Layout, Main, Section, Skeleton } from "components";
+import { Aside, Button, Layout, Main, Section } from "components";
 import {
   AppWindowIcon,
   ArrowLeftIcon,
@@ -16,7 +16,6 @@ import {
   UserIcon,
   UsersIcon,
 } from "lucide-react";
-import { Suspense } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAdminIdentity } from "../../identity";
 
@@ -93,18 +92,6 @@ function MenuList({ items }: { items: AdminMenuItem[] }) {
   );
 }
 
-function PageLoading() {
-  return (
-    <div className="w-full space-y-6 p-7">
-      <div className="space-y-2">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-4 w-72" />
-      </div>
-      <Skeleton className="h-72 w-full" />
-    </div>
-  );
-}
-
 export function AdminLayout() {
   const { isSuperAdmin, canViewMembers } = useAdminIdentity();
 
@@ -178,9 +165,7 @@ export function AdminLayout() {
         </Section>
       </Aside>
       <Main className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <Suspense fallback={<PageLoading />}>
-          <Outlet />
-        </Suspense>
+        <Outlet />
       </Main>
     </Layout>
   );

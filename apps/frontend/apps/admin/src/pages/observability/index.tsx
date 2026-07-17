@@ -1,4 +1,1 @@
-export {
-  OperationsObservabilityPage,
-  OperationsObservabilityPage as default,
-} from "./OperationsObservabilityPage";
+export { OperationsObservabilityPage as Component } from "./OperationsObservabilityPage";

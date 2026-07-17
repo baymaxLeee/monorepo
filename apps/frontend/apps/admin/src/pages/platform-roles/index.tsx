@@ -1,4 +1,1 @@
-export {
-  PlatformRolesPage,
-  PlatformRolesPage as default,
-} from "./PlatformRolesPage";
+export { PlatformRolesPage as Component } from "./PlatformRolesPage";

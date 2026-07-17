@@ -1,99 +1,94 @@
 # Playbook: New micro-frontend
 
-接入一个新的 MFE（`apps/frontend/apps/<name>/`）时，请逐项勾掉以下清单。
-参考实现：`apps/frontend/apps/admin/`。
+Use `just new-mfe <name>` to create `apps/frontend/apps/<name>/`. The generated
+remote follows the platform-owned data-router contract; use `admin` and `chat`
+as the reference implementations.
 
-## A. MFE 骨架
-
-```
-[ ] apps/frontend/apps/<name>/package.json          # name = "<name>"，依赖对齐 admin
-[ ] apps/frontend/apps/<name>/tsconfig.json
-[ ] apps/frontend/apps/<name>/rspack.config.mjs     # uniqueName: "mfe_<name>"，filename: "remoteEntry.js"，exposes: { "./App": "./src/App.tsx" }，devServer.port 唯一
-[ ] apps/frontend/apps/<name>/src/types.d.ts        # declare module "*.css"
-[ ] apps/frontend/apps/<name>/src/App.tsx + router + layout + 至少一个页面
-[ ] apps/frontend/apps/<name>/AGENTS.md             # 仿 admin
-[ ] apps/frontend/apps/<name>/Dockerfile
-```
-
-## B. 平台 host 接入
+## A. Remote skeleton
 
 ```
-[ ] apps/frontend/apps/platform/src/registry.ts                   # 添加 MFE 条目（唯一真源）
-[ ] apps/frontend/apps/platform/rspack.config.mjs                 # 定义 MFE_<NAME>_ENTRY 默认值；ModuleFederationPlugin.remotes 加 mfe_<name>
-[ ] apps/frontend/apps/platform/src/router/index.tsx              # remoteAppLoaders 加 mfe_<name>
-[ ] apps/frontend/apps/platform/src/types.d.ts                    # declare module "mfe_<name>/App"
+[ ] package.json and tsconfig.json use workspace/catalog versions
+[ ] rspack.config.mjs uses uniqueName `mfe_<name>` and exposes `./routes`
+[ ] src/router/index.tsx exports named `routes: RouteObject[]`
+[ ] src/pages/<route>/index.tsx exports the named `Component` used by route.lazy
+[ ] AGENTS.md records the domain and route ownership
+[ ] Dockerfile is added when the deployment profile builds a separate image
 ```
 
-> Layout 顶部导航直接遍历 `registry`，不需要额外注册。
-> MFE 入口的唯一真源就是 `registry.ts`，不要在 store / localStorage 中再存一份"菜单列表"，否则改 registry 后老浏览器看不到新入口。
+The remote must not create `BrowserRouter`, `RouterProvider`, or call
+`useRoutes`. All paths in the exposed route tree are relative to the app's
+registered base path. The platform owns navigation, pending UI, error handling,
+and runtime route discovery.
 
-## C. 端口与 dev 编排
+## B. Registry and host integration
 
-```
-[ ] apps/frontend/justfile             # PORTS map 加 <name>: <port>
-[ ] Procfile.dev                       # 新增 mfe-<name>: ... 进程；platform 进程依赖该 MFE 的 mf-manifest.json
-[ ] scripts/dev-stack.sh               # DEV_PORTS 加 <port>；启动命令加 mfe-<name>
-[ ] justfile (root) dev-urls           # 打印新 MFE 的 URL
-```
-
-## D. API client（仅当连后端）
+Create the application through the admin app registry:
 
 ```
-[ ] apps/frontend/packages/api/orval.config.ts            # 新增 <name>-server block，input 指向 schemas/openapi/<name>-server.json
-[ ] apps/frontend/packages/api/scripts/codegen.sh         # 加 schema 存在性 guard
-[ ] apps/frontend/packages/api/src/<name>-server.ts       # 手写补丁（如 SSE、Orval 覆盖不到的情况）
-[ ] apps/frontend/packages/api/src/index.ts               # re-export
+base_path:   /platform/<name>
+remote_name: mfe_<name>
+expose_key:  ./routes
+entry:       /mfe-<name>/mf-manifest.json
 ```
 
-## E. k8s
+No static platform registry, import declaration, or build-time `remotes` entry
+is needed. The platform fetches enabled apps, registers their manifests with
+Module Federation, and patches the selected route tree on navigation.
+
+Use `requires_admin` for coarse app access. Domain-specific authorization stays
+inside the remote and its backend.
+
+## C. Development orchestration
 
 ```
-[ ] infra/k8s/base/mfe-<name>/{deployment,service,configmap,kustomization}.yaml
-[ ] infra/k8s/overlays/dev/kustomization.yaml      # resources + images
-[ ] infra/k8s/overlays/prod/kustomization.yaml     # resources + images + 可能的 patches
+[ ] choose a unique port
+[ ] add the remote process to Procfile.dev
+[ ] update root justfile dev-urls output
+[ ] update relevant dev scripts or port maps
 ```
 
-## F. single-VPS
+The remote dev server only serves federation assets. Its root URL is not a
+supported business page; verify the app through platform.
+
+## D. Backend API client, when needed
 
 ```
-[ ] infra/single-vps/docker-compose.prod.yml      # 顶部架构注释里的 /mfe-<name>/ 行；如果 MFE 独立打成镜像还要新增 service
-[ ] infra/single-vps/Dockerfile.web               # 增加 MFE_<NAME>_ENTRY ARG/ENV；先 build remote 再 build platform；COPY 该 MFE 的 dist 到 /usr/share/nginx/html/mfe-<name>
-[ ] infra/single-vps/nginx.conf                   # 增加 location /mfe-<name>/ 块
+[ ] add or reuse the service OpenAPI schema under schemas/openapi/
+[ ] update apps/frontend/packages/api generation config and exports
+[ ] run just sync
 ```
 
-## G. CI（`.github/workflows/`）
+Frontend/backend coupling must go through generated schemas. Do not use raw
+fetch for ordinary service APIs.
+
+## E. Deployment
 
 ```
-[ ] build-images.yml          # matrix.service 加 <name>（如果 MFE 独立打镜像，否则只要 web 包含即可）
-[ ] frontend.yml              # build 步骤补 pnpm -F <name> build
-[ ] deploy-prod.yml           # services 列表加 <name>（k8s 部署/rollout）
-[ ] deploy-single-vps.yml     # 单 VPS 通过 docker-compose 滚动，不一定要改；如果新增独立镜像，则补
+[ ] add k8s resources and overlay references for independently deployed remotes
+[ ] add single-VPS build output and nginx /mfe-<name>/ asset routing
+[ ] add the app-registry production seed where the deployment needs bootstrap data
+[ ] update affected image-build and deployment workflows
 ```
 
-## H. 文档
+## F. Documentation and verification
 
 ```
-[ ] docs/微前端/<name>.md
-[ ] docs/微前端/index.md             # 架构图 + 模块表
+[ ] update docs/微前端/index.md and domain documentation
+[ ] just install
+[ ] just sync
+[ ] just lint
+[ ] just build <name>
+[ ] just build platform
+[ ] just dev, then navigate directly and client-side to /platform/<name>
 ```
 
-## 验证（必须全过）
+During the demo phase, do not add test scaffolding. Do not run `just fmt` unless
+formatting is explicitly required; fix scoped formatter findings instead.
 
-```
-just install
-just sync
-just fmt
-just lint
-pnpm -F platform build
-pnpm -F <name> build
-kubectl kustomize --load-restrictor=LoadRestrictionsNone infra/k8s/overlays/dev | grep "name: mfe-<name>"
-docker compose -f infra/single-vps/docker-compose.prod.yml config >/dev/null
-just dev    # 在浏览器里确认 layout 顶部出现 <name> 入口，点进去能加载 remoteEntry.js
-```
+## Hard rules
 
-## 硬规则
-
-- 不准 import 其他 MFE
-- 跨 MFE 通信用 `runtime` 的事件总线
-- 调后端用 `packages/api/<svc>`，禁止裸 `fetch`（SSE 等 Orval 覆盖不到的除外）
-- MFE 入口列表只来自 `registry.ts`，不要持久化到 store
+- Never import another MFE.
+- Use the `runtime` event bus for cross-MFE coordination.
+- Use `api` for backend calls.
+- Keep page-only business components inside the page directory.
+- The admin app registry is the only source of remote entry metadata.

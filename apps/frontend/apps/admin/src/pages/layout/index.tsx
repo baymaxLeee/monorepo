@@ -1,1 +1,1 @@
-export { AdminLayout, AdminLayout as default } from "./AdminLayout";
+export { AdminLayout as Component } from "./AdminLayout";

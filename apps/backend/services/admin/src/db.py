@@ -13,7 +13,6 @@ from models.provider import ModelProviderRow  # noqa: F401 — registers with Ba
 from models.skill import SkillRow  # noqa: F401 — registers with Base.metadata
 from models.skill_node import SkillNodeRow  # noqa: F401 — registers with Base.metadata
 from models.skill_published_node import SkillPublishedNodeRow  # noqa: F401 — registers with Base.metadata
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -86,17 +85,17 @@ async def seed_demo_apps() -> None:
     }
     factory = get_session_factory()
     async with factory() as session, write_tx(session):
-        existing_app = await session.scalar(select(AppRow.id).limit(1))
-        if existing_app is None:
-            for app_id, title, base_path, remote_name, requires_admin, sort_order in _DEMO_APPS:
-                now = datetime.now(UTC)
+        for app_id, title, base_path, remote_name, requires_admin, sort_order in _DEMO_APPS:
+            now = datetime.now(UTC)
+            app = await session.get(AppRow, app_id)
+            if app is None:
                 session.add(
                     AppRow(
                         id=app_id,
                         title=title,
                         base_path=base_path,
                         remote_name=remote_name,
-                        expose_key="./App",
+                        expose_key="./routes",
                         entry=app_entries.get(app_id, ""),
                         requires_admin=requires_admin,
                         is_enabled=True,
@@ -105,3 +104,11 @@ async def seed_demo_apps() -> None:
                         updated_at=now,
                     )
                 )
+                continue
+
+            app.title = title
+            app.base_path = base_path
+            app.remote_name = remote_name
+            app.expose_key = "./routes"
+            app.entry = app_entries.get(app_id, "")
+            app.updated_at = now

@@ -108,8 +108,8 @@ deployed asset bundles, but platform is the only user-facing entry.
   2. `pnpm ui:add <component>`（= `shadcn add`，cwd 已默认 `.`；或经 shadcn MCP `add`）——原语落 `src/shadcn/<name>.tsx`。若覆盖到上面「禁止覆盖的 fork」，`git checkout --` 恢复。
   3. 在 `src/shadcn/index.ts` 子 barrel 补一行 `export * from "./<name>";`（主 barrel 自动透传）。`toast` 这类第三方命令式 API 仍在 `src/index.ts` 单独 `export { toast } from "sonner"`。
   4. `mise exec -- pnpm -F components typecheck` + 受影响 app `typecheck` + `pnpm -F platform build`（`src/shadcn/**` 已在 `apps/frontend/biome.json` overrides 里降级 vendored a11y 规则，lint 保持干净）。
-  5. 新 MFE 在 `registry.ts` 增加 `basePath` + `subNav`，并在 `App.tsx` `remoteApps` 注册 lazy import。
-- **MF 例外**: remote 的 `./App` 允许 `export default`（Module Federation 约定），与 lib「禁止 default export」无关
+  5. 新 MFE 通过 admin 应用注册中心登记 `base_path`、`remote_name`、`./routes` 与 manifest `entry`；platform 无需静态改源码。
+- **MFE 路由契约**: platform 是唯一 `RouterProvider`。remote 的 `./routes` 命名导出相对 `RouteObject[]`，页面入口按 `route.lazy` 约定命名导出 `Component`；禁止 remote 再建 router 或调用 `useRoutes`。
 
 ### React Compiler（build-time 自动记忆化，已启用）
 
@@ -136,7 +136,7 @@ deployed asset bundles, but platform is the only user-facing entry.
 ### Code style
 
 - Components: PascalCase, ≤ 250 LoC, no default exports in libs
-- ESM exports: default to named exports for app and package code; use `export default` only for route entry modules (`pages/<route>/index.tsx`) or external contracts such as Module Federation exposes.
+- ESM exports: named exports only for app and package code. React Router lazy entries export `Component`; Module Federation route entries export `routes`.
 - Hooks: `use*`, named exports only
 - Types: no `any`, prefer `unknown` + narrow
 - Styles: Tailwind utilities from `components` theme; avoid arbitrary values

@@ -93,11 +93,14 @@ Cloudflare Dashboard → **Workers & Pages → Create application → Pages → 
 |---|---|---|
 | `APP` | `platform` | (默认值,可省) |
 | `API_BASE_URL` | `https://api.your-domain.com` | 必填,会被打进 bundle |
-| `MFE_ADMIN_ENTRY` | `mfe_admin@https://mfe-admin.your-domain.com/mf-manifest.json` | 必填,指向 mfe-admin 的 manifest 地址 |
 | `APP_RELEASE` | `${CF_PAGES_COMMIT_SHA}` | 用于 telemetry 区分版本 |
 | `NODE_VERSION` | `22` | mise.toml 里是 22 |
 
 Custom domain: `app.your-domain.com`
+
+MFE manifest 不再通过 platform 构建变量配置。部署 remote 后，在 admin
+应用注册中心登记 `remote_name`、`./routes` 和同源 manifest 路径（例如
+`/mfe-admin/mf-manifest.json`），并在入口域名配置对应的反向代理或资产路由。
 
 ### 2.2 创建第 2 个 Pages project for mfe-admin
 

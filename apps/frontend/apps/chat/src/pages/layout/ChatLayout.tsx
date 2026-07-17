@@ -9,12 +9,12 @@ import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "shared";
 import { useShallow } from "zustand/react/shallow";
-import { ChatArtifactPanel } from "../components/ChatArtifactPanel";
-import { ChatAuxiliaryPanels } from "../components/ChatAuxiliaryPanels";
-import { ChatConversationSidebar } from "../components/ChatConversationSidebar";
-import { ChatPanelResizeHandle } from "../components/ChatPanelResizeHandle";
-import { useChatShellLayout } from "../hooks/useChatShellLayout";
-import { useChatStore } from "../store/useChatStore";
+import { ChatArtifactPanel } from "../../components/ChatArtifactPanel";
+import { ChatAuxiliaryPanels } from "../../components/ChatAuxiliaryPanels";
+import { ChatConversationSidebar } from "../../components/ChatConversationSidebar";
+import { ChatPanelResizeHandle } from "../../components/ChatPanelResizeHandle";
+import { useChatShellLayout } from "../../hooks/useChatShellLayout";
+import { useChatStore } from "../../store/useChatStore";
 
 export function ChatLayout() {
   const navigate = useNavigate();

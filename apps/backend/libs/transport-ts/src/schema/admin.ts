@@ -686,7 +686,7 @@ export interface components {
             remote_name: string;
             /**
              * Expose Key
-             * @default ./App
+             * @default ./routes
              */
             expose_key: string;
             /**

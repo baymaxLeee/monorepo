@@ -2,12 +2,13 @@
 
 ## 架构
 
-Module Federation 2.0 + Rspack。一个 shell host 加载多个 mfe-\* remote。
+Module Federation 2.0 + Rspack，配合 React Router data router。platform 是
+唯一浏览器入口和唯一 `RouterProvider`，按需加载多个 mfe-\* remote。
 
 ```
 shell (host @ :3000)
-  ├── loads → mfe_admin (remote assets @ :3001)
-  └── loads → mfe_chat  (remote assets @ :3005)
+  ├── discovers ./routes → mfe_admin (remote assets @ :3001)
+  └── discovers ./routes → mfe_chat  (remote assets @ :3005)
 ```
 
 ## 现有模块
@@ -35,6 +36,36 @@ root URL 不是业务入口，也不提供状态页；本地与生产都通过 p
 - 子应用私有 store 可以存在于各自 `src/store/`，`create` / `useShallow` 直接从 `zustand` 包导入；MF shared 保证运行时仍消费 host 提供的同一份库
 - remote 产物保留业务代码、服务 API client、业务直接依赖以及 federation entry/chunks
 - Tailwind 仅 platform 构建全局 CSS；remote 不导入 CSS、不注册 PostCSS
+
+## 路由契约
+
+应用注册中心保存 `base_path`、`remote_name`、`expose_key` 和 manifest
+`entry`。remote 统一暴露 `./routes`：
+
+```ts
+import type { RouteObject } from "react-router-dom";
+
+export const routes: RouteObject[] = [
+  {
+    id: "reports-root",
+    lazy: () => import("../pages/layout"),
+    children: [{ index: true, lazy: () => import("../pages/home") }],
+  },
+];
+```
+
+页面入口遵循 React Router `route.lazy` 模块约定，命名导出 `Component`。
+remote 的路径必须相对 `base_path`，不得创建自己的 router、调用
+`useRoutes`，也不得依赖 platform 的业务路由实现。
+
+platform 使用 `patchRoutesOnNavigation` 在首次访问 app 路径时加载远程
+route module，并将其挂载到 `/platform` 路由树。这样直接访问、浏览器前进
+后退和客户端跳转共享同一套路由状态、loader、pending UI 与错误边界。
+platform 的静态父路由 loader 负责认证重定向；动态路由发现只在会话有效后
+访问应用注册中心，未登录的深链不会先触发受保护的 registry 请求。
+
+应用注册中心是远程元数据的唯一真源；新增 app 不需要修改 platform 的
+静态 import、类型声明或 Rspack remotes 配置。
 
 ## 添加新 MFE
 

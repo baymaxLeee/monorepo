@@ -72,7 +72,7 @@ const defaults: AppValues = {
   title: "",
   base_path: "/platform/",
   remote_name: "",
-  expose_key: "./App",
+  expose_key: "./routes",
   entry: "",
   requires_admin: true,
   is_enabled: true,
@@ -347,7 +347,7 @@ function AppFormDialog({
                   placeholder: "mfe_admin",
                 })}
                 {textField("expose_key", "Expose Key", {
-                  placeholder: "./App",
+                  placeholder: "./routes",
                 })}
                 {textField("entry", "Manifest 入口 URL", {
                   placeholder: "/mfe-admin/mf-manifest.json",

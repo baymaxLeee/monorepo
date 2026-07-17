@@ -1,4 +1,1 @@
-export {
-  OrganizationsPage,
-  OrganizationsPage as default,
-} from "./OrganizationsPage";
+export { OrganizationsPage as Component } from "./OrganizationsPage";

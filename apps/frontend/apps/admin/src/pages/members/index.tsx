@@ -1,1 +1,1 @@
-export { MembersPage, MembersPage as default } from "./MembersPage";
+export { MembersPage as Component } from "./MembersPage";

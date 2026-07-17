@@ -10,8 +10,6 @@
 #   docker buildx build \
 #     -f infra/single-vps/Dockerfile.web \
 #     --build-arg API_BASE_URL="" \
-#     --build-arg MFE_ADMIN_ENTRY="mfe_admin@/mfe-admin/mf-manifest.json" \
-#     --build-arg MFE_CHAT_ENTRY="mfe_chat@/mfe-chat/mf-manifest.json" \
 #     -t ghcr.io/<owner>/<repo>/web:<tag> \
 #     .
 
@@ -43,14 +41,10 @@ RUN pnpm install --frozen-lockfile
 # MFE remote entries use path-only URLs so they resolve to whatever origin
 # the page loaded from (IP / domain agnostic).
 ARG API_BASE_URL=""
-ARG MFE_ADMIN_ENTRY="mfe_admin@/mfe-admin/mf-manifest.json"
-ARG MFE_CHAT_ENTRY="mfe_chat@/mfe-chat/mf-manifest.json"
 ARG APP_RELEASE="single-vps"
 
 ENV NODE_ENV=production \
     API_BASE_URL=${API_BASE_URL} \
-    MFE_ADMIN_ENTRY=${MFE_ADMIN_ENTRY} \
-    MFE_CHAT_ENTRY=${MFE_CHAT_ENTRY} \
     APP_RELEASE=${APP_RELEASE}
 
 # Build remotes first (admin + chat) so their manifests exist when the host

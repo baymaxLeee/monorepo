@@ -1,4 +1,1 @@
-export {
-  KnowledgeBasePage,
-  KnowledgeBasePage as default,
-} from "./KnowledgeBasePage";
+export { KnowledgeBasePage as Component } from "./KnowledgeBasePage";

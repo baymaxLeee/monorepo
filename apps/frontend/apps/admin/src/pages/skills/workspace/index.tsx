@@ -1,4 +1,1 @@
-export {
-  SkillWorkspacePage,
-  SkillWorkspacePage as default,
-} from "./SkillWorkspacePage";
+export { SkillWorkspacePage as Component } from "./SkillWorkspacePage";

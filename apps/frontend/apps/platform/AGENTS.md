@@ -1,53 +1,41 @@
 # platform — Module Federation Host
 
-Platform is the host application. It owns:
+Platform is the only browser application entry and the only owner of
+`createBrowserRouter` / `RouterProvider`. It owns authentication, top-level
+routing, remote discovery, global errors, and global providers.
 
-- Top-level routing (which URL routes to which MFE)
-- Authentication (via api)
-- MFE registry (which remote lives at which URL)
-- Global error boundary + global providers (TooltipProvider / Toaster)
-
-Platform is a **transparent host**: its `Layout` renders NO global chrome
-(no header/sidebar/footer). It only does auth guards, redirects, and page-view
-telemetry, then mounts the active MFE. The visible shell is owned per-MFE:
-`chat` is the primary shell (sidebar + user area), `admin` is the settings
-shell (sidebar with "返回应用" + grouped menu). See `apps/frontend/AGENTS.md`
-"Shell 布局". Do not reintroduce a platform-level top bar.
+Platform is a transparent host. Its `Layout` renders no global chrome; each
+MFE owns its visible shell. Do not add domain navigation or business UI here.
 
 ## Hard rules
 
-- Platform MUST NOT contain business logic — that belongs in MFEs
-- Platform route additions REQUIRE updating `src/registry.ts`
-- New MFE remotes must be added to `rspack.config.ts` `remotes` map
-- Shared deps in MF config must match across ALL MFEs (use `singleton: true`)
-- ESM exports are named by default; route entry modules under `src/pages/<route>/index.tsx` may additionally `export default` the route component for lazy loading.
+- Platform must not contain MFE business logic.
+- Remote metadata comes from the admin app registry, not a static frontend map.
+- Enabled remotes mount below their registry `base_path` under `/platform/`.
+- Remotes expose `./routes` with a named `routes: RouteObject[]` export.
+- Route trees are discovered by `patchRoutesOnNavigation`; do not add a nested
+  router, `useRoutes`, or a remote `App` component.
+- Remote route paths are relative to their registered `base_path`.
+- Shared dependencies must stay aligned through `mf-shared.mjs`.
 
 ## URL layout
 
 - `/` — redirects to `/login`
-- `/login` — session check via `LoginRoute`; valid token → landing, else login form
-- `/register` — public account registration
-- `/select-org` / `/pending` — org onboarding (host-owned)
+- `/login` and `/register` — public account flows
+- `/select-org` and `/pending` — organization onboarding
 - `/404` — platform-owned not-found page
-- `/platform` — authed shell; index redirects to `/platform/chat` (primary landing)
-- `/platform/<slug>/*` — each remote (`basePath` from app registry, e.g. `/platform/chat`, `/platform/admin`)
-- Personal pages (个人资料 / 仪表盘) live inside the
-  `admin` settings shell, not platform.
-- **Guest**: any unknown path → `/login`
-- **Authed**: unknown app slug in `RemoteHost` → `/404` (never the landing, to avoid a redirect loop)
+- `/platform` — authenticated shell, redirecting to `/platform/chat`
+- `/platform/<slug>/*` — a registry-backed remote route tree
 
-## Adding a new MFE remote
+Unknown public paths resolve to login. Unknown authenticated app paths resolve
+to `/404`.
 
-1. Add to `rspack.config.ts` remotes
-2. Add to `src/registry.ts` with `basePath: "/platform/<slug>"`
-3. Register lazy import in `src/App.tsx` `remoteApps`
-4. Standalone remote: `BrowserRouter basename` must match `basePath`
-5. Remote must expose `./App` (default)
+## Adding a remote
 
-## When to extend the platform vs. extend an MFE
+1. Scaffold it with `just new-mfe <slug>`.
+2. Assign its dev/deployment manifest URL and orchestration port.
+3. Register `base_path`, `remote_name`, `./routes`, and manifest `entry` through
+   the admin app registry.
+4. Add deployment asset routing.
 
-- Platform: authentication, layout chrome, route shell — anything that must be
-  identical across all MFEs.
-- MFE: anything domain-specific.
-
-Default rule: if you find yourself adding domain logic here, stop and ask.
+No platform source-code registration is required.

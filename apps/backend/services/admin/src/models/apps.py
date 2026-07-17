@@ -20,7 +20,7 @@ class AppRow(Base):
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     base_path: Mapped[str] = mapped_column(String(200), nullable=False)
     remote_name: Mapped[str] = mapped_column(String(120), nullable=False)
-    expose_key: Mapped[str] = mapped_column(String(120), nullable=False, default="./App")
+    expose_key: Mapped[str] = mapped_column(String(120), nullable=False, default="./routes")
     entry: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     requires_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

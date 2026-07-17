@@ -56,7 +56,7 @@ const registerSchema = z.object({
 
 type RegisterValues = z.infer<typeof registerSchema>;
 
-export function RegisterPage() {
+function RegisterPage() {
   const navigate = useNavigate();
   const { user, setUser } = usePlatformStore(
     useShallow((state) => ({
@@ -329,4 +329,4 @@ export function RegisterPage() {
   );
 }
 
-export default RegisterPage;
+export { RegisterPage as Component };

@@ -1,4 +1,1 @@
-export {
-  AppsRegistryPage,
-  AppsRegistryPage as default,
-} from "./AppsRegistryPage";
+export { AppsRegistryPage as Component } from "./AppsRegistryPage";

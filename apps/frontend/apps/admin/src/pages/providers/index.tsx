@@ -1,1 +1,1 @@
-export { ProvidersPage, ProvidersPage as default } from "./ProvidersPage";
+export { ProvidersPage as Component } from "./ProvidersPage";

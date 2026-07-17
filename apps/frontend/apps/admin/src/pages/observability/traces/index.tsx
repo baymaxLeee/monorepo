@@ -1,4 +1,1 @@
-export {
-  TraceExplorerPage,
-  TraceExplorerPage as default,
-} from "./TraceExplorerPage";
+export { TraceExplorerPage as Component } from "./TraceExplorerPage";

@@ -7,8 +7,8 @@ import { usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
 import { isSuperAdmin } from "./onboarding";
 import { queryClient } from "./query-client";
-import { router } from "./router";
-import { loadApps, resetApps } from "./store/apps";
+import { RouteLoading, router } from "./router";
+import { resetApps } from "./router/app-registry";
 
 export function App() {
   const { user, setUser, resetPlatformState } = usePlatformStore(
@@ -32,12 +32,7 @@ export function App() {
   }, [resetPlatformState, setUser]);
 
   useEffect(() => {
-    if (!canEnter) {
-      resetApps();
-      return;
-    }
     resetApps();
-    loadApps();
   }, [canEnter, activeOrgId]);
 
   return (
@@ -50,6 +45,7 @@ export function App() {
         <TooltipProvider>
           <RouterProvider
             router={router}
+            fallbackElement={<RouteLoading />}
             future={{ v7_startTransition: true }}
           />
           <Toaster richColors closeButton position="top-right" />

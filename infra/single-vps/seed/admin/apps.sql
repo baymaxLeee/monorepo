@@ -16,9 +16,9 @@ INSERT INTO apps
 -- Remotes are served SAME-ORIGIN under /mfe-<id>/ by nginx/ingress, so the
 -- manifest entry is a fixed relative path (identical for dev and prod).
 VALUES
-  ('admin', '后台管理', '/platform/admin', 'mfe_admin', './App',
+  ('admin', '后台管理', '/platform/admin', 'mfe_admin', './routes',
    '/mfe-admin/mf-manifest.json', true, true, 10, NOW(), NOW()),
-  ('chat', '对话', '/platform/chat', 'mfe_chat', './App',
+  ('chat', '对话', '/platform/chat', 'mfe_chat', './routes',
    '/mfe-chat/mf-manifest.json', false, true, 20, NOW(), NOW())
 ON CONFLICT (id) DO UPDATE SET
   title = EXCLUDED.title,

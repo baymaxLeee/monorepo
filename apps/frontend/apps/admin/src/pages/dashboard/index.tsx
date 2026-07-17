@@ -1,1 +1,1 @@
-export { DashboardPage, DashboardPage as default } from "./DashboardPage";
+export { DashboardPage as Component } from "./DashboardPage";

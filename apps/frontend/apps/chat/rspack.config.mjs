@@ -42,7 +42,7 @@ export default defineConfig({
       dts: false,
       shareStrategy: "loaded-first",
       exposes: {
-        "./App": "./src/App.tsx",
+        "./routes": "./src/router/index.tsx",
       },
       shared: buildShared("remote"),
     }),
