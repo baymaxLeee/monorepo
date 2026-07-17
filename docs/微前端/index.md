@@ -61,8 +61,10 @@ remote 的路径必须相对 `base_path`，不得创建自己的 router、调用
 platform 使用 `patchRoutesOnNavigation` 在首次访问 app 路径时加载远程
 route module，并将其挂载到 `/platform` 路由树。这样直接访问、浏览器前进
 后退和客户端跳转共享同一套路由状态、loader、pending UI 与错误边界。
-platform 的静态父路由 loader 负责认证重定向；动态路由发现只在会话有效后
+platform 的静态父路由 middleware 负责认证重定向；动态路由发现只在会话有效后
 访问应用注册中心，未登录的深链不会先触发受保护的 registry 请求。
+认证、组织准入和 app 可用性策略集中在 platform router，remote 页面不得
+自行实现登录态首屏重定向。
 
 应用注册中心是远程元数据的唯一真源；新增 app 不需要修改 platform 的
 静态 import、类型声明或 Rspack remotes 配置。

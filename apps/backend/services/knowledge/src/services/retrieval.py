@@ -15,9 +15,10 @@ from config import get_settings
 from crud import chunks as chunk_crud
 from crud import documents as document_crud
 from schemas.retrieval import RetrievedChunk, RetrieveResult
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from services.admin_client import ProviderNotConfiguredError, get_admin_client
 from services.embed_client import embed_texts, rerank
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger("knowledge.retrieval")
 
@@ -81,9 +82,7 @@ async def retrieve(
     try:
         embed_provider = await get_admin_client().get_provider_by_kind(org_id=org_id, kind="embedding")
         query_vector = (await embed_texts([query], provider=embed_provider))[0]
-        dense_rows = await chunk_crud.dense_search(
-            session, org_id=org_id, query_vector=query_vector, limit=candidate_k
-        )
+        dense_rows = await chunk_crud.dense_search(session, org_id=org_id, query_vector=query_vector, limit=candidate_k)
         dense = [
             _Candidate(row.id, row.document_id, row.chunk_index, row.content, 1.0 - float(row.distance))
             for row in dense_rows

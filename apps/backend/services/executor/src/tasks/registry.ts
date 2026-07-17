@@ -20,10 +20,6 @@ export function getTaskType(name: string): TaskTypeDefinition | undefined {
   return registry.get(name);
 }
 
-export function listTaskTypes(): string[] {
-  return [...registry.keys()];
-}
-
 registerTaskType({
   name: "echo",
   inputSchema: echoInputSchema,

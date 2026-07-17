@@ -11,14 +11,12 @@ import {
   Navigate,
   useRouteError,
 } from "react-router-dom";
-import { usePlatformStore } from "runtime";
 
 export function RouteErrorFallback() {
   const error = useRouteError();
-  const user = usePlatformStore((state) => state.user);
 
   if (isRouteErrorResponse(error) && error.status === 404) {
-    return <Navigate to={user ? "/404" : "/login"} replace />;
+    return <Navigate to="/404" replace />;
   }
 
   const message =

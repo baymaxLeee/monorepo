@@ -1,0 +1,10 @@
+{
+  "name": "@project/typescript-config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "tsconfig": "./base.json",
+  "exports": {
+    ".": "./base.json"
+  }
+}

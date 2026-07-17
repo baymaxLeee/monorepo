@@ -31,13 +31,14 @@
   },
   "devDependencies": {
     "@module-federation/enhanced": "catalog:",
-    "@typescript/native": "catalog:",
+    "@project/typescript-config": "workspace:*",
     "@rspack/cli": "catalog:",
     "@rspack/core": "catalog:",
     "@rspack/dev-server": "catalog:",
     "@swc/helpers": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@typescript/native": "catalog:",
     "typescript": "catalog:"
   }
 }

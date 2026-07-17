@@ -30,11 +30,3 @@ export function getDb(): ExecutorDb {
   }
   return db;
 }
-
-export async function closeDb(): Promise<void> {
-  if (sql) {
-    await sql.end();
-    sql = null;
-    db = null;
-  }
-}

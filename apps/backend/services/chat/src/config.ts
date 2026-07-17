@@ -69,13 +69,3 @@ export function getSettings(): Settings {
     providerCacheTtlSeconds: envInt("PROVIDER_CACHE_TTL_SECONDS", 300),
   };
 }
-
-export function postgresUrl(settings: Settings = getSettings()): string {
-  const enc = encodeURIComponent;
-  return `postgresql://${enc(settings.postgresUser)}:${enc(settings.postgresPassword)}@${settings.postgresHost}:${settings.postgresPort}/${settings.postgresDatabase}`;
-}
-
-export function redisUrl(settings: Settings = getSettings()): string {
-  const s = settings;
-  return `redis://${s.redisHost}:${s.redisPort}/${s.redisDb}`;
-}

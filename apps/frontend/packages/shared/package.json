@@ -16,6 +16,7 @@
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
+    "@project/typescript-config": "workspace:*",
     "@typescript/native": "catalog:"
   }
 }

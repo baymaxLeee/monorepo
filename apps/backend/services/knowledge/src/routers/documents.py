@@ -163,9 +163,7 @@ async def delete_my_document(
             raise NotFoundError(f"document {document_id} not found")
         if not _may_manage(current_user, row):
             raise ForbiddenError("you may only delete your own documents")
-        object_ref = (
-            (row.object_bucket, row.object_key) if row.object_bucket and row.object_key else None
-        )
+        object_ref = (row.object_bucket, row.object_key) if row.object_bucket and row.object_key else None
         await document_crud.delete_document(session, row)
     if object_ref is not None:
         ObjectStore().delete(bucket=object_ref[0], key=object_ref[1])

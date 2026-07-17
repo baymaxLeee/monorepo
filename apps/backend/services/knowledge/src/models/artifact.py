@@ -3,9 +3,10 @@
 from datetime import datetime
 from typing import Any
 
-from models.base import Base
 from sqlalchemy import JSON, DateTime, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
+
+from models.base import Base
 
 
 class ArtifactGenerationRow(Base):

@@ -5,6 +5,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 ArtifactMode = Literal["document", "presentation", "dashboard"]
+
+
 class ReserveArtifactGenerationInput(BaseModel):
     user_id: str = Field(min_length=1, max_length=26)
     org_id: str = Field(min_length=1, max_length=26)

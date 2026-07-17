@@ -25,7 +25,7 @@ import {
 } from "components";
 import { clearUser as clearObservabilityUser } from "observability";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { type PlatformUser, usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
 import { activeMemberships, isSuperAdmin } from "../../onboarding";
@@ -103,13 +103,7 @@ function PendingPage() {
     };
   }, [applyIdentity]);
 
-  if (!user) return <Navigate to="/login" replace />;
-  if (user.activeOrg || isSuperAdmin(user)) {
-    return <Navigate to="/platform/chat" replace />;
-  }
-  if (activeMemberships(user).length > 0) {
-    return <Navigate to="/select-org" replace />;
-  }
+  if (!user) return null;
 
   const heldOrgIds = new Set(user.memberships.map((m) => m.orgId));
   const joinableOrgs = orgs.filter((o) => !heldOrgIds.has(o.id));

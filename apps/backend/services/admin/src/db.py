@@ -6,13 +6,6 @@ from datetime import UTC, datetime
 
 from config import get_settings
 from models.apps import AppRow
-from models.base import Base
-from models.bot import BotRow  # noqa: F401 — registers with Base.metadata
-from models.bot_skill import BotSkillRow  # noqa: F401 — registers with Base.metadata
-from models.provider import ModelProviderRow  # noqa: F401 — registers with Base.metadata
-from models.skill import SkillRow  # noqa: F401 — registers with Base.metadata
-from models.skill_node import SkillNodeRow  # noqa: F401 — registers with Base.metadata
-from models.skill_published_node import SkillPublishedNodeRow  # noqa: F401 — registers with Base.metadata
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -57,11 +50,6 @@ async def write_tx(session: AsyncSession) -> AsyncIterator[AsyncSession]:
         raise RuntimeError("write_tx must be entered before any session IO")
     async with session.begin():
         yield session
-
-
-async def init_db() -> None:
-    async with get_engine().begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
 
 
 async def close_db() -> None:

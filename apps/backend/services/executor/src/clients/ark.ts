@@ -222,18 +222,3 @@ export async function deleteArkVideoTask(input: {
     throw new Error(`ark cancel video task failed: ${response.status} ${detail}`);
   }
 }
-
-export async function downloadArkVideo(input: {
-  videoUrl: string;
-  signal?: AbortSignal;
-}): Promise<{ bytes: Uint8Array; mediaType: string }> {
-  const response = await secureProviderFetch(input.videoUrl, { signal: input.signal });
-  if (!response.ok) {
-    throw new Error(`ark video download failed: ${response.status}`);
-  }
-  const rawMime = response.headers.get("content-type") ?? "video/mp4";
-  const mediaType = rawMime.split(";")[0]?.trim() || "video/mp4";
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.length === 0) throw new Error("ark video download returned no bytes");
-  return { bytes, mediaType };
-}

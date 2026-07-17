@@ -8,9 +8,7 @@ from pydantic import computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "staging", "single-vps", "production"]
-_INSECURE_PASSWORDS: frozenset[str] = frozenset(
-    {"", "dev", "password", "admin", "workflow", "postgres", "knowledge"}
-)
+_INSECURE_PASSWORDS: frozenset[str] = frozenset({"", "dev", "password", "admin", "workflow", "postgres", "knowledge"})
 _DEV_INTERNAL_API_TOKEN = "dev-internal-token"
 
 

@@ -15,6 +15,7 @@
     "web-vitals": "^5.1.0"
   },
   "devDependencies": {
+    "@project/typescript-config": "workspace:*",
     "@typescript/native": "catalog:"
   }
 }

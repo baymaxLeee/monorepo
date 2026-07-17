@@ -8,7 +8,7 @@ from typing import Any, cast
 
 from config import get_settings
 from models.chunk import DocumentChunkRow
-from sqlalchemy import Row, delete, func, select, text
+from sqlalchemy import Row, delete, text
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,13 +29,6 @@ async def insert_chunks(session: AsyncSession, rows: list[DocumentChunkRow]) -> 
     if rows:
         session.add_all(rows)
         await session.flush()
-
-
-async def count_document_chunks(session: AsyncSession, document_id: str) -> int:
-    result = await session.scalar(
-        select(func.count()).select_from(DocumentChunkRow).where(DocumentChunkRow.document_id == document_id)
-    )
-    return int(result or 0)
 
 
 async def dense_search(

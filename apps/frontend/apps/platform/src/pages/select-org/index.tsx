@@ -10,10 +10,10 @@ import {
 import { UsersIcon } from "lucide-react";
 import { clearUser as clearObservabilityUser } from "observability";
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
-import { activeMemberships, isSuperAdmin } from "../../onboarding";
+import { activeMemberships } from "../../onboarding";
 
 function SelectOrgPage() {
   const navigate = useNavigate();
@@ -22,12 +22,8 @@ function SelectOrgPage() {
   );
   const [switching, setSwitching] = useState<string | null>(null);
 
-  if (!user) return <Navigate to="/login" replace />;
-  if (user.activeOrg || isSuperAdmin(user)) {
-    return <Navigate to="/platform/chat" replace />;
-  }
+  if (!user) return null;
   const orgs = activeMemberships(user);
-  if (orgs.length === 0) return <Navigate to="/pending" replace />;
 
   async function handlePick(orgId: string) {
     setSwitching(orgId);

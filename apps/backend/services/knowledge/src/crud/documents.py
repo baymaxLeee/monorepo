@@ -78,9 +78,7 @@ async def get_document_by_id(session: AsyncSession, document_id: str) -> Documen
 
 async def get_org_document(session: AsyncSession, document_id: str, org_id: str) -> DocumentRow | None:
     """Team-scoped read: any member of the owning org may access the document."""
-    row = await session.scalar(
-        select(DocumentRow).where(DocumentRow.id == document_id, DocumentRow.org_id == org_id)
-    )
+    row = await session.scalar(select(DocumentRow).where(DocumentRow.id == document_id, DocumentRow.org_id == org_id))
     return row
 
 
@@ -96,23 +94,6 @@ async def list_documents(
         stmt = stmt.where(DocumentRow.conversation_id == conversation_id)
     if kind:
         stmt = stmt.where(DocumentRow.kind == kind)
-    result = await session.scalars(stmt)
-    return list(result.all())
-
-
-async def list_documents_by_ids(
-    session: AsyncSession,
-    *,
-    user_id: str,
-    document_ids: list[str],
-) -> list[DocumentRow]:
-    """Fetch the caller's documents for the given ids (used by batch delete)."""
-    if not document_ids:
-        return []
-    stmt = select(DocumentRow).where(
-        DocumentRow.user_id == user_id,
-        DocumentRow.id.in_(document_ids),
-    )
     result = await session.scalars(stmt)
     return list(result.all())
 

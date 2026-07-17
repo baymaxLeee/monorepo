@@ -18,6 +18,7 @@
     "sonner": "catalog:"
   },
   "devDependencies": {
+    "@project/typescript-config": "workspace:*",
     "@typescript/native": "catalog:",
     "orval": "8.13.0",
     "typescript": "catalog:"

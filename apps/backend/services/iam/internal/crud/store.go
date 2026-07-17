@@ -72,36 +72,6 @@ func (s *Store) Close() {
 	}
 }
 
-func (s *Store) AutoMigrate(ctx context.Context) error {
-	return s.db.WithContext(ctx).AutoMigrate(
-		&model.User{},
-		&model.UserCredential{},
-		&model.RefreshToken{},
-		&model.Role{},
-		&model.UserRole{},
-		&model.Organization{},
-		&model.OrganizationMember{},
-		&model.IamAuditEvent{},
-	)
-}
-
-func (s *Store) CreateUserWithPassword(ctx context.Context, user model.User, passwordHash string) error {
-	now := time.Now().UTC()
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&user).Error; err != nil {
-			return err
-		}
-		credential := model.UserCredential{
-			UserID:            user.ID,
-			PasswordHash:      passwordHash,
-			PasswordChangedAt: now,
-			CreatedAt:         now,
-			UpdatedAt:         now,
-		}
-		return tx.Create(&credential).Error
-	})
-}
-
 // CreateUserWithMembership atomically creates the user, credential, and a single
 // membership. Register uses (member, pending); org-admin creation uses
 // (org_admin, active). A bad orgID fails the FK and rolls the whole thing back.
@@ -362,10 +332,6 @@ func (s *Store) MarkLogin(ctx context.Context, userID string) error {
 		Updates(map[string]any{"last_login_at": now, "updated_at": now}).Error
 }
 
-func (s *Store) CreateRole(ctx context.Context, role model.Role) error {
-	return s.db.WithContext(ctx).Create(&role).Error
-}
-
 func (s *Store) EnsureRole(ctx context.Context, role model.Role) error {
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "name"}},
@@ -395,19 +361,6 @@ func (s *Store) AssignRole(ctx context.Context, userID, roleID string) error {
 		CreatedAt: time.Now().UTC(),
 	}
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&userRole).Error
-}
-
-func (s *Store) RemoveRole(ctx context.Context, userID, roleID string) error {
-	result := s.db.WithContext(ctx).
-		Where("user_id = ? AND role_id = ?", userID, roleID).
-		Delete(&model.UserRole{})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return ErrNotFound
-	}
-	return nil
 }
 
 func (s *Store) UserRoles(ctx context.Context, userID string) ([]model.Role, error) {

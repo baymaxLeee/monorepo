@@ -29,8 +29,9 @@ from crud import chunks as chunk_crud
 from crud import documents as document_crud
 from db import get_engine, get_session_factory, write_tx
 from models.document import DocumentRow
-from services.indexing import index_document
 from sqlalchemy import select, text, update
+
+from services.indexing import index_document
 
 logger = logging.getLogger("knowledge.indexer")
 
@@ -120,7 +121,9 @@ async def _index_once(document_id: str) -> None:
                 wrote = True
             error = result.reason if result.status == "failed" else None
             if wrote:
-                await document_crud.set_index_status(session, document_id, status=result.status, error=error[:500] if error else None)
+                await document_crud.set_index_status(
+                    session, document_id, status=result.status, error=error[:500] if error else None
+                )
         if not wrote:
             # An edit landed while we indexed; the stale result is discarded. The
             # edit's schedule set us dirty, so _run re-indexes the new content.

@@ -5,9 +5,8 @@ import {
   setUser as setObservabilityUser,
 } from "observability";
 import { useEffect } from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { usePlatformStore } from "runtime";
-import { isSuperAdmin, landingPath } from "../../onboarding";
 
 function Layout() {
   const location = useLocation();
@@ -27,11 +26,6 @@ function Layout() {
       clearObservabilityUser();
     }
   }, [user]);
-
-  if (!user) return <Navigate to="/login" replace />;
-  if (!user.activeOrg && !isSuperAdmin(user)) {
-    return <Navigate to={landingPath(user)} replace />;
-  }
 
   return (
     <LayoutFrame className="h-svh overflow-hidden">

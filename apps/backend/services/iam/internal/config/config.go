@@ -45,8 +45,6 @@ type Config struct {
 
 func (c Config) IsProduction() bool { return c.Environment == EnvProduction }
 
-func (c Config) IsSingleVPS() bool { return c.Environment == EnvSingleVPS }
-
 func Load() (Config, error) {
 	_ = godotenv.Overload()
 

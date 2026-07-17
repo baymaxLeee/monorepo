@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { bootstrapSession, login } from "api";
+import { login } from "api";
 import {
   Button,
   Card,
@@ -17,18 +17,12 @@ import {
   Input,
   toast,
 } from "components";
-import {
-  clearUser as clearObservabilityUser,
-  setUser as setObservabilityUser,
-} from "observability";
-import { useEffect, useState } from "react";
+import { setUser as setObservabilityUser } from "observability";
 import { useForm } from "react-hook-form";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 import { z } from "zod";
-import { useShallow } from "zustand/react/shallow";
 import { landingPath } from "../../onboarding";
-import { LoginLoadingCard } from "./LoginLoadingCard";
 
 const loginSchema = z.object({
   account: z.string().min(1, "请输入账号").max(64, "账号最多 64 位"),
@@ -39,54 +33,11 @@ type LoginValues = z.infer<typeof loginSchema>;
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { user, setUser } = usePlatformStore(
-    useShallow((state) => ({
-      user: state.user,
-      setUser: state.setUser,
-    })),
-  );
-  const [ready, setReady] = useState(false);
+  const setUser = usePlatformStore((state) => state.setUser);
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema as never),
     defaultValues: { account: "", password: "" },
   });
-
-  useEffect(() => {
-    let alive = true;
-    bootstrapSession()
-      .then((sessionUser) => {
-        if (!alive) return;
-        setUser(sessionUser);
-        if (sessionUser) {
-          setObservabilityUser({
-            userId: sessionUser.id,
-            username: sessionUser.displayName,
-          });
-        } else {
-          clearObservabilityUser();
-        }
-      })
-      .catch(() => {
-        if (alive) {
-          setUser(null);
-          clearObservabilityUser();
-        }
-      })
-      .finally(() => {
-        if (alive) setReady(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [setUser]);
-
-  if (!ready) {
-    return <LoginLoadingCard />;
-  }
-
-  if (user) {
-    return <Navigate to={landingPath(user)} replace />;
-  }
 
   async function onSubmit(values: LoginValues) {
     try {

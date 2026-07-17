@@ -58,12 +58,12 @@ const TIER1 = {
   },
   "react-router": {
     singleton: true,
-    requiredVersion: "^6.0.0",
+    requiredVersion: "^7.0.0",
     strictVersion: false,
   },
   "react-router-dom": {
     singleton: true,
-    requiredVersion: "^6.0.0",
+    requiredVersion: "^7.0.0",
     strictVersion: false,
   },
 };

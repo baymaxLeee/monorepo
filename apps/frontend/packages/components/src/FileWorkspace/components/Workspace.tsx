@@ -16,7 +16,13 @@ import {
   type FileWorkspaceProps,
   type FileWorkspaceRef,
 } from "../interface";
-import { buildNodeMap, cloneTree, diffTree, isFileContentPending, patchNode } from "../utils";
+import {
+  buildNodeMap,
+  cloneTree,
+  diffTree,
+  isFileContentPending,
+  patchNode,
+} from "../utils";
 import { EditorPanel } from "./EditorPanel";
 import { FileTree } from "./FileTree";
 
@@ -107,37 +113,44 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
       init(value);
     }, [value, init]);
 
-    const handleSelectFile = useCallback(async (id: string) => {
-      const node = nodeMapRef.current.get(id);
-      if (node?.type !== "file") return;
+    const handleSelectFile = useCallback(
+      async (id: string) => {
+        const node = nodeMapRef.current.get(id);
+        if (node?.type !== "file") return;
 
-      setActiveFileId(id);
-      setTabs((prev) =>
-        prev.some((t) => t.id === id)
-          ? prev
-          : [...prev, { id, name: node.name }],
-      );
+        setActiveFileId(id);
+        setTabs((prev) =>
+          prev.some((t) => t.id === id)
+            ? prev
+            : [...prev, { id, name: node.name }],
+        );
 
-      if (onLoadContent && !loadedRef.current.has(id) && isFileContentPending(node)) {
-        loadedRef.current.add(id);
-        setLoadingId(id);
-        try {
-          const content = await onLoadContent(id);
-          nodeMapRef.current.set(id, {
-            ...nodeMapRef.current.get(id)!,
-            content,
-          });
-          setTree((prev) => patchNode(prev, id, { content }));
-          baselineRef.current = patchNode(baselineRef.current, id, {
-            content,
-          });
-        } catch {
-          loadedRef.current.delete(id);
-        } finally {
-          setLoadingId((prev) => (prev === id ? null : prev));
+        if (
+          onLoadContent &&
+          !loadedRef.current.has(id) &&
+          isFileContentPending(node)
+        ) {
+          loadedRef.current.add(id);
+          setLoadingId(id);
+          try {
+            const content = await onLoadContent(id);
+            nodeMapRef.current.set(id, {
+              ...nodeMapRef.current.get(id)!,
+              content,
+            });
+            setTree((prev) => patchNode(prev, id, { content }));
+            baselineRef.current = patchNode(baselineRef.current, id, {
+              content,
+            });
+          } catch {
+            loadedRef.current.delete(id);
+          } finally {
+            setLoadingId((prev) => (prev === id ? null : prev));
+          }
         }
-      }
-    }, [onLoadContent]);
+      },
+      [onLoadContent],
+    );
 
     const handleSelectFileRef = useRef(handleSelectFile);
     handleSelectFileRef.current = handleSelectFile;

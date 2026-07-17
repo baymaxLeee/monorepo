@@ -27,21 +27,26 @@ coherent loader, action, pending, and error model.
 React Router recommends creating a data router outside the React tree and
 rendering it through `RouterProvider`:
 
-- <https://reactrouter.com/6.30.4/routers/create-browser-router>
-- <https://reactrouter.com/6.30.4/routers/router-provider>
+- <https://reactrouter.com/start/data/installation>
+- <https://reactrouter.com/start/data/route-object>
 
 Its `route.lazy` API lazily supplies route implementation keys such as
 `Component`, `loader`, `action`, and `ErrorBoundary`. It is available only to
 data routers, not a descendant `useRoutes` tree:
 
-- <https://reactrouter.com/6.30.4/route/lazy>
-- <https://reactrouter.com/6.30.4/hooks/use-routes>
+- <https://reactrouter.com/start/data/route-object#lazy>
 
 React Router explicitly documents `patchRoutesOnNavigation` for applications
 where the full route tree is unavailable up front, including Module Federation
 and micro-frontend architectures:
 
-- <https://reactrouter.com/6.30.4/routers/create-browser-router#opts.patchRoutesOnNavigation>
+- <https://reactrouter.com/api/data-routers/createBrowserRouter>
+
+React Router 7 route middleware is the official Data Mode primitive for
+authentication and other cross-cutting navigation policy. Typed router context
+passes the resolved identity to nested middleware and loaders:
+
+- <https://reactrouter.com/how-to/middleware>
 
 React's `lazy` remains appropriate for component-level code splitting, but it
 does not add data-router semantics:
@@ -65,20 +70,23 @@ The route objects use paths relative to the application's registered
 On navigation below `/platform`, platform:
 
 1. resolves the IAM session before accessing the protected app registry;
-2. lets the static platform loader redirect anonymous users to `/login`;
+2. lets the platform route middleware redirect anonymous users to `/login`;
 3. loads enabled application metadata from the admin registry;
 4. chooses the longest matching registered `base_path`;
 5. registers the remote manifest with Module Federation;
 6. loads and validates the exposed route module;
 7. patches it beneath the platform route with `patchRoutesOnNavigation`;
-8. checks both the session and current registry access again in the app route
-   loader.
+8. checks current registry access again in the app route middleware.
 
 Route discovery does not throw redirects: React Router treats exceptions from
 `patchRoutesOnNavigation` as discovery errors. A static platform splat keeps a
-valid route match while discovery is pending, then the platform loader performs
-the redirect through the data-router response path. Session resolution is
-shared within one navigation so discovery and loaders do not race each other.
+valid route match while discovery is pending, then the platform middleware
+performs the redirect through the data-router response path. Session resolution is
+shared within one navigation so discovery and middleware do not race each other.
+
+Public authentication routes use guest-only middleware. Onboarding routes use
+named access-policy middleware. Route components never bootstrap sessions or
+decide their own initial authentication redirect.
 
 Remote routes are cached after a successful patch. Registry access remains
 dynamic, so disabling an app or changing its admin requirement takes effect

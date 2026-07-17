@@ -1,5 +1,3 @@
-export type ArtifactKind = "html" | "markdown";
-
 export const ECHARTS_RUNTIME_URL = "/runtime/echarts/6.1.0/echarts.min.js";
 export const ECHARTS_RUNTIME_INTEGRITY =
   "sha384-C2iskrW/uPW46KzOjrvJIQo4YkV8lkD+QS0CrDN18IIPIpT/g2USu8bTP3nvmIAD";
@@ -104,32 +102,4 @@ export function buildArtifactNavScript(): string {
     "    })();",
     "  </script>",
   ].join("\n");
-}
-
-export function artifactSystemPrompt(kind: ArtifactKind): string {
-  const base = [
-    "You are a dedicated file generator.",
-    "Start immediately with the first byte of the file content.",
-    "Output only the raw file content.",
-    "Do not wrap the content in Markdown code fences.",
-  ];
-  if (kind === "html") {
-    base.push(
-      "Generate a complete, self-contained HTML5 document.",
-      "Start with <!doctype html> and end with </html>; close every tag.",
-    );
-  } else {
-    base.push("Generate clean Markdown suitable for direct persistence.");
-  }
-  return base.join("\n");
-}
-
-export function safeFilename(filename: string): string {
-  return (
-    filename
-      .replace(/[\\/:"*?<>|]+/g, "-")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 160) || "artifact.md"
-  );
 }

@@ -5,9 +5,9 @@ import { useEffect } from "react";
 import { RouterProvider } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
-import { isSuperAdmin } from "./onboarding";
+import { canEnterPlatform } from "./onboarding";
 import { queryClient } from "./query-client";
-import { RouteLoading, router } from "./router";
+import { router } from "./router";
 import { resetApps } from "./router/app-registry";
 
 export function App() {
@@ -18,15 +18,17 @@ export function App() {
       resetPlatformState: state.resetPlatformState,
     })),
   );
-  const canEnter = !!user && (!!user.activeOrg || isSuperAdmin(user));
+  const canEnter = !!user && canEnterPlatform(user);
   const activeOrgId = user?.activeOrg?.orgId ?? null;
 
   useEffect(() => {
     return onSessionChange((sessionUser) => {
+      const hadUser = usePlatformStore.getState().user !== null;
       setUser(sessionUser);
       if (!sessionUser) {
         resetPlatformState();
         queryClient.clear();
+        if (hadUser) router.revalidate();
       }
     });
   }, [resetPlatformState, setUser]);
@@ -43,11 +45,7 @@ export function App() {
     >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <RouterProvider
-            router={router}
-            fallbackElement={<RouteLoading />}
-            future={{ v7_startTransition: true }}
-          />
+          <RouterProvider router={router} />
           <Toaster richColors closeButton position="top-right" />
         </TooltipProvider>
       </QueryClientProvider>

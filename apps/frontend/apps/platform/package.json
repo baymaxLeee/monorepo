@@ -31,7 +31,7 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
-    "@typescript/native": "catalog:",
+    "@project/typescript-config": "workspace:*",
     "@rspack/cli": "catalog:",
     "@rspack/core": "catalog:",
     "@rspack/dev-server": "catalog:",
@@ -39,6 +39,7 @@
     "@tailwindcss/webpack": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@typescript/native": "catalog:",
     "css-loader": "^7.1.2",
     "html-webpack-plugin": "^5.6.0",
     "style-loader": "^4.0.0",

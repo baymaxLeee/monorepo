@@ -94,7 +94,7 @@ deployed asset bundles, but platform is the only user-facing entry.
 - **MFE remotes**: no PostCSS/Tailwind; app-level styles come from platform-injected `components/styles.css`. Component-owned third-party CSS may stay inside lazy component entries and is handled by the remote plain CSS rule.
 - **components**: normal workspace dependency, not MF-shared; preserve tree-shaking
 - **State**: shared cross-MFE state primitives live in `runtime`; `zustand`, `zustand/middleware`, and shallow selector helpers are host-provided MF singletons. Private MFE stores may import `create` / `useShallow` directly from `zustand` packages; do not wrap static Zustand APIs in `runtime`.
-- **Shell 布局（Codex 式左右布局）**: platform `Layout` 是**透明 host**——只做鉴权守卫、重定向、埋点，不渲染任何全局 chrome DOM（无顶栏/侧栏）。可见外壳由各 MFE 自持：`chat` 是主壳（左侧栏含品牌 + 会话列表 + 左下角用户区，用户区下拉聚合设置/记忆/团队切换/退出），`admin` 是「设置」壳（左侧「返回应用」+ 分组菜单 + 内容区）。登录落地 `/platform/chat`；跨 app 跳转走 chat 用户区（→ admin）与 admin 的「返回应用」（→ chat）。不要把顶栏加回 platform。
+- **Shell 布局（Codex 式左右布局）**: platform `Layout` 是**透明 host**——只做埋点，不渲染任何全局 chrome DOM（无顶栏/侧栏）。认证、组织准入与应用权限统一由 platform route `middleware` 处理，业务组件不得自行实现首屏路由守卫。可见外壳由各 MFE 自持：`chat` 是主壳（左侧栏含品牌 + 会话列表 + 左下角用户区，用户区下拉聚合设置/记忆/团队切换/退出），`admin` 是「设置」壳（左侧「返回应用」+ 分组菜单 + 内容区）。登录落地 `/platform/chat`；跨 app 跳转走 chat 用户区（→ admin）与 admin 的「返回应用」（→ chat）。不要把顶栏加回 platform。
 - **全局浮层**: platform `AppProviders` 挂载 `TooltipProvider` + `Toaster`（`toast` 从 `components` 导出）
 - **MFE 内 Provider**: 每个 remote 的 `App` 也要挂载自己的 `TooltipProvider`；`Toaster` 保持由 platform 统一挂载
 - **表单**: `Form` + `Field` + `react-hook-form` + `zod`；业务页勿手写裸 `Label`+`useState` 校验
@@ -127,6 +127,9 @@ deployed asset bundles, but platform is the only user-facing entry.
   Orval / TypeDoc、shadcn 等工具，不负责仓库类型检查；上游兼容稳定 API 后直接删除旧版本。
 - 普通 TS package 不得直接声明旧 `typescript`；每个含 TS 源码的 workspace package
   必须提供独立 TS7 `typecheck`。只有承载明确旧 API / peer 消费者的 package 可保留 TS5。
+- 共享编译选项只维护在 `packages/typescript-config/base.json`。所有 app/package 必须声明
+  `"@project/typescript-config": "workspace:*"` 并从包名继承；禁止用跨目录相对路径继承根
+  `tsconfig.base.json`，否则从 pnpm `node_modules` 符号链接进入时会解析到错误目录。
 - TS7 不支持 `baseUrl`；`paths` replacement 必须以 `./` 开头，并相对声明它的项目 `tsconfig.json`。
   浏览器代码不要依赖默认注入的 Node 全局类型，计时器使用
   `ReturnType<typeof setTimeout>`。

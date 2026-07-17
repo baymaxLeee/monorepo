@@ -14,6 +14,10 @@ export function activeMemberships(
     : [];
 }
 
+export function canEnterPlatform(user: PlatformUser): boolean {
+  return !!user.activeOrg || isSuperAdmin(user);
+}
+
 /**
  * Where a signed-in user belongs, given their org binding + memberships:
  * - already bound to an org, or a super_admin (management plane) → the shell
@@ -24,7 +28,7 @@ export function activeMemberships(
  * initial landing so users never stare at an empty, org-scoped shell.
  */
 export function landingPath(user: PlatformUser): string {
-  if (user.activeOrg || isSuperAdmin(user)) return "/platform/chat";
+  if (canEnterPlatform(user)) return "/platform/chat";
   if (activeMemberships(user).length > 0) return "/select-org";
   return "/pending";
 }

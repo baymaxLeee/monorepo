@@ -416,32 +416,6 @@ export async function finalizeRunToolCallsFromParts(runId: string, parts: unknow
   );
 }
 
-export interface PersistedToolCall {
-  id: string;
-  status: "running" | "completed" | "failed";
-  output: unknown;
-  error: string | null;
-}
-
-export async function listRunToolCalls(runId: string): Promise<PersistedToolCall[]> {
-  const rows = await getDb()
-    .select({
-      id: agentToolCalls.id,
-      status: agentToolCalls.status,
-      output: agentToolCalls.outputJson,
-      error: agentToolCalls.error,
-    })
-    .from(agentToolCalls)
-    .where(eq(agentToolCalls.runId, runId))
-    .orderBy(asc(agentToolCalls.createdAt));
-  return rows.map((row) => ({
-    id: row.id,
-    status: row.status as PersistedToolCall["status"],
-    output: row.output,
-    error: row.error,
-  }));
-}
-
 export async function finalizeCancelledRunToolCalls(runId: string): Promise<void> {
   const db = getDb();
   const rows = await db

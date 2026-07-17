@@ -102,10 +102,7 @@ class ConvertService:
                     markdown = ""
                 elif not provider.supports_image_input:
                     # Non-vision chat models 400 on image input (Ark et al.).
-                    vision_note = (
-                        f"provider '{provider.name}' does not support image input; "
-                        "caption skipped"
-                    )
+                    vision_note = f"provider '{provider.name}' does not support image input; caption skipped"
                     markdown = ""
                 else:
                     markdown = await anyio.to_thread.run_sync(

@@ -24,7 +24,7 @@ catalog:
   react-compiler-runtime: ^1.0.0
   react-dom: ^18.3.0
   react-hook-form: ^7.76.0
-  react-router-dom: ^6.26.0
+  react-router-dom: ^7.18.1
   sonner: ^2.0.7
   streamdown: ^2.5.0
   tailwindcss: ^4.1.0

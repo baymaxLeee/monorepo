@@ -30,11 +30,10 @@ import {
 import { setUser as setObservabilityUser } from "observability";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 import { getErrorMessage } from "shared";
 import { z } from "zod";
-import { useShallow } from "zustand/react/shallow";
 import { landingPath } from "../../onboarding";
 
 const registerSchema = z.object({
@@ -58,12 +57,7 @@ type RegisterValues = z.infer<typeof registerSchema>;
 
 function RegisterPage() {
   const navigate = useNavigate();
-  const { user, setUser } = usePlatformStore(
-    useShallow((state) => ({
-      user: state.user,
-      setUser: state.setUser,
-    })),
-  );
+  const setUser = usePlatformStore((state) => state.setUser);
   const lastCheckedName = useRef<string | null>(null);
   const [orgs, setOrgs] = useState<OrgSummary[]>([]);
   const [orgsError, setOrgsError] = useState<string | null>(null);
@@ -95,10 +89,6 @@ function RegisterPage() {
       alive = false;
     };
   }, []);
-
-  if (user) {
-    return <Navigate to={landingPath(user)} replace />;
-  }
 
   async function validateNameAvailable(name: string) {
     const normalized = name.trim().toLowerCase();

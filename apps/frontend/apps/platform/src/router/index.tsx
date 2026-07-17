@@ -1,21 +1,21 @@
 import { loadRemote } from "@module-federation/enhanced/runtime";
 import {
   createBrowserRouter,
-  type LoaderFunctionArgs,
   Navigate,
   type PatchRoutesOnNavigationFunctionArgs,
   type RouteObject,
 } from "react-router-dom";
-import { isSuperAdmin } from "../onboarding";
+import {
+  canDiscoverPlatformRoutes,
+  createAppAccessMiddleware,
+  guestOnlyMiddleware,
+  pendingAccessMiddleware,
+  platformAccessMiddleware,
+  selectOrgAccessMiddleware,
+} from "./access";
 import { type AppEntry, loadApps, remoteModuleId } from "./app-registry";
 import { RouteErrorFallback } from "./RouteErrorFallback";
-import {
-  loadPlatformSession,
-  platformLoader,
-  requirePlatformSession,
-} from "./session";
-
-export { RouteLoading } from "./RouteLoading";
+import { RouteLoading } from "./RouteLoading";
 
 type RemoteRoutesModule = { routes: RouteObject[] };
 
@@ -73,18 +73,6 @@ function loadRemoteRoutes(app: AppEntry): Promise<RouteObject[]> {
   return promise;
 }
 
-async function requireAppAccess(
-  appId: string,
-  args: LoaderFunctionArgs,
-): Promise<null> {
-  await requirePlatformSession(args);
-  const apps = await loadApps({ refresh: true });
-  if (!apps.some((app) => app.id === appId && app.is_enabled)) {
-    throw new Response("Not Found", { status: 404 });
-  }
-  return null;
-}
-
 async function discoverRemoteRoutes({
   path,
   patch,
@@ -92,8 +80,7 @@ async function discoverRemoteRoutes({
 }: PatchRoutesOnNavigationFunctionArgs): Promise<void> {
   if (!path.startsWith(PLATFORM_PREFIX)) return;
 
-  const user = await loadPlatformSession(signal);
-  if (!user || (!user.activeOrg && !isSuperAdmin(user))) return;
+  if (!(await canDiscoverPlatformRoutes(signal))) return;
 
   const apps = await loadApps({ refresh: true });
   const app = findAppForPath(apps, path);
@@ -106,7 +93,7 @@ async function discoverRemoteRoutes({
     {
       id: `remote:${app.id}`,
       path: relativeAppPath(app),
-      loader: (args) => requireAppAccess(app.id, args),
+      middleware: [createAppAccessMiddleware(app.id)],
       errorElement: <RouteErrorFallback />,
       children,
     },
@@ -118,6 +105,7 @@ export const routes: RouteObject[] = [
   {
     id: "root",
     path: "/",
+    HydrateFallback: RouteLoading,
     errorElement: <RouteErrorFallback />,
     children: [
       {
@@ -130,25 +118,29 @@ export const routes: RouteObject[] = [
       },
       {
         path: "login",
+        middleware: [guestOnlyMiddleware],
         lazy: () => import("../pages/login"),
       },
       {
         path: "register",
+        middleware: [guestOnlyMiddleware],
         lazy: () => import("../pages/register"),
       },
       {
         path: "pending",
+        middleware: [pendingAccessMiddleware],
         lazy: () => import("../pages/pending"),
       },
       {
         path: "select-org",
+        middleware: [selectOrgAccessMiddleware],
         lazy: () => import("../pages/select-org"),
       },
       {
         id: PLATFORM_ROUTE_ID,
         path: "platform",
+        middleware: [platformAccessMiddleware],
         lazy: () => import("../pages/layout"),
-        loader: platformLoader,
         errorElement: <RouteErrorFallback />,
         children: [
           {
@@ -166,6 +158,5 @@ export const routes: RouteObject[] = [
 ];
 
 export const router = createBrowserRouter(routes, {
-  future: { v7_relativeSplatPath: true },
   patchRoutesOnNavigation: discoverRemoteRoutes,
 });

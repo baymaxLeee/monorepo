@@ -34,12 +34,6 @@ export class ConflictError extends AppError {
   }
 }
 
-export class AgentRuntimeError extends AppError {
-  constructor(message: string, details: Record<string, unknown> = {}) {
-    super(message, 502, "agent_runtime_failed", details);
-  }
-}
-
 export class ProviderNotConfiguredError extends AppError {
   constructor(message: string) {
     super(message, 412, "provider_not_configured");
@@ -59,12 +53,6 @@ export class AgentRunCancelledError extends Error {
     super(message);
     this.name = "AgentRunCancelledError";
   }
-}
-
-export function isAgentRunCancelled(err: unknown): boolean {
-  if (err instanceof AgentRunCancelledError) return true;
-  if (err instanceof Error && err.name === "AbortError") return true;
-  return err instanceof Error && /aborted|cancelled/i.test(err.message);
 }
 
 export function problemJson(err: unknown): { body: object; status: number } {
