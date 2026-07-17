@@ -15,6 +15,8 @@ MFE owns its visible shell. Do not add domain navigation or business UI here.
 - Remotes expose `./routes` with a named `routes: RouteObject[]` export.
 - Route trees are discovered by `patchRoutesOnNavigation`; do not add a nested
   router, `useRoutes`, or a remote `App` component.
+- Registry topology and remote registration are cached for the document
+  lifetime. Runtime registry edits take effect after a full page refresh.
 - Remote route paths are relative to their registered `base_path`.
 - Shared dependencies must stay aligned through `mf-shared.mjs`.
 

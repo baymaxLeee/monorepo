@@ -82,7 +82,7 @@ async function discoverRemoteRoutes({
 
   if (!(await canDiscoverPlatformRoutes(signal))) return;
 
-  const apps = await loadApps({ refresh: true });
+  const apps = await loadApps();
   const app = findAppForPath(apps, path);
   if (!app || patchedRemoteIds.has(app.id)) return;
 
@@ -93,7 +93,7 @@ async function discoverRemoteRoutes({
     {
       id: `remote:${app.id}`,
       path: relativeAppPath(app),
-      middleware: [createAppAccessMiddleware(app.id)],
+      middleware: [createAppAccessMiddleware(app)],
       errorElement: <RouteErrorFallback />,
       children,
     },

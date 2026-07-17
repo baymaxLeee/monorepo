@@ -13,8 +13,7 @@ function remoteEntry(entry: string): string {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-export function loadApps({ refresh = false } = {}): Promise<AppEntry[]> {
-  if (refresh) loadPromise = null;
+export function loadApps(): Promise<AppEntry[]> {
   if (loadPromise) return loadPromise;
 
   const request = fetchApps({ skipErrorNotify: true })
@@ -24,7 +23,6 @@ export function loadApps({ refresh = false } = {}): Promise<AppEntry[]> {
           name: app.remote_name,
           entry: remoteEntry(app.entry),
         })),
-        { force: true },
       );
       return apps;
     })
@@ -34,10 +32,6 @@ export function loadApps({ refresh = false } = {}): Promise<AppEntry[]> {
     });
   loadPromise = request;
   return request;
-}
-
-export function resetApps(): void {
-  loadPromise = null;
 }
 
 export function remoteModuleId(app: AppEntry): string {

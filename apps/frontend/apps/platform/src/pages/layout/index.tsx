@@ -9,6 +9,17 @@ import { Outlet, useLocation } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 
 function Layout() {
+  return (
+    <LayoutFrame className="h-svh overflow-hidden">
+      <PlatformObservability />
+      <Main className="overflow-y-auto">
+        <Outlet />
+      </Main>
+    </LayoutFrame>
+  );
+}
+
+function PlatformObservability() {
   const location = useLocation();
   const user = usePlatformStore((state) => state.user);
 
@@ -27,13 +38,7 @@ function Layout() {
     }
   }, [user]);
 
-  return (
-    <LayoutFrame className="h-svh overflow-hidden">
-      <Main className="overflow-y-auto">
-        <Outlet />
-      </Main>
-    </LayoutFrame>
-  );
+  return null;
 }
 
 export { Layout as Component };

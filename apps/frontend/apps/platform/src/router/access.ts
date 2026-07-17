@@ -8,9 +8,10 @@ import { usePlatformStore } from "runtime";
 import {
   activeMemberships,
   canEnterPlatform,
+  isSuperAdmin,
   landingPath,
 } from "../onboarding";
-import { loadApps } from "./app-registry";
+import type { AppEntry } from "./app-registry";
 
 export const platformUserContext = createContext<AuthUser | null>(null);
 
@@ -23,8 +24,10 @@ async function resolveSession(signal: AbortSignal): Promise<AuthUser | null> {
   const request = bootstrapSession().then((user) => {
     const store = usePlatformStore.getState();
     if (user) {
-      store.setUser(user);
-    } else {
+      if (store.user !== user) {
+        store.setUser(user);
+      }
+    } else if (store.user) {
       store.resetPlatformState();
     }
     return user;
@@ -76,12 +79,17 @@ export async function canDiscoverPlatformRoutes(
   return !!user && canEnterPlatform(user);
 }
 
-export function createAppAccessMiddleware(appId: string): MiddlewareFunction {
+export function createAppAccessMiddleware(app: AppEntry): MiddlewareFunction {
   return async ({ context }) => {
-    if (!context.get(platformUserContext)) throw redirect("/login");
+    const user = context.get(platformUserContext);
+    if (!user) throw redirect("/login");
 
-    const apps = await loadApps({ refresh: true });
-    if (!apps.some((app) => app.id === appId && app.is_enabled)) {
+    const canAccess =
+      app.is_enabled &&
+      (!app.requires_admin ||
+        isSuperAdmin(user) ||
+        user.activeOrg?.role === "org_admin");
+    if (!canAccess) {
       throw new Response("Not Found", { status: 404 });
     }
   };

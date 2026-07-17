@@ -66,6 +66,12 @@ platform 的静态父路由 middleware 负责认证重定向；动态路由发�
 认证、组织准入和 app 可用性策略集中在 platform router，remote 页面不得
 自行实现登录态首屏重定向。
 
+应用注册表拓扑、remote 注册和已经 patch 的路由按页面生命周期缓存。子路由导航、
+session 或 active org 变化都不得清除拓扑缓存或重新注册 remote；route middleware
+使用当前 session 判断已发现 app 的访问权限。新增 app、可见性扩大和路由配置变更
+在刷新页面后生效。page-view 采集由无 UI 的 location observer 完成，不让
+platform Layout 订阅子应用路由状态。
+
 应用注册中心是远程元数据的唯一真源；新增 app 不需要修改 platform 的
 静态 import、类型声明或 Rspack remotes 配置。
 

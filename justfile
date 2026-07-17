@@ -28,7 +28,7 @@ reset-demo-data:
     @./scripts/reset-demo-data.sh
 
 down:
-    docker compose down
+    docker compose --profile observability down
 
 # Install all deps (mise, pnpm, uv, go). Does not start Docker.
 install:

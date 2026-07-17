@@ -5,37 +5,28 @@ import { useEffect } from "react";
 import { RouterProvider } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
-import { canEnterPlatform } from "./onboarding";
 import { queryClient } from "./query-client";
 import { router } from "./router";
-import { resetApps } from "./router/app-registry";
 
 export function App() {
-  const { user, setUser, resetPlatformState } = usePlatformStore(
+  const { setUser, resetPlatformState } = usePlatformStore(
     useShallow((state) => ({
-      user: state.user,
       setUser: state.setUser,
       resetPlatformState: state.resetPlatformState,
     })),
   );
-  const canEnter = !!user && canEnterPlatform(user);
-  const activeOrgId = user?.activeOrg?.orgId ?? null;
-
   useEffect(() => {
     return onSessionChange((sessionUser) => {
       const hadUser = usePlatformStore.getState().user !== null;
-      setUser(sessionUser);
-      if (!sessionUser) {
-        resetPlatformState();
-        queryClient.clear();
-        if (hadUser) router.revalidate();
+      if (sessionUser) {
+        setUser(sessionUser);
+        return;
       }
+      resetPlatformState();
+      queryClient.clear();
+      if (hadUser) router.revalidate();
     });
   }, [resetPlatformState, setUser]);
-
-  useEffect(() => {
-    resetApps();
-  }, [canEnter, activeOrgId]);
 
   return (
     <ErrorBoundary

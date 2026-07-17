@@ -170,7 +170,7 @@ export function AppsRegistryPage() {
         <PageHeaderContent>
           <PageTitle>应用入口管理</PageTitle>
           <PageDescription>
-            配置平台可挂载的微前端入口。「对普通用户开放」关闭时该应用仅管理员可见。
+            配置平台可挂载的微前端入口。「对普通用户开放」关闭时该应用仅管理员可见；路由配置在刷新页面后生效。
           </PageDescription>
         </PageHeaderContent>
         <PageActions>

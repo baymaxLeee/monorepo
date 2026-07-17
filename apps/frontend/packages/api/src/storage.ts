@@ -37,11 +37,15 @@ const USER_KEY = "platform.user";
 
 let accessToken: string | null = null;
 let expiresAt: string | null = null;
-let currentUser = readJSON<AuthUser>(USER_KEY);
+let currentUserStorage = readStorage(USER_KEY);
+let currentUser = parseJSON<AuthUser>(currentUserStorage);
 
 export function syncSessionFromStorage(): void {
   purgeLegacyTokenKeys();
-  currentUser = readJSON<AuthUser>(USER_KEY);
+  const storedUser = readStorage(USER_KEY);
+  if (storedUser === currentUserStorage) return;
+  currentUserStorage = storedUser;
+  currentUser = parseJSON<AuthUser>(storedUser);
 }
 
 export function getToken(): string | null {
@@ -83,7 +87,8 @@ export function commitSession(session: AuthSession): AuthSession {
   accessToken = session.accessToken;
   expiresAt = session.expiresAt;
   currentUser = session.user;
-  writeStorage(USER_KEY, JSON.stringify(currentUser));
+  currentUserStorage = JSON.stringify(currentUser);
+  writeStorage(USER_KEY, currentUserStorage);
   notifySessionChange(currentUser);
   return session;
 }
@@ -92,6 +97,7 @@ export function clearSession(): void {
   accessToken = null;
   expiresAt = null;
   currentUser = null;
+  currentUserStorage = null;
   purgeLegacyTokenKeys();
   writeStorage(USER_KEY, null);
   notifySessionChange(null);
@@ -120,8 +126,7 @@ function writeStorage(key: string, value: string | null): void {
   } catch {}
 }
 
-function readJSON<T>(key: string): T | null {
-  const raw = readStorage(key);
+function parseJSON<T>(raw: string | null): T | null {
   if (!raw) return null;
   try {
     return JSON.parse(raw) as T;
