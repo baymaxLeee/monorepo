@@ -74,7 +74,7 @@ func newReverseProxy(upstream, service, externalPrefix string) http.Handler {
 		slog.Error("proxy_error",
 			"trace_id", middleware.TraceIDFromContext(r.Context()),
 			"err", err,
-			"url", r.URL.String(),
+			"path", r.URL.Path,
 		)
 		http.Error(w, "upstream unavailable: "+err.Error(), http.StatusBadGateway)
 	}

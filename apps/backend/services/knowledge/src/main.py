@@ -17,6 +17,7 @@ from routers import (
     documents_internal,
     health,
     ingest,
+    resources,
     retrieval_internal,
 )
 from services.admin_client import close_admin_client
@@ -71,6 +72,7 @@ def create_app() -> FastAPI:
     app.include_router(ingest.router)
     app.include_router(documents.router)
     app.include_router(documents_internal.router)
+    app.include_router(resources.router)
     app.include_router(artifacts_internal.router)
     app.include_router(retrieval_internal.router)
     return app

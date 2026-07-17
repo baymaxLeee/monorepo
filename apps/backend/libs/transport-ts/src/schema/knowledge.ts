@@ -296,6 +296,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents/{document_id}/resource-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Resource Url */
+        post: operations["create_resource_url_documents__document_id__resource_url_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/resources/{document_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Signed Resource */
+        get: operations["get_signed_resource_resources__document_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/artifact-generations": {
         parameters: {
             query?: never;
@@ -629,6 +663,20 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
+        };
+        /** DocumentResourceURL */
+        DocumentResourceURL: {
+            /** Url */
+            url: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Mime Type */
+            mime_type: string;
+            /** Filename */
+            filename: string;
         };
         /** DocumentSlice */
         DocumentSlice: {
@@ -1513,6 +1561,76 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Document"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_resource_url_documents__document_id__resource_url_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentResourceURL"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_signed_resource_resources__document_id__get: {
+        parameters: {
+            query: {
+                expires: number;
+                version: string;
+                signature: string;
+            };
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

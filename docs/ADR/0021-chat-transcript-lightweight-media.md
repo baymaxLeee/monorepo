@@ -69,10 +69,19 @@ fetched exclusively by the preview surfaces, on demand, after a click.
   by object storage reuse the authenticated `/documents/:id/source` fetch;
   content-only text artifacts are downloaded from their current `content_md`
   (or the editor's current draft) as a browser-created Blob.
+- Video, audio, and PDF panel previews do not use that Blob path. The panel
+  requests a short-lived resource URL from Knowledge after it opens, then passes
+  the URL directly to the native `<video>`, `<audio>`, or PDF `<iframe>`.
+  Knowledge verifies the URL capability and serves the local file with
+  Starlette `FileResponse`, preserving HTTP Range requests and avoiding the
+  Knowledge → Chat → browser full-byte buffering chain. Images deliberately
+  remain on the existing Blob/thumbnail path for now; HTML remains fetched as
+  text and rendered through the opaque-origin sandbox.
 
-Only the two preview surfaces call the byte-fetching hooks: `ChatArtifactPanel`
-uses `useDocumentBlobUrl` (single) and `ChatImagePreview` uses
-`useDocumentBlobUrls` (group). No transcript component imports either hook.
+Only the two preview surfaces initiate source access: `ChatArtifactPanel` uses
+either `useDocumentResourceUrl` (video/audio/PDF) or `useDocumentBlobUrl`
+(image), while `ChatImagePreview` uses `useDocumentBlobUrls` for groups. No
+transcript component imports these hooks.
 
 ## Rationale
 
@@ -89,11 +98,21 @@ keeps the tool-output wire contract untouched.
 
 - Render-time `/documents/:id/source` requests for a conversation drop from
   O(media count) to 0; byte requests happen only when a lightbox/panel opens.
-- No backend, tool-output, or persistence change. `generate_image` still yields
-  `{ images: [{ document_id, filename, media_type }] }`; older persisted
-  messages render unchanged because only the card presentation changed.
+- The tool-output and persistence contracts do not change. `generate_image`
+  still yields `{ images: [{ document_id, filename, media_type }] }`; older
+  persisted messages render unchanged. Knowledge adds only the derived resource
+  delivery surface.
 - Download remains an explicit preview-surface action, so it adds no transcript
   render-time source requests and preserves the lightweight reference model.
+- Video/audio/PDF preview URLs are derived, one-hour capabilities. They are
+  minted on preview open, are not persisted in UIMessage/document records, and
+  are invalidated by source-version changes. The public gateway surface is
+  limited to `/api/knowledge-server/resources/*`; every request still requires
+  a valid resource signature. Gateway access and proxy-error logs record only
+  the path, never the signed query string.
+- The local-filesystem implementation is intentionally shaped like an object
+  storage presigned URL. A future S3/OSS adapter can return its own signed URL
+  from the same minting endpoint without changing the preview component.
 - Deliberate UX trade-off (chosen over a lazy-thumbnail variant): the transcript
   shows no image thumbnail at all — more aggressive than Claude/ChatGPT, which
   keep a thumbnail/screenshot. Because there are no per-image tiles, the image

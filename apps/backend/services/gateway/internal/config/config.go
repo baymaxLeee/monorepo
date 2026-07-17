@@ -76,6 +76,7 @@ func Load() (Config, error) {
 			"/api/iam-server/register",
 			"/api/iam-server/refresh",
 			"/api/iam-server/logout",
+			"/api/knowledge-server/resources",
 		}),
 		// Method-aware exact publics: the register page must read the applyable
 		// org list before authenticating, but POST /orgs and /orgs/{id}/... stay

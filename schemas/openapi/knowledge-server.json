@@ -1788,6 +1788,195 @@
         }
       }
     },
+    "/documents/{document_id}/resource-url": {
+      "post": {
+        "tags": [
+          "document-resources"
+        ],
+        "summary": "Create Resource Url",
+        "operationId": "create_resource_url_documents__document_id__resource_url_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Auth-Name",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Email"
+            }
+          },
+          {
+            "name": "X-Auth-User-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Org-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Org-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResourceURL"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/resources/{document_id}": {
+      "get": {
+        "tags": [
+          "document-resources"
+        ],
+        "summary": "Get Signed Resource",
+        "operationId": "get_signed_resource_resources__document_id__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "expires",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Expires"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Version"
+            }
+          },
+          {
+            "name": "signature",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64,
+              "title": "Signature"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/internal/artifact-generations": {
       "post": {
         "tags": [
@@ -3091,6 +3280,35 @@
           "updated_at"
         ],
         "title": "Document"
+      },
+      "DocumentResourceURL": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "expires_at",
+          "mime_type",
+          "filename"
+        ],
+        "title": "DocumentResourceURL"
       },
       "DocumentSlice": {
         "properties": {

@@ -197,6 +197,13 @@ export interface Document {
   updated_at: string;
 }
 
+export interface DocumentResourceURL {
+  url: string;
+  expires_at: string;
+  mime_type: string;
+  filename: string;
+}
+
 export type DocumentSliceState = typeof DocumentSliceState[keyof typeof DocumentSliceState];
 
 
@@ -454,6 +461,23 @@ wait_ms?: number;
 export type GetDocumentSourceInternalDocumentsDocumentIdSourceGetParams = {
 user_id: string;
 max_dim?: number | null;
+};
+
+export type GetSignedResourceResourcesDocumentIdGetParams = {
+/**
+ * @minimum 1
+ */
+expires: number;
+/**
+ * @minLength 1
+ * @maxLength 128
+ */
+version: string;
+/**
+ * @minLength 64
+ * @maxLength 64
+ */
+signature: string;
 };
 
 export type ListReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGetParams = {
@@ -753,6 +777,32 @@ const createMediaDocumentInternalMediaDocumentsPost = (
     }
 
 /**
+ * @summary Create Resource Url
+ */
+const createResourceUrlDocumentsDocumentIdResourceUrlPost = (
+    documentId: string,
+ options?: SecondParameter<typeof apiMutator<DocumentResourceURL>>,) => {
+      return apiMutator<DocumentResourceURL>(
+      {url: `/documents/${documentId}/resource-url`, method: 'POST'
+    },
+      options);
+    }
+
+/**
+ * @summary Get Signed Resource
+ */
+const getSignedResourceResourcesDocumentIdGet = (
+    documentId: string,
+    params: GetSignedResourceResourcesDocumentIdGetParams,
+ options?: SecondParameter<typeof apiMutator<void>>,) => {
+      return apiMutator<void>(
+      {url: `/resources/${documentId}`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+/**
  * @summary Reserve Generation
  */
 const reserveGenerationInternalArtifactGenerationsPost = (
@@ -884,7 +934,7 @@ const retrieveChunksInternalRetrievePost = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,reserveGenerationInternalArtifactGenerationsPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,retrieveChunksInternalRetrievePost}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createResourceUrlDocumentsDocumentIdResourceUrlPost,getSignedResourceResourcesDocumentIdGet,reserveGenerationInternalArtifactGenerationsPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,retrieveChunksInternalRetrievePost}};
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['healthzHealthzGet']>>>
@@ -904,6 +954,8 @@ export type GetDocumentSliceInternalDocumentsDocumentIdSliceGetResult = NonNulla
 export type GetDocumentSourceInternalDocumentsDocumentIdSourceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getDocumentSourceInternalDocumentsDocumentIdSourceGet']>>>
 export type CreateArtifactInternalArtifactsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createArtifactInternalArtifactsPost']>>>
 export type CreateMediaDocumentInternalMediaDocumentsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createMediaDocumentInternalMediaDocumentsPost']>>>
+export type CreateResourceUrlDocumentsDocumentIdResourceUrlPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createResourceUrlDocumentsDocumentIdResourceUrlPost']>>>
+export type GetSignedResourceResourcesDocumentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getSignedResourceResourcesDocumentIdGet']>>>
 export type ReserveGenerationInternalArtifactGenerationsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['reserveGenerationInternalArtifactGenerationsPost']>>>
 export type FailGenerationInternalArtifactGenerationsGenerationIdFailPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['failGenerationInternalArtifactGenerationsGenerationIdFailPost']>>>
 export type CancelGenerationInternalArtifactGenerationsGenerationIdCancelPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost']>>>

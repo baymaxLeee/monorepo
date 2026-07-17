@@ -229,6 +229,29 @@ export function knowledgeDocumentSourceUrl(documentId: string): string {
   return `${API_BASE_URL}${BASE}/documents/${encodeURIComponent(documentId)}/source`;
 }
 
+export interface KnowledgeDocumentResourceURL {
+  url: string;
+  expires_at: string;
+  mime_type: string;
+  filename: string;
+}
+
+export async function createKnowledgeDocumentResourceUrl(
+  documentId: string,
+): Promise<KnowledgeDocumentResourceURL> {
+  const resource = await request<KnowledgeDocumentResourceURL>({
+    url: `${BASE}/documents/${encodeURIComponent(documentId)}/resource-url`,
+    method: "POST",
+  });
+  return {
+    ...resource,
+    url: new URL(
+      resource.url,
+      API_BASE_URL || window.location.origin,
+    ).toString(),
+  };
+}
+
 export function isMediaConversationDocument(
   document: ConversationDocument,
 ): boolean {

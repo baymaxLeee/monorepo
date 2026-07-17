@@ -92,10 +92,18 @@ class ObjectStore:
         os.replace(temp_path, final_path)
 
     def get_bytes(self, *, bucket: str, key: str) -> bytes:
-        path = self._root / bucket / key
+        path = self.get_path(bucket=bucket, key=key)
+        return path.read_bytes()
+
+    def get_path(self, *, bucket: str, key: str) -> Path:
+        if not _SAFE_SEGMENT.match(bucket) or not self._valid_key(key):
+            raise RequestError("invalid bucket or object key")
+        path = (self._root / bucket / key).resolve()
+        if not path.is_relative_to(self._root):
+            raise RequestError("invalid bucket or object key")
         if not path.is_file():
             raise ObjectStoreError("object not found", details={"bucket": bucket, "key": key})
-        return path.read_bytes()
+        return path
 
     def delete(self, *, bucket: str, key: str) -> None:
         path = self._root / bucket / key

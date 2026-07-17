@@ -1,5 +1,8 @@
 import type { ConversationDocumentDetail } from "api";
-import { fetchConversationDocumentSource } from "api";
+import {
+  createKnowledgeDocumentResourceUrl,
+  fetchConversationDocumentSource,
+} from "api";
 import { useEffect, useState } from "react";
 
 const MAX_CACHED_DOCUMENTS = 8;
@@ -139,6 +142,44 @@ export function useDocumentBlobUrl(
   }, [conversationId, documentId, enabled, maxDim, version]);
 
   return { blobUrl, loading, error };
+}
+
+export function useDocumentResourceUrl(
+  documentId: string | null,
+  enabled: boolean,
+  version: string,
+) {
+  const [resourceUrl, setResourceUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  useEffect(() => {
+    if (!enabled || !documentId) {
+      setResourceUrl(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    let active = true;
+    setResourceUrl(null);
+    setLoading(true);
+    setError(null);
+    void createKnowledgeDocumentResourceUrl(documentId)
+      .then((resource) => {
+        if (active) setResourceUrl(resource.url);
+      })
+      .catch((nextError: unknown) => {
+        if (active) setError(nextError);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [documentId, enabled, version]);
+
+  return { resourceUrl, loading, error };
 }
 
 export function useDocumentBlobUrls(

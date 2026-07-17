@@ -17,6 +17,7 @@ import {
   downloadConversationDocument,
   fetchCachedDocumentSource,
   useDocumentBlobUrl,
+  useDocumentResourceUrl,
 } from "../hooks/useDocumentSource";
 import { prepareArtifactPreviewHtml } from "../lib/prepareArtifactPreviewHtml";
 import { useChatStore } from "../store/useChatStore";
@@ -31,6 +32,14 @@ function needsBinarySource(mimeType: string | undefined) {
   return Boolean(
     mimeType?.startsWith("image/") ||
       mimeType?.startsWith("video/") ||
+      mimeType?.startsWith("audio/") ||
+      mimeType?.includes("pdf"),
+  );
+}
+
+function usesDirectResourceUrl(mimeType: string | undefined) {
+  return Boolean(
+    mimeType?.startsWith("video/") ||
       mimeType?.startsWith("audio/") ||
       mimeType?.includes("pdf"),
   );
@@ -72,17 +81,29 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const binarySource = needsBinarySource(artifact?.mime_type);
+  const directResource = usesDirectResourceUrl(artifact?.mime_type);
+  const blobSource = binarySource && !directResource;
   const editable = isEditableMarkdown(artifact);
   const {
-    blobUrl: previewSrc,
+    blobUrl,
     loading: blobLoading,
     error: blobError,
   } = useDocumentBlobUrl(
     conversationId ?? undefined,
     documentId,
-    Boolean(open && binarySource),
+    Boolean(open && blobSource),
     artifact?.updated_at ?? "",
   );
+  const {
+    resourceUrl,
+    loading: resourceLoading,
+    error: resourceError,
+  } = useDocumentResourceUrl(
+    documentId,
+    Boolean(open && directResource),
+    artifact?.updated_at ?? "",
+  );
+  const previewSrc = directResource ? resourceUrl : blobUrl;
 
   useEffect(() => {
     if (!open || !conversationId || !documentId) {
@@ -163,8 +184,10 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
   const previewLoading =
     loading ||
     sourceLoading ||
-    Boolean(artifact && binarySource && blobLoading);
-  const previewFailed = sourceError || Boolean(blobError);
+    Boolean(artifact && blobSource && blobLoading) ||
+    Boolean(artifact && directResource && resourceLoading);
+  const previewFailed =
+    sourceError || Boolean(blobError) || Boolean(resourceError);
   const isHtmlPreview = artifact?.mime_type === "text/html";
 
   useEffect(() => {
