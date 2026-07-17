@@ -85,19 +85,18 @@ func (rt *Router) readyz(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *Router) accountAvailability(w http.ResponseWriter, r *http.Request) {
-	account := application.NormalizeAccount(r.URL.Query().Get("account"))
-	if !application.ValidAccount(account) {
+	account, available, err := rt.auth.AccountAvailability(r.Context(), r.URL.Query().Get("account"))
+	if errors.Is(err, application.ErrInvalidAccount) {
 		writeProblem(w, http.StatusBadRequest, "invalid_account", "account is required and must not contain whitespace or @")
 		return
 	}
-	exists, err := rt.store.UserExistsByAccount(r.Context(), account)
 	if err != nil {
 		writeProblem(w, http.StatusInternalServerError, "account_check_failed", "could not check account availability")
 		return
 	}
 	writeJSON(w, http.StatusOK, contracts.AccountAvailabilityResponse{
 		Account:   account,
-		Available: !exists,
+		Available: available,
 	})
 }
 

@@ -38,6 +38,10 @@ infrastructure 适配器，只有外部边界或多实现确有需要时才引�
 内部独立，例如 `api/http/routes/bots.py`、`application/bots.py` 和
 `infrastructure/persistence/repositories/bots.py`。
 
+只有业务不变量、值对象、策略和确定性状态转换可以进入 `domain/`。domain
+不得依赖 api、application、infrastructure、ORM、HTTP 框架或运行时 SDK；仅有
+CRUD/DTO 的服务不创建占位 domain。
+
 ## 数据库迁移
 
 - 每个服务的 SQL migration 放在

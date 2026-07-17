@@ -19,7 +19,7 @@ import {
   getLatestArtifactWorkspace,
 } from "../src/infrastructure/clients/knowledge.js";
 import { compileArtifactHtml } from "../src/application/artifacts/compiler.js";
-import { ARTIFACT_TEMPLATE_VERSION } from "../src/application/artifacts/validator.js";
+import { ARTIFACT_TEMPLATE_VERSION } from "../src/domain/artifacts/validator.js";
 import {
   buildArtifactTextModel,
   generateBlock,

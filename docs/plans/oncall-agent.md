@@ -64,13 +64,13 @@ oncall 能力靠"画像 + 现有 `search_knowledge` / `web_search` / `todo`"实�
   (`apps/backend/services/knowledge/src/application/retrieval.py`) + Anthropic
   Contextual Retrieval (`apps/backend/services/knowledge/src/application/contextual.py`)
   + CJK-aware 分块 (`apps/backend/services/knowledge/src/application/chunking.py`)。
-  `search_knowledge` (`apps/backend/services/chat/src/bootstrap/application/agent/tools/builtins/knowledge-search.ts`)
+  `search_knowledge` (`apps/backend/services/chat/src/application/agent/tools/builtins/knowledge-search.ts`)
   返回 chunk 数组而非灌全文，是真 RAG。
 - 知识管理层（现成）：admin 已有知识库管理页
   `apps/frontend/apps/admin/src/pages/KnowledgeBasePage.tsx`——上传任意格式自动转 md +
   建索引 + 列表/在线编辑/批量删除。
 - 消费层（现成）：chat `ToolLoopAgent` + `search_knowledge` + `web_search`
-  (`apps/backend/services/chat/src/bootstrap/application/agent/tools/builtins/web.ts`) + `todo`/`plan`，
+  (`apps/backend/services/chat/src/application/agent/tools/builtins/web.ts`) + `todo`/`plan`，
   足够支撑结构化排查。
 
 真正缺的两块：(1) oncall 专属画像（结构化 RCA 指令）；(2) 知识治理（新鲜度、团队共享）。
@@ -84,13 +84,13 @@ oncall 能力靠"画像 + 现有 `search_knowledge` / `web_search` / `todo`"实�
   (`apps/backend/services/admin/src/infrastructure/persistence/models/bot.py`)，`agent_id` 消费链路已存在
   (`apps/backend/services/chat/src/api/http/routes/agents.ts` 第 46 行)。
 - `AgentMode` 只有 `normal|plan` 且 mode 存在 conversation 上
-  (`apps/backend/services/chat/src/bootstrap/application/agent/runs/run.ts` 第 227 行)，走 mode 要改传递链路
+  (`apps/backend/services/chat/src/application/agent/runs/run.ts` 第 227 行)，走 mode 要改传递链路
   且不可由运营配置。
 - 现状缺口：bot / `ResolvedAgent`
   (`apps/backend/services/admin/src/application/contracts/bot.py`) 只有 name+provider，无画像；
   `getAgent` (`apps/backend/services/chat/src/infrastructure/clients/admin.ts` 第 89 行) 只取 provider；
   `buildAgentInstructions`
-  (`apps/backend/services/chat/src/bootstrap/application/agent/context/instructions.ts` 第 76 行) 不接收 agent 画像。
+  (`apps/backend/services/chat/src/application/agent/context/instructions.ts` 第 76 行) 不接收 agent 画像。
 
 画像注入链路（Phase 1 要打通的）：
 
@@ -138,9 +138,9 @@ chat 注入链路：
   `ResolvedAgentProviders` 带 `persona`。
 - `apps/backend/services/chat/src/api/http/routes/agents.ts`：`agent` 已解析，将 `persona` 经
   `RunAgentInput` 传入 `createAgentRunResponse`。
-- `apps/backend/services/chat/src/bootstrap/application/agent/runs/run.ts` 的 `createAgentRunResponse` 透传给
+- `apps/backend/services/chat/src/application/agent/runs/run.ts` 的 `createAgentRunResponse` 透传给
   `buildAgentInstructions`。
-- `apps/backend/services/chat/src/bootstrap/application/agent/context/instructions.ts` 的
+- `apps/backend/services/chat/src/application/agent/context/instructions.ts` 的
   `buildAgentInstructions` 增加可选 `agentPersona`，作为 `<agent_persona>` section 注入
   （在 `BASE_INSTRUCTIONS` 之后、mode 指令之后）。
 
@@ -178,7 +178,7 @@ chat 消费入口：
 ## Phase 3 — 可观测性联动（可选后续）
 
 - 经 MCP 动态注入
-  (`apps/backend/services/chat/src/bootstrap/application/agent/integrations/mcp/provider.ts`) 接
+  (`apps/backend/services/chat/src/application/agent/integrations/mcp/provider.ts`) 接
   metrics/logs/tracing 的只读工具，让 agent 从"读经验"升级到"读现场"；保持单 agent、
   只读、人在环。
 

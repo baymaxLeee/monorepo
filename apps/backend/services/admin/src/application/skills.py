@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
-import re
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from domain.skills import (
+    node_etag,
+    parse_skill_md,
+    published_paths,
+    root_skill_md,
+    validate_node_name,
+    validate_workspace,
+    workspace_hash,
+)
 from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.models.skill import SkillRow
 from infrastructure.persistence.models.skill_node import SkillNodeRow
-from infrastructure.persistence.models.skill_published_node import SkillPublishedNodeRow
 from infrastructure.persistence.repositories import skill_nodes as node_crud
 from infrastructure.persistence.repositories import skills as skill_crud
 from kernel.errors import ConflictError, NotFoundError, RequestError
@@ -40,11 +46,6 @@ from application.contracts.skill import (
     UpdateSkillFileContentInput,
     UpdateSkillInput,
 )
-
-_FRONTMATTER = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$")
-_NAME_LINE = re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE)
-_DESCRIPTION_LINE = re.compile(r"^description:\s*(.+?)\s*$", re.MULTILINE)
-_SKILL_NAME = re.compile(r"^[a-z](?:[a-z0-9]|-(?=[a-z0-9]))*[a-z0-9]$|^[a-z]$")
 
 
 def _iso(dt: datetime | None) -> str | None:
@@ -80,81 +81,6 @@ def to_summary(row: SkillRow) -> SkillSummary:
     return SkillSummary(**_summary_fields(row))  # type: ignore[arg-type]
 
 
-def _parse_skill_md(content: str) -> tuple[str, str, str]:
-    match = _FRONTMATTER.match(content)
-    if not match:
-        raise RequestError("SKILL.md must start with YAML frontmatter")
-    frontmatter, body = match.groups()
-    name = _NAME_LINE.search(frontmatter)
-    description = _DESCRIPTION_LINE.search(frontmatter)
-    if not name or not description:
-        raise RequestError("SKILL.md frontmatter must declare name and description")
-
-    def scalar(value: str) -> str:
-        value = value.strip()
-        if value.startswith('"'):
-            try:
-                parsed = json.loads(value)
-            except json.JSONDecodeError as error:
-                raise RequestError(f"invalid quoted frontmatter value: {error}") from error
-            if not isinstance(parsed, str):
-                raise RequestError("frontmatter name and description must be strings")
-            return parsed
-        if value.startswith("'") and value.endswith("'"):
-            return value[1:-1].replace("''", "'")
-        return value
-
-    parsed_name = scalar(name.group(1))
-    parsed_description = scalar(description.group(1))
-    if not _SKILL_NAME.fullmatch(parsed_name):
-        raise RequestError("SKILL.md name must use lowercase letters, digits and single hyphens")
-    if not parsed_description or len(parsed_description) > 1024:
-        raise RequestError("SKILL.md description must contain 1-1024 characters")
-    return parsed_name, parsed_description, body.strip()
-
-
-def _workspace_hash(nodes: Sequence[SkillNodeRow]) -> str:
-    by_id = {node.id: node for node in nodes}
-
-    def path(node: SkillNodeRow) -> str:
-        parts = [node.name]
-        parent_id = node.parent_id
-        seen = {node.id}
-        while parent_id:
-            if parent_id in seen or parent_id not in by_id:
-                raise RequestError("skill workspace contains an invalid parent chain")
-            seen.add(parent_id)
-            parent = by_id[parent_id]
-            parts.append(parent.name)
-            parent_id = parent.parent_id
-        return "/".join(reversed(parts))
-
-    digest = hashlib.sha256()
-    for node in sorted(nodes, key=path):
-        digest.update(path(node).encode())
-        digest.update(b"\0")
-        digest.update(node.node_type.encode())
-        digest.update(b"\0")
-        digest.update((node.content or "").encode())
-        digest.update(b"\0")
-    return digest.hexdigest()
-
-
-def _node_etag(node: SkillNodeRow) -> str:
-    digest = hashlib.sha256()
-    for value in (
-        node.id,
-        node.parent_id or "",
-        node.name,
-        node.node_type,
-        node.mime_type or "",
-        node.content or "",
-    ):
-        digest.update(value.encode())
-        digest.update(b"\0")
-    return digest.hexdigest()
-
-
 def _build_tree(nodes: Sequence[SkillNodeRow], *, include_content: bool) -> list[SkillFileNode]:
     children: dict[str | None, list[SkillNodeRow]] = {}
     for node in nodes:
@@ -168,7 +94,7 @@ def _build_tree(nodes: Sequence[SkillNodeRow], *, include_content: bool) -> list
             type=node.node_type,  # type: ignore[arg-type]
             parent_id=node.parent_id,
             mime_type=node.mime_type,
-            etag=_node_etag(node),
+            etag=node_etag(node),
             content=node.content if include_content and node.node_type == "file" else None,
             children=nested if node.node_type == "directory" else None,
         )
@@ -219,7 +145,7 @@ class SkillService:
             )
             self._session.add(node)
             await self._session.flush()
-            row.workspace_sha256 = _workspace_hash([node])
+            row.workspace_sha256 = workspace_hash([node])
         return to_schema(row)
 
     async def update(self, skill_id: str, payload: UpdateSkillInput) -> Skill:
@@ -245,7 +171,7 @@ class SkillService:
         node = await node_crud.get_workspace_node(self._session, skill_id, node_id)
         if node is None or node.node_type != "file":
             raise NotFoundError(f"skill file {node_id} not found")
-        return SkillFileContent(id=node.id, content=node.content or "", etag=_node_etag(node))
+        return SkillFileContent(id=node.id, content=node.content or "", etag=node_etag(node))
 
     async def create_node(self, skill_id: str, payload: CreateSkillNodeInput) -> SkillNodeMutationResult:
         async with write_tx(self._session):
@@ -254,7 +180,7 @@ class SkillService:
                 raise ConflictError(f"skill node {payload.id} already exists")
             await self._assert_parent_directory(skill_id, payload.parent_id)
             await self._assert_sibling_name_free(skill_id, payload.parent_id, payload.name)
-            self._validate_node_name(payload.name)
+            validate_node_name(payload.name)
             now = datetime.now(UTC)
             node = SkillNodeRow(
                 id=payload.id,
@@ -271,7 +197,7 @@ class SkillService:
             self._session.add(node)
             await self._session.flush()
             await self._finish_draft_mutation(row)
-        return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=_node_etag(node))
+        return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=node_etag(node))
 
     async def update_file_content(
         self, skill_id: str, node_id: str, payload: UpdateSkillFileContentInput
@@ -286,7 +212,7 @@ class SkillService:
             node.updated_at = datetime.now(UTC)
             await self._session.flush()
             await self._finish_draft_mutation(row)
-        return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=_node_etag(node))
+        return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=node_etag(node))
 
     async def rename_node(self, skill_id: str, node_id: str, payload: RenameSkillNodeInput) -> SkillNodeMutationResult:
         async with write_tx(self._session):
@@ -294,14 +220,14 @@ class SkillService:
             node = await self._get_node(skill_id, node_id)
             self._assert_node_etag(node, payload.base_etag)
             self._assert_mutable_root(node, "renamed")
-            self._validate_node_name(payload.name)
+            validate_node_name(payload.name)
             await self._assert_sibling_name_free(skill_id, node.parent_id, payload.name, excluding_id=node.id)
             node.name = payload.name
             node.mime_type = "text/markdown" if payload.name.endswith(".md") else "text/plain"
             node.updated_at = datetime.now(UTC)
             await self._session.flush()
             await self._finish_draft_mutation(row)
-        return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=_node_etag(node))
+        return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=node_etag(node))
 
     async def move_node(self, skill_id: str, node_id: str, payload: MoveSkillNodeInput) -> SkillNodeMutationResult:
         async with write_tx(self._session):
@@ -317,7 +243,7 @@ class SkillService:
             node.updated_at = datetime.now(UTC)
             await self._session.flush()
             await self._finish_draft_mutation(row)
-        return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=_node_etag(node))
+        return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=node_etag(node))
 
     async def delete_node(self, skill_id: str, node_id: str, base_etag: str) -> SkillNodeMutationResult:
         async with write_tx(self._session):
@@ -379,8 +305,8 @@ class SkillService:
         )
         if skill_md is None:
             raise NotFoundError(f"published skill {skill_id} has no SKILL.md")
-        name, description, body = _parse_skill_md(skill_md.content or "")
-        paths = self._published_paths(nodes)
+        name, description, body = parse_skill_md(skill_md.content or "")
+        paths = published_paths(nodes)
         return InternalSkill(
             id=row.id,
             name=name,
@@ -394,7 +320,7 @@ class SkillService:
         if row is None or row.status != "published" or not row.is_enabled:
             raise NotFoundError(f"published skill {skill_id} not found")
         nodes = await node_crud.list_published_nodes(self._session, skill_id)
-        paths = self._published_paths(nodes)
+        paths = published_paths(nodes)
         node = next((node for node in nodes if paths.get(node.node_id) == path), None)
         if node is None or node.node_type != "file":
             raise NotFoundError(f"published skill file {path} not found")
@@ -402,10 +328,10 @@ class SkillService:
 
     async def _finish_draft_mutation(self, row: SkillRow) -> None:
         nodes = await node_crud.list_workspace_nodes(self._session, row.id)
-        self._validate_structure(nodes)
-        skill_md = self._root_skill_md(nodes)
+        validate_workspace(nodes)
+        skill_md = root_skill_md(nodes)
         try:
-            name, description, _ = _parse_skill_md(skill_md.content or "")
+            name, description, _ = parse_skill_md(skill_md.content or "")
         except RequestError:
             pass
         else:
@@ -414,7 +340,7 @@ class SkillService:
             row.name = name
             row.description = description
         row.workspace_seq += 1
-        row.workspace_sha256 = _workspace_hash(nodes)
+        row.workspace_sha256 = workspace_hash(nodes)
         row.updated_at = datetime.now(UTC)
         await self._session.flush()
 
@@ -452,17 +378,12 @@ class SkillService:
 
     @staticmethod
     def _assert_node_etag(node: SkillNodeRow, expected: str) -> None:
-        current = _node_etag(node)
+        current = node_etag(node)
         if current != expected:
             raise ConflictError(
                 f"skill node {node.id} changed in another session",
                 details={"expected": expected, "current": current},
             )
-
-    @staticmethod
-    def _validate_node_name(name: str) -> None:
-        if name in {".", ".."} or "/" in name or "\\" in name:
-            raise RequestError("file names may not contain path separators")
 
     @staticmethod
     def _assert_mutable_root(node: SkillNodeRow, action: str) -> None:
@@ -472,51 +393,12 @@ class SkillService:
     def _validation_result(self, nodes: Sequence[SkillNodeRow]) -> SkillValidationResult:
         issues: list[SkillValidationIssue] = []
         try:
-            self._validate_structure(nodes)
-            skill_md = self._root_skill_md(nodes)
-            _parse_skill_md(skill_md.content or "")
+            validate_workspace(nodes)
+            skill_md = root_skill_md(nodes)
+            parse_skill_md(skill_md.content or "")
         except RequestError as error:
             issues.append(SkillValidationIssue(path="SKILL.md", message=error.message))
         return SkillValidationResult(ok=not issues, issues=issues)
-
-    def _validate_structure(self, nodes: Sequence[SkillNodeRow]) -> None:
-        if len(nodes) > 500:
-            raise RequestError("a skill may contain at most 500 nodes")
-        by_id = {node.id: node for node in nodes}
-        for node in nodes:
-            if node.parent_id and node.parent_id not in by_id:
-                raise RequestError(f"node {node.name} has a missing parent")
-            if node.parent_id and by_id[node.parent_id].node_type != "directory":
-                raise RequestError(f"node {node.name} parent is not a directory")
-        _workspace_hash(nodes)
-        self._root_skill_md(nodes)
-
-    @staticmethod
-    def _root_skill_md(nodes: Sequence[SkillNodeRow]) -> SkillNodeRow:
-        matches = [
-            node for node in nodes if node.parent_id is None and node.name == "SKILL.md" and node.node_type == "file"
-        ]
-        if len(matches) != 1:
-            raise RequestError("workspace must contain exactly one root SKILL.md")
-        return matches[0]
-
-    @staticmethod
-    def _published_paths(nodes: Sequence[SkillPublishedNodeRow]) -> dict[str, str]:
-        by_id = {node.node_id: node for node in nodes}
-        result: dict[str, str] = {}
-        for node_id, node in by_id.items():
-            parts = [node.name]
-            parent_id = node.parent_node_id
-            seen = {node_id}
-            while parent_id:
-                if parent_id in seen or parent_id not in by_id:
-                    raise RequestError("published skill contains an invalid parent chain")
-                seen.add(parent_id)
-                parent = by_id[parent_id]
-                parts.append(parent.name)
-                parent_id = parent.parent_node_id
-            result[node_id] = "/".join(reversed(parts))
-        return result
 
     @staticmethod
     def _assert_workspace_seq(row: SkillRow, expected: int) -> None:

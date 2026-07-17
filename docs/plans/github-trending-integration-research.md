@@ -20,7 +20,7 @@
 
 ### 已成熟、无需替换
 
-- Agent 运行时 = AI SDK v7 `ToolLoopAgent`（`apps/backend/services/chat/src/bootstrap/application/agent/agents/tool-loop.ts`，含 `stopWhen`、tool approval、`toolsContext`）
+- Agent 运行时 = AI SDK v7 `ToolLoopAgent`（`apps/backend/services/chat/src/application/agent/agents/tool-loop.ts`，含 `stopWhen`、tool approval、`toolsContext`）
 - 持久后台任务 = Workflow DevKit + Nitro（`apps/backend/services/executor/`）
 - RAG = pgvector 混合检索（dense + BM25 + RRF + rerank + Contextual Retrieval，`apps/backend/services/knowledge/`）
 - 文档转换 = `markitdown[all]>=0.1.3`（`apps/backend/services/knowledge/src/application/convert.py`，图片走 vision LLM caption）

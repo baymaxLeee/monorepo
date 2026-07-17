@@ -11,35 +11,22 @@ from __future__ import annotations
 
 import base64
 import logging
-from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Literal
 
 import anyio
 from bootstrap.config import get_settings
+from domain.chunking import chunk_text, estimate_tokens
+from domain.indexing import IndexResult
 from infrastructure.persistence.models.chunk import DocumentChunkRow
 from infrastructure.persistence.models.document import DocumentRow
 from infrastructure.persistence.repositories import chunks as chunk_crud
 
 from application.admin_client import ProviderNotConfiguredError, ProviderSnapshot, get_admin_client
-from application.chunking import chunk_text, estimate_tokens
 from application.contextual import contextualize_chunks
 from application.embed_client import embed_image, embed_texts, is_multimodal_embedding_model
 from application.object_store import ObjectStore
 
 logger = logging.getLogger("knowledge.indexing")
-
-
-# Outcome of a single index_document run. Distinct from contracts.document.IndexStatus
-# (the persisted workflow state: pending/indexing/indexed/skipped/failed).
-IndexOutcome = Literal["indexed", "skipped", "failed"]
-
-
-@dataclass(frozen=True)
-class IndexResult:
-    status: IndexOutcome
-    indexed: int = 0
-    reason: str | None = None
 
 
 def _is_image_document(row: DocumentRow) -> bool:

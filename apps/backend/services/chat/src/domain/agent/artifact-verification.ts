@@ -1,5 +1,3 @@
-import { isToolOutcome, toolOutcomeData } from "../tools/outcome.js";
-
 type VerificationFinding = {
   code: string;
   reason: string;
@@ -19,6 +17,14 @@ export type ArtifactVerificationState = {
   current?: VerificationItem;
   queuedDocumentIds: string[];
   processedToolCallIds: string[];
+};
+
+export type ArtifactVerificationEvent = {
+  toolCallId: string;
+  toolName: string;
+  outcome:
+    | { kind: "completed"; data: unknown }
+    | { kind: "failed"; message: string };
 };
 
 type ArtifactRepairChange = {
@@ -99,12 +105,12 @@ function actionableFindings(output: Record<string, unknown>): VerificationFindin
   });
 }
 
-function applyToolResult(
+function applyEvent(
   state: ArtifactVerificationState,
-  toolName: string,
-  outputValue: unknown,
+  event: ArtifactVerificationEvent,
 ): ArtifactVerificationState {
-  if (!isToolOutcome(outputValue) || outputValue.status !== "completed") {
+  const { toolName, outcome } = event;
+  if (outcome.kind === "failed") {
     const expectedTool = state.current?.phase === "verify" ? "html_validate" : "edit_file";
     if (state.current && toolName === expectedTool) {
       return {
@@ -112,16 +118,13 @@ function applyToolResult(
         current: {
           ...state.current,
           phase: "failed",
-          failure:
-            isToolOutcome(outputValue) && outputValue.ok === false
-              ? outputValue.error.message
-              : `${toolName} returned an invalid outcome during the internal quality gate`,
+          failure: outcome.message,
         },
       };
     }
     return state;
   }
-  const output = recordValue(toolOutcomeData(outputValue));
+  const output = recordValue(outcome.data);
   if (!output) return state;
   if (toolName === "write_file" || toolName === "edit_file") {
     if (output.kind !== "html" || typeof output.document_id !== "string") {
@@ -154,39 +157,16 @@ function applyToolResult(
   return { ...state, current: { ...state.current, phase: "repair", findings } };
 }
 
-export function reduceArtifactVerificationSteps(
+export function reduceArtifactVerificationEvents(
   initial: ArtifactVerificationState,
-  steps: ReadonlyArray<{ content: ReadonlyArray<unknown> }>,
+  events: ReadonlyArray<ArtifactVerificationEvent>,
 ): ArtifactVerificationState {
   let state = initial;
   const processed = new Set(initial.processedToolCallIds);
-  for (const step of steps) {
-    for (const raw of step.content) {
-      const part = recordValue(raw);
-      if (!part || typeof part.toolCallId !== "string" || processed.has(part.toolCallId)) continue;
-      if (part.type === "tool-result" && typeof part.toolName === "string") {
-        state = applyToolResult(state, part.toolName, part.output);
-        processed.add(part.toolCallId);
-      } else if (part.type === "tool-error" && typeof part.toolName === "string") {
-        processed.add(part.toolCallId);
-        const expectedTool =
-          state.current?.phase === "verify"
-            ? "html_validate"
-            : state.current?.phase === "repair"
-              ? "edit_file"
-              : null;
-        if (state.current && part.toolName === expectedTool) {
-          state = {
-            ...state,
-            current: {
-              ...state.current,
-              phase: "failed",
-              failure: `${part.toolName} failed during the internal quality gate`,
-            },
-          };
-        }
-      }
-    }
+  for (const event of events) {
+    if (processed.has(event.toolCallId)) continue;
+    state = applyEvent(state, event);
+    processed.add(event.toolCallId);
   }
   return { ...state, processedToolCallIds: [...processed] };
 }

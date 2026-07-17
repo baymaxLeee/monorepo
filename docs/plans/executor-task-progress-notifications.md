@@ -222,7 +222,7 @@ sequenceDiagram
    `internalAuthMiddleware`）应用到新的 `/internal/*` 路由组——chat 目前没有
    任何入站 `/internal/*` 路由，这是第一个。
 8. **传输：泛化现有 resumable stream 支持 task-scoped 流。**
-   `apps/backend/services/chat/src/bootstrap/application/agent/streams/service.ts` 目前按 `runId`
+   `apps/backend/services/chat/src/application/agent/streams/service.ts` 目前按 `runId`
    建流（`chat:agent-streams:{runId}:sse`）。新增一组并列函数（或参数化 key）
    支持 `chat:task-streams:{taskId}`：`appendTaskChunk(taskId, chunk)`、
    `replayTaskStream(taskId)`（复用 `XREAD BLOCK` + duplicate 连接的既有做法）、
@@ -242,7 +242,7 @@ sequenceDiagram
    - 生成 chunk 的推荐做法：用官方 `createUIMessageStream({execute})` 写一个
      part 再序列化为 SSE，或直接按数据流协议拼一行；实现时以 AI SDK 导出的
      序列化工具为准，**不手写私有格式**。
-10. `apps/backend/services/chat/src/bootstrap/application/conversations.ts` 新增
+10. `apps/backend/services/chat/src/application/conversations.ts` 新增
     `findMessageByToolCallId(conversationId, toolCallId)`：扫描该会话消息，
     反序列化 `content`，匹配某个 tool part 的 `toolCallId`。仅终态调用（低频）。
 11. `GET /:conversationId/tasks/:taskId/stream`（`agents.ts`，鉴权同其它

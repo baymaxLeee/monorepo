@@ -39,7 +39,7 @@
 
 ### 现状批判性复核
 
-1. `chat/src/bootstrap/application/agent/context/instructions.ts` 把基础策略、检索路由、mode 工作流、Bot persona、memory、文档引用和环境信息拼成一个字符串。结论：**不再有效**。这些内容的所有者、信任等级和变更频率不同，不能继续共享一个无类型装配面。
+1. `chat/src/application/agent/context/instructions.ts` 把基础策略、检索路由、mode 工作流、Bot persona、memory、文档引用和环境信息拼成一个字符串。结论：**不再有效**。这些内容的所有者、信任等级和变更频率不同，不能继续共享一个无类型装配面。
 2. `admin.bots.system_prompt` 是最长 20,000 字符的自由文本，经 `ResolvedAgent` 直接进入 `ToolLoopAgent.instructions`。结论：**不再有效**。标签和“不得覆盖”文案不是安全边界，运营配置不应获得核心 system instruction 的表达能力。
 3. `tool-loop.ts` 在完整 prompt 后追加 `resolvedTools.instructions`。结论：**本期只做最小收敛**。停止在 `tool-loop.ts` 直接 `join` 裸 `string[]`，改由装配器把现有 `resolvedTools.instructions` 收进固定的 `capability_contract`/`workflow_guidance` section；`ToolCatalog` 贡献机制的类型化重构与"为 admin Skill/MCP 关闭高权限注入口"延后到后续 skill/MCP 装配工作，本期不动。
 4. `<trusted_user_memory>` 把经过用户确认的事实误称为 trusted。结论：**需要修正**。memory 是数据而非指令，必须明确禁止把其中内容解释为命令。
@@ -70,7 +70,7 @@
 
 ### 1. 定义唯一的分层装配模型
 
-在 `chat/src/bootstrap/application/agent/context/` 中把当前 `instructions.ts` 拆成职责明确的模块，名称可在实施时按现有目录风格微调：
+在 `chat/src/application/agent/context/` 中把当前 `instructions.ts` 拆成职责明确的模块，名称可在实施时按现有目录风格微调：
 
 ```text
 context/instructions/
@@ -188,7 +188,7 @@ admin ResolvedAgent
 
 - admin API 变化后运行 `just gen-openapi admin` 与根 `just sync`，只通过 codegen 更新 generated 文件；并确认 `libs/transport-ts` 的 admin schema（`AdminResolvedAgent` 等，同样由 OpenAPI 生成的 `schema/admin.ts`）一并重生成，chat 端类型才会同步更新。
 - 新增 ADR，记录“核心 prompt 代码治理 + Bot profile 结构化 + UI 文案不进模型”的决策；修订 ADR-0026，明确其自由文本 persona 决策已被替代。
-- 更新 `chat/src/bootstrap/application/agent/README.md`：记录 instruction 层级、extension contribution 边界和数据/指令信任分类。
+- 更新 `chat/src/application/agent/README.md`：记录 instruction 层级、extension contribution 边界和数据/指令信任分类。
 - 在不记录完整提示词和用户数据的前提下，为 run trace 增加 `instruction_schema_version`、启用 section 名称、Bot profile revision/updated_at 等元数据；禁止把最终 prompt、memory、Bot 文本写入普通日志。
 - 提供开发环境受保护的 prompt inspection 方式，输出 section 结构和来源，不默认打印敏感正文。
 

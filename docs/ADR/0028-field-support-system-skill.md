@@ -76,5 +76,5 @@ full Skill only when the task matches.
 - ADR-0011: ToolLoopAgent core
 - ADR-0018 plan: Skill progressive disclosure and run-scoped extensions
 - ADR-0023: tool contracts and small flat ToolSet
-- `apps/backend/services/chat/src/bootstrap/application/agent/README.md`
+- `apps/backend/services/chat/src/application/agent/README.md`
 - `docs/plans/agent-extensions-mcp-skill-subagent.md`

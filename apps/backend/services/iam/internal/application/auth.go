@@ -11,6 +11,7 @@ import (
 
 	"github.com/example/monorepo/iam/internal/application/contracts"
 	"github.com/example/monorepo/iam/internal/bootstrap/config"
+	"github.com/example/monorepo/iam/internal/domain"
 	"github.com/example/monorepo/iam/internal/infrastructure/persistence/models"
 	"github.com/example/monorepo/iam/internal/infrastructure/persistence/repositories"
 	"github.com/example/monorepo/iam/internal/infrastructure/security"
@@ -25,11 +26,20 @@ func NewAuthService(store *repositories.Store, cfg config.Config) *AuthService {
 	return &AuthService{store: store, cfg: cfg}
 }
 
+func (s *AuthService) AccountAvailability(ctx context.Context, value string) (string, bool, error) {
+	account := domain.NormalizeAccount(value)
+	if !domain.ValidAccount(account) {
+		return "", false, ErrInvalidAccount
+	}
+	exists, err := s.store.UserExistsByAccount(ctx, account)
+	return account, !exists, err
+}
+
 func (s *AuthService) Register(ctx context.Context, req contracts.AuthRequest, meta RequestMeta) (contracts.AuthResponse, string, time.Time, error) {
-	req.Account = NormalizeAccount(req.Account)
-	req.Email = NormalizeEmail(req.Email)
+	req.Account = domain.NormalizeAccount(req.Account)
+	req.Email = domain.NormalizeEmail(req.Email)
 	orgID := strings.TrimSpace(req.OrgID)
-	if !ValidAccount(req.Account) || !ValidEmail(req.Email) || len(req.Password) < 6 {
+	if !domain.ValidAccount(req.Account) || !domain.ValidEmail(req.Email) || len(req.Password) < 6 {
 		return contracts.AuthResponse{}, "", time.Time{}, ErrInvalidRegistration
 	}
 	if orgID != "" && orgID != s.cfg.GuestOrgID {
@@ -61,8 +71,8 @@ func (s *AuthService) Register(ctx context.Context, req contracts.AuthRequest, m
 		DisplayName:     displayName,
 		AvatarURL:       strings.TrimSpace(req.AvatarURL),
 		Phone:           strings.TrimSpace(req.PhoneNumber),
-		Locale:          Fallback(req.Locale, "zh-CN"),
-		Timezone:        Fallback(req.Timezone, "Asia/Shanghai"),
+		Locale:          domain.Fallback(req.Locale, "zh-CN"),
+		Timezone:        domain.Fallback(req.Timezone, "Asia/Shanghai"),
 		Theme:           "system",
 		CreatedAt:       now,
 		UpdatedAt:       now,
@@ -74,7 +84,7 @@ func (s *AuthService) Register(ctx context.Context, req contracts.AuthRequest, m
 }
 
 func (s *AuthService) Login(ctx context.Context, req contracts.AuthRequest, meta RequestMeta) (contracts.AuthResponse, string, time.Time, error) {
-	user, passwordHash, err := s.store.UserByAccount(ctx, NormalizeAccount(req.Account))
+	user, passwordHash, err := s.store.UserByAccount(ctx, domain.NormalizeAccount(req.Account))
 	if err != nil || !security.VerifyPassword(passwordHash, req.Password) {
 		return contracts.AuthResponse{}, "", time.Time{}, ErrInvalidCredentials
 	}
@@ -318,34 +328,6 @@ type RequestMeta struct {
 
 func RequestMetaFromHTTP(r *http.Request) RequestMeta {
 	return RequestMeta{UserAgent: UserAgent(r), IPAddress: ClientIP(r)}
-}
-
-func NormalizeEmail(email string) string {
-	return strings.ToLower(strings.TrimSpace(email))
-}
-
-func NormalizeAccount(account string) string {
-	return strings.ToLower(strings.TrimSpace(account))
-}
-
-func ValidEmail(email string) bool {
-	local, domain, ok := strings.Cut(email, "@")
-	return ok && local != "" && domain != "" && !strings.ContainsAny(email, " \t\r\n") && !strings.Contains(domain, "@")
-}
-
-func ValidAccount(account string) bool {
-	if account == "" || len(account) > 64 {
-		return false
-	}
-	return !strings.ContainsAny(account, " \t\r\n@")
-}
-
-func Fallback(value, fallback string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return fallback
-	}
-	return value
 }
 
 func NewID() string {

@@ -20,6 +20,7 @@ refresh tokens, and user profile preferences.
 - `internal/application/contracts/` — request/response DTOs
 - `internal/api/http/middleware/` — HTTP middleware
 - `internal/application/` — auth, session, and role business logic
+- `internal/domain/` — identity, organization, and membership value rules
 - `internal/infrastructure/persistence/repositories/` — ORM persistence operations
 - `internal/infrastructure/persistence/models/` — GORM table models
 - `internal/infrastructure/security/` — password hashing and token primitives

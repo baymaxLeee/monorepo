@@ -8,6 +8,7 @@ import (
 
 	"github.com/example/monorepo/iam/internal/application/contracts"
 	"github.com/example/monorepo/iam/internal/bootstrap/config"
+	"github.com/example/monorepo/iam/internal/domain"
 	"github.com/example/monorepo/iam/internal/infrastructure/persistence/models"
 	"github.com/example/monorepo/iam/internal/infrastructure/persistence/repositories"
 	"github.com/example/monorepo/iam/internal/infrastructure/security"
@@ -57,8 +58,8 @@ func (s *OrgService) ListForAdmin(ctx context.Context) ([]contracts.OrgAdminView
 // super_admin is not auto-joined.
 func (s *OrgService) Create(ctx context.Context, req contracts.CreateOrgRequest, meta AuditMeta) (contracts.OrgAdminView, error) {
 	name := strings.TrimSpace(req.Name)
-	slug := normalizeSlug(req.Slug)
-	if name == "" || !validSlug(slug) {
+	slug := domain.NormalizeSlug(req.Slug)
+	if name == "" || !domain.ValidSlug(slug) {
 		return contracts.OrgAdminView{}, ErrInvalidOrg
 	}
 	hasExisting := strings.TrimSpace(req.OwnerUserID) != ""
@@ -86,9 +87,9 @@ func (s *OrgService) Create(ctx context.Context, req contracts.CreateOrgRequest,
 			return contracts.OrgAdminView{}, ErrConflict
 		}
 	} else {
-		account := NormalizeAccount(req.OwnerAccount)
-		email := NormalizeEmail(req.OwnerEmail)
-		if !ValidAccount(account) || !ValidEmail(email) || len(req.OwnerPassword) < 6 {
+		account := domain.NormalizeAccount(req.OwnerAccount)
+		email := domain.NormalizeEmail(req.OwnerEmail)
+		if !domain.ValidAccount(account) || !domain.ValidEmail(email) || len(req.OwnerPassword) < 6 {
 			return contracts.OrgAdminView{}, ErrInvalidOrg
 		}
 		hash, err := security.HashPassword(req.OwnerPassword)
@@ -132,9 +133,9 @@ func (s *OrgService) CreateOrgAdmin(ctx context.Context, orgID string, req contr
 	if _, err := s.store.OrganizationByID(ctx, orgID); err != nil {
 		return contracts.OrgMemberView{}, ErrOrgNotFound
 	}
-	account := NormalizeAccount(req.Account)
-	email := NormalizeEmail(req.Email)
-	if !ValidAccount(account) || !ValidEmail(email) || len(req.Password) < 6 {
+	account := domain.NormalizeAccount(req.Account)
+	email := domain.NormalizeEmail(req.Email)
+	if !domain.ValidAccount(account) || !domain.ValidEmail(email) || len(req.Password) < 6 {
 		return contracts.OrgMemberView{}, ErrInvalidRegistration
 	}
 	hash, err := security.HashPassword(req.Password)
@@ -257,7 +258,7 @@ func (s *OrgService) Reject(ctx context.Context, orgID, userID, reviewerID, reas
 
 func (s *OrgService) SetMemberRole(ctx context.Context, orgID, userID, role string, meta AuditMeta) error {
 	role = strings.TrimSpace(role)
-	if role != "org_admin" && role != "member" {
+	if !domain.ValidMemberRole(role) {
 		return ErrInvalidRole
 	}
 	beforeRole, _, _ := s.store.MemberRoleStatus(ctx, orgID, userID)
@@ -335,14 +336,3 @@ func mapMembershipErr(err error) error {
 // ErrNotFound mirrors repositories.ErrNotFound at the service boundary for router
 // mapping without importing crud there.
 var ErrNotFound = errors.New("not found")
-
-func normalizeSlug(slug string) string {
-	return strings.ToLower(strings.TrimSpace(slug))
-}
-
-func validSlug(slug string) bool {
-	if slug == "" || len(slug) > 64 {
-		return false
-	}
-	return !strings.ContainsAny(slug, " \t\r\n@")
-}

@@ -48,11 +48,17 @@ Go for performance-critical services (gateway).
 - Keep business resources separated end-to-end inside every service.
 - Each table/resource gets its own resource-specific modules, for example
   `application/contracts/<resource>.py`, `api/http/routes/<resource>.py`,
-  `application/<resource>.py`, `infrastructure/persistence/models/<resource>.py`,
+  `application/<resource>.py`, optional `domain/<resource>.py`,
+  `infrastructure/persistence/models/<resource>.py`,
   and `infrastructure/persistence/repositories/<resource>.py` for Python services.
 - Do NOT merge distinct business resources into a generic shared
   CRUD/model/schema/service layer just to reduce boilerplate. Prefer explicit,
   single-responsibility modules that can evolve independently.
+- `domain/` is reserved for framework-independent invariants, value objects,
+  policies, and deterministic state transitions. It MUST NOT import `api`,
+  `application`, `infrastructure`, ORM models, HTTP frameworks, or runtime SDKs.
+- Do not create placeholder domain modules for transport DTOs or CRUD-only
+  resources.
 - Small shared helpers are acceptable only when they are behavior-free
   infrastructure glue; resource ownership, query rules, DTOs, and business
   orchestration stay in the resource-specific modules.

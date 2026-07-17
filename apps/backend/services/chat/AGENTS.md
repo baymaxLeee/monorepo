@@ -188,6 +188,7 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 - `src/api/http/routes/agents.ts` — run stream and trace routes
 - `src/application/agent/runs/run.ts` — request/stream/persistence orchestration
 - `src/application/agent/agents/tool-loop.ts` — ToolLoopAgent implementation
+- `src/domain/agent/artifact-verification.ts` — pure Artifact validation state machine
 - `src/application/agent/tools/catalog.ts` — manifest resolution and run-scoped extension assembly
 - `src/application/agent/context/projector.ts` — bounded model context projection
 - `src/application/agent/README.md` — module boundaries and extension rules

@@ -17,7 +17,7 @@ that step has a hard, SDK-level property:
 
 - `ToolLoopAgent` is created with `parallelToolCalls: true` (plan mode only
   filters plan writes that conflict with a same-step `ask_user`)
-  (`services/chat/src/bootstrap/application/agent/agents/tool-loop.ts`). A step executes every tool
+  (`services/chat/src/application/agent/agents/tool-loop.ts`). A step executes every tool
   call via `executeTools` → `await Promise.all(toolCalls.map(executeToolCall))`
   (`ai@7.0.15` `dist/index.js`), and `executeToolCall` consumes each tool's async
   generator **to its final yield** (`for await (... ) { ... }`). Intermediate

@@ -9,7 +9,7 @@ import {
   mergeArtifactValidationFindings,
   type HtmlValidationFinding,
   type HtmlValidationReport,
-} from "./validator.js";
+} from "../../domain/artifacts/validator.js";
 
 const reviewFindingSchema = z.object({
   code: z.string().min(1).max(120),

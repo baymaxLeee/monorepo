@@ -328,7 +328,7 @@ Stop
 
 ### 4.4 两段项目证据：真实 Agent 配置 + 真实 Tools
 
-第一段在 `apps/backend/services/chat/src/bootstrap/application/agent/agents/tool-loop.ts`。项目把模型循环交给 SDK，只在 `prepareStep` 里读取已经发生的 Step，并用 Artifact 状态机强制下一步：
+第一段在 `apps/backend/services/chat/src/application/agent/agents/tool-loop.ts`。项目把模型循环交给 SDK，只在 `prepareStep` 里读取已经发生的 Step，并用 Artifact 状态机强制下一步：
 
 ```ts
 const agent = new ToolLoopAgent({
@@ -683,7 +683,7 @@ async function compilePublishStep(input: CompileArtifactInput) {
 
 ### A. 真实 Run Instructions（双语快照）
 
-本地 Chat Service 的真实 HTTP Run 会在 `ToolLoopAgent` 创建前捕获 `assembleInstructions()` 的最终返回值。完整快照位于 `apps/backend/services/chat/src/bootstrap/application/agent/context/system-prompt.xml`：约 34KB，前半部分是 Runtime 实际消费的英文 Instructions，后半部分是逐段中文翻译；中文部分只供分享阅读，不会注入模型。
+本地 Chat Service 的真实 HTTP Run 会在 `ToolLoopAgent` 创建前捕获 `assembleInstructions()` 的最终返回值。完整快照位于 `apps/backend/services/chat/src/application/agent/context/system-prompt.xml`：约 34KB，前半部分是 Runtime 实际消费的英文 Instructions，后半部分是逐段中文翻译；中文部分只供分享阅读，不会注入模型。
 
 下面保留与本次分享直接相关的真实原文。为控制母稿长度，只选取关键 section；内容逐行来自该快照，不是重新编写的示例。
 
@@ -761,16 +761,16 @@ Your training data has a cutoff and may be stale. For anything time-sensitive, r
 
 | 分享主题 | 项目实现 |
 |---|---|
-| Run orchestration / persistence / continuation | `apps/backend/services/chat/src/bootstrap/application/agent/runs/run.ts` |
-| ToolLoopAgent / prepareStep / toolsContext | `apps/backend/services/chat/src/bootstrap/application/agent/agents/tool-loop.ts` |
-| Instructions assembly | `apps/backend/services/chat/src/bootstrap/application/agent/context/instructions/` |
-| 真实双语 Instructions | `apps/backend/services/chat/src/bootstrap/application/agent/context/system-prompt.xml` |
-| Context budget / file transform / ModelMessage projection | `apps/backend/services/chat/src/bootstrap/application/agent/context/projector.ts` |
-| Tool Catalog / Manifest policy | `apps/backend/services/chat/src/bootstrap/application/agent/tools/catalog.ts`、`manifest.ts` |
-| Search / Artifact Tool Schema | `apps/backend/services/chat/src/bootstrap/application/agent/tools/builtins/search.ts`、`artifacts.ts` |
-| HTML quality-gate state machine | `apps/backend/services/chat/src/bootstrap/application/agent/agents/artifact-verification.ts` |
+| Run orchestration / persistence / continuation | `apps/backend/services/chat/src/application/agent/runs/run.ts` |
+| ToolLoopAgent / prepareStep / toolsContext | `apps/backend/services/chat/src/application/agent/agents/tool-loop.ts` |
+| Instructions assembly | `apps/backend/services/chat/src/application/agent/context/instructions/` |
+| 真实双语 Instructions | `apps/backend/services/chat/src/application/agent/context/system-prompt.xml` |
+| Context budget / file transform / ModelMessage projection | `apps/backend/services/chat/src/application/agent/context/projector.ts` |
+| Tool Catalog / Manifest policy | `apps/backend/services/chat/src/application/agent/tools/catalog.ts`、`manifest.ts` |
+| Search / Artifact Tool Schema | `apps/backend/services/chat/src/application/agent/tools/builtins/search.ts`、`artifacts.ts` |
+| HTML quality-gate state machine | `apps/backend/services/chat/src/domain/agent/artifact-verification.ts` |
 | Durable HTML Workflow | `apps/backend/services/executor/workflows/html-artifact.ts` |
-| Typed Outline / Block generation prompt | `apps/backend/services/executor/src/bootstrap/application/artifacts/generator.ts` |
-| Grid/Flex/Chart Template contract | `apps/backend/services/executor/src/bootstrap/application/artifacts/compiler.ts`、`template.ts` |
-| Static validator / model reviewer | `apps/backend/services/executor/src/bootstrap/application/artifacts/validator.ts`、`reviewer.ts` |
+| Typed Outline / Block generation prompt | `apps/backend/services/executor/src/application/artifacts/generator.ts` |
+| Grid/Flex/Chart Template contract | `apps/backend/services/executor/src/application/artifacts/compiler.ts`、`template.ts` |
+| Static validator / model reviewer | `apps/backend/services/executor/src/domain/artifacts/validator.ts`、`reviewer.ts` |
 | Provider / chat-completions compatibility | `apps/backend/libs/transport-ts/src/provider-model.ts` |

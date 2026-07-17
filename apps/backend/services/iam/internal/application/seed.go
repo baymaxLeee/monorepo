@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/example/monorepo/iam/internal/bootstrap/config"
+	"github.com/example/monorepo/iam/internal/domain"
 	"github.com/example/monorepo/iam/internal/infrastructure/persistence/models"
 	"github.com/example/monorepo/iam/internal/infrastructure/persistence/repositories"
 	"github.com/example/monorepo/iam/internal/infrastructure/security"
@@ -18,9 +19,9 @@ func EnsureSystemBootstrap(ctx context.Context, store *repositories.Store, cfg c
 	now := time.Now().UTC()
 	user := models.User{
 		ID:              cfg.SuperAdminID,
-		Account:         NormalizeAccount(cfg.SuperAdminAccount),
-		Email:           NormalizeEmail(cfg.SuperAdminEmail),
-		EmailNormalized: NormalizeEmail(cfg.SuperAdminEmail),
+		Account:         domain.NormalizeAccount(cfg.SuperAdminAccount),
+		Email:           domain.NormalizeEmail(cfg.SuperAdminEmail),
+		EmailNormalized: domain.NormalizeEmail(cfg.SuperAdminEmail),
 		DisplayName:     cfg.SuperAdminDisplayName,
 		Locale:          "zh-CN",
 		Timezone:        "Asia/Shanghai",

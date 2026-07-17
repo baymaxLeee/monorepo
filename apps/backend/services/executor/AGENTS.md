@@ -142,11 +142,12 @@ generation.
 - `nitro.config.ts` — Nitro + `workflow/nitro` build config; routes `/**` to
   `src/index.ts`.
 - `src/index.ts` — Nitro-mounted Hono app entry + boot-time task reconciler.
-- `src/app.ts` — route wiring, auth, error mapping.
+- `src/bootstrap/app.ts` — route wiring, auth, error mapping.
 - `src/api/http/routes/tasks.ts` — Task API (start/get/cancel).
 - `src/application/tasks/service.ts` — task lifecycle, idempotency, completion watching.
 - `src/application/tasks/notify.ts` — progress recording into `tasks.progress` (no push).
 - `src/application/tasks/registry.ts` — TaskType registry.
+- `src/domain/artifacts/` — canonical HTML validation rules and decisions.
 - `workflows/*.ts` — one file per TaskType's actual `"use workflow"`/`"use step"`
   implementation.
 

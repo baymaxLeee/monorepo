@@ -136,6 +136,6 @@ only narrows their injection seam to a typed contract.
 - ADR-0026: oncall agent, org knowledge sharing, and the (now-superseded)
   free-text bot persona
 - ADR-0033: Admin-managed Skill packages
-- `apps/backend/services/chat/src/bootstrap/application/agent/context/instructions/README.md`
+- `apps/backend/services/chat/src/application/agent/context/instructions/README.md`
 - `docs/plans/prompt-engineering-plan.md`
 - `docs/plans/agent-extensions-mcp-skill-subagent.md`

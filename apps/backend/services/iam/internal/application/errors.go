@@ -8,6 +8,7 @@ var (
 	ErrInvalidRefreshToken  = errors.New("invalid refresh token")
 	ErrInvalidRegistration  = errors.New("invalid registration")
 	ErrInvalidSubject       = errors.New("invalid subject")
+	ErrInvalidAccount       = errors.New("invalid account")
 	ErrInvalidRole          = errors.New("invalid role")
 	ErrRoleAssignmentFailed = errors.New("role assignment failed")
 	ErrRoleAssignmentAbsent = errors.New("role assignment not found")

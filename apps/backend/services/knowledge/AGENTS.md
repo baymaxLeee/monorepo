@@ -33,7 +33,8 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 - `src/main.py` — FastAPI app
 - `src/api/http/routes/*.py` — HTTP handlers (incl. `retrieval_internal.py`)
 - `src/application/*.py` — ingest, conversion, object store, indexing,
-  retrieval, embed/rerank client, chunking, contextual retrieval
+  retrieval, embed/rerank client, and contextual retrieval
+- `src/domain/` — text chunking rules and indexing outcomes
 - `src/gen_openapi.py` — OpenAPI export
 - `scripts/eval_rag.py` — manual retrieval quality check (NOT CI / NOT tests)
 
@@ -44,7 +45,7 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
   (ADR-0019 v1.6.0 + v1.7.0): the ingest SSE returns at `received/100` (bytes
   stored + referenceable); `application/processor.py` (`schedule_process`) then runs
   MarkItDown/vision convert in the background (`received`→`converting`→`ready`)
-  and chains `services/indexer.py` (`schedule_index`) for embedding. `file_ready`
+  and chains `application/indexer.py` (`schedule_index`) for embedding. `file_ready`
   means "received", NOT "converted". `index_status` tracks the RAG lifecycle
   separately; `POST /documents/{id}/reindex` retries; `sweep_process()` (convert)
   then `sweep_claim()` (index) recover on startup. Both are single-process demo

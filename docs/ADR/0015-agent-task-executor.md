@@ -14,7 +14,7 @@ then collapsed HTML artifact generation into a single `write_file` tool call
 and explicitly accepted, as a known limitation, that "Active process loss
 still cancels the run... remain for later product-level recovery work" — the
 hand-rolled worker pool / lease / cancellation-poll code in
-`chat/src/bootstrap/application/agent/artifacts/{worker,generation-runner}.ts` reliably survived a
+`chat/src/application/agent/artifacts/{worker,generation-runner}.ts` reliably survived a
 single process's lifetime but not a crash or redeploy mid-generation.
 
 Separately, the product direction shifted to explicitly target long-running,
@@ -47,7 +47,7 @@ just chat), which makes this gap the priority rather than a deferred nicety.
    caller and its chunk shape was never defined — add it back with a
    concrete shape only once a consumer actually needs sub-poll-interval
    progress). A `TaskType` registry
-   (`executor/src/bootstrap/application/tasks/registry.ts`) maps a type name to a Zod schema and a
+   (`executor/src/application/tasks/registry.ts`) maps a type name to a Zod schema and a
    `"use workflow"` function — the seam a future `harness`-backed execution
    engine (Codex/Claude Code/Pi-style external session) plugs into without
    changing this contract or chat's tool-calling shape.
@@ -116,7 +116,7 @@ bounded by the step timeouts, so this does not risk lease expiry.
 - Artifact generation survives chat process loss and redeploys; it did not
   before. `resume_job_id`/"unfinished artifact jobs" model hints are removed
   — Workflow DevKit's replay makes them unnecessary, not just unimplemented.
-- `chat/src/bootstrap/application/agent/artifacts/{worker,generation-runner,types}.ts` are deleted.
+- `chat/src/application/agent/artifacts/{worker,generation-runner,types}.ts` are deleted.
   `generator.ts`/`compiler.ts`/`template.ts`/`config.ts`/`clients/knowledge.ts`
   are trimmed to only what the markdown path and the read-only
   `html_validate` tool still needs.
@@ -166,7 +166,7 @@ bounded by the step timeouts, so this does not risk lease expiry.
   real bug this surfaced was a misclassification — `run.returnValue` rejects
   with `WorkflowRunCancelledError` (`"workflow/errors"`), not a generic
   `AbortError` — fixed in `watchCompletion()`
-  (`executor/src/bootstrap/application/tasks/service.ts`). Do not add a custom cancellation-poll
+  (`executor/src/application/tasks/service.ts`). Do not add a custom cancellation-poll
   mechanism inside `"use step"` functions without re-measuring first; it
   would reintroduce the class of complexity this ADR removed.
 - Not yet done (left for follow-up, not blocking): wiring a real `harness`

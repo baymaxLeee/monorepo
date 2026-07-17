@@ -21,12 +21,12 @@ import { ToolCatalog } from "../tools/catalog.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
 import { isToolOutcome } from "../tools/outcome.js";
 import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
+import { reduceArtifactVerificationSteps } from "./artifact-verification-adapter.js";
 import {
   artifactVerificationDirective,
   createArtifactVerificationState,
-  reduceArtifactVerificationSteps,
-} from "./artifact-verification.js";
-import type { ArtifactVerificationDirective } from "./artifact-verification.js";
+  type ArtifactVerificationDirective,
+} from "../../../domain/agent/artifact-verification.js";
 import { planToolOrderingMiddleware } from "./plan-tool-ordering.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {

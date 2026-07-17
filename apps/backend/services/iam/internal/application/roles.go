@@ -7,14 +7,10 @@ import (
 	"time"
 
 	"github.com/example/monorepo/iam/internal/application/contracts"
+	"github.com/example/monorepo/iam/internal/domain"
 	"github.com/example/monorepo/iam/internal/infrastructure/persistence/models"
 	"github.com/example/monorepo/iam/internal/infrastructure/persistence/repositories"
 )
-
-// RoleName is the single platform role. Platform authority (org lifecycle,
-// global registry, platform dashboards) is granted only by holding it; it is
-// orthogonal to org-scoped roles (org_admin/member).
-const RoleSuperAdmin = "super_admin"
 
 type RoleService struct {
 	store *repositories.Store
@@ -32,7 +28,7 @@ func (s *RoleService) IsSuperAdmin(ctx context.Context, userID string) (bool, er
 		return false, err
 	}
 	for _, role := range roles {
-		if role.Name == RoleSuperAdmin {
+		if role.Name == domain.RoleSuperAdmin {
 			return true, nil
 		}
 	}

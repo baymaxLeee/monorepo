@@ -15,6 +15,7 @@ The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing
 - `src/api/http/routes/*.py` — HTTP handlers
 - `src/application/contracts/*.py` — Pydantic request/response schemas
 - `src/application/*.py` — business orchestration
+- `src/domain/skills.py` — Skill workspace and publishing invariants
 - `src/infrastructure/persistence/repositories/*.py` — persistence operations
 - `src/infrastructure/persistence/models/*.py` — SQLAlchemy ORM table models
 - `src/grpc/server.py` — gRPC server (when added)
