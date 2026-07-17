@@ -12,27 +12,27 @@ The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing
 
 ## Entry points
 - `src/main.py` — FastAPI app
-- `src/routers/*.py` — HTTP handlers
-- `src/services/*.py` — business orchestration
-- `src/crud/*.py` — persistence operations
-- `src/models/*.py` — SQLAlchemy ORM table models
-- `src/schemas/*.py` — Pydantic request/response schemas
+- `src/api/http/routes/*.py` — HTTP handlers
+- `src/application/contracts/*.py` — Pydantic request/response schemas
+- `src/application/*.py` — business orchestration
+- `src/infrastructure/persistence/repositories/*.py` — persistence operations
+- `src/infrastructure/persistence/models/*.py` — SQLAlchemy ORM table models
 - `src/grpc/server.py` — gRPC server (when added)
 - `src/gen_openapi.py` — OpenAPI export (run by `just gen-openapi admin`)
 
 ## Conventions
 - Routers are thin: request/response wiring only.
-- Business rules live in `services/`.
-- DB access lives in `crud/`; routers never touch SQLAlchemy directly.
-- Transactions (ADR-0037): `crud/` only reads/stages (`add`/`flush`/`delete`/
-  `select`) and NEVER commits. The `services/` method that owns a write unit of
+- Business orchestration lives in `application/`.
+- DB access lives in `infrastructure/persistence/repositories/`; routes never touch SQLAlchemy directly.
+- Transactions (ADR-0037): repositories only read/stage (`add`/`flush`/`delete`/
+  `select`) and NEVER commit. The `application/` method that owns a write unit of
   work opens `async with write_tx(session):` before any DB access and does all
   its reads + writes inside that block (autobegin-first). Keep external IO (DNS
   validation, Redis) outside the block.
-- Pydantic API shapes live in `schemas/`; SQLAlchemy table definitions live in `models/`.
+- Pydantic API shapes live in `application/contracts/`; SQLAlchemy table definitions
+  live in `infrastructure/persistence/models/`.
 - Keep business resources separated end-to-end. Each table/resource gets its
-  own `models/<resource>.py`, `schemas/<resource>.py`, `crud/<resource>.py`,
-  `services/<resource>.py`, and `routers/<resource>.py`. Do NOT merge distinct
+  own files in API, application, repository, and persistence-model layers. Do NOT merge distinct
   business resources into a generic shared CRUD/model/schema/service just to
   reduce boilerplate; prefer explicit, single-responsibility modules.
 - Errors via `libs.kernel.errors.*`, NEVER raw HTTPException

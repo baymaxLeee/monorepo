@@ -9,7 +9,7 @@ Accepted — 2026-07-06
 iam 需要预置两样系统身份:**super-admin** 与 **guest-org**。这不是静态 SQL 数据
 ——它跨 `users` / `user_credentials` / `roles` / `user_roles` / `organizations` /
 `organization_members` 多表,含 bcrypt 密码哈希与幂等 upsert 领域规则
-(`EnsureSystemBootstrap` → `internal/service/seed.go`)。因此它**只能由 iam 的 Go
+(`EnsureSystemBootstrap` → `internal/application/seed.go`)。因此它**只能由 iam 的 Go
 代码 seed**,不能放进 `infra/single-vps/seed/*.sql`(那里只装 admin 那种纯配置行)。
 
 改造前的实现有四处系统性问题:

@@ -274,7 +274,7 @@ skills (
 
 ## 相关阅读
 
-- `apps/backend/services/chat/src/agent/README.md` —— 扩展/runtime 边界（本方案的设计源头）
+- `apps/backend/services/chat/src/bootstrap/application/agent/README.md` —— 扩展/runtime 边界（本方案的设计源头）
 - `docs/ADR/0011-tool-loop-agent-core.md` —— 主 agent 用 ToolLoopAgent
 - `docs/ADR/0015-agent-task-executor.md` —— 长任务 executor + `TaskType`（长时 SubAgent 的家）
 - `schemas/streaming/chat-uimessage-stream.md` —— 流协议：优先复用官方 part

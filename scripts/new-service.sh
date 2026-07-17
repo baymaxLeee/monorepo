@@ -11,7 +11,18 @@ if [ -d "$SVC_DIR" ]; then
 fi
 
 echo "→ Scaffolding service: $NAME at $SVC_DIR"
-mkdir -p "$SVC_DIR"/{src/{routers,models,crud,services,schemas},migrations/versions}
+mkdir -p "$SVC_DIR"/{src/{bootstrap,api/http/routes,application/contracts,infrastructure/persistence/{models,repositories}},migrations/versions}
+touch \
+  "$SVC_DIR/src/bootstrap/__init__.py" \
+  "$SVC_DIR/src/api/__init__.py" \
+  "$SVC_DIR/src/api/http/__init__.py" \
+  "$SVC_DIR/src/api/http/routes/__init__.py" \
+  "$SVC_DIR/src/application/__init__.py" \
+  "$SVC_DIR/src/application/contracts/__init__.py" \
+  "$SVC_DIR/src/infrastructure/__init__.py" \
+  "$SVC_DIR/src/infrastructure/persistence/__init__.py" \
+  "$SVC_DIR/src/infrastructure/persistence/models/__init__.py" \
+  "$SVC_DIR/src/infrastructure/persistence/repositories/__init__.py"
 
 cat > "$SVC_DIR/pyproject.toml" <<EOF
 [project]
@@ -44,8 +55,8 @@ EOF
 
 cat > "$SVC_DIR/src/main.py" <<EOF
 from fastapi import FastAPI
+from api.http.routes import health
 from kernel.errors import register_exception_handlers
-from routers import health
 
 
 def create_app() -> FastAPI:
@@ -71,10 +82,7 @@ json.dump(app.openapi(), sys.stdout, indent=2, ensure_ascii=False)
 sys.stdout.write("\n")
 EOF
 
-cat > "$SVC_DIR/src/routers/__init__.py" <<EOF
-EOF
-
-cat > "$SVC_DIR/src/routers/health.py" <<EOF
+cat > "$SVC_DIR/src/api/http/routes/health.py" <<EOF
 from fastapi import APIRouter
 
 router = APIRouter(tags=["meta"])

@@ -71,5 +71,5 @@ part ("one channel, two roles": loaded for this run *and* kept in history).
 - `schemas/streaming/chat-uimessage-stream.md`: reuse-first `data-*` contract
 - Producer/consumer: `apps/frontend/apps/chat/src/pages/Chat.tsx`,
   `.../components/ChatMessageView.tsx`,
-  `apps/backend/services/chat/src/agent/context/file-parts.ts`,
+  `apps/backend/services/chat/src/bootstrap/application/agent/context/file-parts.ts`,
   `.../agent/runs/run.ts`, `.../routes/agents.ts`

@@ -19,7 +19,7 @@ for the full rationale.
   a plain snapshot here, streaming/replay stays the owner's concern.
 - Progress: a task's `progress` column is a `{ done, total }` counter the
   workflow reports per completed unit of work (see `reportTaskProgress` in
-  `src/tasks/notify.ts`, called from `reportProgressStep` in the workflow). It
+  `src/application/tasks/notify.ts`, called from `reportProgressStep` in the workflow). It
   is written to the DB and read by the owner's `GET /tasks/:id` poll (chat
   surfaces it as preliminary tool-results on the main useChat stream). It is
   best-effort UI sugar, never a correctness signal.
@@ -55,24 +55,24 @@ reinterpret raw findings. It is the post-generation quality tool and is never
 called inside the HTML artifact workflow; durable Workflow remains reserved for
 generation.
 
-- `src/tasks/registry.ts` maps a `type` string to a Zod input schema and a
+- `src/application/tasks/registry.ts` maps a `type` string to a Zod input schema and a
   `"use workflow"` function. This is the seam a future `harness`-backed
   execution engine plugs into: the registry and the HTTP layer never depend
   on how a task actually executes.
 - Adding a new task type: define its `workflows/<name>.ts` (with `"use step"`
-  functions for the actual work) and register it in `src/tasks/registry.ts`.
-  Do not put business logic directly in `src/routes/tasks.ts` or
-  `src/tasks/service.ts` — those stay type-agnostic.
+  functions for the actual work) and register it in `src/application/tasks/registry.ts`.
+  Do not put business logic directly in `src/api/http/routes/tasks.ts` or
+  `src/application/tasks/service.ts` — those stay type-agnostic.
 - `echo` is a smoke-test type only. `html-artifact` (migrating
   `chat`'s `agent/artifacts/*` worker/lease/poll code here) is the first real
   type — see Phase 2 of the plan.
 - `video-generation` is a durable **script -> storyboard -> per-segment
   create/poll -> ffmpeg-assemble** workflow for vertical short-drama (see
-  ADR-0018): `planStep` runs Stage A `planScript` (`src/video/script.ts`, text
-  provider) then Stage B `planSegments` (`src/video/storyboard.ts`) plus a
+  ADR-0018): `planStep` runs Stage A `planScript` (`src/application/video/script.ts`, text
+  provider) then Stage B `planSegments` (`src/application/video/storyboard.ts`) plus a
   best-effort `generateCharacterSheet` (optional image provider) ->
   `createSegmentStep`/`waitSegmentStep` (Ark create + poll) ->
-  `assembleStep` (`src/video/assembler.ts`). Clip URLs are the durable step state
+  `assembleStep` (`src/application/video/assembler.ts`). Clip URLs are the durable step state
   (bytes never cross a step boundary). It needs the **ffmpeg** OS binary (see
   operational note #6) and three providers threaded from chat's `catalog.ts`
   (video + text-required + optional image).
@@ -83,7 +83,7 @@ generation.
     moment re-shot). Cut density comes from MORE short segments hard-cut at
     assembly (Seedance renders a single take per generation; true cuts = concat).
   - **Length is deterministic: segment count = 秒数 / 12** (`deriveSegmentCount` in
-    `src/video/limits.ts`), each segment ~12s (sweet spot; `ark.ts` clamps to
+    `src/application/video/limits.ts`), each segment ~12s (sweet spot; `ark.ts` clamps to
     the real integer 4–15 range). The pipeline always sends an explicit integer
     `duration` in EVERY mode including reference mode (the official 2.x API
     accepts it — there is no "strip duration in reference mode" case).
@@ -131,7 +131,7 @@ generation.
 
 - **Removed (ADR-0035).** Executor no longer pushes task events to any owner.
   There is no `POST /internal/tasks/notify` call, no `ChatInternalClient`, and
-  no `src/clients/chat.ts`. The owner (chat) polls `GET /tasks/:id` and reads the
+  no `src/infrastructure/clients/chat.ts`. The owner (chat) polls `GET /tasks/:id` and reads the
   `progress`/`status`/`result` columns; `reportTaskProgress` still writes
   `tasks.progress` for that poll to read. Do not reintroduce an outbound push —
   progress belongs on the owner's own stream (chat surfaces it as preliminary
@@ -143,10 +143,10 @@ generation.
   `src/index.ts`.
 - `src/index.ts` — Nitro-mounted Hono app entry + boot-time task reconciler.
 - `src/app.ts` — route wiring, auth, error mapping.
-- `src/routes/tasks.ts` — Task API (start/get/cancel).
-- `src/tasks/service.ts` — task lifecycle, idempotency, completion watching.
-- `src/tasks/notify.ts` — progress recording into `tasks.progress` (no push).
-- `src/tasks/registry.ts` — TaskType registry.
+- `src/api/http/routes/tasks.ts` — Task API (start/get/cancel).
+- `src/application/tasks/service.ts` — task lifecycle, idempotency, completion watching.
+- `src/application/tasks/notify.ts` — progress recording into `tasks.progress` (no push).
+- `src/application/tasks/registry.ts` — TaskType registry.
 - `workflows/*.ts` — one file per TaskType's actual `"use workflow"`/`"use step"`
   implementation.
 
@@ -229,7 +229,7 @@ All fixed, all re-check-worthy whenever `nitro`/`workflow`/`ai` are bumped:
    `createSegmentStep`, so every Node-touching import is reachable only from a
    `"use step"` body. Pass plain data (segment, script) across the step boundary,
    never call a Node-touching helper from the orchestrator. Pure numeric planning
-   constants/helpers live in `src/video/limits.ts` (no `ai`/Node import) so both
+   constants/helpers live in `src/application/video/limits.ts` (no `ai`/Node import) so both
    the orchestrator and the steps can import them safely.
 
 Calling `getWorld().start()` is gated on `WORKFLOW_TARGET_WORLD` being set:

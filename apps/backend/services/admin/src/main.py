@@ -3,15 +3,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from config import get_settings
-from db import close_db, seed_demo_apps
-from fastapi import FastAPI
-from kernel.errors import register_exception_handlers
-from kernel.logging import RequestLoggingMiddleware, configure_logging
-from kernel.observability import configure_opentelemetry
-from kernel.tracing import TraceIDMiddleware
-from redis_client import close_redis, init_redis
-from routers import (
+from api.http.routes import (
     agents_internal,
     apps,
     bots,
@@ -21,6 +13,14 @@ from routers import (
     skills,
     skills_internal,
 )
+from bootstrap.config import get_settings
+from fastapi import FastAPI
+from infrastructure.cache.redis import close_redis, init_redis
+from infrastructure.persistence.database import close_db, seed_demo_apps
+from kernel.errors import register_exception_handlers
+from kernel.logging import RequestLoggingMiddleware, configure_logging
+from kernel.observability import configure_opentelemetry
+from kernel.tracing import TraceIDMiddleware
 
 
 @asynccontextmanager

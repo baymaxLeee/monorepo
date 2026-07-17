@@ -3,14 +3,14 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from config import get_settings
-from db import close_db
+from api.http.routes import errors, health, ops, performance, rum
+from bootstrap.config import get_settings
 from fastapi import FastAPI
+from infrastructure.persistence.database import close_db
 from kernel.errors import register_exception_handlers
 from kernel.logging import RequestLoggingMiddleware, configure_logging
 from kernel.observability import configure_opentelemetry
 from kernel.tracing import TraceIDMiddleware
-from routers import errors, health, ops, performance, rum
 
 
 @asynccontextmanager

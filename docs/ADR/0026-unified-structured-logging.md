@@ -85,7 +85,7 @@ correlated.
 
 **Implementation homes.** Python: `libs/kernel`. Node: a new `libs/kernel-ts`
 (logger + trace context + Hono middleware). Go: each service's
-`internal/middleware` — `gateway` and `iam` carry their own copy of the
+`internal/api/http/middleware` — `gateway` and `iam` carry their own copy of the
 self-contained `TraceId`/`RequestLogger`/slog setup. A shared Go kernel module
 was rejected: `go.work` has two independent service modules and each Dockerfile
 builds from its own single-module context (`COPY . .`), so a shared module would

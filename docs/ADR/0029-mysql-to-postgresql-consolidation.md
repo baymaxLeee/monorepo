@@ -27,7 +27,7 @@ consolidation of other services is a separate later task"。
 
 各服务对 MySQL 的耦合很浅(实测):
 
-- **gateway** 无业务表(`internal/store/store.go` 仅启动 Ping,无任何裸 SQL),
+- **gateway** 无业务表(`internal/infrastructure/store/store.go` 仅启动 Ping,无任何裸 SQL),
   本质无状态。
 - **iam** 走 GORM,业务代码方言无关(`OnConflict`/`Locking`/`AutoMigrate` 由
   GORM 生成);唯一硬编码点是靠错误字符串匹配唯一约束名。

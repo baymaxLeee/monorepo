@@ -23,8 +23,9 @@ storage and dashboard query APIs.
 
 - Routers are thin: request/response wiring only.
 - Write-path validation, redaction, sampling, fingerprinting, and dispatch
-  live in `services/ingestion.py`.
-- ORM models live in `models/`; query helpers in `crud/`.
+  live in `application/ingestion.py`.
+- ORM models live in `infrastructure/persistence/models/`; query helpers in
+  `infrastructure/persistence/repositories/`.
 - Transactions (ADR-0037): the write path wraps its `add_all` + session upsert
   in `async with write_tx(session):`; no manual `commit()`.
 - Query endpoints must require `X-Auth-*`; anonymous writes are allowed only

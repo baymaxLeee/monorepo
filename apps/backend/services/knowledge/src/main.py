@@ -4,14 +4,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from config import get_settings
-from db import close_db
-from fastapi import FastAPI
-from kernel.errors import register_exception_handlers
-from kernel.logging import RequestLoggingMiddleware, configure_logging
-from kernel.observability import configure_opentelemetry
-from kernel.tracing import TraceIDMiddleware
-from routers import (
+from api.http.routes import (
     artifacts_internal,
     documents,
     documents_internal,
@@ -20,9 +13,16 @@ from routers import (
     resources,
     retrieval_internal,
 )
-from services.admin_client import close_admin_client
-from services.indexer import sweep_claim
-from services.processor import sweep_process
+from application.admin_client import close_admin_client
+from application.indexer import sweep_claim
+from application.processor import sweep_process
+from bootstrap.config import get_settings
+from fastapi import FastAPI
+from infrastructure.persistence.database import close_db
+from kernel.errors import register_exception_handlers
+from kernel.logging import RequestLoggingMiddleware, configure_logging
+from kernel.observability import configure_opentelemetry
+from kernel.tracing import TraceIDMiddleware
 
 logger = logging.getLogger("knowledge.main")
 

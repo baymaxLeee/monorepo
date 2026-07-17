@@ -2,8 +2,8 @@ import "@workflow/world-postgres";
 import "@workflow/world-postgres/cli";
 import { configureOpenTelemetry, shutdownOpenTelemetry } from "@backend/kernel-ts";
 
-import { createApp } from "./app.js";
-import { bootstrapExecutor } from "./lib/bootstrap.js";
+import { createApp } from "./bootstrap/app.js";
+import { bootstrapExecutor } from "./bootstrap/runtime.js";
 
 configureOpenTelemetry("executor");
 

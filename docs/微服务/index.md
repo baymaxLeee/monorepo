@@ -19,6 +19,25 @@
 - 跨服务调用: 走 `libs/transport/` 客户端,不走直接 import
 - 共享内核(`libs/`): 只放基础设施,**禁止**放领域模型
 
+## 服务内统一分层
+
+服务是业务与部署边界，服务内部统一按技术职责分层（ADR-0045）：
+
+```text
+bootstrap/       启动、配置、依赖装配与生命周期
+api/             HTTP/gRPC 入站适配器与 middleware
+application/     应用用例、业务流程编排与输入输出 contracts
+domain/          与框架无关的实体、规则、错误与事件（按需创建）
+infrastructure/  持久化、外部 client、provider、缓存、安全与可观测实现
+```
+
+主依赖方向为 `api -> application`；application 可使用 domain 规则与同服务的
+infrastructure 适配器，只有外部边界或多实现确有需要时才引入 port。`bootstrap`
+负责最终装配。ORM model
+属于 `infrastructure/persistence/models`，不是 domain entity。资源继续在每层
+内部独立，例如 `api/http/routes/bots.py`、`application/bots.py` 和
+`infrastructure/persistence/repositories/bots.py`。
+
 ## 数据库迁移
 
 - 每个服务的 SQL migration 放在

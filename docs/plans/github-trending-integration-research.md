@@ -20,10 +20,10 @@
 
 ### 已成熟、无需替换
 
-- Agent 运行时 = AI SDK v7 `ToolLoopAgent`（`apps/backend/services/chat/src/agent/agents/tool-loop.ts`，含 `stopWhen`、tool approval、`toolsContext`）
+- Agent 运行时 = AI SDK v7 `ToolLoopAgent`（`apps/backend/services/chat/src/bootstrap/application/agent/agents/tool-loop.ts`，含 `stopWhen`、tool approval、`toolsContext`）
 - 持久后台任务 = Workflow DevKit + Nitro（`apps/backend/services/executor/`）
 - RAG = pgvector 混合检索（dense + BM25 + RRF + rerank + Contextual Retrieval，`apps/backend/services/knowledge/`）
-- 文档转换 = `markitdown[all]>=0.1.3`（`apps/backend/services/knowledge/src/services/convert.py`，图片走 vision LLM caption）
+- 文档转换 = `markitdown[all]>=0.1.3`（`apps/backend/services/knowledge/src/application/convert.py`，图片走 vision LLM caption）
 - 流式 UI = streamdown + 自研 `AiChat/`；富文本 = TipTap 3
 - 流式契约 = `schemas/streaming/chat-uimessage-stream.md`（reuse-first，官方 `text`/`reasoning`/`tool-*`/`file`/`source-*`/`metadata`）
 - 可恢复流 = Redis Streams；web 搜索 = Tavily
@@ -34,7 +34,7 @@
 
 - **LLM 工程级可观测**（token/成本/延迟/prompt 版本/在线 eval）——目前只有自研 **PostgreSQL** 业务 trace（`chat.agent_runs` / `agent_steps` / tool call trace），面向"给用户看的 run/step/tool"，缺"给开发者看的 LLM 调优"视角。
 - **分布式 trace / metrics**——仅有 `trace_id` 日志字段，无 OpenTelemetry span 导出、无 W3C `traceparent` 全链路传播、无 metrics。
-- **Gateway 边缘限流**——`go.mod` 只有 `chi`/`godotenv`/`go-redis`，无限流；且 gateway 是纯 `httputil` 流式反向代理，无 `internal/clients/` 层（其 `AGENTS.md` 关于 "downstream retry via internal/clients" 的描述与代码不符，待订正）。
+- **Gateway 边缘限流**——`go.mod` 只有 `chi`/`godotenv`/`go-redis`，无限流；且 gateway 是纯 `httputil` 流式反向代理，无 `internal/infrastructure/clients/` 层（其 `AGENTS.md` 关于 "downstream retry via internal/infrastructure/clients" 的描述与代码不符，待订正）。
 - **前端服务端状态**——admin CRUD 页（如 `IntentionsPage.tsx`）大量手写 `useEffect/useState` 拉取/刷新/竞态，未引入 `@tanstack/react-query`（全仓当前未引入）。
 - **契约覆盖缺口**——`executor-server.json` 已存在但 `packages/api/generated/` 无对应客户端；IAM（Go）无 OpenAPI，session/orgs 全手写；手写 `admin-server.ts`（约 36 个 export）与 generated client 并行，存在漂移。
 - **索引可靠性**——knowledge 后台索引是单进程 demo 调度器（advisory-lock 单飞），非 durable 队列。

@@ -599,4 +599,4 @@ pnpm -F chat build
 - Chat MFE 使用唯一 strict outcome parser，Artifact/Image/Video/Todo/Ask User 卡片和 cancellation/context/quality-gate consumer 已迁移。
 - MCP runtime 仍未接线，按本计划不实现、不验收；未来接线时必须补真实动态 Tool 纵向薄片。
 - 已通过：`just sync`、根 `just build`、Chat/Executor scoped lint 与 build、Chat MFE typecheck/build、变更文件 Biome check。
-- 根 `just lint` 的首个阻塞位于未改动的 `apps/backend/services/knowledge/src/models/artifact.py` import 顺序；单独运行 frontend 全量 lint 还会报告 MarkdownEditor、FileWorkspace 等无关既有诊断。本任务未越权修改；本次变更的 8 个前端文件定向 Biome check 已通过。
+- 根 `just lint` 的首个阻塞位于未改动的 `apps/backend/services/knowledge/src/infrastructure/persistence/models/artifact.py` import 顺序；单独运行 frontend 全量 lint 还会报告 MarkdownEditor、FileWorkspace 等无关既有诊断。本任务未越权修改；本次变更的 8 个前端文件定向 Biome check 已通过。

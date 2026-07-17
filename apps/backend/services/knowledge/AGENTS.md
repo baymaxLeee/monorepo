@@ -31,8 +31,8 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 
 ## Entry points
 - `src/main.py` — FastAPI app
-- `src/routers/*.py` — HTTP handlers (incl. `retrieval_internal.py`)
-- `src/services/*.py` — ingest, conversion, object store, indexing,
+- `src/api/http/routes/*.py` — HTTP handlers (incl. `retrieval_internal.py`)
+- `src/application/*.py` — ingest, conversion, object store, indexing,
   retrieval, embed/rerank client, chunking, contextual retrieval
 - `src/gen_openapi.py` — OpenAPI export
 - `scripts/eval_rag.py` — manual retrieval quality check (NOT CI / NOT tests)
@@ -42,7 +42,7 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 - Deleting a chat conversation does NOT delete knowledge documents.
 - Both **convert and indexing are async and decoupled from ingest progress**
   (ADR-0019 v1.6.0 + v1.7.0): the ingest SSE returns at `received/100` (bytes
-  stored + referenceable); `services/processor.py` (`schedule_process`) then runs
+  stored + referenceable); `application/processor.py` (`schedule_process`) then runs
   MarkItDown/vision convert in the background (`received`→`converting`→`ready`)
   and chains `services/indexer.py` (`schedule_index`) for embedding. `file_ready`
   means "received", NOT "converted". `index_status` tracks the RAG lifecycle
@@ -57,7 +57,7 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 - Embedding model and the `vector(N)` column dimension must agree; changing the
   model requires altering the column + re-indexing.
 - Errors via `kernel.errors.*`, NEVER raw HTTPException.
-- Transactions (ADR-0037): `crud/` only reads/stages and never commits; the
+- Transactions (ADR-0037): persistence repositories only read/stage and never commit; the
   router/service owning a write opens `async with write_tx(session):`
   (autobegin-first) around its reads + writes. `ObjectStore` IO stays OUTSIDE the block
   (upload before, purge after) so the artifact-publish `FOR UPDATE` lock never

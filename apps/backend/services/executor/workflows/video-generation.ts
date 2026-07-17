@@ -5,18 +5,18 @@ import {
   isTaskCancelled,
   recordExternalTask,
   reportTaskProgress,
-} from "../src/tasks/notify.js";
-import { getSettings } from "../src/config.js";
-import { getProvider } from "../src/clients/admin.js";
-import { createMediaDocument } from "../src/clients/knowledge.js";
+} from "../src/application/tasks/notify.js";
+import { getSettings } from "../src/bootstrap/config.js";
+import { getProvider } from "../src/infrastructure/clients/admin.js";
+import { createMediaDocument } from "../src/infrastructure/clients/knowledge.js";
 import {
   ArkRequestError,
   createArkVideoTask,
   deleteArkVideoTask,
   getArkVideoTask,
   type ArkVideoSnapshot,
-} from "../src/clients/ark.js";
-import { buildVideoTextModel, planScript, buildScriptFromSegments, SCRIPT_TIMEOUT_MS, type Character, type Script, type UserVideoSegment } from "../src/video/script.js";
+} from "../src/infrastructure/clients/ark.js";
+import { buildVideoTextModel, planScript, buildScriptFromSegments, SCRIPT_TIMEOUT_MS, type Character, type Script, type UserVideoSegment } from "../src/application/video/script.js";
 import {
   STORYBOARD_TIMEOUT_MS,
   buildSegmentContent,
@@ -24,8 +24,8 @@ import {
   planSegments,
   type CharacterRef,
   type Segment,
-} from "../src/video/storyboard.js";
-import { describeCharacterAppearances, type UserCharacterRef } from "../src/video/characters.js";
+} from "../src/application/video/storyboard.js";
+import { describeCharacterAppearances, type UserCharacterRef } from "../src/application/video/characters.js";
 import {
   DEFAULT_TARGET_DURATION_S,
   MAX_MAIN_CHARACTERS,
@@ -37,10 +37,10 @@ import {
   minimumUsableSegments,
   randomBaseSeed,
   scriptedSegmentSeconds,
-} from "../src/video/limits.js";
-import { assembleClips } from "../src/video/assembler.js";
-import { parseVideoOutputConfig, type VideoOutputConfig } from "../src/video/output-config.js";
-import { observeTaskCancellation } from "../src/tasks/cancellation.js";
+} from "../src/application/video/limits.js";
+import { assembleClips } from "../src/application/video/assembler.js";
+import { parseVideoOutputConfig, type VideoOutputConfig } from "../src/application/video/output-config.js";
+import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
 
 export const videoSegmentInputSchema = z.object({
   content: z.string().min(1).max(1_000),

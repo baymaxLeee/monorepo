@@ -77,13 +77,13 @@ gateway: propagateClaims 注入 X-Auth-Roles（并继续剥离入站伪造头）
 ### Phase 1 — 堵漏 + 权限收敛 + role 下传
 
 **iam（Go）**
-- `internal/security/token.go`：`Claims` 增 `Roles []string`（`json:"roles,omitempty"`）。
-- `internal/service/auth.go`：签发时写入 roles（复用 `userResponse` 已查的 roles）。
-- `internal/crud/store.go`：如需，补 `UserRoleNames(userID)`。
+- `internal/infrastructure/security/token.go`：`Claims` 增 `Roles []string`（`json:"roles,omitempty"`）。
+- `internal/application/auth.go`：签发时写入 roles（复用 `userResponse` 已查的 roles）。
+- `internal/infrastructure/persistence/repositories/store.go`：如需，补 `UserRoleNames(userID)`。
 
 **gateway（Go）**
-- `internal/security/token.go`：`Claims` 与 iam 对齐增 `Roles`。
-- `internal/middleware/auth.go`：新增 `HeaderAuthRoles = "X-Auth-Roles"`；入站先 `Del`；
+- `internal/infrastructure/security/token.go`：`Claims` 与 iam 对齐增 `Roles`。
+- `internal/api/http/middleware/auth.go`：新增 `HeaderAuthRoles = "X-Auth-Roles"`；入站先 `Del`；
   `propagateClaims` 注入（逗号分隔）。
 
 **admin（Python）**

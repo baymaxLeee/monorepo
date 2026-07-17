@@ -15,7 +15,7 @@
 相较原方案，**按用户诉求把「团队知识共享」从 Phase 2 决策点提前并入本次交付**，因此除了
 Phase 1 的 oncall 画像链路，还额外落地了一层 org 多租户基座：
 
-- **IAM 多租户基座**：新增 `organizations` + `organization_members` 表（`iam/internal/model/models.go`
+- **IAM 多租户基座**：新增 `organizations` + `organization_members` 表（`iam/internal/infrastructure/persistence/models/models.go`
   + migration `v1.1.0.sql`），JWT `Claims` 带 `org_id`，登录/刷新解析用户主 org，`/me` 与
   `AuthResponse.user` 回传 `orgId`/`orgName`；注册用户自动加入 demo 团队 org。
 - **Gateway 透传**：`propagateClaims` 注入 `X-Auth-Org-ID`，并剥离入站伪造头。
@@ -61,16 +61,16 @@ oncall 能力靠"画像 + 现有 `search_knowledge` / `web_search` / `todo`"实�
 三层能力盘点：
 
 - RAG 层（生产级，无需改）：混合检索 dense+sparse + RRF + cross-encoder rerank
-  (`apps/backend/services/knowledge/src/services/retrieval.py`) + Anthropic
-  Contextual Retrieval (`apps/backend/services/knowledge/src/services/contextual.py`)
-  + CJK-aware 分块 (`apps/backend/services/knowledge/src/services/chunking.py`)。
-  `search_knowledge` (`apps/backend/services/chat/src/agent/tools/builtins/knowledge-search.ts`)
+  (`apps/backend/services/knowledge/src/application/retrieval.py`) + Anthropic
+  Contextual Retrieval (`apps/backend/services/knowledge/src/application/contextual.py`)
+  + CJK-aware 分块 (`apps/backend/services/knowledge/src/application/chunking.py`)。
+  `search_knowledge` (`apps/backend/services/chat/src/bootstrap/application/agent/tools/builtins/knowledge-search.ts`)
   返回 chunk 数组而非灌全文，是真 RAG。
 - 知识管理层（现成）：admin 已有知识库管理页
   `apps/frontend/apps/admin/src/pages/KnowledgeBasePage.tsx`——上传任意格式自动转 md +
   建索引 + 列表/在线编辑/批量删除。
 - 消费层（现成）：chat `ToolLoopAgent` + `search_knowledge` + `web_search`
-  (`apps/backend/services/chat/src/agent/tools/builtins/web.ts`) + `todo`/`plan`，
+  (`apps/backend/services/chat/src/bootstrap/application/agent/tools/builtins/web.ts`) + `todo`/`plan`，
   足够支撑结构化排查。
 
 真正缺的两块：(1) oncall 专属画像（结构化 RCA 指令）；(2) 知识治理（新鲜度、团队共享）。
@@ -81,16 +81,16 @@ oncall 能力靠"画像 + 现有 `search_knowledge` / `web_search` / `todo`"实�
 不在 chat 硬编码新 mode，理由：
 
 - 契合仓库架构（`AGENTS.md`：admin 是配置中心，owns bots）；bot 概念已存在
-  (`apps/backend/services/admin/src/models/bot.py`)，`agent_id` 消费链路已存在
-  (`apps/backend/services/chat/src/routes/agents.ts` 第 46 行)。
+  (`apps/backend/services/admin/src/infrastructure/persistence/models/bot.py`)，`agent_id` 消费链路已存在
+  (`apps/backend/services/chat/src/api/http/routes/agents.ts` 第 46 行)。
 - `AgentMode` 只有 `normal|plan` 且 mode 存在 conversation 上
-  (`apps/backend/services/chat/src/agent/runs/run.ts` 第 227 行)，走 mode 要改传递链路
+  (`apps/backend/services/chat/src/bootstrap/application/agent/runs/run.ts` 第 227 行)，走 mode 要改传递链路
   且不可由运营配置。
 - 现状缺口：bot / `ResolvedAgent`
-  (`apps/backend/services/admin/src/schemas/bot.py`) 只有 name+provider，无画像；
-  `getAgent` (`apps/backend/services/chat/src/clients/admin.ts` 第 89 行) 只取 provider；
+  (`apps/backend/services/admin/src/application/contracts/bot.py`) 只有 name+provider，无画像；
+  `getAgent` (`apps/backend/services/chat/src/infrastructure/clients/admin.ts` 第 89 行) 只取 provider；
   `buildAgentInstructions`
-  (`apps/backend/services/chat/src/agent/context/instructions.ts` 第 76 行) 不接收 agent 画像。
+  (`apps/backend/services/chat/src/bootstrap/application/agent/context/instructions.ts` 第 76 行) 不接收 agent 画像。
 
 画像注入链路（Phase 1 要打通的）：
 
@@ -125,22 +125,22 @@ flowchart TD
 
 后端 admin（一次 CRUD + gRPC/HTTP 贯通）：
 
-- `apps/backend/services/admin/src/models/bot.py` 的 `BotRow` 加
+- `apps/backend/services/admin/src/infrastructure/persistence/models/bot.py` 的 `BotRow` 加
   `system_prompt: Text|null` + 新建 migration（`migrations/versions/`，禁止改历史版本）。
-- `apps/backend/services/admin/src/schemas/bot.py`：`Bot` / `UpdateBotInput` /
+- `apps/backend/services/admin/src/application/contracts/bot.py`：`Bot` / `UpdateBotInput` /
   `ResolvedAgent` 加 `system_prompt`。
 - crud/services（`crud/`、`services/bots.py`）落库；`just gen-openapi admin` + `just sync`
   回流前端类型。
 
 chat 注入链路：
 
-- `apps/backend/services/chat/src/clients/admin.ts` 的 `getAgent` /
+- `apps/backend/services/chat/src/infrastructure/clients/admin.ts` 的 `getAgent` /
   `ResolvedAgentProviders` 带 `persona`。
-- `apps/backend/services/chat/src/routes/agents.ts`：`agent` 已解析，将 `persona` 经
+- `apps/backend/services/chat/src/api/http/routes/agents.ts`：`agent` 已解析，将 `persona` 经
   `RunAgentInput` 传入 `createAgentRunResponse`。
-- `apps/backend/services/chat/src/agent/runs/run.ts` 的 `createAgentRunResponse` 透传给
+- `apps/backend/services/chat/src/bootstrap/application/agent/runs/run.ts` 的 `createAgentRunResponse` 透传给
   `buildAgentInstructions`。
-- `apps/backend/services/chat/src/agent/context/instructions.ts` 的
+- `apps/backend/services/chat/src/bootstrap/application/agent/context/instructions.ts` 的
   `buildAgentInstructions` 增加可选 `agentPersona`，作为 `<agent_persona>` section 注入
   （在 `BASE_INSTRUCTIONS` 之后、mode 指令之后）。
 
@@ -161,7 +161,7 @@ oncall 画像内容（写进 `bot.system_prompt`）：
 chat 消费入口：
 
 - 发起 run 时带 oncall bot 的 `agent_id`
-  (`apps/backend/services/chat/src/routes/agents.ts` 的 `runSchema.agent_id` 已支持)；
+  (`apps/backend/services/chat/src/api/http/routes/agents.ts` 的 `runSchema.agent_id` 已支持)；
   确认/补齐前端「选择 bot」入口。
 
 ## Phase 2 — 检索质量与团队共享（决策点，MVP 后）
@@ -171,14 +171,14 @@ chat 消费入口：
 - 批量迁移：新增内部导入接口/脚本，基于 `create_document(content_md)` + `index_document`，
   从 Confluence/飞书导出批量灌入（当前只能单文件 UI 上传）。
 - 团队共享 ACL：当前知识 user-scoped
-  (`apps/backend/services/knowledge/src/services/retrieval.py` 按 `user_id`)。
+  (`apps/backend/services/knowledge/src/application/retrieval.py` 按 `user_id`)。
   团队共享需给 document 加 `visibility(private|org)` + retrieve 支持 org 级，或 bot 绑定
   共享知识集。见决策点 2。
 
 ## Phase 3 — 可观测性联动（可选后续）
 
 - 经 MCP 动态注入
-  (`apps/backend/services/chat/src/agent/integrations/mcp/provider.ts`) 接
+  (`apps/backend/services/chat/src/bootstrap/application/agent/integrations/mcp/provider.ts`) 接
   metrics/logs/tracing 的只读工具，让 agent 从"读经验"升级到"读现场"；保持单 agent、
   只读、人在环。
 

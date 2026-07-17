@@ -125,7 +125,7 @@ Verified constraints (against `ai@7.0.15`):
 - Deleted: chat `agent/streams/task-progress.ts`, the task-stream Redis helpers,
   `GET .../tasks/:taskId/stream`, `POST /internal/tasks/notify` (+ chat internal
   auth middleware), the executor→chat push (`notifyOwner*`,
-  `executor/src/clients/chat.ts`, `transport-ts` `ChatInternalClient` /
+  `executor/src/infrastructure/clients/chat.ts`, `transport-ts` `ChatInternalClient` /
   `notifyTaskEvent`), and the frontend `openConversationTaskStream`. The
   read-only `GET .../tasks/:taskId` JSON snapshot stays for cold-start/debug.
 

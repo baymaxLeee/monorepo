@@ -1,13 +1,13 @@
 import { getWorkflowMetadata } from "workflow";
 import { z } from "zod";
 
-import { getSettings } from "../src/config.js";
+import { getSettings } from "../src/bootstrap/config.js";
 
 import {
   isTaskCancelled,
   recordArtifactGeneration,
   reportTaskProgress,
-} from "../src/tasks/notify.js";
+} from "../src/application/tasks/notify.js";
 import {
   cancelArtifactGeneration,
   failArtifactGeneration,
@@ -17,9 +17,9 @@ import {
   saveArtifactBlock,
   saveArtifactPlan,
   getLatestArtifactWorkspace,
-} from "../src/clients/knowledge.js";
-import { compileArtifactHtml } from "../src/artifacts/compiler.js";
-import { ARTIFACT_TEMPLATE_VERSION } from "../src/artifacts/validator.js";
+} from "../src/infrastructure/clients/knowledge.js";
+import { compileArtifactHtml } from "../src/application/artifacts/compiler.js";
+import { ARTIFACT_TEMPLATE_VERSION } from "../src/application/artifacts/validator.js";
 import {
   buildArtifactTextModel,
   generateBlock,
@@ -28,8 +28,8 @@ import {
   type ArtifactBlock,
   type ArtifactMode,
   type ArtifactTheme,
-} from "../src/artifacts/generator.js";
-import { observeTaskCancellation } from "../src/tasks/cancellation.js";
+} from "../src/application/artifacts/generator.js";
+import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
 
 export const htmlArtifactInputSchema = z.object({
   orgId: z.string().min(1),

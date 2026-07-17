@@ -21,7 +21,7 @@ Re-derived from first principles, all three layers already support concurrency:
   a step via `Promise.all(toolCallsToExecute.map(...))` and concurrently consumes
   each tool's async generator (`node_modules/ai/dist/index.js`). `ToolLoopAgent`
   is created with `parallelToolCalls: true` in both modes
-  (`services/chat/src/agent/agents/tool-loop.ts`; plan mode only filters plan
+  (`services/chat/src/bootstrap/application/agent/agents/tool-loop.ts`; plan mode only filters plan
   writes that conflict with a same-step `ask_user`). So `write_file` +
   `generate_image` + `generate_video` emitted in the **same step** already run in
   parallel — the foreground-block of each tool blocks only its own call.

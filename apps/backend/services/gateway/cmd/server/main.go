@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/example/monorepo/gateway/internal/config"
-	"github.com/example/monorepo/gateway/internal/handlers"
-	"github.com/example/monorepo/gateway/internal/middleware"
-	"github.com/example/monorepo/gateway/internal/observability"
-	"github.com/example/monorepo/gateway/internal/store"
+	"github.com/example/monorepo/gateway/internal/api/http/handlers"
+	"github.com/example/monorepo/gateway/internal/api/http/middleware"
+	"github.com/example/monorepo/gateway/internal/bootstrap/config"
+	"github.com/example/monorepo/gateway/internal/infrastructure/observability"
+	"github.com/example/monorepo/gateway/internal/infrastructure/store"
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )

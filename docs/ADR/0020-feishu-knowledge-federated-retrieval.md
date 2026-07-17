@@ -59,7 +59,7 @@ ADR-0019's ingest pipeline.
    copy.** Chat's `ToolLoopAgent` (ADR-0011) gains Feishu retrieval tools
    (`feishu_search` + `feishu_read`), analogous to the existing `web_search` /
    `knowledge_search` builtins in
-   `services/chat/src/agent/tools/builtins/`. The tool calls Feishu at request
+   `services/chat/src/bootstrap/application/agent/tools/builtins/`. The tool calls Feishu at request
    time; results enter only the current turn's context; **nothing is written to
    `knowledge` / pgvector**. This is deliberately the inverse of ADR-0019.
 

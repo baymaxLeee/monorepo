@@ -11,13 +11,16 @@ Go-based BFF / API gateway. Sits between frontend and backend Python services.
 - Business logic (delegate to domain services)
 - Persist its own state (stateless)
 - BFF aggregation / typed downstream clients (not implemented; gateway is a
-  pure streaming reverse proxy today — there is no `internal/clients/`)
+  pure streaming reverse proxy today — there is no populated
+  `internal/infrastructure/clients/`)
 
 ## Layout
 - `cmd/server/main.go` — entry point + middleware chain
-- `internal/handlers/` — reverse proxy + health handlers
-- `internal/middleware/` — trace id, logging, recover, body limit, CORS,
+- `internal/bootstrap/config/` — process configuration
+- `internal/api/http/handlers/` — reverse proxy + health handlers
+- `internal/api/http/middleware/` — trace id, logging, recover, body limit, CORS,
   identity propagation, rate limit (`rate_limit.go`, `go-chi/httprate`)
+- `internal/infrastructure/` — Redis store, security, observability, and clients
 
 ## Conventions
 - Use `chi` router (already standard)

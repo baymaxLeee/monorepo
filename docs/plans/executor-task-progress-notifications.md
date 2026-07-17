@@ -71,8 +71,8 @@ part** 的形状经**已有的 resumable-stream 通道**转发 → 前端用 AI 
    调用刚返回 `task_id`、卡片一渲染就立刻打第一枪，且此后固定每 2 秒打一次，
    直到终态。这正是"任务才刚开始跑就急着查询"的来源。
 2. **executor 的 Task 模型没有"进度"这个概念**：
-   `apps/backend/services/executor/src/db/schema.ts` 的 `tasks` 表和
-   `src/tasks/types.ts` 的 `TaskSnapshot` 只有 `status`
+   `apps/backend/services/executor/src/infrastructure/persistence/schema.ts` 的 `tasks` 表和
+   `src/application/tasks/types.ts` 的 `TaskSnapshot` 只有 `status`
    （`queued|running|completed|failed|cancelled`），没有 `progress` 字段。
    `workflows/html-artifact.ts` 的 `generateBlockStep` 每完成一个 block 只会
    写回 knowledge，从不上报"第几块做完了"。所以即使换成推送，今天也没有
@@ -182,13 +182,13 @@ sequenceDiagram
 
 1. **迁移** `apps/backend/services/executor/migrations/versions/v1.1.0.sql`：
    给 `tasks` 表加 `progress JSON NULL`。同步
-   `apps/backend/services/executor/src/db/schema.ts` 加
+   `apps/backend/services/executor/src/infrastructure/persistence/schema.ts` 加
    `progress: json("progress").$type<{done:number; total:number} | null>()`。
-2. `src/tasks/types.ts`：`TaskSnapshot` 加
+2. `src/application/tasks/types.ts`：`TaskSnapshot` 加
    `progress: { done: number; total: number } | null`。
 3. `src/config.ts`：加 `chatServiceUrl`（新 env `CHAT_SERVICE_URL`，默认
    `http://localhost:8009`），`.env.example` 同步。
-4. `src/tasks/service.ts` 新增：
+4. `src/application/tasks/service.ts` 新增：
    - `reportTaskProgress(workflowRunId, {done,total})`：按 workflow_run_id
      找到 task 行，更新 `progress` 列，然后调用 `notifyOwner`。
    - `notifyOwner(row)`（内部函数，`watchCompletion` 的成功/失败/取消分支和
@@ -200,7 +200,7 @@ sequenceDiagram
      影响任务本身状态**。
    - `watchCompletion` 的 `.then`/`.catch` 分支在更新 DB 后各加一行
      `notifyOwner(...)`。
-5. `src/clients/chat.ts`（新文件，参照 `src/clients/knowledge.ts`）：包一层
+5. `src/infrastructure/clients/chat.ts`（新文件，参照 `src/infrastructure/clients/knowledge.ts`）：包一层
    `ChatInternalClient`（新增在 `libs/transport-ts/src/chat.ts`，参照
    `libs/transport-ts/src/executor.ts`），暴露 `notifyTaskEvent(...)`。裸写
    `fetch` 也可，倾向复用 transport-ts 以保持跨服务调用的错误分类/超时一致。
@@ -222,7 +222,7 @@ sequenceDiagram
    `internalAuthMiddleware`）应用到新的 `/internal/*` 路由组——chat 目前没有
    任何入站 `/internal/*` 路由，这是第一个。
 8. **传输：泛化现有 resumable stream 支持 task-scoped 流。**
-   `apps/backend/services/chat/src/agent/streams/service.ts` 目前按 `runId`
+   `apps/backend/services/chat/src/bootstrap/application/agent/streams/service.ts` 目前按 `runId`
    建流（`chat:agent-streams:{runId}:sse`）。新增一组并列函数（或参数化 key）
    支持 `chat:task-streams:{taskId}`：`appendTaskChunk(taskId, chunk)`、
    `replayTaskStream(taskId)`（复用 `XREAD BLOCK` + duplicate 连接的既有做法）、
@@ -242,7 +242,7 @@ sequenceDiagram
    - 生成 chunk 的推荐做法：用官方 `createUIMessageStream({execute})` 写一个
      part 再序列化为 SSE，或直接按数据流协议拼一行；实现时以 AI SDK 导出的
      序列化工具为准，**不手写私有格式**。
-10. `apps/backend/services/chat/src/services/conversations.ts` 新增
+10. `apps/backend/services/chat/src/bootstrap/application/conversations.ts` 新增
     `findMessageByToolCallId(conversationId, toolCallId)`：扫描该会话消息，
     反序列化 `content`，匹配某个 tool part 的 `toolCallId`。仅终态调用（低频）。
 11. `GET /:conversationId/tasks/:taskId/stream`（`agents.ts`，鉴权同其它

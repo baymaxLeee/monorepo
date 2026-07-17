@@ -6,10 +6,10 @@ try {
 import { serve } from "@hono/node-server";
 import { configureOpenTelemetry, shutdownOpenTelemetry } from "@backend/kernel-ts";
 
-import { createApp } from "./app.js";
-import { bootstrapChat } from "./lib/bootstrap.js";
-import { getSettings } from "./config.js";
-import { logger } from "./lib/logger.js";
+import { createApp } from "./bootstrap/app.js";
+import { bootstrapChat } from "./bootstrap/runtime.js";
+import { getSettings } from "./bootstrap/config.js";
+import { logger } from "./infrastructure/observability/logger.js";
 
 configureOpenTelemetry("chat");
 

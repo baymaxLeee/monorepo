@@ -185,12 +185,12 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 
 ## Entry points
 
-- `src/routes/agents.ts` — run stream and trace routes
-- `src/agent/runs/run.ts` — request/stream/persistence orchestration
-- `src/agent/agents/tool-loop.ts` — ToolLoopAgent implementation
-- `src/agent/tools/catalog.ts` — manifest resolution and run-scoped extension assembly
-- `src/agent/context/projector.ts` — bounded model context projection
-- `src/agent/README.md` — module boundaries and extension rules
+- `src/api/http/routes/agents.ts` — run stream and trace routes
+- `src/application/agent/runs/run.ts` — request/stream/persistence orchestration
+- `src/application/agent/agents/tool-loop.ts` — ToolLoopAgent implementation
+- `src/application/agent/tools/catalog.ts` — manifest resolution and run-scoped extension assembly
+- `src/application/agent/context/projector.ts` — bounded model context projection
+- `src/application/agent/README.md` — module boundaries and extension rules
 - `src/gen-openapi.ts` — OpenAPI export
 
 Run from `apps/backend`: `just lint chat`, `just build chat`,

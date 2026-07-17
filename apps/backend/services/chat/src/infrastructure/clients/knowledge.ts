@@ -1,0 +1,158 @@
+import {
+  KnowledgeInternalClient,
+  TransportError,
+  type ArtifactRevisionWorkspace,
+  type DocumentSlice,
+  type KnowledgeDocument,
+  type RetrieveResult,
+  type StoredArtifactBlock,
+} from "@backend/transport-ts";
+import { propagationHeaders } from "@backend/kernel-ts";
+import { getSettings } from "../../bootstrap/config.js";
+import { NotFoundError } from "../../application/errors.js";
+
+export type {
+  ArtifactRevisionWorkspace,
+  DocumentSlice,
+  KnowledgeDocument,
+  RetrieveResult,
+  StoredArtifactBlock,
+} from "@backend/transport-ts";
+
+function knowledgeClient(timeoutMs?: number): KnowledgeInternalClient {
+  const s = getSettings();
+  return new KnowledgeInternalClient({
+    baseUrl: s.knowledgeServiceUrl,
+    internalToken: s.internalApiToken,
+    callerService: "chat",
+    propagatedHeaders: propagationHeaders,
+    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+  });
+}
+
+export async function listDocuments(
+  userId: string,
+  conversationId?: string,
+): Promise<KnowledgeDocument[]> {
+  return knowledgeClient().listDocuments({ userId, conversationId });
+}
+
+export async function getDocument(userId: string, documentId: string): Promise<KnowledgeDocument> {
+  try {
+    return await knowledgeClient().getDocument({ userId, documentId });
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      throw new NotFoundError(`document ${documentId} not found`);
+    }
+    throw err;
+  }
+}
+
+export async function getLatestArtifactWorkspace(
+  userId: string,
+  documentId: string,
+): Promise<ArtifactRevisionWorkspace | null> {
+  try {
+    return await knowledgeClient().getLatestArtifactWorkspace({ userId, documentId });
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+export async function getDocumentSlice(
+  userId: string,
+  documentId: string,
+  start = 0,
+  maxChars = 4000,
+  waitMs = 0,
+): Promise<DocumentSlice> {
+  // The long-poll holds the request open for up to waitMs; the transport's
+  // default 15s abort would kill it, so give the client headroom past waitMs.
+  const client = knowledgeClient(waitMs > 0 ? waitMs + 5000 : undefined);
+  try {
+    return await client.getDocumentSlice({ userId, documentId, start, maxChars, waitMs });
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      throw new NotFoundError(`document ${documentId} not found`);
+    }
+    throw err;
+  }
+}
+
+export async function getDocumentSource(
+  userId: string,
+  documentId: string,
+  options?: { maxDim?: number },
+): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  try {
+    const source = await knowledgeClient().getDocumentSource({
+      userId,
+      documentId,
+      maxDim: options?.maxDim,
+    });
+    return { bytes: source.bytes, mimeType: source.contentType };
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      throw new NotFoundError(`document ${documentId} source not found`);
+    }
+    throw err;
+  }
+}
+
+export async function retrieveKnowledge(
+  userId: string,
+  orgId: string,
+  query: string,
+  topK?: number,
+  signal?: AbortSignal,
+): Promise<RetrieveResult> {
+  return knowledgeClient().retrieve({ userId, orgId, query, topK, signal });
+}
+
+export async function createArtifact(input: {
+  userId: string;
+  orgId: string;
+  conversationId: string;
+  title: string;
+  filename: string;
+  content: string;
+  mimeType?: string;
+  idempotencyKey?: string;
+}): Promise<KnowledgeDocument> {
+  return knowledgeClient().createArtifact(input);
+}
+
+export async function createMediaDocument(input: {
+  userId: string;
+  orgId: string;
+  conversationId: string;
+  title: string;
+  filename: string;
+  mimeType: string;
+  bytes: Uint8Array;
+  idempotencyKey?: string;
+}): Promise<KnowledgeDocument> {
+  return knowledgeClient().createMediaDocument(input);
+}
+
+export async function updateArtifact(input: {
+  userId: string;
+  documentId: string;
+  title?: string;
+  filename?: string;
+  content?: string;
+  mimeType?: string;
+  expectedUpdatedAt?: string;
+}): Promise<KnowledgeDocument> {
+  try {
+    return await knowledgeClient().updateArtifact(input);
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      throw new NotFoundError(`artifact ${input.documentId} not found`);
+    }
+    throw err;
+  }
+}

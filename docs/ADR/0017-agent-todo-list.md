@@ -10,7 +10,7 @@ Accepted. Complements ADR 0011 and ADR 0012; does not supersede either.
 `revision`, `pending/in_progress/completed/failed/skipped` status,
 `dependsOn`, `result` refs) plus a dedicated `ChatPlanCard`. One day later,
 `05d69f2` deleted both and replaced `update_plan` with the current Markdown
-plan artifact (`apps/backend/services/chat/src/agent/plans/service.ts`):
+plan artifact (`apps/backend/services/chat/src/bootstrap/application/agent/plans/service.ts`):
 `write_plan`/`update_plan` persist a `*-plan.md` document in knowledge with a
 compare-and-swap `revision_id = document.updated_at`, and the only UI is the
 generic `ArtifactDocumentCard`. That change kept ADR 0012's principle of one
@@ -29,9 +29,9 @@ tracker for the *current* execution, not a versioned document.
 ## Decision
 
 - Add one new tool, `update_todos`
-  (`apps/backend/services/chat/src/agent/tools/builtins/planning.ts`), available
+  (`apps/backend/services/chat/src/bootstrap/application/agent/tools/builtins/planning.ts`), available
   in both `normal` and `plan` mode tool catalogs
-  (`apps/backend/services/chat/src/agent/tools/catalog.ts`).
+  (`apps/backend/services/chat/src/bootstrap/application/agent/tools/catalog.ts`).
 - The tool takes `{ todos: [{ id, content, status }] }` and always replaces
   the whole list; `status` is `pending | in_progress | completed`, matching
   Claude Code's `TodoWrite` exactly. `execute` is a pure validation function:

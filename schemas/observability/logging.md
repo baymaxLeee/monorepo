@@ -147,7 +147,7 @@ executor 的 `"use workflow"`/`"use step"` 运行在会持久化/重放的沙箱
 
 ## 5. 实现位置索引
 
-- Go:`services/{gateway,iam}/internal/middleware`(`TraceId` + `RequestLogger`)
+- Go:`services/{gateway,iam}/internal/api/http/middleware`(`TraceId` + `RequestLogger`)
   与各 `cmd/server/main.go` 的 slog 初始化。
 - Python:`libs/kernel/src/kernel/logging.py`(`configure_logging` +
   `RequestLoggingMiddleware` + trace 注入 processor)、`kernel/tracing.py`。

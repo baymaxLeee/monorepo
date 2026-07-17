@@ -5,7 +5,7 @@ Generated client code lives next to consumers, not here.
 - TS clients   → `apps/frontend/packages/api/generated/<svc>/`
 - S2S TS clients → `apps/backend/libs/transport-ts/src/schema/`
 - Python clients → `apps/backend/libs/transport/src/transport/clients/<svc>/`
-- Go clients   → `apps/backend/services/gateway/internal/clients/<svc>/`
+- Go clients   → `apps/backend/services/gateway/internal/infrastructure/clients/<svc>/`
 
 Generators are wired into the relevant `justfile`:
 

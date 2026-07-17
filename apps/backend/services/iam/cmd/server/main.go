@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/example/monorepo/iam/internal/config"
-	"github.com/example/monorepo/iam/internal/crud"
-	"github.com/example/monorepo/iam/internal/middleware"
-	"github.com/example/monorepo/iam/internal/router"
-	"github.com/example/monorepo/iam/internal/service"
+	"github.com/example/monorepo/iam/internal/api/http/middleware"
+	"github.com/example/monorepo/iam/internal/api/http/router"
+	"github.com/example/monorepo/iam/internal/application"
+	"github.com/example/monorepo/iam/internal/bootstrap/config"
+	"github.com/example/monorepo/iam/internal/infrastructure/persistence/repositories"
 )
 
 func main() {
@@ -49,13 +49,13 @@ func main() {
 func runSeed(cfg config.Config) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	st, err := crud.Connect(ctx, cfg.DatabaseURL)
+	st, err := repositories.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
 		slog.Error("failed to connect database", "err", err)
 		os.Exit(1)
 	}
 	defer st.Close()
-	if err := service.EnsureSystemBootstrap(ctx, st, cfg); err != nil {
+	if err := application.EnsureSystemBootstrap(ctx, st, cfg); err != nil {
 		slog.Error("failed to bootstrap system identity", "err", err)
 		os.Exit(1)
 	}
@@ -64,7 +64,7 @@ func runSeed(cfg config.Config) {
 
 func runServer(cfg config.Config) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	st, err := crud.Connect(ctx, cfg.DatabaseURL)
+	st, err := repositories.Connect(ctx, cfg.DatabaseURL)
 	cancel()
 	if err != nil {
 		slog.Error("failed to connect database", "err", err)

@@ -15,12 +15,14 @@ refresh tokens, and user profile preferences.
   externally exposed by gateway as `/api/iam-server/*`
 
 ## Layout
-- `internal/router/` — HTTP routing and response mapping
-- `internal/service/` — auth, session, role business logic
-- `internal/crud/` — ORM persistence operations
-- `internal/model/` — GORM table models
-- `internal/schema/` — request/response DTOs
-- `internal/security/` — password hashing and token primitives
+- `internal/bootstrap/config/` — process configuration
+- `internal/api/http/router/` — HTTP routing and response mapping
+- `internal/application/contracts/` — request/response DTOs
+- `internal/api/http/middleware/` — HTTP middleware
+- `internal/application/` — auth, session, and role business logic
+- `internal/infrastructure/persistence/repositories/` — ORM persistence operations
+- `internal/infrastructure/persistence/models/` — GORM table models
+- `internal/infrastructure/security/` — password hashing and token primitives
 
 ## Does not own
 - Admin-only user management workflows

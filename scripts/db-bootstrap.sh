@@ -58,7 +58,7 @@ import sys
 
 sys.path.insert(0, "src")
 
-from db import close_db, seed_demo_apps
+from infrastructure.persistence.database import close_db, seed_demo_apps
 
 
 async def main() -> None:

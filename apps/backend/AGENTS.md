@@ -47,8 +47,9 @@ Go for performance-critical services (gateway).
 ### Resource module boundaries
 - Keep business resources separated end-to-end inside every service.
 - Each table/resource gets its own resource-specific modules, for example
-  `models/<resource>.py`, `schemas/<resource>.py`, `crud/<resource>.py`,
-  `services/<resource>.py`, and `routers/<resource>.py` for Python services.
+  `application/contracts/<resource>.py`, `api/http/routes/<resource>.py`,
+  `application/<resource>.py`, `infrastructure/persistence/models/<resource>.py`,
+  and `infrastructure/persistence/repositories/<resource>.py` for Python services.
 - Do NOT merge distinct business resources into a generic shared
   CRUD/model/schema/service layer just to reduce boilerplate. Prefer explicit,
   single-responsibility modules that can evolve independently.
@@ -78,7 +79,7 @@ share Pydantic models across services via libs — each service owns its own DTO
 5. Document in `docs/微服务/<name>.md`
 
 ### Adding a route
-- Routes go in `services/<name>/src/routers/<resource>.py`
+- Routes go in `services/<name>/src/api/http/routes/<resource>.py`
 - Apply `@require_action(...)` for mutations
 - Use `libs.kernel.errors.*`, NEVER raise raw HTTPException
 - Audit successful mutations via `libs.audit_sdk.record(...)`

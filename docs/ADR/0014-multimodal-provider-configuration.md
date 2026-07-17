@@ -60,7 +60,7 @@ Image generation is now wired end to end as an agent tool, honoring the
 boundaries above:
 
 - The chat `ToolLoopAgent` has an inline `generate_image` tool
-  (`services/chat/src/agent/tools/builtins/media.ts`). It resolves the image
+  (`services/chat/src/bootstrap/application/agent/tools/builtins/media.ts`). It resolves the image
   provider from the run-scoped `multimodal_provider_id` (independent of the chat
   language model), validates `provider_kind === "image"`, and calls the AI SDK
   `generateImage` over the shared OpenAI-compatible adapter
@@ -70,7 +70,7 @@ boundaries above:
   and parses it, so we receive raw bytes regardless of the provider's configured
   default. Those bytes are copied immediately into Knowledge via a new internal
   endpoint `POST /internal/media-documents`
-  (`services/knowledge/src/routers/documents_internal.py`), which
+  (`services/knowledge/src/api/http/routes/documents_internal.py`), which
   mirrors the artifact-publish object-store path. Messages persist only the
   resulting `document_id`; Ark's temporary URL is never persisted.
 - Generation runs inline in the tool call (no durable executor task), but a
@@ -93,14 +93,14 @@ as this ADR prescribed for its asynchronous, billable task API:
   `video-generation`), never inline in the chat turn. Steps: create the Ark task
   → poll to a terminal state → download the finished video → persist to Knowledge.
   Ark HTTP goes through `secureProviderFetch` (SSRF guard) via
-  `services/executor/src/clients/ark.ts`.
-- The chat `generate_video` tool (`services/chat/src/agent/tools/builtins/media.ts`)
+  `services/executor/src/infrastructure/clients/ark.ts`.
+- The chat `generate_video` tool (`services/chat/src/bootstrap/application/agent/tools/builtins/media.ts`)
   resolves the video provider from a run-scoped `video_provider_id` (distinct
   from the image `multimodal_provider_id`; a user typically has separate Seedream
   and Seedance providers), validates `provider_kind === "video"`, dispatches the
   durable task and foreground-blocks on it — reusing the same
   dispatch/resilient-poll/cancel-on-abort helpers as the HTML-artifact tool
-  (extracted to `services/chat/src/agent/tasks/executor-task.ts`). It streams a
+  (extracted to `services/chat/src/bootstrap/application/agent/tasks/executor-task.ts`). It streams a
   preliminary `{ status, task_id }` then a terminal `{ status, document_id }` on
   the main chat stream; the frontend `ChatVideoCard` shows a generating state and
   then plays the video inline. Downloaded bytes are copied into Knowledge via the
@@ -123,7 +123,7 @@ parts.
 Consumers gate on it, replacing the previous "always inline the user's image"
 behavior that made Ark reject requests with *"Model do not support image input"*:
 
-- Chat context projection (`services/chat/src/agent/context/projector.ts`,
+- Chat context projection (`services/chat/src/bootstrap/application/agent/context/projector.ts`,
   threaded from `runs/run.ts` through the resolved provider snapshot) inlines a
   user-uploaded image as a model `file` part **only** when the answering model is
   `supports_image_input`; otherwise the image degrades to the existing
