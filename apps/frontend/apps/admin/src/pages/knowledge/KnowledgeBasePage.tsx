@@ -38,7 +38,7 @@ import {
 import { DownloadIcon, PencilIcon, Trash2Icon, UploadIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getErrorMessage, randomId } from "shared";
-import { KnowledgeDocumentDialog } from "../components/KnowledgeDocumentDialog";
+import { KnowledgeDocumentDialog } from "./KnowledgeDocumentDialog";
 
 function formatBytes(size: number): string {
   if (!size) return "—";

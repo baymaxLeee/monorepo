@@ -1,20 +1,24 @@
+import { lazy } from "react";
 import { Navigate, type RouteObject } from "react-router-dom";
-import { AdminLayout } from "../pages/AdminLayout";
-import { AppsRegistryPage } from "../pages/AppsRegistryPage";
-import { BotDetailPage } from "../pages/BotDetailPage";
-import { BotListPage } from "../pages/BotListPage";
-import { ComponentsDemoPage } from "../pages/ComponentsDemoPage";
-import { DashboardPage } from "../pages/DashboardPage";
-import { KnowledgeBasePage } from "../pages/KnowledgeBasePage";
-import { MembersPage } from "../pages/MembersPage";
-import { OrganizationsPage } from "../pages/OrganizationsPage";
-import { OperationsObservabilityPage } from "../pages/observability/OperationsObservabilityPage";
-import { TraceExplorerPage } from "../pages/observability/TraceExplorerPage";
-import { PlatformRolesPage } from "../pages/PlatformRolesPage";
-import { ProfilePage } from "../pages/ProfilePage";
-import { ProvidersPage } from "../pages/ProvidersPage";
-import { SkillsPage } from "../pages/SkillsPage";
-import { SkillWorkspacePage } from "../pages/SkillWorkspacePage";
+import { AdminLayout } from "../pages/layout";
+
+const AppsRegistryPage = lazy(() => import("../pages/apps"));
+const BotListPage = lazy(() => import("../pages/bots"));
+const BotDetailPage = lazy(() => import("../pages/bots/detail"));
+const ComponentsDemoPage = lazy(() => import("../pages/demo"));
+const DashboardPage = lazy(() => import("../pages/dashboard"));
+const KnowledgeBasePage = lazy(() => import("../pages/knowledge"));
+const MembersPage = lazy(() => import("../pages/members"));
+const OrganizationsPage = lazy(() => import("../pages/organizations"));
+const OperationsObservabilityPage = lazy(
+  () => import("../pages/observability"),
+);
+const TraceExplorerPage = lazy(() => import("../pages/observability/traces"));
+const PlatformRolesPage = lazy(() => import("../pages/platform-roles"));
+const ProfilePage = lazy(() => import("../pages/profile"));
+const ProvidersPage = lazy(() => import("../pages/providers"));
+const SkillsPage = lazy(() => import("../pages/skills"));
+const SkillWorkspacePage = lazy(() => import("../pages/skills/workspace"));
 
 /**
  * Mounted by platform at `/platform/admin/*`.
@@ -26,7 +30,7 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <Navigate to="profile" replace /> },
       { path: "profile", element: <ProfilePage /> },
-      { path: "telemetry", element: <Navigate to="dashboard" replace /> },
+      { path: "telemetry", element: <Navigate to="dashboard" replace />},
       { path: "dashboard", element: <DashboardPage /> },
       { path: "bots", element: <BotListPage /> },
       { path: "bots/:id", element: <BotDetailPage /> },

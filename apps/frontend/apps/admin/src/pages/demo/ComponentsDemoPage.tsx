@@ -1,19 +1,15 @@
 import { Page, Tabs, TabsContent, TabsList, TabsTrigger } from "components";
 import { useState } from "react";
-import {
-  type DemoTab,
-  defaultDemoTab,
-  resolveDemoTab,
-} from "./components-demo/data";
-import { BasicTab } from "./components-demo/tabs/BasicTab";
-import { CodeEditorTab } from "./components-demo/tabs/CodeEditorTab";
-import { DataTab } from "./components-demo/tabs/DataTab";
-import { FileWorkspaceTab } from "./components-demo/tabs/FileWorkspaceTab";
-import { FormTab } from "./components-demo/tabs/FormTab";
-import { MarkdownEditorTab } from "./components-demo/tabs/MarkdownEditorTab";
-import { OverlayTab } from "./components-demo/tabs/OverlayTab";
-import { PdfPreviewerTab } from "./components-demo/tabs/PdfPreviewerTab";
-import { XMindPreviewerTab } from "./components-demo/tabs/XMindPreviewerTab";
+import { type DemoTab, defaultDemoTab, resolveDemoTab } from "./data";
+import { BasicTab } from "./tabs/BasicTab";
+import { CodeEditorTab } from "./tabs/CodeEditorTab";
+import { DataTab } from "./tabs/DataTab";
+import { FileWorkspaceTab } from "./tabs/FileWorkspaceTab";
+import { FormTab } from "./tabs/FormTab";
+import { MarkdownEditorTab } from "./tabs/MarkdownEditorTab";
+import { OverlayTab } from "./tabs/OverlayTab";
+import { PdfPreviewerTab } from "./tabs/PdfPreviewerTab";
+import { XMindPreviewerTab } from "./tabs/XMindPreviewerTab";
 
 /**
  * 组件演示页：每个组件独立一个 tab，统一通过 DemoCard 包装；

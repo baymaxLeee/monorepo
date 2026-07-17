@@ -64,8 +64,8 @@ import { useForm } from "react-hook-form";
 import { getErrorMessage } from "shared";
 import { z } from "zod";
 import { useShallow } from "zustand/react/shallow";
-import { AgentModelDialog } from "../components/AgentModelDialog";
-import { useAdminStore } from "../store/useAdminStore";
+import { useAdminStore } from "../../store/useAdminStore";
+import { AgentModelDialog } from "./AgentModelDialog";
 
 const createBotSchema = z.object({
   name: z.string().trim().min(1, "请输入名称"),

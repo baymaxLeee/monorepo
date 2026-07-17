@@ -26,8 +26,9 @@ Manages the "智能体" domain on the frontend. Backed by `apps/backend/services
 - Admin owns its local shell and menu. Platform only mounts the MFE entry and
   does not know admin sub-routes or capabilities.
 - No `src/main.tsx` / `src/index.html`; do not add a standalone or status page
-- `src/pages/<Name>Page.tsx` — page-level components
-- `src/components/` — local UI components (not shared)
+- `src/pages/<route>/index.tsx` — page module entry; default-exported for module-scope React `lazy()` route loading
+- Page-specific business components, dialogs, helpers, and data transforms stay inside that page directory; related nested routes may share their nearest route-group directory
+- `src/components/` — admin-wide UI components reused across unrelated page modules (not shared with other MFEs)
 - `src/store/` — admin-private Zustand stores; import `create` / `useShallow` directly from `zustand` packages
 - `src/hooks/` — local hooks
 

@@ -26,7 +26,7 @@ import {
 } from "components";
 import { useCallback, useEffect, useState } from "react";
 import { getErrorMessage } from "shared";
-import { useAdminIdentity } from "../identity";
+import { useAdminIdentity } from "../../identity";
 import { CreateOrganizationDialog } from "./CreateOrganizationDialog";
 import {
   CreateOrgAdminDialog,

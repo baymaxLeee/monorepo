@@ -14,7 +14,7 @@ import {
 import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { getErrorMessage } from "shared";
-import { BotSkillsPanel } from "../components/BotSkillsPanel";
+import { BotSkillsPanel } from "../BotSkillsPanel";
 
 export function BotDetailPage() {
   const { id } = useParams<{ id: string }>();

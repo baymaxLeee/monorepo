@@ -28,7 +28,7 @@ import {
   toast,
 } from "components";
 import { useEffect, useState } from "react";
-import { useAdminIdentity } from "../identity";
+import { useAdminIdentity } from "../../identity";
 
 const SUPER_ADMIN = "super_admin";
 
