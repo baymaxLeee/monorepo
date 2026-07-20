@@ -29,7 +29,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@types/node": "^22.13.0",
+    "@types/node": "^24.0.0",
     "@types/sanitize-html": "^2.16.0",
     "@typescript/native": "catalog:",
     "nitro": "3.0.260610-beta",

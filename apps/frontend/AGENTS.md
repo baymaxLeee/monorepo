@@ -104,7 +104,7 @@ deployed asset bundles, but platform is the only user-facing entry.
 - **shadcn CLI / MCP（已接入）**: 根 `.cursor/mcp.json` 注册 `shadcn` server（cwd=`apps/frontend/packages/components`，`base=radix`、`ui` 别名=`components/shadcn`→`src/shadcn`）。CLI 在 monorepo 里要求 `packages/shared` 也有**有效** `components.json` + `tsconfig.json`（`utils/lib` 别名指向 `shared`，勿删）。CRUD 所需 `table/form/field/dialog/alert-dialog/card/tabs/sheet/command/pagination/breadcrumb/…` 已全量补齐。
   - **registry 取舍**: Origin UI 已迁 Base UI（`@base-ui/react`），与本仓库 `radix-ui` 底座冲突，**不接入**；`shadcn add --all` 会顺带拉 `@base-ui/react`/`recharts`/`embla` 等，**别用 `--all`**，按需精选 radix 系组件。tablecn data-table 假设 vanilla 布局 + `nuqs`(Next)，如需引入走**裁剪式移植**（复用现有原语，URL 状态用 react-router `useSearchParams`）。
 - **组件升级/新增流程**（在 `apps/frontend/packages/components`）:
-  1. **必须 Node ≥ 22 环境**（pnpm 11 依赖 `node:sqlite`；用 `mise exec -- <cmd>` 或已 `mise activate` 的 shell，否则 CLI 内部 `pnpm add` 会崩/落到错误 store）。
+  1. **必须 Node 24.18.0 环境**（pnpm 11 依赖 `node:sqlite`；用 `mise exec -- <cmd>` 或已 `mise activate` 的 shell，否则 CLI 内部 `pnpm add` 会崩/落到错误 store）。
   2. `pnpm ui:add <component>`（= `shadcn add`，cwd 已默认 `.`；或经 shadcn MCP `add`）——原语落 `src/shadcn/<name>.tsx`。若覆盖到上面「禁止覆盖的 fork」，`git checkout --` 恢复。
   3. 在 `src/shadcn/index.ts` 子 barrel 补一行 `export * from "./<name>";`（主 barrel 自动透传）。`toast` 这类第三方命令式 API 仍在 `src/index.ts` 单独 `export { toast } from "sonner"`。
   4. `mise exec -- pnpm -F components typecheck` + 受影响 app `typecheck` + `pnpm -F platform build`（`src/shadcn/**` 已在 `apps/frontend/biome.json` overrides 里降级 vendored a11y 规则，lint 保持干净）。

@@ -1,4 +1,4 @@
-FROM node:22-slim AS build
+FROM node:24.18.0-slim AS build
 WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable
@@ -16,7 +16,7 @@ COPY apps/backend/services/executor ./services/executor
 WORKDIR /app/apps/backend/services/executor
 RUN pnpm run build
 
-FROM node:22-slim AS runtime
+FROM node:24.18.0-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 # ffmpeg is required by the video-generation workflow to normalize + concat

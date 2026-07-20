@@ -19,6 +19,22 @@ for cmd in node pnpm python uv go just docker jq curl mise; do
   check "$cmd" || fail=1
 done
 
+if command -v mise >/dev/null 2>&1; then
+  expected_node="$(mise current node 2>/dev/null || true)"
+  actual_node="$(node -p 'process.versions.node' 2>/dev/null || true)"
+  if [ -n "$expected_node" ] && [ "$actual_node" != "$expected_node" ]; then
+    miss "node PATH mismatch: expected $expected_node from mise, got ${actual_node:-unknown}"
+    fail=1
+  fi
+
+  expected_pnpm="$(mise current pnpm 2>/dev/null || true)"
+  actual_pnpm="$(pnpm --version 2>/dev/null || true)"
+  if [ -n "$expected_pnpm" ] && [ "$actual_pnpm" != "$expected_pnpm" ]; then
+    miss "pnpm PATH mismatch: expected $expected_pnpm from mise, got ${actual_pnpm:-unknown}"
+    fail=1
+  fi
+fi
+
 echo ""
 echo "── Docker services ──"
 if docker ps --format '{{.Names}}' 2>/dev/null | grep -q monorepo-postgres; then

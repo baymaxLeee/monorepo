@@ -2,6 +2,9 @@
   "name": "monorepo-root",
   "private": true,
   "description": "Meta-monorepo: micro-frontends + microservices",
+  "engines": {
+    "node": "24.18.0"
+  },
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "sync": "just sync"

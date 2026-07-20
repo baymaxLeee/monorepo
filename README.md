@@ -14,7 +14,10 @@ cd /Users/bytedance/projects/project/monorepo
 
 # 1. 装工具版本管理器(强烈推荐,仅需一次)
 brew install mise                                          # 或 curl https://mise.run | sh
-echo 'eval "$(mise activate zsh)"' >> ~/.zshrc && source ~/.zshrc
+mise use --global node@24.18.0 pnpm@11.9.0
+grep -qxF 'eval "$(mise activate zsh --shims)"' ~/.zprofile 2>/dev/null || echo 'eval "$(mise activate zsh --shims)"' >> ~/.zprofile
+grep -qxF 'eval "$(mise activate zsh)"' ~/.zshrc 2>/dev/null || echo 'eval "$(mise activate zsh)"' >> ~/.zshrc
+eval "$(mise activate zsh)"
 # 2. 一键安装所有依赖(mise 工具链 + 前后端包 + .env 模板)
 just install
 
@@ -30,6 +33,9 @@ just doctor
 # 6. 起全套服务
 just dev
 ```
+
+Codex CLI 使用官方 standalone 安装（`curl -fsSL https://chatgpt.com/codex/install.sh | sh`），
+不要通过 `npm install -g` 安装到某个 Node 版本目录中。
 
 `just install` 帮你做了:
 - 脚本可执行权限、`mise install`
@@ -65,7 +71,7 @@ just dev
 | knowledge | http://localhost:8010/healthz | 文档 / RAG / artifact 存储 |
 | executor | http://localhost:8011/healthz | 长任务（HTML artifact / 视频） |
 
-> 不想装 mise?自己装齐 `node@22 / pnpm@9 / python@3.12 / uv / go@1.23 / just / docker / jq` 也行。
+> 不想装 mise?自己装齐 `node@24.18.0 / pnpm@11.9.0 / python@3.14.5 / uv / go@1.26.3 / just / docker / jq` 也行。
 > 不想装 overmind?`just dev` 会自动回退到纯 shell 模式,功能一样,只是日志混在一起。
 
 ---
@@ -392,8 +398,8 @@ overmind connect bot
 **原因**:`pnpm` 版本太旧或 node 版本不对。
 
 ```bash
-node -v   # 应该 ≥ 22
-pnpm -v   # 应该 ≥ 9
+node -v   # 应该是 v24.18.0
+pnpm -v   # 应该是 11.9.0
 mise install   # 重新装一遍
 ```
 

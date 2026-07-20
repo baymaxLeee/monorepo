@@ -94,7 +94,7 @@ Cloudflare Dashboard → **Workers & Pages → Create application → Pages → 
 | `APP` | `platform` | (默认值,可省) |
 | `API_BASE_URL` | `https://api.your-domain.com` | 必填,会被打进 bundle |
 | `APP_RELEASE` | `${CF_PAGES_COMMIT_SHA}` | 用于 telemetry 区分版本 |
-| `NODE_VERSION` | `22` | mise.toml 里是 22 |
+| `NODE_VERSION` | `24.18.0` | 与 mise.toml 的精确版本一致 |
 
 Custom domain: `app.your-domain.com`
 
@@ -108,7 +108,7 @@ MFE manifest 不再通过 platform 构建变量配置。部署 remote 后，在 
 |---|---|
 | Build command | `bash scripts/build-frontend-static.sh` |
 | Build output | `apps/frontend/apps/admin/dist` |
-| Environment variables | `APP=admin`, `NODE_VERSION=22` |
+| Environment variables | `APP=admin`, `NODE_VERSION=24.18.0` |
 
 Custom domain: `mfe-admin.your-domain.com`
 

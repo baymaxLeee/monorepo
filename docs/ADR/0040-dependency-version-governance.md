@@ -14,6 +14,10 @@ Python 已有单一 `uv.lock`，Go 服务则必须保持可独立构建。
 
 ## Decision
 
+- Node.js 统一固定为 `24.18.0` Active LTS：本地和项目外默认版本均由 mise 管理，
+  pnpm 固定为 `11.9.0`；根、前端、后端 workspace 的 `engines` 与所有 Node
+  容器基础镜像使用同一 Node 补丁版本。Codex CLI 使用官方 standalone 安装，避免
+  npm 全局包随 Node 安装目录重复升级。
 - 前端 pnpm workspace 使用 `catalog:` 管理共享的直接依赖；React、Router、Zustand、
   React Compiler runtime 与 AI SDK 同时通过 `overrides` 约束整个依赖图。
 - 前后端 TypeScript 类型检查与编辑器使用原生 TypeScript 7；`typescript` 5.x 暂时
@@ -30,6 +34,9 @@ Python 已有单一 `uv.lock`，Go 服务则必须保持可独立构建。
 
 ## Consequences
 
+- Node 或 pnpm 升级必须同时更新 `mise.toml`、workspace `package.json`、Node
+  Dockerfile 与本 ADR；`just doctor` 会拒绝实际 PATH 与 mise 项目版本不一致。
+- `@types/node` 跟随 Node 主版本，Node 24 的开发、构建和容器运行时使用同一套 API 类型。
 - 改动前端共享依赖的版本只需编辑 `apps/frontend/pnpm-workspace.yaml` 和锁文件。
 - 新增共享前端依赖必须先登记 catalog；`catalogMode: strict` 会阻止绕过该入口的
   `pnpm add`。
