@@ -82,6 +82,8 @@ echo "→ waiting for http://${REMOTE_HOST}:${PUBLIC_PORT}/healthz to return 200
 deadline=$((SECONDS + 120))
 while [ ${SECONDS} -lt ${deadline} ]; do
     if curl -fsS --max-time 3 "http://${REMOTE_HOST}:${PUBLIC_PORT}/healthz" >/dev/null 2>&1; then
+        echo "→ pruning superseded images"
+        ssh "${REMOTE}" "docker image prune -a -f"
         echo ""
         echo "─────────────────────────────────────────────────────────"
         echo "✓ deploy ok"

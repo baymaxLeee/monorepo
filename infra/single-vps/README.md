@@ -242,10 +242,12 @@ And optionally these **Variables**:
 | `IMAGE_REGISTRY` | (auto-derived from repo) |
 
 Done. Now every `git push origin main`:
-1. `build-images.yml` builds & pushes the 6 images
+1. `build-images.yml` builds & pushes the 9 images
 2. `deploy-single-vps.yml` waits for build-images success, then SSH's to the VPS and runs the deploy
+3. After the health check succeeds, the deploy removes images not referenced by any container
 
 The CI overrides `IMAGE_TAG` to the just-built `sha-<short>` so each deploy is pinned to the commit that triggered it.
+The registry remains the rollback source of truth; the VPS keeps only images used by its current containers.
 
 ### B. Manual deploy from laptop
 
