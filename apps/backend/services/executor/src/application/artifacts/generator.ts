@@ -210,13 +210,13 @@ function blockInstructions(input: {
 }): string {
   return [
     "Generate one semantic HTML body fragment for a larger compiled artifact.",
-    "Return only the fragment: no markdown fence, doctype, html, head, body, or script tags.",
-    "Never emit inline JavaScript or event-handler attributes.",
+    "Return only the fragment: no markdown fence, doctype, html, head, or body tags.",
+    "Inline JavaScript, canvas, controls, and event handlers are available for interactions. Keep scripts self-contained, place them after the markup they initialize, and scope DOM queries to the current artifact block instead of relying on global ids.",
     "The platform provides the responsive template, design tokens, and Grid/Flex primitives below. Compose them instead of rebuilding the page shell.",
     "You may use topic-specific classes, inline styles, media queries, and one <style> element only when the platform primitives cannot express the composition. Scope every selector under the current block id.",
     `Current block selector: #${input.block.id}. Do not target html, body, :root, or another block id.`,
     `The compiler owns id="${input.block.id}" on the outer block. Never declare that id, or any page-N id, inside the fragment. Give block-local targets descriptive unique ids; the compiler namespaces them and rewrites local references.`,
-    "Do not use @import, CSS url(), external fonts, external stylesheets, or external images. The runtime removes them.",
+    "Do not use @import, CSS url(), external fonts, external stylesheets, external scripts, network requests, storage, popups, or top-level navigation. The preview sandbox intentionally blocks those capabilities.",
     "<visual_capabilities>",
     ARTIFACT_VISUAL_CAPABILITIES,
     "</visual_capabilities>",

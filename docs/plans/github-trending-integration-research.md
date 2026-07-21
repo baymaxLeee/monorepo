@@ -11,7 +11,7 @@
 ## 一、筛选标准
 
 - 无成见：先判断"项目已有的是否够用"，只保留补空白或显著增强的，拒绝重复造轮子。
-- 官方优先：AI 决策以 AI SDK v7 官方能力为准（`ToolLoopAgent` / `WorkflowAgent` / UIMessage / telemetry）。
+- 官方优先：AI 决策以 AI SDK v7 官方能力为准（`ToolLoopAgent` / UIMessage / telemetry），耐久任务使用 Workflow DevKit 固定 functions。
 - 单 agent 优先：拒绝 role-play 多 agent 编排框架。
 - 复制标杆：优先采纳 Claude Code / Codex / Cursor / Vercel AI SDK 已验证的形态。
 - 无历史包袱：能对齐官方标准就对齐，不加兼容层。
@@ -61,7 +61,7 @@
 | 库 | 现状 | 深化方向 |
 |---|---|---|
 | `markitdown[all]` | knowledge convert 已用 | 建质量基准样本；扫描件/图片型 PDF 不达标时再按顺序评估补件（见 P1） |
-| AI SDK v7 | chat/executor 已用 | 打开官方 `telemetry`，评估 `WorkflowAgent` 边界（不改现有 ToolLoopAgent 分工） |
+| AI SDK v7 | chat 已用 | 打开官方 `telemetry`，保持 ToolLoopAgent 为唯一 agent loop |
 | Redis Streams | chat SSE 重放已用 | 复用为 CloudEvents 传输候选（P1） |
 | Orval codegen | 4 个服务已生成 | 补 `executor-server`、收敛手写 wrapper（P1） |
 
@@ -206,7 +206,7 @@ flowchart TD
 ## 八、参考来源（2026）
 
 - 可观测性：[Laminar "Top 6 Agent Observability 2026"](https://laminar.sh/article/2026-04-23-top-6-agent-observability-platforms)、[langfuse/langfuse](https://github.com/langfuse/langfuse)、OpenTelemetry GenAI 语义规范
-- AI SDK：ai-sdk.dev（`ToolLoopAgent` / `WorkflowAgent` / `createAgentUIStreamResponse` / telemetry）、bundled `node_modules/ai/docs/**`
+- AI SDK：ai-sdk.dev（`ToolLoopAgent` / `createAgentUIStreamResponse` / telemetry）、bundled `node_modules/ai/docs/**`
 - 文档摄取：[microsoft/markitdown](https://github.com/microsoft/markitdown)、[Docling vs MarkItDown](https://www.file2markdown.ai/blog/docling-vs-markitdown)、OpenDataLoader PDF-to-Markdown 基准
 - Web 抓取：[Firecrawl vs Tavily vs Exa 2026](https://pondero.ai/agents/guides/firecrawl-vs-tavily-vs-exa-web-search-api-agents-june-2026/)
 - Polyglot monorepo / 契约：[Buf](https://buf.build)、[API Schema Landscape 2026](https://www.youngju.dev/blog/culture/2026-05-14-api-schema-2026-json-schema-openapi-3-1-asyncapi-graphql-grpc-deep-dive.en)、[Monorepo CI/CD 2026 patterns](https://www.ugurkaval.com/blog/monorepo-cicd-github-actions-patterns-2026)

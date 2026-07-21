@@ -34,8 +34,13 @@ async def create_resource_url(
     if not row.object_bucket or not row.object_key:
         raise NotFoundError("document has no stored source object")
     media_type = (row.source_mime_type or row.mime_type or "").lower()
-    if not (media_type.startswith("video/") or media_type.startswith("audio/") or "pdf" in media_type):
-        raise RequestError("temporary resource URLs currently support video, audio, and PDF")
+    if not (
+        media_type == "text/html"
+        or media_type.startswith("video/")
+        or media_type.startswith("audio/")
+        or "pdf" in media_type
+    ):
+        raise RequestError("temporary resource URLs currently support HTML, video, audio, and PDF")
     url, expires_at = create_document_resource_url(row)
     return DocumentResourceURL(
         url=url,

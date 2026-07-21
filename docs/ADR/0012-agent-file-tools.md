@@ -28,28 +28,29 @@ Superseded in part by ADR 0023. The artifact pipeline remains accepted; ADR
   mode selects shell behavior, while appearance and accent remain content-driven.
 - Preview HTML runs in an opaque-origin iframe with `sandbox="allow-scripts"`.
   Internal `#fragment` navigation remains available; same-origin access to the
-  application is not.
+  application is not. Model-authored inline JavaScript and event handlers are
+  supported for self-contained interaction, while CSP blocks connections,
+  forms, remote scripts, access to the application origin, and top-level navigation.
 - Chart artifacts load the pinned full ECharts 6.1.0 runtime from the web
   image at `/runtime/echarts/6.1.0/echarts.min.js`, not a public CDN. The full
   build keeps generated options functional when they use components such as
   tooltip, legend, title, radar, or gauge.
   The platform build copies the package-owned file into its dist; nginx serves
-  the versioned path with immutable caching and anonymous CORS for SRI. Because
-  preview `srcdoc` keeps an opaque origin, the chat preview adds only that exact
-  deployment URL to the compiler-owned CSP instead of enabling same-origin
-  iframe access.
+  the versioned path with immutable caching and anonymous CORS for SRI. HTML
+  preview uses the same short-lived Knowledge resource URL capability as
+  video/audio/PDF instead of copying document bytes into `iframe.srcDoc`.
 - Executor owns the canonical AST-based HTML/CSS validator. It reports stable
   error/warning codes with block, selector, evidence, and repair suggestions.
   `html_validate` runs deterministic AST/CSS checks first. Hard errors include a
-  compact reason and evidence and trigger block-addressed `edit_file` repair →
-  `html_validate` rounds until the deterministic gate passes. Heuristic
+  compact reason and evidence. The primary ToolLoopAgent decides block-addressed
+  `edit_file` repair → `html_validate` rounds from those results. Heuristic
   responsive findings remain warnings. Only after the hard gate passes does one
   whole-artifact model review compare persisted blocks with their explicit
   content contracts. Its deduplicated findings are non-blocking advisories with
   contract item, reason, evidence, and suggestion; they never change `ok`. The
   primary agent may repair a clearly evidenced explicit-requirement violation
   but must not chase subjective review findings to zero. Tool execution errors
-  and unaddressable document-level hard errors fail the gate closed.
+  and unaddressable document-level hard errors prevent a successful validation claim.
   Executor alone classifies the internal report and exposes the canonical
   compact `{ ok, content_sha256, errors, advisories }` decision through its
   generated transport contract. Chat verifies the revision hash and orchestrates
@@ -62,12 +63,12 @@ Superseded in part by ADR 0023. The artifact pipeline remains accepted; ADR
   validation endpoint; executor reads current bytes from Knowledge and reruns the
   same canonical validator after any edit. Chat has no duplicate validator and
   HTML does not enter chat history.
-- The forced validation step uses `prepareStep` to inject a deterministic native
-  tool-call stream, so provider-specific tool-call generation cannot skip the
-  mandatory gate. Tool execution failures fail the gate. Reviewer JSON requires
-  concrete contract/reason/evidence fields, is normalized and retried once, and
-  is discarded on persistent format failure without suppressing deterministic
-  results.
+- Validation and repair use ordinary native tool calls in the primary
+  ToolLoopAgent. The harness does not maintain an artifact state machine, forge
+  model streams, or force a tool choice through `prepareStep`. Reviewer JSON
+  requires concrete contract/reason/evidence fields, is normalized and retried
+  once, and is discarded on persistent format failure without suppressing
+  deterministic results.
 - Every compiled ECharts option receives a default tooltip when the fragment did
   not declare one. Validation still reports `CHART_TOOLTIP_MISSING` on persisted
   artifacts so legacy output is repaired block-by-block rather than silently
@@ -103,8 +104,8 @@ a browser dependency to the durable workflow.
 
 Static validation is intentionally an inline tool call rather than another
 durable Workflow run. Deterministic checks return structured findings directly
-to the ToolLoopAgent; the harness forces the agent to target `block_id` with
-`edit_file` and rerun the validator in the same turn. Workflow remains the
+to the ToolLoopAgent, which reviews, targets `block_id` with `edit_file`, and
+reruns the validator when appropriate. Workflow remains the
 boundary for long-running, restartable generation. Human-in-the-loop applies to
 final acceptance, subjective feedback, and risky approvals—not routine QA or
 repair orchestration.
@@ -115,10 +116,9 @@ repair orchestration.
   ToolLoop step per block. Four block model calls run concurrently and all
   inherit the parent AbortSignal.
 - A failed block, invalid chart, broken navigation target, or responsive finding
-  may publish as an intermediate advisory revision; the internal quality gate
-  repairs it before the turn completes. Security and shell-integrity findings
-  block publication. An edit failure preserves the previously published
-  document.
+  may publish as an intermediate revision; the primary agent receives the
+  validation result and can repair it in the same turn. An edit failure preserves
+  the previously published document.
 - Existing artifacts without the current `templateVersion` are regenerated on
   their next edit; no legacy template compatibility branch is retained during
   the demo phase.

@@ -18,7 +18,7 @@ export const ARTIFACT_VISUAL_CAPABILITIES = [
 ].join("\n");
 
 export const ARTIFACT_CHART_SPEC = [
-  "Charts are empty div elements hydrated by the compiler. Never emit <script>, <canvas>, or JavaScript functions.",
+  "Prefer compiler-hydrated chart divs for standard charts. Use custom JavaScript only when the requested interaction cannot be expressed by the chart spec.",
   "Chart spec fields: type (one of \"bar\" | \"line\" | \"area\" | \"pie\"), title (optional string), categories (string[] for bar/line/area; the x-axis labels), series (see below), optional stack:true, optional horizontal:true.",
   "series for bar/line/area: an array of {\"name\":string,\"data\":number[]} aligned with categories; for a single series you may pass a bare number[]: \"data\".",
   "series for pie: an array of {\"name\":string,\"value\":number}.",
@@ -167,7 +167,6 @@ export function sanitizeArtifactPart(value: string, scopeId: string): string {
     .replace(/```\s*$/i, "")
     .replace(/<!doctype[^>]*>/gi, "")
     .replace(/<\/?(?:html|head|body)[^>]*>/gi, "")
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
     .trim();
   const localIds = collectLocalIds(fragment, scopeId);
   const sanitizedCss = fragment
@@ -187,15 +186,25 @@ export function sanitizeArtifactPart(value: string, scopeId: string): string {
       "h4", "h5", "h6", "header", "hr", "i", "img", "kbd", "li", "main",
       "mark", "nav", "ol", "p", "pre", "q", "s", "section", "small", "span", "style",
       "strong", "sub", "summary", "sup", "table", "tbody", "td", "tfoot", "th",
-      "thead", "time", "tr", "u", "ul", "var",
+      "thead", "time", "tr", "u", "ul", "var", "script", "canvas", "dialog",
+      "fieldset", "form", "input", "label", "legend", "meter", "optgroup", "option",
+      "output", "progress", "select", "textarea",
     ],
     allowedAttributes: {
-      "*": ["class", "id", "style", "title", "role", "aria-*", "data-*"],
+      "*": ["class", "id", "style", "title", "role", "aria-*", "data-*", "on*"],
       a: ["href", "target", "rel"],
-      button: ["type"],
+      button: ["type", "disabled", "name", "value"],
+      canvas: ["width", "height"],
       col: ["span"],
+      form: ["method"],
       img: ["src", "alt", "width", "height", "loading"],
+      input: ["type", "name", "value", "placeholder", "checked", "disabled", "min", "max", "step"],
+      option: ["value", "selected", "disabled"],
+      progress: ["value", "max"],
+      script: ["type"],
+      select: ["name", "disabled", "multiple"],
       td: ["colspan", "rowspan"],
+      textarea: ["name", "placeholder", "disabled", "rows", "cols"],
       th: ["colspan", "rowspan", "scope"],
       time: ["datetime"],
     },

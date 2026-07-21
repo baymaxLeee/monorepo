@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted. Supersedes ADR-0005 and the Workflow PostgreSQL clauses of ADR-0006.
+Accepted. Supersedes the abandoned durable-chat-agent proposal and the Workflow
+PostgreSQL clauses of ADR-0006.
 The stream transport lifecycle below is amended by ADR-0013.
 
 ## Decision
@@ -43,7 +44,8 @@ default execution model for interactive chat.
 - A future background job must introduce Workflow/queue infrastructure at that
   job boundary, not wrap the core chat agent.
 - Nitro and `workflow/nitro` (the Workflow DevKit build/runtime host from
-  ADR-0005) are removed. chat is hosted by `@hono/node-server` and runs its
+  the abandoned durable-chat-agent proposal) are removed. chat is hosted by
+  `@hono/node-server` and runs its
   TypeScript source directly with `tsx`; `tsc --noEmit` is typecheck only.
   There is no bundling/emit step because `@backend/transport-ts` is a
   source-only workspace package (its entry is `src/index.ts`), so a tsc emit

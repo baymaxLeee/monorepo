@@ -2,8 +2,8 @@
 
 ## 目标架构
 
-主 Chat 保持 AI SDK 7 `ToolLoopAgent`，每条用户消息创建一个新 run；不使用
-`WorkflowAgent`，不恢复聊天执行栈，也不新增 Agent Server。
+主 Chat 保持 AI SDK 7 `ToolLoopAgent`，每条用户消息创建一个新 run；不把聊天
+执行栈包装进 durable workflow，也不新增 Agent Server。
 
 ```text
 Conversation

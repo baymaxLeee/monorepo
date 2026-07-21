@@ -28,9 +28,9 @@ just chat), which makes this gap the priority rather than a deferred nicety.
    "Brain," entirely unchanged). It is a standalone deployable unit — chat
    never imports its source, only `@backend/transport-ts`'s
    `ExecutorInternalClient`.
-2. **Real Workflow DevKit** (`workflow` + `@ai-sdk/workflow`), not a
+2. **Real Workflow DevKit** (`workflow` + `workflow/nitro`), not a
    hand-rolled runtime. A Nitro + esbuild/rolldown spike proved the original
-   ADR-0011/ADR-0005 concern (a source-only workspace package like
+   ADR-0011 concern (a source-only workspace package like
    `@backend/transport-ts` failing to resolve through the workflow compiler)
    does not reproduce — that was specific to hosting the *interactive* main
    loop under Nitro, not to using Workflow DevKit for a bounded background

@@ -3,6 +3,8 @@ export const ECHARTS_RUNTIME_INTEGRITY =
   "sha384-C2iskrW/uPW46KzOjrvJIQo4YkV8lkD+QS0CrDN18IIPIpT/g2USu8bTP3nvmIAD";
 export const ARTIFACT_CSP = [
   "default-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'unsafe-inline'",
   "img-src data: blob:",

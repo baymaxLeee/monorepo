@@ -1,8 +1,5 @@
-import { randomBytes } from "node:crypto";
-
-import { NoSuchToolError, ToolLoopAgent, wrapLanguageModel } from "ai";
+import { ToolLoopAgent, wrapLanguageModel } from "ai";
 import type { ToolSet } from "ai";
-import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import { finishSpan, runWithActiveSpan, startSpan } from "@backend/kernel-ts";
 
@@ -21,12 +18,6 @@ import { ToolCatalog } from "../tools/catalog.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
 import { isToolOutcome } from "../tools/outcome.js";
 import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
-import { reduceArtifactVerificationSteps } from "./artifact-verification-adapter.js";
-import {
-  artifactVerificationDirective,
-  createArtifactVerificationState,
-  type ArtifactVerificationDirective,
-} from "../../../domain/agent/artifact-verification.js";
 import { planToolOrderingMiddleware } from "./plan-tool-ordering.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {
@@ -38,44 +29,6 @@ function observe(label: string, operation: Promise<void>): Promise<void> {
 type ExecutableTool = ToolSet[string] & {
   execute: (...args: unknown[]) => unknown;
 };
-
-function createForcedToolCallModel(
-  baseModel: LanguageModelV4,
-  directive: Extract<
-    ArtifactVerificationDirective,
-    { toolName: "html_validate" | "edit_file" }
-  >,
-): LanguageModelV4 {
-  return {
-    specificationVersion: "v4",
-    provider: baseModel.provider,
-    modelId: baseModel.modelId,
-    supportedUrls: baseModel.supportedUrls,
-    doGenerate: (options) => baseModel.doGenerate(options),
-    doStream: async () => ({
-      stream: new ReadableStream({
-        start(controller) {
-          controller.enqueue({ type: "stream-start", warnings: [] });
-          controller.enqueue({
-            type: "tool-call",
-            toolCallId: `artifact-gate-${randomBytes(12).toString("hex")}`,
-            toolName: directive.toolName,
-            input: JSON.stringify(directive.toolInput),
-          });
-          controller.enqueue({
-            type: "finish",
-            finishReason: { unified: "tool-calls", raw: "tool_calls" },
-            usage: {
-              inputTokens: { total: 0, noCache: 0, cacheRead: 0, cacheWrite: 0 },
-              outputTokens: { total: 0, text: 0, reasoning: 0 },
-            },
-          });
-          controller.close();
-        },
-      }),
-    }),
-  };
-}
 
 function toolCallIdFromOptions(options: unknown): string | undefined {
   if (!options || typeof options !== "object") return undefined;
@@ -169,7 +122,6 @@ export async function createToolLoopAgent(
     conversationId: input.conversationId,
     profileId: input.mode,
     runtimeKind: "tool-loop",
-    artifactVerification: createArtifactVerificationState(),
   };
   const instructions = assembleInstructions(
     input.instructionInput,
@@ -186,11 +138,6 @@ export async function createToolLoopAgent(
         })
       : providerModel;
   const toolApprovalSecret = getSettings().toolApprovalSecret;
-  let artifactGatePending = false;
-  let artifactGateDirective: Extract<
-    ArtifactVerificationDirective,
-    { toolName: "html_validate" | "edit_file" }
-  > | null = null;
   const loadSkillActiveTools = resolvedTools.activeTools.filter((name) => name !== "load_skill");
   const agent = new ToolLoopAgent<never, typeof tools, AgentRuntimeContext>({
     id: "chat-agent",
@@ -202,9 +149,9 @@ export async function createToolLoopAgent(
     activeTools: resolvedTools.activeTools,
     toolOrder: [...resolvedTools.activeTools].sort(),
     toolApproval: createToolApprovalPolicy(input.mode),
-    stopWhen: ({ steps }) => steps.length >= 20 && !artifactGatePending,
+    stopWhen: ({ steps }) => steps.length >= 20,
     prepareCall: (settings) => Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
-    prepareStep: ({ runtimeContext: stepContext, steps, initialInstructions }) => {
+    prepareStep: ({ steps }) => {
       const skillLoadedThisRun = steps.some((step) =>
         step.content.some((part) =>
           part.type === "tool-result" && part.toolName === "load_skill",
@@ -213,58 +160,7 @@ export async function createToolLoopAgent(
       const activeTools = skillLoadedThisRun
         ? loadSkillActiveTools
         : resolvedTools.activeTools;
-      const artifactVerification = reduceArtifactVerificationSteps(
-        stepContext.artifactVerification,
-        steps,
-      );
-      const directive = artifactVerificationDirective(
-        artifactVerification,
-      );
-      artifactGatePending = Boolean(
-        artifactVerification.current && artifactVerification.current.phase !== "failed",
-      );
-      artifactGateDirective = directive?.toolName ? directive : null;
-      const nextContext = { ...stepContext, artifactVerification };
-      if (!directive) {
-        return { runtimeContext: nextContext, activeTools, instructions: initialInstructions };
-      }
-      if (!directive.toolName) {
-        return {
-          runtimeContext: nextContext,
-          activeTools: [],
-          toolChoice: "none",
-          instructions: `${String(initialInstructions ?? instructions)}\n<artifact_quality_gate>${directive.instruction}</artifact_quality_gate>`,
-        };
-      }
-      return {
-        runtimeContext: nextContext,
-        model: createForcedToolCallModel(defaultModel, directive),
-        activeTools: [directive.toolName],
-        toolChoice: { type: "tool", toolName: directive.toolName },
-        instructions: `${String(initialInstructions ?? instructions)}\n<artifact_quality_gate>${directive.instruction}</artifact_quality_gate>`,
-      };
-    },
-    repairToolCall: async ({ toolCall, tools: stepTools, error }) => {
-      if (
-        !NoSuchToolError.isInstance(error) ||
-        !artifactGateDirective ||
-        !(artifactGateDirective.toolName in stepTools)
-      ) {
-        return null;
-      }
-      logger.warn(
-        {
-          attemptedTool: toolCall.toolName,
-          expectedTool: artifactGateDirective.toolName,
-          repairReason: error.name,
-        },
-        "repairing mandatory artifact quality-gate tool call",
-      );
-      return {
-        ...toolCall,
-        toolName: artifactGateDirective.toolName,
-        input: JSON.stringify(artifactGateDirective.toolInput),
-      };
+      return { activeTools };
     },
     toolsContext: toolsContext as never,
     runtimeContext,
@@ -318,16 +214,6 @@ export async function createToolLoopAgent(
           performance: event.performance,
         }),
       );
-      const expectedGateTool = artifactGateDirective?.toolName;
-      if (
-        artifactGatePending &&
-        expectedGateTool &&
-        !event.toolCalls.some((toolCall) => toolCall.toolName === expectedGateTool)
-      ) {
-        return recorded.then(() => {
-          throw new Error("mandatory artifact quality-gate tool call was not produced");
-        });
-      }
       return recorded;
     },
     onToolExecutionStart: (event) => {

@@ -27,15 +27,15 @@ Agent 运行时、租户/S2S 边界、durable execution 与工程链。前序改
 | iam | 身份、组织、RBAC |
 | admin | 配置平面（providers/agents/skills/catalog/platform bounded contexts） |
 | chat | 交互式 ToolLoopAgent、UIMessage 流、run lease |
-| executor | 耐久 task + Workflow DevKit / 按需 WorkflowAgent |
+| executor | 耐久 task + Workflow DevKit 固定 workflow functions |
 | knowledge | 文档/RAG/artifact 存储 |
 | telemetry | RUM 与运维查询 |
 
 ### Agent runtime（双轨，非多 persona）
 
 - **chat**：AI SDK v7 `ToolLoopAgent` 承载普通交互、审批、client-tool continuation。
-- **executor**：确定控制流（HTML artifact、video）用普通 Workflow；跨进程自主长任务按需
-  `WorkflowAgent`。
+- **executor**：HTML artifact、video 与其他跨进程长任务统一使用按 task type
+  注册的固定 Workflow functions；不在 executor 内启动第二个 agent loop。
 - 禁止在 chat/executor 宿主进程执行模型生成的 shell；HarnessAgent 须独立 sandbox（deferred）。
 
 ### 生命周期

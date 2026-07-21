@@ -53,7 +53,7 @@ state. The endpoint owns final classification and returns the canonical compact
 `{ ok, content_sha256, errors, advisories }` decision; callers must not
 reinterpret raw findings. It is the post-generation quality tool and is never
 called inside the HTML artifact workflow; durable Workflow remains reserved for
-generation.
+generation, while chat's primary ToolLoopAgent decides review and repair calls.
 
 - `src/application/tasks/registry.ts` maps a `type` string to a Zod input schema and a
   `"use workflow"` function. This is the seam a future `harness`-backed

@@ -7,7 +7,7 @@
 
 Artifact 是 Agent 的核心能力，目标是用大型交互式 HTML 覆盖约 10–100 页的
 PPT、报告和传统办公文档。`chat` 是统一 Agent Server，能力通过 AI SDK tools
-扩展；用户要求主 WorkflowAgent 必须等待 create/update 完成后才结束当前 turn。
+扩展；用户要求主 agent 必须等待 create/update 完成后才结束当前 turn。
 
 现有实现仍以单次完整 HTML 生成、全文 `content_md` 和字符切片更新为核心，无法
 提供 block 级并发、独立重试、可靠 resume 与局部 revision。
@@ -17,7 +17,7 @@ PPT、报告和传统办公文档。`chat` 是统一 Agent Server，能力通过
 1. 不新增 Artifact Server、数据库或对象存储。`chat` 继续拥有 Agent orchestration
    和 Artifact tools；`knowledge` 继续拥有 Artifact 持久化与现有 ObjectStore。
 2. `create_artifact` / `update_artifact` 的 tool execute 在 chat 内启动幂等 child
-   artifact workflow，并 `await childRun.returnValue`。因此主 WorkflowAgent 等待完整
+   artifact workflow，并 `await childRun.returnValue`。因此主 agent 等待完整
    Artifact 成功落库后才继续下一模型 step。
 3. child workflow 依次执行 plan、并行 block generation、compile、persist/publish。
    多个 block 使用有界异步 I/O 并发；每个生成单元是 durable step，可独立重试。
@@ -32,7 +32,7 @@ PPT、报告和传统办公文档。`chat` 是统一 Agent Server，能力通过
 
 ## 父子 Workflow 语义
 
-- WorkflowAgent 源码会 await 所有带 execute 的服务端 tools。
+- 当时的主 agent runtime 会 await 所有带 execute 的服务端 tools。
 - tool step 首先按 `toolCallId`/generation id 查询 knowledge 中的 generation record。
 - 已有 `workflow_run_id` 时通过 `getRun()` 重新连接；没有时才 `start()` child
   workflow 并立即持久化 run id，避免 tool step retry 重复启动。

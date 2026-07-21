@@ -41,14 +41,13 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 ## Tools and artifacts
 
 - Tool orchestration (ADR-0035): **thin harness — no general runtime
-  scheduler/lock.** The SDK owns the tool loop and same-step concurrency; the
+  scheduler/lock or artifact-specific state machine.** The SDK owns the tool loop and same-step concurrency; the
   prompt supplies normal policy. A plan-mode model middleware makes only
   `ask_user` and `write_plan`/`update_plan` mutually exclusive: if the model
   co-emits them, the ask remains and the plan write is deferred to the client
   continuation. All other independent tool calls retain native concurrency.
-  Deterministic completion postconditions use
-  AI SDK `prepareStep` narrowly: an HTML write cannot end the turn before its
-  internal validate/repair/revalidate gate completes.
+  HTML review and repair are ordinary `html_validate` / `edit_file` calls
+  selected by the primary ToolLoopAgent from tool results and prompt policy.
   todos-before-deliverables ordering is carried by the prompt
   (`renderRuntimeContract` "barrier step": `update_todos` called alone, then
   deliverables dispatched together in the NEXT step) plus the SDK step boundary.
@@ -100,19 +99,17 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   this turn** until compile + publish complete (`agent_task_执行时服务` plan,
   Phase 2; ADR-0015 revision). Progress 100% means block generation completed;
   compile + publish still follow. After every successful HTML write/edit, the
-  ToolLoopAgent `prepareStep` quality gate forces `html_validate`; deterministic
-  errors keep the internal `edit_file` → `html_validate` loop running until the
-  hard gate passes. Model content review runs only after deterministic checks
+  ToolLoopAgent calls `html_validate`; deterministic errors and model review
+  advisories return to the same agent, which decides the subsequent
+  `edit_file` → `html_validate` loop. Model content review runs only after deterministic checks
   pass and returns non-blocking advisories with contract item, reason, evidence,
   and suggestion; the primary agent decides whether a clear explicit-requirement
   violation warrants another edit and must not chase subjective advisories to
-  zero. The gate fails closed on tool errors and unaddressable document-level
-  hard errors; the agent-wide step limit does not interrupt a pending gate.
+  zero. Tool errors and unaddressable document-level hard errors are reported to
+  the ToolLoopAgent, which must not claim that validation passed.
   Executor returns the canonical compact `{ ok, content_sha256, errors,
   advisories }` decision; chat verifies the revision hash and orchestrates the
   loop without reclassifying findings or recomputing `ok`.
-  `prepareStep` injects the required quality-gate tool call deterministically
-  rather than asking the provider to generate it.
   `html_validate` remains a native
   UIMessage tool part and is visible in product UI; list tools stay internal.
   Users provide final acceptance and subjective feedback; they do not
@@ -133,8 +130,8 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   traces never carry HTML fragments.
 - `html_validate` validates an already-published artifact's current bytes through
   executor's synchronous canonical-validator endpoint. It is an inline agent
-  tool (no Workflow): findings flow into the enforced ToolLoopAgent quality gate
-  so the model uses the finding's block IDs with `edit_file` and validates again.
+  tool (no Workflow): findings flow into the native ToolLoopAgent loop so the
+  model can use the finding's block IDs with `edit_file` and validate again.
 - Cancelling a chat run **does** cancel the in-flight executor task the current
   `write_file`/`edit_file` call is blocking on: Stop aborts the turn, the tool's
   `abortSignal` fires, and it calls `POST /tasks/:id/cancel` before unwinding —
@@ -188,7 +185,6 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 - `src/api/http/routes/agents.ts` — run stream and trace routes
 - `src/application/agent/runs/run.ts` — request/stream/persistence orchestration
 - `src/application/agent/agents/tool-loop.ts` — ToolLoopAgent implementation
-- `src/domain/agent/artifact-verification.ts` — pure Artifact validation state machine
 - `src/application/agent/tools/catalog.ts` — manifest resolution and run-scoped extension assembly
 - `src/application/agent/context/projector.ts` — bounded model context projection
 - `src/application/agent/README.md` — module boundaries and extension rules

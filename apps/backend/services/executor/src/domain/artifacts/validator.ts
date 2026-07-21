@@ -275,9 +275,6 @@ function inspectElements(root: NodeLike, defaultBlockId?: string): HtmlValidatio
     const attrs = element.attribs ?? {};
     const blockId = closestBlockId(element) ?? defaultBlockId;
     const htmlEvidence = { kind: "html" as const, excerpt: excerpt(`<${tag} ${Object.entries(attrs).map(([k, v]) => `${k}="${v}"`).join(" ")}>`) };
-    if (Object.keys(attrs).some((name) => /^on/i.test(name))) {
-      findings.push(finding("HTML_EVENT_HANDLER", "error", "security", `Inline event handler found on <${tag}>.`, "Remove inline JavaScript; artifact behavior must come from the compiler runtime.", { block_id: blockId, evidence: htmlEvidence }));
-    }
     if (Object.values(attrs).some((value) => /javascript\s*:/i.test(value))) {
       findings.push(finding("HTML_JAVASCRIPT_URL", "error", "security", `JavaScript URL found on <${tag}>.`, "Use an ordinary https or fragment URL.", { block_id: blockId, evidence: htmlEvidence }));
     }

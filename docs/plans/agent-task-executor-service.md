@@ -30,10 +30,9 @@
 - [ADR-0012](../ADR/0012-agent-file-tools.md)（当前生效）：`write_file` 收敛
   成一个工具调用；consequences 明确承认 "Active process loss still cancels
   the run... remain for later product-level recovery work."
-- 早期 [ADR-0005](../ADR/0005-chat-workflow-agent.md)/
-  [0008](../ADR/0008-artifact-platform.md)/
+- 早期 [ADR-0008](../ADR/0008-artifact-platform.md)/
   [0009](../ADR/0009-large-html-artifact.md) 尝试过把**整个主循环**换成
-  `WorkflowAgent`（Nitro 托管），因为 `@backend/transport-ts` 是 source-only
+  Nitro durable workflow runtime，因为 `@backend/transport-ts` 是 source-only
   workspace 包，Nitro 编译期留下无法解析的裸 import，加上 pause/cancel/
   reconnect 语义和已有的 UIMessage SSE 协议冲突，被
   [ADR-0011](../ADR/0011-tool-loop-agent-core.md) 撤销。这次的关键区别：
@@ -124,7 +123,7 @@ flowchart TB
      的调用不仅编译期解析成功，运行期也真实执行成功。
 
 **结论：Nitro + Workflow DevKit 这条路线在这个仓库里完全可行，风险已清除。**
-Phase 1 直接用真正的 Workflow DevKit（`workflow` + `@ai-sdk/workflow`），不需
+Phase 1 直接用真正的 Workflow DevKit（`workflow` + `workflow/nitro`），不需
 要退到自建 runtime。
 
 ## Phase 1 — 服务骨架 + Task API（已完成）

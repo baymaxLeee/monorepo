@@ -158,30 +158,9 @@ export type ArtifactPreviewKind =
   | "audio"
   | "pdf";
 
-const UNTRUSTED_HTML_PREVIEW_CSP = [
-  "default-src 'none'",
-  "base-uri 'none'",
-  "form-action 'none'",
-  "script-src 'none'",
-  "img-src data: blob:",
-  "media-src data: blob:",
-  "font-src data: blob:",
-  "style-src 'unsafe-inline'",
-].join("; ");
-
 function isAllowedArtifactSrc(src: string): boolean {
   if (src.startsWith("blob:")) return true;
   return isPublicHttpUrl(src);
-}
-
-function sandboxedHtml(content: string) {
-  const meta = `<meta http-equiv="Content-Security-Policy" content="${UNTRUSTED_HTML_PREVIEW_CSP}">`;
-  const headOpen = content.match(/<head\b[^>]*>/i);
-  if (headOpen?.index !== undefined) {
-    const insertAt = headOpen.index + headOpen[0].length;
-    return `${content.slice(0, insertAt)}${meta}${content.slice(insertAt)}`;
-  }
-  return `${meta}${content}`;
 }
 
 export type ArtifactPreviewProps = HTMLAttributes<HTMLDivElement> & {
@@ -193,7 +172,7 @@ export type ArtifactPreviewProps = HTMLAttributes<HTMLDivElement> & {
   mimeType?: string;
   actions?: ReactNode;
   showHeader?: boolean;
-  trustedHtml?: boolean;
+  allowHtmlScripts?: boolean;
 };
 
 function resolveArtifactPreviewKind(
@@ -227,7 +206,7 @@ export function ArtifactPreview({
   mimeType,
   actions,
   showHeader = true,
-  trustedHtml = false,
+  allowHtmlScripts = false,
   ...props
 }: ArtifactPreviewProps) {
   const resolvedKind = resolveArtifactPreviewKind(kind, mimeType, filename);
@@ -274,19 +253,12 @@ export function ArtifactPreview({
             src={safeSrc}
             className="h-full min-h-[60svh] w-full bg-white"
           />
-        ) : resolvedKind === "html" ? (
+        ) : resolvedKind === "html" && safeSrc ? (
           <iframe
             title={title}
-            sandbox={trustedHtml ? "allow-scripts" : ""}
+            sandbox={allowHtmlScripts ? "allow-scripts" : ""}
             referrerPolicy="no-referrer"
             src={safeSrc}
-            srcDoc={
-              safeSrc
-                ? undefined
-                : trustedHtml
-                  ? content
-                  : sandboxedHtml(content)
-            }
             className="h-full min-h-[60svh] w-full bg-white"
           />
         ) : resolvedKind === "markdown" ? (

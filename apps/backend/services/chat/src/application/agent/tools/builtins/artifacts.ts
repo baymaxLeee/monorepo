@@ -408,7 +408,7 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
       "html_validate",
       tool({
       description:
-        "Run deterministic validation against the current stored HTML. Returns compact hard-gate errors with reason/evidence for the internal repair loop, plus non-blocking high-signal content-review advisories for agent judgment.",
+        "Validate the current stored HTML. Returns deterministic errors and high-signal content-review advisories so the primary ToolLoopAgent can decide whether to edit and revalidate.",
       inputSchema: z.object({
         file_id: z.string().min(1).max(32),
       }),

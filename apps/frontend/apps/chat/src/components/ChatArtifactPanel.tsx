@@ -15,11 +15,9 @@ import { getErrorMessage } from "shared";
 import { useShallow } from "zustand/react/shallow";
 import {
   downloadConversationDocument,
-  fetchCachedDocumentSource,
   useDocumentBlobUrl,
   useDocumentResourceUrl,
 } from "../hooks/useDocumentSource";
-import { prepareArtifactPreviewHtml } from "../lib/prepareArtifactPreviewHtml";
 import { useChatStore } from "../store/useChatStore";
 
 // Autosave fires 1.5s after the user stops typing — long enough to coalesce a
@@ -39,7 +37,8 @@ function needsBinarySource(mimeType: string | undefined) {
 
 function usesDirectResourceUrl(mimeType: string | undefined) {
   return Boolean(
-    mimeType?.startsWith("video/") ||
+    mimeType === "text/html" ||
+      mimeType?.startsWith("video/") ||
       mimeType?.startsWith("audio/") ||
       mimeType?.includes("pdf"),
   );
@@ -66,9 +65,6 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
     null,
   );
   const [loading, setLoading] = useState(false);
-  const [sourceLoading, setSourceLoading] = useState(false);
-  const [sourceError, setSourceError] = useState(false);
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [downloading, setDownloading] = useState(false);
@@ -108,14 +104,11 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
   useEffect(() => {
     if (!open || !conversationId || !documentId) {
       setArtifact(null);
-      setPreviewHtml(null);
       return;
     }
     let active = true;
     setLoading(true);
     setArtifact(null);
-    setPreviewHtml(null);
-    setSourceError(false);
     setSaveState("idle");
     void fetchConversationDocument(conversationId, documentId)
       .then((document) => {
@@ -138,56 +131,11 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
     };
   }, [conversationId, documentId, open, token]);
 
-  useEffect(() => {
-    if (
-      !open ||
-      !conversationId ||
-      !documentId ||
-      artifact?.mime_type !== "text/html"
-    ) {
-      setSourceLoading(false);
-      setSourceError(false);
-      return;
-    }
-    let active = true;
-    setSourceLoading(true);
-    setSourceError(false);
-    void fetchCachedDocumentSource(
-      conversationId,
-      documentId,
-      artifact?.updated_at ?? "",
-    )
-      .then((blob) => blob.text())
-      .then((html) => {
-        if (active) setPreviewHtml(prepareArtifactPreviewHtml(html));
-      })
-      .catch(() => {
-        if (active) {
-          setPreviewHtml(null);
-          setSourceError(true);
-        }
-      })
-      .finally(() => {
-        if (active) setSourceLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [
-    artifact?.mime_type,
-    artifact?.updated_at,
-    conversationId,
-    documentId,
-    open,
-  ]);
-
   const previewLoading =
     loading ||
-    sourceLoading ||
     Boolean(artifact && blobSource && blobLoading) ||
     Boolean(artifact && directResource && resourceLoading);
-  const previewFailed =
-    sourceError || Boolean(blobError) || Boolean(resourceError);
+  const previewFailed = Boolean(blobError) || Boolean(resourceError);
   const isHtmlPreview = artifact?.mime_type === "text/html";
 
   useEffect(() => {
@@ -399,11 +347,9 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
             title={artifact.title}
             filename={artifact.filename}
             mimeType={artifact.mime_type}
-            content={previewHtml ?? artifact.content_md}
+            content={artifact.content_md}
             src={previewSrc ?? undefined}
-            trustedHtml={
-              artifact.mime_type === "text/html" && previewHtml !== null
-            }
+            allowHtmlScripts={artifact.mime_type === "text/html"}
             showHeader={false}
             className="h-full min-h-0 overflow-hidden rounded-none border-0 bg-transparent shadow-none [&>div]:min-h-0 [&>div]:flex-1 [&>div]:overflow-y-auto [&>div]:overscroll-contain [&>div]:[scrollbar-width:none] [&>div]:[-ms-overflow-style:none] [&>div::-webkit-scrollbar]:hidden [&_iframe]:h-full [&_iframe]:min-h-0 [&_pre]:min-h-0 [&_pre]:overflow-visible"
           />
