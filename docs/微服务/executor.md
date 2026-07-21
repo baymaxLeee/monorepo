@@ -16,6 +16,11 @@ TypeScript / Hono / Nitro v3 / Workflow DevKit。durable task executor —— ch
 - `POST /tasks/{id}/cancel`：请求取消底层 workflow run。实测 `run.cancel()`
   即使命中正在执行的 step，也在数秒内 resolve——不是"等当前 block 跑完"。因此
   没有、也不应该在 `"use step"` 函数里加自制的取消轮询。
+- `/video-productions/{id}` 与 `/video-productions/{id}/decisions`：读取耐久制片
+  投影并提交带版本的审批。视频 Workflow 在分镜、Take 审核和正式发布前等待
+  Workflow Hook；Chat SSE 可正常结束，审批从 UI 直接恢复原 run。分镜修改产生新的
+  不可变 artifact 版本并使旧审批失效；Take 审核可对单镜头显式付费重拍，并要求每个
+  镜头选择一个成功 Take 后才允许合成。
 
 ## TaskType registry
 
@@ -32,6 +37,13 @@ session）的替换点——只需要新增一种执行引擎实现，Task API �
   workflow 不执行 fragment 或整页质量校验，也不因 findings 静默重跑 LLM。
   后续必定执行的 `html_validate` 合并静态校验与基于 block contract 的模型整页
   review，chat 再按 finding 的 block_id 精准 `edit_file` 并复检。
+- `video-generation`：`CreativeBrief → Script → ShotPlan → 预算审批 → 单镜头付费生成
+  → Take 审核/局部重拍 → RenderReport → 确定性 QA → 暂存预览 → 发布审批 → Knowledge`。Ark create
+  始终不自动重试；每次调用先 reserve，创建后 reconcile，创建失败 release。确定性
+  QA 覆盖解码、时长、尺寸、音轨、黑帧和冻结帧；语义 QA 仍需人工复核时，发布审批
+  必须填写豁免理由并记录 actor。失败或取消会幂等清理尚未发布的暂存对象。视频
+  Provider 必须在 Admin 配置 generated-second 单价和币种，否则无法计算审批预算，
+  Workflow 会在任何付费生成前失败。
 
 ## 持久化边界
 

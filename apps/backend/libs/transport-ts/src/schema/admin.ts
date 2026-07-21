@@ -738,6 +738,7 @@ export interface components {
             extra_body?: {
                 [key: string]: unknown;
             };
+            pricing?: components["schemas"]["ProviderPricing"] | null;
             /**
              * Context Window
              * @default 524288
@@ -818,6 +819,7 @@ export interface components {
             extra_body: {
                 [key: string]: unknown;
             };
+            pricing: components["schemas"]["ProviderPricing"] | null;
             /** Context Window */
             context_window: number;
             /** Max Output Tokens */
@@ -877,6 +879,7 @@ export interface components {
             extra_body: {
                 [key: string]: unknown;
             };
+            pricing: components["schemas"]["ProviderPricing"] | null;
             /** Context Window */
             context_window: number;
             /** Max Output Tokens */
@@ -898,6 +901,19 @@ export interface components {
             base_etag: string;
             /** Parent Id */
             parent_id?: string | null;
+        };
+        /** ProviderPricing */
+        ProviderPricing: {
+            /** Currency */
+            currency: string;
+            /**
+             * Unit
+             * @default generated_second
+             * @constant
+             */
+            unit: "generated_second";
+            /** Unit Price Micros */
+            unit_price_micros: number;
         };
         /** PublishSkillInput */
         PublishSkillInput: {
@@ -1163,6 +1179,7 @@ export interface components {
             extra_body?: {
                 [key: string]: unknown;
             } | null;
+            pricing?: components["schemas"]["ProviderPricing"] | null;
             /** Context Window */
             context_window?: number | null;
             /** Max Output Tokens */

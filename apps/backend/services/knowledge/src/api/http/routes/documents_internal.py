@@ -12,8 +12,11 @@ import anyio
 from application.contracts.document import (
     CreateArtifactInput,
     CreateMediaDocumentInput,
+    CreateStagedMediaInput,
     Document,
     DocumentSlice,
+    StagedMedia,
+    StagedMediaActionInput,
     UpdateArtifactInput,
 )
 from application.documents import document_to_schema
@@ -24,6 +27,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.repositories import documents as document_crud
+from infrastructure.persistence.repositories import staged_media as staged_media_crud
 from kernel.errors import ConflictError, NotFoundError, RequestError
 from sqlalchemy.exc import IntegrityError
 
@@ -34,6 +38,24 @@ router = APIRouter(
     tags=["internal"],
     dependencies=[Depends(require_internal_token)],
 )
+
+
+def staged_media_to_schema(row: object) -> StagedMedia:
+    return StagedMedia(
+        id=row.id,  # type: ignore[attr-defined]
+        user_id=row.user_id,  # type: ignore[attr-defined]
+        org_id=row.org_id,  # type: ignore[attr-defined]
+        conversation_id=row.conversation_id,  # type: ignore[attr-defined]
+        title=row.title,  # type: ignore[attr-defined]
+        filename=row.filename,  # type: ignore[attr-defined]
+        mime_type=row.mime_type,  # type: ignore[attr-defined]
+        size=row.size,  # type: ignore[attr-defined]
+        object_sha256=row.object_sha256,  # type: ignore[attr-defined]
+        status=row.status,  # type: ignore[attr-defined]
+        document_id=row.document_id,  # type: ignore[attr-defined]
+        created_at=row.created_at.isoformat(),  # type: ignore[attr-defined]
+        updated_at=row.updated_at.isoformat(),  # type: ignore[attr-defined]
+    )
 
 
 @router.get("/documents", response_model=list[Document])
@@ -282,6 +304,145 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
             raise
         return document_to_schema(existing, include_content=True)
     return document_to_schema(row, include_content=True)
+
+
+@router.post("/staged-media", response_model=StagedMedia, status_code=201)
+async def create_staged_media(payload: CreateStagedMediaInput, session: DbSession) -> StagedMedia:
+    if payload.idempotency_key:
+        async with write_tx(session):
+            existing = await staged_media_crud.get_by_idempotency_key(
+                session, payload.idempotency_key, payload.user_id
+            )
+        if existing is not None:
+            return staged_media_to_schema(existing)
+    try:
+        raw = base64.b64decode(payload.data_base64, validate=True)
+    except (ValueError, binascii.Error) as exc:
+        raise RequestError("invalid base64 media payload") from exc
+    if not raw:
+        raise RequestError("empty media payload")
+    staged_id = document_crud.new_document_id()
+    stored = ObjectStore().put_bytes(
+        content=raw,
+        filename=payload.filename,
+        mime_type=payload.mime_type,
+        user_id=payload.user_id,
+        prefix=f"staged-media/{payload.conversation_id or 'general'}",
+        unique_segment=staged_id,
+        max_bytes=get_settings().media_max_object_bytes,
+    )
+    try:
+        async with write_tx(session):
+            if payload.idempotency_key:
+                existing = await staged_media_crud.get_by_idempotency_key(
+                    session, payload.idempotency_key, payload.user_id
+                )
+                if existing is not None:
+                    return staged_media_to_schema(existing)
+            row = await staged_media_crud.create_staged_media(
+                session,
+                staged_id=staged_id,
+                user_id=payload.user_id,
+                org_id=payload.org_id,
+                conversation_id=payload.conversation_id,
+                title=payload.title,
+                filename=payload.filename,
+                mime_type=payload.mime_type,
+                size=stored.size,
+                object_bucket=stored.bucket,
+                object_key=stored.key,
+                object_sha256=stored.sha256,
+                idempotency_key=payload.idempotency_key,
+            )
+    except IntegrityError:
+        if not payload.idempotency_key:
+            raise
+        existing = await staged_media_crud.get_by_idempotency_key(
+            session, payload.idempotency_key, payload.user_id
+        )
+        if existing is None:
+            raise
+        return staged_media_to_schema(existing)
+    return staged_media_to_schema(row)
+
+
+@router.get("/staged-media/{staged_id}", response_model=StagedMedia)
+async def get_staged_media(
+    staged_id: str, session: DbSession, user_id: str = Query(...)
+) -> StagedMedia:
+    row = await staged_media_crud.get_staged_media(session, staged_id, user_id)
+    if row is None:
+        raise NotFoundError(f"staged media {staged_id} not found")
+    return staged_media_to_schema(row)
+
+
+@router.get("/staged-media/{staged_id}/source")
+async def get_staged_media_source(
+    staged_id: str, session: DbSession, user_id: str = Query(...)
+) -> Response:
+    row = await staged_media_crud.get_staged_media(session, staged_id, user_id)
+    if row is None or row.status == "discarded":
+        raise NotFoundError(f"staged media {staged_id} not found")
+    content = ObjectStore().get_bytes(bucket=row.object_bucket, key=row.object_key)
+    return Response(content=content, media_type=row.mime_type)
+
+
+@router.post("/staged-media/{staged_id}/publish", response_model=Document)
+async def publish_staged_media(
+    staged_id: str, payload: StagedMediaActionInput, session: DbSession
+) -> Document:
+    async with write_tx(session):
+        row = await staged_media_crud.get_staged_media(session, staged_id, payload.user_id)
+        if row is None or row.org_id != payload.org_id or row.status == "discarded":
+            raise NotFoundError(f"staged media {staged_id} not found")
+        if row.document_id:
+            existing = await document_crud.get_document(session, row.document_id, payload.user_id)
+            if existing is None:
+                raise ConflictError("published staged media has no document")
+            return document_to_schema(existing, include_content=True)
+        document = await document_crud.create_document(
+            session,
+            user_id=row.user_id,
+            org_id=row.org_id,
+            conversation_id=row.conversation_id,
+            kind="artifact",
+            title=row.title,
+            filename=row.filename,
+            mime_type=row.mime_type,
+            source_size=row.size,
+            source_mime_type=row.mime_type,
+            object_bucket=row.object_bucket,
+            object_key=row.object_key,
+            object_sha256=row.object_sha256,
+            ingest_status="ready",
+            ingest_progress=100,
+        )
+        row.status = "published"
+        row.document_id = document.id
+        row.updated_at = datetime.now(row.updated_at.tzinfo)
+        await session.flush()
+    return document_to_schema(document, include_content=True)
+
+
+@router.post("/staged-media/{staged_id}/discard", response_model=StagedMedia)
+async def discard_staged_media(
+    staged_id: str, payload: StagedMediaActionInput, session: DbSession
+) -> StagedMedia:
+    object_location: tuple[str, str] | None = None
+    async with write_tx(session):
+        row = await staged_media_crud.get_staged_media(session, staged_id, payload.user_id)
+        if row is None or row.org_id != payload.org_id:
+            raise NotFoundError(f"staged media {staged_id} not found")
+        if row.status == "published":
+            raise ConflictError("published staged media cannot be discarded")
+        if row.status != "discarded":
+            row.status = "discarded"
+            row.updated_at = datetime.now(row.updated_at.tzinfo)
+            object_location = (row.object_bucket, row.object_key)
+            await session.flush()
+    if object_location:
+        ObjectStore().delete(bucket=object_location[0], key=object_location[1])
+    return staged_media_to_schema(row)
 
 
 @router.patch("/documents/{document_id}", response_model=Document)

@@ -6,6 +6,7 @@ import {
   type KnowledgeDocument,
   type PublishedArtifactRevision,
   type StoredArtifactBlock,
+  type StagedMedia,
 } from "@backend/transport-ts";
 
 import { getSettings } from "../../bootstrap/config.js";
@@ -17,6 +18,7 @@ export type {
   KnowledgeDocument,
   PublishedArtifactRevision,
   StoredArtifactBlock,
+  StagedMedia,
 } from "@backend/transport-ts";
 
 function knowledgeClient(): KnowledgeInternalClient {
@@ -68,6 +70,35 @@ export async function createMediaDocument(input: {
   idempotencyKey?: string;
 }): Promise<KnowledgeDocument> {
   return knowledgeMediaClient().createMediaDocument(input);
+}
+
+export async function createStagedMedia(input: {
+  userId: string;
+  orgId: string;
+  conversationId?: string;
+  title: string;
+  filename: string;
+  mimeType: string;
+  bytes: Uint8Array;
+  idempotencyKey?: string;
+}): Promise<StagedMedia> {
+  return knowledgeMediaClient().createStagedMedia(input);
+}
+
+export async function publishStagedMedia(input: {
+  userId: string;
+  orgId: string;
+  stagedId: string;
+}): Promise<KnowledgeDocument> {
+  return knowledgeMediaClient().publishStagedMedia(input);
+}
+
+export async function discardStagedMedia(input: {
+  userId: string;
+  orgId: string;
+  stagedId: string;
+}): Promise<StagedMedia> {
+  return knowledgeMediaClient().discardStagedMedia(input);
 }
 
 export async function getLatestArtifactWorkspace(

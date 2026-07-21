@@ -2,6 +2,10 @@ import { getWorld } from "workflow/runtime";
 
 import { getSql } from "../infrastructure/persistence/index.js";
 import { reconcilePendingTasks } from "../application/tasks/service.js";
+import {
+  recoverStaleVideoProductionDecisions,
+  startStaleVideoProductionDecisionRecovery,
+} from "../application/video-production/decisions.js";
 import { logger } from "../infrastructure/observability/logger.js";
 import {
   markBootFailed,
@@ -17,6 +21,8 @@ export async function bootstrapExecutor(): Promise<void> {
       markWorkflowWorldStarted();
     }
     await reconcilePendingTasks();
+    await recoverStaleVideoProductionDecisions();
+    startStaleVideoProductionDecisionRecovery();
     markBootReady();
     logger.info("executor bootstrap complete");
   } catch (error) {

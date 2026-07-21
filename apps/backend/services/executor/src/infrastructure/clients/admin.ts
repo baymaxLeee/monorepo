@@ -14,7 +14,11 @@ function adminClient(): AdminInternalClient {
   });
 }
 
-export async function getProvider(providerId: string, orgId: string): Promise<ChatProvider> {
+export type ProviderSnapshot = ChatProvider & {
+  pricing: { currency: string; unit: "generated_second"; unitPriceMicros: number } | null;
+};
+
+export async function getProvider(providerId: string, orgId: string): Promise<ProviderSnapshot> {
   let data: AdminProviderSnapshot;
   try {
     data = await adminClient().getProvider(providerId, orgId);
@@ -24,7 +28,7 @@ export async function getProvider(providerId: string, orgId: string): Promise<Ch
     }
     throw err;
   }
-  const provider: ChatProvider = {
+  const provider: ProviderSnapshot = {
     id: data.id,
     name: data.name,
     model: data.model,
@@ -33,6 +37,13 @@ export async function getProvider(providerId: string, orgId: string): Promise<Ch
     extraBody: data.extra_body ?? {},
     contextWindow: data.context_window,
     maxOutputTokens: data.max_output_tokens,
+    pricing: data.pricing
+      ? {
+          currency: data.pricing.currency,
+          unit: data.pricing.unit,
+          unitPriceMicros: data.pricing.unit_price_micros,
+        }
+      : null,
   };
   await assertPublicProviderUrl(provider.baseUrl).catch((error) => {
     throw new RequestError(`provider base URL is not allowed: ${String(error)}`);

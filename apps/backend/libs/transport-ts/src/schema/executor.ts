@@ -289,6 +289,156 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/video-productions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description video production projection and event log */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            production: components["schemas"]["VideoProductionProjection"];
+                            events: {
+                                [key: string]: unknown;
+                            }[];
+                        };
+                    };
+                };
+                /** @description video production not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/video-productions/{id}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        action: "revise_storyboard";
+                        actionId: string;
+                        expectedVersion: number;
+                        actorId: string;
+                        shotPlan: components["schemas"]["ShotPlan"];
+                    } | {
+                        /** @constant */
+                        action: "approve_storyboard";
+                        actionId: string;
+                        expectedVersion: number;
+                        actorId: string;
+                        budgetLimitMicros: number;
+                        currency: string;
+                    } | {
+                        /** @constant */
+                        action: "request_take";
+                        actionId: string;
+                        expectedVersion: number;
+                        actorId: string;
+                        shotId: string;
+                    } | {
+                        /** @constant */
+                        action: "approve_takes";
+                        actionId: string;
+                        expectedVersion: number;
+                        actorId: string;
+                        selections: {
+                            shotId: string;
+                            takeId: string;
+                        }[];
+                    } | {
+                        /** @constant */
+                        action: "reject_storyboard";
+                        actionId: string;
+                        expectedVersion: number;
+                        actorId: string;
+                        reason: string;
+                    } | {
+                        /** @enum {unknown} */
+                        action: "approve_publish";
+                        actionId: string;
+                        expectedVersion: number;
+                        actorId: string;
+                        waiverReason?: string;
+                    } | {
+                        /** @enum {unknown} */
+                        action: "reject_publish";
+                        actionId: string;
+                        expectedVersion: number;
+                        actorId: string;
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description updated video production projection */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VideoProductionProjection"];
+                    };
+                };
+                /** @description stale production version or unavailable decision */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -335,6 +485,143 @@ export interface components {
             content_sha256: string;
             errors: components["schemas"]["HtmlValidationDecisionFinding"][];
             advisories: components["schemas"]["HtmlValidationDecisionFinding"][];
+        };
+        ReferenceAsset: {
+            id: string;
+            /** @enum {string} */
+            mediaType: "image" | "video" | "audio";
+            purpose: string;
+            documentId?: string;
+            /** Format: uri */
+            url?: string;
+            /** @enum {string} */
+            licenseStatus: "verified" | "user_attested" | "missing";
+            /** @enum {string} */
+            consentStatus: "not_applicable" | "verified" | "user_attested" | "missing";
+        };
+        ShotSpec: {
+            id: string;
+            order: number;
+            seconds: number;
+            narrativeBeat: string;
+            subjectAnchors: string[];
+            action: string;
+            camera: {
+                shotSize: string;
+                movement: string;
+                focus?: string;
+            };
+            environment: string;
+            lightingPalette: string;
+            audioDirection: string;
+            references: components["schemas"]["ReferenceAsset"][];
+            continuityContract: string[];
+            acceptanceCriteria: string[];
+        };
+        ShotPlan: {
+            version: number;
+            shots: components["schemas"]["ShotSpec"][];
+        };
+        VideoTake: {
+            id: string;
+            shotId: string;
+            number: number;
+            /** @enum {string} */
+            status: "generating" | "succeeded" | "failed";
+            providerTaskId?: string;
+            stagedMediaId?: string;
+            seed: number;
+            error?: string;
+        };
+        VideoProductionProjection: {
+            id: string;
+            taskId: string;
+            orgId: string;
+            userId: string;
+            conversationId?: string | null;
+            title: string;
+            /** @enum {string} */
+            status: "running" | "awaiting_approval" | "completed" | "failed" | "cancelled";
+            stage: string;
+            version: number;
+            awaitingAction?: string | null;
+            shotPlan?: {
+                [key: string]: unknown;
+            } | null;
+            shotReviews: {
+                shotId: string;
+                selectedTakeId: string | null;
+                takes: components["schemas"]["VideoTake"][];
+            }[];
+            cost: {
+                [key: string]: unknown;
+            };
+            stagedMediaId?: string | null;
+            documentId?: string | null;
+            qaReport?: {
+                [key: string]: unknown;
+            } | null;
+            error?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        } & {
+            [key: string]: unknown;
+        };
+        ProductionDecision: {
+            /** @constant */
+            action: "revise_storyboard";
+            actionId: string;
+            expectedVersion: number;
+            actorId: string;
+            shotPlan: components["schemas"]["ShotPlan"];
+        } | {
+            /** @constant */
+            action: "approve_storyboard";
+            actionId: string;
+            expectedVersion: number;
+            actorId: string;
+            budgetLimitMicros: number;
+            currency: string;
+        } | {
+            /** @constant */
+            action: "request_take";
+            actionId: string;
+            expectedVersion: number;
+            actorId: string;
+            shotId: string;
+        } | {
+            /** @constant */
+            action: "approve_takes";
+            actionId: string;
+            expectedVersion: number;
+            actorId: string;
+            selections: {
+                shotId: string;
+                takeId: string;
+            }[];
+        } | {
+            /** @constant */
+            action: "reject_storyboard";
+            actionId: string;
+            expectedVersion: number;
+            actorId: string;
+            reason: string;
+        } | {
+            /** @enum {unknown} */
+            action: "approve_publish";
+            actionId: string;
+            expectedVersion: number;
+            actorId: string;
+            waiverReason?: string;
+        } | {
+            /** @enum {unknown} */
+            action: "reject_publish";
+            actionId: string;
+            expectedVersion: number;
+            actorId: string;
+            reason: string;
         };
     };
     responses: never;

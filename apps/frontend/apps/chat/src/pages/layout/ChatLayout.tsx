@@ -13,6 +13,7 @@ import { ChatArtifactPanel } from "../../components/ChatArtifactPanel";
 import { ChatAuxiliaryPanels } from "../../components/ChatAuxiliaryPanels";
 import { ChatConversationSidebar } from "../../components/ChatConversationSidebar";
 import { ChatPanelResizeHandle } from "../../components/ChatPanelResizeHandle";
+import { VideoProductionWorkspace } from "../../components/VideoProductionWorkspace";
 import { useChatShellLayout } from "../../hooks/useChatShellLayout";
 import { useChatStore } from "../../store/useChatStore";
 
@@ -33,6 +34,7 @@ export function ChatLayout() {
     openTracePanel,
     setTracePanelOpen,
     artifactPreview,
+    videoProductionWorkspace,
     conversationTitleUpdate,
     loadAgents,
   } = useChatStore(
@@ -46,6 +48,7 @@ export function ChatLayout() {
       openTracePanel: s.openTracePanel,
       setTracePanelOpen: s.setTracePanelOpen,
       artifactPreview: s.artifactPreview,
+      videoProductionWorkspace: s.videoProductionWorkspace,
       conversationTitleUpdate: s.conversationTitleUpdate,
       loadAgents: s.loadAgents,
     })),
@@ -53,8 +56,15 @@ export function ChatLayout() {
 
   const artifactOpen = artifactPreview.open;
   const closeArtifactPreview = useChatStore((s) => s.closeArtifactPreview);
-  const shell = useChatShellLayout(artifactOpen, closeArtifactPreview);
-  const sidebarOpen = shell.leftOpen && !(shell.compact && artifactOpen);
+  const closeVideoProductionWorkspace = useChatStore(
+    (s) => s.closeVideoProductionWorkspace,
+  );
+  const workspaceOpen = artifactOpen || videoProductionWorkspace.open;
+  const closeWorkspace = artifactOpen
+    ? closeArtifactPreview
+    : closeVideoProductionWorkspace;
+  const shell = useChatShellLayout(workspaceOpen, closeWorkspace);
+  const sidebarOpen = shell.leftOpen && !(shell.compact && workspaceOpen);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -71,14 +81,14 @@ export function ChatLayout() {
     if (!shell.compact) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (artifactOpen) closeArtifactPreview();
+      if (workspaceOpen) closeWorkspace();
       else if (shell.leftOpen) shell.toggleLeft();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
-    artifactOpen,
-    closeArtifactPreview,
+    workspaceOpen,
+    closeWorkspace,
     shell.compact,
     shell.leftOpen,
     shell.toggleLeft,
@@ -170,12 +180,12 @@ export function ChatLayout() {
             : `${shell.leftWidth}px minmax(0, 1fr) ${shell.rightWidth}px`,
         }}
       >
-        {shell.compact && (sidebarOpen || artifactOpen) ? (
+        {shell.compact && (sidebarOpen || workspaceOpen) ? (
           <button
             type="button"
             className="absolute inset-0 z-20 bg-black/20"
             aria-label="关闭侧栏"
-            onClick={artifactOpen ? closeArtifactPreview : shell.toggleLeft}
+            onClick={workspaceOpen ? closeWorkspace : shell.toggleLeft}
           />
         ) : null}
         <ChatConversationSidebar
@@ -185,7 +195,7 @@ export function ChatLayout() {
           open={sidebarOpen}
           width={shell.panelLeftWidth}
           compact={shell.compact}
-          showToggle={!(shell.compact && artifactOpen)}
+          showToggle={!(shell.compact && workspaceOpen)}
           onCreate={() => void handleCreate()}
           onDelete={(id) => void handleDelete(id)}
           onOpenTrace={handleOpenTrace}
@@ -206,31 +216,41 @@ export function ChatLayout() {
         <div
           className={cn(
             "relative z-10 col-start-3 flex min-h-0 min-w-0 flex-col bg-background",
-            artifactOpen ? "opacity-100" : "pointer-events-none opacity-0",
+            workspaceOpen ? "opacity-100" : "pointer-events-none opacity-0",
             shell.compact &&
               "absolute inset-y-0 right-0 z-30 shadow-xl max-[639px]:w-full",
           )}
           style={
-            shell.compact && artifactOpen
+            shell.compact && workspaceOpen
               ? {
                   width: `min(${shell.panelRightWidth}px, calc(100% - 3rem))`,
                 }
               : undefined
           }
-          aria-hidden={!artifactOpen}
+          aria-hidden={!workspaceOpen}
         >
           <ChatPanelResizeHandle
             edge="right-panel"
             value={shell.panelRightWidth}
             minValue={shell.rightResizeMin}
             maxValue={shell.rightResizeMax}
-            disabled={!artifactOpen}
+            disabled={!workspaceOpen}
             onDrag={shell.resizeRight}
             onDragStart={() => shell.startResize("right-panel")}
             onDragEnd={() => shell.endResize("right-panel")}
           />
           <div className="min-h-0 flex-1 overflow-hidden">
-            <ChatArtifactPanel onClose={shell.closeArtifact} />
+            {videoProductionWorkspace.open &&
+            videoProductionWorkspace.conversationId &&
+            videoProductionWorkspace.productionId ? (
+              <VideoProductionWorkspace
+                conversationId={videoProductionWorkspace.conversationId}
+                productionId={videoProductionWorkspace.productionId}
+                onClose={shell.closeArtifact}
+              />
+            ) : (
+              <ChatArtifactPanel onClose={shell.closeArtifact} />
+            )}
           </div>
         </div>
       </div>

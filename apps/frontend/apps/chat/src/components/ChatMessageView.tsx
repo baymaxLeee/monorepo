@@ -384,6 +384,7 @@ function ToolPartView({
   if (kind === "video") {
     return (
       <ChatVideoCard
+        conversationId={conversationId}
         output={output}
         state={part.state}
         errorText={errorText}

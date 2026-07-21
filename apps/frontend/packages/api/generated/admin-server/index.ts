@@ -152,6 +152,17 @@ export const CreateModelProviderInputProviderKind = {
 
 export type CreateModelProviderInputExtraBody = { [key: string]: unknown };
 
+export interface ProviderPricing {
+  /** @pattern ^[A-Z]{3}$ */
+  currency: string;
+  unit?: 'generated_second';
+  /**
+     * @minimum 0
+     * @maximum 2147483647
+     */
+  unit_price_micros: number;
+}
+
 export interface CreateModelProviderInput {
   /**
      * @minLength 1
@@ -175,6 +186,7 @@ export interface CreateModelProviderInput {
      */
   api_key: string;
   extra_body?: CreateModelProviderInputExtraBody;
+  pricing?: ProviderPricing | null;
   /**
      * @minimum 1024
      * @maximum 2000000
@@ -266,6 +278,7 @@ export interface InternalModelProvider {
   base_url: string;
   api_key: string;
   extra_body: InternalModelProviderExtraBody;
+  pricing: ProviderPricing | null;
   context_window: number;
   max_output_tokens: number;
   supports_image_input: boolean;
@@ -312,6 +325,7 @@ export interface ModelProvider {
   base_url: string;
   api_key_masked: string;
   extra_body: ModelProviderExtraBody;
+  pricing: ProviderPricing | null;
   context_window: number;
   max_output_tokens: number;
   supports_image_input: boolean;
@@ -567,6 +581,7 @@ export interface UpdateModelProviderInput {
   base_url?: string | null;
   api_key?: string | null;
   extra_body?: UpdateModelProviderInputExtraBody;
+  pricing?: ProviderPricing | null;
   context_window?: number | null;
   max_output_tokens?: number | null;
   supports_image_input?: boolean | null;

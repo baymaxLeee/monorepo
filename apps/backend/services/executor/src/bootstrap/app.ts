@@ -8,6 +8,7 @@ import { checkReadiness, currentBootState, isBootReady } from "../infrastructure
 import { internalAuthMiddleware } from "../api/http/middleware/auth.js";
 import { htmlValidationRoutes } from "../api/http/routes/html-validations.js";
 import { tasksRoutes } from "../api/http/routes/tasks.js";
+import { videoProductionRoutes } from "../api/http/routes/video-productions.js";
 
 export function createApp() {
   const app = new Hono();
@@ -50,6 +51,7 @@ export function createApp() {
   api.use("*", internalAuthMiddleware);
   api.route("/html-validations", htmlValidationRoutes);
   api.route("/tasks", tasksRoutes);
+  api.route("/video-productions", videoProductionRoutes);
   app.route("/", api);
 
   return app;

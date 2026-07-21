@@ -102,6 +102,21 @@ export async function getDocumentSource(
   }
 }
 
+export async function getStagedMediaSource(
+  userId: string,
+  stagedId: string,
+): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  try {
+    const source = await knowledgeClient().getStagedMediaSource({ userId, stagedId });
+    return { bytes: source.bytes, mimeType: source.contentType };
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      throw new NotFoundError(`staged media ${stagedId} source not found`);
+    }
+    throw err;
+  }
+}
+
 export async function retrieveKnowledge(
   userId: string,
   orgId: string,

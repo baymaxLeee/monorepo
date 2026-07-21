@@ -94,6 +94,31 @@ class CreateMediaDocumentInput(BaseModel):
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
 
 
+class CreateStagedMediaInput(CreateMediaDocumentInput):
+    pass
+
+
+class StagedMedia(BaseModel):
+    id: str
+    user_id: str
+    org_id: str
+    conversation_id: str | None = None
+    title: str
+    filename: str
+    mime_type: str
+    size: int
+    object_sha256: str
+    status: Literal["staged", "published", "discarded"]
+    document_id: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class StagedMediaActionInput(BaseModel):
+    user_id: str = Field(min_length=1, max_length=26)
+    org_id: str = Field(min_length=1, max_length=26)
+
+
 class DocumentSlice(BaseModel):
     id: str
     title: str

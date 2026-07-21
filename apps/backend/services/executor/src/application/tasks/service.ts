@@ -194,7 +194,7 @@ export async function cancelTask(id: string, owner: TaskOwner): Promise<TaskSnap
   const operations: Array<Promise<void>> = [];
   if (row.workflowRunId) operations.push(getRun(row.workflowRunId).cancel());
   if (taskType?.cancel && parsed?.success) {
-    operations.push(taskType.cancel(parsed.data, row.progress ?? null));
+    operations.push(taskType.cancel(parsed.data, row.progress ?? null, { taskId: row.id }));
   }
   const results = await Promise.allSettled(operations);
   for (const result of results) {

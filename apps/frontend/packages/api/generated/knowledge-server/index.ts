@@ -141,6 +141,38 @@ export interface CreateMediaDocumentInput {
   idempotency_key?: string | null;
 }
 
+export interface CreateStagedMediaInput {
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  user_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  org_id: string;
+  conversation_id?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  title: string;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  filename: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  mime_type: string;
+  /** @minLength 1 */
+  data_base64: string;
+  idempotency_key?: string | null;
+}
+
 export type DocumentKind = typeof DocumentKind[keyof typeof DocumentKind];
 
 
@@ -398,6 +430,44 @@ export interface SaveArtifactPlanInput {
   blocks: ArtifactBlockPlan[];
 }
 
+export type StagedMediaStatus = typeof StagedMediaStatus[keyof typeof StagedMediaStatus];
+
+
+export const StagedMediaStatus = {
+  staged: 'staged',
+  published: 'published',
+  discarded: 'discarded',
+} as const;
+
+export interface StagedMedia {
+  id: string;
+  user_id: string;
+  org_id: string;
+  conversation_id?: string | null;
+  title: string;
+  filename: string;
+  mime_type: string;
+  size: number;
+  object_sha256: string;
+  status: StagedMediaStatus;
+  document_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StagedMediaActionInput {
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  user_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  org_id: string;
+}
+
 export interface UpdateArtifactInput {
   /**
      * @minLength 1
@@ -461,6 +531,14 @@ wait_ms?: number;
 export type GetDocumentSourceInternalDocumentsDocumentIdSourceGetParams = {
 user_id: string;
 max_dim?: number | null;
+};
+
+export type GetStagedMediaInternalStagedMediaStagedIdGetParams = {
+user_id: string;
+};
+
+export type GetStagedMediaSourceInternalStagedMediaStagedIdSourceGetParams = {
+user_id: string;
 };
 
 export type GetSignedResourceResourcesDocumentIdGetParams = {
@@ -777,6 +855,78 @@ const createMediaDocumentInternalMediaDocumentsPost = (
     }
 
 /**
+ * @summary Create Staged Media
+ */
+const createStagedMediaInternalStagedMediaPost = (
+    createStagedMediaInput: CreateStagedMediaInput,
+ options?: SecondParameter<typeof apiMutator<StagedMedia>>,) => {
+      return apiMutator<StagedMedia>(
+      {url: `/internal/staged-media`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createStagedMediaInput
+    },
+      options);
+    }
+
+/**
+ * @summary Get Staged Media
+ */
+const getStagedMediaInternalStagedMediaStagedIdGet = (
+    stagedId: string,
+    params: GetStagedMediaInternalStagedMediaStagedIdGetParams,
+ options?: SecondParameter<typeof apiMutator<StagedMedia>>,) => {
+      return apiMutator<StagedMedia>(
+      {url: `/internal/staged-media/${stagedId}`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+/**
+ * @summary Get Staged Media Source
+ */
+const getStagedMediaSourceInternalStagedMediaStagedIdSourceGet = (
+    stagedId: string,
+    params: GetStagedMediaSourceInternalStagedMediaStagedIdSourceGetParams,
+ options?: SecondParameter<typeof apiMutator<unknown>>,) => {
+      return apiMutator<unknown>(
+      {url: `/internal/staged-media/${stagedId}/source`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+/**
+ * @summary Publish Staged Media
+ */
+const publishStagedMediaInternalStagedMediaStagedIdPublishPost = (
+    stagedId: string,
+    stagedMediaActionInput: StagedMediaActionInput,
+ options?: SecondParameter<typeof apiMutator<Document>>,) => {
+      return apiMutator<Document>(
+      {url: `/internal/staged-media/${stagedId}/publish`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: stagedMediaActionInput
+    },
+      options);
+    }
+
+/**
+ * @summary Discard Staged Media
+ */
+const discardStagedMediaInternalStagedMediaStagedIdDiscardPost = (
+    stagedId: string,
+    stagedMediaActionInput: StagedMediaActionInput,
+ options?: SecondParameter<typeof apiMutator<StagedMedia>>,) => {
+      return apiMutator<StagedMedia>(
+      {url: `/internal/staged-media/${stagedId}/discard`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: stagedMediaActionInput
+    },
+      options);
+    }
+
+/**
  * @summary Create Resource Url
  */
 const createResourceUrlDocumentsDocumentIdResourceUrlPost = (
@@ -934,7 +1084,7 @@ const retrieveChunksInternalRetrievePost = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createResourceUrlDocumentsDocumentIdResourceUrlPost,getSignedResourceResourcesDocumentIdGet,reserveGenerationInternalArtifactGenerationsPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,retrieveChunksInternalRetrievePost}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createStagedMediaInternalStagedMediaPost,getStagedMediaInternalStagedMediaStagedIdGet,getStagedMediaSourceInternalStagedMediaStagedIdSourceGet,publishStagedMediaInternalStagedMediaStagedIdPublishPost,discardStagedMediaInternalStagedMediaStagedIdDiscardPost,createResourceUrlDocumentsDocumentIdResourceUrlPost,getSignedResourceResourcesDocumentIdGet,reserveGenerationInternalArtifactGenerationsPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,retrieveChunksInternalRetrievePost}};
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['healthzHealthzGet']>>>
@@ -954,6 +1104,11 @@ export type GetDocumentSliceInternalDocumentsDocumentIdSliceGetResult = NonNulla
 export type GetDocumentSourceInternalDocumentsDocumentIdSourceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getDocumentSourceInternalDocumentsDocumentIdSourceGet']>>>
 export type CreateArtifactInternalArtifactsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createArtifactInternalArtifactsPost']>>>
 export type CreateMediaDocumentInternalMediaDocumentsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createMediaDocumentInternalMediaDocumentsPost']>>>
+export type CreateStagedMediaInternalStagedMediaPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createStagedMediaInternalStagedMediaPost']>>>
+export type GetStagedMediaInternalStagedMediaStagedIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getStagedMediaInternalStagedMediaStagedIdGet']>>>
+export type GetStagedMediaSourceInternalStagedMediaStagedIdSourceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getStagedMediaSourceInternalStagedMediaStagedIdSourceGet']>>>
+export type PublishStagedMediaInternalStagedMediaStagedIdPublishPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['publishStagedMediaInternalStagedMediaStagedIdPublishPost']>>>
+export type DiscardStagedMediaInternalStagedMediaStagedIdDiscardPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['discardStagedMediaInternalStagedMediaStagedIdDiscardPost']>>>
 export type CreateResourceUrlDocumentsDocumentIdResourceUrlPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createResourceUrlDocumentsDocumentIdResourceUrlPost']>>>
 export type GetSignedResourceResourcesDocumentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getSignedResourceResourcesDocumentIdGet']>>>
 export type ReserveGenerationInternalArtifactGenerationsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['reserveGenerationInternalArtifactGenerationsPost']>>>

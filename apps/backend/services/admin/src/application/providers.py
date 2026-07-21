@@ -19,6 +19,7 @@ from application.contracts.provider import (
     InternalModelProvider,
     ModelProvider,
     ProviderKind,
+    ProviderPricing,
     TestModelProviderInput,
     TestModelProviderResult,
     UpdateModelProviderInput,
@@ -46,6 +47,15 @@ def _parse_extra_body(raw: str) -> dict[str, Any]:
     return cast(dict[str, Any], decoded)
 
 
+def _parse_pricing(raw: str | None) -> ProviderPricing | None:
+    if not raw:
+        return None
+    try:
+        return ProviderPricing.model_validate_json(raw)
+    except ValueError:
+        return None
+
+
 def to_public_schema(row: ModelProviderRow) -> ModelProvider:
     return ModelProvider(
         id=row.id,
@@ -57,6 +67,7 @@ def to_public_schema(row: ModelProviderRow) -> ModelProvider:
         base_url=row.base_url,
         api_key_masked=mask(decrypt(row.api_key_enc)),
         extra_body=_parse_extra_body(row.extra_body),
+        pricing=_parse_pricing(row.pricing_json),
         context_window=row.context_window,
         max_output_tokens=row.max_output_tokens,
         supports_image_input=row.supports_image_input,
@@ -77,6 +88,7 @@ def to_internal_schema(row: ModelProviderRow) -> InternalModelProvider:
         base_url=row.base_url,
         api_key=decrypt(row.api_key_enc),
         extra_body=_parse_extra_body(row.extra_body),
+        pricing=_parse_pricing(row.pricing_json),
         context_window=row.context_window,
         max_output_tokens=row.max_output_tokens,
         supports_image_input=row.supports_image_input,
@@ -122,6 +134,7 @@ class ModelProviderService:
                 base_url=base_url,
                 api_key_enc=encrypt(payload.api_key),
                 extra_body=json.dumps(payload.extra_body),
+                pricing_json=payload.pricing.model_dump_json() if payload.pricing else None,
                 context_window=payload.context_window,
                 max_output_tokens=payload.max_output_tokens,
                 supports_image_input=payload.supports_image_input,
@@ -155,6 +168,8 @@ class ModelProviderService:
                 values["api_key_enc"] = encrypt(payload.api_key)
             if payload.extra_body is not None:
                 values["extra_body"] = json.dumps(payload.extra_body)
+            if "pricing" in payload.model_fields_set:
+                values["pricing_json"] = payload.pricing.model_dump_json() if payload.pricing else None
             if payload.context_window is not None:
                 values["context_window"] = payload.context_window
             if payload.max_output_tokens is not None:

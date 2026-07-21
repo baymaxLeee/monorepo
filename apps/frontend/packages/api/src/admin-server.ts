@@ -327,6 +327,12 @@ export function detachBotSkill(
 
 export type ProviderKind = "chat" | "image" | "video" | "embedding" | "rerank";
 
+export interface ProviderPricing {
+  currency: string;
+  unit: "generated_second";
+  unit_price_micros: number;
+}
+
 export interface ModelProvider {
   id: string;
   user_id: string;
@@ -336,6 +342,7 @@ export interface ModelProvider {
   base_url: string;
   api_key_masked: string;
   extra_body: Record<string, unknown>;
+  pricing: ProviderPricing | null;
   context_window: number;
   max_output_tokens: number;
   supports_image_input: boolean;
@@ -352,6 +359,7 @@ export interface CreateModelProviderInput {
   base_url: string;
   api_key: string;
   extra_body?: Record<string, unknown>;
+  pricing?: ProviderPricing | null;
   context_window?: number;
   max_output_tokens?: number;
   supports_image_input?: boolean;
@@ -366,6 +374,7 @@ export interface UpdateModelProviderInput {
   base_url?: string;
   api_key?: string;
   extra_body?: Record<string, unknown> | null;
+  pricing?: ProviderPricing | null;
   context_window?: number;
   max_output_tokens?: number;
   supports_image_input?: boolean;

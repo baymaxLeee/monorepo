@@ -1,10 +1,18 @@
-import { ExecutorInternalClient, TransportError, type Task } from "@backend/transport-ts";
+import {
+  ExecutorInternalClient,
+  TransportError,
+  type ProductionDecision,
+  type Task,
+  type VideoProductionDetail,
+  type VideoProductionProjection,
+} from "@backend/transport-ts";
 import { propagationHeaders } from "@backend/kernel-ts";
 
 import { getSettings } from "../../bootstrap/config.js";
 import { NotFoundError } from "../../application/errors.js";
 
 export type { Task } from "@backend/transport-ts";
+export type { ProductionDecision, VideoProductionDetail, VideoProductionProjection } from "@backend/transport-ts";
 
 function executorClient(): ExecutorInternalClient {
   const s = getSettings();
@@ -76,4 +84,22 @@ export async function cancelTask(id: string, ownerRef: string): Promise<void> {
     if (err instanceof TransportError && err.status === 404) return;
     throw err;
   }
+}
+
+export async function getVideoProduction(id: string): Promise<VideoProductionDetail> {
+  try {
+    return await executorClient().getVideoProduction(id);
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      throw new NotFoundError(`video production ${id} not found`);
+    }
+    throw err;
+  }
+}
+
+export async function decideVideoProduction(
+  id: string,
+  decision: ProductionDecision,
+): Promise<VideoProductionProjection> {
+  return executorClient().decideVideoProduction(id, decision);
 }

@@ -22,6 +22,12 @@ export class UnauthorizedError extends AppError {
   }
 }
 
+export class ForbiddenError extends AppError {
+  constructor(message: string) {
+    super(message, 403, "forbidden");
+  }
+}
+
 export class RequestError extends AppError {
   constructor(message: string, details: Record<string, unknown> = {}) {
     super(message, 400, "bad_request", details);

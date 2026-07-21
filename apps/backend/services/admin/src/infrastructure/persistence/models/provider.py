@@ -35,6 +35,7 @@ class ModelProviderRow(Base):
     base_url: Mapped[str] = mapped_column(String(255), nullable=False)
     api_key_enc: Mapped[str] = mapped_column(Text, nullable=False)
     extra_body: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    pricing_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     context_window: Mapped[int] = mapped_column(Integer, nullable=False, default=524_288)
     max_output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=262_144)
     supports_image_input: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

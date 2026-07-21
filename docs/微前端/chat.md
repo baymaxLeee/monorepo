@@ -24,5 +24,11 @@
 - HTML artifact 使用 sandbox iframe 和独立右侧面板；完整正文按需从 knowledge
   加载，不进入聊天消息。iframe 只有 `allow-scripts`，不授予 same-origin；课件目录
   使用 artifact 内部 `#fragment` 跳转。
+- 视频工具在进入耐久审批点后返回普通完成态并结束 SSE。右侧导演工作台按
+  production id 读取 Executor 投影，展示并结构化编辑分镜，预览/重拍/选择每镜头
+  Take，并展示成本、QA、暂存成片和事件；批准或拒绝直接恢复 Workflow Hook，不创建
+  新的 Agent run，也不让模型重建执行状态。视频生成请求必须直接调用
+  `generate_video`；模型不得在聊天正文中模拟分镜、预算、Take 或发布审批，也不得让
+  用户通过回复文字完成这些审批。
 
 普通 CRUD 使用 `api` package；禁止跨 MFE import，跨域通信使用 `runtime` 事件总线。

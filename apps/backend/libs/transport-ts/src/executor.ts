@@ -8,6 +8,10 @@ import type { components, paths } from "./schema/executor.js";
 export type Task = components["schemas"]["Task"];
 export type CreateTaskInput = components["schemas"]["CreateTaskInput"];
 export type ExecutorHtmlValidationDecision = components["schemas"]["HtmlValidationDecision"];
+export type VideoProductionProjection = components["schemas"]["VideoProductionProjection"];
+export type ProductionDecision = components["schemas"]["ProductionDecision"];
+export type VideoProductionDetail =
+  paths["/video-productions/{id}"]["get"]["responses"][200]["content"]["application/json"];
 
 export interface ExecutorClientOptions {
   baseUrl: string;
@@ -64,6 +68,26 @@ export class ExecutorInternalClient {
         },
       },
     });
+    if (data) return data;
+    throw toTransportError(response, error);
+  }
+
+  async getVideoProduction(id: string): Promise<VideoProductionDetail> {
+    const { data, error, response } = await this.client.GET("/video-productions/{id}", {
+      params: { path: { id } },
+    });
+    if (data) return data;
+    throw toTransportError(response, error);
+  }
+
+  async decideVideoProduction(
+    id: string,
+    decision: ProductionDecision,
+  ): Promise<VideoProductionProjection> {
+    const { data, error, response } = await this.client.POST(
+      "/video-productions/{id}/decisions",
+      { params: { path: { id } }, body: decision },
+    );
     if (data) return data;
     throw toTransportError(response, error);
   }

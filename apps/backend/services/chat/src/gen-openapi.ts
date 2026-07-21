@@ -33,6 +33,27 @@ const taskPathParam = {
   schema: { type: "string" },
 };
 
+const productionPathParam = {
+  name: "production_id",
+  in: "path",
+  required: true,
+  schema: { type: "string" },
+};
+
+const shotPathParam = {
+  name: "shot_id",
+  in: "path",
+  required: true,
+  schema: { type: "string" },
+};
+
+const takePathParam = {
+  name: "take_id",
+  in: "path",
+  required: true,
+  schema: { type: "string" },
+};
+
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 const jsonResponse = (description: string, schema: object) => ({
   description,
@@ -131,6 +152,53 @@ const openapi = {
         },
       },
     },
+    "/conversations/{conversation_id}/video-productions/{production_id}": {
+      get: {
+        parameters: [pathParam, productionPathParam],
+        responses: {
+          "200": jsonResponse("durable video production projection", ref("VideoProductionDetail")),
+          "403": { description: "approval role required" },
+          "404": { description: "video production not found" },
+        },
+      },
+    },
+    "/conversations/{conversation_id}/video-productions/{production_id}/decisions": {
+      post: {
+        parameters: [pathParam, productionPathParam],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: ref("VideoProductionDecision") } },
+        },
+        responses: {
+          "200": jsonResponse("updated durable video production projection", ref("VideoProduction")),
+          "409": { description: "stale production version" },
+        },
+      },
+    },
+    "/conversations/{conversation_id}/video-productions/{production_id}/preview": {
+      get: {
+        parameters: [pathParam, productionPathParam],
+        responses: {
+          "200": {
+            description: "staged video preview",
+            content: { "video/mp4": { schema: { type: "string", format: "binary" } } },
+          },
+          "404": { description: "preview not available" },
+        },
+      },
+    },
+    "/conversations/{conversation_id}/video-productions/{production_id}/shots/{shot_id}/takes/{take_id}/preview": {
+      get: {
+        parameters: [pathParam, productionPathParam, shotPathParam, takePathParam],
+        responses: {
+          "200": {
+            description: "staged video take preview",
+            content: { "video/mp4": { schema: { type: "string", format: "binary" } } },
+          },
+          "404": { description: "take preview not available" },
+        },
+      },
+    },
     "/memories": {
       get: {
         responses: {
@@ -216,6 +284,196 @@ const openapi = {
           updatedAt: { type: "string" },
           finishedAt: { type: "string", nullable: true },
         },
+      },
+      VideoShot: {
+        type: "object",
+        required: ["id", "order", "seconds", "narrativeBeat", "subjectAnchors", "action", "camera", "environment", "lightingPalette", "audioDirection", "references", "continuityContract", "acceptanceCriteria"],
+        properties: {
+          id: { type: "string" },
+          order: { type: "integer" },
+          seconds: { type: "integer" },
+          narrativeBeat: { type: "string" },
+          subjectAnchors: { type: "array", items: { type: "string" } },
+          action: { type: "string" },
+          camera: {
+            type: "object",
+            required: ["shotSize", "movement"],
+            properties: {
+              shotSize: { type: "string" },
+              movement: { type: "string" },
+              focus: { type: "string" },
+            },
+          },
+          environment: { type: "string" },
+          lightingPalette: { type: "string" },
+          audioDirection: { type: "string" },
+          references: { type: "array", items: { type: "object", additionalProperties: true } },
+          continuityContract: { type: "array", items: { type: "string" } },
+          acceptanceCriteria: { type: "array", items: { type: "string" } },
+        },
+      },
+      VideoShotPlan: {
+        type: "object",
+        required: ["version", "shots"],
+        properties: {
+          version: { type: "integer" },
+          shots: { type: "array", items: ref("VideoShot") },
+        },
+      },
+      VideoTake: {
+        type: "object",
+        required: ["id", "shotId", "number", "status", "seed"],
+        properties: {
+          id: { type: "string" },
+          shotId: { type: "string" },
+          number: { type: "integer" },
+          status: { type: "string", enum: ["generating", "succeeded", "failed"] },
+          providerTaskId: { type: "string" },
+          stagedMediaId: { type: "string" },
+          seed: { type: "integer" },
+          error: { type: "string" },
+        },
+      },
+      VideoProduction: {
+        type: "object",
+        required: ["id", "taskId", "orgId", "userId", "title", "status", "stage", "version", "shotReviews", "cost", "createdAt", "updatedAt"],
+        properties: {
+          id: { type: "string" },
+          taskId: { type: "string" },
+          orgId: { type: "string" },
+          userId: { type: "string" },
+          conversationId: { type: "string", nullable: true },
+          title: { type: "string" },
+          status: { type: "string", enum: ["running", "awaiting_approval", "completed", "failed", "cancelled"] },
+          stage: { type: "string" },
+          version: { type: "integer" },
+          awaitingAction: { type: "string", nullable: true },
+          shotPlan: { ...ref("VideoShotPlan"), nullable: true },
+          shotReviews: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["shotId", "selectedTakeId", "takes"],
+              properties: {
+                shotId: { type: "string" },
+                selectedTakeId: { type: "string", nullable: true },
+                takes: { type: "array", items: ref("VideoTake") },
+              },
+            },
+          },
+          cost: {
+            type: "object",
+            required: ["currency", "unitPriceMicros", "estimatedMicros", "budgetLimitMicros", "reservedMicros", "reconciledMicros", "releasedMicros"],
+            properties: {
+              currency: { type: "string", nullable: true },
+              unitPriceMicros: { type: "integer", nullable: true },
+              estimatedMicros: { type: "integer", nullable: true },
+              budgetLimitMicros: { type: "integer", nullable: true },
+              reservedMicros: { type: "integer" },
+              reconciledMicros: { type: "integer" },
+              releasedMicros: { type: "integer" },
+            },
+          },
+          stagedMediaId: { type: "string", nullable: true },
+          documentId: { type: "string", nullable: true },
+          qaReport: { type: "object", nullable: true, additionalProperties: true },
+          error: { type: "string", nullable: true },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      VideoProductionDetail: {
+        type: "object",
+        required: ["production", "events"],
+        properties: {
+          production: ref("VideoProduction"),
+          events: { type: "array", items: { type: "object", additionalProperties: true } },
+        },
+      },
+      VideoProductionDecision: {
+        oneOf: [
+          {
+            type: "object",
+            required: ["action", "action_id", "expected_version", "shot_plan"],
+            properties: {
+              action: { type: "string", enum: ["revise_storyboard"] },
+              action_id: { type: "string" },
+              expected_version: { type: "integer" },
+              shot_plan: ref("VideoShotPlan"),
+            },
+          },
+          {
+            type: "object",
+            required: ["action", "action_id", "expected_version", "budget_limit_micros", "currency"],
+            properties: {
+              action: { type: "string", enum: ["approve_storyboard"] },
+              action_id: { type: "string" },
+              expected_version: { type: "integer" },
+              budget_limit_micros: { type: "integer", minimum: 0 },
+              currency: { type: "string", minLength: 3, maxLength: 3 },
+            },
+          },
+          {
+            type: "object",
+            required: ["action", "action_id", "expected_version", "shot_id"],
+            properties: {
+              action: { type: "string", enum: ["request_take"] },
+              action_id: { type: "string" },
+              expected_version: { type: "integer" },
+              shot_id: { type: "string" },
+            },
+          },
+          {
+            type: "object",
+            required: ["action", "action_id", "expected_version", "selections"],
+            properties: {
+              action: { type: "string", enum: ["approve_takes"] },
+              action_id: { type: "string" },
+              expected_version: { type: "integer" },
+              selections: {
+                type: "array",
+                items: {
+                  type: "object",
+                  required: ["shot_id", "take_id"],
+                  properties: {
+                    shot_id: { type: "string" },
+                    take_id: { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+          {
+            type: "object",
+            required: ["action", "action_id", "expected_version"],
+            properties: {
+              action: { type: "string", enum: ["approve_publish"] },
+              action_id: { type: "string" },
+              expected_version: { type: "integer" },
+              waiver_reason: { type: "string", minLength: 1, maxLength: 1000 },
+            },
+          },
+          {
+            type: "object",
+            required: ["action", "action_id", "expected_version", "reason"],
+            properties: {
+              action: { type: "string", enum: ["reject_publish"] },
+              action_id: { type: "string" },
+              expected_version: { type: "integer" },
+              reason: { type: "string" },
+            },
+          },
+          {
+            type: "object",
+            required: ["action", "action_id", "expected_version", "reason"],
+            properties: {
+              action: { type: "string", enum: ["reject_storyboard"] },
+              action_id: { type: "string" },
+              expected_version: { type: "integer" },
+              reason: { type: "string" },
+            },
+          },
+        ],
       },
       MemoryCategory: {
         type: "string",

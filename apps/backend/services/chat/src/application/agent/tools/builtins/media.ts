@@ -4,7 +4,10 @@ import { z } from "zod";
 import { createProviderImageModel } from "@backend/transport-ts/provider-model";
 import { logger } from "../../../../infrastructure/observability/logger.js";
 import type { ProviderSnapshot } from "../../../../infrastructure/clients/admin.js";
-import type { Task } from "../../../../infrastructure/clients/executor.js";
+import {
+  getVideoProduction,
+  type Task,
+} from "../../../../infrastructure/clients/executor.js";
 import { createMediaDocument, getDocument } from "../../../../infrastructure/clients/knowledge.js";
 import {
   pollTaskSnapshots,
@@ -38,6 +41,9 @@ const videoOutputSchema = z.object({
   prompt: z.string(),
   duration: z.number().optional(),
   task_id: z.string(),
+  production_id: z.string().optional(),
+  awaiting_action: z.enum(["storyboard_approval", "shot_review", "publish_approval"]).optional(),
+  production_version: z.number().int().optional(),
   progress_done: z.number().optional(),
   progress_total: z.number().optional(),
   document_id: z.string().optional(),
@@ -260,6 +266,10 @@ async function resolveVideoCharacters(
     if (document.conversation_id !== context.conversationId) {
       throw new Error(`document ${documentId} does not belong to this conversation`);
     }
+    const mimeType = document.source_mime_type ?? document.mime_type;
+    if (!mimeType.startsWith("image/")) {
+      throw new Error(`document ${documentId} is not an image reference`);
+    }
     return document;
   }
 
@@ -344,6 +354,21 @@ async function* generateVideo(
     let terminal: Task | null = null;
     try {
       for await (const snapshot of pollTaskSnapshots(task.id, task.ownerRef, abortSignal)) {
+        try {
+          const detail = await getVideoProduction(task.id);
+          const production = detail.production;
+          if (production.status === "awaiting_approval") {
+            yield toolCompleted({
+              ...base,
+              production_id: production.id,
+              production_version: production.version,
+              awaiting_action: production.awaitingAction ?? "storyboard_approval",
+            });
+            return;
+          }
+        } catch (error) {
+          if (!(error instanceof Error && error.message.includes("not found"))) throw error;
+        }
         if (snapshot.status === "completed" || snapshot.status === "failed" || snapshot.status === "cancelled") {
           terminal = snapshot;
           break;
@@ -429,8 +454,10 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
     parallelizable: true,
   };
   const videoPlanning = {
-    summary: "Generate a video. The current implementation produces 5–120 second vertical short-drama reels.",
+    summary: "Start a durable video production that first pauses for structured storyboard and budget approval in the director workspace.",
     constraints: [
+      "Call this tool for the user's video-generation request; never simulate its storyboard approval with chat text.",
+      "The initial call does not start paid video generation. It plans the storyboard and returns at the durable approval gate.",
       "Current implementation supports vertical short-drama output; the public capability remains format-neutral.",
       "In any storyboard plan, distinguish narrative sections from generation shots. Each generation shot is one Seedance call and should last about 12 seconds, never more than 15 seconds; split every longer narrative section into multiple shots with contiguous, non-overlapping time ranges. A 60-second video therefore needs at least 5 generation shots even when they are grouped into fewer narrative sections.",
       "Every adjacent generation shot must advance a distinct information or action beat and vary the framing, subject action, or on-screen content. Never pad, loop, or restage the same moment to fill time.",
@@ -461,7 +488,7 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
         "generate_video",
         tool({
           description:
-            "Generate and persist a video. Pass segments[] when the user gave an explicit scene-by-scene script; pass only prompt for auto storyboarding.",
+            "Start the complete durable video-production flow. Call this immediately for a video-generation request: it first creates a structured storyboard and returns at an unpaid approval gate rendered in the right-side director workspace; do not write or approve that storyboard in chat. Pass segments[] when the user gave an explicit scene-by-scene script; pass only prompt for auto storyboarding.",
           inputSchema: videoGenerateInputSchema,
           outputSchema: videoOutputSchema,
           contextSchema: mediaToolContextSchema,

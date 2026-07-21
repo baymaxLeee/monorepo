@@ -7,6 +7,8 @@ export interface AuthContext {
   username: string;
   email: string;
   orgId: string;
+  orgRole: string;
+  roles: string[];
 }
 
 export function getAuth(c: Context): AuthContext {
@@ -22,6 +24,11 @@ export async function authMiddleware(c: Context, next: Next) {
   const email = c.req.header("X-Auth-Email") ?? "";
   const orgId = c.req.header("X-Auth-Org-ID");
   if (!orgId) throw new UnauthorizedError("X-Auth-Org-ID header is required");
-  c.set("auth", { userId, username, email, orgId } satisfies AuthContext);
+  const orgRole = c.req.header("X-Auth-Org-Role") ?? "";
+  const roles = (c.req.header("X-Auth-Roles") ?? "")
+    .split(",")
+    .map((role) => role.trim())
+    .filter(Boolean);
+  c.set("auth", { userId, username, email, orgId, orgRole, roles } satisfies AuthContext);
   await next();
 }

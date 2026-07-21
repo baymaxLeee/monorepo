@@ -43,6 +43,177 @@ export interface Task {
   finishedAt: string | null;
 }
 
+export type VideoShotCamera = {
+  shotSize: string;
+  movement: string;
+  focus?: string;
+};
+
+export type VideoShotReferencesItem = { [key: string]: unknown };
+
+export interface VideoShot {
+  id: string;
+  order: number;
+  seconds: number;
+  narrativeBeat: string;
+  subjectAnchors: string[];
+  action: string;
+  camera: VideoShotCamera;
+  environment: string;
+  lightingPalette: string;
+  audioDirection: string;
+  references: VideoShotReferencesItem[];
+  continuityContract: string[];
+  acceptanceCriteria: string[];
+}
+
+export interface VideoShotPlan {
+  version: number;
+  shots: VideoShot[];
+}
+
+export type VideoTakeStatus = typeof VideoTakeStatus[keyof typeof VideoTakeStatus];
+
+
+export const VideoTakeStatus = {
+  generating: 'generating',
+  succeeded: 'succeeded',
+  failed: 'failed',
+} as const;
+
+export interface VideoTake {
+  id: string;
+  shotId: string;
+  number: number;
+  status: VideoTakeStatus;
+  providerTaskId?: string;
+  stagedMediaId?: string;
+  seed: number;
+  error?: string;
+}
+
+export type VideoProductionStatus = typeof VideoProductionStatus[keyof typeof VideoProductionStatus];
+
+
+export const VideoProductionStatus = {
+  running: 'running',
+  awaiting_approval: 'awaiting_approval',
+  completed: 'completed',
+  failed: 'failed',
+  cancelled: 'cancelled',
+} as const;
+
+export type VideoProductionShotReviewsItem = {
+  shotId: string;
+  /** @nullable */
+  selectedTakeId: string | null;
+  takes: VideoTake[];
+};
+
+export type VideoProductionCost = {
+  /** @nullable */
+  currency: string | null;
+  /** @nullable */
+  unitPriceMicros: number | null;
+  /** @nullable */
+  estimatedMicros: number | null;
+  /** @nullable */
+  budgetLimitMicros: number | null;
+  reservedMicros: number;
+  reconciledMicros: number;
+  releasedMicros: number;
+};
+
+/**
+ * @nullable
+ */
+export type VideoProductionQaReport = { [key: string]: unknown } | null;
+
+export interface VideoProduction {
+  id: string;
+  taskId: string;
+  orgId: string;
+  userId: string;
+  /** @nullable */
+  conversationId?: string | null;
+  title: string;
+  status: VideoProductionStatus;
+  stage: string;
+  version: number;
+  /** @nullable */
+  awaitingAction?: string | null;
+  shotPlan?: VideoShotPlan | null;
+  shotReviews: VideoProductionShotReviewsItem[];
+  cost: VideoProductionCost;
+  /** @nullable */
+  stagedMediaId?: string | null;
+  /** @nullable */
+  documentId?: string | null;
+  /** @nullable */
+  qaReport?: VideoProductionQaReport;
+  /** @nullable */
+  error?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type VideoProductionDetailEventsItem = { [key: string]: unknown };
+
+export interface VideoProductionDetail {
+  production: VideoProduction;
+  events: VideoProductionDetailEventsItem[];
+}
+
+export type VideoProductionDecision = {
+  action: 'revise_storyboard';
+  action_id: string;
+  expected_version: number;
+  shot_plan: VideoShotPlan;
+} | {
+  action: 'approve_storyboard';
+  action_id: string;
+  expected_version: number;
+  /** @minimum 0 */
+  budget_limit_micros: number;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+} | {
+  action: 'request_take';
+  action_id: string;
+  expected_version: number;
+  shot_id: string;
+} | {
+  action: 'approve_takes';
+  action_id: string;
+  expected_version: number;
+  selections: {
+  shot_id: string;
+  take_id: string;
+}[];
+} | {
+  action: 'approve_publish';
+  action_id: string;
+  expected_version: number;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  waiver_reason?: string;
+} | {
+  action: 'reject_publish';
+  action_id: string;
+  expected_version: number;
+  reason: string;
+} | {
+  action: 'reject_storyboard';
+  action_id: string;
+  expected_version: number;
+  reason: string;
+};
+
 export type MemoryCategory = typeof MemoryCategory[keyof typeof MemoryCategory];
 
 
@@ -243,6 +414,53 @@ const getConversationsConversationIdTasksTaskId = (
       options);
     }
 
+const getConversationsConversationIdVideoProductionsProductionId = (
+    conversationId: string,
+    productionId: string,
+ options?: SecondParameter<typeof apiMutator<VideoProductionDetail>>,) => {
+      return apiMutator<VideoProductionDetail>(
+      {url: `/conversations/${conversationId}/video-productions/${productionId}`, method: 'GET'
+    },
+      options);
+    }
+
+const postConversationsConversationIdVideoProductionsProductionIdDecisions = (
+    conversationId: string,
+    productionId: string,
+    videoProductionDecision: VideoProductionDecision,
+ options?: SecondParameter<typeof apiMutator<VideoProduction>>,) => {
+      return apiMutator<VideoProduction>(
+      {url: `/conversations/${conversationId}/video-productions/${productionId}/decisions`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: videoProductionDecision
+    },
+      options);
+    }
+
+const getConversationsConversationIdVideoProductionsProductionIdPreview = (
+    conversationId: string,
+    productionId: string,
+ options?: SecondParameter<typeof apiMutator<Blob>>,) => {
+      return apiMutator<Blob>(
+      {url: `/conversations/${conversationId}/video-productions/${productionId}/preview`, method: 'GET',
+        responseType: 'blob'
+    },
+      options);
+    }
+
+const getConversationsConversationIdVideoProductionsProductionIdShotsShotIdTakesTakeIdPreview = (
+    conversationId: string,
+    productionId: string,
+    shotId: string,
+    takeId: string,
+ options?: SecondParameter<typeof apiMutator<Blob>>,) => {
+      return apiMutator<Blob>(
+      {url: `/conversations/${conversationId}/video-productions/${productionId}/shots/${shotId}/takes/${takeId}/preview`, method: 'GET',
+        responseType: 'blob'
+    },
+      options);
+    }
+
 const getMemories = (
 
  options?: SecondParameter<typeof apiMutator<UserMemoryList>>,) => {
@@ -300,7 +518,7 @@ const deleteMemoriesId = (
       options);
     }
 
-return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdTasksTaskId,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
+return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdTasksTaskId,getConversationsConversationIdVideoProductionsProductionId,postConversationsConversationIdVideoProductionsProductionIdDecisions,getConversationsConversationIdVideoProductionsProductionIdPreview,getConversationsConversationIdVideoProductionsProductionIdShotsShotIdTakesTakeIdPreview,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
 export type GetHealthzResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getHealthz']>>>
 export type GetConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversations']>>>
 export type PostConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversations']>>>
@@ -315,6 +533,10 @@ export type GetConversationsConversationIdDocumentsDocumentIdSourceResult = NonN
 export type GetConversationsConversationIdAgentsRunsRunIdTraceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdAgentsRunsRunIdTrace']>>>
 export type PostConversationsConversationIdAgentsRunsRunIdCancelResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunsRunIdCancel']>>>
 export type GetConversationsConversationIdTasksTaskIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdTasksTaskId']>>>
+export type GetConversationsConversationIdVideoProductionsProductionIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdVideoProductionsProductionId']>>>
+export type PostConversationsConversationIdVideoProductionsProductionIdDecisionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdVideoProductionsProductionIdDecisions']>>>
+export type GetConversationsConversationIdVideoProductionsProductionIdPreviewResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdVideoProductionsProductionIdPreview']>>>
+export type GetConversationsConversationIdVideoProductionsProductionIdShotsShotIdTakesTakeIdPreviewResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdVideoProductionsProductionIdShotsShotIdTakesTakeIdPreview']>>>
 export type GetMemoriesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getMemories']>>>
 export type GetMemoriesCandidatesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getMemoriesCandidates']>>>
 export type PostMemoriesCandidatesIdApproveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postMemoriesCandidatesIdApprove']>>>

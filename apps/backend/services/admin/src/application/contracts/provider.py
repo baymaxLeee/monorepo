@@ -18,6 +18,12 @@ from pydantic import BaseModel, Field, HttpUrl, model_validator
 ProviderKind = Literal["chat", "image", "video", "embedding", "rerank"]
 
 
+class ProviderPricing(BaseModel):
+    currency: str = Field(pattern=r"^[A-Z]{3}$")
+    unit: Literal["generated_second"] = "generated_second"
+    unit_price_micros: int = Field(ge=0, le=2_147_483_647)
+
+
 class ModelProvider(BaseModel):
     """Public view: masked api_key, safe to serve to admin MFE / browser."""
 
@@ -30,6 +36,7 @@ class ModelProvider(BaseModel):
     base_url: str
     api_key_masked: str
     extra_body: dict[str, Any]
+    pricing: ProviderPricing | None
     context_window: int
     max_output_tokens: int
     supports_image_input: bool
@@ -50,6 +57,7 @@ class InternalModelProvider(BaseModel):
     base_url: str
     api_key: str
     extra_body: dict[str, Any]
+    pricing: ProviderPricing | None
     context_window: int
     max_output_tokens: int
     supports_image_input: bool
@@ -64,6 +72,7 @@ class CreateModelProviderInput(BaseModel):
     base_url: HttpUrl
     api_key: str = Field(min_length=1, max_length=4096)
     extra_body: dict[str, Any] = Field(default_factory=dict)
+    pricing: ProviderPricing | None = None
     context_window: int = Field(default=524_288, ge=1024, le=2_000_000)
     max_output_tokens: int = Field(default=262_144, ge=256, le=1_000_000)
     supports_image_input: bool = False
@@ -84,6 +93,7 @@ class UpdateModelProviderInput(BaseModel):
     base_url: HttpUrl | None = None
     api_key: str | None = Field(default=None, min_length=1, max_length=4096)
     extra_body: dict[str, Any] | None = None
+    pricing: ProviderPricing | None = None
     context_window: int | None = Field(default=None, ge=1024, le=2_000_000)
     max_output_tokens: int | None = Field(default=None, ge=256, le=1_000_000)
     supports_image_input: bool | None = None

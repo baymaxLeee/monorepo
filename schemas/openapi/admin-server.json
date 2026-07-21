@@ -6133,6 +6133,16 @@
             "type": "object",
             "title": "Extra Body"
           },
+          "pricing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderPricing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "context_window": {
             "type": "integer",
             "maximum": 2000000.0,
@@ -6303,6 +6313,16 @@
             "type": "object",
             "title": "Extra Body"
           },
+          "pricing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderPricing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "context_window": {
             "type": "integer",
             "title": "Context Window"
@@ -6334,6 +6354,7 @@
           "base_url",
           "api_key",
           "extra_body",
+          "pricing",
           "context_window",
           "max_output_tokens",
           "supports_image_input",
@@ -6443,6 +6464,16 @@
             "type": "object",
             "title": "Extra Body"
           },
+          "pricing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderPricing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "context_window": {
             "type": "integer",
             "title": "Context Window"
@@ -6483,6 +6514,7 @@
           "base_url",
           "api_key_masked",
           "extra_body",
+          "pricing",
           "context_window",
           "max_output_tokens",
           "supports_image_input",
@@ -6519,6 +6551,33 @@
           "base_etag"
         ],
         "title": "MoveSkillNodeInput"
+      },
+      "ProviderPricing": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency"
+          },
+          "unit": {
+            "type": "string",
+            "const": "generated_second",
+            "title": "Unit",
+            "default": "generated_second"
+          },
+          "unit_price_micros": {
+            "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Unit Price Micros"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "unit_price_micros"
+        ],
+        "title": "ProviderPricing"
       },
       "PublishSkillInput": {
         "properties": {
@@ -7462,6 +7521,16 @@
               }
             ],
             "title": "Extra Body"
+          },
+          "pricing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderPricing"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "context_window": {
             "anyOf": [

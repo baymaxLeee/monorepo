@@ -61,7 +61,7 @@ import {
   toast,
 } from "components";
 import { useCallback, useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { getErrorMessage } from "shared";
 import { z } from "zod";
 
@@ -94,6 +94,8 @@ const providerSchema = z
         },
         { message: "extra_body 必须是合法 JSON 对象，留空等价于 {}" },
       ),
+    pricing_currency: z.string().trim().length(3, "请输入三位币种代码"),
+    unit_price_micros: z.number().int().min(0).max(2_147_483_647),
     context_window: z.number().int().min(1024).max(2_000_000),
     max_output_tokens: z.number().int().min(256).max(1_000_000),
     supports_image_input: z.boolean(),
@@ -107,7 +109,14 @@ const providerSchema = z
   .refine((value) => value.provider_kind === "chat" || !value.is_default, {
     message: "仅对话类型可设为 chat 默认模型",
     path: ["is_default"],
-  });
+  })
+  .refine(
+    (value) => value.provider_kind !== "video" || value.unit_price_micros > 0,
+    {
+      message: "视频 Provider 必须配置大于 0 的每秒单价",
+      path: ["unit_price_micros"],
+    },
+  );
 
 type ProviderValues = z.infer<typeof providerSchema>;
 
@@ -164,6 +173,8 @@ const defaults: ProviderValues = {
   base_url: kindPresets.chat.base_url,
   api_key: "",
   extra_body: kindPresets.chat.extra_body,
+  pricing_currency: "CNY",
+  unit_price_micros: 0,
   context_window: chatTokenBudget.context_window,
   max_output_tokens: chatTokenBudget.max_output_tokens,
   supports_image_input: false,
@@ -245,6 +256,8 @@ export function ProvidersPage() {
       base_url: provider.base_url,
       api_key: "",
       extra_body: stringifyExtraBody(provider.extra_body ?? {}),
+      pricing_currency: provider.pricing?.currency ?? "CNY",
+      unit_price_micros: provider.pricing?.unit_price_micros ?? 0,
       context_window: provider.context_window,
       max_output_tokens: provider.max_output_tokens,
       supports_image_input: provider.supports_image_input ?? false,
@@ -256,6 +269,14 @@ export function ProvidersPage() {
   async function save(values: ProviderValues) {
     try {
       const extra_body = parseExtraBody(values.extra_body);
+      const pricing =
+        values.provider_kind === "video"
+          ? {
+              currency: values.pricing_currency.toUpperCase(),
+              unit: "generated_second" as const,
+              unit_price_micros: values.unit_price_micros,
+            }
+          : null;
       if (editing) {
         const patch: Parameters<typeof updateModelProvider>[1] = {
           name: values.name,
@@ -263,6 +284,7 @@ export function ProvidersPage() {
           model: values.model,
           base_url: values.base_url,
           extra_body,
+          pricing,
           context_window: values.context_window,
           max_output_tokens: values.max_output_tokens,
           supports_image_input: values.supports_image_input,
@@ -285,6 +307,7 @@ export function ProvidersPage() {
           base_url: values.base_url,
           api_key: values.api_key.trim(),
           extra_body,
+          pricing,
           context_window: values.context_window,
           max_output_tokens: values.max_output_tokens,
           supports_image_input: values.supports_image_input,
@@ -562,7 +585,10 @@ function ProviderFormDialog({
   open: boolean;
   title: string;
 }) {
-  const providerKind = form.watch("provider_kind");
+  const providerKind = useWatch({
+    control: form.control,
+    name: "provider_kind",
+  });
 
   function applyKindPreset(kind: ProviderKind) {
     const preset = kindPresets[kind];
@@ -757,6 +783,52 @@ function ProviderFormDialog({
                     </Field>
                   )}
                 />
+                {providerKind === "video" ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField
+                      control={form.control}
+                      name="pricing_currency"
+                      render={({ field }) => (
+                        <Field>
+                          <FieldLabel>计费币种</FieldLabel>
+                          <FormControl>
+                            <Input {...field} maxLength={3} placeholder="CNY" />
+                          </FormControl>
+                          <FieldError
+                            errors={[form.formState.errors.pricing_currency]}
+                          />
+                        </Field>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="unit_price_micros"
+                      render={({ field }) => (
+                        <Field>
+                          <FieldLabel>每生成秒单价（微单位）</FieldLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="number"
+                              min={1}
+                              onChange={(event) =>
+                                field.onChange(
+                                  event.currentTarget.valueAsNumber,
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <Muted className="text-xs">
+                            1,000,000 微单位 = 1.00 币种单位
+                          </Muted>
+                          <FieldError
+                            errors={[form.formState.errors.unit_price_micros]}
+                          />
+                        </Field>
+                      )}
+                    />
+                  </div>
+                ) : null}
                 <div className="grid grid-cols-2 gap-3">
                   <FormField
                     control={form.control}

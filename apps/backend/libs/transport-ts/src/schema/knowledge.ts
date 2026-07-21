@@ -296,6 +296,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/staged-media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Staged Media */
+        post: operations["create_staged_media_internal_staged_media_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/staged-media/{staged_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Staged Media */
+        get: operations["get_staged_media_internal_staged_media__staged_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/staged-media/{staged_id}/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Staged Media Source */
+        get: operations["get_staged_media_source_internal_staged_media__staged_id__source_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/staged-media/{staged_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish Staged Media */
+        post: operations["publish_staged_media_internal_staged_media__staged_id__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/staged-media/{staged_id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discard Staged Media */
+        post: operations["discard_staged_media_internal_staged_media__staged_id__discard_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/{document_id}/resource-url": {
         parameters: {
             query?: never;
@@ -597,6 +682,25 @@ export interface components {
             /** Idempotency Key */
             idempotency_key?: string | null;
         };
+        /** CreateStagedMediaInput */
+        CreateStagedMediaInput: {
+            /** User Id */
+            user_id: string;
+            /** Org Id */
+            org_id: string;
+            /** Conversation Id */
+            conversation_id?: string | null;
+            /** Title */
+            title: string;
+            /** Filename */
+            filename: string;
+            /** Mime Type */
+            mime_type: string;
+            /** Data Base64 */
+            data_base64: string;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+        };
         /** Document */
         Document: {
             /** Id */
@@ -857,6 +961,45 @@ export interface components {
             };
             /** Blocks */
             blocks: components["schemas"]["ArtifactBlockPlan"][];
+        };
+        /** StagedMedia */
+        StagedMedia: {
+            /** Id */
+            id: string;
+            /** User Id */
+            user_id: string;
+            /** Org Id */
+            org_id: string;
+            /** Conversation Id */
+            conversation_id?: string | null;
+            /** Title */
+            title: string;
+            /** Filename */
+            filename: string;
+            /** Mime Type */
+            mime_type: string;
+            /** Size */
+            size: number;
+            /** Object Sha256 */
+            object_sha256: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "staged" | "published" | "discarded";
+            /** Document Id */
+            document_id?: string | null;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /** StagedMediaActionInput */
+        StagedMediaActionInput: {
+            /** User Id */
+            user_id: string;
+            /** Org Id */
+            org_id: string;
         };
         /** StoredArtifactBlock */
         StoredArtifactBlock: {
@@ -1560,6 +1703,190 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Document"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_staged_media_internal_staged_media_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateStagedMediaInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StagedMedia"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_staged_media_internal_staged_media__staged_id__get: {
+        parameters: {
+            query: {
+                user_id: string;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path: {
+                staged_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StagedMedia"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_staged_media_source_internal_staged_media__staged_id__source_get: {
+        parameters: {
+            query: {
+                user_id: string;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path: {
+                staged_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_staged_media_internal_staged_media__staged_id__publish_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path: {
+                staged_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StagedMediaActionInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Document"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discard_staged_media_internal_staged_media__staged_id__discard_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path: {
+                staged_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StagedMediaActionInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StagedMedia"];
                 };
             };
             /** @description Validation Error */

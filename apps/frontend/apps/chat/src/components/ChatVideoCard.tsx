@@ -1,5 +1,6 @@
 import { Loader2Icon, PlaySquareIcon } from "lucide-react";
 import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
+import { useChatStore } from "../store/useChatStore";
 import { ChatMediaCard } from "./ChatMediaCard";
 
 export type GenerateVideoOutput = {
@@ -7,6 +8,8 @@ export type GenerateVideoOutput = {
   status: string;
   prompt?: string;
   documentId?: string;
+  productionId?: string;
+  awaitingAction?: string;
   error?: string;
 };
 
@@ -32,6 +35,10 @@ export function parseGenerateVideoOutput(
     prompt: typeof raw.prompt === "string" ? raw.prompt : undefined,
     documentId:
       typeof raw.document_id === "string" ? raw.document_id : undefined,
+    productionId:
+      typeof raw.production_id === "string" ? raw.production_id : undefined,
+    awaitingAction:
+      typeof raw.awaiting_action === "string" ? raw.awaiting_action : undefined,
     error: outcome.ok === false ? outcome.error.message : undefined,
   };
 }
@@ -41,16 +48,21 @@ export function ChatVideoCard({
   state,
   errorText,
   onOpen,
+  conversationId,
 }: {
   output: unknown;
   state: string;
   errorText?: string;
   onOpen: (documentId: string) => void;
+  conversationId: string;
 }) {
   const parsed = parseGenerateVideoOutput(output);
   const failed = state === "output-error" || parsed?.ok === false;
   const documentId = parsed?.documentId ?? null;
   const completed = parsed?.status === "completed" && Boolean(documentId);
+  const openVideoProductionWorkspace = useChatStore(
+    (store) => store.openVideoProductionWorkspace,
+  );
 
   if (failed) {
     return (
@@ -71,13 +83,26 @@ export function ChatVideoCard({
     );
   }
 
+  if (parsed?.productionId) {
+    return (
+      <ChatMediaCard
+        icon={PlaySquareIcon}
+        title="视频制片任务"
+        description="打开导演工作台查看实时状态并完成审批"
+        onOpen={() =>
+          openVideoProductionWorkspace(conversationId, parsed.productionId!)
+        }
+      />
+    );
+  }
+
   return (
     <div className="flex items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
       <Loader2Icon className="size-4 shrink-0 animate-spin" />
       <span className="truncate">
         {parsed?.prompt
-          ? `正在生成视频(通常需要几十秒到几分钟):${parsed.prompt}`
-          : "正在生成视频,通常需要几十秒到几分钟…"}
+          ? `正在规划分镜与预算，尚未调用视频模型：${parsed.prompt}`
+          : "正在规划分镜与预算，尚未调用视频模型…"}
       </span>
     </div>
   );

@@ -3,6 +3,9 @@ import {
   type MemoryCandidate,
   type UpdateMemoryCandidate,
   type UserMemory,
+  type VideoProduction,
+  type VideoProductionDecision,
+  type VideoProductionDetail,
 } from "../generated/chat-server/index";
 import { authFetch } from "./auth-fetch";
 import { API_BASE_URL, request } from "./http";
@@ -11,6 +14,13 @@ export type {
   MemoryCandidate,
   MemoryCategory,
   UserMemory,
+  VideoProduction,
+  VideoProductionDecision,
+  VideoProductionDetail,
+  VideoProductionShotReviewsItem,
+  VideoShot,
+  VideoShotPlan,
+  VideoTake,
 } from "../generated/chat-server/index";
 
 export type MessageRole = "user" | "assistant" | "system";
@@ -213,6 +223,53 @@ export async function fetchConversationDocumentSource(
   if (!response.ok) {
     throw new Error(`document source failed: ${response.status}`);
   }
+  return response.blob();
+}
+
+export function fetchVideoProduction(
+  conversationId: string,
+  productionId: string,
+): Promise<VideoProductionDetail> {
+  return request<VideoProductionDetail>({
+    url: `${BASE}/${encodeURIComponent(conversationId)}/video-productions/${encodeURIComponent(productionId)}`,
+    method: "GET",
+  });
+}
+
+export function decideVideoProduction(
+  conversationId: string,
+  productionId: string,
+  decision: VideoProductionDecision,
+): Promise<VideoProduction> {
+  return request<VideoProduction>({
+    url: `${BASE}/${encodeURIComponent(conversationId)}/video-productions/${encodeURIComponent(productionId)}/decisions`,
+    method: "POST",
+    data: decision,
+  });
+}
+
+export async function fetchVideoProductionPreview(
+  conversationId: string,
+  productionId: string,
+): Promise<Blob> {
+  const response = await authFetch(
+    `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/video-productions/${encodeURIComponent(productionId)}/preview`,
+  );
+  if (!response.ok) throw new Error(`video preview failed: ${response.status}`);
+  return response.blob();
+}
+
+export async function fetchVideoTakePreview(
+  conversationId: string,
+  productionId: string,
+  shotId: string,
+  takeId: string,
+): Promise<Blob> {
+  const response = await authFetch(
+    `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/video-productions/${encodeURIComponent(productionId)}/shots/${encodeURIComponent(shotId)}/takes/${encodeURIComponent(takeId)}/preview`,
+  );
+  if (!response.ok)
+    throw new Error(`video take preview failed: ${response.status}`);
   return response.blob();
 }
 

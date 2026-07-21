@@ -22,6 +22,7 @@ export type StoredArtifactBlock = components["schemas"]["StoredArtifactBlock"];
 export type ArtifactRevisionWorkspace = components["schemas"]["ArtifactRevisionWorkspace"];
 export type RetrieveResult = components["schemas"]["RetrieveResult"];
 export type RetrievedChunk = components["schemas"]["RetrievedChunk"];
+export type StagedMedia = components["schemas"]["StagedMedia"];
 
 export interface KnowledgeClientOptions {
   baseUrl: string;
@@ -163,6 +164,87 @@ export class KnowledgeInternalClient {
         },
       }),
       normalizeDocument,
+    );
+  }
+
+  createStagedMedia(input: {
+    userId: string;
+    orgId: string;
+    conversationId?: string;
+    title: string;
+    filename: string;
+    mimeType: string;
+    bytes: Uint8Array;
+    idempotencyKey?: string;
+  }): Promise<StagedMedia> {
+    return this.unwrap(
+      this.client.POST("/internal/staged-media", {
+        body: {
+          user_id: input.userId,
+          org_id: input.orgId,
+          conversation_id: input.conversationId,
+          title: input.title,
+          filename: input.filename,
+          mime_type: input.mimeType,
+          data_base64: base64FromBytes(input.bytes),
+          idempotency_key: input.idempotencyKey,
+        },
+      }),
+    );
+  }
+
+  getStagedMedia(input: { userId: string; stagedId: string }): Promise<StagedMedia> {
+    return this.unwrap(
+      this.client.GET("/internal/staged-media/{staged_id}", {
+        params: { path: { staged_id: input.stagedId }, query: { user_id: input.userId } },
+      }),
+    );
+  }
+
+  async getStagedMediaSource(input: {
+    userId: string;
+    stagedId: string;
+  }): Promise<BinaryResponse> {
+    const { data, error, response } = await this.client.GET(
+      "/internal/staged-media/{staged_id}/source",
+      {
+        params: { path: { staged_id: input.stagedId }, query: { user_id: input.userId } },
+        parseAs: "arrayBuffer",
+      },
+    );
+    if (data) {
+      return {
+        bytes: new Uint8Array(data),
+        contentType: response.headers.get("content-type") ?? "application/octet-stream",
+      };
+    }
+    throw toTransportError(response, error);
+  }
+
+  publishStagedMedia(input: {
+    userId: string;
+    orgId: string;
+    stagedId: string;
+  }): Promise<KnowledgeDocument> {
+    return this.unwrap(
+      this.client.POST("/internal/staged-media/{staged_id}/publish", {
+        params: { path: { staged_id: input.stagedId } },
+        body: { user_id: input.userId, org_id: input.orgId },
+      }),
+      normalizeDocument,
+    );
+  }
+
+  discardStagedMedia(input: {
+    userId: string;
+    orgId: string;
+    stagedId: string;
+  }): Promise<StagedMedia> {
+    return this.unwrap(
+      this.client.POST("/internal/staged-media/{staged_id}/discard", {
+        params: { path: { staged_id: input.stagedId } },
+        body: { user_id: input.userId, org_id: input.orgId },
+      }),
     );
   }
 

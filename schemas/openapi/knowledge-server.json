@@ -1788,6 +1788,413 @@
         }
       }
     },
+    "/internal/staged-media": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Create Staged Media",
+        "operationId": "create_staged_media_internal_staged_media_post",
+        "parameters": [
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStagedMediaInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StagedMedia"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/staged-media/{staged_id}": {
+      "get": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Get Staged Media",
+        "operationId": "get_staged_media_internal_staged_media__staged_id__get",
+        "parameters": [
+          {
+            "name": "staged_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Staged Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StagedMedia"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/staged-media/{staged_id}/source": {
+      "get": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Get Staged Media Source",
+        "operationId": "get_staged_media_source_internal_staged_media__staged_id__source_get",
+        "parameters": [
+          {
+            "name": "staged_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Staged Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/staged-media/{staged_id}/publish": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Publish Staged Media",
+        "operationId": "publish_staged_media_internal_staged_media__staged_id__publish_post",
+        "parameters": [
+          {
+            "name": "staged_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Staged Id"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StagedMediaActionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/staged-media/{staged_id}/discard": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Discard Staged Media",
+        "operationId": "discard_staged_media_internal_staged_media__staged_id__discard_post",
+        "parameters": [
+          {
+            "name": "staged_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Staged Id"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StagedMediaActionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StagedMedia"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/documents/{document_id}/resource-url": {
       "post": {
         "tags": [
@@ -3090,6 +3497,80 @@
         "title": "CreateMediaDocumentInput",
         "description": "Persist agent-generated binary media (image/video/audio) as a document.\n\nThe bytes are copied into the object store and served back via the existing\n``/documents/{id}/source`` route. Callers must never persist a provider's\ntemporary URL as the durable source of truth (ADR-0014)."
       },
+      "CreateStagedMediaInput": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "User Id"
+          },
+          "org_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "Org Id"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "filename": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Filename"
+          },
+          "mime_type": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Mime Type"
+          },
+          "data_base64": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Data Base64"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "org_id",
+          "title",
+          "filename",
+          "mime_type",
+          "data_base64"
+        ],
+        "title": "CreateStagedMediaInput"
+      },
       "Document": {
         "properties": {
           "id": {
@@ -3840,6 +4321,118 @@
           "blocks"
         ],
         "title": "SaveArtifactPlanInput"
+      },
+      "StagedMedia": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "org_id": {
+            "type": "string",
+            "title": "Org Id"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "object_sha256": {
+            "type": "string",
+            "title": "Object Sha256"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "staged",
+              "published",
+              "discarded"
+            ],
+            "title": "Status"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "org_id",
+          "title",
+          "filename",
+          "mime_type",
+          "size",
+          "object_sha256",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "StagedMedia"
+      },
+      "StagedMediaActionInput": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "User Id"
+          },
+          "org_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "Org Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "org_id"
+        ],
+        "title": "StagedMediaActionInput"
       },
       "StoredArtifactBlock": {
         "properties": {
