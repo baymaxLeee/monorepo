@@ -55,6 +55,7 @@ type BlockStrategy = { id: string; action: BlockAction; sourceId?: string; chang
 type ArtifactPlan = {
   mode: ArtifactMode;
   theme: ArtifactTheme;
+  narrative: string;
   blocks: ArtifactBlock[];
   reviewBrief: string;
   blockStrategies?: BlockStrategy[];
@@ -62,6 +63,10 @@ type ArtifactPlan = {
   sourceContentById?: Record<string, string>;
   sourceFailedById?: Record<string, boolean>;
 };
+
+const LEGACY_ARTIFACT_NARRATIVE =
+  "Maintain a coherent progression through the existing document while preserving each block's established intent.";
+const LEGACY_BLOCK_LAYOUT = "Preserve the current block composition unless the current change request requires another layout.";
 
 function parseStoredBlock(content: string): { html: string | null; error?: string; failed: boolean } {
   try {
@@ -92,9 +97,16 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
         brief: input.brief,
         pageCount: input.pageCount,
         model: tools.model,
+        maxOutputTokens: tools.maxOutputTokens,
         abortSignal: signal,
       });
-      return { mode: input.mode, theme: outline.theme, blocks: outline.blocks, reviewBrief: input.brief };
+      return {
+        mode: input.mode,
+        theme: outline.theme,
+        narrative: outline.narrative,
+        blocks: outline.blocks,
+        reviewBrief: input.brief,
+      };
     }
 
     const workspace = await getLatestArtifactWorkspace(input.userId, input.documentId);
@@ -128,6 +140,7 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
           type: block.type,
           title: block.title,
           brief: block.brief ?? "",
+          layout: block.layout?.trim() || LEGACY_BLOCK_LAYOUT,
           contentScope: block.contentScope ?? [block.title],
           acceptanceCriteria: block.acceptanceCriteria ?? ["Preserve the block's facts and intent."],
         }))
@@ -138,6 +151,7 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
             type: meta?.type ?? stored.type,
             title: meta?.title ?? stored.id,
             brief: meta?.brief ?? "",
+            layout: meta?.layout?.trim() || LEGACY_BLOCK_LAYOUT,
             contentScope: meta?.contentScope ?? [meta?.title ?? stored.id],
             acceptanceCriteria: meta?.acceptanceCriteria ?? ["Preserve the block's facts and intent."],
           };
@@ -188,9 +202,14 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
           appearance: "light",
         };
     const mode = manifest.mode === "presentation" || manifest.mode === "dashboard" ? manifest.mode : "document";
+    const narrative =
+      typeof manifest.narrative === "string" && manifest.narrative.trim()
+        ? manifest.narrative.trim()
+        : LEGACY_ARTIFACT_NARRATIVE;
     return {
       mode,
       theme,
+      narrative,
       blocks,
       reviewBrief: [
         typeof manifest.artifactBrief === "string" ? manifest.artifactBrief : "",
@@ -223,11 +242,12 @@ async function reserveStep(input: HtmlArtifactInput, plan: ArtifactPlan, idempot
     userId: input.userId,
     generationId: generation.id,
     manifest: {
-      schemaVersion: 3,
+      schemaVersion: 4,
       templateVersion: ARTIFACT_TEMPLATE_VERSION,
       artifactBrief: plan.reviewBrief,
       mode: plan.mode,
       theme: plan.theme,
+      narrative: plan.narrative,
       blocks: plan.blocks,
     },
     blocks: plan.blocks.map((block) => ({ id: block.id, type: block.type })),
@@ -250,6 +270,7 @@ async function generateBlockStep(input: {
   mode: ArtifactMode;
   theme: ArtifactTheme;
   outline: ArtifactBlock[];
+  narrative: string;
   artifactBrief: string;
   strategy?: BlockStrategy;
   sourceHtml?: string;
@@ -286,6 +307,7 @@ async function generateBlockStep(input: {
         mode: input.mode,
         theme: input.theme,
         outline: input.outline,
+        narrative: input.narrative,
         artifactBrief: input.artifactBrief,
         tools,
         abortSignal,
@@ -313,6 +335,7 @@ async function generateBlockStep(input: {
         mode: input.mode,
         theme: input.theme,
         outline: input.outline,
+        narrative: input.narrative,
         artifactBrief: input.artifactBrief,
         tools,
         abortSignal,
@@ -482,6 +505,7 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
         mode: plan.mode,
         theme: plan.theme,
         outline: plan.blocks,
+        narrative: plan.narrative,
         artifactBrief: input.brief,
         strategy,
         sourceHtml: plan.sourceHtmlById?.[block.id],

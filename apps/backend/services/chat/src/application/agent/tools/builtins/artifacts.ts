@@ -326,15 +326,21 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
         mode: z
           .enum(["document", "presentation", "dashboard"])
           .default("document")
-          .describe("Content intent only. It affects outlining and default page count, never theme, color scheme, or layout."),
+          .describe("Artifact form inferred from the user's requested deliverable. It does not decide page count, theme, or layout."),
         brief: z
           .string()
           .min(1)
           .max(20_000)
           .describe(
-            "Content and visual requirements. Preserve explicit user design requests. HTML defaults to a light appearance: do not introduce a dark theme unless the user explicitly requested one; dark or saturated color names are accent hues, not permission for a dark canvas. Describe chart type/data only — never name a charting library; all charts render via ECharts.",
+            "Lossless generation request for the executor planner. Preserve explicit facts, numbers, ordered sections, source data, visual requirements, and prohibitions. Do not invent page assignments, module merges or splits, layouts, narrative, chart placement, or theme decisions; preserve those details only when the user supplied them.",
           ),
-        page_count: z.number().int().min(1).max(100).optional().describe("Requested number of generated blocks or pages."),
+        page_count: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe("Exact page count only when explicitly required by the user. Omit for defaults, estimates, ranges, or inferred counts."),
       }),
       outputSchema: artifactToolOutputSchema,
       contextSchema: artifactToolContextSchema,

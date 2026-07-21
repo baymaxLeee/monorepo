@@ -16,6 +16,7 @@ export type ArtifactBlock = {
   type: string;
   title: string;
   brief: string;
+  layout: string;
   contentScope: string[];
   acceptanceCriteria: string[];
 };
@@ -37,6 +38,7 @@ const blockSchema = z.object({
   type: z.string().min(1).max(40),
   title: z.string().min(1).max(160),
   brief: z.string().min(1).max(4000),
+  layout: z.string().min(1).max(400),
   contentScope: z.array(z.string().min(1).max(240)).min(1).max(12),
   acceptanceCriteria: z.array(z.string().min(1).max(320)).min(1).max(12),
 });
@@ -71,44 +73,30 @@ function combinedSignal(abortSignal?: AbortSignal): AbortSignal {
 }
 
 const MAX_BLOCK_BRIEF = 4000;
+const FALLBACK_NARRATIVE =
+  "Build a coherent progression from context through the main evidence and implications to a clear conclusion.";
+const FALLBACK_LAYOUT = "Use a clear, balanced composition that fits this block's content and reading order.";
 
-function resolveAppearance(brief: string): ArtifactTheme["appearance"] {
-  if (/\b(?:not|no)\s+(?:a\s+)?dark\b|不要(?:使用)?(?:深色|暗色|暗黑|黑色)/i.test(brief)) {
-    return "light";
-  }
-  return /\bdark\s+(?:(?:tech|technology|futuristic|cyberpunk)\s+)?(?:mode|theme|background|canvas|appearance|ui|page|dashboard|presentation|style)\b|(?:深色|暗色|暗黑)(?:科技|未来|赛博朋克)?(?:模式|主题|背景|画布|界面|页面|仪表盘|演示|风格)|夜间(?:模式|主题|界面)|黑色(?:背景|主题|画布)/i.test(brief)
-    ? "dark"
-    : "light";
-}
+const outlinePageSchema = z.object({
+  title: z.string().min(1).max(160),
+  brief: z.string().min(1).max(MAX_BLOCK_BRIEF),
+  layout: z.string().min(1).max(400),
+  content_scope: z.array(z.string().min(1).max(240)).min(1).max(12),
+  acceptance_criteria: z.array(z.string().min(1).max(320)).min(1).max(12),
+});
 
 const outlineSchema = z.object({
   visual_direction: z.string().min(1).max(1200).optional(),
   accent: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
-  pages: z
-    .array(
-      z.object({
-        title: z.string().min(1).max(160),
-        brief: z.string().min(1).max(MAX_BLOCK_BRIEF),
-        content_scope: z.array(z.string().min(1).max(240)).min(1).max(12),
-        acceptance_criteria: z.array(z.string().min(1).max(320)).min(1).max(12),
-      }),
-    )
-    .min(1)
-    .max(100),
+  appearance: z.enum(["light", "dark"]),
+  narrative: z.string().min(1).max(1500),
+  pages: z.array(outlinePageSchema).min(1).max(100),
 });
 
-export function resolvePageCount(input: { mode: ArtifactMode; brief: string; pageCount?: number }): number {
-  const requested = Number(input.brief.match(/(?:^|\D)(\d{1,3})\s*(?:页|pages?)/i)?.[1]);
-  return (
-    input.pageCount ??
-    (Number.isInteger(requested) && requested >= 1 && requested <= 100
-      ? requested
-      : input.mode === "presentation"
-        ? 10
-        : input.mode === "dashboard"
-          ? 4
-          : 8)
-  );
+type ArtifactOutline = z.infer<typeof outlineSchema>;
+
+export function fallbackPageCount(mode: ArtifactMode): number {
+  return mode === "presentation" ? 10 : mode === "dashboard" ? 4 : 8;
 }
 
 function deterministicOutline(input: {
@@ -116,40 +104,104 @@ function deterministicOutline(input: {
   mode: ArtifactMode;
   brief: string;
   count: number;
-}): { theme: ArtifactTheme; blocks: ArtifactBlock[] } {
+}): { theme: ArtifactTheme; narrative: string; blocks: ArtifactBlock[] } {
   return {
     theme: {
       visualDirection: "Choose a coherent visual direction and layout that fit the subject, requested tone, and resolved canvas appearance.",
       accent: input.brief.match(/#[0-9a-f]{6}/i)?.[0] ?? "#2563eb",
-      appearance: resolveAppearance(input.brief),
+      appearance: "light",
     },
+    narrative: FALLBACK_NARRATIVE,
     blocks: Array.from({ length: input.count }, (_, index) => ({
       id: `page-${index + 1}`,
       type: input.mode === "presentation" ? "slide" : "section",
       title: `${input.title} · ${index + 1}/${input.count}`,
       brief: `Generate only ordered page/block ${index + 1} of ${input.count}. Derive its distinct content from the overall artifact brief and avoid repeating other pages.`,
+      layout: FALLBACK_LAYOUT,
       contentScope: [`Distinct content owned by page ${index + 1}`],
       acceptanceCriteria: [`Page ${index + 1} is complete, specific, and does not repeat another page.`],
     })),
   };
 }
 
-function outlineInstructions(input: { mode: ArtifactMode; count: number; appearance: ArtifactTheme["appearance"] }): string {
+function outlineInstructions(input: {
+  mode: ArtifactMode;
+  requestedPageCount?: number;
+}): string {
   return [
-    `Plan the outline for a ${input.count}-page ${input.mode} artifact.`,
+    input.requestedPageCount
+      ? `Plan exactly ${input.requestedPageCount} pages for this ${input.mode} artifact.`
+      : `Choose between 1 and 100 pages for this ${input.mode} artifact based on the content's scope and complexity.`,
     "Return exactly one entry per page in reading order.",
+    "If the artifact brief contains an explicit ordered section or module list, preserve every module's order, facts, and scope without omission.",
+    input.requestedPageCount
+      ? "When an explicit module count differs from the required page count, keep module order and coverage while merging only adjacent modules or splitting dense modules to reach the exact page count."
+      : "When an explicit module list is present, map one module to one page. Only design the page breakdown yourself when the brief has no explicit structure.",
     "Each page needs a distinct, specific title and a brief that states what THIS page must cover so independently generated pages never overlap or leave gaps.",
     "The brief is an instruction to a writer, not prose: name the concrete sections, data points, or visuals that belong on this page and nothing that belongs on another page.",
-    "For each page, return content_scope as the short list of topics/facts owned only by that page, and acceptance_criteria as concrete checks for completeness and presentation quality.",
+    "For each page, return one concrete layout intent, content_scope as the short list of topics/facts owned only by that page, and acceptance_criteria as concrete checks for completeness and presentation quality.",
+    "Return one narrative through-line for the whole artifact so every page advances the same story without repetition.",
     "Optionally pick one accent hex color that fits the topic.",
-    `The artifact appearance is ${input.appearance}. Design for this appearance; do not choose or return another appearance.`,
-    input.appearance === "light"
-      ? "Use a predominantly light canvas and light surfaces with dark readable text. Color requests such as navy, deep blue, cyan, black, or other dark hues describe accent colors, not a dark appearance. Reserve them for restrained accents or individual data marks, never page backgrounds or dominant panels; this keeps dense layouts, tables, and charts clear."
-      : "Use a coherent dark canvas with sufficient contrast across text, controls, tables, and chart labels.",
+    "Resolve appearance semantically from the entire brief. Explicit light or dark requests and negations are authoritative. If the user does not clearly request a dark canvas, return light; dark or saturated color names alone describe accents, not permission for a dark appearance.",
     "Describe one specific visual direction shared by every page: color scheme, typography, composition, density, motifs, and chart treatment. Do not fall back to a generic template.",
     "Do not write any HTML; describe content only.",
     JSON_OBJECT_MODE_INSTRUCTION,
   ].join("\n");
+}
+
+function repairInstructions(input: { mode: ArtifactMode; count: number }): string {
+  return [
+    `Repair an existing ${input.mode} outline so it contains exactly ${input.count} pages.`,
+    "Preserve the narrative, every module and fact, the original order, content ownership, and visual direction.",
+    "Only repartition pages: merge adjacent pages or split dense pages. Do not omit content or invent empty filler pages.",
+    "Preserve the existing appearance exactly.",
+    "Return the complete repaired outline, not a patch or explanation.",
+    JSON_OBJECT_MODE_INSTRUCTION,
+  ].join("\n");
+}
+
+async function generateOutline(input: {
+  model: Awaited<ReturnType<typeof buildArtifactTextModel>>["model"];
+  instructions: string;
+  prompt: string;
+  maxOutputTokens: number;
+  abortSignal: AbortSignal;
+}): Promise<ArtifactOutline> {
+  const structuredModel = wrapLanguageModel({ model: input.model, middleware: extractJsonMiddleware() });
+  const result = await generateText({
+    model: structuredModel,
+    output: Output.object({ schema: outlineSchema }),
+    instructions: input.instructions,
+    prompt: input.prompt,
+    maxOutputTokens: input.maxOutputTokens,
+    abortSignal: input.abortSignal,
+  });
+  return result.output;
+}
+
+function materializeOutline(input: {
+  outline: ArtifactOutline;
+  mode: ArtifactMode;
+  fallback: ReturnType<typeof deterministicOutline>;
+}): { theme: ArtifactTheme; narrative: string; blocks: ArtifactBlock[] } {
+  const accent = input.outline.accent?.match(/^#[0-9a-f]{6}$/i)?.[0] ?? input.fallback.theme.accent;
+  return {
+    theme: {
+      visualDirection: input.outline.visual_direction?.trim() || input.fallback.theme.visualDirection,
+      accent,
+      appearance: input.outline.appearance,
+    },
+    narrative: input.outline.narrative.trim(),
+    blocks: input.outline.pages.map((page, index) => ({
+      id: `page-${index + 1}`,
+      type: input.mode === "presentation" ? "slide" : "section",
+      title: page.title.slice(0, 160),
+      brief: page.brief.slice(0, MAX_BLOCK_BRIEF),
+      layout: page.layout.trim(),
+      contentScope: page.content_scope,
+      acceptanceCriteria: page.acceptance_criteria,
+    })),
+  };
 }
 
 export async function planArtifact(input: {
@@ -158,43 +210,39 @@ export async function planArtifact(input: {
   brief: string;
   pageCount?: number;
   model: Awaited<ReturnType<typeof buildArtifactTextModel>>["model"];
+  maxOutputTokens: number;
   abortSignal: AbortSignal;
-}): Promise<{ theme: ArtifactTheme; blocks: ArtifactBlock[] }> {
-  const count = resolvePageCount(input);
-  const appearance = resolveAppearance(input.brief);
-  const fallback = deterministicOutline({ title: input.title, mode: input.mode, brief: input.brief, count });
+}): Promise<{ theme: ArtifactTheme; narrative: string; blocks: ArtifactBlock[] }> {
+  const fallbackCount = input.pageCount ?? fallbackPageCount(input.mode);
+  const fallback = deterministicOutline({ title: input.title, mode: input.mode, brief: input.brief, count: fallbackCount });
   try {
-    const structuredModel = wrapLanguageModel({ model: input.model, middleware: extractJsonMiddleware() });
-    const result = await generateText({
-      model: structuredModel,
-      output: Output.object({ schema: outlineSchema }),
-      instructions: outlineInstructions({ mode: input.mode, count, appearance }),
+    let outline = await generateOutline({
+      model: input.model,
+      instructions: outlineInstructions({ mode: input.mode, requestedPageCount: input.pageCount }),
       prompt: [
         `<title>${input.title}</title>`,
-        `<page_count>${count}</page_count>`,
+        ...(input.pageCount ? [`<required_page_count>${input.pageCount}</required_page_count>`] : []),
         `<artifact_brief>${input.brief}</artifact_brief>`,
       ].join("\n"),
-      maxOutputTokens: 4_000,
+      maxOutputTokens: input.maxOutputTokens,
       abortSignal: input.abortSignal,
     });
-    const pages = result.output?.pages ?? [];
-    if (!pages.length) return fallback;
-    const accent = result.output?.accent?.match(/^#[0-9a-f]{6}$/i)?.[0] ?? fallback.theme.accent;
-    return {
-      theme: {
-        visualDirection: result.output?.visual_direction?.trim() || fallback.theme.visualDirection,
-        accent,
-        appearance,
-      },
-      blocks: pages.map((page, index) => ({
-        id: `page-${index + 1}`,
-        type: input.mode === "presentation" ? "slide" : "section",
-        title: page.title.slice(0, 160),
-        brief: page.brief.slice(0, MAX_BLOCK_BRIEF),
-        contentScope: page.content_scope,
-        acceptanceCriteria: page.acceptance_criteria,
-      })),
-    };
+    if (input.pageCount && outline.pages.length !== input.pageCount) {
+      outline = await generateOutline({
+        model: input.model,
+        instructions: repairInstructions({ mode: input.mode, count: input.pageCount }),
+        prompt: [
+          `<required_page_count>${input.pageCount}</required_page_count>`,
+          `<existing_outline>${JSON.stringify(outline)}</existing_outline>`,
+        ].join("\n"),
+        maxOutputTokens: input.maxOutputTokens,
+        abortSignal: input.abortSignal,
+      });
+      if (outline.pages.length !== input.pageCount) {
+        throw new Error(`artifact outline returned ${outline.pages.length} pages after repair; expected ${input.pageCount}`);
+      }
+    }
+    return materializeOutline({ outline, mode: input.mode, fallback });
   } catch (error) {
     if (input.abortSignal.aborted) throw error;
     console.error("[executor] artifact outline planning failed, using deterministic outline", error);
@@ -207,6 +255,8 @@ function blockInstructions(input: {
   mode: ArtifactMode;
   theme: ArtifactTheme;
   outline: ArtifactBlock[];
+  narrative: string;
+  revision: boolean;
 }): string {
   return [
     "Generate one semantic HTML body fragment for a larger compiled artifact.",
@@ -226,6 +276,11 @@ function blockInstructions(input: {
     "For a two-column composition use artifact-split. For metrics use artifact-metric-grid. Wrap every table in artifact-table-scroll.",
     "</starter_template>",
     `Shared visual direction: ${input.theme.visualDirection}`,
+    `Whole-artifact narrative: ${input.narrative}`,
+    `Current block layout intent: ${input.block.layout}`,
+    input.revision
+      ? "The current change_request has highest priority. Treat the existing HTML as the source of truth for unaffected facts and content; stored narrative and layout intent are advisory when they conflict with the current HTML or requested change."
+      : "Explicit requirements and facts in artifact_brief are authoritative. Use the narrative and layout intent to organize and fill gaps without contradicting the brief, and keep this block's assigned content distinct from every other block.",
     `Canvas appearance: ${input.theme.appearance}. Keep the block's dominant surfaces consistent with it.`,
     input.theme.appearance === "light"
       ? "For this light artifact, color words such as navy, deep blue, cyan, black, 深蓝, or 深色系 specify accent hue only and never imply dark mode. Do not introduce dark page-sized backgrounds, dark chart backgrounds, or make most cards dark. Use light surfaces and dark text; apply saturated or dark colors selectively to hierarchy and data marks."
@@ -246,6 +301,7 @@ export async function generateBlock(input: {
   mode: ArtifactMode;
   theme: ArtifactTheme;
   outline: ArtifactBlock[];
+  narrative: string;
   artifactBrief: string;
   tools: Awaited<ReturnType<typeof buildArtifactTextModel>>;
   abortSignal: AbortSignal;
@@ -266,7 +322,7 @@ export async function generateBlock(input: {
   const result = streamText({
     model: input.tools.model,
     maxOutputTokens: input.tools.maxOutputTokens,
-    instructions: blockInstructions(input),
+    instructions: blockInstructions({ ...input, revision: Boolean(input.currentHtml) }),
     prompt,
     timeout: ARTIFACT_GENERATION_TIMEOUT,
     abortSignal: input.abortSignal,

@@ -15,17 +15,38 @@ Superseded in part by ADR 0023. The artifact pipeline remains accepted; ADR
   reaching 100% means block generation finished; compile and publish follow.
   The workflow never validates or asks the block model to retry findings;
   quality verification belongs to the subsequent agent tool loop.
+- HTML outline planning returns one whole-artifact narrative and one concrete
+  layout intent per block before bounded fan-out. An explicit `page_count` tool
+  argument is the only hard quantity signal and chat sets it only for an exact
+  count explicitly required by the user; without it, the outline model
+  chooses the block count from the brief. Explicit ordered modules in the brief
+  retain their order, scope, and coverage. If a valid outline misses an explicit
+  count, one conditional structured repair may repartition adjacent content;
+  only a failed repair uses the deterministic exact-count fallback.
+- Chat is a thin handoff for new HTML: it preserves the user's requirements,
+  facts, source data, ordering, visual constraints, and prohibitions in one
+  brief, but does not invent page assignments, module merges, layouts,
+  narrative, chart placement, appearance, or accent. Those decisions belong to
+  executor's structured outline planner.
 - `edit_file` reads the latest immutable knowledge revision. It revises all
   blocks by default or only explicit `block_ids`, reusing every other block
   byte-for-byte (including failed placeholders). Failed blocks targeted for
   edit are regenerated; OK blocks not in the edit set reuse stored JSON
   verbatim. Publishing creates a child revision on the same document and accepts
   an optional `expected_object_sha256` compare-and-swap guard.
+- Artifact manifest schema v4 persists the narrative and per-block layout
+  intents. Editing remains deterministic: legacy manifests receive static
+  defaults, the existing `BlockStrategy` selects reuse/revise/regenerate, and
+  the current change request overrides stored planning hints while existing
+  HTML remains the source of truth for unaffected content. Editing does not
+  invoke a second outline planner.
 - The compiler owns a versioned responsive shell, accessible design tokens,
   typography, spacing, and reusable Grid/Flex layout primitives. Artifact blocks
   own semantic content and may add narrowly scoped topic-specific composition;
   they must not rebuild the page shell or foundational design system. Artifact
   mode selects shell behavior, while appearance and accent remain content-driven.
+  The structured outline planner resolves appearance from the complete brief;
+  ambiguous requests default to light, and deterministic fallback is always light.
 - Preview HTML runs in an opaque-origin iframe with `sandbox="allow-scripts"`.
   Internal `#fragment` navigation remains available; same-origin access to the
   application is not. Model-authored inline JavaScript and event handlers are

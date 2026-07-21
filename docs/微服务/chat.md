@@ -45,6 +45,12 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   有界并发 block 生成、allowlist sanitize、compile、发布全部发生在 executor
   的 `html-artifact` TaskType（真正的 Workflow DevKit，可跨进程崩溃/重启存活）
   里，chat 不再传输 HTML 正文，也不再自己跑 worker pool。
+- HTML typed outline 在 fan-out 前统一生成全局 narrative 与逐 block layout intent。
+  chat 只无损传递用户要求、事实、数据、顺序、视觉约束和禁止项，不自行设计分页、模块
+  合并拆分、layout、narrative、图表位置或主题。`page_count` 是唯一 typed 数量硬信号，
+  仅在用户明确要求精确页数时传递；未传时 executor 根据 brief 的内容复杂度决定
+  页数，brief 含显式模块清单时保序、保 scope、不得遗漏。模型未遵守显式数量时只做
+  一次条件式结构化 repair，仍失败才使用精确页数的 deterministic fallback。
 - 前端通过 task progress UIMessage stream 展示细粒度进度；tool 自身轮询 executor
   terminal state，前者只负责 UX，后者才是完成信号。
 - executor compiler 统一提供版本化响应式 shell、主题 tokens、Grid/Flex primitives、
@@ -53,6 +59,9 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   link 与 ARIA IDREF；模型误写的 compiler-owned `page-N` 声明会被移除。
 - `edit_file` 从 knowledge 读取最新 immutable revision，复用未改 block，只生成受
   影响 block，并在同一个 document 下发布新 revision（同样委派给 executor）。
+  manifest v4 持久化 narrative/layout；旧 revision 编辑时补静态默认，但不新增规划
+  LLM 调用。当前 change request 优先，既有 HTML 保持未改内容的事实来源，历史规划仅作
+  提示；原有 BlockStrategy 与目标范围不变。
 - `write_file`/`edit_file` 的 HTML 终态不携带 advisory 验证报告。harness 在每个
   HTML revision 后强制 `html_validate` 读取 Knowledge 当前 HTML 和 block contract，
   合并静态与模型 review findings；模型按准确 block_id 调用 `edit_file` 后
