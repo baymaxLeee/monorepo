@@ -41,6 +41,7 @@ type HtmlNode = {
   type?: string;
   attribs?: Record<string, string>;
   children?: HtmlNode[];
+  data?: string;
 };
 
 const BLOCK_ID_PATTERN = /^page-[1-9]\d*$/;
@@ -62,9 +63,58 @@ function collectLocalIds(value: string, scopeId: string): Map<string, string> {
   for (const node of htmlNodes(root)) {
     const id = node.attribs?.id;
     if (!id || id === scopeId || BLOCK_ID_PATTERN.test(id)) continue;
-    ids.set(id, id.startsWith(`${scopeId}--`) ? id : `${scopeId}--${id}`);
+    const prefix = `${scopeId}--`;
+    if (id.startsWith(prefix)) {
+      ids.set(id.slice(prefix.length), id);
+    } else {
+      ids.set(id, `${prefix}${id}`);
+    }
   }
   return ids;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function rewriteJavaScriptIdReferences(value: string, localIds: Map<string, string>): string {
+  let result = "";
+  let cursor = 0;
+  while (cursor < value.length) {
+    const quote = value[cursor];
+    if (quote !== '"' && quote !== "'") {
+      result += quote;
+      cursor += 1;
+      continue;
+    }
+    let end = cursor + 1;
+    while (end < value.length) {
+      if (value[end] === "\\") {
+        end += 2;
+        continue;
+      }
+      if (value[end] === quote) break;
+      end += 1;
+    }
+    if (end >= value.length) {
+      result += value.slice(cursor);
+      break;
+    }
+    const before = value.slice(0, cursor);
+    let content = value.slice(cursor + 1, end);
+    for (const [localId, namespacedId] of localIds) {
+      content = content.replace(
+        new RegExp(`#${escapeRegExp(localId)}(?![\\w-])`, "g"),
+        `#${namespacedId}`,
+      );
+      if (/getElementById\s*\(\s*$/.test(before) && content === localId) {
+        content = namespacedId;
+      }
+    }
+    result += `${quote}${content}${quote}`;
+    cursor = end + 1;
+  }
+  return result;
 }
 
 function sanitizeArtifactCss(value: string, scopeId: string, localIds: Map<string, string>): string {
@@ -134,6 +184,13 @@ function sanitizeArtifactCss(value: string, scopeId: string, localIds: Map<strin
 function namespaceArtifactIds(value: string, scopeId: string, localIds: Map<string, string>): string {
   const root = parseDocument(value, { lowerCaseAttributeNames: false }) as unknown as HtmlNode;
   for (const node of htmlNodes(root)) {
+    if (node.type === "script") {
+      for (const child of node.children ?? []) {
+        if (typeof child.data === "string") {
+          child.data = rewriteJavaScriptIdReferences(child.data, localIds);
+        }
+      }
+    }
     const attributes = node.attribs;
     if (!attributes) continue;
     const id = attributes.id;
@@ -155,6 +212,11 @@ function namespaceArtifactIds(value: string, scopeId: string, localIds: Map<stri
         .split(/\s+/)
         .map((token) => localIds.get(token) ?? token)
         .join(" ");
+    }
+    for (const [name, value] of Object.entries(attributes)) {
+      if (/^on/i.test(name)) {
+        attributes[name] = rewriteJavaScriptIdReferences(value, localIds);
+      }
     }
   }
   return DomUtils.getInnerHTML(root as never).trim();

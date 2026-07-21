@@ -31,6 +31,9 @@ Superseded in part by ADR 0023. The artifact pipeline remains accepted; ADR
   application is not. Model-authored inline JavaScript and event handlers are
   supported for self-contained interaction, while CSP blocks connections,
   forms, remote scripts, access to the application origin, and top-level navigation.
+  The compiler namespaces block-local element IDs and rewrites static JavaScript
+  `#id` selectors and `getElementById("id")` calls to the same namespaced IDs;
+  generated dynamic selectors should use block-scoped `data-*` attributes.
 - Chart artifacts load the pinned full ECharts 6.1.0 runtime from the web
   image at `/runtime/echarts/6.1.0/echarts.min.js`, not a public CDN. The full
   build keeps generated options functional when they use components such as

@@ -211,7 +211,7 @@ function blockInstructions(input: {
   return [
     "Generate one semantic HTML body fragment for a larger compiled artifact.",
     "Return only the fragment: no markdown fence, doctype, html, head, or body tags.",
-    "Inline JavaScript, canvas, controls, and event handlers are available for interactions. Keep scripts self-contained, place them after the markup they initialize, and scope DOM queries to the current artifact block instead of relying on global ids.",
+    "Inline JavaScript, canvas, controls, and event handlers are available for interactions. Keep scripts self-contained, place them after the markup they initialize, and scope DOM queries to the current artifact block. The compiler namespaces local ids and rewrites static '#id' selectors and getElementById('id') calls; prefer data-* selectors for dynamic code.",
     "The platform provides the responsive template, design tokens, and Grid/Flex primitives below. Compose them instead of rebuilding the page shell.",
     "You may use topic-specific classes, inline styles, media queries, and one <style> element only when the platform primitives cannot express the composition. Scope every selector under the current block id.",
     `Current block selector: #${input.block.id}. Do not target html, body, :root, or another block id.`,
