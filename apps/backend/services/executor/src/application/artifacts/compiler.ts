@@ -5,7 +5,6 @@ import postcss from "postcss";
 import selectorParser from "postcss-selector-parser";
 
 export type ArtifactPartPlan = { id: string; type: string; title: string };
-export const ARTIFACT_TEMPLATE_VERSION = 1;
 
 export const ARTIFACT_VISUAL_CAPABILITIES = [
   "The platform owns the responsive shell, accessible color tokens, typography, spacing scale, and reusable Grid/Flex primitives.",
@@ -36,6 +35,23 @@ function stripUnsafeCss(value: string): string {
     .replace(/expression\s*\([^)]*\)/gi, "")
     .replace(/(?:behavior|-moz-binding)\s*:[^;}]*/gi, "")
     .replace(/javascript\s*:/gi, "");
+}
+
+function stripRootCanvasCss(value: string): string {
+  try {
+    const root = postcss.parse(`x{${stripUnsafeCss(value)}}`);
+    const rule = root.first;
+    if (!rule || rule.type !== "rule") return "";
+    rule.walkDecls((declaration) => {
+      const property = declaration.prop.toLowerCase();
+      if (property === "color" || property === "color-scheme" || property.startsWith("background")) {
+        declaration.remove();
+      }
+    });
+    return (rule.nodes ?? []).map((node) => node.toString()).join(";");
+  } catch {
+    return "";
+  }
 }
 
 type HtmlNode = {
@@ -220,6 +236,18 @@ function namespaceArtifactIds(value: string, scopeId: string, localIds: Map<stri
       }
     }
   }
+  for (const child of root.children ?? []) {
+    if (child.type !== "tag") continue;
+    const attributes = child.attribs ?? (child.attribs = {});
+    const classes = new Set((attributes.class ?? "").split(/\s+/).filter(Boolean));
+    classes.add("artifact-block-root");
+    attributes.class = [...classes].join(" ");
+    if (attributes.style) {
+      const style = stripRootCanvasCss(attributes.style);
+      if (style) attributes.style = style;
+      else delete attributes.style;
+    }
+  }
   return DomUtils.getInnerHTML(root as never).trim();
 }
 
@@ -321,15 +349,29 @@ export function compileArtifactHtml(input: {
     return `<section id="${escapeAttribute(planned.id)}" class="artifact-block artifact-block--${escapeAttribute(planned.type)}" data-block-id="${escapeAttribute(planned.id)}"><div class="artifact-block__content"><article class="artifact-content">${compileCharts(parsed.html, accent)}</article></div></section>`;
   });
   const usesEcharts = sections.some((section) => section.includes("data-chart-option"));
+  const themeGuard = artifactThemeGuardStyles(input.parts);
   const html = [
     "<!doctype html>", '<html lang="zh-CN">', "<head>", '  <meta charset="utf-8" />',
     '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
     `  <title>${escapeHtml(input.title)}</title>`, buildArtifactRuntimeHead({ usesEcharts }),
     `  <style>${artifactRuntimeStyles(input.theme.appearance, accent)}</style>`, "</head>",
-    `<body class="artifact-shell artifact-shell--${input.mode} artifact-shell--${input.theme.appearance}" data-artifact-template-version="${ARTIFACT_TEMPLATE_VERSION}">`,
-    ...sections, buildChartHydrationScript(), buildArtifactNavScript(), "</body>", "</html>",
+    `<body class="artifact-shell artifact-shell--${input.mode} artifact-shell--${input.theme.appearance}">`,
+    ...sections, `<style data-artifact-theme-guard>${themeGuard}</style>`, buildChartHydrationScript(), buildArtifactNavScript(), "</body>", "</html>",
   ].join("\n");
   return { html, partsOk, partsFailed };
+}
+
+function artifactThemeGuardStyles(parts: ArtifactPartPlan[]): string {
+  const selectors = parts.flatMap((part) => {
+    const id = `#${part.id}#${part.id}#${part.id}`;
+    return [
+      id,
+      `${id}>.artifact-block__content`,
+      `${id}>.artifact-block__content>.artifact-content`,
+      `${id}>.artifact-block__content>.artifact-content>.artifact-block-root`,
+    ];
+  });
+  return `${selectors.join(",")}{background:var(--artifact-bg)!important;background-image:none!important;color:var(--artifact-text)!important}`;
 }
 
 function renderErrorSection(part: ArtifactPartPlan, reason: string): string {

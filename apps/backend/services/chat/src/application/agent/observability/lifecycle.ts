@@ -103,7 +103,7 @@ export async function recordToolEnd(input: { toolCallId: string; toolName: strin
       success
         ? undefined
         : input.error ?? (outcome && outcome.ok === false ? outcome.error.message : input.output),
-    durationMs: input.durationMs,
+    durationMs: Math.max(0, Math.round(input.durationMs)),
   });
 }
 

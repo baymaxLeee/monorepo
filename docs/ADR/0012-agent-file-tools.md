@@ -35,19 +35,25 @@ pipeline remains accepted. ADR 0048 restores validation as Chat-local
   edit are regenerated; OK blocks not in the edit set reuse stored JSON
   verbatim. Publishing creates a child revision on the same document and accepts
   an optional `expected_object_sha256` compare-and-swap guard.
-- Artifact manifest schema v4 persists the narrative and per-block layout
-  intents. Editing remains deterministic: legacy manifests receive static
+- The artifact manifest persists the narrative and per-block layout intents.
+  Editing remains deterministic: missing historical fields receive static
   defaults, the existing `BlockStrategy` selects reuse/revise/regenerate, and
   the current change request overrides stored planning hints while existing
   HTML remains the source of truth for unaffected content. Editing does not
   invoke a second outline planner.
-- The compiler owns a versioned responsive shell, accessible design tokens,
+- The compiler owns the current responsive shell, accessible design tokens,
   typography, spacing, and reusable Grid/Flex layout primitives. Artifact blocks
   own semantic content and may add narrowly scoped topic-specific composition;
   they must not rebuild the page shell or foundational design system. Artifact
   mode selects shell behavior, while appearance and accent remain content-driven.
-  The structured outline planner resolves appearance from the complete brief;
-  ambiguous requests default to light, and deterministic fallback is always light.
+  Executor's structured outline model resolves one appearance for the whole
+  artifact from the complete brief, including explicit negation; ambiguous
+  requests default to light. That planned value is immutable for all block
+  generations. Every compiled block root is normalized to the shared shell palette, so scoped block
+  CSS cannot replace the page canvas with a conflicting light or dark theme;
+  topic-specific accents and nested cards remain block-owned. Generation,
+  editing, compilation, and validation always use the current code-owned
+  contract; there is no application-level template version or compatibility branch.
 - Preview HTML runs in an opaque-origin iframe with `sandbox="allow-scripts"`.
   Internal `#fragment` navigation remains available; same-origin access to the
   application is not. Model-authored inline JavaScript and event handlers are
@@ -76,6 +82,9 @@ pipeline remains accepted. ADR 0048 restores validation as Chat-local
   primary agent may repair a clearly evidenced explicit-requirement violation
   but must not chase subjective review findings to zero. Tool execution errors
   and unaddressable document-level hard errors prevent a successful validation claim.
+  Harness-forced terminal quality-gate responses are emitted by a deterministic
+  zero-token text model. A provider cannot turn a forbidden final-step tool call
+  into raw tool-protocol text in the user-visible SSE stream.
   Chat classifies the report into the compact
   `{ ok, content_sha256, errors, advisories }` decision and verifies the current
   Knowledge revision hash before orchestrating repair.
@@ -120,7 +129,7 @@ for office artifact generation.
 
 A thin reset plus unconstrained per-block CSS made every model call reinvent
 responsive layout and allowed malformed output to reach publication. The
-versioned template reduces the generation search space, while structured
+compiler-owned template reduces the generation search space, while structured
 findings create an inspect-and-repair loop without adding a verifier persona or
 a browser dependency to the durable workflow.
 
@@ -141,9 +150,8 @@ repair orchestration.
   may publish as an intermediate revision; the primary agent receives the
   validation result and can repair it in the same turn. An edit failure preserves
   the previously published document.
-- Existing artifacts without the current `templateVersion` are regenerated on
-  their next edit; no legacy template compatibility branch is retained during
-  the demo phase.
+- Artifact edits use the current compiler and prompt directly; no stored version
+  chooses an alternate template, validation rule, or migration path.
 - HTML directories and teaching-course navigation use stable block IDs and
   ordinary fragment links.
 - The full ECharts runtime is served from a fixed, versioned same-origin URL and

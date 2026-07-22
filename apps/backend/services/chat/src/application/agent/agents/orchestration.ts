@@ -217,25 +217,23 @@ export function resolveOrchestrationDirective(
 ): OrchestrationDirective {
   const artifactDirective = artifactVerificationDirective(state.artifactVerification);
   if (completedStepCount >= FINAL_RESPONSE_STEP_INDEX) {
-    const reasons: string[] = [];
-    if (state.executionPlan.status === "pending" || state.executionPlan.status === "failed") {
-      reasons.push("the selected execution Plan was not read completely");
-    }
-    if (artifactDirective) reasons.push(artifactDirective.instruction);
+    const hasIncompleteWork =
+      state.executionPlan.status === "pending" ||
+      state.executionPlan.status === "failed" ||
+      artifactDirective != null;
     return {
       kind: "final",
       instruction:
-        "This is the final response step. Do not call tools. " +
-        (reasons.length > 0
-          ? `${reasons.join(" ")} Preserve any created artifacts and clearly report incomplete work or verification.`
-          : "Summarize the completed work and any remaining limitations."),
+        (hasIncompleteWork
+          ? "本轮已保留已生成的产物，但仍有工作或质量校验未完成。请根据上方工具卡片中的结果继续处理。"
+          : "本轮处理已完成。"),
     };
   }
   if (state.executionPlan.status === "failed") {
     return {
       kind: "final",
       instruction:
-        "The explicitly selected execution Plan could not be read. Do not call tools or claim execution; explain the failure briefly.",
+        "无法完整读取选定的 Plan，因此本轮没有开始执行。请检查 Plan 后重试。",
     };
   }
   if (state.executionPlan.status === "pending") {
@@ -248,7 +246,10 @@ export function resolveOrchestrationDirective(
     return { kind: "exact-tools", directive: artifactDirective };
   }
   if (artifactDirective) {
-    return { kind: "final", instruction: artifactDirective.instruction };
+    return {
+      kind: "final",
+      instruction: "HTML 产物已生成，但质量校验未通过，自动修复未能继续。请根据上方校验结果调整后重试。",
+    };
   }
   return { kind: "default" };
 }

@@ -18,7 +18,10 @@ import { ToolCatalog } from "../tools/catalog.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
 import { isToolOutcome } from "../tools/outcome.js";
 import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
-import { exactToolDirectiveModel } from "./exact-tool-directive-model.js";
+import {
+  exactTextResponseModel,
+  exactToolDirectiveModel,
+} from "./exact-tool-directive-model.js";
 import {
   deriveOrchestrationState,
   resolveOrchestrationDirective,
@@ -170,9 +173,10 @@ export async function createToolLoopAgent(
       if (directive.kind === "final") {
         return {
           runtimeContext: nextContext,
+          model: exactTextResponseModel(defaultModel, directive.instruction),
           activeTools: [],
           toolChoice: "none",
-          instructions: `${baseInstructions}\n<orchestration_directive>${directive.instruction}</orchestration_directive>`,
+          instructions: baseInstructions,
         };
       }
       if (directive.kind === "read-plan" && "read_file" in instrumentedTools) {

@@ -4,7 +4,6 @@ import { CORE_POLICY } from "./core-policy.js";
 import { renderExecutionProtocol } from "./execution.js";
 import { renderRuntimeContract } from "./runtime.js";
 import {
-  INSTRUCTION_SCHEMA_VERSION,
   type InstructionContributions,
   type InstructionInput,
   type SkillListing,
@@ -38,7 +37,7 @@ export function assembleInstructions(
   ].filter((section): section is string => Boolean(section));
 
   return [
-    `<agent_instructions version="${INSTRUCTION_SCHEMA_VERSION}">`,
+    "<agent_instructions>",
     ...sections,
     "</agent_instructions>",
   ].join("\n\n");

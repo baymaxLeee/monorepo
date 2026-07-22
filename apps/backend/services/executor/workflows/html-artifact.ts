@@ -18,10 +18,7 @@ import {
   saveArtifactPlan,
   getLatestArtifactWorkspace,
 } from "../src/infrastructure/clients/knowledge.js";
-import {
-  ARTIFACT_TEMPLATE_VERSION,
-  compileArtifactHtml,
-} from "../src/application/artifacts/compiler.js";
+import { compileArtifactHtml } from "../src/application/artifacts/compiler.js";
 import {
   buildArtifactTextModel,
   generateBlock,
@@ -127,14 +124,11 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
     }
 
     const briefById = input.blockBriefs ?? {};
-    const needsTemplateMigration = manifest.templateVersion !== ARTIFACT_TEMPLATE_VERSION;
-    const targeted = needsTemplateMigration
-      ? null
-      : input.blockIds?.length
-        ? new Set(input.blockIds)
-        : Object.keys(briefById).length
-          ? new Set(Object.keys(briefById))
-          : null;
+    const targeted = input.blockIds?.length
+      ? new Set(input.blockIds)
+      : Object.keys(briefById).length
+        ? new Set(Object.keys(briefById))
+        : null;
 
     const blocks: ArtifactBlock[] = manifestBlocks.length
       ? manifestBlocks.map((block) => ({
@@ -163,15 +157,6 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
       const isTargeted = targeted ? targeted.has(block.id) : true;
       if (!isTargeted) {
         return { id: block.id, action: "reuse" };
-      }
-      if (needsTemplateMigration) {
-        return {
-          id: block.id,
-          action: sourceHtmlById[block.id] ? "revise" : "regenerate",
-          sourceId: block.id,
-          changeBrief:
-            "Migrate this block to the current responsive template primitives while preserving its facts and intent.",
-        };
       }
       if (sourceFailedById[block.id]) {
         return {
@@ -244,8 +229,6 @@ async function reserveStep(input: HtmlArtifactInput, plan: ArtifactPlan, idempot
     userId: input.userId,
     generationId: generation.id,
     manifest: {
-      schemaVersion: 4,
-      templateVersion: ARTIFACT_TEMPLATE_VERSION,
       artifactBrief: plan.reviewBrief,
       mode: plan.mode,
       theme: plan.theme,

@@ -88,7 +88,7 @@ context/instructions/
 装配器输出固定结构：
 
 ```xml
-<agent_instructions version="1">
+<agent_instructions>
   <core_policy>...</core_policy>
   <runtime_contract mode="normal|plan">...</runtime_contract>
   <capability_contract>...</capability_contract>
@@ -189,7 +189,7 @@ admin ResolvedAgent
 - admin API 变化后运行 `just gen-openapi admin` 与根 `just sync`，只通过 codegen 更新 generated 文件；并确认 `libs/transport-ts` 的 admin schema（`AdminResolvedAgent` 等，同样由 OpenAPI 生成的 `schema/admin.ts`）一并重生成，chat 端类型才会同步更新。
 - 新增 ADR，记录“核心 prompt 代码治理 + Bot profile 结构化 + UI 文案不进模型”的决策；修订 ADR-0026，明确其自由文本 persona 决策已被替代。
 - 更新 `chat/src/application/agent/README.md`：记录 instruction 层级、extension contribution 边界和数据/指令信任分类。
-- 在不记录完整提示词和用户数据的前提下，为 run trace 增加 `instruction_schema_version`、启用 section 名称、Bot profile revision/updated_at 等元数据；禁止把最终 prompt、memory、Bot 文本写入普通日志。
+- 在不记录完整提示词和用户数据的前提下，为 run trace 记录启用 section 名称、Bot profile revision/updated_at 等元数据；禁止把最终 prompt、memory、Bot 文本写入普通日志。
 - 提供开发环境受保护的 prompt inspection 方式，输出 section 结构和来源，不默认打印敏感正文。
 
 ## 任务

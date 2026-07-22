@@ -41,7 +41,7 @@ are discarded, not migrated into the new fields.
 
 1. **One code-owned, fixed-order XML assembler.** All instructions are composed
    in `agent/context/instructions/assembler.ts` into a single
-   `<agent_instructions version="1">` document. Section order is code-owned and
+   `<agent_instructions>` document. Section order is code-owned and
    cannot be reordered by callers; trust decreases top→bottom:
 
    ```
@@ -94,7 +94,7 @@ are discarded, not migrated into the new fields.
    later. The oncall bot's behavior is intentionally "thinner" during the
    transition.
 
-7. **Schema v2 adds one code-owned execution protocol.** The static
+7. **One code-owned execution protocol.** The static
    `<execution_protocol>` sits after the mode-specific runtime contract and
    before dynamic capabilities, Skills, Bot configuration, and context data. It
    defines the primary agent's per-step loop: orient → route context → route
@@ -114,8 +114,8 @@ only narrows their injection seam to a typed contract.
   code. Operators configure identity through discrete, validated fields and a
   fixed tone enum — never a raw system prompt.
 - The final prompt has a stable XML root and fixed layers; all admin/user text is
-  escaped and confined to its section. Prompts are now diffable and carry a
-  schema version (`INSTRUCTION_SCHEMA_VERSION`).
+  escaped and confined to its section. The running code is the sole prompt
+  definition; no prompt schema version or compatibility branch exists.
 - The execution protocol connects context, Skills, tools, and completion in one
   explicit primary-agent loop without adding role-play agents or manual tool-loop
   code.

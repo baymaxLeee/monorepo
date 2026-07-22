@@ -7,7 +7,7 @@ layers** into one fixed-order XML document. There is no free-text prompt slot:
 ## Fixed layers (order is code-owned, callers cannot reorder)
 
 ```xml
-<agent_instructions version="2">
+<agent_instructions>
   <core_policy>...</core_policy>                 <!-- core-policy.ts   — safety/trust/completion; code constant -->
   <runtime_contract mode="...">...</runtime>     <!-- runtime.ts       — normal/plan protocol; code constant -->
   <execution_protocol>...</execution_protocol>   <!-- execution.ts     — per-step context/skill/tool loop -->

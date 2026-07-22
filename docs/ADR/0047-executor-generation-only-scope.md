@@ -28,8 +28,8 @@ task API already matches that contract; synchronous artifact review does not.
 - Delete the `echo` workflow and the synchronous `/html-validations` route,
   validator, reviewer, decision DTOs, generated contract, transport client, chat
   tool, prompt policy, and frontend special case.
-- HTML template versioning remains compiler-owned because it is part of generated
-  document format, not a validation domain.
+- HTML generation and validation both use the current compiler-owned document
+  contract directly; no template version or compatibility path is maintained.
 
 ## Consequences
 

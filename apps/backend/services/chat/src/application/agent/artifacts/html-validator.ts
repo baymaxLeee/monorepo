@@ -4,8 +4,6 @@ import { parseDocument } from "htmlparser2";
 import postcss from "postcss";
 import selectorParser from "postcss-selector-parser";
 
-export const ARTIFACT_TEMPLATE_VERSION = 1;
-
 export type HtmlValidationSeverity = "error" | "warning" | "info";
 export type HtmlValidationCategory =
   | "structure"
@@ -33,8 +31,6 @@ export type HtmlValidationFinding = {
 };
 
 export type HtmlValidationReport = {
-  schema_version: 1;
-  template_version: number;
   ok: boolean;
   content_sha256: string;
   summary: { errors: number; warnings: number; infos: number };
@@ -352,8 +348,6 @@ function report(html: string, findings: HtmlValidationFinding[], metrics: HtmlVa
     infos: findings.filter((item) => item.severity === "info").length,
   };
   return {
-    schema_version: 1,
-    template_version: ARTIFACT_TEMPLATE_VERSION,
     ok: summary.errors === 0,
     content_sha256: createHash("sha256").update(html).digest("hex"),
     summary,
@@ -371,7 +365,7 @@ export function validateArtifactHtml(html: string): HtmlValidationReport {
   const bodies = elements(root, "body");
   if (htmlElements.length !== 1 || bodies.length !== 1) findings.push(finding("DOCUMENT_ROOT_INVALID", "error", "structure", "Document must contain exactly one html and one body element.", "Use the compiler-owned document shell and return fragments from block generation."));
   const body = bodies[0];
-  if (!body || !classes(body).includes("artifact-shell") || body.attribs?.["data-artifact-template-version"] !== String(ARTIFACT_TEMPLATE_VERSION)) {
+  if (!body || !classes(body).includes("artifact-shell")) {
     findings.push(finding("TEMPLATE_SHELL_INVALID", "error", "template", "Document is not using the current artifact shell.", "Regenerate the artifact with the current platform template."));
   }
 
