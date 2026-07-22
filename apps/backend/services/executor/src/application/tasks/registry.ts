@@ -1,4 +1,3 @@
-import { echoInputSchema, echoWorkflow } from "../../../workflows/echo.js";
 import { htmlArtifactInputSchema, htmlArtifactWorkflow } from "../../../workflows/html-artifact.js";
 import { videoGenerationInputSchema, videoGenerationWorkflow } from "../../../workflows/video-generation.js";
 import { cancelHtmlArtifact } from "../artifacts/cancel.js";
@@ -19,12 +18,6 @@ export function registerTaskType<TInput, TOutput>(
 export function getTaskType(name: string): TaskTypeDefinition | undefined {
   return registry.get(name);
 }
-
-registerTaskType({
-  name: "echo",
-  inputSchema: echoInputSchema,
-  workflow: echoWorkflow,
-});
 
 registerTaskType({
   name: "html-artifact",

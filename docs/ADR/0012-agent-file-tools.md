@@ -2,8 +2,8 @@
 
 ## Status
 
-Superseded in part by ADR 0023. The artifact pipeline remains accepted; ADR
-0023 owns current public names, manifests, policy, and directory structure.
+Superseded in part by ADR 0023 and ADR 0047. The artifact generation pipeline
+remains accepted; ADR 0047 removes the HTML validation/review tool and endpoint.
 
 ## Decision
 

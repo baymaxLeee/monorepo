@@ -18,8 +18,10 @@ import {
   saveArtifactPlan,
   getLatestArtifactWorkspace,
 } from "../src/infrastructure/clients/knowledge.js";
-import { compileArtifactHtml } from "../src/application/artifacts/compiler.js";
-import { ARTIFACT_TEMPLATE_VERSION } from "../src/domain/artifacts/validator.js";
+import {
+  ARTIFACT_TEMPLATE_VERSION,
+  compileArtifactHtml,
+} from "../src/application/artifacts/compiler.js";
 import {
   buildArtifactTextModel,
   generateBlock,

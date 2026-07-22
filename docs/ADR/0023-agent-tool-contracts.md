@@ -4,7 +4,8 @@
 
 Accepted. Supersedes the public tool naming and catalog composition decisions in
 ADR 0012 while preserving its high-level artifact pipeline. Refines ADR 0017 and
-ADR 0022 by removing todo identifiers from deliverable tool inputs.
+ADR 0022 by removing todo identifiers from deliverable tool inputs. ADR 0047
+later removes `html_validate` from the public tool set.
 
 ## Context
 
@@ -54,12 +55,13 @@ surface small.
    - planning: `write_plan`, `update_plan`, `update_todos`
    - interaction: `ask_user`
    - artifacts: `write_file`, `edit_file`, `html_validate`
-   - media: `generate_image`, `generate_video`
+   - media: `generate_images`, `create_video_production`
    - memory: `create_memory`, `update_memory`
 
-   `generate_video` remains format-neutral because horizontal and long-form
-   generation are expected later; current short-drama constraints remain in its
-   schema and description. MCP names use `mcp__<server>__<tool>`.
+   `create_video_production` names the durable production that the tool creates;
+   format remains neutral because horizontal and long-form output are expected
+   later. Current short-drama constraints remain in its schema and description.
+   MCP names use `mcp__<server>__<tool>`.
 6. Tool outputs use explicit schemas. Expected business blockers return typed
    results; execution and infrastructure failures throw so AI SDK emits native
    tool-error parts and observability records failures correctly.

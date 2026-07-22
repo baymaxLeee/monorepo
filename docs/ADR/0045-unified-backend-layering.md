@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted.
+Accepted. ADR 0047 removes Executor HTML validation and its former domain
+modules; the layering rule remains accepted for the remaining resources.
 
 ## Context
 

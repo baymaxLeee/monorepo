@@ -3,19 +3,20 @@ import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
 import { useChatStore } from "../store/useChatStore";
 import { ChatMediaCard } from "./ChatMediaCard";
 
-export type GenerateVideoOutput = {
+export type CreateVideoProductionOutput = {
   ok: boolean;
   status: string;
   prompt?: string;
   documentId?: string;
   productionId?: string;
+  productionStage?: string;
   awaitingAction?: string;
   error?: string;
 };
 
-export function parseGenerateVideoOutput(
+export function parseCreateVideoProductionOutput(
   output: unknown,
-): GenerateVideoOutput | null {
+): CreateVideoProductionOutput | null {
   if (!output || typeof output !== "object") return null;
   const outcome = parseToolOutcome(output);
   if (!outcome) return null;
@@ -37,6 +38,10 @@ export function parseGenerateVideoOutput(
       typeof raw.document_id === "string" ? raw.document_id : undefined,
     productionId:
       typeof raw.production_id === "string" ? raw.production_id : undefined,
+    productionStage:
+      typeof raw.production_stage === "string"
+        ? raw.production_stage
+        : undefined,
     awaitingAction:
       typeof raw.awaiting_action === "string" ? raw.awaiting_action : undefined,
     error: outcome.ok === false ? outcome.error.message : undefined,
@@ -56,7 +61,7 @@ export function ChatVideoCard({
   onOpen: (documentId: string) => void;
   conversationId: string;
 }) {
-  const parsed = parseGenerateVideoOutput(output);
+  const parsed = parseCreateVideoProductionOutput(output);
   const failed = state === "output-error" || parsed?.ok === false;
   const documentId = parsed?.documentId ?? null;
   const completed = parsed?.status === "completed" && Boolean(documentId);
@@ -67,7 +72,7 @@ export function ChatVideoCard({
   if (failed) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">
-        {errorText?.trim() || parsed?.error?.trim() || "视频生成失败。"}
+        {errorText?.trim() || parsed?.error?.trim() || "视频制片任务创建失败。"}
       </div>
     );
   }
@@ -88,7 +93,11 @@ export function ChatVideoCard({
       <ChatMediaCard
         icon={PlaySquareIcon}
         title="视频制片任务"
-        description="打开导演工作台查看实时状态并完成审批"
+        description={
+          parsed.awaitingAction
+            ? "制片任务已创建，打开导演工作台完成审批"
+            : "制片任务已创建，后台工作流正在持续推进"
+        }
         onOpen={() =>
           openVideoProductionWorkspace(conversationId, parsed.productionId!)
         }
@@ -101,8 +110,8 @@ export function ChatVideoCard({
       <Loader2Icon className="size-4 shrink-0 animate-spin" />
       <span className="truncate">
         {parsed?.prompt
-          ? `正在规划分镜与预算，尚未调用视频模型：${parsed.prompt}`
-          : "正在规划分镜与预算，尚未调用视频模型…"}
+          ? `正在创建视频制片任务，规划初步分镜与预算：${parsed.prompt}`
+          : "正在创建视频制片任务，规划初步分镜与预算…"}
       </span>
     </div>
   );

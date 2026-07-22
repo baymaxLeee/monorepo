@@ -46,8 +46,8 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   `ask_user` and `write_plan`/`update_plan` mutually exclusive: if the model
   co-emits them, the ask remains and the plan write is deferred to the client
   continuation. All other independent tool calls retain native concurrency.
-  HTML review and repair are ordinary `html_validate` / `edit_file` calls
-  selected by the primary ToolLoopAgent from tool results and prompt policy.
+  HTML revisions are ordinary `edit_file` calls selected by the primary
+  ToolLoopAgent from user feedback and artifact context.
   todos-before-deliverables ordering is carried by the prompt
   (`renderRuntimeContract` "barrier step": `update_todos` called alone, then
   deliverables dispatched together in the NEXT step) plus the SDK step boundary.
@@ -98,22 +98,9 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   needed). **HTML dispatches to the `executor` service and foreground-blocks
   this turn** until compile + publish complete (`agent_task_执行时服务` plan,
   Phase 2; ADR-0015 revision). Progress 100% means block generation completed;
-  compile + publish still follow. After every successful HTML write/edit, the
-  ToolLoopAgent calls `html_validate`; deterministic errors and model review
-  advisories return to the same agent, which decides the subsequent
-  `edit_file` → `html_validate` loop. Model content review runs only after deterministic checks
-  pass and returns non-blocking advisories with contract item, reason, evidence,
-  and suggestion; the primary agent decides whether a clear explicit-requirement
-  violation warrants another edit and must not chase subjective advisories to
-  zero. Tool errors and unaddressable document-level hard errors are reported to
-  the ToolLoopAgent, which must not claim that validation passed.
-  Executor returns the canonical compact `{ ok, content_sha256, errors,
-  advisories }` decision; chat verifies the revision hash and orchestrates the
-  loop without reclassifying findings or recomputing `ok`.
-  `html_validate` remains a native
-  UIMessage tool part and is visible in product UI; list tools stay internal.
-  Users provide final acceptance and subjective feedback; they do not
-  initiate routine QA. The tool `execute`
+  compile + publish still follow. The generation workflow owns compilation and
+  safe publication; the user owns acceptance and requests any follow-up revision.
+  The tool `execute`
   is an async generator that consumes `pollTaskSnapshots`
   (`agent/tasks/executor-task.ts`): it yields a preliminary `{ status, task_id }`
   (so the card mounts at once), then polls `GET /tasks/:id`, yielding running
@@ -128,10 +115,6 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   source; Knowledge is not). `GET .../tasks/:taskId` stays as a plain JSON read
   for cold-start/debug. Knowledge/ObjectStore owns full content; chat history and
   traces never carry HTML fragments.
-- `html_validate` validates an already-published artifact's current bytes through
-  executor's synchronous canonical-validator endpoint. It is an inline agent
-  tool (no Workflow): findings flow into the native ToolLoopAgent loop so the
-  model can use the finding's block IDs with `edit_file` and validate again.
 - Cancelling a chat run **does** cancel the in-flight executor task the current
   `write_file`/`edit_file` call is blocking on: Stop aborts the turn, the tool's
   `abortSignal` fires, and it calls `POST /tasks/:id/cancel` before unwinding —
@@ -139,6 +122,14 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   against *process* loss; it is only tied to the turn for user-initiated Stop.)
   Executor task-type compensation also cancels the Knowledge generation or
   recorded Ark video jobs; Workflow run cancellation alone is insufficient.
+- `create_video_production` means “create a video production task”, not “render the final
+  video”. It blocks only through durable initial storyboard and cost planning,
+  then returns `production_id` as soon as the production has left `planning`,
+  even when a fast approval moves the projection past the transient
+  `awaiting_storyboard_approval` state between Chat polls. The same Workflow run
+  remains the sole owner of approvals, paid generation, Take review, assembly,
+  and publication. A tagged video todo completes on `production_id`; parallel
+  HTML/image tools do not wait for those later phases.
 - `web_search` uses Exa Search as the primary source
   (`POST https://api.exa.ai/search`, `x-api-key`) and Tavily Search as fallback
   (`POST https://api.tavily.com/search`, `Authorization: Bearer`). Freshness is

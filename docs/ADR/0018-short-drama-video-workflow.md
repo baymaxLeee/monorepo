@@ -134,7 +134,7 @@ repetition we are fixing. We therefore keep the anchor in `reference_image` mode
 - New OS dependency: **ffmpeg** in the executor image (`apt-get`, not
   `ffmpeg-static`, to avoid Nitro/nft native-binary bundling issues), configured
   via `FFMPEG_PATH`. Local dev needs it on PATH.
-- The chat `generate_video` tool now threads three providers (video + text +
+- The chat `create_video_production` tool now threads three providers (video + text +
   optional image) through `catalog.ts`; text is required (Seedance cannot plan).
 - Workflow DevKit constraint reaffirmed: the `"use workflow"` orchestrator (and
   any non-step helper it calls) must not transitively import Node-dependent
@@ -359,7 +359,7 @@ segment's `first_frame`). So total wall-clock ≈ **N × per-segment render time
 (~3–4 min/segment against Ark). A 60s reel is ~10 segments and an 80s reel ~12,
 so a chained run needs ~40–48 min.
 
-Chat blocks the `generate_video` tool on `waitForTaskTerminal`, which has a hard
+Chat blocks the `create_video_production` tool on `waitForTaskTerminal`, which has a hard
 **30-minute** cap (`MAX_TASK_WAIT_MS`); at the deadline it calls
 `POST /tasks/:id/cancel` and throws. Observed in production data (conversation
 `980dc486aa96` and two siblings): three `continuity: "chain"` video tasks, all
@@ -374,7 +374,7 @@ segments" stance (Update 2026-07b), under which seamless chaining has no place.
 Remove the `chain` path and all its plumbing entirely; the pipeline is
 **hard-cut only, always parallel**:
 
-1. **chat `generate_video`**: `continuity` removed from the tool `inputSchema`,
+1. **chat `create_video_production`**: `continuity` removed from the tool `inputSchema`,
    the `generateVideo` signature, and the executor task payload.
 2. **executor `videoGenerationInputSchema`**: `continuity` field removed.
 3. **`videoGenerationWorkflow`**: the `if (continuity === "chain")` serial branch
@@ -409,9 +409,9 @@ invent distinct beats, and stripped narration/subtitle text before Seedance.
 
 Add a **dual-mode** pipeline selected by payload shape:
 
-1. **Auto mode** (unchanged): `generate_video({ prompt, duration? })` only →
+1. **Auto mode** (unchanged): `create_video_production({ prompt, duration? })` only →
    `planScript` → `planSegments` → parallel segments.
-2. **Scripted direct mode**: `generate_video({ prompt, duration?, segments[], characters? })`
+2. **Scripted direct mode**: `create_video_production({ prompt, duration?, segments[], characters? })`
    when the chat model passes structured scenes:
    - Segment count = `segments.length` (not `duration / 6`).
    - Beats map 1:1 from user `content`; no `dedupeBeats` / `arcBeats`.
@@ -441,7 +441,7 @@ Seedance 2.0 can generate up to 15 seconds in one call. The retained default is
 12 seconds per generation shot, which improves within-shot continuity while
 leaving three seconds of provider headroom.
 
-The `generate_video` manifest now projects the following constraints into Plan
+The `create_video_production` manifest now projects the following constraints into Plan
 Mode's generated `<execution_capabilities>` prompt:
 
 - A narrative section may group several shots, but every generation shot maps to

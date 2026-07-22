@@ -53,6 +53,11 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   一次条件式结构化 repair，仍失败才使用精确页数的 deterministic fallback。
 - 前端通过 task progress UIMessage stream 展示细粒度进度；tool 自身轮询 executor
   terminal state，前者只负责 UX，后者才是完成信号。
+- `create_video_production` 的产品语义是“创建视频制片任务”，不是同步生成最终视频。初步分镜与
+  成本投影持久化并派发给 Executor Workflow 后，工具携带 `production_id` 完成，对应
+  video todo 也立即完成。此后由同一个 Workflow 独立等待审批并推进生成、Take 审核、
+  合成与发布；与它并行的 HTML/图片不等待完整视频生命周期。返回边界依据持久化 stage，
+  而不是可能在两次轮询间被快速审批跨过的瞬时 `awaiting_approval` 状态。
 - executor compiler 统一提供版本化响应式 shell、主题 tokens、Grid/Flex primitives、
   CSP、CSS 清洗和 ECharts hydration；HTML block 只负责语义内容与有限的 scoped 构图。
   block 内局部 ID 会按 `page-N--local-id` 确定性命名空间化并同步重写 CSS、fragment
@@ -62,11 +67,8 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   manifest v4 持久化 narrative/layout；旧 revision 编辑时补静态默认，但不新增规划
   LLM 调用。当前 change request 优先，既有 HTML 保持未改内容的事实来源，历史规划仅作
   提示；原有 BlockStrategy 与目标范围不变。
-- `write_file`/`edit_file` 的 HTML 终态不携带 advisory 验证报告。harness 在每个
-  HTML revision 后强制 `html_validate` 读取 Knowledge 当前 HTML 和 block contract，
-  合并静态与模型 review findings；模型按准确 block_id 调用 `edit_file` 后
-  再次校验。chat 不复制 validator，也不执行宿主机 shell 或不可信 HTML。静态校验
-  不走 durable Workflow；生成与 compile/publish 仍走 `html-artifact` workflow。
+- `write_file`/`edit_file` 的 HTML 终态是 compile/publish 结果。Chat 不再暴露
+  `html_validate`；用户验收后可通过 block-addressed `edit_file` 发起后续修改。
 - 用户取消 chat run 会通过 tool AbortSignal 取消当前前台等待的 executor task；进程
   故障不会取消 durable task。
 - executor 先持久化并通知 task `cancelled`，再取消 Workflow，并按 task type 补偿
@@ -79,7 +81,7 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
 - `manifest.ts` 统一生成 mode availability、审批策略、Plan capability projection
   和前端 `toolMetadata.agent.uiKind`。
 - Plan mode 只加载研究、交互和计划工具，同时获得执行能力摘要，因此能规划
-  `write_file`、`generate_images`、`generate_video`，但不能提前执行。
+  `write_file`、`generate_images`、`create_video_production`，但不能提前执行。
 - Admin Skill 只广告已发布快照的名称与描述；`load_skill` 读取已发布
   `SKILL.md`，`read_skill_file` 再按需读取该快照列出的 references/templates/
   scripts 等文本资源，草稿树永不进入运行时。

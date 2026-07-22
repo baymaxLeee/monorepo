@@ -14,7 +14,7 @@ AI SDK tool approval and the repository's `ask_user` client tool pause a ToolLoo
 
 - Keep one chat `ToolLoopAgent`. Executor remains the only owner of durable video execution; no second agent loop or HarnessAgent is introduced.
 - Add a `video_production` projection keyed by the executor task id. Typed, versioned production artifacts and an append-only event/decision log are the source for the director UI.
-- After planning, the Workflow registers and awaits a deterministic Workflow Hook. `generate_video` returns an ordinary `awaiting_approval` tool outcome so the ToolLoopAgent can finish its response and the SSE can close normally.
+- `create_video_production` is the command to create a video production task, not a synchronous final-video generator. After initial storyboard and cost planning, the Workflow registers and awaits a deterministic Workflow Hook. The tool returns an ordinary completed outcome carrying `production_id` once that production projection is durable, so the ToolLoopAgent can finish its response and the SSE can close normally. Chat detects this from persistent post-planning projection state rather than the transient `awaiting_approval` status, which may be skipped between polls when approval is fast. UI and Todo completion use `production_id`; the eventual video document is a later Workflow result.
 - Storyboard review is versioned: a structured edit persists a new immutable `shot_plan` artifact, advances the production projection, and invalidates approval of every older version.
 - Approvals are explicit authenticated UI mutations proxied by Chat to Executor. They resume Workflow Hooks directly and never create an implicit model continuation.
 - Approval decisions use a persisted 60-second delivery lease. Fresh pending decisions are never delivered twice; expired leases replay the original persisted action, and a boot-time plus periodic reaper recovers abandoned deliveries. Hook payloads carry the action id so reusable storyboard and Take-review hooks discard replayed events before any paid work.
@@ -28,7 +28,7 @@ AI SDK tool approval and the repository's `ask_user` client tool pause a ToolLoo
 
 ## Consequences
 
-- The current foreground `generate_video` polling contract is replaced by a detached production contract. The official tool part persists task/production identity; live state comes from the authenticated production read API.
+- The former foreground video-generation polling contract is replaced by the detached `create_video_production` contract. The official tool part persists task/production identity; live state comes from the authenticated production read API.
 - Executor gains video-specific persistence while the generic task table and routes remain type-agnostic.
 - Admin owns provider pricing configuration. Knowledge owns staged and published media bytes. Chat owns browser authorization and conversation scoping.
 - Existing videos remain normal Knowledge documents. There is no compatibility branch for new productions; new video runs use the governance state machine directly.

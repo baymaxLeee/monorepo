@@ -23,7 +23,7 @@ Re-derived from first principles, all three layers already support concurrency:
   is created with `parallelToolCalls: true` in both modes
   (`services/chat/src/application/agent/agents/tool-loop.ts`; plan mode only filters plan
   writes that conflict with a same-step `ask_user`). So `write_file` +
-  `generate_image` + `generate_video` emitted in the **same step** already run in
+  `generate_images` + `create_video_production` emitted in the **same step** already run in
   parallel — the foreground-block of each tool blocks only its own call.
 - **Executor:** each `POST /tasks` starts an independent `workflow` run
   (graphile-worker default concurrency 10), with per-task internal fan-out

@@ -5,6 +5,7 @@ import postcss from "postcss";
 import selectorParser from "postcss-selector-parser";
 
 export type ArtifactPartPlan = { id: string; type: string; title: string };
+export const ARTIFACT_TEMPLATE_VERSION = 1;
 
 export const ARTIFACT_VISUAL_CAPABILITIES = [
   "The platform owns the responsive shell, accessible color tokens, typography, spacing scale, and reusable Grid/Flex primitives.",
@@ -325,7 +326,7 @@ export function compileArtifactHtml(input: {
     '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
     `  <title>${escapeHtml(input.title)}</title>`, buildArtifactRuntimeHead({ usesEcharts }),
     `  <style>${artifactRuntimeStyles(input.theme.appearance, accent)}</style>`, "</head>",
-    `<body class="artifact-shell artifact-shell--${input.mode} artifact-shell--${input.theme.appearance}" data-artifact-template-version="1">`,
+    `<body class="artifact-shell artifact-shell--${input.mode} artifact-shell--${input.theme.appearance}" data-artifact-template-version="${ARTIFACT_TEMPLATE_VERSION}">`,
     ...sections, buildChartHydrationScript(), buildArtifactNavScript(), "</body>", "</html>",
   ].join("\n");
   return { html, partsOk, partsFailed };

@@ -24,7 +24,7 @@ that step has a hard, SDK-level property:
   yields fire `onPreliminaryToolResult` — this is what streams each deliverable
   card's live progress — but the *step* does not resolve, and the next model turn
   does not begin, until the **slowest** tool call returns.
-- `generate_video` foreground-blocks on `waitForTaskTerminal` up to
+- `create_video_production` foreground-blocks on its durable production-creation boundary up to
   `MAX_TASK_WAIT_MS = 30 min` (`agent/tasks/executor-task.ts`); html blocks
   similarly; images finish in seconds.
 - `update_todos` is model-driven (ADR 0017). The model can only call it *between*
@@ -58,7 +58,7 @@ displays that fact instead of waiting for the model to restate it.
    (`agent/tools/builtins/planning.ts`). The model tags each todo that is
    fulfilled by exactly one concurrent deliverable
    (`artifact` = write_file/edit_file, `image` = generate_images,
-   `video` = generate_video). It is a static, self-descriptive label the model
+   `video` = create_video_production). It is a static, self-descriptive label the model
    already knows at seed time — not a runtime tool-call id. Untagged todos keep
    the old fully model-driven behavior. There is **exactly one todo per
    deliverable**: the whole image batch (one `generate_images` call with multiple

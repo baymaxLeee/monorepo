@@ -45,16 +45,6 @@ for the full rationale.
 
 ## TaskType registry
 
-The authenticated `POST /html-validations` endpoint runs canonical static
-checks first. Static hard errors return immediately; only a statically valid
-artifact receives one whole-artifact model review. Model findings are
-non-blocking, evidence-backed advisories and never change the report's `ok`
-state. The endpoint owns final classification and returns the canonical compact
-`{ ok, content_sha256, errors, advisories }` decision; callers must not
-reinterpret raw findings. It is the post-generation quality tool and is never
-called inside the HTML artifact workflow; durable Workflow remains reserved for
-generation, while chat's primary ToolLoopAgent decides review and repair calls.
-
 - `src/application/tasks/registry.ts` maps a `type` string to a Zod input schema and a
   `"use workflow"` function. This is the seam a future `harness`-backed
   execution engine plugs into: the registry and the HTTP layer never depend
@@ -63,9 +53,8 @@ generation, while chat's primary ToolLoopAgent decides review and repair calls.
   functions for the actual work) and register it in `src/application/tasks/registry.ts`.
   Do not put business logic directly in `src/api/http/routes/tasks.ts` or
   `src/application/tasks/service.ts` — those stay type-agnostic.
-- `echo` is a smoke-test type only. `html-artifact` (migrating
-  `chat`'s `agent/artifacts/*` worker/lease/poll code here) is the first real
-  type — see Phase 2 of the plan.
+- Only `html-artifact` and `video-generation` are registered. Executor does not
+  host smoke workflows or synchronous HTML validation/review endpoints.
 - `video-generation` is a durable **script -> storyboard -> per-segment
   create/poll -> ffmpeg-assemble** workflow for vertical short-drama (see
   ADR-0018): `planStep` runs Stage A `planScript` (`src/application/video/script.ts`, text
@@ -147,7 +136,6 @@ generation, while chat's primary ToolLoopAgent decides review and repair calls.
 - `src/application/tasks/service.ts` — task lifecycle, idempotency, completion watching.
 - `src/application/tasks/notify.ts` — progress recording into `tasks.progress` (no push).
 - `src/application/tasks/registry.ts` — TaskType registry.
-- `src/domain/artifacts/` — canonical HTML validation rules and decisions.
 - `workflows/*.ts` — one file per TaskType's actual `"use workflow"`/`"use step"`
   implementation.
 

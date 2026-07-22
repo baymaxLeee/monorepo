@@ -34,7 +34,7 @@ const imageOutputSchema = z.object({
   document_id: z.string().optional(),
 });
 
-const videoOutputSchema = z.object({
+const videoProductionOutputSchema = z.object({
   kind: z.literal("video"),
   title: z.string(),
   filename: z.string(),
@@ -42,6 +42,7 @@ const videoOutputSchema = z.object({
   duration: z.number().optional(),
   task_id: z.string(),
   production_id: z.string().optional(),
+  production_stage: z.string().optional(),
   awaiting_action: z.enum(["storyboard_approval", "shot_review", "publish_approval"]).optional(),
   production_version: z.number().int().optional(),
   progress_done: z.number().optional(),
@@ -63,6 +64,15 @@ const VIDEO_TARGET_MIN_S = 5;
 const VIDEO_TARGET_MAX_S = 120;
 const NON_RETRYABLE_MEDIA_FAILURE =
   /moderation|content policy|safety|审核|违规|敏感|unsupported|not supported|不支持|permission|unauthori[sz]ed|forbidden|not configured|缺少配置/i;
+const VIDEO_POST_PLANNING_STAGES = new Set([
+  "awaiting_storyboard_approval",
+  "generating",
+  "shot_review",
+  "assembling",
+  "final_qa",
+  "awaiting_publish_approval",
+  "publishing",
+]);
 
 const videoSegmentInputSchema = z.object({
   content: z.string().min(1).max(1_000),
@@ -77,14 +87,14 @@ const videoCharacterInputSchema = z.object({
   appearance: z.string().max(400).optional(),
 });
 
-const videoGenerateInputSchema = z.object({
+const createVideoProductionInputSchema = z.object({
   prompt: z.string().min(1).max(4_000),
   duration: z.number().int().min(VIDEO_TARGET_MIN_S).max(VIDEO_TARGET_MAX_S).optional(),
   segments: z.array(videoSegmentInputSchema).min(1).max(12).optional(),
   characters: z.array(videoCharacterInputSchema).max(3).optional(),
 });
 
-type VideoGenerateInput = z.infer<typeof videoGenerateInputSchema>;
+type CreateVideoProductionInput = z.infer<typeof createVideoProductionInputSchema>;
 type VideoCharacterInput = z.infer<typeof videoCharacterInputSchema>;
 
 export interface MediaToolProviders {
@@ -305,15 +315,15 @@ async function resolveVideoCharacters(
   );
 }
 
-async function* generateVideo(
-  input: VideoGenerateInput,
+async function* createVideoProduction(
+  input: CreateVideoProductionInput,
   {
     context,
     toolCallId,
     abortSignal,
   }: { context: MediaToolContext; toolCallId: string; abortSignal?: AbortSignal },
   providers: MediaToolProviders & { videoProviderId: string },
-): AsyncGenerator<z.infer<typeof videoOutputSchema> | ToolEmission> {
+): AsyncGenerator<z.infer<typeof videoProductionOutputSchema> | ToolEmission> {
   const title = input.prompt.slice(0, 80);
   const filename = mediaFilename(input.prompt, "mp4");
   const characterRefs = await resolveVideoCharacters(input.characters, context);
@@ -357,12 +367,19 @@ async function* generateVideo(
         try {
           const detail = await getVideoProduction(task.id);
           const production = detail.production;
-          if (production.status === "awaiting_approval") {
+          if (
+            VIDEO_POST_PLANNING_STAGES.has(production.stage) &&
+            production.shotPlan != null &&
+            production.cost.estimatedMicros != null
+          ) {
             yield toolCompleted({
               ...base,
               production_id: production.id,
               production_version: production.version,
-              awaiting_action: production.awaitingAction ?? "storyboard_approval",
+              production_stage: production.stage,
+              ...(production.awaitingAction
+                ? { awaiting_action: production.awaitingAction }
+                : {}),
             });
             return;
           }
@@ -383,7 +400,7 @@ async function* generateVideo(
       if (error instanceof TaskWaitTimeoutError) {
         yield toolFailed({
           code: "VIDEO_TASK_TIMEOUT",
-          message: "视频生成超时：超过 30 分钟未完成，已取消任务。",
+          message: "视频制片任务创建超时：初步分镜与预算规划超过 30 分钟，已取消任务。",
           retryable: true,
           source: "executor",
           details: base,
@@ -394,7 +411,10 @@ async function* generateVideo(
     }
     if (terminal?.status === "failed" || terminal?.status === "cancelled") {
       const message =
-        terminal.error ?? (terminal.status === "cancelled" ? "视频生成已取消" : "视频生成失败");
+        terminal.error ??
+        (terminal.status === "cancelled"
+          ? "视频制片任务创建已取消"
+          : "视频制片任务创建失败");
       yield toolFailed({
         code: terminal.status === "cancelled" ? "VIDEO_TASK_CANCELLED" : "VIDEO_TASK_FAILED",
         message,
@@ -412,7 +432,7 @@ async function* generateVideo(
     if (terminal?.status !== "completed") {
       yield toolFailed({
         code: "VIDEO_TASK_UNEXPECTED",
-        message: "视频任务在没有终态结果的情况下结束",
+        message: "视频制片任务在没有完成创建的情况下结束",
         retryable: false,
         source: "executor",
         details: base,
@@ -426,7 +446,7 @@ async function* generateVideo(
     });
   } catch (error) {
     if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
-    logger.error({ toolCallId, err: error }, "generate_video failed");
+    logger.error({ toolCallId, err: error }, "create_video_production failed");
     throw error;
   }
 }
@@ -454,10 +474,10 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
     parallelizable: true,
   };
   const videoPlanning = {
-    summary: "Start a durable video production that first pauses for structured storyboard and budget approval in the director workspace.",
+    summary: "Create a durable video production task and complete after its initial storyboard and cost plan are handed to Executor Workflow.",
     constraints: [
-      "Call this tool for the user's video-generation request; never simulate its storyboard approval with chat text.",
-      "The initial call does not start paid video generation. It plans the storyboard and returns at the durable approval gate.",
+      "Treat this tool as creating a video production task, not as synchronously generating the final video.",
+      "The tool is completed once the initial storyboard and cost plan are durable in Executor Workflow, even if approval races ahead before Chat observes the approval state.",
       "Current implementation supports vertical short-drama output; the public capability remains format-neutral.",
       "In any storyboard plan, distinguish narrative sections from generation shots. Each generation shot is one Seedance call and should last about 12 seconds, never more than 15 seconds; split every longer narrative section into multiple shots with contiguous, non-overlapping time ranges. A 60-second video therefore needs at least 5 generation shots even when they are grouped into fewer narrative sections.",
       "Every adjacent generation shot must advance a distinct information or action beat and vary the framing, subject action, or on-screen content. Never pad, loop, or restage the same moment to fill time.",
@@ -485,20 +505,20 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
 
   const videoManifest = providers.videoProviderId
     ? defineAgentTool(
-        "generate_video",
+        "create_video_production",
         tool({
           description:
-            "Start the complete durable video-production flow. Call this immediately for a video-generation request: it first creates a structured storyboard and returns at an unpaid approval gate rendered in the right-side director workspace; do not write or approve that storyboard in chat. Pass segments[] when the user gave an explicit scene-by-scene script; pass only prompt for auto storyboarding.",
-          inputSchema: videoGenerateInputSchema,
-          outputSchema: videoOutputSchema,
+            "Create a durable video production task. Call this for a video request; the tool is completed after the initial storyboard and cost plan are persisted and handed to Executor Workflow. Final video generation is not part of this tool's completion boundary: the Workflow continues independently through director-workspace approvals and rendering. Do not write or approve the storyboard in chat. Pass segments[] when the user gave an explicit scene-by-scene script; pass only prompt for auto storyboarding.",
+          inputSchema: createVideoProductionInputSchema,
+          outputSchema: videoProductionOutputSchema,
           contextSchema: mediaToolContextSchema,
           execute: (input, options) =>
-            generateVideo(input, options, { ...providers, videoProviderId: providers.videoProviderId! }),
+            createVideoProduction(input, options, { ...providers, videoProviderId: providers.videoProviderId! }),
         }),
         videoPolicy,
         videoPlanning,
       )
-    : defineUnavailableCapability("generate_video", videoPolicy, videoPlanning);
+    : defineUnavailableCapability("create_video_production", videoPolicy, videoPlanning);
 
   return [imageManifest, videoManifest];
 }

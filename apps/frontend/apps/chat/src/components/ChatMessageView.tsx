@@ -393,8 +393,7 @@ function ToolPartView({
     );
   }
 
-  const outputErrorReason =
-    toolName === "html_validate" ? null : parseToolOutputError(output);
+  const outputErrorReason = parseToolOutputError(output);
   const artifact = kind === "artifact" ? parseArtifactOutput(output) : null;
   const artifactTask =
     kind === "artifact" ? parseArtifactTaskOutput(output) : null;

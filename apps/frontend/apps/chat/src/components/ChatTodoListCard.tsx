@@ -12,7 +12,7 @@ import {
   parseArtifactTaskOutput,
 } from "./ChatArtifactCard";
 import { parseGenerateImageOutput } from "./ChatImageCard";
-import { parseGenerateVideoOutput } from "./ChatVideoCard";
+import { parseCreateVideoProductionOutput } from "./ChatVideoCard";
 
 export type TodoStatus = "pending" | "in_progress" | "completed" | "cancelled";
 
@@ -115,11 +115,12 @@ function deliverablePartStatus(part: ToolPart): DeliverablePartStatus {
       return parsed?.status === "completed" ? "completed" : "running";
     }
     case "video": {
-      const parsed = parseGenerateVideoOutput(output);
+      const parsed = parseCreateVideoProductionOutput(output);
       if (parsed?.ok === false) return "error";
       if (parsed?.status === "cancelled") return "cancelled";
       if (parsed?.status === "failed") return "error";
-      return parsed?.status === "completed" && parsed.documentId
+      return parsed?.status === "completed" &&
+        Boolean(parsed.productionId || parsed.documentId)
         ? "completed"
         : "running";
     }

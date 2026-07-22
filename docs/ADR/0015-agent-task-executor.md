@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted.
+Accepted. ADR 0047 narrows the registered TaskTypes to HTML/video generation and
+removes the historical `echo` and synchronous HTML-validation paths.
 
 ## Context
 

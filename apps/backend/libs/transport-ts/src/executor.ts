@@ -7,7 +7,6 @@ import type { components, paths } from "./schema/executor.js";
 
 export type Task = components["schemas"]["Task"];
 export type CreateTaskInput = components["schemas"]["CreateTaskInput"];
-export type ExecutorHtmlValidationDecision = components["schemas"]["HtmlValidationDecision"];
 export type VideoProductionProjection = components["schemas"]["VideoProductionProjection"];
 export type ProductionDecision = components["schemas"]["ProductionDecision"];
 export type VideoProductionDetail =
@@ -30,16 +29,6 @@ export class ExecutorInternalClient {
 
   async startTask(input: CreateTaskInput): Promise<Task> {
     const { data, error, response } = await this.client.POST("/tasks", { body: input });
-    if (data) return data;
-    throw toTransportError(response, error);
-  }
-
-  async validateHtml(input: { user_id: string; org_id: string; provider_id: string; document_id: string; signal?: AbortSignal }): Promise<ExecutorHtmlValidationDecision> {
-    const { signal, ...body } = input;
-    const { data, error, response } = await this.client.POST("/html-validations", {
-      body,
-      signal,
-    });
     if (data) return data;
     throw toTransportError(response, error);
   }

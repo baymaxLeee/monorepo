@@ -31,12 +31,9 @@ session）的替换点——只需要新增一种执行引擎实现，Task API �
 
 已注册类型：
 
-- `echo`：烟雾测试用，验证 Task API 全链路。
 - `html-artifact`：从 chat 的 `agent/artifacts/{worker,generation-runner}.ts`
   迁移而来的大型 HTML 生成流水线（plan → 并发 block 生成 → compile → publish）。
-  workflow 不执行 fragment 或整页质量校验，也不因 findings 静默重跑 LLM。
-  后续必定执行的 `html_validate` 合并静态校验与基于 block contract 的模型整页
-  review，chat 再按 finding 的 block_id 精准 `edit_file` 并复检。
+  workflow 不因独立 review findings 静默重跑 LLM；后续修改由用户反馈触发。
 - `video-generation`：`CreativeBrief → Script → ShotPlan → 预算审批 → 单镜头付费生成
   → Take 审核/局部重拍 → RenderReport → 确定性 QA → 暂存预览 → 发布审批 → Knowledge`。Ark create
   始终不自动重试；每次调用先 reserve，创建后 reconcile，创建失败 release。确定性
@@ -44,6 +41,10 @@ session）的替换点——只需要新增一种执行引擎实现，Task API �
   必须填写豁免理由并记录 actor。失败或取消会幂等清理尚未发布的暂存对象。视频
   Provider 必须在 Admin 配置 generated-second 单价和币种，否则无法计算审批预算，
   Workflow 会在任何付费生成前失败。
+
+Executor 只注册上述两个 generation workflow。同步 HTML 校验/review 路由与 smoke
+workflow 已删除；`/tasks` 是统一启动、查询和取消入口，`/video-productions` 是 Video
+workflow 的耐久制片投影与审批接口，不是额外 TaskType。
 
 ## 持久化边界
 

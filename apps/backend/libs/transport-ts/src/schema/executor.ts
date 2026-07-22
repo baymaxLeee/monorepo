@@ -37,51 +37,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/html-validations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Validate current compiled artifact HTML synchronously. */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        user_id: string;
-                        org_id: string;
-                        provider_id: string;
-                        document_id: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description canonical HTML validation decision */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["HtmlValidationDecision"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/tasks": {
         parameters: {
             query?: never;
@@ -472,19 +427,6 @@ export interface components {
             owner_ref: string;
             /** @description TaskType-specific input, validated against that type's schema */
             payload: unknown;
-        };
-        HtmlValidationDecisionFinding: {
-            code: string;
-            block_id?: string;
-            reason: string;
-            evidence?: string;
-            suggestion: string;
-        };
-        HtmlValidationDecision: {
-            ok: boolean;
-            content_sha256: string;
-            errors: components["schemas"]["HtmlValidationDecisionFinding"][];
-            advisories: components["schemas"]["HtmlValidationDecisionFinding"][];
         };
         ReferenceAsset: {
             id: string;

@@ -24,17 +24,6 @@ function executorClient(): ExecutorInternalClient {
   });
 }
 
-function executorValidationClient(): ExecutorInternalClient {
-  const s = getSettings();
-  return new ExecutorInternalClient({
-    baseUrl: s.executorServiceUrl,
-    internalToken: s.internalApiToken,
-    callerService: "chat",
-    timeoutMs: 30 * 60_000,
-    propagatedHeaders: propagationHeaders,
-  });
-}
-
 export async function startTask(input: {
   type: string;
   ownerRef: string;
@@ -45,16 +34,6 @@ export async function startTask(input: {
     owner_service: "chat",
     owner_ref: input.ownerRef,
     payload: input.payload,
-  });
-}
-
-export async function validateHtml(input: { userId: string; orgId: string; providerId: string; documentId: string; signal?: AbortSignal }) {
-  return executorValidationClient().validateHtml({
-    user_id: input.userId,
-    org_id: input.orgId,
-    provider_id: input.providerId,
-    document_id: input.documentId,
-    signal: input.signal,
   });
 }
 

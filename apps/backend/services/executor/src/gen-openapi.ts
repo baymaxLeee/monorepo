@@ -68,29 +68,6 @@ const createTaskInputSchema = {
   required: ["type", "owner_service", "owner_ref", "payload"],
 };
 
-const htmlValidationDecisionFindingSchema = {
-  type: "object",
-  properties: {
-    code: { type: "string" },
-    block_id: { type: "string" },
-    reason: { type: "string" },
-    evidence: { type: "string" },
-    suggestion: { type: "string" },
-  },
-  required: ["code", "reason", "suggestion"],
-};
-
-const htmlValidationDecisionSchema = {
-  type: "object",
-  properties: {
-    ok: { type: "boolean" },
-    content_sha256: { type: "string" },
-    errors: { type: "array", items: ref("HtmlValidationDecisionFinding") },
-    advisories: { type: "array", items: ref("HtmlValidationDecisionFinding") },
-  },
-  required: ["ok", "content_sha256", "errors", "advisories"],
-};
-
 const referenceAssetSchema = {
   type: "object",
   properties: {
@@ -295,24 +272,6 @@ const openapi = {
   },
   paths: {
     "/healthz": { get: { responses: { "200": { description: "ok" } } } },
-    "/html-validations": {
-      post: {
-        summary: "Validate current compiled artifact HTML synchronously.",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: { user_id: { type: "string" }, org_id: { type: "string" }, provider_id: { type: "string" }, document_id: { type: "string" } },
-                required: ["user_id", "org_id", "provider_id", "document_id"],
-              },
-            },
-          },
-        },
-        responses: { "200": jsonResponse("canonical HTML validation decision", ref("HtmlValidationDecision")) },
-      },
-    },
     "/tasks": {
       post: {
         summary: "Start a durable task. Non-blocking: returns immediately with status=queued/running.",
@@ -406,8 +365,6 @@ const openapi = {
     schemas: {
       Task: taskSchema,
       CreateTaskInput: createTaskInputSchema,
-      HtmlValidationDecisionFinding: htmlValidationDecisionFindingSchema,
-      HtmlValidationDecision: htmlValidationDecisionSchema,
       ReferenceAsset: referenceAssetSchema,
       ShotSpec: shotSpecSchema,
       ShotPlan: shotPlanSchema,

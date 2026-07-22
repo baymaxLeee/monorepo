@@ -16,7 +16,7 @@ import {
   createArtifact,
   updateArtifact,
 } from "../../../../infrastructure/clients/knowledge.js";
-import { type Task, validateHtml as validateHtmlWithExecutor } from "../../../../infrastructure/clients/executor.js";
+import { type Task } from "../../../../infrastructure/clients/executor.js";
 import { logger } from "../../../../infrastructure/observability/logger.js";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
 import { artifactToolContextSchema, type ArtifactToolContext } from "../context.js";
@@ -64,25 +64,6 @@ const artifactToolOutputSchema = z.union([
   artifactPersistedOutputSchema,
   artifactTaskOutputSchema,
 ]);
-
-const compactValidationFindingSchema = z.object({
-  code: z.string(),
-  block_id: z.string().optional(),
-  reason: z.string(),
-  evidence: z.string().optional(),
-  suggestion: z.string(),
-});
-
-const htmlValidateOutputSchema = z
-  .object({
-    valid: z.boolean(),
-    file_id: z.string(),
-    errors: z.array(compactValidationFindingSchema),
-    advisories: z.array(compactValidationFindingSchema),
-  })
-  .refine((output) => output.valid === (output.errors.length === 0), {
-    message: "valid must be true exactly when no actionable errors remain",
-  });
 
 const listArtifactBlocksOutputSchema = z.object({
   document_id: z.string(),
@@ -203,57 +184,6 @@ async function* streamHtmlArtifactTask(
     return;
   }
   throw new Error("生成失败");
-}
-
-async function validateHtml(
-  input: { file_id: string },
-  { context, abortSignal }: { context: ArtifactToolContext; abortSignal?: AbortSignal },
-  textProvider: ChatProvider,
-): Promise<z.infer<typeof htmlValidateOutputSchema> | ToolEmission> {
-  const document = await getDocument(context.userId, input.file_id);
-  if (document.conversation_id !== context.conversationId) {
-    return toolBlocked({
-      code: "FILE_NOT_ATTACHED",
-      message: `file ${input.file_id} is not attached to this conversation`,
-      retryable: false,
-      source: "knowledge",
-      details: { file_id: input.file_id },
-    });
-  }
-  if (document.mime_type !== "text/html") {
-    return toolBlocked({
-      code: "NOT_HTML",
-      message: "html_validate only supports HTML files",
-      retryable: false,
-      source: "chat",
-      details: { file_id: input.file_id, mime_type: document.mime_type },
-    });
-  }
-  if (document.kind !== "artifact") {
-    return toolBlocked({
-      code: "ARTIFACT_NOT_EDITABLE",
-      message: `file ${input.file_id} is not a generated artifact`,
-      retryable: false,
-      source: "chat",
-      details: { file_id: input.file_id },
-    });
-  }
-  const decision = await validateHtmlWithExecutor({
-    userId: context.userId,
-    orgId: context.orgId,
-    providerId: textProvider.id,
-    documentId: input.file_id,
-    signal: abortSignal,
-  });
-  if (document.object_sha256 && decision.content_sha256 !== document.object_sha256) {
-    throw new Error("html_validate result does not match the current artifact revision");
-  }
-  return toolCompleted({
-    valid: decision.ok,
-    file_id: input.file_id,
-    errors: decision.errors,
-    advisories: decision.advisories,
-  });
 }
 
 async function listArtifactBlocks(
@@ -409,28 +339,6 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
         constraints: ["Edits to the same artifact must be serialized."],
         parallelizable: true,
       },
-    ),
-    defineAgentTool(
-      "html_validate",
-      tool({
-      description:
-        "Validate the current stored HTML. Returns deterministic errors and high-signal content-review advisories so the primary ToolLoopAgent can decide whether to edit and revalidate.",
-      inputSchema: z.object({
-        file_id: z.string().min(1).max(32),
-      }),
-      outputSchema: htmlValidateOutputSchema,
-      contextSchema: artifactToolContextSchema,
-      execute: (input, options) => validateHtml(input, options, textProvider),
-      }),
-      {
-        capability: "artifacts",
-        effect: "read",
-        trust: "private-untrusted",
-        execution: "inline",
-        modes: ["normal"],
-        visibility: "visible",
-      },
-      { summary: "Validate HTML with deterministic hard errors and non-blocking review advisories." },
     ),
     defineAgentTool(
       "list_artifact_blocks",

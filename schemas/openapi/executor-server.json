@@ -15,53 +15,6 @@
         }
       }
     },
-    "/html-validations": {
-      "post": {
-        "summary": "Validate current compiled artifact HTML synchronously.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "user_id": {
-                    "type": "string"
-                  },
-                  "org_id": {
-                    "type": "string"
-                  },
-                  "provider_id": {
-                    "type": "string"
-                  },
-                  "document_id": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "user_id",
-                  "org_id",
-                  "provider_id",
-                  "document_id"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "canonical HTML validation decision",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HtmlValidationDecision"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/tasks": {
       "post": {
         "summary": "Start a durable task. Non-blocking: returns immediately with status=queued/running.",
@@ -820,60 +773,6 @@
           "owner_service",
           "owner_ref",
           "payload"
-        ]
-      },
-      "HtmlValidationDecisionFinding": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "block_id": {
-            "type": "string"
-          },
-          "reason": {
-            "type": "string"
-          },
-          "evidence": {
-            "type": "string"
-          },
-          "suggestion": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "code",
-          "reason",
-          "suggestion"
-        ]
-      },
-      "HtmlValidationDecision": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean"
-          },
-          "content_sha256": {
-            "type": "string"
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/HtmlValidationDecisionFinding"
-            }
-          },
-          "advisories": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/HtmlValidationDecisionFinding"
-            }
-          }
-        },
-        "required": [
-          "ok",
-          "content_sha256",
-          "errors",
-          "advisories"
         ]
       },
       "ReferenceAsset": {

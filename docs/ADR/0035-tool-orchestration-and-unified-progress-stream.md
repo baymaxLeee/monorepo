@@ -105,7 +105,7 @@ Verified constraints (against `ai@7.0.15`):
 ### 2. Unified progress: one stream, preliminary tool-results
 
 - HTML-artifact and video progress ride the **main** `useChat` UIMessage stream.
-  `write_file`/`edit_file` and `generate_video` consume `pollTaskSnapshots`
+  `write_file`/`edit_file` and `create_video_production` consume `pollTaskSnapshots`
   (`agent/tasks/executor-task.js`), `yield`ing running snapshots
   (`blocks_done`/`blocks_total`, `progress_done`/`progress_total`) that the SDK
   emits as preliminary `tool-*` results, then a terminal `yield` with

@@ -94,7 +94,7 @@ as this ADR prescribed for its asynchronous, billable task API:
   → poll to a terminal state → download the finished video → persist to Knowledge.
   Ark HTTP goes through `secureProviderFetch` (SSRF guard) via
   `services/executor/src/infrastructure/clients/ark.ts`.
-- The chat `generate_video` tool (`services/chat/src/application/agent/tools/builtins/media.ts`)
+- The chat `create_video_production` tool (`services/chat/src/application/agent/tools/builtins/media.ts`)
   resolves the video provider from a run-scoped `video_provider_id` (distinct
   from the image `multimodal_provider_id`; a user typically has separate Seedream
   and Seedance providers), validates `provider_kind === "video"`, dispatches the
