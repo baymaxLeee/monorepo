@@ -6,36 +6,40 @@ import type {
 
 const PLAN_WRITE_TOOLS = new Set(["write_plan", "update_plan"]);
 
-function hasAskUser(content: LanguageModelV4Content[]): boolean {
-  return content.some((part) => part.type === "tool-call" && part.toolName === "ask_user");
+type ExclusivePlanToolKind = "ask-user" | "plan-write";
+
+function exclusivePlanToolKind(toolName: string): ExclusivePlanToolKind | null {
+  if (toolName === "ask_user") return "ask-user";
+  return PLAN_WRITE_TOOLS.has(toolName) ? "plan-write" : null;
 }
 
-function withoutPlanWrites(content: LanguageModelV4Content[]): LanguageModelV4Content[] {
-  return content.filter(
-    (part) => part.type !== "tool-call" || !PLAN_WRITE_TOOLS.has(part.toolName),
-  );
+function keepFirstExclusiveToolGroup(content: LanguageModelV4Content[]): LanguageModelV4Content[] {
+  let selected: ExclusivePlanToolKind | null = null;
+  return content.filter((part) => {
+    if (part.type !== "tool-call") return true;
+    const kind = exclusivePlanToolKind(part.toolName);
+    if (!kind) return true;
+    selected ??= kind;
+    return selected === kind;
+  });
 }
 
 export const planToolOrderingMiddleware: LanguageModelV4Middleware = {
   specificationVersion: "v4",
   wrapGenerate: async ({ doGenerate }) => {
     const result = await doGenerate();
-    if (!hasAskUser(result.content)) return result;
-    return { ...result, content: withoutPlanWrites(result.content) };
+    return { ...result, content: keepFirstExclusiveToolGroup(result.content) };
   },
   wrapStream: async ({ doStream }) => {
     const { stream, ...rest } = await doStream();
     const toolNames = new Map<string, string>();
-    let askUserSeen = false;
-    let bufferedPlanParts: LanguageModelV4StreamPart[] = [];
+    let selected: ExclusivePlanToolKind | null = null;
 
-    const flushPlanParts = (
-      controller: TransformStreamDefaultController<LanguageModelV4StreamPart>,
-    ) => {
-      if (!askUserSeen) {
-        for (const part of bufferedPlanParts) controller.enqueue(part);
-      }
-      bufferedPlanParts = [];
+    const shouldKeep = (toolName: string): boolean => {
+      const kind = exclusivePlanToolKind(toolName);
+      if (!kind) return true;
+      selected ??= kind;
+      return selected === kind;
     };
 
     return {
@@ -45,31 +49,15 @@ export const planToolOrderingMiddleware: LanguageModelV4Middleware = {
           transform(part, controller) {
             if (part.type === "tool-input-start") {
               toolNames.set(part.id, part.toolName);
-              if (part.toolName === "ask_user") askUserSeen = true;
-              if (PLAN_WRITE_TOOLS.has(part.toolName)) {
-                bufferedPlanParts.push(part);
-                return;
-              }
+              if (!shouldKeep(part.toolName)) return;
             } else if (part.type === "tool-input-delta" || part.type === "tool-input-end") {
-              if (PLAN_WRITE_TOOLS.has(toolNames.get(part.id) ?? "")) {
-                bufferedPlanParts.push(part);
-                return;
-              }
+              if (!shouldKeep(toolNames.get(part.id) ?? "")) return;
             } else if (part.type === "tool-call") {
               toolNames.set(part.toolCallId, part.toolName);
-              if (part.toolName === "ask_user") askUserSeen = true;
-              if (PLAN_WRITE_TOOLS.has(part.toolName)) {
-                bufferedPlanParts.push(part);
-                return;
-              }
-            } else if (part.type === "finish") {
-              flushPlanParts(controller);
+              if (!shouldKeep(part.toolName)) return;
             }
 
             controller.enqueue(part);
-          },
-          flush(controller) {
-            flushPlanParts(controller);
           },
         }),
       ),

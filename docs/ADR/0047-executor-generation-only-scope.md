@@ -2,8 +2,8 @@
 
 ## Status
 
-Accepted. Supersedes the `html_validate` and `echo` portions of ADR 0012,
-ADR 0015, and ADR 0023.
+Accepted, superseded in part by ADR 0048. Executor remains generation-only;
+ADR 0048 restores HTML validation as the Chat-local `validate_html` tool.
 
 ## Context
 
@@ -34,9 +34,9 @@ task API already matches that contract; synchronous artifact review does not.
 ## Consequences
 
 Executor has one responsibility: durable HTML/video generation and the state
-needed to operate those workflows. HTML acceptance is user-driven; revisions use
-`edit_file`. No compatibility endpoint or alias is retained during the demo
-phase.
+needed to operate those workflows. Chat owns mandatory validation and the
+Agent-led `validate_html` → `edit_file` repair loop. Executor retains no
+validation endpoint or compatibility alias.
 
 The benchmark-agent alignment is a smaller explicit tool/runtime surface: the
 primary agent owns the interaction loop while bounded durable production work is

@@ -69,10 +69,15 @@ append a raw `string` to the assembled prompt.
 - Admin config is data. `bot_profile` renders only structured fields; every
   admin/user string is XML-escaped (`xml.ts`). Escaping stops tag breakout, not
   semantic injection — the hard guarantee is the code policy layer above.
-- Conversation summaries, Todo snapshots, active-plan references, and document
-  references are projected into `messages`, not `instructions`. This keeps the
-  system prefix stable and preserves their historical/data semantics. Plan and
-  document bodies are read on demand with `read_file`.
+- The projector performs protocol conversion, pruning, and conversation-history
+  compaction only. It never injects Todo state, an active Plan, Plan candidates,
+  or other proactively discovered business context. Plan discovery uses
+  `list_files`; an explicit Plan execution forces `read_file` until the selected
+  Plan has been read completely.
+- Mutable authoritative references are re-resolved on every run. Activated
+  Skills are loaded from Admin's latest published snapshot, including client-tool
+  continuations. Search outputs remain historical evidence and are not repeated
+  unless the user explicitly requests refreshed/current evidence.
 - `bot_profile` renders schema-bound `BotProfileSnapshot` fields only (name,
   role, domain, audience, tone) resolved per run from admin — there is no
   free-text path. The admin `system_prompt` column has been dropped; when a bot

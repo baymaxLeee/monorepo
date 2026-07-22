@@ -41,13 +41,16 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 ## Tools and artifacts
 
 - Tool orchestration (ADR-0035): **thin harness — no general runtime
-  scheduler/lock or artifact-specific state machine.** The SDK owns the tool loop and same-step concurrency; the
-  prompt supplies normal policy. A plan-mode model middleware makes only
-  `ask_user` and `write_plan`/`update_plan` mutually exclusive: if the model
-  co-emits them, the ask remains and the plan write is deferred to the client
-  continuation. All other independent tool calls retain native concurrency.
-  HTML revisions are ordinary `edit_file` calls selected by the primary
-  ToolLoopAgent from user feedback and artifact context.
+  scheduler or lock.** The SDK owns the tool loop and same-step concurrency;
+  `prepareStep` contains only bounded correctness gates: read an explicitly
+  selected Plan before execution, and complete the ephemeral HTML
+  validate/repair loop from this run's native tool results. A plan-mode model middleware makes only
+  `ask_user` and `write_plan`/`update_plan` mutually exclusive: the first group
+  emitted for the step remains and later conflicts are dropped, so selected
+  plan-tool input keeps streaming live instead of being buffered until the
+  model step ends. All other independent tool calls retain native concurrency.
+  User-requested HTML revisions are ordinary `edit_file` calls selected by the
+  primary ToolLoopAgent; validation-directed repairs use the bounded quality gate.
   todos-before-deliverables ordering is carried by the prompt
   (`renderRuntimeContract` "barrier step": `update_todos` called alone, then
   deliverables dispatched together in the NEXT step) plus the SDK step boundary.
@@ -78,10 +81,7 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   no `contextSchema`, no knowledge writes, and no revision/CAS. State lives only
   in the `tool-update_todos` UIMessage part, same as every other tool output.
   It never becomes a second truth source for the plan body (ADR-0017).
-  `projectModelContext` derives the latest snapshot from persisted UIMessage
-  parts. It preserves the official tool result while recent; only when pruning
-  removes that result does it add a bounded `<current_todo_snapshot>` inside a
-  low-authority historical replacement message. The
+  `projectModelContext` does not reconstruct or inject Todo business state. The
   frontend separately renders only the newest `tool-update_todos` part so
   the UI shows one live card instead of one per call (ADR-0017). The optional
   `deliverable` tag (`artifact`/`image`/`video`) links a todo to the one
@@ -115,6 +115,15 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   source; Knowledge is not). `GET .../tasks/:taskId` stays as a plain JSON read
   for cold-start/debug. Knowledge/ObjectStore owns full content; chat history and
   traces never carry HTML fragments.
+- Every successful HTML `write_file` or `edit_file` creates a mandatory local
+  Chat quality gate. `prepareStep` scans the current ToolLoop run and exposes
+  only `validate_html` until that artifact revision has been checked. The tool
+  reads the current revision from Knowledge and runs deterministic validation
+  plus a non-blocking content-contract review inside Chat; Executor has no
+  validation route, TaskType, or Workflow. No hard findings finishes the gate;
+  addressable hard findings produce the existing targeted `edit_file` directive,
+  and the new edit triggers `validate_html` again. Do not put this state in
+  `projectModelContext`.
 - Cancelling a chat run **does** cancel the in-flight executor task the current
   `write_file`/`edit_file` call is blocking on: Stop aborts the turn, the tool's
   `abortSignal` fires, and it calls `POST /tasks/:id/cancel` before unwinding —
@@ -130,6 +139,17 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   remains the sole owner of approvals, paid generation, Take review, assembly,
   and publication. A tagged video todo completes on `production_id`; parallel
   HTML/image tools do not wait for those later phases.
+- A normal-mode run carrying `data-plan-execution` forces `read_file` as its
+  first and only available tool until the explicitly selected Plan has been
+  read completely. A natural-language request to execute a Plan remains an
+  agent decision: discover Plans with `list_files`, then use `ask_user` when
+  multiple Plans exist. The projector never injects an active Plan or candidate
+  list.
+- Every run re-resolves mutable authoritative references it uses: Plan from
+  Knowledge, activated Skill from Admin's latest published snapshot, and any
+  referenced instruction/config file from its owner. Prior read/load outputs are
+  not caches. Successful search outputs are historical evidence and must not be
+  repeated unless the user explicitly requests refreshed or latest evidence.
 - `web_search` uses Exa Search as the primary source
   (`POST https://api.exa.ai/search`, `x-api-key`) and Tavily Search as fallback
   (`POST https://api.tavily.com/search`, `Authorization: Bearer`). Freshness is

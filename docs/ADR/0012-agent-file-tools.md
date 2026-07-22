@@ -2,8 +2,9 @@
 
 ## Status
 
-Superseded in part by ADR 0023 and ADR 0047. The artifact generation pipeline
-remains accepted; ADR 0047 removes the HTML validation/review tool and endpoint.
+Superseded in part by ADR 0023, ADR 0047, and ADR 0048. The artifact generation
+pipeline remains accepted. ADR 0048 restores validation as Chat-local
+`validate_html`; the Executor endpoint and `html_validate` name remain removed.
 
 ## Decision
 
@@ -63,11 +64,11 @@ remains accepted; ADR 0047 removes the HTML validation/review tool and endpoint.
   the versioned path with immutable caching and anonymous CORS for SRI. HTML
   preview uses the same short-lived Knowledge resource URL capability as
   video/audio/PDF instead of copying document bytes into `iframe.srcDoc`.
-- Executor owns the canonical AST-based HTML/CSS validator. It reports stable
+- Chat owns the canonical AST-based HTML/CSS validator. It reports stable
   error/warning codes with block, selector, evidence, and repair suggestions.
-  `html_validate` runs deterministic AST/CSS checks first. Hard errors include a
+  `validate_html` runs deterministic AST/CSS checks first. Hard errors include a
   compact reason and evidence. The primary ToolLoopAgent decides block-addressed
-  `edit_file` repair → `html_validate` rounds from those results. Heuristic
+  `edit_file` repair → `validate_html` rounds from those results. Heuristic
   responsive findings remain warnings. Only after the hard gate passes does one
   whole-artifact model review compare persisted blocks with their explicit
   content contracts. Its deduplicated findings are non-blocking advisories with
@@ -75,21 +76,18 @@ remains accepted; ADR 0047 removes the HTML validation/review tool and endpoint.
   primary agent may repair a clearly evidenced explicit-requirement violation
   but must not chase subjective review findings to zero. Tool execution errors
   and unaddressable document-level hard errors prevent a successful validation claim.
-  Executor alone classifies the internal report and exposes the canonical
-  compact `{ ok, content_sha256, errors, advisories }` decision through its
-  generated transport contract. Chat verifies the revision hash and orchestrates
-  repair without parsing raw findings, reclassifying severity, or recomputing
-  `ok`.
+  Chat classifies the report into the compact
+  `{ ok, content_sha256, errors, advisories }` decision and verifies the current
+  Knowledge revision hash before orchestrating repair.
   These diagnostics are retained in native tool parts and traces and rendered
   as an ordinary visible tool part. The hash-bound report is
-  returned only by `html_validate`; `write_file`/`edit_file` carry no advisory report.
-  `html_validate` sends the document identity to executor's synchronous internal
-  validation endpoint; executor reads current bytes from Knowledge and reruns the
-  same canonical validator after any edit. Chat has no duplicate validator and
-  HTML does not enter chat history.
+  returned only by `validate_html`; `write_file`/`edit_file` carry no advisory
+  report. `validate_html` reads the current bytes from Knowledge and reruns the
+  same canonical validator after any edit. HTML does not enter chat history.
 - Validation and repair use ordinary native tool calls in the primary
-  ToolLoopAgent. The harness does not maintain an artifact state machine, forge
-  model streams, or force a tool choice through `prepareStep`. Reviewer JSON
+  ToolLoopAgent. `prepareStep` derives only the pending validation document from
+  this run's native tool results and forces `validate_html`; it does not maintain
+  a persisted artifact state machine or forge model streams. Reviewer JSON
   requires concrete contract/reason/evidence fields, is normalized and retried
   once, and is discarded on persistent format failure without suppressing
   deterministic results.
@@ -99,7 +97,7 @@ remains accepted; ADR 0047 removes the HTML validation/review tool and endpoint.
   accepted.
 - The web client auto-continues only tools explicitly marked for client execution.
   Completed durable server tools are never echoed as client tool responses.
-- `html_validate` is read-only and never executes model-authored HTML. Automated
+- `validate_html` is read-only and never executes model-authored HTML. Automated
   browser screenshots and computed-layout inspection remain outside this phase;
   user-provided screenshots can drive a later `edit_file` turn.
 - `write_plan` creates revision 1. `update_plan` performs compare-and-swap and

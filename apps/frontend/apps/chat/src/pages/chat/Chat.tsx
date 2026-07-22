@@ -521,7 +521,7 @@ export function Chat() {
   }
 
   async function executePlan(documentId: string) {
-    if (!id || busy || executedPlanDocumentIds.has(documentId)) return;
+    if (!id || busy) return;
     setMode("normal");
     // Execute in normal mode this turn. `requestBody` still reflects the
     // pre-update render (mode may be "plan"), so pin mode explicitly; the plan

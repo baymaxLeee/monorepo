@@ -103,7 +103,7 @@ no `data-artifact-progress`.
 | `data-*` type              | Stream | Persistence | Reconciled by id | Direction        | Producer                                                       | Consumer                                                    | Why not an official part                                                                                   |
 | -------------------------- | ------ | ----------- | ---------------- | ---------------- | ------------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `data-conversation-title`  | main   | transient   | no               | server → client  | `agent/runs/run.ts` (`writer.write`, first turn)              | `pages/Chat.tsx` `onData` → header + sidebar               | No official "conversation title" part; title is conversation-level, not message-level, so metadata is wrong too. Transient + `onData` is the documented pattern. |
-| `data-plan-execution`      | main   | persistent  | no               | **client → server** (+ persisted) | `pages/Chat.tsx` (`executePlan`, added to the user message)  | `agent/context/file-parts.ts` + `agent/context/projector.ts` | No official "reference/execute this document" part. The docs list "references to content the model refers to" as a data-part use case. Persisted so later turns still show which plan was executed. |
+| `data-plan-execution`      | main   | persistent  | no               | **client → server** (+ persisted) | `pages/Chat.tsx` (`executePlan`, added to the user message)  | `agent/context/file-parts.ts` + `agent/agents/tool-loop.ts` | No official "execute this document" part. The part persists only the document id; the run projects that reference and forces the existing `read_file` tool until the selected Plan is fully read before execution tools are enabled. |
 | `data-skill-activation`    | main   | persistent  | no               | **client → server** (+ persisted) | `pages/Chat.tsx` (`submit`, added to the user message when a `/` skill is active) | `agent/context/file-parts.ts` (`activatedSkillNameFromParts` → server injects `<activated_skill>` body for that turn) + `components/ChatMessageView.tsx` (renders a skill badge) | No official "invoke this skill" part. Mirrors `data-plan-execution` (client→server reference): the L2 body never rides the part — only the skill `name`. Persisted so history/continuation show which skill drove the turn; the projector's `convertDataPart` returns `undefined` for it, so older turns are dropped from model context and the body is injected server-side only for the turn its message triggers (ADR-0033 §4, ADR-0036). |
 
 ### Verdict on redundancy
@@ -115,13 +115,11 @@ no `data-artifact-progress`.
   `tool-*`, `file`, and `source-*` (`sendSources: true`). Do not wrap any of
   these in `data-*`.
 - Known non-redundant overlaps to leave alone:
-  - Document references (uploaded files and a plan hand-off) travel ONLY as
-    message parts: a `file` part whose URL carries the document id, or a
-    `data-plan-execution` part. `agent/context/file-parts.ts`
-    (`referencedDocumentIdsFromParts`) extracts them for *this* run's document
-    loading, and the same parts *persist* the references into history for future
-    turns. There is no separate `document_ids` request field (removed) — one
-    channel, two roles.
+  - Document references travel only as message parts: a `file` part whose URL
+    carries the document id, or a `data-plan-execution` part. The latter is a
+    command reference, not copied Plan content: the tool loop forces the existing
+    `read_file` tool to read that document completely. There is no separate
+    `document_ids` request field.
   - The HTML-artifact tool (`write_file`/`edit_file`) carries BOTH coarse
     control-flow (`task_id` → `document_id`) and fine per-block progress
     (`blocks_done`/`blocks_total`) on the SAME `tool-*` part: preliminary
@@ -172,11 +170,8 @@ no `data-artifact-progress`.
     added; the model's next-step `update_todos` remains the canonical snapshot.
     See ADR 0024.
   - Persisted `tool-update_todos` UIMessage output is also the model-side truth
-    source across runs. The context projector keeps that official tool result in
-    recent messages. Only if pruning removes it while unfinished work remains
-    does the host add a bounded `<current_todo_snapshot>` to a low-authority
-    historical replacement message. It is never copied into system instructions
-    and is never reconstructed from observability tables (ADR 0041).
+    source while it remains in retained history. The context projector never
+    reconstructs or dynamically injects Todo business state (ADR 0041).
   - On explicit user cancellation, unfinished official tool parts are persisted
     as `output-error`; no cancellation `data-*` part is added. Non-completed
     `update_todos` items become `cancelled`, which is a terminal persisted todo

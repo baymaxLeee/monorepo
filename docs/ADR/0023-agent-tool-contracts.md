@@ -4,8 +4,8 @@
 
 Accepted. Supersedes the public tool naming and catalog composition decisions in
 ADR 0012 while preserving its high-level artifact pipeline. Refines ADR 0017 and
-ADR 0022 by removing todo identifiers from deliverable tool inputs. ADR 0047
-later removes `html_validate` from the public tool set.
+ADR 0022 by removing todo identifiers from deliverable tool inputs. ADR 0048
+restores the validation capability under the Chat-local `validate_html` name.
 
 ## Context
 
@@ -54,7 +54,7 @@ surface small.
    - files: `list_files`, `read_file`
    - planning: `write_plan`, `update_plan`, `update_todos`
    - interaction: `ask_user`
-   - artifacts: `write_file`, `edit_file`, `html_validate`
+   - artifacts: `write_file`, `edit_file`, `validate_html`
    - media: `generate_images`, `create_video_production`
    - memory: `create_memory`, `update_memory`
 

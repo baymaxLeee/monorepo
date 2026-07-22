@@ -52,12 +52,15 @@ Verified constraints (against `ai@7.0.15`):
 ### 1. Orchestration: thin harness — step boundary + prompt, no runtime gate
 
 - **Plan mode enforces one selective dependency edge.** Parallel tool calls stay
-  enabled. A model middleware buffers only `write_plan`/`update_plan` stream
-  parts until the model call finishes. If that same step contains `ask_user`, it
-  drops the buffered plan call; every other call remains in the stream and runs
-  with native same-step concurrency. The browser supplies the answer in a
-  continuation run, and only that later run can persist the plan. When no ask is
-  present, the buffered plan call is released unchanged before SDK execution.
+  enabled. A model middleware makes `ask_user` and
+  `write_plan`/`update_plan` mutually exclusive using the first group emitted by
+  the provider for that step; conflicting later calls are dropped while every
+  other call remains in the stream and runs with native same-step concurrency.
+  It does not buffer plan input parts: long Markdown arguments therefore remain
+  visible as a live official `tool-*` part while the model writes them. The
+  prompt and deterministic tool order put clarification first when it is
+  needed; the browser then supplies the answer in a continuation run, and only
+  that later run persists the plan.
 - **Ordering comes from the SDK step boundary + the prompt.** Plan mode only
   writes the plan (`write_plan`/`update_plan`) after optional research/context
   tools. After the user switches to normal/agent execution mode, when a todo
@@ -148,8 +151,9 @@ artificial concurrency caps (provider limits + executor bound it).
   on the tool card.
 - Executor is simpler: no outbound notifications, progress is a plain column the
   owner polls. `reportTaskProgress` keeps writing `tasks.progress`.
-- Plan-mode clarification-before-plan ordering is enforced before SDK tool
-  execution without disabling unrelated parallel calls. Normal-mode
+- Plan-mode clarification and plan writes are mutually exclusive before SDK
+  tool execution without delaying the selected tool's stream or disabling
+  unrelated parallel calls. Normal-mode
   todos-before-deliverables ordering remains prompt-enforced (the barrier step)
   plus the SDK step boundary; there is no runtime guarantee for that cosmetic
   progress ordering.

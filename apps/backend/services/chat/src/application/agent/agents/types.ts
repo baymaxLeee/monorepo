@@ -2,6 +2,7 @@ import type { ModelMessage } from "ai";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
 import type { AgentSkillRef, ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
 import type { InstructionInput } from "../context/instructions/index.js";
+import type { ArtifactVerificationState } from "../../../domain/agent/artifact-verification.js";
 
 export type AgentMode = "normal" | "plan";
 
@@ -12,6 +13,7 @@ export interface AgentRuntimeContext {
   conversationId: string;
   profileId: AgentMode;
   runtimeKind: "tool-loop";
+  artifactVerification: ArtifactVerificationState;
 }
 
 export interface ChatAgentInput {
@@ -25,6 +27,7 @@ export interface ChatAgentInput {
   videoProviderId?: string | null;
   modelMessages: ModelMessage[];
   attachedImageDocumentIds?: string[];
+  executionPlanDocumentId?: string | null;
   instructionInput: InstructionInput;
   /** Skill already active in the logical turn, including client-tool continuations. */
   activeSkillName?: string | null;

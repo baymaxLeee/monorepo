@@ -119,8 +119,8 @@ bounded by the step timeouts, so this does not risk lease expiry.
   — Workflow DevKit's replay makes them unnecessary, not just unimplemented.
 - `chat/src/application/agent/artifacts/{worker,generation-runner,types}.ts` are deleted.
   `generator.ts`/`compiler.ts`/`template.ts`/`config.ts`/`clients/knowledge.ts`
-  are trimmed to only what the markdown path and the read-only
-  `html_validate` tool still needs.
+  are trimmed to only what the Markdown path needs. ADR 0048 later adds the
+  read-only Chat-local `validate_html` implementation.
 - Two Nitro v3 (beta) tracer bugs were hit and fixed, documented in
   `executor/AGENTS.md`: an ESM/CJS interop bug in `nf3` (patched via
   `pnpm patch`, `apps/backend/patches/nf3@0.3.18.patch`) and a path-depth bug

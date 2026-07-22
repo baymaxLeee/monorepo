@@ -8,9 +8,8 @@ import { toolOutcomeData } from "../tools/outcome.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
-export interface ContinuedSkillInstruction {
+export interface ContinuedSkillReference {
   name: string;
-  body: string;
 }
 
 const CLIENT_RESPONSE_STATES = new Set([
@@ -98,24 +97,20 @@ export function mergeClientContinuation(persisted: AnyUIMessage, client: AnyUIMe
   return { ...persisted, parts: mergedParts };
 }
 
-export function continuedSkillInstruction(
+export function continuedSkillReference(
   message: AnyUIMessage,
-): ContinuedSkillInstruction | null {
-  let loaded: ContinuedSkillInstruction | null = null;
+): ContinuedSkillReference | null {
+  let loaded: ContinuedSkillReference | null = null;
   for (const part of message.parts) {
     if (part.type !== "tool-load_skill" || toolState(part) !== "output-available") continue;
     const output = toolOutcomeData("output" in part ? part.output : null);
     if (!output || typeof output !== "object") continue;
     const name = "name" in output && typeof output.name === "string" ? output.name : "";
-    const body =
-      "instructions" in output && typeof output.instructions === "string"
-        ? output.instructions
-        : "";
-    if (!name || !body) continue;
+    if (!name) continue;
     if (loaded && loaded.name !== name) {
       throw new RequestError("client continuation contains multiple loaded skills");
     }
-    loaded ??= { name, body };
+    loaded ??= { name };
   }
   return loaded;
 }

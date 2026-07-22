@@ -90,9 +90,8 @@ displays that fact instead of waiting for the model to restate it.
    the model issues its final `update_todos`, that snapshot (all items
    `completed`) becomes canonical, the deliverable parts sit before it, and no
    override applies — reload and live render agree. The `deliverable` tag stays
-   in persisted UIMessage tool output and, if pruning removes that output while
-   work is unfinished, in the bounded `<current_todo_snapshot>` historical
-   replacement (ADR-0041).
+   in persisted UIMessage tool output; the projector does not reconstruct it as
+   dynamically injected business context (ADR-0041).
 
 4. **No new wire part, no executor change, no re-entry.** This reuses the
    existing official `tool-*` parts (their `uiKind` metadata and typed outputs)

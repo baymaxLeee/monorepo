@@ -50,6 +50,7 @@ import {
   activatedSkillNameFromParts,
   attachedImageDocumentIdsFromParts,
   hasUntrustedFilePart,
+  planExecutionDocumentIdFromParts,
   referencedDocumentIdsFromParts,
 } from "../context/file-parts.js";
 import { projectModelContext } from "../context/projector.js";
@@ -58,9 +59,9 @@ import type { BotProfileSnapshot } from "../context/instructions/index.js";
 import { acquireRunLease, registerRunController, releaseRun } from "./lease.js";
 import {
   compactHistoricalSkillOutputs,
-  continuedSkillInstruction,
+  continuedSkillReference,
   mergeClientContinuation,
-  type ContinuedSkillInstruction,
+  type ContinuedSkillReference,
 } from "./continuation.js";
 import {
   activateAgentStream,
@@ -253,7 +254,7 @@ export async function createAgentRunResponse(
       firstUserText.length > 0;
 
     let modelUiMessages: AnyUIMessage[];
-    let continuedSkill: ContinuedSkillInstruction | null = null;
+    let continuedSkill: ContinuedSkillReference | null = null;
     if (latestMessage.role === "user") {
       const storedMessageId = persistedMessageId(latestMessage.id);
       const alreadyPersisted = persistedMessages.some((message) => message.id === storedMessageId);
@@ -276,7 +277,7 @@ export async function createAgentRunResponse(
         throw new RequestError("client tool continuation message was not found");
       }
       const persistedContinuation = historyMessages[continuationIndex]!;
-      continuedSkill = continuedSkillInstruction(persistedContinuation);
+      continuedSkill = continuedSkillReference(persistedContinuation);
       const mergedMessage = mergeClientContinuation(persistedContinuation, latestMessage);
       await updateMessageContent({
         id: mergedMessage.id,
@@ -298,8 +299,6 @@ export async function createAgentRunResponse(
       runId,
       conversationId: conversation.id,
       userId: conversation.userId,
-      mode,
-      activePlanDocumentId: conversation.activePlanDocumentId,
       provider,
       abortSignal: runSignal,
       messages: await validateUIMessages<AnyUIMessage>({ messages: projectionUiMessages }),
@@ -309,22 +308,16 @@ export async function createAgentRunResponse(
 
     const botSkills = input.botSkills ?? [];
 
-    // The active Skill body is authoritative instruction state for one logical
-    // turn. A client-tool continuation restores the server-persisted body;
-    // explicit `/` activation resolves it from admin.
     const activatedSkillName = latestUser ? activatedSkillNameFromParts(latestUser.parts) : null;
-    if (continuedSkill) {
-      instructionInput.activatedSkill = {
-        name: continuedSkill.name,
-        body: continuedSkill.body,
-      };
-    } else if (activatedSkillName) {
-      const picked = botSkills.find((skill) => skill.name === activatedSkillName);
+    const executionPlanDocumentId = latestUser
+      ? planExecutionDocumentIdFromParts(latestUser.parts)
+      : null;
+    const currentSkillName = continuedSkill?.name ?? activatedSkillName;
+    if (currentSkillName) {
+      const picked = botSkills.find((skill) => skill.name === currentSkillName);
       if (!picked) {
-        throw new RequestError(`skill "${activatedSkillName}" is not available for this agent`);
+        throw new RequestError(`skill "${currentSkillName}" is not available for this agent`);
       }
-      // getSkillBody throws RequestError (404) / AdminUnavailableError (502);
-      // let those propagate so the client sees why the skill could not load.
       const { body, files } = await getSkillBody(picked.id, auth.orgId);
       if (!body.trim()) {
         throw new RequestError(`skill "${picked.name}" has no content to load`);
@@ -348,6 +341,7 @@ export async function createAgentRunResponse(
       attachedImageDocumentIds: latestUser
         ? attachedImageDocumentIdsFromParts(latestUser.parts)
         : [],
+      executionPlanDocumentId,
       instructionInput,
       activeSkillName: instructionInput.activatedSkill?.name ?? null,
       botSkills,

@@ -43,7 +43,7 @@ tracker for the *current* execution, not a versioned document.
 - Plan mode's `## 任务` section must be written as a Markdown checklist
   (`- [ ] ...`) so it can be mechanically carried into a todo list once the
   user starts execution. Normal mode's instructions tell the model to call
-  `read_file` on a `<referenced_plan>` and seed `update_todos` from that
+  consume the selected Plan's latest complete `read_file` result and seed `update_todos` from that
   checklist before doing any other work, and to use `update_todos` generally
   for any 3+ step task, plan-derived or not.
 - The frontend renders `tool-update_todos` output with the existing
@@ -69,12 +69,9 @@ source of truth for plan content.
 - Because `update_todos` is a normal tool call, its history is visible and
   inspectable like any other tool part.
 - **Update (context design, superseded by ADR-0041):** persisted UIMessage tool
-  parts are the Todo truth source. `projectModelContext` keeps the official
-  `tool-update_todos` result while it remains in the recent window. If pruning
-  removes that only copy while unfinished items remain, the projector derives a
-  bounded `<current_todo_snapshot>` and places it in the low-authority historical
-  replacement message. Todo state is no longer queried from observability tables
-  or injected into system instructions.
+  parts are the Todo truth source. `projectModelContext` does not reconstruct or
+  dynamically inject Todo business state; it applies only normal history pruning
+  and compaction.
 - The frontend applies a matching, purely presentational fix in
   `apps/frontend/apps/chat/src/pages/Chat.tsx` /
   `ChatMessageView.tsx`: only the `tool-update_todos` part with the latest

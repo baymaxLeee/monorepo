@@ -28,6 +28,15 @@ export function referencedDocumentIdsFromParts(parts: ChatPart[]): string[] {
   });
 }
 
+export function planExecutionDocumentIdFromParts(parts: ChatPart[]): string | null {
+  for (const part of parts) {
+    if (part.type !== "data-plan-execution") continue;
+    const id = (part.data as { document_id?: unknown } | undefined)?.document_id;
+    if (typeof id === "string" && id) return id;
+  }
+  return null;
+}
+
 export function hasUntrustedFilePart(parts: ChatPart[]): boolean {
   return parts.some((part) => isFileUIPart(part) && !documentIdFromFilePart(part));
 }

@@ -59,19 +59,27 @@ messages; tool contracts belong in tools.
    logged and skipped.
 
 5. **Todo state has one durable representation.** The latest successful
-   `tool-update_todos` UIMessage part is canonical. If pruning removes its tool
-   result while unfinished work remains, the projector derives a bounded
-   `<current_todo_snapshot>` in the historical replacement message. The runtime
-   no longer queries observability tables for business state.
+   `tool-update_todos` UIMessage part is canonical. The projector neither queries
+   observability tables nor reconstructs or injects Todo business state. Normal
+   history pruning and compaction are the only context-management mechanisms.
 
-6. **Plans and documents are referenced, not embedded.** `data-plan-execution`
-   continues to become `<referenced_plan>` in messages. Plan mode may add only an
-   `<active_plan_reference>` containing document and revision identifiers when
-   that reference is otherwise absent. The model must use `read_file` before
-   editing or executing the body; Knowledge remains the source of truth and
-   existing revision compare-and-swap remains authoritative. A stale reference
-   or transient Knowledge failure omits the optional hint instead of failing the
-   user's turn.
+6. **Plan discovery belongs to the agent, not context projection.** The projector
+   never queries Knowledge to inject an active Plan or Plan candidate list. Plan
+   editing and generic natural-language execution use `list_files`, `read_file`,
+   and `ask_user`. When the current user message explicitly carries
+   `data-plan-execution`, the projector only converts that user-supplied id to a
+   `<plan_execution_request>` reference and the ToolLoop forces `read_file` until
+   contiguous slices cover the full latest document.
+
+7. **Run-start freshness applies to mutable authority, not historical evidence.**
+   Plans, activated Skills, and referenced instruction/config sources are
+   resolved from their authoritative service on every run that uses them,
+   regardless of older tool results in conversation history. Client-tool
+   continuation therefore reloads the latest published Skill instead of reusing
+   its persisted body. Successful web/knowledge search results remain evidence
+   in history and are not automatically repeated; a new search requires an
+   explicit refresh/re-search or an explicit latest/current request unsupported
+   by the existing evidence.
 
 ## Consequences
 

@@ -59,7 +59,7 @@ inventing an orchestrator and without touching the executor contract.
    (`agent/plans/service.ts` `PLAN_CONTENT_DESCRIPTION` + plan-mode instructions)
    requires `## 任务` to group mutually-independent deliverables under a
    `### 并行产物（可同时生成）` subheading and to note real dependencies inline
-   (e.g. `(依赖：上面的海报)`). The execute-mode `<referenced_plan>` instruction
+   (e.g. `(依赖：上面的海报)`). The selected Plan's complete `read_file` result
    dispatches every deliverable in a parallel group in the **same step** (and
    marks those todos `in_progress` together); only steps the plan marks dependent
    run afterward. The parallel group is **prompt-level guidance the model reads** —

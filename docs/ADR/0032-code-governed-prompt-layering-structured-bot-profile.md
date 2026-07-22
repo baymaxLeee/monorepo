@@ -72,9 +72,10 @@ are discarded, not migrated into the new fields.
    `routes/agents.ts` → `RunAgentInput.botProfile` → `loadInstructionContext` →
    the assembler, which renders `<bot_profile>` from structured leaves via
    `xml.ts` escaping. When a bot has no structured identity yet, `<bot_profile>`
-   is simply omitted. As revised by ADR-0041, dynamic summary, Todo, active-plan,
-   and document state is projected into messages; only bounded approved memory
-   remains as low-authority instruction data.
+   is simply omitted. As revised by ADR-0041, the projector does not discover or
+   inject Todo, active-Plan, or document business state. Only actual message
+   parts, required protocol conversion, and bounded history compaction enter
+   model messages; approved memory remains low-authority instruction data.
 
 5. **The thin router is structured-only; every raw-string seam is removed.**
    `ToolCatalog.resolve()` returns a typed `InstructionContributions`:

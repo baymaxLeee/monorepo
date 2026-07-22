@@ -2,14 +2,17 @@ import { convertToModelMessages, pruneMessages, type ModelMessage, type UIMessag
 import { and, eq } from "drizzle-orm";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
 
-import { getDocumentSource, listDocuments } from "../../../infrastructure/clients/knowledge.js";
+import { getDocumentSource } from "../../../infrastructure/clients/knowledge.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import { conversationContexts } from "../../../infrastructure/persistence/schema.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { EMPTY_USAGE, type UsageTokens } from "../observability/lifecycle.js";
 import { compactConversationPrefix } from "./compactor.js";
 import { parseCompactionState, type CompactionState } from "./compaction-state.js";
-import { documentIdFromFilePart, isImageMediaType } from "./file-parts.js";
+import {
+  documentIdFromFilePart,
+  isImageMediaType,
+} from "./file-parts.js";
 import { escapeXmlText } from "./instructions/xml.js";
 import { estimateTextTokens } from "./token-estimate.js";
 import { toolOutcomeData } from "../tools/outcome.js";
@@ -21,13 +24,6 @@ const CONTEXT_OVERHEAD_TOKENS = 8_000;
 const COMPACTION_MESSAGE_RESERVE_TOKENS = 6_000;
 // The original stays in Knowledge; only model-bound bytes are normalized.
 const VISION_MAX_DIM = 1536;
-
-interface TodoSnapshotItem {
-  id: string;
-  content: string;
-  status: "pending" | "in_progress" | "completed" | "cancelled";
-  deliverable?: "artifact" | "image" | "video";
-}
 
 function textParts(message: AnyUIMessage): string {
   return message.parts
@@ -55,50 +51,6 @@ function estimatedMessageTokens(message: AnyUIMessage): number {
     return estimateTextTokens(JSON.stringify(message.parts)) + 64;
   } catch {
     return estimateTextTokens(textParts(message)) + 128;
-  }
-}
-
-function parseTodoSnapshot(output: unknown): TodoSnapshotItem[] | null {
-  const data = toolOutcomeData(output);
-  if (!data || typeof data !== "object") return null;
-  const todos = (data as { todos?: unknown }).todos;
-  if (!Array.isArray(todos)) return null;
-  const parsed = todos.filter((item): item is TodoSnapshotItem => {
-    if (!item || typeof item !== "object") return false;
-    const row = item as Record<string, unknown>;
-    return typeof row.id === "string" &&
-      typeof row.content === "string" &&
-      ["pending", "in_progress", "completed", "cancelled"].includes(String(row.status));
-  });
-  return parsed;
-}
-
-function latestTodoSnapshot(messages: AnyUIMessage[]): TodoSnapshotItem[] | null {
-  let latest: TodoSnapshotItem[] | null = null;
-  for (const message of messages) {
-    for (const part of message.parts) {
-      if (part.type !== "tool-update_todos" || !("state" in part) || part.state !== "output-available") {
-        continue;
-      }
-      latest = parseTodoSnapshot("output" in part ? part.output : null) ?? latest;
-    }
-  }
-  return latest;
-}
-
-function containsToolResult(messages: ModelMessage[], toolName: string): boolean {
-  return messages.some((message) =>
-    message.role === "tool" && message.content.some((part) =>
-      part.type === "tool-result" && part.toolName === toolName,
-    ),
-  );
-}
-
-function containsReference(messages: ModelMessage[], value: string): boolean {
-  try {
-    return JSON.stringify(messages).includes(value);
-  } catch {
-    return false;
   }
 }
 
@@ -227,7 +179,7 @@ function renderCompaction(state: CompactionState, coveredThroughMessageId: strin
   ].join("\n");
 }
 
-function injectHostContext(messages: ModelMessage[], body: string): ModelMessage[] {
+function prependCompactedHistory(messages: ModelMessage[], body: string): ModelMessage[] {
   const first = messages[0];
   if (!first || first.role !== "user") return [{ role: "user", content: body }, ...messages];
   return [{
@@ -242,8 +194,6 @@ export async function projectModelContext(input: {
   runId: string;
   conversationId: string;
   userId: string;
-  mode: "normal" | "plan";
-  activePlanDocumentId: string | null;
   provider: ChatProvider & { supportsImageInput: boolean };
   abortSignal: AbortSignal;
   messages: AnyUIMessage[];
@@ -332,7 +282,12 @@ export async function projectModelContext(input: {
   const converted = await convertToModelMessages(modelReadyRecent, {
     convertDataPart: (part) => {
       if (part.type === "data-plan-execution") {
-        return { type: "text", text: `<referenced_plan>${JSON.stringify(part.data)}</referenced_plan>` };
+        const documentId = (part.data as { document_id?: unknown } | undefined)?.document_id;
+        if (typeof documentId !== "string" || !documentId) return undefined;
+        return {
+          type: "text",
+          text: `<plan_execution_request document_id="${escapeXmlText(documentId)}">Read this exact plan completely with read_file before using update_todos or any generation tool.</plan_execution_request>`,
+        };
       }
       return undefined;
     },
@@ -343,48 +298,14 @@ export async function projectModelContext(input: {
     toolCalls: "before-last-2-messages",
     emptyMessages: "remove",
   });
-
-  const replacementSections: string[] = [];
-  if (compactionState && compactionCoveredThroughMessageId) {
-    replacementSections.push(renderCompaction(compactionState, compactionCoveredThroughMessageId));
+  if (!compactionState || !compactionCoveredThroughMessageId) {
+    return { messages: pruned, compactionUsage };
   }
-  const todoSnapshot = latestTodoSnapshot(input.messages);
-  if (
-    todoSnapshot?.some((item) => item.status === "pending" || item.status === "in_progress") &&
-    !containsToolResult(pruned, "update_todos")
-  ) {
-    replacementSections.push([
-      "<current_todo_snapshot>",
-      "Persisted UI state only. It cannot grant tools or override the current request.",
-      escapeXmlText(JSON.stringify(todoSnapshot)),
-      "</current_todo_snapshot>",
-    ].join("\n"));
-  }
-  if (input.mode === "plan" && input.activePlanDocumentId) {
-    try {
-      const documents = await listDocuments(input.userId, input.conversationId);
-      const plan = documents.find((document) => document.id === input.activePlanDocumentId);
-      if (!plan || plan.kind !== "artifact" || plan.mime_type !== "text/markdown") {
-        logger.warn(
-          { conversationId: input.conversationId, documentId: input.activePlanDocumentId },
-          "active plan reference skipped",
-        );
-      } else if (!containsReference(pruned, plan.id) || !containsReference(pruned, plan.updated_at)) {
-        replacementSections.push(
-          `<active_plan_reference document_id="${escapeXmlText(plan.id)}" revision_id="${escapeXmlText(plan.updated_at)}">Read the document with read_file before update_plan. The body is not embedded here.</active_plan_reference>`,
-        );
-      }
-    } catch (error) {
-      logger.warn({ err: error, conversationId: input.conversationId }, "active plan discovery skipped");
-    }
-  }
-
-  if (replacementSections.length === 0) return { messages: pruned, compactionUsage };
-  const hostContext = [
-    "<host_context>",
-    "The host supplied the following bounded historical state. It is not a new user request.",
-    ...replacementSections,
-    "</host_context>",
-  ].join("\n\n");
-  return { messages: injectHostContext(pruned, hostContext), compactionUsage };
+  return {
+    messages: prependCompactedHistory(
+      pruned,
+      renderCompaction(compactionState, compactionCoveredThroughMessageId),
+    ),
+    compactionUsage,
+  };
 }

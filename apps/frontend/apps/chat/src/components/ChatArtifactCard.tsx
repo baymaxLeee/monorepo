@@ -205,10 +205,10 @@ export function ArtifactDocumentCard({
           <Button
             type="button"
             size="sm"
-            disabled={planExecuted || planBusy}
+            disabled={planBusy}
             onClick={onExecutePlan}
           >
-            {planExecuted ? "已执行" : "立即执行"}
+            {planExecuted ? "再次执行" : "立即执行"}
           </Button>
         ) : null}
       </ArtifactHeader>

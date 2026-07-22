@@ -21,6 +21,9 @@
   仍完全遵循 AI SDK UIMessage 协议。
 - plan 作为 `tool-write_plan` / `tool-update_plan` part 随消息持久化；后续 run 从
   服务端会话历史恢复。
+- “执行计划”发送持久化 `data-plan-execution` 文档引用；正文不由浏览器复制。后端
+  强制先用现有 `read_file` 读取该 Plan 最新全文。执行结束后按钮变为“再次执行”而
+  不是永久禁用，后续点击仍携带结构化文档 ID，不依赖长对话里的旧计划内容。
 - HTML artifact 使用 sandbox iframe 和独立右侧面板；完整正文按需从 knowledge
   加载，不进入聊天消息。iframe 只有 `allow-scripts`，不授予 same-origin；课件目录
   使用 artifact 内部 `#fragment` 跳转。

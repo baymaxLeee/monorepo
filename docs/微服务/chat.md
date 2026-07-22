@@ -67,8 +67,10 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   manifest v4 持久化 narrative/layout；旧 revision 编辑时补静态默认，但不新增规划
   LLM 调用。当前 change request 优先，既有 HTML 保持未改内容的事实来源，历史规划仅作
   提示；原有 BlockStrategy 与目标范围不变。
-- `write_file`/`edit_file` 的 HTML 终态是 compile/publish 结果。Chat 不再暴露
-  `html_validate`；用户验收后可通过 block-addressed `edit_file` 发起后续修改。
+- `write_file`/`edit_file` 的 HTML 终态是 compile/publish 结果。成功后 ToolLoop
+  的 `prepareStep` 只开放并强制 Chat 本地 `validate_html`；无硬错误即结束，有可定位
+  硬错误则按 `edit_file` → `validate_html` 修复复验。
+  Executor 不提供校验路由或校验 Workflow。
 - 用户取消 chat run 会通过 tool AbortSignal 取消当前前台等待的 executor task；进程
   故障不会取消 durable task。
 - executor 先持久化并通知 task `cancelled`，再取消 Workflow，并按 task type 补偿
@@ -82,6 +84,15 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   和前端 `toolMetadata.agent.uiKind`。
 - Plan mode 只加载研究、交互和计划工具，同时获得执行能力摘要，因此能规划
   `write_file`、`generate_images`、`create_video_production`，但不能提前执行。
+- 用户从 Plan 卡片执行时，`data-plan-execution` 携带明确文档 ID；ToolLoop 只开放并
+  强制调用现有 `read_file`，直到连续分片覆盖 Plan 最新全文，之后才开放
+  `update_todos` 和生成工具。用户仅用自然语言要求执行 Plan 时，由模型先调用
+  `list_files` 自行发现；多个 Plan 时通过 `ask_user` 提问，不增加专用 Plan 读取 Tool、
+  Harness 选择器或动态候选注入。
+- 每个 run 对本轮使用的可变权威引用重新取最新快照：Plan 从 Knowledge 读取，激活的
+  Skill（含 client-tool continuation）从 Admin 读取最新发布版本，其他 instruction/
+  config 引用从其 owner 读取。历史 search tool 结果属于证据，默认复用；只有用户明确
+  要求重新检索或最新信息且旧证据不足时才再次搜索。
 - Admin Skill 只广告已发布快照的名称与描述；`load_skill` 读取已发布
   `SKILL.md`，`read_skill_file` 再按需读取该快照列出的 references/templates/
   scripts 等文本资源，草稿树永不进入运行时。
