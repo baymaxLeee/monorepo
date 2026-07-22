@@ -61,6 +61,12 @@ Verified constraints (against `ai@7.0.15`):
   prompt and deterministic tool order put clarification first when it is
   needed; the browser then supplies the answer in a continuation run, and only
   that later run persists the plan.
+- **Execution intent is terminal in plan mode.** If the user asks to execute,
+  start, or resume a plan while the current run is still in plan mode, the
+  runtime contract requires a direct instruction to switch to Agent mode. The
+  agent must not inspect files, update a plan, or call tools first. Execution
+  tools remain excluded from the plan-mode ToolSet rather than returning as
+  inert schema-heavy stubs.
 - **Ordering comes from the SDK step boundary + the prompt.** Plan mode only
   writes the plan (`write_plan`/`update_plan`) after optional research/context
   tools. After the user switches to normal/agent execution mode, when a todo

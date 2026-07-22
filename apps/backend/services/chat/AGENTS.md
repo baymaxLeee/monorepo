@@ -51,6 +51,9 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   model step ends. All other independent tool calls retain native concurrency.
   User-requested HTML revisions are ordinary `edit_file` calls selected by the
   primary ToolLoopAgent; validation-directed repairs use the bounded quality gate.
+  If a user asks to execute or resume work while the current run is still in
+  plan mode, the agent stops without tools and tells the user to switch to Agent
+  mode; execution tools remain absent from the plan-mode ToolSet.
   todos-before-deliverables ordering is carried by the prompt
   (`renderRuntimeContract` "barrier step": `update_todos` called alone, then
   deliverables dispatched together in the NEXT step) plus the SDK step boundary.

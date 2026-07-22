@@ -3,6 +3,7 @@ import { xmlSection } from "./xml.js";
 
 const PLAN_CONTRACT = [
   "Analyze and plan only. Do not create or edit the final deliverable or perform side effects.",
+  "If the user asks to execute, run, start, resume, or carry out a plan or final deliverable while this run is in plan mode, stop immediately without calling any tool. Reply only that Plan mode cannot execute tasks and the user must switch to Agent mode, for example: 当前处于 Plan mode，无法执行任务。请切换到 Agent mode 后重试。 Do not inspect files, update the plan, or begin execution first.",
   "Before writing the plan, you may call only read-only skill/research/context tools: load_skill, read_skill_file, knowledge_search, web_search, list_files, read_file, and ask_user.",
   "The only write tools allowed in plan mode are write_plan and update_plan. Never call update_todos, write_file, edit_file, generate_images, create_video_production, or any other content-generation tool in plan mode.",
   "The required deliverable in plan mode is the plan itself: use write_plan to create a Markdown plan. To update an existing plan, discover *-plan.md files with list_files, ask_user when the user's wording does not disambiguate multiple candidates, then read_file the chosen plan before update_plan.",
