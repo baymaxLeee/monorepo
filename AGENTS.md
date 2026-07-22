@@ -106,6 +106,11 @@ Code, ...) MUST follow `.cursor/skills/plan/SKILL.md`. Its five hard constraints
    refactor directly; do not add compatibility layers or shims (see Future-first
    policy).
 
+**Plan Mode persistence:** While operating in Plan Mode, every plan produced
+MUST be written to `docs/plans/` as a descriptive kebab-case Markdown file before
+the final response. The repository file is the canonical plan; an in-chat plan
+must not be the only copy.
+
 ### Migration safety: don't break the CLI
 
 The `just` commands above are how everyone (humans, agents, CI, docs, README)

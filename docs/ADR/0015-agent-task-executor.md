@@ -11,7 +11,7 @@ removes the historical `echo` and synchronous HTML-validation paths.
 `ToolLoopAgent` and explicitly deferred the remaining gap: "A future
 background job must introduce Workflow/queue infrastructure at that job
 boundary, not wrap the core chat agent." [ADR-0012](0012-agent-file-tools.md)
-then collapsed HTML artifact generation into a single `write_file` tool call
+then collapsed HTML artifact generation into a single creation tool call
 and explicitly accepted, as a known limitation, that "Active process loss
 still cancels the run... remain for later product-level recovery work" — the
 hand-rolled worker pool / lease / cancellation-poll code in
@@ -59,7 +59,7 @@ just chat), which makes this gap the priority rather than a deferred nicety.
    claim/heartbeat/cancellation-poll code anymore, because one workflow run
    is the one and only owner of a task (the multi-worker racing that
    lease/claim existed for no longer applies).
-5. **`write_file`/`edit_file`'s HTML branch is foreground-blocking**
+5. **`write_html`/`edit_file` are foreground-blocking**
    (revised — see the "Revision" note below; the original decision here was
    non-blocking). The tool `execute` is an async generator: it dispatches the
    executor task, yields a preliminary `{ status, task_id }` so the artifact
@@ -226,3 +226,11 @@ Nitro must full-trace it (including its setup CLI and SQL assets) into the
 production output. This keeps `docker compose up` self-contained and makes a
 fresh or pre-existing PostgreSQL volume converge to the same schema before any
 task is accepted.
+
+## Update — Chat-owned generation planning
+
+ADR-0049 supersedes the historical HTML `plan -> generate` wording in this ADR.
+Chat now supplies a complete typed HTML or video execution plan through the
+native tool call before Executor accepts a task. Executor retains durable
+generation, compilation, cancellation, approval and publishing, but no longer
+uses an LLM to derive an outline, script or storyboard from a brief.

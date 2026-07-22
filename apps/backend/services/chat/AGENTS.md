@@ -98,9 +98,9 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   After `update_todos`, the next model step should execute the ready work
   directly under `runtime_contract` (including parallel deliverables in one
   step); `update_todos` does not return routing advice.
-- `write_file`/`edit_file` handle both Markdown and HTML. Markdown runs
-  synchronously in this tool call (a single `streamText`, no durability
-  needed). **HTML dispatches to the `executor` service and foreground-blocks
+- `write_markdown` creates Markdown synchronously in one `streamText` call.
+  `write_html` has a dedicated object-only plan schema so providers never see a
+  Markdown/HTML `anyOf`; it dispatches to `executor` and foreground-blocks
   this turn** until compile + publish complete (`agent_task_执行时服务` plan,
   Phase 2; ADR-0015 revision). Progress 100% means block generation completed;
   compile + publish still follow. The generation workflow owns compilation and
@@ -120,7 +120,7 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   source; Knowledge is not). `GET .../tasks/:taskId` stays as a plain JSON read
   for cold-start/debug. Knowledge/ObjectStore owns full content; chat history and
   traces never carry HTML fragments.
-- Every successful HTML `write_file` or `edit_file` creates a mandatory local
+- Every successful `write_html` or HTML `edit_file` creates a mandatory local
   Chat quality gate. `prepareStep` replays terminal history from the immutable
   run seed and injects exact, zero-token validate/repair batches until each
   artifact revision has been checked. The tool
@@ -133,7 +133,7 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   20th step is reserved for a no-tool terminal explanation. Do not put this
   state in `projectModelContext` or mutate it from callbacks.
 - Cancelling a chat run **does** cancel the in-flight executor task the current
-  `write_file`/`edit_file` call is blocking on: Stop aborts the turn, the tool's
+  `write_html`/`edit_file` call is blocking on: Stop aborts the turn, the tool's
   `abortSignal` fires, and it calls `POST /tasks/:id/cancel` before unwinding —
   like Cursor aborting an in-flight file write. (The executor task stays durable
   against *process* loss; it is only tied to the turn for user-initiated Stop.)

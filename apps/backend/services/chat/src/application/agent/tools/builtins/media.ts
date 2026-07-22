@@ -74,24 +74,35 @@ const VIDEO_POST_PLANNING_STAGES = new Set([
   "publishing",
 ]);
 
-const videoSegmentInputSchema = z.object({
-  content: z.string().min(1).max(1_000),
-  narration: z.string().max(300).optional(),
-  dialogue: z.string().max(300).optional(),
-  duration: z.number().int().min(4).max(15).optional(),
-});
-
 const videoCharacterInputSchema = z.object({
   name: z.string().min(1).max(40),
-  referenceDocumentId: z.string().max(32).optional(),
-  appearance: z.string().max(400).optional(),
+  appearance: z.string().min(1).max(400),
+  reference_document_id: z.string().max(32).optional(),
+});
+
+const videoShotInputSchema = z.object({
+  purpose: z.string().min(1).max(80), plot: z.string().min(1).max(500), emotion: z.string().min(1).max(120),
+  character_names: z.array(z.string().min(1).max(40)).max(3), seconds: z.number().int().min(4).max(15), action: z.string().min(1).max(1_000),
+  camera: z.object({ shot_size: z.string().min(1).max(80), movement: z.string().min(1).max(160), focus: z.string().max(160).optional() }),
+  environment: z.string().min(1).max(500), lighting_palette: z.string().min(1).max(300), audio_direction: z.string().max(500),
+  continuity_contract: z.array(z.string().min(1).max(300)).max(20), acceptance_criteria: z.array(z.string().min(1).max(1_200)).min(1).max(20),
 });
 
 const createVideoProductionInputSchema = z.object({
-  prompt: z.string().min(1).max(4_000),
-  duration: z.number().int().min(VIDEO_TARGET_MIN_S).max(VIDEO_TARGET_MAX_S).optional(),
-  segments: z.array(videoSegmentInputSchema).min(1).max(12).optional(),
-  characters: z.array(videoCharacterInputSchema).max(3).optional(),
+  title: z.string().min(1).max(120),
+  creative_brief: z.string().min(1).max(4_000),
+  plan: z.object({
+    target_duration_seconds: z.number().int().min(VIDEO_TARGET_MIN_S).max(VIDEO_TARGET_MAX_S),
+    logline: z.string().min(1).max(240), motif: z.string().min(1).max(160), style_bible: z.string().min(1).max(240), setting_bible: z.string().min(1).max(240),
+    characters: z.array(videoCharacterInputSchema).max(3), shots: z.array(videoShotInputSchema).min(1).max(12),
+  }).superRefine((plan, ctx) => {
+    const names = new Set(plan.characters.map((character) => character.name));
+    if (names.size !== plan.characters.length) ctx.addIssue({ code: "custom", path: ["characters"], message: "character names must be unique" });
+    if (plan.shots.reduce((sum, shot) => sum + shot.seconds, 0) !== plan.target_duration_seconds) ctx.addIssue({ code: "custom", path: ["shots"], message: "shot seconds must equal target_duration_seconds" });
+    plan.shots.forEach((shot, shotIndex) => shot.character_names.forEach((name, characterIndex) => {
+      if (!names.has(name)) ctx.addIssue({ code: "custom", path: ["shots", shotIndex, "character_names", characterIndex], message: `unknown character ${name}` });
+    }));
+  }),
 });
 
 type CreateVideoProductionInput = z.infer<typeof createVideoProductionInputSchema>;
@@ -100,7 +111,6 @@ type VideoCharacterInput = z.infer<typeof videoCharacterInputSchema>;
 export interface MediaToolProviders {
   imageProvider: ProviderSnapshot | null;
   videoProviderId: string | null;
-  textProviderId: string;
 }
 
 function isJsonValue(value: unknown): value is JSONValue {
@@ -266,11 +276,9 @@ function videoDocumentId(result: unknown): string | undefined {
 }
 
 async function resolveVideoCharacters(
-  characters: VideoCharacterInput[] | undefined,
+  characters: VideoCharacterInput[],
   context: MediaToolContext,
-): Promise<Array<{ name: string; documentId?: string; appearance?: string }>> {
-  const pool = [...(context.attachedImageDocumentIds ?? [])];
-
+): Promise<Array<{ name: string; documentId?: string; appearance: string }>> {
   async function validateDocument(documentId: string) {
     const document = await getDocument(context.userId, documentId);
     if (document.conversation_id !== context.conversationId) {
@@ -283,36 +291,14 @@ async function resolveVideoCharacters(
     return document;
   }
 
-  if (characters?.length) {
-    const resolved: Array<{ name: string; documentId?: string; appearance?: string }> = [];
-    for (const character of characters) {
-      let documentId = character.referenceDocumentId;
-      if (documentId) {
-        await validateDocument(documentId);
-      } else if (pool.length) {
-        documentId = pool.shift();
-      }
-      resolved.push({
-        name: character.name,
-        ...(documentId ? { documentId } : {}),
-        ...(character.appearance ? { appearance: character.appearance } : {}),
-      });
-    }
-    return resolved;
-  }
-
-  if (!pool.length) return [];
-
-  return Promise.all(
-    pool.map(async (documentId, index) => {
-      const document = await validateDocument(documentId);
-      const stem = document.filename?.replace(/\.[^.]+$/, "").trim();
-      return {
-        name: (stem || `character-${index + 1}`).slice(0, 40),
-        documentId,
-      };
-    }),
-  );
+  return Promise.all(characters.map(async (character) => {
+    if (character.reference_document_id) await validateDocument(character.reference_document_id);
+    return {
+      name: character.name,
+      appearance: character.appearance,
+      ...(character.reference_document_id ? { documentId: character.reference_document_id } : {}),
+    };
+  }));
 }
 
 async function* createVideoProduction(
@@ -324,9 +310,9 @@ async function* createVideoProduction(
   }: { context: MediaToolContext; toolCallId: string; abortSignal?: AbortSignal },
   providers: MediaToolProviders & { videoProviderId: string },
 ): AsyncGenerator<z.infer<typeof videoProductionOutputSchema> | ToolEmission> {
-  const title = input.prompt.slice(0, 80);
-  const filename = mediaFilename(input.prompt, "mp4");
-  const characterRefs = await resolveVideoCharacters(input.characters, context);
+  const title = input.title;
+  const filename = mediaFilename(input.title, "mp4");
+  const characterRefs = await resolveVideoCharacters(input.plan.characters, context);
   try {
     const task = await startExecutorTask(
       {
@@ -337,29 +323,31 @@ async function* createVideoProduction(
           userId: context.userId,
           conversationId: context.conversationId,
           providerId: providers.videoProviderId,
-          textProviderId: providers.textProviderId,
           imageProviderId: providers.imageProvider?.id,
-          prompt: input.prompt,
-          targetDurationSec: input.duration,
+          creativeBrief: input.creative_brief,
           title,
           filename,
           idempotencyKey: toolCallId,
-          ...(input.segments?.length
-            ? {
-                segments: input.segments.map((segment) => ({
-                  content: segment.content,
-                  ...(segment.narration ? { narration: segment.narration } : {}),
-                  ...(segment.dialogue ? { dialogue: segment.dialogue } : {}),
-                  ...(segment.duration != null ? { seconds: segment.duration } : {}),
-                })),
-              }
-            : {}),
-          ...(characterRefs.length ? { characterRefs } : {}),
+          plan: {
+            targetDurationSec: input.plan.target_duration_seconds,
+            logline: input.plan.logline,
+            motif: input.plan.motif,
+            styleBible: input.plan.style_bible,
+            settingBible: input.plan.setting_bible,
+            characters: characterRefs,
+            shots: input.plan.shots.map((shot) => ({
+              purpose: shot.purpose, plot: shot.plot, emotion: shot.emotion, characterNames: shot.character_names,
+              seconds: shot.seconds, action: shot.action,
+              camera: { shotSize: shot.camera.shot_size, movement: shot.camera.movement, focus: shot.camera.focus },
+              environment: shot.environment, lightingPalette: shot.lighting_palette, audioDirection: shot.audio_direction,
+              continuityContract: shot.continuity_contract, acceptanceCriteria: shot.acceptance_criteria,
+            })),
+          },
         },
       },
       abortSignal,
     );
-    const base = { kind: "video" as const, title, filename, prompt: input.prompt, duration: input.duration, task_id: task.id };
+    const base = { kind: "video" as const, title, filename, prompt: input.creative_brief, duration: input.plan.target_duration_seconds, task_id: task.id };
     yield toolRunning(base);
     let terminal: Task | null = null;
     try {
@@ -508,7 +496,7 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
         "create_video_production",
         tool({
           description:
-            "Create a durable video production task. Call this for a video request; the tool is completed after the initial storyboard and cost plan are persisted and handed to Executor Workflow. Final video generation is not part of this tool's completion boundary: the Workflow continues independently through director-workspace approvals and rendering. Do not write or approve the storyboard in chat. Pass segments[] when the user gave an explicit scene-by-scene script; pass only prompt for auto storyboarding.",
+            "Create a durable video production task. Provide the complete creative plan in this native tool call: duration, characters, and every ordered generation shot. The tool completes after Executor materializes that plan and hands it to the director workspace; final media generation continues through approvals and rendering.",
           inputSchema: createVideoProductionInputSchema,
           outputSchema: videoProductionOutputSchema,
           contextSchema: mediaToolContextSchema,

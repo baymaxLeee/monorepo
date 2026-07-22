@@ -66,6 +66,36 @@ const artifactToolOutputSchema = z.union([
   artifactTaskOutputSchema,
 ]);
 
+const htmlArtifactPlanInputSchema = z.object({
+  mode: z.enum(["document", "presentation", "dashboard"]),
+  source_brief: z.string().min(1).max(20_000),
+  theme: z.object({
+    visual_direction: z.string().min(1).max(1_200),
+    accent: z.string().regex(/^#[0-9a-f]{6}$/i),
+    appearance: z.enum(["light", "dark"]),
+  }),
+  narrative: z.string().min(1).max(1_500),
+  blocks: z.array(z.object({
+    title: z.string().min(1).max(160),
+    brief: z.string().min(1).max(4_000),
+    layout: z.string().min(1).max(400),
+    content_scope: z.array(z.string().min(1).max(240)).min(1).max(12),
+    acceptance_criteria: z.array(z.string().min(1).max(320)).min(1).max(12),
+  })).min(1).max(100),
+});
+
+const writeMarkdownInputSchema = z.object({
+  title: z.string().min(1).max(120).describe("Human-readable artifact title."),
+  filename: z.string().min(1).max(160).regex(/\.md$/i).describe("Filename including the .md extension."),
+  brief: z.string().min(1).max(20_000),
+});
+
+const writeHtmlInputSchema = z.object({
+  title: z.string().min(1).max(120).describe("Human-readable artifact title."),
+  filename: z.string().min(1).max(160).regex(/\.html$/i).describe("Filename including the .html extension."),
+  plan: htmlArtifactPlanInputSchema.describe("Complete execution plan. Preserve user facts, ordering, visual constraints, and acceptance criteria in this structure."),
+});
+
 const compactValidationFindingSchema = z.object({
   code: z.string(),
   block_id: z.string().optional(),
@@ -328,36 +358,36 @@ async function listArtifactBlocks(
 export function createArtifactToolManifests(textProvider: ChatProvider) {
   return [
     defineAgentTool(
-      "write_file",
+      "write_markdown",
       tool({
-      description:
-        "Generate and persist a new Markdown or HTML artifact from a content and visual brief.",
-      inputSchema: z.object({
-        title: z.string().min(1).max(120).describe("Human-readable artifact title."),
-        filename: z.string().min(1).max(160).describe("Filename including .html or .md extension."),
-        kind: z.enum(["html", "markdown"]).describe("Output file format."),
-        mode: z
-          .enum(["document", "presentation", "dashboard"])
-          .default("document")
-          .describe("Artifact form inferred from the user's requested deliverable. It does not decide page count, theme, or layout."),
-        brief: z
-          .string()
-          .min(1)
-          .max(20_000)
-          .describe(
-            "Lossless generation request for the executor planner. Preserve explicit facts, numbers, ordered sections, source data, visual requirements, and prohibitions. Do not invent page assignments, module merges or splits, layouts, narrative, chart placement, or theme decisions; preserve those details only when the user supplied them.",
-          ),
-        page_count: z
-          .number()
-          .int()
-          .min(1)
-          .max(100)
-          .optional()
-          .describe("Exact page count only when explicitly required by the user. Omit for defaults, estimates, ranges, or inferred counts."),
+        description: "Generate and persist a new Markdown artifact from a complete content brief.",
+        inputSchema: writeMarkdownInputSchema,
+        outputSchema: artifactToolOutputSchema,
+        contextSchema: artifactToolContextSchema,
+        execute: (input, options) => writeMarkdownTool(input, options, textProvider),
       }),
-      outputSchema: artifactToolOutputSchema,
-      contextSchema: artifactToolContextSchema,
-      execute: (input, options) => writeFileTool(input, options, textProvider),
+      {
+        capability: "artifacts",
+        effect: "add",
+        trust: "closed",
+        execution: "inline",
+        modes: ["normal"],
+        uiKind: "artifact",
+      },
+      {
+        summary: "Generate and persist a Markdown artifact.",
+        parallelizable: true,
+      },
+    ),
+    defineAgentTool(
+      "write_html",
+      tool({
+        description:
+          "Generate and persist a new HTML artifact from a complete execution plan containing every block, narrative, theme, content owner, and acceptance criterion. Executor only renders this frozen plan.",
+        inputSchema: writeHtmlInputSchema,
+        outputSchema: artifactToolOutputSchema,
+        contextSchema: artifactToolContextSchema,
+        execute: (input, options) => writeHtmlTool(input, options, textProvider),
       }),
       {
         capability: "artifacts",
@@ -368,8 +398,8 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
         uiKind: "artifact",
       },
       {
-        summary: "Generate and persist a Markdown or HTML artifact.",
-        constraints: ["HTML charts use the platform-provided ECharts runtime."],
+        summary: "Generate and persist an HTML artifact from a complete ordered execution plan.",
+        constraints: ["Plan every HTML block before execution.", "HTML charts use the platform-provided ECharts runtime."],
         parallelizable: true,
       },
     ),
@@ -471,56 +501,59 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
   ];
 }
 
-export async function* writeFileTool(
-  input: {
-    title: string;
-    filename: string;
-    kind: "html" | "markdown";
-    mode: "document" | "presentation" | "dashboard";
-    brief: string;
-    page_count?: number;
-  },
+export async function* writeMarkdownTool(
+  input: z.infer<typeof writeMarkdownInputSchema>,
   { context, toolCallId, abortSignal }: { context: ArtifactToolContext; toolCallId: string; abortSignal?: AbortSignal },
   textProvider: ChatProvider,
 ): AsyncGenerator<z.infer<typeof artifactToolOutputSchema> | ToolEmission> {
   const filename = safeFilename(input.filename);
   try {
-    if (input.kind === "markdown") {
-      const tools = buildArtifactTextModel(textProvider);
-      const signal = combinedSignal(abortSignal);
-      const result = streamText({
-        model: tools.model,
-        maxOutputTokens: tools.maxOutputTokens,
-        instructions: artifactSystemPrompt("markdown"),
-        prompt: input.brief,
-        timeout: ARTIFACT_GENERATION_TIMEOUT,
-        abortSignal: signal,
-      });
-      const content = normalizeArtifactContent("markdown", await collectText(result));
-      const validation = validateArtifactContent("markdown", content);
-      if (!validation.ok) {
-        throw new Error(validation.error);
-      }
-      const document = await createArtifact({
-        userId: context.userId,
-        orgId: context.orgId,
-        conversationId: context.conversationId,
-        title: input.title,
-        filename,
-        content,
-        mimeType: "text/markdown",
-        idempotencyKey: toolCallId,
-      });
-      yield toolCompleted({
-        document_id: document.id,
-        title: document.title,
-        filename: document.filename,
-        kind: "markdown" as const,
-        total_chars: content.length,
-      });
-      return;
+    const tools = buildArtifactTextModel(textProvider);
+    const signal = combinedSignal(abortSignal);
+    const result = streamText({
+      model: tools.model,
+      maxOutputTokens: tools.maxOutputTokens,
+      instructions: artifactSystemPrompt("markdown"),
+      prompt: input.brief,
+      timeout: ARTIFACT_GENERATION_TIMEOUT,
+      abortSignal: signal,
+    });
+    const content = normalizeArtifactContent("markdown", await collectText(result));
+    const validation = validateArtifactContent("markdown", content);
+    if (!validation.ok) {
+      throw new Error(validation.error);
     }
+    const document = await createArtifact({
+      userId: context.userId,
+      orgId: context.orgId,
+      conversationId: context.conversationId,
+      title: input.title,
+      filename,
+      content,
+      mimeType: "text/markdown",
+      idempotencyKey: toolCallId,
+    });
+    yield toolCompleted({
+      document_id: document.id,
+      title: document.title,
+      filename: document.filename,
+      kind: "markdown" as const,
+      total_chars: content.length,
+    });
+  } catch (error) {
+    if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
+    logger.error({ toolCallId, err: error }, "write_markdown failed");
+    throw error;
+  }
+}
 
+export async function* writeHtmlTool(
+  input: z.infer<typeof writeHtmlInputSchema>,
+  { context, toolCallId, abortSignal }: { context: ArtifactToolContext; toolCallId: string; abortSignal?: AbortSignal },
+  textProvider: ChatProvider,
+): AsyncGenerator<z.infer<typeof artifactToolOutputSchema> | ToolEmission> {
+  const filename = safeFilename(input.filename);
+  try {
     const task = await startExecutorTask(
       {
         type: "html-artifact",
@@ -532,9 +565,23 @@ export async function* writeFileTool(
           providerId: textProvider.id,
           title: input.title,
           filename,
-          mode: input.mode,
-          brief: input.brief,
-          pageCount: input.page_count,
+          plan: {
+            mode: input.plan.mode,
+            sourceBrief: input.plan.source_brief,
+            theme: {
+              visualDirection: input.plan.theme.visual_direction,
+              accent: input.plan.theme.accent,
+              appearance: input.plan.theme.appearance,
+            },
+            narrative: input.plan.narrative,
+            blocks: input.plan.blocks.map((block) => ({
+              title: block.title,
+              brief: block.brief,
+              layout: block.layout,
+              contentScope: block.content_scope,
+              acceptanceCriteria: block.acceptance_criteria,
+            })),
+          },
           idempotencyKey: toolCallId,
         },
       },
@@ -543,7 +590,7 @@ export async function* writeFileTool(
     yield* streamHtmlArtifactTask(task, { title: input.title, filename }, abortSignal);
   } catch (error) {
     if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
-    logger.error({ toolCallId, err: error }, "write_file failed");
+    logger.error({ toolCallId, err: error }, "write_html failed");
     throw error;
   }
 }
@@ -621,7 +668,6 @@ export async function* editFileTool(
           providerId: textProvider.id,
           title,
           filename,
-          mode: "document",
           brief: input.brief,
           documentId: current.id,
           blockIds: targetedIds.length ? targetedIds : undefined,

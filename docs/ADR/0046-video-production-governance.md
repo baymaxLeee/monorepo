@@ -36,6 +36,14 @@ AI SDK tool approval and the repository's `ask_user` client tool pause a ToolLoo
 - Storyboard revisions are persisted by a Workflow step after the durable Hook event is received; the HTTP decision handler never mutates the production projection before delivery.
 - Take previews remain conversation-scoped staged media and are discarded after completion, rejection, failure, or cancellation; only the approved assembled output is promoted to a Knowledge document.
 
+## Update — planning ownership
+
+ADR-0049 moves initial creative planning to Chat's native function call. The
+initial projection still persists `creative_brief`, `script`, `shot_plan` and
+`asset_manifest`, but they are now deterministic materializations of the Chat
+plan rather than Executor-side LLM outputs. The governance and approval model is
+otherwise unchanged.
+
 ## Related decisions
 
 - [ADR-0018](./0018-short-drama-video-workflow.md)

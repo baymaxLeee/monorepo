@@ -23,12 +23,30 @@ import {
   buildArtifactTextModel,
   generateBlock,
   isRetryableProviderError,
-  planArtifact,
   type ArtifactBlock,
   type ArtifactMode,
   type ArtifactTheme,
 } from "../src/application/artifacts/generator.js";
 import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
+
+export const htmlArtifactPlanSchema = z.object({
+  mode: z.enum(["document", "presentation", "dashboard"]),
+  sourceBrief: z.string().min(1).max(20_000),
+  theme: z.object({
+    visualDirection: z.string().min(1).max(1_200),
+    accent: z.string().regex(/^#[0-9a-f]{6}$/i),
+    appearance: z.enum(["light", "dark"]),
+  }),
+  narrative: z.string().min(1).max(1_500),
+  blocks: z.array(z.object({
+    title: z.string().min(1).max(160),
+    brief: z.string().min(1).max(4_000),
+    layout: z.string().min(1).max(400),
+    contentScope: z.array(z.string().min(1).max(240)).min(1).max(12),
+    acceptanceCriteria: z.array(z.string().min(1).max(320)).min(1).max(12),
+  })).min(1).max(100),
+});
+export type HtmlArtifactPlanInput = z.infer<typeof htmlArtifactPlanSchema>;
 
 export const htmlArtifactInputSchema = z.object({
   orgId: z.string().min(1),
@@ -37,14 +55,21 @@ export const htmlArtifactInputSchema = z.object({
   providerId: z.string().min(1),
   title: z.string().min(1).max(120),
   filename: z.string().min(1).max(160),
-  mode: z.enum(["document", "presentation", "dashboard"]).default("document"),
-  brief: z.string().min(1).max(20_000),
-  pageCount: z.number().int().min(1).max(100).optional(),
+  plan: htmlArtifactPlanSchema.optional(),
+  brief: z.string().min(1).max(12_000).optional(),
   documentId: z.string().max(32).optional(),
   blockIds: z.array(z.string()).max(100).optional(),
   blockBriefs: z.record(z.string(), z.string().min(1).max(8_000)).optional(),
   expectedObjectSha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
   idempotencyKey: z.string().min(1).max(120).optional(),
+}).superRefine((input, ctx) => {
+  if (input.documentId) {
+    if (!input.brief) ctx.addIssue({ code: "custom", path: ["brief"], message: "brief is required for revisions" });
+    if (input.plan) ctx.addIssue({ code: "custom", path: ["plan"], message: "plan is only valid for new artifacts" });
+    return;
+  }
+  if (!input.plan) ctx.addIssue({ code: "custom", path: ["plan"], message: "plan is required for new HTML artifacts" });
+  if (input.brief) ctx.addIssue({ code: "custom", path: ["brief"], message: "brief is represented by plan.sourceBrief for new artifacts" });
 });
 export type HtmlArtifactInput = z.infer<typeof htmlArtifactInputSchema>;
 
@@ -67,6 +92,20 @@ const LEGACY_ARTIFACT_NARRATIVE =
   "Maintain a coherent progression through the existing document while preserving each block's established intent.";
 const LEGACY_BLOCK_LAYOUT = "Preserve the current block composition unless the current change request requires another layout.";
 
+function materializeChatPlan(plan: HtmlArtifactPlanInput): ArtifactPlan {
+  return {
+    mode: plan.mode,
+    theme: plan.theme,
+    narrative: plan.narrative,
+    reviewBrief: plan.sourceBrief,
+    blocks: plan.blocks.map((block, index) => ({
+      id: `page-${index + 1}`,
+      type: plan.mode === "presentation" ? "slide" : "section",
+      ...block,
+    })),
+  };
+}
+
 function parseStoredBlock(content: string): { html: string | null; error?: string; failed: boolean } {
   try {
     const parsed = JSON.parse(content) as { html?: unknown; error?: unknown };
@@ -80,34 +119,11 @@ function parseStoredBlock(content: string): { html: string | null; error?: strin
 
 async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
   "use step";
-  const tools = await buildArtifactTextModel(input.providerId, input.orgId);
+  if (!input.documentId) return materializeChatPlan(input.plan!);
   const { workflowRunId } = getWorkflowMetadata();
   const cancellation = observeTaskCancellation(workflowRunId);
-  const signal = AbortSignal.any([
-    cancellation.signal,
-    AbortSignal.timeout(5 * 60_000),
-  ]);
 
   try {
-    if (!input.documentId) {
-      const outline = await planArtifact({
-        title: input.title,
-        mode: input.mode,
-        brief: input.brief,
-        pageCount: input.pageCount,
-        model: tools.model,
-        maxOutputTokens: tools.maxOutputTokens,
-        abortSignal: signal,
-      });
-      return {
-        mode: input.mode,
-        theme: outline.theme,
-        narrative: outline.narrative,
-        blocks: outline.blocks,
-        reviewBrief: input.brief,
-      };
-    }
-
     const workspace = await getLatestArtifactWorkspace(input.userId, input.documentId);
     const manifest = workspace.manifest as Record<string, unknown>;
     const manifestBlocks = Array.isArray(manifest.blocks) ? (manifest.blocks as ArtifactBlock[]) : [];
@@ -162,7 +178,7 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
         return {
           id: block.id,
           action: "regenerate",
-          changeBrief: briefById[block.id] ?? input.brief,
+          changeBrief: briefById[block.id] ?? input.brief!,
         };
       }
       if (sourceHtmlById[block.id]) {
@@ -170,7 +186,7 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
           id: block.id,
           action: "revise",
           sourceId: block.id,
-          changeBrief: briefById[block.id] ?? input.brief,
+          changeBrief: briefById[block.id] ?? input.brief!,
         };
       }
       return { id: block.id, action: "generate", changeBrief: briefById[block.id] };
@@ -200,7 +216,7 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
       blocks,
       reviewBrief: [
         typeof manifest.artifactBrief === "string" ? manifest.artifactBrief : "",
-        `Current revision request: ${input.brief}`,
+        `Current revision request: ${input.brief!}`,
       ].filter(Boolean).join("\n"),
       blockStrategies,
       sourceHtmlById,
@@ -222,7 +238,7 @@ async function reserveStep(input: HtmlArtifactInput, plan: ArtifactPlan, idempot
     title: input.title,
     filename: input.filename,
     mode: plan.mode,
-    brief: input.brief,
+    brief: input.plan?.sourceBrief ?? input.brief!,
     idempotencyKey,
   });
   await saveArtifactPlan({
@@ -491,7 +507,7 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
         theme: plan.theme,
         outline: plan.blocks,
         narrative: plan.narrative,
-        artifactBrief: input.brief,
+        artifactBrief: plan.reviewBrief,
         strategy,
         sourceHtml: plan.sourceHtmlById?.[block.id],
         sourceContent: plan.sourceContentById?.[block.id],

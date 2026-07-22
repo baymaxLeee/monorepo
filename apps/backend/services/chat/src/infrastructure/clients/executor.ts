@@ -2,6 +2,7 @@ import {
   ExecutorInternalClient,
   TransportError,
   type ProductionDecision,
+  type CreateTaskInput,
   type Task,
   type VideoProductionDetail,
   type VideoProductionProjection,
@@ -24,17 +25,15 @@ function executorClient(): ExecutorInternalClient {
   });
 }
 
-export async function startTask(input: {
-  type: string;
-  ownerRef: string;
-  payload: unknown;
-}): Promise<Task> {
-  return executorClient().startTask({
-    type: input.type,
-    owner_service: "chat",
-    owner_ref: input.ownerRef,
-    payload: input.payload,
-  });
+type StartTaskInput =
+  | { type: "html-artifact"; ownerRef: string; payload: Extract<CreateTaskInput, { type: "html-artifact" }>["payload"] }
+  | { type: "video-generation"; ownerRef: string; payload: Extract<CreateTaskInput, { type: "video-generation" }>["payload"] };
+
+export async function startTask(input: StartTaskInput): Promise<Task> {
+  if (input.type === "html-artifact") {
+    return executorClient().startTask({ type: input.type, owner_service: "chat", owner_ref: input.ownerRef, payload: input.payload });
+  }
+  return executorClient().startTask({ type: input.type, owner_service: "chat", owner_ref: input.ownerRef, payload: input.payload });
 }
 
 const CHAT_TASK_OWNER = { owner_service: "chat" } as const;

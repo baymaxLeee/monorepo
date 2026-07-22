@@ -87,7 +87,7 @@ export function parseArtifactTaskOutput(
 
 /**
  * Renders the live HTML-artifact task card directly from the streaming
- * `tool-write_file` output (preliminary → terminal). Progress rides the main
+ * `tool-write_html` output (preliminary → terminal). Progress rides the main
  * useChat stream (ADR-0035); there is no separate task SSE subscription.
  */
 export function ArtifactTaskCard({

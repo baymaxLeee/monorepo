@@ -185,7 +185,7 @@ function applyEvent(
   const output = recordValue(event.outcome.data);
   if (!output) return state;
 
-  if (event.toolName === "write_file" || event.toolName === "edit_file") {
+  if (event.toolName === "write_html" || event.toolName === "edit_file") {
     const expectedDocumentId = documentIdFromInput(event.input, "document_id");
     const expectedItem = expectedDocumentId
       ? state.items.find((item) => item.documentId === expectedDocumentId)

@@ -207,52 +207,6 @@ function materializeOutline(input: {
   };
 }
 
-export async function planArtifact(input: {
-  title: string;
-  mode: ArtifactMode;
-  brief: string;
-  pageCount?: number;
-  model: Awaited<ReturnType<typeof buildArtifactTextModel>>["model"];
-  maxOutputTokens: number;
-  abortSignal: AbortSignal;
-}): Promise<{ theme: ArtifactTheme; narrative: string; blocks: ArtifactBlock[] }> {
-  const fallbackCount = input.pageCount ?? fallbackPageCount(input.mode);
-  const fallback = deterministicOutline({ title: input.title, mode: input.mode, brief: input.brief, count: fallbackCount });
-  try {
-    let outline = await generateOutline({
-      model: input.model,
-      instructions: outlineInstructions({ mode: input.mode, requestedPageCount: input.pageCount }),
-      prompt: [
-        `<title>${input.title}</title>`,
-        ...(input.pageCount ? [`<required_page_count>${input.pageCount}</required_page_count>`] : []),
-        `<artifact_brief>${input.brief}</artifact_brief>`,
-      ].join("\n"),
-      maxOutputTokens: input.maxOutputTokens,
-      abortSignal: input.abortSignal,
-    });
-    if (input.pageCount && outline.pages.length !== input.pageCount) {
-      outline = await generateOutline({
-        model: input.model,
-        instructions: repairInstructions({ mode: input.mode, count: input.pageCount }),
-        prompt: [
-          `<required_page_count>${input.pageCount}</required_page_count>`,
-          `<existing_outline>${JSON.stringify(outline)}</existing_outline>`,
-        ].join("\n"),
-        maxOutputTokens: input.maxOutputTokens,
-        abortSignal: input.abortSignal,
-      });
-      if (outline.pages.length !== input.pageCount) {
-        throw new Error(`artifact outline returned ${outline.pages.length} pages after repair; expected ${input.pageCount}`);
-      }
-    }
-    return materializeOutline({ outline, mode: input.mode, fallback });
-  } catch (error) {
-    if (input.abortSignal.aborted) throw error;
-    console.error("[executor] artifact outline planning failed, using deterministic outline", error);
-    return fallback;
-  }
-}
-
 function blockInstructions(input: {
   block: ArtifactBlock;
   mode: ArtifactMode;

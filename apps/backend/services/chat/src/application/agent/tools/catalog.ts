@@ -39,7 +39,6 @@ function builtinManifests(mode: AgentMode, providers: AgentToolProviders): Agent
     ...createMediaToolManifests({
       imageProvider: providers.imageProvider,
       videoProviderId: providers.videoProviderId,
-      textProviderId: providers.textProvider.id,
     }),
     ...createMemoryToolManifests(),
   ];

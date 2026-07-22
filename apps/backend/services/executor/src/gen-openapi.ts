@@ -52,20 +52,57 @@ const taskSchema = {
   ],
 };
 
-const createTaskInputSchema = {
+const htmlArtifactPlanSchema = {
   type: "object",
   properties: {
-    type: { type: "string", description: "registered TaskType name, e.g. html-artifact" },
+    mode: { type: "string", enum: ["document", "presentation", "dashboard"] },
+    sourceBrief: { type: "string" },
+    theme: { type: "object", properties: { visualDirection: { type: "string" }, accent: { type: "string" }, appearance: { type: "string", enum: ["light", "dark"] } }, required: ["visualDirection", "accent", "appearance"] },
+    narrative: { type: "string" },
+    blocks: { type: "array", items: { type: "object", properties: { title: { type: "string" }, brief: { type: "string" }, layout: { type: "string" }, contentScope: { type: "array", items: { type: "string" } }, acceptanceCriteria: { type: "array", items: { type: "string" } } }, required: ["title", "brief", "layout", "contentScope", "acceptanceCriteria"] } },
+  },
+  required: ["mode", "sourceBrief", "theme", "narrative", "blocks"],
+};
+
+const htmlArtifactTaskPayloadSchema = {
+  type: "object",
+  properties: {
+    orgId: { type: "string" }, userId: { type: "string" }, conversationId: { type: "string" }, providerId: { type: "string" }, title: { type: "string" }, filename: { type: "string" }, plan: htmlArtifactPlanSchema,
+    documentId: { type: "string" }, brief: { type: "string" }, blockIds: { type: "array", items: { type: "string" } }, blockBriefs: { type: "object", additionalProperties: { type: "string" } }, expectedObjectSha256: { type: "string" }, idempotencyKey: { type: "string" },
+  },
+  required: ["orgId", "userId", "providerId", "title", "filename"],
+};
+
+const videoGenerationTaskPayloadSchema = {
+  type: "object",
+  properties: {
+    orgId: { type: "string" }, userId: { type: "string" }, conversationId: { type: "string" }, providerId: { type: "string" }, imageProviderId: { type: "string" }, title: { type: "string" }, filename: { type: "string" }, creativeBrief: { type: "string" }, idempotencyKey: { type: "string" },
+    plan: { type: "object", properties: {
+      targetDurationSec: { type: "integer", minimum: 5, maximum: 120 }, logline: { type: "string" }, motif: { type: "string" }, styleBible: { type: "string" }, settingBible: { type: "string" },
+      characters: { type: "array", items: { type: "object", properties: { name: { type: "string" }, appearance: { type: "string" }, documentId: { type: "string" } }, required: ["name", "appearance"] } },
+      shots: { type: "array", items: { type: "object", properties: { purpose: { type: "string" }, plot: { type: "string" }, emotion: { type: "string" }, characterNames: { type: "array", items: { type: "string" } }, seconds: { type: "integer", minimum: 4, maximum: 15 }, action: { type: "string" }, camera: { type: "object", properties: { shotSize: { type: "string" }, movement: { type: "string" }, focus: { type: "string" } }, required: ["shotSize", "movement"] }, environment: { type: "string" }, lightingPalette: { type: "string" }, audioDirection: { type: "string" }, continuityContract: { type: "array", items: { type: "string" } }, acceptanceCriteria: { type: "array", items: { type: "string" } } }, required: ["purpose", "plot", "emotion", "characterNames", "seconds", "action", "camera", "environment", "lightingPalette", "audioDirection", "continuityContract", "acceptanceCriteria"] } },
+    }, required: ["targetDurationSec", "logline", "motif", "styleBible", "settingBible", "characters", "shots"] },
+  },
+  required: ["orgId", "userId", "providerId", "title", "filename", "creativeBrief", "plan"],
+};
+
+const taskEnvelope = (type: string, payload: object) => ({
+  type: "object",
+  properties: {
+    type: { const: type },
     owner_service: { type: "string", description: "calling service, e.g. chat" },
-    owner_ref: {
-      type: "string",
-      description: "idempotency key scoped to owner_service, e.g. a tool call id",
-    },
-    payload: {
-      description: "TaskType-specific input, validated against that type's schema",
-    },
+    owner_ref: { type: "string", description: "idempotency key scoped to owner_service" },
+    payload,
   },
   required: ["type", "owner_service", "owner_ref", "payload"],
+});
+
+const createTaskInputSchema = {
+  oneOf: [
+    taskEnvelope("html-artifact", ref("HtmlArtifactTaskPayload")),
+    taskEnvelope("video-generation", ref("VideoGenerationTaskPayload")),
+  ],
+  discriminator: { propertyName: "type" },
 };
 
 const referenceAssetSchema = {
@@ -365,6 +402,8 @@ const openapi = {
     schemas: {
       Task: taskSchema,
       CreateTaskInput: createTaskInputSchema,
+      HtmlArtifactTaskPayload: htmlArtifactTaskPayloadSchema,
+      VideoGenerationTaskPayload: videoGenerationTaskPayloadSchema,
       ReferenceAsset: referenceAssetSchema,
       ShotSpec: shotSpecSchema,
       ShotPlan: shotPlanSchema,

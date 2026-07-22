@@ -57,14 +57,21 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        /** @description registered TaskType name, e.g. html-artifact */
-                        type: string;
+                        /** @constant */
+                        type: "html-artifact";
                         /** @description calling service, e.g. chat */
                         owner_service: string;
-                        /** @description idempotency key scoped to owner_service, e.g. a tool call id */
+                        /** @description idempotency key scoped to owner_service */
                         owner_ref: string;
-                        /** @description TaskType-specific input, validated against that type's schema */
-                        payload: unknown;
+                        payload: components["schemas"]["HtmlArtifactTaskPayload"];
+                    } | {
+                        /** @constant */
+                        type: "video-generation";
+                        /** @description calling service, e.g. chat */
+                        owner_service: string;
+                        /** @description idempotency key scoped to owner_service */
+                        owner_ref: string;
+                        payload: components["schemas"]["VideoGenerationTaskPayload"];
                     };
                 };
             };
@@ -419,14 +426,97 @@ export interface components {
             finishedAt: string | null;
         };
         CreateTaskInput: {
-            /** @description registered TaskType name, e.g. html-artifact */
-            type: string;
+            /** @constant */
+            type: "html-artifact";
             /** @description calling service, e.g. chat */
             owner_service: string;
-            /** @description idempotency key scoped to owner_service, e.g. a tool call id */
+            /** @description idempotency key scoped to owner_service */
             owner_ref: string;
-            /** @description TaskType-specific input, validated against that type's schema */
-            payload: unknown;
+            payload: components["schemas"]["HtmlArtifactTaskPayload"];
+        } | {
+            /** @constant */
+            type: "video-generation";
+            /** @description calling service, e.g. chat */
+            owner_service: string;
+            /** @description idempotency key scoped to owner_service */
+            owner_ref: string;
+            payload: components["schemas"]["VideoGenerationTaskPayload"];
+        };
+        HtmlArtifactTaskPayload: {
+            orgId: string;
+            userId: string;
+            conversationId?: string;
+            providerId: string;
+            title: string;
+            filename: string;
+            plan?: {
+                /** @enum {string} */
+                mode: "document" | "presentation" | "dashboard";
+                sourceBrief: string;
+                theme: {
+                    visualDirection: string;
+                    accent: string;
+                    /** @enum {string} */
+                    appearance: "light" | "dark";
+                };
+                narrative: string;
+                blocks: {
+                    title: string;
+                    brief: string;
+                    layout: string;
+                    contentScope: string[];
+                    acceptanceCriteria: string[];
+                }[];
+            };
+            documentId?: string;
+            brief?: string;
+            blockIds?: string[];
+            blockBriefs?: {
+                [key: string]: string;
+            };
+            expectedObjectSha256?: string;
+            idempotencyKey?: string;
+        };
+        VideoGenerationTaskPayload: {
+            orgId: string;
+            userId: string;
+            conversationId?: string;
+            providerId: string;
+            imageProviderId?: string;
+            title: string;
+            filename: string;
+            creativeBrief: string;
+            idempotencyKey?: string;
+            plan: {
+                targetDurationSec: number;
+                logline: string;
+                motif: string;
+                styleBible: string;
+                settingBible: string;
+                characters: {
+                    name: string;
+                    appearance: string;
+                    documentId?: string;
+                }[];
+                shots: {
+                    purpose: string;
+                    plot: string;
+                    emotion: string;
+                    characterNames: string[];
+                    seconds: number;
+                    action: string;
+                    camera: {
+                        shotSize: string;
+                        movement: string;
+                        focus?: string;
+                    };
+                    environment: string;
+                    lightingPalette: string;
+                    audioDirection: string;
+                    continuityContract: string[];
+                    acceptanceCriteria: string[];
+                }[];
+            };
         };
         ReferenceAsset: {
             id: string;

@@ -1,8 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { desc, eq } from "drizzle-orm";
 
-import type { Script } from "../video/script.js";
-import type { Segment, CharacterRef } from "../video/storyboard.js";
+import type { Script } from "../video/contracts.js";
 import { ConflictError, NotFoundError } from "../errors.js";
 import {
   shotPlanSchema,
@@ -22,69 +21,6 @@ import { SEEDANCE_PROMPT_COMPILER_VERSION, sha256Json } from "./compiler.js";
 
 function newId(): string {
   return randomBytes(16).toString("hex");
-}
-
-function toShotPlan(
-  segments: Segment[],
-  script: Script,
-  characterRefs: CharacterRef[],
-  sourceCharacterRefs: Array<{ name: string; documentId?: string }>,
-): ShotPlan {
-  const references = [
-    ...characterRefs.map((reference) => ({
-      id: reference.id,
-      mediaType: "image" as const,
-      purpose: `identity anchor for ${reference.name}`,
-      url: reference.url,
-      licenseStatus: "user_attested" as const,
-      consentStatus: "user_attested" as const,
-    })),
-    ...sourceCharacterRefs.flatMap((reference) =>
-      reference.documentId
-        ? [
-            {
-              id: `source-${reference.documentId}`,
-              mediaType: "image" as const,
-              purpose: `user-provided identity source for ${reference.name}`,
-              documentId: reference.documentId,
-              licenseStatus: "user_attested" as const,
-              consentStatus: "user_attested" as const,
-            },
-          ]
-        : [],
-    ),
-  ];
-  return shotPlanSchema.parse({
-    version: 1,
-    shots: segments.map((segment) => ({
-      id: segment.id,
-      order: segment.order,
-      seconds: segment.seconds,
-      narrativeBeat: segment.purpose,
-      subjectAnchors: segment.characters.map((name) => {
-        const character = script.characters.find(
-          (candidate) => candidate.name === name,
-        );
-        return character ? `${character.name}: ${character.appearance}` : name;
-      }),
-      action: segment.action,
-      camera: { shotSize: segment.shotSize, movement: segment.camera },
-      environment: script.settingBible,
-      lightingPalette: `${script.styleBible}; ${segment.mood}`.slice(0, 300),
-      audioDirection: [segment.dialogue, segment.narration]
-        .filter(Boolean)
-        .join("; "),
-      references,
-      continuityContract: script.characters.map(
-        (character) => `${character.name} remains ${character.appearance}`,
-      ),
-      acceptanceCriteria: [
-        `Complete the action: ${segment.action}`,
-        `Use ${segment.shotSize} with ${segment.camera}`,
-        "No repeated action or plot regression",
-      ],
-    })),
-  });
 }
 
 export async function nextSequence(
@@ -133,11 +69,9 @@ export async function initializeVideoProduction(input: {
   userId: string;
   conversationId?: string;
   title: string;
-  prompt: string;
-  textProviderId: string;
+  creativeBrief: string;
   script: Script;
-  segments: Segment[];
-  characterRefs: CharacterRef[];
+  shotPlan: ShotPlan;
   sourceCharacterRefs?: Array<{ name: string; documentId?: string }>;
 }): Promise<VideoProductionProjection> {
   const db = getDb();
@@ -155,12 +89,7 @@ export async function initializeVideoProduction(input: {
     .where(eq(videoProductions.taskId, task.id));
   if (existing) return existing.projection;
 
-  const shotPlan = toShotPlan(
-    input.segments,
-    input.script,
-    input.characterRefs,
-    input.sourceCharacterRefs ?? [],
-  );
+  const shotPlan = shotPlanSchema.parse(input.shotPlan);
   const now = new Date();
   const projection: VideoProductionProjection = {
     id: task.id,
@@ -208,20 +137,17 @@ export async function initializeVideoProduction(input: {
     await addArtifact(tx, {
       productionId: task.id,
       artifactType: "creative_brief",
-      payload: { prompt: input.prompt, title: input.title },
-      providerId: input.textProviderId,
+      payload: { creativeBrief: input.creativeBrief, title: input.title },
     });
     await addArtifact(tx, {
       productionId: task.id,
       artifactType: "script",
       payload: input.script,
-      providerId: input.textProviderId,
     });
     await addArtifact(tx, {
       productionId: task.id,
       artifactType: "shot_plan",
       payload: shotPlan,
-      providerId: input.textProviderId,
     });
     await addArtifact(tx, {
       productionId: task.id,

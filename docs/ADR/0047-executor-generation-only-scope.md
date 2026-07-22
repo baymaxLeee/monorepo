@@ -43,6 +43,11 @@ primary agent owns the interaction loop while bounded durable production work is
 delegated to the executor. No additional agents, personas, schedulers, or custom
 workflow primitives are introduced.
 
+ADR-0049 makes this boundary explicit for generation planning: HTML and video
+plans originate in Chat's ToolLoopAgent and Executor only materializes and
+executes them. Generation steps remain permitted when their specification is
+already frozen.
+
 ## References
 
 - Installed `workflow@4.5.0`:

@@ -457,3 +457,14 @@ direct mode, an omitted per-segment and total duration defaults each scene to 12
 seconds; explicit per-segment duration remains authoritative, and an explicit
 total duration is distributed across unspecified scenes. Normal execution
 preserves generation shots as one-to-one `segments[]` entries.
+
+## Update (2026-07-22): Chat-owned complete plan
+
+ADR-0049 supersedes the auto and scripted dual-mode planner paths above. The
+Chat `ToolLoopAgent` now sends one complete typed plan containing creative
+anchors, named character appearances and ordered shots. Each shot already has
+its duration, action, camera, environment, continuity contract and acceptance
+criteria. Executor validates and materializes those artifacts, then retains only
+generation, approval, cost, QA and assembly steps. It no longer calls a text or
+vision model to write a script, derive a storyboard, describe reference images,
+repair an outline, or create a fallback dramatic arc.

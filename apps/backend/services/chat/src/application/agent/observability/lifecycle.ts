@@ -81,7 +81,7 @@ export async function finishModelStep(input: { runId: string; stepNumber: number
 }
 
 function sanitizeToolInput(toolName: string, input: unknown): unknown {
-  if ((toolName !== "write_file" && toolName !== "edit_file") || typeof input !== "object" || input == null || !("brief" in input)) return input;
+  if ((toolName !== "write_markdown" && toolName !== "edit_file") || typeof input !== "object" || input == null || !("brief" in input)) return input;
   const brief = (input as { brief?: unknown }).brief;
   if (typeof brief !== "string" || brief.length <= 400) return input;
   return { ...(input as Record<string, unknown>), brief: `${brief.slice(0, 400).trimEnd()}\n...[truncated ${brief.length} chars]` };

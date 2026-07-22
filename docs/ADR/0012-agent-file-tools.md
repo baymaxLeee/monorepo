@@ -2,7 +2,7 @@
 
 ## Status
 
-Superseded in part by ADR 0023, ADR 0047, and ADR 0048. The artifact generation
+Superseded in part by ADR 0023, ADR 0047, ADR 0048, and ADR 0049. The artifact generation
 pipeline remains accepted. ADR 0048 restores validation as Chat-local
 `validate_html`; the Executor endpoint and `html_validate` name remain removed.
 
@@ -10,8 +10,9 @@ pipeline remains accepted. ADR 0048 restores validation as Chat-local
 
 - The ToolLoopAgent exposes a compact, flat public tool set grouped internally
   by capability. See ADR 0023 for the complete current list.
-- `write_file` is the only HTML creation entry point. Its execute function
-  plans a typed outline, generates semantic blocks with bounded concurrency,
+- `write_html` is the only HTML creation entry point; Markdown creation uses
+  the separate `write_markdown` tool. `write_html` receives the complete typed
+  plan from Chat, generates semantic blocks with bounded concurrency,
   compiles one document, and publishes after all blocks are generated. Progress
   reaching 100% means block generation finished; compile and publish follow.
   The workflow never validates or asks the block model to retry findings;
@@ -90,7 +91,7 @@ pipeline remains accepted. ADR 0048 restores validation as Chat-local
   Knowledge revision hash before orchestrating repair.
   These diagnostics are retained in native tool parts and traces and rendered
   as an ordinary visible tool part. The hash-bound report is
-  returned only by `validate_html`; `write_file`/`edit_file` carry no advisory
+  returned only by `validate_html`; `write_html`/`edit_file` carry no advisory
   report. `validate_html` reads the current bytes from Knowledge and reruns the
   same canonical validator after any edit. HTML does not enter chat history.
 - Validation and repair use ordinary native tool calls in the primary
@@ -143,7 +144,7 @@ repair orchestration.
 
 ## Consequences
 
-- One `write_file` call can generate up to 100 blocks without consuming one
+- One `write_html` call can generate up to 100 blocks without consuming one
   ToolLoop step per block. Four block model calls run concurrently and all
   inherit the parent AbortSignal.
 - A failed block, invalid chart, broken navigation target, or responsive finding

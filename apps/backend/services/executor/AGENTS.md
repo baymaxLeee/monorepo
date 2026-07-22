@@ -55,11 +55,11 @@ for the full rationale.
   `src/application/tasks/service.ts` — those stay type-agnostic.
 - Only `html-artifact` and `video-generation` are registered. Executor does not
   host smoke workflows or synchronous HTML validation/review endpoints.
-- `video-generation` is a durable **script -> storyboard -> per-segment
+- `video-generation` is a durable **Chat-owned plan -> per-shot
   create/poll -> ffmpeg-assemble** workflow for vertical short-drama (see
-  ADR-0018): `planStep` runs Stage A `planScript` (`src/application/video/script.ts`, text
-  provider) then Stage B `planSegments` (`src/application/video/storyboard.ts`) plus a
-  best-effort `generateCharacterSheet` (optional image provider) ->
+  ADR-0018 and ADR-0049). Chat passes a complete typed creative plan; Executor
+  deterministically materializes its Script/ShotPlan artifacts and may only run
+  the best-effort `generateCharacterSheet` generation step (optional image provider) ->
   `createSegmentStep`/`waitSegmentStep` (Ark create + poll) ->
   `assembleStep` (`src/application/video/assembler.ts`). Clip URLs are the durable step state
   (bytes never cross a step boundary). It needs the **ffmpeg** OS binary (see
@@ -71,24 +71,22 @@ for the full rationale.
     several angles in one generation is what produced **块内剧情重复** (the same
     moment re-shot). Cut density comes from MORE short segments hard-cut at
     assembly (Seedance renders a single take per generation; true cuts = concat).
-  - **Length is deterministic: segment count = 秒数 / 12** (`deriveSegmentCount` in
-    `src/application/video/limits.ts`), each segment ~12s (sweet spot; `ark.ts` clamps to
-    the real integer 4–15 range). The pipeline always sends an explicit integer
-    `duration` in EVERY mode including reference mode (the official 2.x API
-    accepts it — there is no "strip duration in reference mode" case).
-  - **Anti-repetition is the script's job, in two layers**: `planScript` writes
-    exactly N DISTINCT beats; `dedupeBeats` drops near-duplicates and, if the
-    model still collapsed the sheet, swaps in a deterministic DISTINCT dramatic
-    arc built from the same characters. Within-segment repetition is structurally
-    impossible (one action per segment).
+  - **Length is Chat-owned**: shot count and each shot's `seconds` (integer 4–15,
+    summing to `targetDurationSec`) come from the typed Chat plan; Executor does not
+    derive a count from duration. `ark.ts` still clamps to the real integer 4–15
+    range (`clampArkDuration` in `src/application/video/limits.ts`), and the pipeline
+    always sends an explicit integer `duration` in EVERY mode including reference
+    mode (the official 2.x API accepts it — there is no "strip duration in reference
+    mode" case).
+  - **Anti-repetition is a Chat plan invariant**: every submitted shot is one
+    distinct beat and one continuous action. Executor validates the typed plan
+    and does not reinterpret, repair, or invent a dramatic arc.
   - **Reliability**: Ark create is a paid side effect without a provider
     idempotency key, so `createSegmentStep.maxRetries = 0`; 4xx, 429, 5xx, and
     network errors become that segment's structured failure instead of silently
     creating another task. The pre-assembly completion gate requires every user-supplied
-    `segments[]` entry. Auto-planned reels may degrade only to a contiguous
-    successful prefix starting at the hook: multi-segment reels require ≥60%
-    (≥2 segments), while a single-segment one-shot passes when that clip succeeds.
-    Later successes after a failed segment are not assembled across the plot hole.
+    every submitted shot. Failed shots never cause Executor to invent a
+    replacement or assemble across a plot hole.
   - **Assembly is hard-cut ONLY, always parallel.** Every segment references the
     character sheet and fans out via `mapConcurrent` with
     `VIDEO_SEGMENT_CONCURRENCY` (default 12, matching the max segment count), then

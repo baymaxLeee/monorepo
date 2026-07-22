@@ -2,6 +2,8 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { htmlArtifactInputSchema } from "../../../../workflows/html-artifact.js";
+import { videoGenerationInputSchema } from "../../../../workflows/video-generation.js";
 import { RequestError } from "../../../application/errors.js";
 import { requireCallerService } from "../middleware/auth.js";
 import { cancelTask, createTask, getTask, type TaskOwner } from "../../../application/tasks/service.js";
@@ -19,12 +21,15 @@ function parseOwner(c: { req: { query: (key: string) => string | undefined } }):
   return { service, ref };
 }
 
-const createTaskSchema = z.object({
-  type: z.string().min(1).max(64),
+const createTaskEnvelope = {
   owner_service: z.string().min(1).max(40),
   owner_ref: z.string().min(1).max(80),
-  payload: z.unknown(),
-});
+};
+
+const createTaskSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("html-artifact"), payload: htmlArtifactInputSchema, ...createTaskEnvelope }),
+  z.object({ type: z.literal("video-generation"), payload: videoGenerationInputSchema, ...createTaskEnvelope }),
+]);
 
 tasksRoutes.post("/", zValidator("json", createTaskSchema), async (c) => {
   const caller = requireCallerService(c);
