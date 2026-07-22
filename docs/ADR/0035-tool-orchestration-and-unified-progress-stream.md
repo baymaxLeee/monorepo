@@ -1,4 +1,4 @@
-# ADR 0035: Tool orchestration (thin harness: step boundary + prompt) and unified progress stream
+# ADR 0035: Centralized tool-batch policy, post-batch fold, and unified progress stream
 
 ## Status
 
@@ -30,7 +30,7 @@ Three requirements drove this change:
    from its L1 listing. Downstream calls therefore cannot be chosen until the
    `load_skill` result has been observed.
 
-Verified constraints (against `ai@7.0.15`):
+Verified constraints (against installed `ai@7.0.26`):
 
 - A step executes every tool call via `Promise.all(...map(executeToolCall))`
   after `model-call-end`. `prepareStep`/`activeTools`/`toolChoice` are
@@ -49,10 +49,10 @@ Verified constraints (against `ai@7.0.15`):
 
 ## Decision
 
-### 1. Orchestration: thin harness — step boundary + prompt, no runtime gate
+### 1. Orchestration: centralized batch policy and pure post-batch fold
 
-- **Plan mode enforces one selective dependency edge.** Parallel tool calls stay
-  enabled. A model middleware makes `ask_user` and
+- **One model middleware owns current-batch compatibility in every mode.**
+  Parallel tool calls stay enabled. The middleware makes `ask_user` and
   `write_plan`/`update_plan` mutually exclusive using the first group emitted by
   the provider for that step; conflicting later calls are dropped while every
   other call remains in the stream and runs with native same-step concurrency.
@@ -60,7 +60,10 @@ Verified constraints (against `ai@7.0.15`):
   visible as a live official `tool-*` part while the model writes them. The
   prompt and deterministic tool order put clarification first when it is
   needed; the browser then supplies the answer in a continuation run, and only
-  that later run persists the plan.
+  that later run persists the plan. The same middleware treats `load_skill` as
+  a barrier: when it appears first, only that one call remains; when an ordinary
+  tool appears first, later `load_skill` calls are dropped and may be retried in
+  the next step.
 - **Execution intent is terminal in plan mode.** If the user asks to execute,
   start, or resume a plan while the current run is still in plan mode, the
   runtime contract requires a direct instruction to switch to Agent mode. The
@@ -86,7 +89,9 @@ Verified constraints (against `ai@7.0.15`):
   result exists, even if the UI happens to render the completed load first.
   A successful load removes `load_skill` from subsequent steps in that
   ToolLoopAgent execution; the tool also rejects parallel duplicate calls in the
-  same step. A client tool such as `ask_user` resumes through another HTTP
+  same step. `prepareStep.activeTools` removes `load_skill` after a successful
+  terminal result; the middleware and `prepareStep` have separate ownership and
+  do not duplicate history reduction. A client tool such as `ask_user` resumes through another HTTP
   execution but extends the same assistant message and therefore the same
   logical turn. The server restores that message's successful `load_skill`
   output as `activated_skill`, keeps `load_skill` disabled, and leaves
@@ -97,14 +102,17 @@ Verified constraints (against `ai@7.0.15`):
   real user message starts a new logical turn and must load a matching Skill
   again before reading its files. This scopes continuation state to one
   assistant message rather than creating a conversation-wide Skill session.
-- **No run-scoped scheduler or concurrency lock.** On this SDK there is no
-  public hook to see a step's full tool-call batch before execution, so a hard
-  execution-time priority gate is impossible; an earlier writer-priority gate
-  was removed because it (a) could not provide that guarantee, (b) triggered
-  essentially never once the prompt makes `update_todos` a barrier step, and
-  (c) fought the thin-harness principle. The plan-mode middleware instead edits
-  the model output before it reaches SDK execution and encodes only the required
-  `ask_user` → plan-write dependency. Normal-mode todo ordering remains
+- **`prepareStep` is the local `PostToolBatch` / `prepareNextTurn` adapter.**
+  `deriveOrchestrationState(seed, steps)` normalizes terminal `tool-result` and
+  `tool-error` parts in step/call order, ignores preliminary results, de-duplicates
+  `toolCallId`, and replays the full immutable history on every invocation. It
+  derives execution-Plan read coverage, Skill load success, and ephemeral HTML
+  verification without callback mutation, watermarks, locks, or persisted state.
+  A fixed resolver projects the snapshot to `model`, `activeTools`, `toolChoice`,
+  `instructions`, and the next immutable `runtimeContext`.
+- **No run-scoped general scheduler or concurrency lock.** The batch middleware
+  edits incompatible model output before SDK execution, while the history fold
+  enforces only bounded correctness gates. Normal-mode todo ordering remains
   prompt-enforced and rare co-emission with a deliverable remains an accepted
   cosmetic glitch.
 - Deliverables in one step run concurrently via the SDK's per-step

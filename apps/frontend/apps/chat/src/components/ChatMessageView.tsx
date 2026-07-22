@@ -20,7 +20,7 @@ import { useCallback, useMemo } from "react";
 import { cn, isPublicHttpUrl } from "shared";
 import { parseAskUserInput } from "../lib/ask-user";
 import { documentIdFromFilePart } from "../lib/file-parts";
-import { parseToolOutcome } from "../lib/tool-outcome";
+import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
 import { useChatStore } from "../store/useChatStore";
 import { AskUserAnsweredCard } from "./AskUserAnsweredCard";
 import { AskUserToolCard } from "./AskUserToolCard";
@@ -38,6 +38,7 @@ import {
   isTodoListSettled,
   parseTodoListOutput,
 } from "./ChatTodoListCard";
+import { ChatValidationCard } from "./ChatValidationCard";
 import { ChatVideoCard } from "./ChatVideoCard";
 
 export interface ChatMessageViewProps {
@@ -77,6 +78,10 @@ export function ChatMessageView({
     isMessageStreaming: streaming,
   });
   const allVisibleParts = withoutReasoningParts(message.parts);
+  const validationNoProgressCallIds = useMemo(
+    () => findValidationNoProgressCalls(message.parts),
+    [message.parts],
+  );
   const isUser = message.role === "user";
   const variant = isUser ? "user" : "assistant";
 
@@ -139,6 +144,7 @@ export function ChatMessageView({
               onExecutePlan={onExecutePlan}
               planExecutedIds={planExecutedIds}
               planBusy={planBusy}
+              validationNoProgressCallIds={validationNoProgressCallIds}
             />
           ))}
         </div>
@@ -172,6 +178,7 @@ function MessagePartView({
   onExecutePlan,
   planExecutedIds,
   planBusy,
+  validationNoProgressCallIds,
 }: {
   part: UIMessage["parts"][number];
   partIndex: number;
@@ -192,6 +199,7 @@ function MessagePartView({
   onExecutePlan: (documentId: string) => void;
   planExecutedIds: ReadonlySet<string>;
   planBusy: boolean;
+  validationNoProgressCallIds: ReadonlySet<string>;
 }) {
   if (part.type === "text") {
     if (variant === "user") {
@@ -270,6 +278,7 @@ function MessagePartView({
         onExecutePlan={onExecutePlan}
         planExecutedIds={planExecutedIds}
         planBusy={planBusy}
+        validationNoProgress={validationNoProgressCallIds.has(part.toolCallId)}
       />
     );
   }
@@ -289,6 +298,7 @@ function ToolPartView({
   onExecutePlan,
   planExecutedIds,
   planBusy,
+  validationNoProgress,
 }: {
   part: Extract<UIMessage["parts"][number], { toolCallId: string }>;
   conversationId: string;
@@ -305,6 +315,7 @@ function ToolPartView({
   onExecutePlan: (documentId: string) => void;
   planExecutedIds: ReadonlySet<string>;
   planBusy: boolean;
+  validationNoProgress: boolean;
 }) {
   const toolName = getToolName(part);
   const kind = toolUiKind(part);
@@ -389,6 +400,17 @@ function ToolPartView({
         state={part.state}
         errorText={errorText}
         onOpen={onOpenArtifact}
+      />
+    );
+  }
+
+  if (kind === "validation") {
+    return (
+      <ChatValidationCard
+        output={output}
+        state={part.state}
+        errorText={errorText}
+        noProgress={validationNoProgress}
       />
     );
   }
@@ -519,4 +541,38 @@ function compactRawInput(rawInput: unknown) {
     /"content"\s*:\s*"[\s\S]*/m,
     `"content":"[redacted malformed artifact content: ${contentMatch[1].length} chars]"`,
   );
+}
+
+function findValidationNoProgressCalls(
+  parts: UIMessage["parts"],
+): ReadonlySet<string> {
+  const seenByFile = new Map<string, Set<string>>();
+  const repeated = new Set<string>();
+  for (const part of parts) {
+    if (!isToolUIPart(part) || toolUiKind(part) !== "validation") continue;
+    const outcome = "output" in part ? parseToolOutcome(part.output) : null;
+    if (!outcome || outcome.ok === false || outcome.status !== "completed")
+      continue;
+    const payload = toolOutcomePayload(outcome);
+    if (!payload || typeof payload !== "object" || Array.isArray(payload))
+      continue;
+    const value = payload as Record<string, unknown>;
+    if (typeof value.file_id !== "string" || !Array.isArray(value.errors))
+      continue;
+    const keys = value.errors.flatMap((raw) => {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+      const finding = raw as Record<string, unknown>;
+      return typeof finding.block_id === "string" &&
+        typeof finding.code === "string"
+        ? [`${finding.block_id}\u0000${finding.code}`]
+        : [];
+    });
+    if (keys.length === 0) continue;
+    const fingerprint = [...new Set(keys)].sort().join("\u0001");
+    const seen = seenByFile.get(value.file_id) ?? new Set<string>();
+    if (seen.has(fingerprint)) repeated.add(part.toolCallId);
+    seen.add(fingerprint);
+    seenByFile.set(value.file_id, seen);
+  }
+  return repeated;
 }

@@ -206,54 +206,67 @@ async function* streamHtmlArtifactTask(
   throw new Error("生成失败");
 }
 
-async function validateHtml(
+async function* validateHtml(
   input: { file_id: string },
   { context, abortSignal }: { context: ArtifactToolContext; abortSignal?: AbortSignal },
   textProvider: ChatProvider,
-): Promise<z.infer<typeof htmlValidateOutputSchema> | ToolEmission> {
+): AsyncGenerator<z.infer<typeof htmlValidateOutputSchema> | ToolEmission> {
   const document = await getDocument(context.userId, input.file_id);
   if (document.conversation_id !== context.conversationId) {
-    return toolBlocked({
+    yield toolBlocked({
       code: "FILE_NOT_ATTACHED",
       message: `file ${input.file_id} is not attached to this conversation`,
       retryable: false,
       source: "knowledge",
       details: { file_id: input.file_id },
     });
+    return;
   }
   if (document.mime_type !== "text/html") {
-    return toolBlocked({
+    yield toolBlocked({
       code: "NOT_HTML",
       message: "validate_html only supports HTML files",
       retryable: false,
       source: "chat",
       details: { file_id: input.file_id, mime_type: document.mime_type },
     });
+    return;
   }
   if (document.kind !== "artifact") {
-    return toolBlocked({
+    yield toolBlocked({
       code: "ARTIFACT_NOT_EDITABLE",
       message: `file ${input.file_id} is not a generated artifact`,
       retryable: false,
       source: "chat",
       details: { file_id: input.file_id },
     });
+    return;
   }
-  const decision = await validateStoredArtifact({
+  for await (const stage of validateStoredArtifact({
     userId: context.userId,
     documentId: input.file_id,
     provider: textProvider,
     abortSignal,
-  });
-  if (document.object_sha256 && decision.content_sha256 !== document.object_sha256) {
-    throw new Error("validate_html result does not match the current artifact revision");
+  })) {
+    if (stage.phase === "deterministic_validation") {
+      yield toolRunning({ phase: stage.phase, file_id: input.file_id });
+      continue;
+    }
+    if (stage.phase === "content_review") {
+      yield toolRunning({ phase: stage.phase, file_id: input.file_id });
+      continue;
+    }
+    const { decision } = stage;
+    if (document.object_sha256 && decision.content_sha256 !== document.object_sha256) {
+      throw new Error("validate_html result does not match the current artifact revision");
+    }
+    yield toolCompleted({
+      valid: decision.ok,
+      file_id: input.file_id,
+      errors: decision.errors,
+      advisories: decision.advisories,
+    });
   }
-  return toolCompleted({
-    valid: decision.ok,
-    file_id: input.file_id,
-    errors: decision.errors,
-    advisories: decision.advisories,
-  });
 }
 
 async function listArtifactBlocks(
@@ -428,6 +441,7 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
         trust: "private-untrusted",
         execution: "inline",
         modes: ["normal"],
+        uiKind: "validation",
         visibility: "visible",
       },
       { summary: "Validate HTML with deterministic hard errors and non-blocking review advisories." },

@@ -54,18 +54,28 @@ function createHtmlValidationDecision(report: HtmlValidationReport): HtmlValidat
   };
 }
 
-export async function validateStoredArtifact(input: {
+export type HtmlValidationStage =
+  | { phase: "deterministic_validation" }
+  | { phase: "content_review" }
+  | { phase: "completed"; decision: HtmlValidationDecision };
+
+export async function* validateStoredArtifact(input: {
   userId: string;
   documentId: string;
   provider: ChatProvider;
   abortSignal?: AbortSignal;
-}): Promise<HtmlValidationDecision> {
+}): AsyncGenerator<HtmlValidationStage> {
+  yield { phase: "deterministic_validation" };
   const source = await getDocumentSource(input.userId, input.documentId);
   if (source.mimeType !== "text/html") {
     throw new RequestError("html validation only supports text/html documents");
   }
   const staticReport = validateArtifactHtml(new TextDecoder().decode(source.bytes));
-  if (!staticReport.ok) return createHtmlValidationDecision(staticReport);
+  if (!staticReport.ok) {
+    yield { phase: "completed", decision: createHtmlValidationDecision(staticReport) };
+    return;
+  }
+  yield { phase: "content_review" };
   try {
     const reviewedReport = await reviewArtifactHtml({
       userId: input.userId,
@@ -74,10 +84,10 @@ export async function validateStoredArtifact(input: {
       staticReport,
       abortSignal: input.abortSignal,
     });
-    return createHtmlValidationDecision(reviewedReport);
+    yield { phase: "completed", decision: createHtmlValidationDecision(reviewedReport) };
   } catch (error) {
     if (input.abortSignal?.aborted) throw error;
     logger.warn({ error, documentId: input.documentId }, "non-blocking HTML content review unavailable");
-    return createHtmlValidationDecision(staticReport);
+    yield { phase: "completed", decision: createHtmlValidationDecision(staticReport) };
   }
 }

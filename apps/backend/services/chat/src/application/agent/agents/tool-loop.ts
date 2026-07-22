@@ -1,8 +1,5 @@
-import { randomBytes } from "node:crypto";
-
-import { NoSuchToolError, ToolLoopAgent, wrapLanguageModel } from "ai";
+import { isStepCount, ToolLoopAgent, wrapLanguageModel } from "ai";
 import type { ToolSet } from "ai";
-import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import { finishSpan, runWithActiveSpan, startSpan } from "@backend/kernel-ts";
 
@@ -21,13 +18,13 @@ import { ToolCatalog } from "../tools/catalog.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
 import { isToolOutcome } from "../tools/outcome.js";
 import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
-import { reduceArtifactVerificationSteps } from "./artifact-verification-adapter.js";
+import { exactToolDirectiveModel } from "./exact-tool-directive-model.js";
 import {
-  artifactVerificationDirective,
-  createArtifactVerificationState,
-  type ArtifactVerificationDirective,
-} from "../../../domain/agent/artifact-verification.js";
-import { planToolOrderingMiddleware } from "./plan-tool-ordering.js";
+  deriveOrchestrationState,
+  resolveOrchestrationDirective,
+  type OrchestrationSeed,
+} from "./orchestration.js";
+import { toolBatchPolicyMiddleware } from "./tool-batch-policy.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {
   return operation.catch((error) => {
@@ -38,44 +35,6 @@ function observe(label: string, operation: Promise<void>): Promise<void> {
 type ExecutableTool = ToolSet[string] & {
   execute: (...args: unknown[]) => unknown;
 };
-
-function createForcedToolCallModel(
-  baseModel: LanguageModelV4,
-  directive: Extract<
-    ArtifactVerificationDirective,
-    { toolName: "validate_html" | "edit_file" }
-  >,
-): LanguageModelV4 {
-  return {
-    specificationVersion: "v4",
-    provider: baseModel.provider,
-    modelId: baseModel.modelId,
-    supportedUrls: baseModel.supportedUrls,
-    doGenerate: (options) => baseModel.doGenerate(options),
-    doStream: async () => ({
-      stream: new ReadableStream({
-        start(controller) {
-          controller.enqueue({ type: "stream-start", warnings: [] });
-          controller.enqueue({
-            type: "tool-call",
-            toolCallId: `artifact-gate-${randomBytes(12).toString("hex")}`,
-            toolName: directive.toolName,
-            input: JSON.stringify(directive.toolInput),
-          });
-          controller.enqueue({
-            type: "finish",
-            finishReason: { unified: "tool-calls", raw: "tool_calls" },
-            usage: {
-              inputTokens: { total: 0, noCache: 0, cacheRead: 0, cacheWrite: 0 },
-              outputTokens: { total: 0, text: 0, reasoning: 0 },
-            },
-          });
-          controller.close();
-        },
-      }),
-    }),
-  };
-}
 
 function toolCallIdFromOptions(options: unknown): string | undefined {
   if (!options || typeof options !== "object") return undefined;
@@ -112,62 +71,6 @@ function withActiveToolSpans(
       ];
     }),
   ) as ToolSet;
-}
-
-type AgentStepContent = {
-  type: string;
-  toolName?: string;
-  input?: unknown;
-  output?: unknown;
-};
-
-function toolDocumentId(value: unknown): string | null {
-  if (!value || typeof value !== "object") return null;
-  const id = (value as Record<string, unknown>).file_id;
-  return typeof id === "string" && id ? id : null;
-}
-
-function executionPlanReadState(
-  steps: readonly { content: readonly AgentStepContent[] }[],
-  planDocumentId: string,
-): "pending" | "complete" | "failed" {
-  const slices: Array<{ offset: number; end: number; total: number }> = [];
-  for (const step of steps) {
-    for (const part of step.content) {
-      if (part.toolName !== "read_file") continue;
-      const inputId = toolDocumentId(part.input);
-      if (part.type === "tool-error" && inputId === planDocumentId) return "failed";
-      if (part.type !== "tool-result" || !isToolOutcome(part.output)) continue;
-      if (
-        inputId === planDocumentId &&
-        (part.output.status === "blocked" || part.output.status === "failed")
-      ) {
-        return "failed";
-      }
-      if (part.output.status !== "completed" || !part.output.data) continue;
-      const data = part.output.data as Record<string, unknown>;
-      if (data.file_id !== planDocumentId) continue;
-      const offset = data.offset;
-      const total = data.total_chars;
-      const content = data.content;
-      if (
-        typeof offset === "number" &&
-        typeof total === "number" &&
-        typeof content === "string"
-      ) {
-        slices.push({ offset, end: offset + content.length, total });
-      }
-    }
-  }
-  slices.sort((left, right) => left.offset - right.offset);
-  let coveredThrough = 0;
-  let totalChars = 0;
-  for (const slice of slices) {
-    totalChars = Math.max(totalChars, slice.total);
-    if (slice.offset > coveredThrough) break;
-    coveredThrough = Math.max(coveredThrough, slice.end);
-  }
-  return totalChars > 0 && coveredThrough >= totalChars ? "complete" : "pending";
 }
 
 export async function createToolLoopAgent(
@@ -219,13 +122,17 @@ export async function createToolLoopAgent(
   const toolSpans = new Map<string, ReturnType<typeof startSpan>>();
   const instrumentedTools = withActiveToolSpans(tools, toolSpans);
 
+  const orchestrationSeed: OrchestrationSeed = {
+    executionPlanDocumentId:
+      input.mode === "normal" ? (input.executionPlanDocumentId ?? null) : null,
+  };
   const runtimeContext: AgentRuntimeContext = {
     runId: input.runId,
     userId: input.userId,
     conversationId: input.conversationId,
     profileId: input.mode,
     runtimeKind: "tool-loop",
-    artifactVerification: createArtifactVerificationState(),
+    orchestration: deriveOrchestrationState(orchestrationSeed, []),
   };
   const instructions = assembleInstructions(
     input.instructionInput,
@@ -234,19 +141,11 @@ export async function createToolLoopAgent(
   const providerModel = createProviderModel(provider, {
     parallelToolCalls: true,
   });
-  const defaultModel =
-    input.mode === "plan"
-      ? wrapLanguageModel({
-          model: providerModel,
-          middleware: planToolOrderingMiddleware,
-        })
-      : providerModel;
+  const defaultModel = wrapLanguageModel({
+    model: providerModel,
+    middleware: toolBatchPolicyMiddleware,
+  });
   const toolApprovalSecret = getSettings().toolApprovalSecret;
-  let artifactGatePending = false;
-  let artifactGateDirective: Extract<
-    ArtifactVerificationDirective,
-    { toolName: "validate_html" | "edit_file" }
-  > | null = null;
   const loadSkillActiveTools = resolvedTools.activeTools.filter((name) => name !== "load_skill");
   const agent = new ToolLoopAgent<never, typeof tools, AgentRuntimeContext>({
     id: "chat-agent",
@@ -258,80 +157,42 @@ export async function createToolLoopAgent(
     activeTools: resolvedTools.activeTools,
     toolOrder: [...resolvedTools.activeTools].sort(),
     toolApproval: createToolApprovalPolicy(input.mode),
-    stopWhen: ({ steps }) => steps.length >= 20 && !artifactGatePending,
+    stopWhen: isStepCount(20),
     prepareCall: (settings) => Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
     prepareStep: ({ runtimeContext: stepContext, steps, initialInstructions }) => {
-      const skillLoadedThisRun = steps.some((step) =>
-        step.content.some((part) =>
-          part.type === "tool-result" && part.toolName === "load_skill",
-        ),
-      );
-      const activeTools = skillLoadedThisRun
+      const orchestration = deriveOrchestrationState(orchestrationSeed, steps);
+      const directive = resolveOrchestrationDirective(orchestration, steps.length);
+      const activeTools = orchestration.skillLoadedThisRun
         ? loadSkillActiveTools
         : resolvedTools.activeTools;
-      const artifactVerification = reduceArtifactVerificationSteps(
-        stepContext.artifactVerification,
-        steps,
-      );
-      const directive = artifactVerificationDirective(artifactVerification);
-      artifactGatePending = Boolean(
-        artifactVerification.current && artifactVerification.current.phase !== "failed",
-      );
-      artifactGateDirective = directive?.toolName ? directive : null;
-      const nextContext = { ...stepContext, artifactVerification };
-      if (input.mode === "normal" && input.executionPlanDocumentId) {
-        const state = executionPlanReadState(steps, input.executionPlanDocumentId);
-        if (state === "failed") {
-          return { runtimeContext: nextContext, activeTools: [] };
-        }
-        if (state !== "complete" && "read_file" in instrumentedTools) {
-          return {
-            runtimeContext: nextContext,
-            activeTools: ["read_file"],
-            toolChoice: { type: "tool", toolName: "read_file" },
-          };
-        }
-      }
-      if (!directive) {
-        return { runtimeContext: nextContext, activeTools, instructions: initialInstructions };
-      }
-      if (!directive.toolName) {
+      const nextContext = { ...stepContext, orchestration };
+      const baseInstructions = String(initialInstructions ?? instructions);
+      if (directive.kind === "final") {
         return {
           runtimeContext: nextContext,
           activeTools: [],
           toolChoice: "none",
-          instructions: `${String(initialInstructions ?? instructions)}\n<artifact_quality_gate>${directive.instruction}</artifact_quality_gate>`,
+          instructions: `${baseInstructions}\n<orchestration_directive>${directive.instruction}</orchestration_directive>`,
         };
       }
-      return {
-        runtimeContext: nextContext,
-        model: createForcedToolCallModel(defaultModel, directive),
-        activeTools: [directive.toolName],
-        toolChoice: { type: "tool", toolName: directive.toolName },
-        instructions: `${String(initialInstructions ?? instructions)}\n<artifact_quality_gate>${directive.instruction}</artifact_quality_gate>`,
-      };
-    },
-    repairToolCall: async ({ toolCall, tools: stepTools, error }) => {
-      if (
-        !NoSuchToolError.isInstance(error) ||
-        !artifactGateDirective ||
-        !(artifactGateDirective.toolName in stepTools)
-      ) {
-        return null;
+      if (directive.kind === "read-plan" && "read_file" in instrumentedTools) {
+        return {
+          runtimeContext: nextContext,
+          activeTools: ["read_file"],
+          toolChoice: { type: "tool", toolName: "read_file" },
+          instructions: `${baseInstructions}\n<orchestration_directive>${directive.instruction}</orchestration_directive>`,
+        };
       }
-      logger.warn(
-        {
-          attemptedTool: toolCall.toolName,
-          expectedTool: artifactGateDirective.toolName,
-          repairReason: error.name,
-        },
-        "repairing mandatory artifact quality-gate tool call",
-      );
-      return {
-        ...toolCall,
-        toolName: artifactGateDirective.toolName,
-        input: JSON.stringify(artifactGateDirective.toolInput),
-      };
+      if (directive.kind === "exact-tools") {
+        return {
+          runtimeContext: nextContext,
+          model: exactToolDirectiveModel(defaultModel, directive.directive),
+          activeTools: [directive.directive.toolName],
+          toolChoice: { type: "tool", toolName: directive.directive.toolName },
+          instructions: `${baseInstructions}\n<orchestration_directive>${directive.directive.instruction}</orchestration_directive>`,
+        };
+      }
+      return { runtimeContext: nextContext, activeTools, instructions: initialInstructions };
     },
     toolsContext: toolsContext as never,
     runtimeContext,
@@ -374,7 +235,7 @@ export async function createToolLoopAgent(
           "agent.model_step.duration_ms": performance.totalDurationMs,
         });
       }
-      const recorded = observe(
+      return observe(
         "finish model step",
         finishModelStep({
           runId: input.runId,
@@ -385,17 +246,6 @@ export async function createToolLoopAgent(
           performance: event.performance,
         }),
       );
-      const expectedGateTool = artifactGateDirective?.toolName;
-      if (
-        artifactGatePending &&
-        expectedGateTool &&
-        !event.toolCalls.some((toolCall) => toolCall.toolName === expectedGateTool)
-      ) {
-        return recorded.then(() => {
-          throw new Error("mandatory artifact quality-gate tool call was not produced");
-        });
-      }
-      return recorded;
     },
     onToolExecutionStart: (event) => {
       toolSpans.set(

@@ -2,7 +2,7 @@ import type { ModelMessage } from "ai";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
 import type { AgentSkillRef, ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
 import type { InstructionInput } from "../context/instructions/index.js";
-import type { ArtifactVerificationState } from "../../../domain/agent/artifact-verification.js";
+import type { OrchestrationState } from "./orchestration.js";
 
 export type AgentMode = "normal" | "plan";
 
@@ -13,7 +13,7 @@ export interface AgentRuntimeContext {
   conversationId: string;
   profileId: AgentMode;
   runtimeKind: "tool-loop";
-  artifactVerification: ArtifactVerificationState;
+  orchestration: OrchestrationState;
 }
 
 export interface ChatAgentInput {

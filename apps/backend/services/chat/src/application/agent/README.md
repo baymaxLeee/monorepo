@@ -33,7 +33,9 @@ agent/
 
 ## Context and tools
 
-- AI SDK `runtimeContext` 保存 run/profile 级状态；视为 immutable，只能在 `prepareStep` 更新。
+- AI SDK `runtimeContext.orchestration` 是唯一的 run 编排快照；视为 immutable，
+  `prepareStep` 作为项目内的 `PostToolBatch` / `prepareNextTurn` 适配层，每次从 run seed
+  和完整 terminal step history 纯函数重放后替换它。tool callbacks 只做 telemetry，不得改写编排状态。
 - 每个 tool 通过自己的 `contextSchema` 获得最小权限数据，不共享万能 ToolContext。
 - `tools/` 只放模型调用边界；artifact、memory、plan 的业务实现属于各自 subsystem。
 - `ToolCatalog` 是可实例化对象。默认 catalog 只作为应用 composition root，禁止模块级数组泄漏租户状态。

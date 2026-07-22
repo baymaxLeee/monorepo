@@ -42,13 +42,15 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 
 - Tool orchestration (ADR-0035): **thin harness — no general runtime
   scheduler or lock.** The SDK owns the tool loop and same-step concurrency;
-  `prepareStep` contains only bounded correctness gates: read an explicitly
-  selected Plan before execution, and complete the ephemeral HTML
-  validate/repair loop from this run's native tool results. A plan-mode model middleware makes only
+  `prepareStep` is the project's `PostToolBatch` / `prepareNextTurn` adapter and
+  contains only bounded correctness gates: read an explicitly selected Plan
+  before execution, and complete the ephemeral HTML validate/repair loop from
+  a pure full-history fold. A model middleware in every mode makes
   `ask_user` and `write_plan`/`update_plan` mutually exclusive: the first group
   emitted for the step remains and later conflicts are dropped, so selected
-  plan-tool input keeps streaming live instead of being buffered until the
-  model step ends. All other independent tool calls retain native concurrency.
+  plan-tool input keeps streaming live instead of being buffered until the model
+  step ends. It also makes `load_skill` a batch barrier. All other independent
+  tool calls retain native concurrency.
   User-requested HTML revisions are ordinary `edit_file` calls selected by the
   primary ToolLoopAgent; validation-directed repairs use the bounded quality gate.
   If a user asks to execute or resume work while the current run is still in
@@ -119,14 +121,17 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   for cold-start/debug. Knowledge/ObjectStore owns full content; chat history and
   traces never carry HTML fragments.
 - Every successful HTML `write_file` or `edit_file` creates a mandatory local
-  Chat quality gate. `prepareStep` scans the current ToolLoop run and exposes
-  only `validate_html` until that artifact revision has been checked. The tool
+  Chat quality gate. `prepareStep` replays terminal history from the immutable
+  run seed and injects exact, zero-token validate/repair batches until each
+  artifact revision has been checked. The tool
   reads the current revision from Knowledge and runs deterministic validation
   plus a non-blocking content-contract review inside Chat; Executor has no
   validation route, TaskType, or Workflow. No hard findings finishes the gate;
-  addressable hard findings produce the existing targeted `edit_file` directive,
-  and the new edit triggers `validate_html` again. Do not put this state in
-  `projectModelContext`.
+  deterministic addressable findings produce a targeted `edit_file` directive,
+  and the new edit triggers `validate_html` again. Advisories never block or
+  auto-repair. Repeated deterministic fingerprints stop as `no_progress`; the
+  20th step is reserved for a no-tool terminal explanation. Do not put this
+  state in `projectModelContext` or mutate it from callbacks.
 - Cancelling a chat run **does** cancel the in-flight executor task the current
   `write_file`/`edit_file` call is blocking on: Stop aborts the turn, the tool's
   `abortSignal` fires, and it calls `POST /tasks/:id/cancel` before unwinding —

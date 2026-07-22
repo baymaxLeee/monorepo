@@ -157,6 +157,12 @@ no `data-artifact-progress`.
     official tool parts; the frontend selects artifact/media/todo/approval UI by
     `uiKind`, not by hard-coded public tool names. This is metadata on the
     official tool part, not a custom `data-*` channel.
+  - `validate_html` uses `uiKind: "validation"` and an async-generator output.
+    Its `deterministic_validation` and `content_review` running snapshots are
+    preliminary results that replace the output on the same official
+    `tool-validate_html` part; the terminal `{ valid, file_id, errors,
+    advisories }` result completes that part. No validation `data-*` part or
+    secondary stream exists.
   - `update_todos` output items carry an optional `deliverable` tag
     (`"artifact" | "image" | "video"`). It is **not** a new part: it rides the
     existing `tool-update_todos` output. The frontend
