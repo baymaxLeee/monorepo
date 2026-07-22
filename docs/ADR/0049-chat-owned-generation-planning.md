@@ -40,12 +40,14 @@ not become a second agent loop.
   by trusted services, never supplied by the model.
 - Invalid plans are rejected before a task row or Workflow run exists, using the
   AI SDK's native tool-input contract rather than a bespoke error code. The tool
-  `inputSchema` (Zod `discriminatedUnion` + `superRefine`) expresses every static
-  constraint; a plan that violates it is bounced back to the same `ToolLoopAgent`
-  as a native invalid-input tool error (execute never runs), and the model issues
-  a corrected function call from the original context — consistent with this
-  repo's tool-outcome convention (ADR-0042, "invalid input retains native control
-  flow"). Runtime checks that a schema cannot express (attachment ownership,
+  `inputSchema` expresses semantic requirements and real operational boundaries,
+  not arbitrary presentation heuristics such as a maximum number of content-scope
+  or acceptance-criteria entries. A plan that violates the contract is bounced
+  back to the same `ToolLoopAgent` as a native invalid-input tool error (execute
+  never runs), and the model issues a corrected function call from the original
+  context — consistent with this repo's tool-outcome convention (ADR-0042,
+  "invalid input retains native control flow"). Runtime checks that a schema
+  cannot express (attachment ownership,
   reference-document MIME/conversation scope) run inside execute and surface as a
   `toolFailed` outcome. Executor re-validates the same discriminated schema at its
   HTTP boundary as a cross-service trust boundary and never performs semantic

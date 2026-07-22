@@ -72,8 +72,8 @@ const htmlArtifactPlanInputSchema = z.object({
     title: z.string().min(1).max(160),
     brief: z.string().min(1).max(4_000),
     layout: z.string().min(1).max(400),
-    content_scope: z.array(z.string().min(1).max(240)).min(1).max(12),
-    acceptance_criteria: z.array(z.string().min(1).max(320)).min(1).max(12),
+    content_scope: z.array(z.string().min(1).max(240)).min(1),
+    acceptance_criteria: z.array(z.string().min(1).max(320)).min(1),
   })).min(1).max(100),
 });
 

@@ -42,8 +42,8 @@ export const htmlArtifactPlanSchema = z.object({
     title: z.string().min(1).max(160),
     brief: z.string().min(1).max(4_000),
     layout: z.string().min(1).max(400),
-    contentScope: z.array(z.string().min(1).max(240)).min(1).max(12),
-    acceptanceCriteria: z.array(z.string().min(1).max(320)).min(1).max(12),
+    contentScope: z.array(z.string().min(1).max(240)).min(1),
+    acceptanceCriteria: z.array(z.string().min(1).max(320)).min(1),
   })).min(1).max(100),
 });
 export type HtmlArtifactPlanInput = z.infer<typeof htmlArtifactPlanSchema>;

@@ -402,7 +402,7 @@ const postConversationsConversationIdAgentsRunsRunIdCancel = (
     }
 
 /**
- * @summary Proxy to the executor service's task status (see write_file/edit_file tool output task_id).
+ * @summary Proxy to the executor service's task status (see write_html/edit_file tool output task_id).
  */
 const getConversationsConversationIdTasksTaskId = (
     conversationId: string,
