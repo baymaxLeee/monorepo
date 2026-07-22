@@ -1,15 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-import { buildArtifactTextModel, collectText, combinedSignal } from "../../artifacts/generator.js";
-import {
-  artifactSystemPrompt,
-  artifactRevisionPrompt,
-  normalizeArtifactContent,
-  safeFilename,
-  validateArtifactContent,
-} from "../../artifacts/template.js";
-import { ARTIFACT_GENERATION_TIMEOUT } from "../../artifacts/config.js";
 import { validateStoredArtifact } from "../../artifacts/html-validation.js";
 import {
   getDocument,
@@ -20,6 +11,8 @@ import {
 import { type Task } from "../../../../infrastructure/clients/executor.js";
 import { logger } from "../../../../infrastructure/observability/logger.js";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
+import { setActivePlanDocument } from "../../../conversations.js";
+import type { AgentMode } from "../../agents/types.js";
 import { artifactToolContextSchema, type ArtifactToolContext } from "../context.js";
 import {
   MAX_TASK_WAIT_MS,
@@ -27,13 +20,13 @@ import {
   startExecutorTask,
   TaskWaitTimeoutError,
 } from "../../tasks/executor-task.js";
-import { streamText } from "ai";
 import { defineAgentTool } from "../manifest.js";
 import {
   toolBlocked,
   toolCompleted,
   toolFailed,
   toolRunning,
+  ToolBlockedError,
   type ToolEmission,
 } from "../outcome.js";
 
@@ -41,7 +34,7 @@ const artifactPersistedOutputSchema = z.object({
   document_id: z.string(),
   title: z.string(),
   filename: z.string(),
-  kind: z.literal("markdown"),
+  kind: z.enum(["markdown", "plan"]),
   total_chars: z.number(),
 });
 
@@ -85,9 +78,10 @@ const htmlArtifactPlanInputSchema = z.object({
 });
 
 const writeMarkdownInputSchema = z.object({
+  file_id: z.string().min(1).max(32).optional().describe("Existing Markdown file to overwrite. Omit to create a new file."),
   title: z.string().min(1).max(120).describe("Human-readable artifact title."),
   filename: z.string().min(1).max(160).regex(/\.md$/i).describe("Filename including the .md extension."),
-  brief: z.string().min(1).max(20_000),
+  content: z.string().min(1).max(40_000).describe("Complete Markdown file content. This replaces the whole file; never pass a brief, diff, or patch."),
 });
 
 const writeHtmlInputSchema = z.object({
@@ -95,6 +89,76 @@ const writeHtmlInputSchema = z.object({
   filename: z.string().min(1).max(160).regex(/\.html$/i).describe("Filename including the .html extension."),
   plan: htmlArtifactPlanInputSchema.describe("Complete execution plan. Preserve user facts, ordering, visual constraints, and acceptance criteria in this structure."),
 });
+
+function safeFilename(filename: string): string {
+  return filename
+    .replace(/[\\/:"*?<>|]+/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160) || "file.md";
+}
+
+function planFilename(value: string): string {
+  const base = safeFilename(value)
+    .replace(/\.md$/i, "")
+    .replace(/-plan$/i, "")
+    .trim()
+    .slice(0, 150) || "task";
+  return `${base}-plan.md`;
+}
+
+function assertPlanContent(content: string): void {
+  const headings = ["# 目标", "## 背景与约束", "## 实施方案", "## 任务", "## 验收标准"];
+  let cursor = -1;
+  for (const heading of headings) {
+    const index = content.indexOf(heading, cursor + 1);
+    if (index < 0) {
+      throw new ToolBlockedError({
+        code: "INVALID_PLAN_DOCUMENT",
+        message: `plan Markdown is missing the required heading: ${heading}`,
+        retryable: true,
+        source: "chat",
+      });
+    }
+    cursor = index;
+  }
+  if (!/- \[ \] .+/.test(content)) {
+    throw new ToolBlockedError({
+      code: "INVALID_PLAN_DOCUMENT",
+      message: "plan Markdown must contain at least one unchecked task under ## 任务",
+      retryable: true,
+      source: "chat",
+    });
+  }
+}
+
+async function overwriteMarkdownFile(
+  fileId: string,
+  title: string,
+  filename: string,
+  content: string,
+  context: ArtifactToolContext,
+) {
+  const current = await getDocument(context.userId, fileId);
+  const isMarkdown = current.mime_type === "text/markdown" || current.filename.toLowerCase().endsWith(".md");
+  if (current.conversation_id !== context.conversationId || current.kind !== "artifact" || !isMarkdown) {
+    throw new ToolBlockedError({
+      code: "MARKDOWN_FILE_NOT_WRITABLE",
+      message: `file ${fileId} is not a writable Markdown file in this conversation`,
+      retryable: false,
+      source: "chat",
+      details: { file_id: fileId },
+    });
+  }
+  return updateArtifact({
+    userId: context.userId,
+    documentId: current.id,
+    title,
+    filename,
+    content,
+    mimeType: "text/markdown",
+  });
+}
 
 const compactValidationFindingSchema = z.object({
   code: z.string(),
@@ -355,27 +419,29 @@ async function listArtifactBlocks(
   return toolCompleted({ document_id: input.document_id, mode, blocks });
 }
 
-export function createArtifactToolManifests(textProvider: ChatProvider) {
+export function createFileWriteToolManifests(mode: AgentMode, textProvider: ChatProvider) {
   return [
     defineAgentTool(
       "write_markdown",
       tool({
-        description: "Generate and persist a new Markdown artifact from a complete content brief.",
+        description: mode === "plan"
+          ? "Write the complete active execution plan as Markdown. Provide file_id to overwrite an existing plan; omit it to create one. The filename is normalized to *-plan.md."
+          : "Write a complete Markdown file. Provide file_id to overwrite an existing Markdown file; omit it to create one. Every call persists the complete file content.",
         inputSchema: writeMarkdownInputSchema,
         outputSchema: artifactToolOutputSchema,
         contextSchema: artifactToolContextSchema,
-        execute: (input, options) => writeMarkdownTool(input, options, textProvider),
+        execute: (input, options) => writeMarkdownTool(input, options, mode),
       }),
       {
-        capability: "artifacts",
-        effect: "add",
+        capability: "files",
+        effect: "write",
         trust: "closed",
         execution: "inline",
-        modes: ["normal"],
+        modes: ["normal", "plan"],
         uiKind: "artifact",
       },
       {
-        summary: "Generate and persist a Markdown artifact.",
+        summary: "Write or fully overwrite a Markdown file.",
         parallelizable: true,
       },
     ),
@@ -390,7 +456,7 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
         execute: (input, options) => writeHtmlTool(input, options, textProvider),
       }),
       {
-        capability: "artifacts",
+        capability: "files",
         effect: "add",
         trust: "closed",
         execution: "durable",
@@ -407,7 +473,7 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
       "edit_file",
       tool({
       description:
-        "Revise an existing generated Markdown or HTML artifact from a change brief.",
+        "Revise selected blocks of an existing generated HTML file from a change brief. Markdown uses write_markdown for complete-file overwrite.",
       inputSchema: z.object({
         document_id: z.string().min(1).max(32),
         title: z.string().min(1).max(120).optional(),
@@ -440,7 +506,7 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
       execute: (input, options) => editFileTool(input, options, textProvider),
       }),
       {
-        capability: "artifacts",
+        capability: "files",
         effect: "update",
         trust: "closed",
         execution: "durable",
@@ -448,7 +514,7 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
         uiKind: "artifact",
       },
       {
-        summary: "Revise an existing Markdown or HTML artifact.",
+        summary: "Revise an existing HTML file block-by-block.",
         constraints: ["Edits to the same artifact must be serialized."],
         parallelizable: true,
       },
@@ -466,7 +532,7 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
         execute: (input, options) => validateHtml(input, options, textProvider),
       }),
       {
-        capability: "artifacts",
+        capability: "files",
         effect: "read",
         trust: "private-untrusted",
         execution: "inline",
@@ -489,7 +555,7 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
         execute: listArtifactBlocks,
       }),
       {
-        capability: "artifacts",
+        capability: "files",
         effect: "read",
         trust: "private-untrusted",
         execution: "inline",
@@ -504,41 +570,30 @@ export function createArtifactToolManifests(textProvider: ChatProvider) {
 export async function* writeMarkdownTool(
   input: z.infer<typeof writeMarkdownInputSchema>,
   { context, toolCallId, abortSignal }: { context: ArtifactToolContext; toolCallId: string; abortSignal?: AbortSignal },
-  textProvider: ChatProvider,
+  mode: AgentMode,
 ): AsyncGenerator<z.infer<typeof artifactToolOutputSchema> | ToolEmission> {
-  const filename = safeFilename(input.filename);
+  const filename = mode === "plan" ? planFilename(input.filename) : safeFilename(input.filename);
   try {
-    const tools = buildArtifactTextModel(textProvider);
-    const signal = combinedSignal(abortSignal);
-    const result = streamText({
-      model: tools.model,
-      maxOutputTokens: tools.maxOutputTokens,
-      instructions: artifactSystemPrompt("markdown"),
-      prompt: input.brief,
-      timeout: ARTIFACT_GENERATION_TIMEOUT,
-      abortSignal: signal,
-    });
-    const content = normalizeArtifactContent("markdown", await collectText(result));
-    const validation = validateArtifactContent("markdown", content);
-    if (!validation.ok) {
-      throw new Error(validation.error);
-    }
-    const document = await createArtifact({
-      userId: context.userId,
-      orgId: context.orgId,
-      conversationId: context.conversationId,
-      title: input.title,
-      filename,
-      content,
-      mimeType: "text/markdown",
-      idempotencyKey: toolCallId,
-    });
+    if (mode === "plan") assertPlanContent(input.content);
+    const document = input.file_id
+      ? await overwriteMarkdownFile(input.file_id, input.title, filename, input.content, context)
+      : await createArtifact({
+          userId: context.userId,
+          orgId: context.orgId,
+          conversationId: context.conversationId,
+          title: input.title,
+          filename,
+          content: input.content,
+          mimeType: "text/markdown",
+          idempotencyKey: toolCallId,
+        });
+    if (mode === "plan") await setActivePlanDocument(context.conversationId, document.id);
     yield toolCompleted({
       document_id: document.id,
       title: document.title,
       filename: document.filename,
-      kind: "markdown" as const,
-      total_chars: content.length,
+      kind: mode === "plan" ? ("plan" as const) : ("markdown" as const),
+      total_chars: input.content.length,
     });
   } catch (error) {
     if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
@@ -621,32 +676,12 @@ export async function* editFileTool(
     }
     const isHtml = current.mime_type === "text/html" || current.filename.toLowerCase().endsWith(".html");
     if (!isHtml) {
-      const tools = buildArtifactTextModel(textProvider);
-      const signal = combinedSignal(abortSignal);
-      const result = streamText({
-        model: tools.model,
-        maxOutputTokens: tools.maxOutputTokens,
-        instructions: artifactSystemPrompt("markdown"),
-        prompt: artifactRevisionPrompt("markdown", current.content_md ?? "", input.brief),
-        timeout: ARTIFACT_GENERATION_TIMEOUT,
-        abortSignal: signal,
-      });
-      const content = normalizeArtifactContent("markdown", await collectText(result));
-      const document = await updateArtifact({
-        userId: context.userId,
-        documentId: current.id,
-        title: input.title,
-        filename: input.filename ? safeFilename(input.filename) : undefined,
-        content,
-        mimeType: "text/markdown",
-        expectedUpdatedAt: current.updated_at,
-      });
-      yield toolCompleted({
-        document_id: document.id,
-        title: document.title,
-        filename: document.filename,
-        kind: "markdown" as const,
-        total_chars: content.length,
+      yield toolBlocked({
+        code: "HTML_EDIT_REQUIRED",
+        message: "edit_file only supports HTML; overwrite Markdown with write_markdown and the complete content",
+        retryable: false,
+        source: "chat",
+        details: { document_id: current.id },
       });
       return;
     }

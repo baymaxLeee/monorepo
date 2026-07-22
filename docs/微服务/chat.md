@@ -25,21 +25,22 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
 - `ask_user` 没有服务端 execute；一次调用以稳定语义 ID 批量携带当前所有独立问题，
   客户端一次性回填结构化 `answers` 后由 `addToolOutput` 发起下一次 run；依赖前序答案的
   问题才使用后续 continuation。Plan mode 保留 provider 并行 tool calls，但模型
-  middleware 会过滤与 `ask_user` 同 step 的 `write_plan`/`update_plan`，使计划只能在
+  middleware 会过滤与 `ask_user` 同 step 的 plan-mode `write_markdown`，使计划只能在
   用户回答后的 continuation 落库；搜索、读取等其他独立工具仍可同 step 并发。
 - assistant UIMessage 在 stream end（包括 abort 的部分输出）持久化；run trace 写入
   失败不能影响用户流。
 - 主动 Stop 会在落库前把所有未终态/preliminary tool part 收口为官方
   `output-error`，并把未完成 todo 改为 `cancelled`；取消接口等待本地 run finalizer，
   因而重新进入会话不会把已取消卡片恢复成 loading。
-- `write_plan` 创建 plan，`update_plan` 以 CAS tool output 保存后续完整 snapshot；
-  下一 run 注入最新 active plan，冲突不会中断 SSE。
+- `write_markdown` 负责创建或整文件覆盖 Markdown；Plan mode 自动规范
+  `*-plan.md` 并更新 active plan。Markdown 不再区分 create/update，也不接受 patch。
 
-## Artifact
+## Files
 
-- Markdown 与 HTML 统一由 `write_file` 创建、`edit_file` 更新。
-- **Markdown** 同步：一次 `streamText` 直接在这次 tool execute 内完成，无需持久化
-  执行状态。
+- `files` capability 统一 `list_files`、`read_file`、Markdown 全量写入以及 HTML
+  生成、块编辑、检查与校验；不再存在独立 artifact tool category。
+- **Markdown**：`write_markdown` 直接持久化主 Agent 提供的完整正文；省略
+  `file_id` 新建，提供 `file_id` 全量覆盖。没有二次 LLM、patch 或独立更新工具。
 - **HTML 委派给 `executor` 服务并前台等待**（ADR-0015）：tool execute 先流式返回
   `{ status, task_id }`，随后等待 terminal result，避免同一 artifact 出现竞争编辑。typed outline、4 路
   有界并发 block 生成、allowlist sanitize、compile、发布全部发生在 executor
@@ -67,7 +68,7 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   manifest v4 持久化 narrative/layout；旧 revision 编辑时补静态默认，但不新增规划
   LLM 调用。当前 change request 优先，既有 HTML 保持未改内容的事实来源，历史规划仅作
   提示；原有 BlockStrategy 与目标范围不变。
-- `write_file`/`edit_file` 的 HTML 终态是 compile/publish 结果。成功后 ToolLoop
+- `write_html`/`edit_file` 的 HTML 终态是 compile/publish 结果。成功后 ToolLoop
   的 `prepareStep` 只开放并强制 Chat 本地 `validate_html`；无硬错误即结束，有可定位
   硬错误则按 `edit_file` → `validate_html` 修复复验。
   Executor 不提供校验路由或校验 Workflow。
@@ -78,12 +79,12 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
 
 ## Tool contracts
 
-- `tools/builtins/` 按 search/files/planning/interaction/artifacts/media/memory
+- `tools/builtins/` 按 search/files/planning/interaction/media/memory
   分类，提供给模型的 ToolSet 仍为扁平结构。
 - `manifest.ts` 统一生成 mode availability、审批策略、Plan capability projection
   和前端 `toolMetadata.agent.uiKind`。
 - Plan mode 只加载研究、交互和计划工具，同时获得执行能力摘要，因此能规划
-  `write_file`、`generate_images`、`create_video_production`，但不能提前执行。
+  `write_html`、`generate_images`、`create_video_production`，但不能提前执行。
 - 用户从 Plan 卡片执行时，`data-plan-execution` 携带明确文档 ID；ToolLoop 只开放并
   强制调用现有 `read_file`，直到连续分片覆盖 Plan 最新全文，之后才开放
   `update_todos` 和生成工具。用户仅用自然语言要求执行 Plan 时，由模型先调用

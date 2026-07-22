@@ -55,9 +55,9 @@ inventing an orchestrator and without touching the executor contract.
    cuts the number of parallel calls the model must co-emit for a cross-type
    batch (e.g. HTML + video + 5 posters → 3 calls, not 7).
 
-3. **Plans encode concurrency; execution honors it.** The plan template
-   (`agent/plans/service.ts` `PLAN_CONTENT_DESCRIPTION` + plan-mode instructions)
-   requires `## 任务` to group mutually-independent deliverables under a
+3. **Plans encode concurrency; execution honors it.** The plan-mode runtime
+   instructions and `write_markdown` validation
+   require `## 任务` to group mutually-independent deliverables under a
    `### 并行产物（可同时生成）` subheading and to note real dependencies inline
    (e.g. `(依赖：上面的海报)`). The selected Plan's complete `read_file` result
    dispatches every deliverable in a parallel group in the **same step** (and

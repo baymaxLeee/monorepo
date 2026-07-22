@@ -3,7 +3,8 @@
 ## Status
 
 Accepted. Supersedes the public tool naming and catalog composition decisions in
-ADR 0012 while preserving its high-level artifact pipeline. Refines ADR 0017 and
+ADR 0012 while preserving its high-level artifact pipeline. Refined by ADR 0050,
+which unifies file/artifact tools and removes plan-specific Markdown writes. Refines ADR 0017 and
 ADR 0022 by removing todo identifiers from deliverable tool inputs. ADR 0048
 restores the validation capability under the Chat-local `validate_html` name.
 
@@ -49,7 +50,7 @@ surface small.
    remain automatic. Unknown MCP actions require user approval; destructive MCP
    actions cannot be auto-approved. Tool annotations from untrusted MCP servers
    are hints, not authorization.
-5. Public built-in names become:
+5. The historical public built-in names at this decision point were:
    - search: `web_search`, `knowledge_search`
    - files: `list_files`, `read_file`
    - planning: `write_plan`, `update_plan`, `update_todos`
@@ -62,6 +63,11 @@ surface small.
    format remains neutral because horizontal and long-form output are expected
    later. Current short-drama constraints remain in its schema and description.
    MCP names use `mcp__<server>__<tool>`.
+
+   ADR 0050 replaces the files/planning/artifacts split with one files
+   capability: `list_files`, `read_file`, `write_markdown`, `write_html`,
+   `edit_file`, `validate_html`, and `list_artifact_blocks`. Planning retains
+   only `update_todos`.
 6. Tool outputs use explicit schemas. Expected business blockers return typed
    results; execution and infrastructure failures throw so AI SDK emits native
    tool-error parts and observability records failures correctly.

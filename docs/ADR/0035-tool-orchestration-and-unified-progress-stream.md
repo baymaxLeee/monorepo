@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted. Refines ADR 0011 (ToolLoopAgent core), ADR 0022 (parallel deliverable
+Accepted. Refined by ADR 0050 for the unified plan-mode `write_markdown` tool.
+Refines ADR 0011 (ToolLoopAgent core), ADR 0022 (parallel deliverable
 execution), ADR 0024 (deliverable-tagged live todos). Supersedes the "task
 progress rides a separate task-scoped SSE stream" design of ADR 0015 (agent task
 executor) and the "deliberately separate granularities" note in
@@ -13,8 +14,8 @@ notification contract described in ADR 0015 / executor `AGENTS.md`.
 
 Three requirements drove this change:
 
-1. Plan mode may use research/context tools first, then must produce only
-   `write_plan`/`update_plan`; it must not call `update_todos` or deliverable
+1. Plan mode may use research/context tools first, then must produce only one
+   complete-plan `write_markdown`; it must not call `update_todos` or deliverable
    generation tools. In normal/agent execution mode, when the model uses a todo
    barrier, `update_todos` should not interleave with deliverable tool calls —
    that snapshot should settle before deliverables run. Todos are selective
@@ -53,7 +54,7 @@ Verified constraints (against installed `ai@7.0.26`):
 
 - **One model middleware owns current-batch compatibility in every mode.**
   Parallel tool calls stay enabled. The middleware makes `ask_user` and
-  `write_plan`/`update_plan` mutually exclusive using the first group emitted by
+  plan-mode `write_markdown` mutually exclusive using the first group emitted by
   the provider for that step; conflicting later calls are dropped while every
   other call remains in the stream and runs with native same-step concurrency.
   It does not buffer plan input parts: long Markdown arguments therefore remain
@@ -71,7 +72,7 @@ Verified constraints (against installed `ai@7.0.26`):
   tools remain excluded from the plan-mode ToolSet rather than returning as
   inert schema-heavy stubs.
 - **Ordering comes from the SDK step boundary + the prompt.** Plan mode only
-  writes the plan (`write_plan`/`update_plan`) after optional research/context
+  writes the complete plan (`write_markdown`) after optional research/context
   tools. After the user switches to normal/agent execution mode, when a todo
   barrier is useful, the model calls `update_todos` in its own step — enforced by
   the `renderRuntimeContract` "barrier step" rule
@@ -122,7 +123,7 @@ Verified constraints (against installed `ai@7.0.26`):
 ### 2. Unified progress: one stream, preliminary tool-results
 
 - HTML-artifact and video progress ride the **main** `useChat` UIMessage stream.
-  `write_file`/`edit_file` and `create_video_production` consume `pollTaskSnapshots`
+  `write_html`/`edit_file` and `create_video_production` consume `pollTaskSnapshots`
   (`agent/tasks/executor-task.js`), `yield`ing running snapshots
   (`blocks_done`/`blocks_total`, `progress_done`/`progress_total`) that the SDK
   emits as preliminary `tool-*` results, then a terminal `yield` with

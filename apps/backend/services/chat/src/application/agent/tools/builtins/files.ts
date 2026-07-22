@@ -1,6 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
+import type { ChatProvider } from "@backend/transport-ts/provider-model";
 
+import type { AgentMode } from "../../agents/types.js";
 import {
   getDocument,
   getDocumentSource,
@@ -10,6 +12,7 @@ import {
 import { fileToolContextSchema, type FileToolContext } from "../context.js";
 import { defineAgentTool } from "../manifest.js";
 import { toolBlocked, ToolBlockedError, type ToolEmission } from "../outcome.js";
+import { createFileWriteToolManifests } from "./file-writes.js";
 
 const listFilesOutputSchema = z.object({
   files: z.array(
@@ -136,7 +139,7 @@ async function readFile(
   };
 }
 
-export function createFileToolManifests() {
+export function createFileToolManifests(mode: AgentMode, textProvider: ChatProvider) {
   return [
     defineAgentTool(
       "list_files",
@@ -184,5 +187,6 @@ export function createFileToolManifests() {
       },
       { summary: "Read bounded slices of a conversation file." },
     ),
+    ...createFileWriteToolManifests(mode, textProvider),
   ];
 }

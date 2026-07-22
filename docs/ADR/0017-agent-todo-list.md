@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted. Complements ADR 0011 and ADR 0012; does not supersede either.
+Accepted. Complements ADR 0011 and ADR 0012; does not supersede either. ADR 0050
+removes the historical plan-specific write tools described below.
 
 ## Context
 
@@ -17,6 +18,10 @@ generic `ArtifactDocumentCard`. That change kept ADR 0012's principle of one
 truth source per concern, but it also removed any visible, structured,
 per-step progress indicator — the plan's `## 任务` section is free-form prose
 and nothing tracks which step is done while the agent executes.
+
+ADR 0050 later replaced this create/update pair with plan-mode
+`write_markdown`, which creates or fully overwrites the same Markdown document
+without changing the plan-versus-todo truth-source decision in this ADR.
 
 Reintroducing the deleted `PlanSnapshot` verbatim would recreate exactly the
 duplication ADR 0012 removed: the plan body would live in Markdown while

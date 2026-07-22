@@ -27,7 +27,7 @@ import {
   resolveOrchestrationDirective,
   type OrchestrationSeed,
 } from "./orchestration.js";
-import { toolBatchPolicyMiddleware } from "./tool-batch-policy.js";
+import { createToolBatchPolicyMiddleware } from "./tool-batch-policy.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {
   return operation.catch((error) => {
@@ -146,7 +146,7 @@ export async function createToolLoopAgent(
   });
   const defaultModel = wrapLanguageModel({
     model: providerModel,
-    middleware: toolBatchPolicyMiddleware,
+    middleware: createToolBatchPolicyMiddleware(input.mode),
   });
   const toolApprovalSecret = getSettings().toolApprovalSecret;
   const loadSkillActiveTools = resolvedTools.activeTools.filter((name) => name !== "load_skill");

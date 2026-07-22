@@ -67,7 +67,7 @@
 
 创建工具按协议复杂度拆分，避免把嵌套 HTML plan 放进 Markdown/HTML `anyOf`：
 
-- `write_markdown` 使用 `{ title, filename, brief }`。
+- `write_markdown` 使用 `{ file_id?, title, filename, content }`；`content` 是完整 Markdown，`file_id` 存在时整文件覆盖。
 - `write_html` 使用 `{ title, filename, plan }`，删除 `page_count` 以及“给 Executor planner 的 brief”语义。
 - `plan` 包含：
   - `mode`: `document | presentation | dashboard`

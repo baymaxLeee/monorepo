@@ -8,7 +8,6 @@ import type {
   AgentExtension,
   AgentExtensionContext,
 } from "../integrations/types.js";
-import { createArtifactToolManifests } from "./builtins/artifacts.js";
 import { createFileToolManifests } from "./builtins/files.js";
 import { createInteractionToolManifests } from "./builtins/interaction.js";
 import { createMediaToolManifests } from "./builtins/media.js";
@@ -32,10 +31,9 @@ export interface AgentToolProviders {
 function builtinManifests(mode: AgentMode, providers: AgentToolProviders): AgentToolManifest[] {
   return [
     ...createSearchToolManifests(),
-    ...createFileToolManifests(),
+    ...createFileToolManifests(mode, providers.textProvider),
     ...createPlanningToolManifests(),
     ...createInteractionToolManifests(mode),
-    ...createArtifactToolManifests(providers.textProvider),
     ...createMediaToolManifests({
       imageProvider: providers.imageProvider,
       videoProviderId: providers.videoProviderId,

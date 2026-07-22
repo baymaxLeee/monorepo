@@ -19,7 +19,7 @@
   卡片可展示多个带稳定 ID 的问题，全部回答后只提交一次结构化 tool output。
 - POST 与恢复 GET 都返回 `x-agent-run-id`，用于 Stop 和执行轨迹查询；stream 内容
   仍完全遵循 AI SDK UIMessage 协议。
-- plan 作为 `tool-write_plan` / `tool-update_plan` part 随消息持久化；后续 run 从
+- plan 作为 `tool-write_markdown` part 随消息持久化；后续 run 从
   服务端会话历史恢复。
 - “执行计划”发送持久化 `data-plan-execution` 文档引用；正文不由浏览器复制。后端
   强制先用现有 `read_file` 读取该 Plan 最新全文。执行结束后按钮变为“再次执行”而

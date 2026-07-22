@@ -18,13 +18,6 @@ export const memoryToolContextSchema = z.object({
 });
 export type MemoryToolContext = z.infer<typeof memoryToolContextSchema>;
 
-export const planToolContextSchema = z.object({
-  userId: z.string(),
-  orgId: z.string(),
-  conversationId: z.string(),
-});
-export type PlanToolContext = z.infer<typeof planToolContextSchema>;
-
 export const artifactToolContextSchema = z.object({
   runId: z.string(),
   userId: z.string(),

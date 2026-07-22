@@ -46,7 +46,7 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   contains only bounded correctness gates: read an explicitly selected Plan
   before execution, and complete the ephemeral HTML validate/repair loop from
   a pure full-history fold. A model middleware in every mode makes
-  `ask_user` and `write_plan`/`update_plan` mutually exclusive: the first group
+  `ask_user` and plan-mode `write_markdown` mutually exclusive: the first group
   emitted for the step remains and later conflicts are dropped, so selected
   plan-tool input keeps streaming live instead of being buffered until the model
   step ends. It also makes `load_skill` a batch barrier. All other independent
@@ -60,7 +60,7 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   (`renderRuntimeContract` "barrier step": `update_todos` called alone, then
   deliverables dispatched together in the NEXT step) plus the SDK step boundary.
   Todos are not mandatory for every query: plan mode may research, then must
-  produce only `write_plan`/`update_plan`; it must not call `update_todos` or any
+  produce only one complete-plan `write_markdown`; it must not call `update_todos` or any
   content-generation tool. After switching to normal/agent execution mode,
   `update_todos` is an optional visible execution checklist — call it only when
   the task needs a real multi-item breakdown (multiple dependent steps,
@@ -73,13 +73,12 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   serialize independent deliverables (md/html/image/video run concurrently via
   the SDK's per-step `Promise.all`). Rare co-emission of todos with a deliverable
   is an accepted cosmetic glitch, not a bug to guard at runtime.
-- `write_plan`/`update_plan` snapshots are persisted in native UIMessage tool
-  parts. Their successful outputs may include advisory routing hints such as
-  `next_suggestion`, used only by the LLM to decide whether a later approved
-  normal-mode execution should begin with `update_todos` for multi-item plans.
-  Skip that hint for single-deliverable plans. The harness must not read these
-  hints as a scheduler, lock, or permission mechanism. Higher-priority
-  instructions, user intent, mode policy, and tool schemas always win.
+- `write_markdown` is the sole Markdown persistence primitive in both modes. It
+  receives complete content; omitting `file_id` creates a file and providing it
+  overwrites that Markdown file in full. Plan mode normalizes `*-plan.md`,
+  validates the required plan headings/checklist, and records the resulting
+  document as the active Plan. There is no Markdown patch tool, create/update
+  pair, CAS token, or nested generation LLM.
 - `update_todos` (normal/agent execution mode only) is a stateless,
   side-effect-free tool: it
   always replaces the full `{id, content, status, deliverable?}` list and has
@@ -98,8 +97,8 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   After `update_todos`, the next model step should execute the ready work
   directly under `runtime_contract` (including parallel deliverables in one
   step); `update_todos` does not return routing advice.
-- `write_markdown` creates Markdown synchronously in one `streamText` call.
-  `write_html` has a dedicated object-only plan schema so providers never see a
+- File tools are one `files` capability: list/read plus Markdown full-write and
+  HTML generation/inspection/editing. `write_html` has a dedicated object-only plan schema so providers never see a
   Markdown/HTML `anyOf`; it dispatches to `executor` and foreground-blocks
   this turn** until compile + publish complete (`agent_task_执行时服务` plan,
   Phase 2; ADR-0015 revision). Progress 100% means block generation completed;

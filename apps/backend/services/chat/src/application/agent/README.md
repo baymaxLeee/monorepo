@@ -8,13 +8,12 @@ agent/
 ├── agents/          # Agent factory、ToolLoop 实现及未来 Workflow/Harness adapters
 ├── profiles/        # normal、plan 等行为配置；不是独立 Agent
 ├── context/         # UIMessage → bounded ModelMessage、instructions、compaction
-├── tools/           # 薄 tool adapters、per-tool context、实例化 catalog
+├── tools/           # 薄 tool adapters；files 统一读写与 artifact 能力
 ├── integrations/    # MCP、Skills 等 instructions/tools 扩展
 ├── runs/            # run 编排、lease/cancel、trace persistence
 ├── streams/         # Redis-backed UIMessage SSE transport resume
 ├── memory/          # durable memory 与 extraction
-├── artifacts/       # markdown generation + read-only HTML inspection (validate/inspect)
-├── plans/           # plan domain service
+├── artifacts/       # HTML validation/review support
 ├── providers/       # provider/model adapter
 └── observability/   # product run/step/tool lifecycle
 ```

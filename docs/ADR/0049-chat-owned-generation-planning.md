@@ -26,6 +26,8 @@ not become a second agent loop.
   tools. This keeps HTML's nested plan as one object-only JSON Schema instead of
   placing it inside a Markdown/HTML `anyOf`, while preserving one semantic tool
   per deliverable rather than one tool per file extension.
+  ADR 0050 further makes `write_markdown` a direct complete-content persistence
+  tool shared by ordinary Markdown and Plan mode, without a nested LLM.
 - Executor validates and materializes that plan, then performs durable
   generation, compilation, approvals, cost control, QA and publishing. It does
   not run outline, script, storyboard, character-vision, planner repair or

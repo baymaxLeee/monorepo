@@ -3,18 +3,17 @@ import type {
   LanguageModelV4Middleware,
   LanguageModelV4StreamPart,
 } from "@ai-sdk/provider";
-
-const PLAN_WRITE_TOOLS = new Set(["write_plan", "update_plan"]);
+import type { AgentMode } from "./types.js";
 
 type ExclusivePlanToolKind = "ask-user" | "plan-write";
 type SkillBarrierSide = "load-skill" | "ordinary";
 
-function exclusivePlanToolKind(toolName: string): ExclusivePlanToolKind | null {
+function exclusivePlanToolKind(mode: AgentMode, toolName: string): ExclusivePlanToolKind | null {
   if (toolName === "ask_user") return "ask-user";
-  return PLAN_WRITE_TOOLS.has(toolName) ? "plan-write" : null;
+  return mode === "plan" && toolName === "write_markdown" ? "plan-write" : null;
 }
 
-function createBatchFilter() {
+function createBatchFilter(mode: AgentMode) {
   let skillBarrierSide: SkillBarrierSide | null = null;
   let exclusivePlanKind: ExclusivePlanToolKind | null = null;
   let keptLoadSkill = false;
@@ -28,54 +27,56 @@ function createBatchFilter() {
       keptLoadSkill = true;
       return true;
     }
-    const kind = exclusivePlanToolKind(toolName);
+    const kind = exclusivePlanToolKind(mode, toolName);
     if (!kind) return true;
     exclusivePlanKind ??= kind;
     return exclusivePlanKind === kind;
   };
 }
 
-function filterToolBatch(content: LanguageModelV4Content[]): LanguageModelV4Content[] {
-  const keep = createBatchFilter();
+function filterToolBatch(mode: AgentMode, content: LanguageModelV4Content[]): LanguageModelV4Content[] {
+  const keep = createBatchFilter(mode);
   return content.filter((part) => part.type !== "tool-call" || keep(part.toolName));
 }
 
-export const toolBatchPolicyMiddleware: LanguageModelV4Middleware = {
-  specificationVersion: "v4",
-  wrapGenerate: async ({ doGenerate }) => {
-    const result = await doGenerate();
-    return { ...result, content: filterToolBatch(result.content) };
-  },
-  wrapStream: async ({ doStream }) => {
-    const { stream, ...rest } = await doStream();
-    const retainedIds = new Set<string>();
-    const decidedIds = new Set<string>();
-    const keep = createBatchFilter();
+export function createToolBatchPolicyMiddleware(mode: AgentMode): LanguageModelV4Middleware {
+  return {
+    specificationVersion: "v4",
+    wrapGenerate: async ({ doGenerate }) => {
+      const result = await doGenerate();
+      return { ...result, content: filterToolBatch(mode, result.content) };
+    },
+    wrapStream: async ({ doStream }) => {
+      const { stream, ...rest } = await doStream();
+      const retainedIds = new Set<string>();
+      const decidedIds = new Set<string>();
+      const keep = createBatchFilter(mode);
 
-    return {
-      ...rest,
-      stream: stream.pipeThrough(
-        new TransformStream<LanguageModelV4StreamPart, LanguageModelV4StreamPart>({
-          transform(part, controller) {
-            if (part.type === "tool-input-start") {
-              decidedIds.add(part.id);
-              if (!keep(part.toolName)) return;
-              retainedIds.add(part.id);
-            } else if (part.type === "tool-input-delta" || part.type === "tool-input-end") {
-              if (!retainedIds.has(part.id)) return;
-            } else if (part.type === "tool-call") {
-              if (!decidedIds.has(part.toolCallId)) {
-                decidedIds.add(part.toolCallId);
+      return {
+        ...rest,
+        stream: stream.pipeThrough(
+          new TransformStream<LanguageModelV4StreamPart, LanguageModelV4StreamPart>({
+            transform(part, controller) {
+              if (part.type === "tool-input-start") {
+                decidedIds.add(part.id);
                 if (!keep(part.toolName)) return;
-                retainedIds.add(part.toolCallId);
-              } else if (!retainedIds.has(part.toolCallId)) {
-                return;
+                retainedIds.add(part.id);
+              } else if (part.type === "tool-input-delta" || part.type === "tool-input-end") {
+                if (!retainedIds.has(part.id)) return;
+              } else if (part.type === "tool-call") {
+                if (!decidedIds.has(part.toolCallId)) {
+                  decidedIds.add(part.toolCallId);
+                  if (!keep(part.toolName)) return;
+                  retainedIds.add(part.toolCallId);
+                } else if (!retainedIds.has(part.toolCallId)) {
+                  return;
+                }
               }
+              controller.enqueue(part);
             }
-            controller.enqueue(part);
-          },
-        }),
-      ),
-    };
-  },
-};
+          }),
+        ),
+      };
+    },
+  };
+}
