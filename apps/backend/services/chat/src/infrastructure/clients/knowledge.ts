@@ -37,6 +37,14 @@ export async function listDocuments(
   return knowledgeClient().listDocuments({ userId, conversationId });
 }
 
+export async function cleanupConversationArtifacts(input: {
+  userId: string;
+  orgId: string;
+  conversationId: string;
+}): Promise<void> {
+  await knowledgeClient().cleanupConversationArtifacts(input);
+}
+
 export async function getDocument(userId: string, documentId: string): Promise<KnowledgeDocument> {
   try {
     return await knowledgeClient().getDocument({ userId, documentId });

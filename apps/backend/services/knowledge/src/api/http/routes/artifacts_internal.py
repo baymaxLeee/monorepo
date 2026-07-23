@@ -25,6 +25,10 @@ from application.contracts.artifact import (
     SaveArtifactPlanInput,
     StoredArtifactBlock,
 )
+from application.conversation_cleanup import (
+    ConversationDeletedError,
+    assert_conversation_accepts_artifacts,
+)
 from application.object_store import ObjectStore
 from fastapi import APIRouter, Depends
 from infrastructure.persistence.database import write_tx
@@ -94,6 +98,9 @@ async def _head_generation(session: DbSession, document_id: str, user_id: str) -
 @router.post("", response_model=ArtifactGeneration, status_code=201)
 async def reserve_generation(payload: ReserveArtifactGenerationInput, session: DbSession) -> ArtifactGeneration:
     async with write_tx(session):
+        await assert_conversation_accepts_artifacts(
+            session, user_id=payload.user_id, conversation_id=payload.conversation_id
+        )
         existing = await session.scalar(
             select(ArtifactGenerationRow).where(ArtifactGenerationRow.idempotency_key == payload.idempotency_key)
         )
@@ -172,6 +179,9 @@ async def cancel_generation(
 async def save_plan(generation_id: str, payload: SaveArtifactPlanInput, session: DbSession) -> ArtifactGeneration:
     async with write_tx(session):
         row = await _owned_generation(session, generation_id, payload.user_id)
+        await assert_conversation_accepts_artifacts(
+            session, user_id=payload.user_id, conversation_id=row.conversation_id
+        )
         now = datetime.now(UTC)
         row.manifest_json = payload.manifest
         row.total_blocks = len(payload.blocks)
@@ -242,6 +252,13 @@ async def save_block(
     )
     async with write_tx(session):
         generation = await _owned_generation(session, generation_id, payload.user_id, for_update=True)
+        try:
+            await assert_conversation_accepts_artifacts(
+                session, user_id=payload.user_id, conversation_id=generation.conversation_id
+            )
+        except ConversationDeletedError:
+            ObjectStore().delete(bucket=stored.bucket, key=stored.key)
+            raise
         if generation.status == "cancelled":
             raise ConflictError("artifact generation was cancelled")
         if generation.status == "failed":
@@ -365,6 +382,13 @@ async def publish_revision(
     )
     async with write_tx(session):
         generation = await _owned_generation(session, generation_id, payload.user_id, for_update=True)
+        try:
+            await assert_conversation_accepts_artifacts(
+                session, user_id=payload.user_id, conversation_id=generation.conversation_id
+            )
+        except ConversationDeletedError:
+            ObjectStore().delete(bucket=stored.bucket, key=stored.key)
+            raise
         if generation.status == "cancelled":
             raise ConflictError("artifact generation was cancelled")
         if generation.status == "completed":

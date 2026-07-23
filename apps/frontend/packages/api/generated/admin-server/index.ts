@@ -188,15 +188,17 @@ export interface CreateModelProviderInput {
   extra_body?: CreateModelProviderInputExtraBody;
   pricing?: ProviderPricing | null;
   /**
-     * @minimum 1024
-     * @maximum 2000000
+     * Context window in K tokens; 1K = 1024 tokens
+     * @minimum 1
+     * @maximum 2048
      */
-  context_window?: number;
+  context_window_k?: number;
   /**
-     * @minimum 256
-     * @maximum 1000000
+     * Maximum output in K tokens; 1K = 1024 tokens
+     * @minimum 0.25
+     * @maximum 1024
      */
-  max_output_tokens?: number;
+  max_output_tokens_k?: number;
   supports_image_input?: boolean;
   is_default?: boolean;
   is_enabled?: boolean;
@@ -326,8 +328,10 @@ export interface ModelProvider {
   api_key_masked: string;
   extra_body: ModelProviderExtraBody;
   pricing: ProviderPricing | null;
-  context_window: number;
-  max_output_tokens: number;
+  /** Context window in K tokens; 1K = 1024 tokens */
+  context_window_k: number;
+  /** Maximum output in K tokens; 1K = 1024 tokens */
+  max_output_tokens_k: number;
   supports_image_input: boolean;
   is_default: boolean;
   is_enabled: boolean;
@@ -582,8 +586,10 @@ export interface UpdateModelProviderInput {
   api_key?: string | null;
   extra_body?: UpdateModelProviderInputExtraBody;
   pricing?: ProviderPricing | null;
-  context_window?: number | null;
-  max_output_tokens?: number | null;
+  /** Context window in K tokens; 1K = 1024 tokens */
+  context_window_k?: number | null;
+  /** Maximum output in K tokens; 1K = 1024 tokens */
+  max_output_tokens_k?: number | null;
   supports_image_input?: boolean | null;
   is_default?: boolean | null;
   is_enabled?: boolean | null;

@@ -20,7 +20,7 @@
 
 `documents` 表字段要点：
 
-- `user_id` — 归属用户（产物持久，不随 chat 会话删除）
+- `user_id` — 归属用户
 - `conversation_id` — 可选标签，标记来源会话
 - `kind` — `source` | `artifact`
 - `object_bucket` / `object_key` / `object_sha256` — 原始对象
@@ -42,7 +42,10 @@
 ## 与 chat 的关系
 
 - **chat 是消费者**：通过 `knowledge_client` 调 `/internal/documents` 拉取上下文、写入 artifact。
-- 删除 chat 会话只删 `conversations` + `messages`，**不**删除 knowledge 中的文档。
+- 删除 chat 会话会通过事务 outbox 异步清理该会话生成的 `artifact`、HTML block、
+  staged media 及其对象存储字节；用户上传的 `source` 文档继续由 knowledge 独立持有。
+- Knowledge 保存 conversation tombstone，拒绝已删除会话的迟到生成写入；清理接口幂等，
+  允许 chat 至少一次重试投递。
 - 消息中的 `[16hex]` slot 引用 knowledge `documents.id`。
 
 ## 开发

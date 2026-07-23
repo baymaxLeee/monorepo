@@ -6,6 +6,7 @@ import {
   recordExternalTask,
   reportTaskProgress,
 } from "../src/application/tasks/notify.js";
+import { rethrowTerminalArtifactError } from "../src/application/tasks/errors.js";
 import { getSettings } from "../src/bootstrap/config.js";
 import { getProvider } from "../src/infrastructure/clients/admin.js";
 import {
@@ -359,17 +360,21 @@ async function stageTakeStep(input: {
     input.videoUrl,
     AbortSignal.timeout(ASSEMBLE_TIMEOUT_MS),
   );
-  const staged = await createStagedMedia({
-    userId: input.userId,
-    orgId: input.orgId,
-    conversationId: input.conversationId,
-    title: `${input.title} · 镜头 ${input.shot.order + 1} · Take ${input.takeNumber}`,
-    filename: `shot-${input.shot.order + 1}-take-${input.takeNumber}.mp4`,
-    mimeType: "video/mp4",
-    bytes,
-    idempotencyKey: `${input.productionId}:${input.shot.id}:take:${input.takeNumber}`,
-  });
-  return staged.id;
+  try {
+    const staged = await createStagedMedia({
+      userId: input.userId,
+      orgId: input.orgId,
+      conversationId: input.conversationId,
+      title: `${input.title} · 镜头 ${input.shot.order + 1} · Take ${input.takeNumber}`,
+      filename: `shot-${input.shot.order + 1}-take-${input.takeNumber}.mp4`,
+      mimeType: "video/mp4",
+      bytes,
+      idempotencyKey: `${input.productionId}:${input.shot.id}:take:${input.takeNumber}`,
+    });
+    return staged.id;
+  } catch (error) {
+    rethrowTerminalArtifactError(error);
+  }
 }
 
 async function awaitingShotReviewStep(
@@ -641,21 +646,25 @@ async function assembleStep(input: {
       .map((check) => check.name);
     throw new Error(`final deterministic QA failed: ${failures.join(", ")}`);
   }
-  const staged = await createStagedMedia({
-    userId: input.userId,
-    orgId: input.orgId,
-    conversationId: input.conversationId,
-    title: input.title,
-    filename: input.filename,
-    mimeType: "video/mp4",
-    bytes,
-    idempotencyKey: input.idempotencyKey,
-  });
-  return {
-    stagedMediaId: staged.id,
-    sizeBytes: bytes.length,
-    qaReport: { deterministic, semantic: { status: "human_review_required" } },
-  };
+  try {
+    const staged = await createStagedMedia({
+      userId: input.userId,
+      orgId: input.orgId,
+      conversationId: input.conversationId,
+      title: input.title,
+      filename: input.filename,
+      mimeType: "video/mp4",
+      bytes,
+      idempotencyKey: input.idempotencyKey,
+    });
+    return {
+      stagedMediaId: staged.id,
+      sizeBytes: bytes.length,
+      qaReport: { deterministic, semantic: { status: "human_review_required" } },
+    };
+  } catch (error) {
+    rethrowTerminalArtifactError(error);
+  }
 }
 
 async function publishStep(input: {
@@ -664,12 +673,16 @@ async function publishStep(input: {
   orgId: string;
 }): Promise<{ documentId: string }> {
   "use step";
-  const document = await publishStagedMedia({
-    userId: input.userId,
-    orgId: input.orgId,
-    stagedId: input.stagedMediaId,
-  });
-  return { documentId: document.id };
+  try {
+    const document = await publishStagedMedia({
+      userId: input.userId,
+      orgId: input.orgId,
+      stagedId: input.stagedMediaId,
+    });
+    return { documentId: document.id };
+  } catch (error) {
+    rethrowTerminalArtifactError(error);
+  }
 }
 
 async function discardStep(input: {

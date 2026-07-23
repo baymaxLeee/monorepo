@@ -6143,19 +6143,23 @@
               }
             ]
           },
-          "context_window": {
-            "type": "integer",
-            "maximum": 2000000.0,
-            "minimum": 1024.0,
-            "title": "Context Window",
-            "default": 524288
+          "context_window_k": {
+            "type": "number",
+            "multipleOf": 0.25,
+            "maximum": 2048.0,
+            "minimum": 1.0,
+            "title": "Context Window K",
+            "description": "Context window in K tokens; 1K = 1024 tokens",
+            "default": 512
           },
-          "max_output_tokens": {
-            "type": "integer",
-            "maximum": 1000000.0,
-            "minimum": 256.0,
-            "title": "Max Output Tokens",
-            "default": 262144
+          "max_output_tokens_k": {
+            "type": "number",
+            "multipleOf": 0.25,
+            "maximum": 1024.0,
+            "minimum": 0.25,
+            "title": "Max Output Tokens K",
+            "description": "Maximum output in K tokens; 1K = 1024 tokens",
+            "default": 256
           },
           "supports_image_input": {
             "type": "boolean",
@@ -6474,13 +6478,15 @@
               }
             ]
           },
-          "context_window": {
-            "type": "integer",
-            "title": "Context Window"
+          "context_window_k": {
+            "type": "number",
+            "title": "Context Window K",
+            "description": "Context window in K tokens; 1K = 1024 tokens"
           },
-          "max_output_tokens": {
-            "type": "integer",
-            "title": "Max Output Tokens"
+          "max_output_tokens_k": {
+            "type": "number",
+            "title": "Max Output Tokens K",
+            "description": "Maximum output in K tokens; 1K = 1024 tokens"
           },
           "supports_image_input": {
             "type": "boolean",
@@ -6515,8 +6521,8 @@
           "api_key_masked",
           "extra_body",
           "pricing",
-          "context_window",
-          "max_output_tokens",
+          "context_window_k",
+          "max_output_tokens_k",
           "supports_image_input",
           "is_default",
           "is_enabled",
@@ -7532,31 +7538,35 @@
               }
             ]
           },
-          "context_window": {
+          "context_window_k": {
             "anyOf": [
               {
-                "type": "integer",
-                "maximum": 2000000.0,
-                "minimum": 1024.0
+                "type": "number",
+                "multipleOf": 0.25,
+                "maximum": 2048.0,
+                "minimum": 1.0
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Context Window"
+            "title": "Context Window K",
+            "description": "Context window in K tokens; 1K = 1024 tokens"
           },
-          "max_output_tokens": {
+          "max_output_tokens_k": {
             "anyOf": [
               {
-                "type": "integer",
-                "maximum": 1000000.0,
-                "minimum": 256.0
+                "type": "number",
+                "multipleOf": 0.25,
+                "maximum": 1024.0,
+                "minimum": 0.25
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Max Output Tokens"
+            "title": "Max Output Tokens K",
+            "description": "Maximum output in K tokens; 1K = 1024 tokens"
           },
           "supports_image_input": {
             "anyOf": [

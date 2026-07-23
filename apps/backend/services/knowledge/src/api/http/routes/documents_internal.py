@@ -19,6 +19,10 @@ from application.contracts.document import (
     StagedMediaActionInput,
     UpdateArtifactInput,
 )
+from application.conversation_cleanup import (
+    ConversationDeletedError,
+    assert_conversation_accepts_artifacts,
+)
 from application.documents import document_to_schema
 from application.image_variant import get_or_build_vision_variant
 from application.object_store import ObjectStore
@@ -202,6 +206,9 @@ async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> D
         ).hexdigest()[:16]
     try:
         async with write_tx(session):
+            await assert_conversation_accepts_artifacts(
+                session, user_id=payload.user_id, conversation_id=payload.conversation_id
+            )
             if document_id is not None:
                 existing = await document_crud.get_document(session, document_id, payload.user_id)
                 if existing is not None:
@@ -249,6 +256,9 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
         # Cheap pre-check in its own short transaction so a retried generation
         # skips re-uploading bytes; the authoritative race guard is below.
         async with write_tx(session):
+            await assert_conversation_accepts_artifacts(
+                session, user_id=payload.user_id, conversation_id=payload.conversation_id
+            )
             existing = await document_crud.get_document(session, document_id, payload.user_id)
         if existing is not None:
             return document_to_schema(existing, include_content=True)
@@ -270,6 +280,9 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
     )
     try:
         async with write_tx(session):
+            await assert_conversation_accepts_artifacts(
+                session, user_id=payload.user_id, conversation_id=payload.conversation_id
+            )
             if document_id is not None:
                 existing = await document_crud.get_document(session, document_id, payload.user_id)
                 if existing is not None:
@@ -293,6 +306,9 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
                 ingest_progress=100,
                 document_id=document_id or storage_document_id,
             )
+    except ConversationDeletedError:
+        ObjectStore().delete(bucket=stored.bucket, key=stored.key)
+        raise
     except IntegrityError:
         # Lost an idempotency-key race: the begin block already rolled back, so
         # re-read the winner's row on a fresh transaction. The blob just uploaded
@@ -310,6 +326,9 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
 async def create_staged_media(payload: CreateStagedMediaInput, session: DbSession) -> StagedMedia:
     if payload.idempotency_key:
         async with write_tx(session):
+            await assert_conversation_accepts_artifacts(
+                session, user_id=payload.user_id, conversation_id=payload.conversation_id
+            )
             existing = await staged_media_crud.get_by_idempotency_key(
                 session, payload.idempotency_key, payload.user_id
             )
@@ -333,6 +352,9 @@ async def create_staged_media(payload: CreateStagedMediaInput, session: DbSessio
     )
     try:
         async with write_tx(session):
+            await assert_conversation_accepts_artifacts(
+                session, user_id=payload.user_id, conversation_id=payload.conversation_id
+            )
             if payload.idempotency_key:
                 existing = await staged_media_crud.get_by_idempotency_key(
                     session, payload.idempotency_key, payload.user_id
@@ -354,6 +376,9 @@ async def create_staged_media(payload: CreateStagedMediaInput, session: DbSessio
                 object_sha256=stored.sha256,
                 idempotency_key=payload.idempotency_key,
             )
+    except ConversationDeletedError:
+        ObjectStore().delete(bucket=stored.bucket, key=stored.key)
+        raise
     except IntegrityError:
         if not payload.idempotency_key:
             raise
@@ -400,6 +425,9 @@ async def publish_staged_media(
             if existing is None:
                 raise ConflictError("published staged media has no document")
             return document_to_schema(existing, include_content=True)
+        await assert_conversation_accepts_artifacts(
+            session, user_id=row.user_id, conversation_id=row.conversation_id
+        )
         document = await document_crud.create_document(
             session,
             user_id=row.user_id,

@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from application.auth import AuthContext
 from application.contracts.provider import (
+    TOKENS_PER_K,
     CreateModelProviderInput,
     InternalModelProvider,
     ModelProvider,
@@ -56,6 +57,14 @@ def _parse_pricing(raw: str | None) -> ProviderPricing | None:
         return None
 
 
+def _to_k_tokens(tokens: int) -> float:
+    return tokens / TOKENS_PER_K
+
+
+def _from_k_tokens(k_tokens: float) -> int:
+    return round(k_tokens * TOKENS_PER_K)
+
+
 def to_public_schema(row: ModelProviderRow) -> ModelProvider:
     return ModelProvider(
         id=row.id,
@@ -68,8 +77,8 @@ def to_public_schema(row: ModelProviderRow) -> ModelProvider:
         api_key_masked=mask(decrypt(row.api_key_enc)),
         extra_body=_parse_extra_body(row.extra_body),
         pricing=_parse_pricing(row.pricing_json),
-        context_window=row.context_window,
-        max_output_tokens=row.max_output_tokens,
+        context_window_k=_to_k_tokens(row.context_window),
+        max_output_tokens_k=_to_k_tokens(row.max_output_tokens),
         supports_image_input=row.supports_image_input,
         is_default=row.is_default,
         is_enabled=row.is_enabled,
@@ -135,8 +144,8 @@ class ModelProviderService:
                 api_key_enc=encrypt(payload.api_key),
                 extra_body=json.dumps(payload.extra_body),
                 pricing_json=payload.pricing.model_dump_json() if payload.pricing else None,
-                context_window=payload.context_window,
-                max_output_tokens=payload.max_output_tokens,
+                context_window=_from_k_tokens(payload.context_window_k),
+                max_output_tokens=_from_k_tokens(payload.max_output_tokens_k),
                 supports_image_input=payload.supports_image_input,
                 is_default=payload.is_default,
                 is_enabled=payload.is_enabled,
@@ -170,10 +179,10 @@ class ModelProviderService:
                 values["extra_body"] = json.dumps(payload.extra_body)
             if "pricing" in payload.model_fields_set:
                 values["pricing_json"] = payload.pricing.model_dump_json() if payload.pricing else None
-            if payload.context_window is not None:
-                values["context_window"] = payload.context_window
-            if payload.max_output_tokens is not None:
-                values["max_output_tokens"] = payload.max_output_tokens
+            if payload.context_window_k is not None:
+                values["context_window"] = _from_k_tokens(payload.context_window_k)
+            if payload.max_output_tokens_k is not None:
+                values["max_output_tokens"] = _from_k_tokens(payload.max_output_tokens_k)
             if payload.supports_image_input is not None:
                 values["supports_image_input"] = payload.supports_image_input
             if payload.is_enabled is not None:
@@ -193,12 +202,18 @@ class ModelProviderService:
 
             if not values:
                 return to_public_schema(row)
-            context_window = payload.context_window if payload.context_window is not None else row.context_window
+            context_window = (
+                _from_k_tokens(payload.context_window_k)
+                if payload.context_window_k is not None
+                else row.context_window
+            )
             max_output_tokens = (
-                payload.max_output_tokens if payload.max_output_tokens is not None else row.max_output_tokens
+                _from_k_tokens(payload.max_output_tokens_k)
+                if payload.max_output_tokens_k is not None
+                else row.max_output_tokens
             )
             if max_output_tokens >= context_window:
-                raise RequestError("max_output_tokens must be less than context_window")
+                raise RequestError("max_output_tokens_k must be less than context_window_k")
             return to_public_schema(await provider_crud.update_provider(self._session, row, values))
 
     async def delete(self, provider_id: str) -> None:

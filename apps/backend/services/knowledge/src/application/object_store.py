@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import shutil
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -109,6 +110,16 @@ class ObjectStore:
         path = self._root / bucket / key
         if path.is_file():
             path.unlink()
+
+    def delete_prefix(self, *, bucket: str, key_prefix: str) -> None:
+        if not _SAFE_SEGMENT.match(bucket) or not self._valid_key(key_prefix):
+            raise RequestError("invalid bucket or object key prefix")
+        bucket_root = (self._root / bucket).resolve()
+        path = (bucket_root / key_prefix).resolve()
+        if not path.is_relative_to(bucket_root) or path == bucket_root:
+            raise RequestError("invalid object key prefix")
+        if path.is_dir():
+            shutil.rmtree(path)
 
     @staticmethod
     def _safe_filename_segment(filename: str) -> str:

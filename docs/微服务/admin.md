@@ -32,6 +32,9 @@
   - `extra_body` —— vendor-specific 透传 JSON（例如 DeepSeek V4 的
     `{"thinking": {"type": "enabled"}}`），消费服务在调用时与 per-request
     的 `thinking` / `reasoning_effort` 合并
+  - 公开 Admin API 与表单用 `context_window_k` / `max_output_tokens_k`
+    配置（`1K = 1024 tokens`，0.25K 步进）；数据库和 `/internal/*`
+    仍使用精确 token 整数，避免运行时单位换算。
 
 ## 不负责
 

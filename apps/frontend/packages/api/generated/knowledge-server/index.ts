@@ -74,6 +74,33 @@ export interface CancelArtifactGenerationInput {
   user_id: string;
 }
 
+export interface CleanupConversationArtifactsInput {
+  /**
+     * @minLength 1
+     * @maxLength 32
+     */
+  conversation_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  user_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  org_id: string;
+}
+
+export interface CleanupConversationArtifactsResult {
+  conversation_id: string;
+  deleted_documents: number;
+  deleted_generations: number;
+  deleted_blocks: number;
+  deleted_staged_media: number;
+  deleted_objects: number;
+}
+
 export interface CreateArtifactInput {
   /**
      * @minLength 1
@@ -1071,6 +1098,20 @@ const publishRevisionInternalArtifactGenerationsGenerationIdPublishPost = (
     }
 
 /**
+ * @summary Cleanup Conversation Artifacts Route
+ */
+const cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost = (
+    cleanupConversationArtifactsInput: CleanupConversationArtifactsInput,
+ options?: SecondParameter<typeof apiMutator<CleanupConversationArtifactsResult>>,) => {
+      return apiMutator<CleanupConversationArtifactsResult>(
+      {url: `/internal/conversation-artifact-cleanups`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: cleanupConversationArtifactsInput
+    },
+      options);
+    }
+
+/**
  * @summary Retrieve Chunks
  */
 const retrieveChunksInternalRetrievePost = (
@@ -1084,7 +1125,7 @@ const retrieveChunksInternalRetrievePost = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createStagedMediaInternalStagedMediaPost,getStagedMediaInternalStagedMediaStagedIdGet,getStagedMediaSourceInternalStagedMediaStagedIdSourceGet,publishStagedMediaInternalStagedMediaStagedIdPublishPost,discardStagedMediaInternalStagedMediaStagedIdDiscardPost,createResourceUrlDocumentsDocumentIdResourceUrlPost,getSignedResourceResourcesDocumentIdGet,reserveGenerationInternalArtifactGenerationsPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,retrieveChunksInternalRetrievePost}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createStagedMediaInternalStagedMediaPost,getStagedMediaInternalStagedMediaStagedIdGet,getStagedMediaSourceInternalStagedMediaStagedIdSourceGet,publishStagedMediaInternalStagedMediaStagedIdPublishPost,discardStagedMediaInternalStagedMediaStagedIdDiscardPost,createResourceUrlDocumentsDocumentIdResourceUrlPost,getSignedResourceResourcesDocumentIdGet,reserveGenerationInternalArtifactGenerationsPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost,retrieveChunksInternalRetrievePost}};
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['healthzHealthzGet']>>>
@@ -1119,4 +1160,5 @@ export type SaveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPutResu
 export type ListReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet']>>>
 export type GetLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet']>>>
 export type PublishRevisionInternalArtifactGenerationsGenerationIdPublishPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['publishRevisionInternalArtifactGenerationsGenerationIdPublishPost']>>>
+export type CleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost']>>>
 export type RetrieveChunksInternalRetrievePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['retrieveChunksInternalRetrievePost']>>>

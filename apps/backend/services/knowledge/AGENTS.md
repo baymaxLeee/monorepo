@@ -40,7 +40,10 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 
 ## Conventions
 - Documents are user-scoped; `conversation_id` is an optional tag only (no FK).
-- Deleting a chat conversation does NOT delete knowledge documents.
+- Deleting a chat conversation asynchronously removes generated `artifact`
+  documents, artifact-generation blocks, and staged media through Chat's
+  transactional outbox. User-uploaded `source` documents remain independently
+  owned Knowledge content.
 - Both **convert and indexing are async and decoupled from ingest progress**
   (ADR-0019 v1.6.0 + v1.7.0): the ingest SSE returns at `received/100` (bytes
   stored + referenceable); `application/processor.py` (`schedule_process`) then runs

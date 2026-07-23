@@ -21,6 +21,21 @@ export const conversations = pgTable(
   (t) => [index("ix_conversations_user_id").on(t.userId), index("ix_conversations_user_org").on(t.userId, t.orgId)],
 );
 
+export const conversationArtifactCleanupOutbox = pgTable(
+  "conversation_artifact_cleanup_outbox",
+  {
+    conversationId: varchar("conversation_id", { length: 32 }).primaryKey(),
+    userId: varchar("user_id", { length: 26 }).notNull(),
+    orgId: varchar("org_id", { length: 26 }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    availableAt: timestamp("available_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    claimedAt: timestamp("claimed_at", { mode: "date", withTimezone: true, precision: 6 }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+  },
+  (t) => [index("ix_conversation_artifact_cleanup_outbox_available").on(t.availableAt, t.createdAt)],
+);
+
 export const conversationContexts = pgTable("conversation_contexts", {
   conversationId: varchar("conversation_id", { length: 32 }).primaryKey(),
   revision: integer("revision").notNull().default(1),

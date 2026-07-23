@@ -31,11 +31,13 @@ improving these controls.
   `ToolLoopAgent` has prepared the provider prompt and converted active tools to
   provider-ready JSON Schema. This is the authoritative request surface, not a
   reconstruction from persisted UI messages.
-- Persist a conversation context snapshot on every model step in the existing
-  step metadata. The snapshot classifies system policy/profile/environment,
-  builtin tool definitions, runtime rules, Skills, MCP/dynamic tools, memory,
-  and the complete projected conversation including compacted history and tool
-  results.
+- Persist an estimated conversation context snapshot at the provider request
+  boundary, before streaming begins, in the existing step metadata. A completed
+  model step replaces it with the provider-calibrated snapshot. This preserves
+  the actual prompt composition when the user stops an in-flight response. The
+  snapshot classifies system policy/profile/environment, builtin tool
+  definitions, runtime rules, Skills, MCP/dynamic tools, memory, and the
+  complete projected conversation including compacted history and tool results.
 - Anchor the snapshot to the latest run rather than summing agent runs. Within
   that run, prefer the latest completed model step with provider-reported input
   usage over zero-usage synthetic orchestration steps, then fall back to the
@@ -53,8 +55,9 @@ improving these controls.
   an isolated probe. Lookup remains best-effort so failure leaves the maximum
   unknown without making the context read unavailable.
 - Expose `GET /conversations/{conversation_id}/context` as the product read
-  model. The backend selects the latest completed model-step snapshot across
-  all runs in the conversation, resolves the current effective budget, and
+  model. The backend selects the latest terminal model-step snapshot across all
+  runs in the conversation, including an estimated request-boundary snapshot
+  from a stopped or failed run, resolves the current effective budget, and
   returns render-ready utilization and category shares. The PromptInput does
   not inspect or aggregate run trace data.
 - Keep snapshots in the existing transactional `agent_steps.metadata` instead
@@ -80,6 +83,9 @@ improving these controls.
   a provider-reported step; otherwise the DTO and UI label it as estimated. The
   category split is always explicitly labeled as an estimate because no AI SDK
   or provider usage primitive supplies attribution by prompt section.
+- A stopped response retains the request-side context that had already been
+  submitted to the provider. Partial output is excluded when the provider does
+  not report final usage, so the total remains explicitly estimated.
 - Existing runs created before this decision have no categorized snapshot and
   intentionally show an empty state until the conversation runs again. No
   compatibility reconstruction path is retained during the demo phase.

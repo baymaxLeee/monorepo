@@ -7,6 +7,7 @@ import { finishSpan, runWithActiveSpan, startSpan } from "@backend/kernel-ts";
 import { getSettings } from "../../../bootstrap/config.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import {
+  captureModelStepContext,
   finishModelStep,
   extractUsageTokens,
   recordToolEnd,
@@ -157,12 +158,18 @@ export async function createToolLoopAgent(
   const contextCaptureMiddleware: LanguageModelV4Middleware = {
     specificationVersion: "v4",
     transformParams: async ({ params }) => {
-      contextEstimates.set(
-        currentStepNumber,
-        estimateConversationContext({
-          prompt: params.prompt,
-          tools: params.tools,
-          toolSources,
+      const contextEstimate = estimateConversationContext({
+        prompt: params.prompt,
+        tools: params.tools,
+        toolSources,
+      });
+      contextEstimates.set(currentStepNumber, contextEstimate);
+      await observe(
+        "capture model context",
+        captureModelStepContext({
+          runId: input.runId,
+          stepNumber: currentStepNumber,
+          contextEstimate,
         }),
       );
       return params;

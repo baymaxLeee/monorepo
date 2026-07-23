@@ -23,6 +23,8 @@ export type ArtifactRevisionWorkspace = components["schemas"]["ArtifactRevisionW
 export type RetrieveResult = components["schemas"]["RetrieveResult"];
 export type RetrievedChunk = components["schemas"]["RetrievedChunk"];
 export type StagedMedia = components["schemas"]["StagedMedia"];
+export type CleanupConversationArtifactsResult =
+  components["schemas"]["CleanupConversationArtifactsResult"];
 
 export interface KnowledgeClientOptions {
   baseUrl: string;
@@ -391,6 +393,22 @@ export class KnowledgeInternalClient {
           org_id: input.orgId,
           compiled_html: input.compiledHtml,
           expected_object_sha256: input.expectedObjectSha256 ?? null,
+        },
+      }),
+    );
+  }
+
+  cleanupConversationArtifacts(input: {
+    userId: string;
+    orgId: string;
+    conversationId: string;
+  }): Promise<CleanupConversationArtifactsResult> {
+    return this.unwrap(
+      this.client.POST("/internal/conversation-artifact-cleanups", {
+        body: {
+          user_id: input.userId,
+          org_id: input.orgId,
+          conversation_id: input.conversationId,
         },
       }),
     );

@@ -28,6 +28,7 @@ import {
   type ArtifactTheme,
 } from "../src/application/artifacts/generator.js";
 import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
+import { rethrowTerminalArtifactError } from "../src/application/tasks/errors.js";
 
 export const htmlArtifactPlanSchema = z.object({
   mode: z.enum(["document", "presentation", "dashboard"]),
@@ -230,36 +231,40 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
 
 async function reserveStep(input: HtmlArtifactInput, plan: ArtifactPlan, idempotencyKey: string) {
   "use step";
-  const generation = await reserveArtifactGeneration({
-    userId: input.userId,
-    orgId: input.orgId,
-    conversationId: input.conversationId,
-    documentId: input.documentId,
-    title: input.title,
-    filename: input.filename,
-    mode: plan.mode,
-    brief: input.plan?.sourceBrief ?? input.brief!,
-    idempotencyKey,
-  });
-  await saveArtifactPlan({
-    userId: input.userId,
-    generationId: generation.id,
-    manifest: {
-      artifactBrief: plan.reviewBrief,
+  try {
+    const generation = await reserveArtifactGeneration({
+      userId: input.userId,
+      orgId: input.orgId,
+      conversationId: input.conversationId,
+      documentId: input.documentId,
+      title: input.title,
+      filename: input.filename,
       mode: plan.mode,
-      theme: plan.theme,
-      narrative: plan.narrative,
-      blocks: plan.blocks,
-    },
-    blocks: plan.blocks.map((block) => ({ id: block.id, type: block.type })),
-  });
-  const { workflowRunId } = getWorkflowMetadata();
-  await recordArtifactGeneration(workflowRunId, generation.id);
-  if (await isTaskCancelled(workflowRunId)) {
-    await cancelArtifactGeneration({ userId: input.userId, generationId: generation.id });
-    throw new DOMException("task cancelled", "AbortError");
+      brief: input.plan?.sourceBrief ?? input.brief!,
+      idempotencyKey,
+    });
+    await saveArtifactPlan({
+      userId: input.userId,
+      generationId: generation.id,
+      manifest: {
+        artifactBrief: plan.reviewBrief,
+        mode: plan.mode,
+        theme: plan.theme,
+        narrative: plan.narrative,
+        blocks: plan.blocks,
+      },
+      blocks: plan.blocks.map((block) => ({ id: block.id, type: block.type })),
+    });
+    const { workflowRunId } = getWorkflowMetadata();
+    await recordArtifactGeneration(workflowRunId, generation.id);
+    if (await isTaskCancelled(workflowRunId)) {
+      await cancelArtifactGeneration({ userId: input.userId, generationId: generation.id });
+      throw new DOMException("task cancelled", "AbortError");
+    }
+    return generation.id;
+  } catch (error) {
+    rethrowTerminalArtifactError(error);
   }
-  return generation.id;
 }
 
 async function generateBlockStep(input: {
@@ -361,6 +366,8 @@ async function generateBlockStep(input: {
       failed,
     });
     return { id: input.block.id, ok: !failed };
+  } catch (error) {
+    rethrowTerminalArtifactError(error);
   } finally {
     cancellation.dispose();
   }
@@ -401,20 +408,24 @@ async function compilePublishStep(
   if (await isTaskCancelled(workflowRunId)) {
     throw new DOMException("task cancelled", "AbortError");
   }
-  const compiled = await compileArtifact(input);
-  const published = await publishArtifactRevision({
-    userId: input.userId,
-    orgId: input.orgId,
-    generationId: input.generationId,
-    compiledHtml: compiled.html,
-    expectedObjectSha256: input.expectedObjectSha256,
-  });
-  return {
-    documentId: published.document_id,
-    totalChars: compiled.html.length,
-    blocksOk: compiled.partsOk,
-    blocksFailed: compiled.partsFailed,
-  };
+  try {
+    const compiled = await compileArtifact(input);
+    const published = await publishArtifactRevision({
+      userId: input.userId,
+      orgId: input.orgId,
+      generationId: input.generationId,
+      compiledHtml: compiled.html,
+      expectedObjectSha256: input.expectedObjectSha256,
+    });
+    return {
+      documentId: published.document_id,
+      totalChars: compiled.html.length,
+      blocksOk: compiled.partsOk,
+      blocksFailed: compiled.partsFailed,
+    };
+  } catch (error) {
+    rethrowTerminalArtifactError(error);
+  }
 }
 
 async function reportProgressStep(done: number, total: number): Promise<void> {

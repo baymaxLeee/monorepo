@@ -1,6 +1,7 @@
 import {
   finishAgentRun,
   finishAgentStep,
+  recordAgentStepContextSnapshot,
   recordToolCallFinish,
   recordToolCallStart,
   startAgentStep,
@@ -35,6 +36,16 @@ export const EMPTY_USAGE: UsageTokens = {
   reasoningTokens: null,
   totalTokens: null,
 };
+
+export async function captureModelStepContext(input: {
+  runId: string;
+  stepNumber: number;
+  contextEstimate: ContextEstimate;
+}): Promise<void> {
+  const snapshot = finalizeConversationContext(input.contextEstimate, EMPTY_USAGE);
+  if (!snapshot) return;
+  await recordAgentStepContextSnapshot(stepId(input.runId, input.stepNumber), snapshot);
+}
 
 function addToken(left: number | null, right: number | null): number | null {
   if (left == null && right == null) return null;

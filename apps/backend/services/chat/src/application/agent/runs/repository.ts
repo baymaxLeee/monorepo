@@ -289,7 +289,7 @@ export async function getLatestConversationContextRecord(
       and(
         eq(agentRuns.conversationId, conversationId),
         eq(agentSteps.kind, "model"),
-        eq(agentSteps.status, "completed"),
+        inArray(agentSteps.status, ["completed", "failed"]),
         sql`${agentSteps.metadata}->'context_snapshot' IS NOT NULL`,
       ),
     )
@@ -322,6 +322,18 @@ export async function getLatestConversationContextRecord(
     updatedAt: isoOrNull(row.finishedAt) ?? isoOrNull(row.runCreatedAt) ?? "",
     snapshot,
   };
+}
+
+export async function recordAgentStepContextSnapshot(
+  stepId: string,
+  snapshot: ConversationContextSnapshot,
+): Promise<void> {
+  await getDb()
+    .update(agentSteps)
+    .set({
+      metadata: sql`COALESCE(${agentSteps.metadata}, '{}'::jsonb) || jsonb_build_object('context_snapshot', ${JSON.stringify(snapshot)}::jsonb)`,
+    })
+    .where(eq(agentSteps.id, stepId));
 }
 
 export async function startAgentStep(input: {

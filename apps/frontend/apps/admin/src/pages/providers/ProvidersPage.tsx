@@ -96,15 +96,15 @@ const providerSchema = z
       ),
     pricing_currency: z.string().trim().length(3, "请输入三位币种代码"),
     unit_price_micros: z.number().int().min(0).max(2_147_483_647),
-    context_window: z.number().int().min(1024).max(2_000_000),
-    max_output_tokens: z.number().int().min(256).max(1_000_000),
+    context_window_k: z.number().min(1).max(2048).multipleOf(0.25),
+    max_output_tokens_k: z.number().min(0.25).max(1024).multipleOf(0.25),
     supports_image_input: z.boolean(),
     is_default: z.boolean(),
     is_enabled: z.boolean(),
   })
-  .refine((value) => value.max_output_tokens < value.context_window, {
+  .refine((value) => value.max_output_tokens_k < value.context_window_k, {
     message: "最大输出必须小于上下文窗口",
-    path: ["max_output_tokens"],
+    path: ["max_output_tokens_k"],
   })
   .refine((value) => value.provider_kind === "chat" || !value.is_default, {
     message: "仅对话类型可设为 chat 默认模型",
@@ -175,8 +175,8 @@ const defaults: ProviderValues = {
   extra_body: kindPresets.chat.extra_body,
   pricing_currency: "CNY",
   unit_price_micros: 0,
-  context_window: chatTokenBudget.context_window,
-  max_output_tokens: chatTokenBudget.max_output_tokens,
+  context_window_k: chatTokenBudget.context_window_k,
+  max_output_tokens_k: chatTokenBudget.max_output_tokens_k,
   supports_image_input: false,
   is_default: false,
   is_enabled: true,
@@ -258,8 +258,8 @@ export function ProvidersPage() {
       extra_body: stringifyExtraBody(provider.extra_body ?? {}),
       pricing_currency: provider.pricing?.currency ?? "CNY",
       unit_price_micros: provider.pricing?.unit_price_micros ?? 0,
-      context_window: provider.context_window,
-      max_output_tokens: provider.max_output_tokens,
+      context_window_k: provider.context_window_k,
+      max_output_tokens_k: provider.max_output_tokens_k,
       supports_image_input: provider.supports_image_input ?? false,
       is_default: provider.is_default,
       is_enabled: provider.is_enabled,
@@ -285,8 +285,8 @@ export function ProvidersPage() {
           base_url: values.base_url,
           extra_body,
           pricing,
-          context_window: values.context_window,
-          max_output_tokens: values.max_output_tokens,
+          context_window_k: values.context_window_k,
+          max_output_tokens_k: values.max_output_tokens_k,
           supports_image_input: values.supports_image_input,
           is_default: resolveIsDefault(values.provider_kind, values.is_default),
           is_enabled: values.is_enabled,
@@ -308,8 +308,8 @@ export function ProvidersPage() {
           api_key: values.api_key.trim(),
           extra_body,
           pricing,
-          context_window: values.context_window,
-          max_output_tokens: values.max_output_tokens,
+          context_window_k: values.context_window_k,
+          max_output_tokens_k: values.max_output_tokens_k,
           supports_image_input: values.supports_image_input,
           is_default: resolveIsDefault(values.provider_kind, values.is_default),
           is_enabled: values.is_enabled,
@@ -597,8 +597,8 @@ function ProviderFormDialog({
     form.setValue("extra_body", preset.extra_body);
     if (kind === "chat") {
       const budget = resolveChatTokenBudget(preset.model);
-      form.setValue("context_window", budget.context_window);
-      form.setValue("max_output_tokens", budget.max_output_tokens);
+      form.setValue("context_window_k", budget.context_window_k);
+      form.setValue("max_output_tokens_k", budget.max_output_tokens_k);
     } else {
       form.setValue("is_default", false);
     }
@@ -607,8 +607,8 @@ function ProviderFormDialog({
   function applyChatTokenBudgetForModel(model: string) {
     if (providerKind !== "chat") return;
     const budget = resolveChatTokenBudget(model);
-    form.setValue("context_window", budget.context_window);
-    form.setValue("max_output_tokens", budget.max_output_tokens);
+    form.setValue("context_window_k", budget.context_window_k);
+    form.setValue("max_output_tokens_k", budget.max_output_tokens_k);
   }
 
   return (
@@ -832,51 +832,56 @@ function ProviderFormDialog({
                 <div className="grid grid-cols-2 gap-3">
                   <FormField
                     control={form.control}
-                    name="context_window"
+                    name="context_window_k"
                     render={({ field }) => (
                       <Field>
-                        <FieldLabel>Context window</FieldLabel>
+                        <FieldLabel>Context window (K tokens)</FieldLabel>
                         <FormControl>
                           <Input
                             {...field}
                             type="number"
-                            min={1024}
-                            max={2_000_000}
+                            min={1}
+                            max={2048}
+                            step={0.25}
                             onChange={(event) =>
                               field.onChange(event.currentTarget.valueAsNumber)
                             }
                           />
                         </FormControl>
                         <FieldError
-                          errors={[form.formState.errors.context_window]}
+                          errors={[form.formState.errors.context_window_k]}
                         />
                       </Field>
                     )}
                   />
                   <FormField
                     control={form.control}
-                    name="max_output_tokens"
+                    name="max_output_tokens_k"
                     render={({ field }) => (
                       <Field>
-                        <FieldLabel>Max output tokens</FieldLabel>
+                        <FieldLabel>Max output (K tokens)</FieldLabel>
                         <FormControl>
                           <Input
                             {...field}
                             type="number"
-                            min={256}
-                            max={1_000_000}
+                            min={0.25}
+                            max={1024}
+                            step={0.25}
                             onChange={(event) =>
                               field.onChange(event.currentTarget.valueAsNumber)
                             }
                           />
                         </FormControl>
                         <FieldError
-                          errors={[form.formState.errors.max_output_tokens]}
+                          errors={[form.formState.errors.max_output_tokens_k]}
                         />
                       </Field>
                     )}
                   />
                 </div>
+                <Muted className="text-xs">
+                  统一按 1K = 1024 tokens 配置，支持 0.25K 步进。
+                </Muted>
                 {providerKind === "chat" && (
                   <FormField
                     control={form.control}

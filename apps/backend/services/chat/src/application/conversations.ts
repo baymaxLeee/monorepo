@@ -4,7 +4,13 @@ import { and, asc, desc, eq } from "drizzle-orm";
 
 import type { AuthContext } from "../api/http/middleware/auth.js";
 import { getDb } from "../infrastructure/persistence/index.js";
-import { agentRuns, conversations, messages, type PersistedMessageContent } from "../infrastructure/persistence/schema.js";
+import {
+  agentRuns,
+  conversationArtifactCleanupOutbox,
+  conversations,
+  messages,
+  type PersistedMessageContent,
+} from "../infrastructure/persistence/schema.js";
 import {
   getDocument,
   getDocumentSource,
@@ -209,7 +215,20 @@ export async function setActivePlanDocument(
 export async function deleteConversation(auth: AuthContext, conversationId: string): Promise<void> {
   const row = await getConversationRow(auth, conversationId);
   const db = getDb();
-  await db.delete(conversations).where(eq(conversations.id, row.id));
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(conversationArtifactCleanupOutbox)
+      .values({
+        conversationId: row.id,
+        userId: row.userId,
+        orgId: row.orgId,
+        availableAt: now,
+        createdAt: now,
+      })
+      .onConflictDoNothing();
+    await tx.delete(conversations).where(eq(conversations.id, row.id));
+  });
 }
 
 function assertConversationDocument(

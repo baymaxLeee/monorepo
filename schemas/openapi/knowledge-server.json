@@ -3058,6 +3058,81 @@
         }
       }
     },
+    "/internal/conversation-artifact-cleanups": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Cleanup Conversation Artifacts Route",
+        "operationId": "cleanup_conversation_artifacts_route_internal_conversation_artifact_cleanups_post",
+        "parameters": [
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleanupConversationArtifactsInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleanupConversationArtifactsResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/internal/retrieve": {
       "post": {
         "tags": [
@@ -3342,6 +3417,73 @@
           "user_id"
         ],
         "title": "CancelArtifactGenerationInput"
+      },
+      "CleanupConversationArtifactsInput": {
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Conversation Id"
+          },
+          "user_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "User Id"
+          },
+          "org_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "Org Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "conversation_id",
+          "user_id",
+          "org_id"
+        ],
+        "title": "CleanupConversationArtifactsInput"
+      },
+      "CleanupConversationArtifactsResult": {
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "title": "Conversation Id"
+          },
+          "deleted_documents": {
+            "type": "integer",
+            "title": "Deleted Documents"
+          },
+          "deleted_generations": {
+            "type": "integer",
+            "title": "Deleted Generations"
+          },
+          "deleted_blocks": {
+            "type": "integer",
+            "title": "Deleted Blocks"
+          },
+          "deleted_staged_media": {
+            "type": "integer",
+            "title": "Deleted Staged Media"
+          },
+          "deleted_objects": {
+            "type": "integer",
+            "title": "Deleted Objects"
+          }
+        },
+        "type": "object",
+        "required": [
+          "conversation_id",
+          "deleted_documents",
+          "deleted_generations",
+          "deleted_blocks",
+          "deleted_staged_media",
+          "deleted_objects"
+        ],
+        "title": "CleanupConversationArtifactsResult"
       },
       "CreateArtifactInput": {
         "properties": {

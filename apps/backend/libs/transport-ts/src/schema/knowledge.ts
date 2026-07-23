@@ -551,6 +551,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/conversation-artifact-cleanups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cleanup Conversation Artifacts Route */
+        post: operations["cleanup_conversation_artifacts_route_internal_conversation_artifact_cleanups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/retrieve": {
         parameters: {
             query?: never;
@@ -636,6 +653,30 @@ export interface components {
         CancelArtifactGenerationInput: {
             /** User Id */
             user_id: string;
+        };
+        /** CleanupConversationArtifactsInput */
+        CleanupConversationArtifactsInput: {
+            /** Conversation Id */
+            conversation_id: string;
+            /** User Id */
+            user_id: string;
+            /** Org Id */
+            org_id: string;
+        };
+        /** CleanupConversationArtifactsResult */
+        CleanupConversationArtifactsResult: {
+            /** Conversation Id */
+            conversation_id: string;
+            /** Deleted Documents */
+            deleted_documents: number;
+            /** Deleted Generations */
+            deleted_generations: number;
+            /** Deleted Blocks */
+            deleted_blocks: number;
+            /** Deleted Staged Media */
+            deleted_staged_media: number;
+            /** Deleted Objects */
+            deleted_objects: number;
         };
         /** CreateArtifactInput */
         CreateArtifactInput: {
@@ -2256,6 +2297,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublishedArtifactRevision"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cleanup_conversation_artifacts_route_internal_conversation_artifact_cleanups_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CleanupConversationArtifactsInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanupConversationArtifactsResult"];
                 };
             };
             /** @description Validation Error */

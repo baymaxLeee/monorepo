@@ -16,6 +16,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 ProviderKind = Literal["chat", "image", "video", "embedding", "rerank"]
+TOKENS_PER_K = 1024
 
 
 class ProviderPricing(BaseModel):
@@ -37,8 +38,8 @@ class ModelProvider(BaseModel):
     api_key_masked: str
     extra_body: dict[str, Any]
     pricing: ProviderPricing | None
-    context_window: int
-    max_output_tokens: int
+    context_window_k: float = Field(description="Context window in K tokens; 1K = 1024 tokens")
+    max_output_tokens_k: float = Field(description="Maximum output in K tokens; 1K = 1024 tokens")
     supports_image_input: bool
     is_default: bool
     is_enabled: bool
@@ -73,16 +74,28 @@ class CreateModelProviderInput(BaseModel):
     api_key: str = Field(min_length=1, max_length=4096)
     extra_body: dict[str, Any] = Field(default_factory=dict)
     pricing: ProviderPricing | None = None
-    context_window: int = Field(default=524_288, ge=1024, le=2_000_000)
-    max_output_tokens: int = Field(default=262_144, ge=256, le=1_000_000)
+    context_window_k: float = Field(
+        default=512,
+        ge=1,
+        le=2048,
+        multiple_of=0.25,
+        description="Context window in K tokens; 1K = 1024 tokens",
+    )
+    max_output_tokens_k: float = Field(
+        default=256,
+        ge=0.25,
+        le=1024,
+        multiple_of=0.25,
+        description="Maximum output in K tokens; 1K = 1024 tokens",
+    )
     supports_image_input: bool = False
     is_default: bool = False
     is_enabled: bool = True
 
     @model_validator(mode="after")
     def validate_token_budget(self) -> CreateModelProviderInput:
-        if self.max_output_tokens >= self.context_window:
-            raise ValueError("max_output_tokens must be less than context_window")
+        if self.max_output_tokens_k >= self.context_window_k:
+            raise ValueError("max_output_tokens_k must be less than context_window_k")
         return self
 
 
@@ -94,8 +107,20 @@ class UpdateModelProviderInput(BaseModel):
     api_key: str | None = Field(default=None, min_length=1, max_length=4096)
     extra_body: dict[str, Any] | None = None
     pricing: ProviderPricing | None = None
-    context_window: int | None = Field(default=None, ge=1024, le=2_000_000)
-    max_output_tokens: int | None = Field(default=None, ge=256, le=1_000_000)
+    context_window_k: float | None = Field(
+        default=None,
+        ge=1,
+        le=2048,
+        multiple_of=0.25,
+        description="Context window in K tokens; 1K = 1024 tokens",
+    )
+    max_output_tokens_k: float | None = Field(
+        default=None,
+        ge=0.25,
+        le=1024,
+        multiple_of=0.25,
+        description="Maximum output in K tokens; 1K = 1024 tokens",
+    )
     supports_image_input: bool | None = None
     is_default: bool | None = None
     is_enabled: bool | None = None

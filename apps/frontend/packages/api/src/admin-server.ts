@@ -343,8 +343,8 @@ export interface ModelProvider {
   api_key_masked: string;
   extra_body: Record<string, unknown>;
   pricing: ProviderPricing | null;
-  context_window: number;
-  max_output_tokens: number;
+  context_window_k: number;
+  max_output_tokens_k: number;
   supports_image_input: boolean;
   is_default: boolean;
   is_enabled: boolean;
@@ -360,8 +360,8 @@ export interface CreateModelProviderInput {
   api_key: string;
   extra_body?: Record<string, unknown>;
   pricing?: ProviderPricing | null;
-  context_window?: number;
-  max_output_tokens?: number;
+  context_window_k?: number;
+  max_output_tokens_k?: number;
   supports_image_input?: boolean;
   is_default?: boolean;
   is_enabled?: boolean;
@@ -375,8 +375,8 @@ export interface UpdateModelProviderInput {
   api_key?: string;
   extra_body?: Record<string, unknown> | null;
   pricing?: ProviderPricing | null;
-  context_window?: number;
-  max_output_tokens?: number;
+  context_window_k?: number;
+  max_output_tokens_k?: number;
   supports_image_input?: boolean;
   is_default?: boolean;
   is_enabled?: boolean;

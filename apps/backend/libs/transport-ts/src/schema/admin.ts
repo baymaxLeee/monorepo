@@ -740,15 +740,17 @@ export interface components {
             };
             pricing?: components["schemas"]["ProviderPricing"] | null;
             /**
-             * Context Window
-             * @default 524288
+             * Context Window K
+             * @description Context window in K tokens; 1K = 1024 tokens
+             * @default 512
              */
-            context_window: number;
+            context_window_k: number;
             /**
-             * Max Output Tokens
-             * @default 262144
+             * Max Output Tokens K
+             * @description Maximum output in K tokens; 1K = 1024 tokens
+             * @default 256
              */
-            max_output_tokens: number;
+            max_output_tokens_k: number;
             /**
              * Supports Image Input
              * @default false
@@ -880,10 +882,16 @@ export interface components {
                 [key: string]: unknown;
             };
             pricing: components["schemas"]["ProviderPricing"] | null;
-            /** Context Window */
-            context_window: number;
-            /** Max Output Tokens */
-            max_output_tokens: number;
+            /**
+             * Context Window K
+             * @description Context window in K tokens; 1K = 1024 tokens
+             */
+            context_window_k: number;
+            /**
+             * Max Output Tokens K
+             * @description Maximum output in K tokens; 1K = 1024 tokens
+             */
+            max_output_tokens_k: number;
             /** Supports Image Input */
             supports_image_input: boolean;
             /** Is Default */
@@ -1180,10 +1188,16 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             pricing?: components["schemas"]["ProviderPricing"] | null;
-            /** Context Window */
-            context_window?: number | null;
-            /** Max Output Tokens */
-            max_output_tokens?: number | null;
+            /**
+             * Context Window K
+             * @description Context window in K tokens; 1K = 1024 tokens
+             */
+            context_window_k?: number | null;
+            /**
+             * Max Output Tokens K
+             * @description Maximum output in K tokens; 1K = 1024 tokens
+             */
+            max_output_tokens_k?: number | null;
             /** Supports Image Input */
             supports_image_input?: boolean | null;
             /** Is Default */

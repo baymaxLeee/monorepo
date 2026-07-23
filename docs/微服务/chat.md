@@ -11,6 +11,8 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
 - `GET /conversations/{id}/agents/run/stream`：恢复当前活动 UI stream；无活动流返回 204
 - `GET /conversations/{id}/agents/runs/{runId}/trace`：读取步骤与 tool trace
 - 会话 CRUD 与文档 facade 路由保持不变
+- 删除会话时，本地事务同时写入 artifact cleanup outbox；HTTP 204 不等待 knowledge
+  或对象存储。后台 relay 至少一次投递幂等清理命令，失败在重启后继续重试。
 
 ## Agent runtime
 
