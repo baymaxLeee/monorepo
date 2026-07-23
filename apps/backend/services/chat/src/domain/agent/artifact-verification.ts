@@ -321,7 +321,9 @@ export function artifactVerificationDirective(
   const repairing = state.items.filter((item) => item.phase === "repair");
   if (repairing.length > 0) {
     const brief =
-      "Apply only the specified block-scoped validation fixes and preserve every other block byte-for-byte.";
+      "Apply only the specified block-scoped validation fixes and preserve every other block byte-for-byte. " +
+      "For standard bar, line, area, pie, and radar chart fixes, use data-chart JSON shorthand instead of hand-writing data-chart-option. " +
+      "Use a corrected data-chart-option only when the requested chart type cannot be expressed by the shorthand.";
     return {
       toolName: "edit_file",
       toolInputs: repairing.map((item) => ({
@@ -329,7 +331,9 @@ export function artifactVerificationDirective(
         brief,
         changes: repairChanges(item),
       })),
-      instruction: "Apply the deterministic block-scoped repairs in this exact batch, then revalidate.",
+      instruction:
+        "Apply the deterministic block-scoped repairs in this exact batch, then revalidate. " +
+        "Standard bar, line, area, pie, and radar repairs must use data-chart shorthand; preserve the raw option escape hatch for unsupported custom chart types.",
     };
   }
   const incomplete = state.items.filter(

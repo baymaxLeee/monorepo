@@ -19,12 +19,14 @@ export const ARTIFACT_VISUAL_CAPABILITIES = [
 
 export const ARTIFACT_CHART_SPEC = [
   "Prefer compiler-hydrated chart divs for standard charts. Use custom JavaScript only when the requested interaction cannot be expressed by the chart spec.",
-  "Chart spec fields: type (one of \"bar\" | \"line\" | \"area\" | \"pie\"), title (optional string), categories (string[] for bar/line/area; the x-axis labels), series (see below), optional stack:true, optional horizontal:true.",
-  "series for bar/line/area: an array of {\"name\":string,\"data\":number[]} aligned with categories; for a single series you may pass a bare number[]: \"data\".",
+  "Chart spec fields: type (one of \"bar\" | \"line\" | \"area\" | \"pie\" | \"radar\"), title (optional string), categories (string[] labels; radar indicator names), series (see below), optional stack:true, optional horizontal:true, optional max:number (radar indicator ceiling, default 100).",
+  "series for bar/line/area: an array of {\"name\":string,\"data\":number[]} aligned with categories; for a single series you may pass a bare number[] as series.",
   "series for pie: an array of {\"name\":string,\"value\":number}.",
+  "series for radar: an array of {\"name\":string,\"data\":number[]} aligned with categories (one value per indicator).",
   "Bar example: <div data-chart=\"{&quot;type&quot;:&quot;bar&quot;,&quot;title&quot;:&quot;销量&quot;,&quot;categories&quot;:[&quot;Q1&quot;,&quot;Q2&quot;],&quot;series&quot;:[{&quot;name&quot;:&quot;华东&quot;,&quot;data&quot;:[120,200]}]}\"></div>",
   "Pie example: <div data-chart=\"{&quot;type&quot;:&quot;pie&quot;,&quot;series&quot;:[{&quot;name&quot;:&quot;A&quot;,&quot;value&quot;:40},{&quot;name&quot;:&quot;B&quot;,&quot;value&quot;:60}]}\"></div>",
-  "For full visual control, use data-chart-option with an escaped JSON ECharts option object containing a non-empty series. Set its color, backgroundColor, textStyle, title, legend, axes, grid, labels, and tooltip to match your design.",
+  "Radar example: <div data-chart=\"{&quot;type&quot;:&quot;radar&quot;,&quot;max&quot;:100,&quot;categories&quot;:[&quot;A&quot;,&quot;B&quot;,&quot;C&quot;],&quot;series&quot;:[{&quot;name&quot;:&quot;2024&quot;,&quot;data&quot;:[40,55,70]},{&quot;name&quot;:&quot;2026&quot;,&quot;data&quot;:[60,75,88]}]}\"></div>",
+  "Only when the chart spec cannot express the design, use data-chart-option with escaped JSON ECharts option. Never hand-write data-chart-option for standard bar/line/area/pie/radar charts.",
   "Use only numbers in data/value (no units, no strings). Escape every double quote inside the attribute as &quot;.",
 ].join("\n");
 
@@ -394,15 +396,17 @@ function compileCharts(html: string, accent: string): string {
   return validateChartOptions(withSpecs, accent);
 }
 
-const CHART_TYPES = new Set(["bar", "line", "area", "pie"]);
+const CHART_TYPES = new Set(["bar", "line", "area", "pie", "radar"]);
 
 type ChartSpec = {
   type: string;
   title?: unknown;
   categories?: unknown;
+  indicators?: unknown;
   series?: unknown;
   stack?: unknown;
   horizontal?: unknown;
+  max?: unknown;
 };
 
 function expandChartSpec(spec: unknown, accent: string): Record<string, unknown> | null {
@@ -440,6 +444,22 @@ function expandChartSpec(spec: unknown, accent: string): Record<string, unknown>
           data: slices,
         },
       ],
+    };
+  }
+
+  if (type === "radar") {
+    const defaultMax =
+      typeof input.max === "number" && Number.isFinite(input.max) && input.max > 0 ? input.max : 100;
+    const indicators = normalizeRadarIndicators(input.categories, input.indicators, defaultMax);
+    const seriesData = normalizeRadarSeries(input.series, indicators.length);
+    if (!indicators.length || !seriesData.length) return null;
+    return {
+      color: palette,
+      ...title,
+      tooltip: { trigger: "item" },
+      legend: seriesData.length > 1 ? { bottom: 0 } : undefined,
+      radar: { indicator: indicators, radius: "62%" },
+      series: [{ type: "radar", data: seriesData }],
     };
   }
 
@@ -492,6 +512,60 @@ function normalizeCartesianSeries(
     out.push({
       name: typeof row.name === "string" ? normalizeChartText(row.name) : undefined,
       data,
+    });
+  }
+  return out;
+}
+
+function normalizeRadarIndicators(
+  categories: unknown,
+  indicators: unknown,
+  defaultMax: number,
+): Array<{ name: string; max: number }> {
+  const raw = indicators ?? categories;
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((item) => {
+    if (typeof item === "string") {
+      const name = normalizeChartText(item);
+      return name ? [{ name, max: defaultMax }] : [];
+    }
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    const name = typeof row.name === "string" ? normalizeChartText(row.name) : "";
+    if (!name) return [];
+    const max =
+      typeof row.max === "number" && Number.isFinite(row.max) && row.max > 0
+        ? row.max
+        : defaultMax;
+    return [{ name, max }];
+  });
+}
+
+function normalizeRadarSeries(
+  raw: unknown,
+  indicatorCount: number,
+): Array<{ name?: string; value: number[] }> {
+  if (!Array.isArray(raw) || indicatorCount <= 0) return [];
+  if (raw.every((value) => typeof value === "number" && Number.isFinite(value))) {
+    return raw.length === indicatorCount ? [{ value: raw as number[] }] : [];
+  }
+  const out: Array<{ name?: string; value: number[] }> = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const source = Array.isArray(row.data)
+      ? row.data
+      : Array.isArray(row.value)
+        ? row.value
+        : null;
+    if (!source) continue;
+    if (
+      source.length !== indicatorCount ||
+      !source.every((value) => typeof value === "number" && Number.isFinite(value))
+    ) continue;
+    out.push({
+      name: typeof row.name === "string" ? normalizeChartText(row.name) : undefined,
+      value: source as number[],
     });
   }
   return out;

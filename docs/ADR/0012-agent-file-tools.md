@@ -105,6 +105,12 @@ pipeline remains accepted. ADR 0048 restores validation as Chat-local
   not declare one. Validation still reports `CHART_TOOLTIP_MISSING` on persisted
   artifacts so legacy output is repaired block-by-block rather than silently
   accepted.
+- Standard bar, line, area, pie, and radar charts use the compact `data-chart`
+  shorthand. Validation-directed repairs prefer that shorthand so a block model
+  does not repeatedly hand-write deeply nested ECharts JSON; `data-chart-option`
+  remains available for chart types the shorthand cannot express. Radar series
+  must contain one finite numeric value per indicator and are rejected rather
+  than padded or truncated, so validation never fabricates chart data.
 - The web client auto-continues only tools explicitly marked for client execution.
   Completed durable server tools are never echoed as client tool responses.
 - `validate_html` is read-only and never executes model-authored HTML. Automated

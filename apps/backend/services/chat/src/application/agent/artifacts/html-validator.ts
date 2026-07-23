@@ -398,7 +398,14 @@ export function validateArtifactHtml(html: string): HtmlValidationReport {
   }
   if (!blocks.length) findings.push(finding("TEMPLATE_BLOCKS_MISSING", "error", "template", "Document contains no artifact blocks.", "Compile at least one planned block into the artifact shell."));
   for (const invalidChart of allElements.filter((element) => "data-chart-invalid" in (element.attribs ?? {}))) {
-    findings.push(finding("CHART_INVALID", "error", "chart", "A chart specification is invalid.", "Return a valid data-chart spec or ECharts option with a non-empty series.", { block_id: closestBlockId(invalidChart) }));
+    findings.push(finding(
+      "CHART_INVALID",
+      "error",
+      "chart",
+      "A chart specification is invalid (compiler marked data-chart-invalid).",
+      "For bar, line, area, pie, or radar, replace the chart with a data-chart shorthand div instead of hand-writing data-chart-option. Radar uses categories (indicator names) and series [{name, data:number[]}]. Escape inner quotes as &quot;. Use a corrected data-chart-option only for chart types the shorthand cannot express.",
+      { block_id: closestBlockId(invalidChart) },
+    ));
   }
   for (const chart of allElements.filter((element) => "data-chart-option" in (element.attribs ?? {}))) {
     const raw = chart.attribs?.["data-chart-option"];
