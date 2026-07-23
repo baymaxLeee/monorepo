@@ -1,8 +1,15 @@
 import { getToolName, isFileUIPart, isToolUIPart, type UIMessage } from "ai";
 import type { ConversationDocument } from "api";
-import { Badge, Button } from "components";
+import { Badge } from "components";
 import {
   Message as AiMessage,
+  Confirmation,
+  ConfirmationAccepted,
+  ConfirmationAction,
+  ConfirmationActions,
+  ConfirmationRejected,
+  ConfirmationRequest,
+  ConfirmationTitle,
   MessageContent,
   MessageResponse,
   mergeReasoningParts,
@@ -343,21 +350,26 @@ function ToolPartView({
               正在检查工具授权策略…
             </div>
           ) : (
-            <div className="flex gap-2 p-3">
-              <Button
-                size="sm"
-                onClick={() => onToolApproval(part.approval.id, true)}
-              >
-                允许
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onToolApproval(part.approval.id, false)}
-              >
-                拒绝
-              </Button>
-            </div>
+            <Confirmation approval={part.approval} state={part.state}>
+              <ConfirmationRequest>
+                <ConfirmationTitle>
+                  此工具需要你的授权后才能继续执行。
+                </ConfirmationTitle>
+                <ConfirmationActions>
+                  <ConfirmationAction
+                    variant="outline"
+                    onClick={() => onToolApproval(part.approval.id, false)}
+                  >
+                    拒绝
+                  </ConfirmationAction>
+                  <ConfirmationAction
+                    onClick={() => onToolApproval(part.approval.id, true)}
+                  >
+                    允许
+                  </ConfirmationAction>
+                </ConfirmationActions>
+              </ConfirmationRequest>
+            </Confirmation>
           )}
         </ToolContent>
       </Tool>
@@ -369,13 +381,14 @@ function ToolPartView({
       <Tool open={part.state === "output-denied"}>
         <ToolHeader title={toolName} state={part.state} />
         <ToolContent>
-          <div className="p-3 text-xs text-muted-foreground">
-            {part.state === "output-denied"
-              ? "工具调用已被拒绝。"
-              : part.approval.approved
-                ? "工具调用已授权。"
-                : "工具调用未获授权。"}
-          </div>
+          <Confirmation approval={part.approval} state={part.state}>
+            <ConfirmationAccepted>
+              <ConfirmationTitle>工具调用已授权。</ConfirmationTitle>
+            </ConfirmationAccepted>
+            <ConfirmationRejected>
+              <ConfirmationTitle>工具调用已被拒绝。</ConfirmationTitle>
+            </ConfirmationRejected>
+          </Confirmation>
         </ToolContent>
       </Tool>
     );

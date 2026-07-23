@@ -150,6 +150,26 @@ export function messagesToMarkdown(
     .join("\n\n");
 }
 
+export function downloadConversationMarkdown(
+  messages: UIMessage[],
+  filename = "conversation.md",
+  formatMessage: (
+    message: UIMessage,
+    index: number,
+  ) => string = defaultFormatMessage,
+) {
+  const markdown = messagesToMarkdown(messages, formatMessage);
+  const blob = new Blob([markdown], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export function ConversationDownload({
   messages,
   filename = "conversation.md",
@@ -159,16 +179,7 @@ export function ConversationDownload({
   ...props
 }: ConversationDownloadProps) {
   const handleDownload = useCallback(() => {
-    const markdown = messagesToMarkdown(messages, formatMessage);
-    const blob = new Blob([markdown], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    downloadConversationMarkdown(messages, filename, formatMessage);
   }, [messages, filename, formatMessage]);
 
   return (

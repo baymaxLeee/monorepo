@@ -1,9 +1,13 @@
 import { randomBytes } from "node:crypto";
 
-import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import { agentRuns, agentSteps, agentToolCalls, conversationRunLeases } from "../../../infrastructure/persistence/schema.js";
+import {
+  parseConversationContextSnapshot,
+  type ConversationContextSnapshot,
+} from "../context/context-snapshot.js";
 import { isToolOutcome } from "../tools/outcome.js";
 import { cancelTodoOutput } from "./cancellation.js";
 
@@ -61,6 +65,7 @@ export async function getAgentRunById(runId: string): Promise<
       id: string;
       conversationId: string;
       userId: string;
+      providerId: string;
       status: AgentRunStatus;
     }
   | null
@@ -74,6 +79,7 @@ export async function getAgentRunById(runId: string): Promise<
     id: row.id,
     conversationId: row.conversationId,
     userId: row.userId,
+    providerId: row.providerId,
     status: row.status as AgentRunStatus,
   };
 }
@@ -171,6 +177,10 @@ export interface AgentTraceStep {
   summary: string | null;
   createdAt: string;
   finishedAt: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  contextSnapshot: ConversationContextSnapshot | null;
 }
 
 export interface AgentTraceToolCall {
@@ -191,8 +201,20 @@ export interface AgentRunTrace {
   cachedInputTokens: number | null;
   reasoningTokens: number | null;
   totalTokens: number | null;
+  contextWindow: number | null;
   steps: AgentTraceStep[];
   toolCalls: AgentTraceToolCall[];
+}
+
+export interface LatestConversationContextRecord {
+  runId: string;
+  stepId: string;
+  providerId: string;
+  model: string;
+  cachedInputTokens: number | null;
+  totalEstimated: boolean;
+  updatedAt: string;
+  snapshot: ConversationContextSnapshot;
 }
 
 function isoOrNull(d: Date | null): string | null {
@@ -222,6 +244,7 @@ export async function getRunTrace(runId: string): Promise<AgentRunTrace | null> 
     cachedInputTokens: run.cachedInputTokens ?? null,
     reasoningTokens: run.reasoningTokens ?? null,
     totalTokens: run.totalTokens ?? null,
+    contextWindow: null,
     steps: steps.map((s) => ({
       id: s.id,
       stepIndex: s.stepIndex,
@@ -230,6 +253,10 @@ export async function getRunTrace(runId: string): Promise<AgentRunTrace | null> 
       summary: s.summary,
       createdAt: isoOrNull(s.createdAt) ?? "",
       finishedAt: isoOrNull(s.finishedAt),
+      inputTokens: s.inputTokens ?? null,
+      outputTokens: s.outputTokens ?? null,
+      totalTokens: s.totalTokens ?? null,
+      contextSnapshot: parseConversationContextSnapshot(s.metadata?.context_snapshot),
     })),
     toolCalls: toolCalls.map((t) => ({
       id: t.id,
@@ -239,6 +266,61 @@ export async function getRunTrace(runId: string): Promise<AgentRunTrace | null> 
       durationMs: t.durationMs,
       error: t.error,
     })),
+  };
+}
+
+export async function getLatestConversationContextRecord(
+  conversationId: string,
+): Promise<LatestConversationContextRecord | null> {
+  const [row] = await getDb()
+    .select({
+      runId: agentRuns.id,
+      stepId: agentSteps.id,
+      providerId: agentRuns.providerId,
+      model: agentRuns.model,
+      metadata: agentSteps.metadata,
+      inputTokens: agentSteps.inputTokens,
+      runCreatedAt: agentRuns.createdAt,
+      finishedAt: agentSteps.finishedAt,
+    })
+    .from(agentSteps)
+    .innerJoin(agentRuns, eq(agentRuns.id, agentSteps.runId))
+    .where(
+      and(
+        eq(agentRuns.conversationId, conversationId),
+        eq(agentSteps.kind, "model"),
+        eq(agentSteps.status, "completed"),
+        sql`${agentSteps.metadata}->'context_snapshot' IS NOT NULL`,
+      ),
+    )
+    .orderBy(
+      desc(agentRuns.createdAt),
+      desc(sql<number>`CASE WHEN ${agentSteps.inputTokens} > 0 THEN 1 ELSE 0 END`),
+      desc(agentSteps.stepIndex),
+    )
+    .limit(1);
+  if (!row) return null;
+  const snapshot = parseConversationContextSnapshot(row.metadata?.context_snapshot);
+  if (!snapshot) return null;
+  const usage = row.metadata?.usage;
+  const inputDetails =
+    usage && typeof usage === "object"
+      ? (usage as { inputTokenDetails?: unknown }).inputTokenDetails
+      : null;
+  const cachedInputTokens =
+    inputDetails && typeof inputDetails === "object"
+      ? (inputDetails as { cacheReadTokens?: unknown }).cacheReadTokens
+      : null;
+  return {
+    runId: row.runId,
+    stepId: row.stepId,
+    providerId: row.providerId,
+    model: row.model,
+    cachedInputTokens:
+      typeof cachedInputTokens === "number" ? cachedInputTokens : null,
+    totalEstimated: !(row.inputTokens != null && row.inputTokens > 0),
+    updatedAt: isoOrNull(row.finishedAt) ?? isoOrNull(row.runCreatedAt) ?? "",
+    snapshot,
   };
 }
 

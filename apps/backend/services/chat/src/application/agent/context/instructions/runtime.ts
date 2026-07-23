@@ -1,4 +1,5 @@
 import type { AgentMode } from "../../agents/types.js";
+import { INSTRUCTION_SECTION_TAGS } from "./section-tags.js";
 import { xmlSection } from "./xml.js";
 
 const PLAN_CONTRACT = [
@@ -42,5 +43,5 @@ const TOOL_OUTCOME_CONTRACT = [
 export function renderRuntimeContract(mode: AgentMode): string {
   const body = `${mode === "plan" ? PLAN_CONTRACT : NORMAL_CONTRACT}\n${TOOL_OUTCOME_CONTRACT}`;
   // Non-null: both contract bodies are always non-empty constants.
-  return xmlSection("runtime_contract", body, { mode })!;
+  return xmlSection(INSTRUCTION_SECTION_TAGS.runtimeContract, body, { mode })!;
 }

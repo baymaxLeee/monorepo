@@ -1,4 +1,5 @@
 import {
+  type ConversationContextResponse,
   getChatService,
   type MemoryCandidate,
   type UpdateMemoryCandidate,
@@ -8,9 +9,12 @@ import {
   type VideoProductionDetail,
 } from "../generated/chat-server/index";
 import { authFetch } from "./auth-fetch";
-import { API_BASE_URL, request } from "./http";
+import { API_BASE_URL, type ApiRequestConfig, request } from "./http";
 
 export type {
+  ConversationContextCategory,
+  ConversationContextResponse,
+  ConversationContextView,
   MemoryCandidate,
   MemoryCategory,
   UserMemory,
@@ -67,6 +71,7 @@ export interface ConversationDetail extends Conversation {
    * endpoint stays authoritative.
    */
   active_run_id: string | null;
+  latest_run_id: string | null;
 }
 
 export interface CreateConversationInput {
@@ -144,6 +149,17 @@ export function fetchConversation(id: string): Promise<ConversationDetail> {
   return request<ConversationDetail>({
     url: `${BASE}/${encodeURIComponent(id)}`,
     method: "GET",
+  });
+}
+
+export function fetchConversationContext(
+  id: string,
+  options?: Pick<ApiRequestConfig, "signal" | "skipErrorNotify">,
+): Promise<ConversationContextResponse> {
+  return request<ConversationContextResponse>({
+    url: `${BASE}/${encodeURIComponent(id)}/context`,
+    method: "GET",
+    ...options,
   });
 }
 
@@ -293,6 +309,28 @@ export interface AgentTraceStep {
   summary: string | null;
   createdAt: string;
   finishedAt: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  contextSnapshot: ConversationContextSnapshot | null;
+}
+
+export type ContextCategoryId =
+  | "system"
+  | "tools"
+  | "rules"
+  | "skills"
+  | "mcp"
+  | "memory"
+  | "conversation";
+
+export interface ConversationContextSnapshot {
+  version: 1;
+  usedTokens: number;
+  inputTokens: number;
+  retainedOutputTokens: number;
+  breakdownEstimated: true;
+  categories: Array<{ id: ContextCategoryId; tokens: number }>;
 }
 
 export interface AgentTraceToolCall {
@@ -313,7 +351,12 @@ export interface AgentRunTrace {
     | "failed"
     | "cancelled";
   model: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cachedInputTokens: number | null;
+  reasoningTokens: number | null;
   totalTokens: number | null;
+  contextWindow: number | null;
   steps: AgentTraceStep[];
   toolCalls: AgentTraceToolCall[];
 }
@@ -321,10 +364,12 @@ export interface AgentRunTrace {
 export async function fetchConversationAgentTrace(
   conversationId: string,
   runId: string,
+  options?: Pick<ApiRequestConfig, "signal" | "skipErrorNotify">,
 ): Promise<AgentRunTrace> {
   return request<AgentRunTrace>({
     url: `${BASE}/${encodeURIComponent(conversationId)}/agents/runs/${encodeURIComponent(runId)}/trace`,
     method: "GET",
+    ...options,
   });
 }
 

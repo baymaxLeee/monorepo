@@ -7,6 +7,7 @@ import { getDb } from "../../../infrastructure/persistence/index.js";
 import { conversationContexts } from "../../../infrastructure/persistence/schema.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { EMPTY_USAGE, type UsageTokens } from "../observability/lifecycle.js";
+import { effectiveModelInputWindow } from "./budget.js";
 import { compactConversationPrefix } from "./compactor.js";
 import { parseCompactionState, type CompactionState } from "./compaction-state.js";
 import {
@@ -19,8 +20,6 @@ import { toolOutcomeData } from "../tools/outcome.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
-// A live no-tool run consumed ~6.5k tokens before user content; keep headroom for larger catalogs.
-const CONTEXT_OVERHEAD_TOKENS = 8_000;
 const COMPACTION_MESSAGE_RESERVE_TOKENS = 6_000;
 // The original stays in Knowledge; only model-bound bytes are normalized.
 const VISION_MAX_DIM = 1536;
@@ -198,10 +197,7 @@ export async function projectModelContext(input: {
   abortSignal: AbortSignal;
   messages: AnyUIMessage[];
 }): Promise<{ messages: ModelMessage[]; compactionUsage: UsageTokens }> {
-  const inputTokenBudget = Math.max(
-    512,
-    input.provider.contextWindow - input.provider.maxOutputTokens - CONTEXT_OVERHEAD_TOKENS,
-  );
+  const inputTokenBudget = effectiveModelInputWindow(input.provider);
   const [stored] = await getDb()
     .select()
     .from(conversationContexts)

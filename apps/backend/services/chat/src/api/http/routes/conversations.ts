@@ -11,6 +11,7 @@ import {
 import { ForbiddenError, NotFoundError } from "../../../application/errors.js";
 import { getStagedMediaSource } from "../../../infrastructure/clients/knowledge.js";
 import { activeAgentStreamRunId } from "../../../application/agent/streams/service.js";
+import { getConversationContext } from "../../../application/agent/index.js";
 import {
   createConversation,
   deleteConversation,
@@ -161,6 +162,12 @@ conversationsRoutes.get("/:conversationId", async (c) => {
   const detail = await getConversation(auth, conversationId);
   const activeRunId = await activeAgentStreamRunId(conversationId);
   return c.json({ ...detail, active_run_id: activeRunId });
+});
+
+conversationsRoutes.get("/:conversationId/context", async (c) => {
+  return c.json(
+    await getConversationContext(getAuth(c), c.req.param("conversationId")),
+  );
 });
 
 conversationsRoutes.get("/:conversationId/documents/:documentId", async (c) => {

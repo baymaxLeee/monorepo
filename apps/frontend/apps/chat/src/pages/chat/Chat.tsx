@@ -34,6 +34,7 @@ import { useParams } from "react-router-dom";
 import { getErrorMessage } from "shared";
 import { useShallow } from "zustand/react/shallow";
 import { ChatComposerControls } from "../../components/ChatComposerControls";
+import { ChatContextUsage } from "../../components/ChatContextUsage";
 import { ChatImagePreview } from "../../components/ChatImagePreview";
 import { ChatMessageView } from "../../components/ChatMessageView";
 import {
@@ -150,6 +151,7 @@ export function Chat() {
     agents,
     selectedAgentId,
     setSelectedAgentId,
+    traceRefreshKey,
     setTraceRun,
     clearTraceRun,
     bumpTraceRefresh,
@@ -162,6 +164,7 @@ export function Chat() {
       agents: s.agents,
       selectedAgentId: s.selectedAgentId,
       setSelectedAgentId: s.setSelectedAgentId,
+      traceRefreshKey: s.traceRefreshKey,
       setTraceRun: s.setTraceRun,
       clearTraceRun: s.clearTraceRun,
       bumpTraceRefresh: s.bumpTraceRefresh,
@@ -407,6 +410,8 @@ export function Chat() {
         if (!active) return;
         setDetail(next);
         setMessages(next.messages.map(messageToUiMessage));
+        const latestRunId = next.active_run_id ?? next.latest_run_id;
+        if (latestRunId) setTraceRun(id, latestRunId);
       })
       .catch(() => {})
       .finally(() => {
@@ -415,7 +420,7 @@ export function Chat() {
     return () => {
       active = false;
     };
-  }, [id, setMessages, clearTraceRun]);
+  }, [id, setMessages, clearTraceRun, setTraceRun]);
 
   useEffect(() => {
     resumedConversationRef.current = null;
@@ -732,16 +737,23 @@ export function Chat() {
             toast(`已选择技能：${command.title}`);
           }}
           footerRender={() => (
-            <ChatComposerControls
-              agents={agents ?? []}
-              selectedAgentId={selectedAgentId}
-              onSelectAgent={setSelectedAgentId}
-              activatedSkillName={activatedSkillName}
-              onClearSkill={() => setActivatedSkillName(null)}
-              mode={mode}
-              onModeChange={changeMode}
-              disabled={busy}
-            />
+            <>
+              <ChatComposerControls
+                agents={agents ?? []}
+                selectedAgentId={selectedAgentId}
+                onSelectAgent={setSelectedAgentId}
+                activatedSkillName={activatedSkillName}
+                onClearSkill={() => setActivatedSkillName(null)}
+                mode={mode}
+                onModeChange={changeMode}
+                disabled={busy}
+              />
+              <ChatContextUsage
+                conversationId={id ?? ""}
+                refreshKey={traceRefreshKey}
+                running={busy}
+              />
+            </>
           )}
         />
       </div>

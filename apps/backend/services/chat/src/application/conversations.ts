@@ -4,7 +4,7 @@ import { and, asc, desc, eq } from "drizzle-orm";
 
 import type { AuthContext } from "../api/http/middleware/auth.js";
 import { getDb } from "../infrastructure/persistence/index.js";
-import { conversations, messages, type PersistedMessageContent } from "../infrastructure/persistence/schema.js";
+import { agentRuns, conversations, messages, type PersistedMessageContent } from "../infrastructure/persistence/schema.js";
 import {
   getDocument,
   getDocumentSource,
@@ -85,6 +85,7 @@ export interface ConversationDetail extends Conversation {
   messages: Message[];
   documents: ConversationDocument[];
   active_run_id: string | null;
+  latest_run_id: string | null;
 }
 
 function iso(d: Date): string {
@@ -139,6 +140,12 @@ export async function getConversation(
     .from(messages)
     .where(eq(messages.conversationId, conversationId))
     .orderBy(asc(messages.createdAt), asc(messages.id));
+  const [latestRun] = await db
+    .select({ id: agentRuns.id })
+    .from(agentRuns)
+    .where(eq(agentRuns.conversationId, conversationId))
+    .orderBy(desc(agentRuns.createdAt))
+    .limit(1);
   let documentRows: KnowledgeDocument[] = [];
   try {
     documentRows = await listDocuments(auth.userId, conversationId);
@@ -150,6 +157,7 @@ export async function getConversation(
     messages: messageRows.map(toMessage),
     documents: documentRows.map((d) => mapKnowledgeDocument(d, conversationId)),
     active_run_id: null,
+    latest_run_id: latestRun?.id ?? null,
   };
 }
 

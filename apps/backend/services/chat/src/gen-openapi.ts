@@ -83,6 +83,14 @@ const openapi = {
         responses: { "204": { description: "delete conversation" } },
       },
     },
+    "/conversations/{conversation_id}/context": {
+      get: {
+        parameters: [pathParam],
+        responses: {
+          "200": jsonResponse("conversation context snapshot", ref("ConversationContextResponse")),
+        },
+      },
+    },
     "/conversations/{conversation_id}/agents/run/stream": {
       get: {
         parameters: [pathParam],
@@ -133,7 +141,9 @@ const openapi = {
     "/conversations/{conversation_id}/agents/runs/{run_id}/trace": {
       get: {
         parameters: [pathParam, runPathParam],
-        responses: { "200": { description: "agent run step/tool-call trace" } },
+        responses: {
+          "200": jsonResponse("agent run step/tool-call trace", ref("AgentRunTrace")),
+        },
       },
     },
     "/conversations/{conversation_id}/agents/runs/{run_id}/cancel": {
@@ -264,6 +274,149 @@ const openapi = {
         properties: {
           cancelled: { type: "boolean" },
           status: { type: "string" },
+        },
+      },
+      AgentRunTrace: {
+        type: "object",
+        required: [
+          "runId", "status", "model", "inputTokens", "outputTokens",
+          "cachedInputTokens", "reasoningTokens", "totalTokens",
+          "contextWindow", "steps", "toolCalls",
+        ],
+        properties: {
+          runId: { type: "string" },
+          status: { type: "string" },
+          model: { type: "string" },
+          inputTokens: { type: "integer", nullable: true },
+          outputTokens: { type: "integer", nullable: true },
+          cachedInputTokens: { type: "integer", nullable: true },
+          reasoningTokens: { type: "integer", nullable: true },
+          totalTokens: { type: "integer", nullable: true },
+          contextWindow: { type: "integer", nullable: true },
+          steps: {
+            type: "array",
+            items: {
+              type: "object",
+              required: [
+                "id", "stepIndex", "kind", "status", "summary", "createdAt",
+                "finishedAt", "inputTokens", "outputTokens", "totalTokens",
+                "contextSnapshot",
+              ],
+              properties: {
+                id: { type: "string" },
+                stepIndex: { type: "integer" },
+                kind: { type: "string" },
+                status: { type: "string" },
+                summary: { type: "string", nullable: true },
+                createdAt: { type: "string", format: "date-time" },
+                finishedAt: { type: "string", format: "date-time", nullable: true },
+                inputTokens: { type: "integer", nullable: true },
+                outputTokens: { type: "integer", nullable: true },
+                totalTokens: { type: "integer", nullable: true },
+                contextSnapshot: {
+                  type: "object",
+                  nullable: true,
+                  required: [
+                    "version", "usedTokens", "inputTokens",
+                    "retainedOutputTokens", "breakdownEstimated", "categories",
+                  ],
+                  properties: {
+                    version: { type: "integer", enum: [1] },
+                    usedTokens: { type: "integer" },
+                    inputTokens: { type: "integer" },
+                    retainedOutputTokens: { type: "integer" },
+                    breakdownEstimated: { type: "boolean", enum: [true] },
+                    categories: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        required: ["id", "tokens"],
+                        properties: {
+                          id: {
+                            type: "string",
+                            enum: [
+                              "system", "tools", "rules", "skills", "mcp",
+                              "memory", "conversation",
+                            ],
+                          },
+                          tokens: { type: "integer" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          toolCalls: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: true,
+            },
+          },
+        },
+      },
+      ConversationContextCategory: {
+        type: "object",
+        required: ["id", "tokens", "shareOfUsed", "shareOfEffectiveWindow"],
+        properties: {
+          id: {
+            type: "string",
+            enum: [
+              "system", "tools", "rules", "skills", "mcp", "memory",
+              "conversation",
+            ],
+          },
+          tokens: { type: "integer" },
+          shareOfUsed: { type: "number", format: "double" },
+          shareOfEffectiveWindow: {
+            type: "number",
+            format: "double",
+            nullable: true,
+          },
+        },
+      },
+      ConversationContextView: {
+        type: "object",
+        required: [
+          "conversationId", "runId", "stepId", "model", "contextWindow",
+          "effectiveWindow", "reservedOutputTokens", "reservedOverheadTokens",
+          "usedTokens", "utilization", "inputTokens", "retainedOutputTokens",
+          "cachedInputTokens", "totalEstimated", "breakdownEstimated",
+          "updatedAt", "categories",
+        ],
+        properties: {
+          conversationId: { type: "string" },
+          runId: { type: "string" },
+          stepId: { type: "string" },
+          model: { type: "string" },
+          contextWindow: { type: "integer", nullable: true },
+          effectiveWindow: { type: "integer", nullable: true },
+          reservedOutputTokens: { type: "integer", nullable: true },
+          reservedOverheadTokens: { type: "integer", nullable: true },
+          usedTokens: { type: "integer" },
+          utilization: { type: "number", format: "double", nullable: true },
+          inputTokens: { type: "integer" },
+          retainedOutputTokens: { type: "integer" },
+          cachedInputTokens: { type: "integer", nullable: true },
+          totalEstimated: { type: "boolean" },
+          breakdownEstimated: { type: "boolean", enum: [true] },
+          updatedAt: { type: "string", format: "date-time" },
+          categories: {
+            type: "array",
+            items: ref("ConversationContextCategory"),
+          },
+        },
+      },
+      ConversationContextResponse: {
+        type: "object",
+        required: ["context"],
+        properties: {
+          context: {
+            allOf: [ref("ConversationContextView")],
+            nullable: true,
+          },
         },
       },
       Task: {

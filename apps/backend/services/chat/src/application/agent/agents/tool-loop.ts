@@ -1,5 +1,6 @@
 import { isStepCount, ToolLoopAgent, wrapLanguageModel } from "ai";
 import type { ToolSet } from "ai";
+import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import { finishSpan, runWithActiveSpan, startSpan } from "@backend/kernel-ts";
 
@@ -14,6 +15,11 @@ import {
 } from "../observability/lifecycle.js";
 import { createProviderModel } from "@backend/transport-ts/provider-model";
 import { assembleInstructions } from "../context/instructions/index.js";
+import { INSTRUCTION_SECTION_TAGS } from "../context/instructions/section-tags.js";
+import {
+  estimateConversationContext,
+  type ContextEstimate,
+} from "../context/context-snapshot.js";
 import { ToolCatalog } from "../tools/catalog.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
 import { isToolOutcome } from "../tools/outcome.js";
@@ -121,6 +127,7 @@ export async function createToolLoopAgent(
       .map(([name]) => [name, toolContext]),
   ) as unknown as InferToolSetContext<typeof tools>;
   let currentStepNumber = 0;
+  const contextEstimates = new Map<number, ContextEstimate>();
   const modelStepSpans = new Map<number, ReturnType<typeof startSpan>>();
   const toolSpans = new Map<string, ReturnType<typeof startSpan>>();
   const instrumentedTools = withActiveToolSpans(tools, toolSpans);
@@ -144,9 +151,26 @@ export async function createToolLoopAgent(
   const providerModel = createProviderModel(provider, {
     parallelToolCalls: true,
   });
+  const toolSources = new Map(
+    resolvedTools.manifests.map((manifest) => [manifest.name, manifest.policy.source]),
+  );
+  const contextCaptureMiddleware: LanguageModelV4Middleware = {
+    specificationVersion: "v4",
+    transformParams: async ({ params }) => {
+      contextEstimates.set(
+        currentStepNumber,
+        estimateConversationContext({
+          prompt: params.prompt,
+          tools: params.tools,
+          toolSources,
+        }),
+      );
+      return params;
+    },
+  };
   const defaultModel = wrapLanguageModel({
     model: providerModel,
-    middleware: createToolBatchPolicyMiddleware(input.mode),
+    middleware: [contextCaptureMiddleware, createToolBatchPolicyMiddleware(input.mode)],
   });
   const toolApprovalSecret = getSettings().toolApprovalSecret;
   const loadSkillActiveTools = resolvedTools.activeTools.filter((name) => name !== "load_skill");
@@ -173,7 +197,10 @@ export async function createToolLoopAgent(
       if (directive.kind === "final") {
         return {
           runtimeContext: nextContext,
-          model: exactTextResponseModel(defaultModel, directive.instruction),
+          model: wrapLanguageModel({
+            model: exactTextResponseModel(defaultModel, directive.instruction),
+            middleware: contextCaptureMiddleware,
+          }),
           activeTools: [],
           toolChoice: "none",
           instructions: baseInstructions,
@@ -184,16 +211,19 @@ export async function createToolLoopAgent(
           runtimeContext: nextContext,
           activeTools: ["read_file"],
           toolChoice: { type: "tool", toolName: "read_file" },
-          instructions: `${baseInstructions}\n<orchestration_directive>${directive.instruction}</orchestration_directive>`,
+          instructions: `${baseInstructions}\n<${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>${directive.instruction}</${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>`,
         };
       }
       if (directive.kind === "exact-tools") {
         return {
           runtimeContext: nextContext,
-          model: exactToolDirectiveModel(defaultModel, directive.directive),
+          model: wrapLanguageModel({
+            model: exactToolDirectiveModel(defaultModel, directive.directive),
+            middleware: contextCaptureMiddleware,
+          }),
           activeTools: [directive.directive.toolName],
           toolChoice: { type: "tool", toolName: directive.directive.toolName },
-          instructions: `${baseInstructions}\n<orchestration_directive>${directive.directive.instruction}</orchestration_directive>`,
+          instructions: `${baseInstructions}\n<${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>${directive.directive.instruction}</${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>`,
         };
       }
       return { runtimeContext: nextContext, activeTools, instructions: initialInstructions };
@@ -222,6 +252,8 @@ export async function createToolLoopAgent(
       );
     },
     onStepEnd: (event) => {
+      const contextEstimate = contextEstimates.get(currentStepNumber);
+      contextEstimates.delete(currentStepNumber);
       const span = modelStepSpans.get(currentStepNumber);
       if (span) {
         modelStepSpans.delete(currentStepNumber);
@@ -248,6 +280,7 @@ export async function createToolLoopAgent(
           usage: event.usage,
           toolCallCount: event.toolCalls.length,
           performance: event.performance,
+          contextEstimate,
         }),
       );
     },

@@ -1,10 +1,13 @@
+import type { UIMessage } from "ai";
 import {
   type Conversation,
   createConversation,
   deleteConversation,
+  fetchConversation,
   fetchConversations,
 } from "api";
 import { Layout, toast } from "components";
+import { downloadConversationMarkdown } from "components/ai-chat";
 import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "shared";
@@ -158,6 +161,29 @@ export function ChatLayout() {
     }
   }
 
+  async function handleExport(id: string) {
+    const conversation = conversations?.find((item) => item.id === id);
+    try {
+      const detail = await fetchConversation(id);
+      const messages: UIMessage[] = detail.messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        parts: Array.isArray(message.content.parts)
+          ? (message.content.parts as UIMessage["parts"])
+          : [],
+      }));
+      const safeTitle = (conversation?.title ?? detail.title)
+        .replace(/[\\/:*?"<>|]/g, "-")
+        .trim();
+      downloadConversationMarkdown(
+        messages,
+        `${safeTitle || "conversation"}.md`,
+      );
+    } catch (error) {
+      toast.error(`导出会话失败：${String(error)}`);
+    }
+  }
+
   function handleOpenTrace(conversationId: string) {
     openTracePanel(conversationId);
     if (!location.pathname.endsWith(`/${conversationId}`)) {
@@ -198,6 +224,7 @@ export function ChatLayout() {
           showToggle={!(shell.compact && workspaceOpen)}
           onCreate={() => void handleCreate()}
           onDelete={(id) => void handleDelete(id)}
+          onExport={(id) => void handleExport(id)}
           onOpenTrace={handleOpenTrace}
           onToggle={shell.toggleLeft}
           onResize={shell.resizeLeft}

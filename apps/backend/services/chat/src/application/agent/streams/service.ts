@@ -1,30 +1,12 @@
-import { Redis } from "ioredis";
-
 import { logger } from "../../../infrastructure/observability/logger.js";
-import { getSettings } from "../../../bootstrap/config.js";
+import { getRedisClient } from "../../../infrastructure/redis/index.js";
 
-type XReadRedis = Redis & {
+type XReadRedis = ReturnType<typeof getRedisClient> & {
   xread(...args: Array<string | number>): Promise<[string, [string, string[]][]][] | null>;
 };
 
 const STREAM_TTL_SECONDS = 60 * 60;
 const STREAM_READ_BLOCK_MS = 5_000;
-
-let redis: Redis | null = null;
-
-function getRedis(): Redis {
-  if (!redis) {
-    const settings = getSettings();
-    redis = new Redis({
-      host: settings.redisHost,
-      port: settings.redisPort,
-      db: settings.redisDb,
-      lazyConnect: true,
-      maxRetriesPerRequest: 2,
-    });
-  }
-  return redis;
-}
 
 function activeKey(conversationId: string): string {
   return `chat:agent-streams:${conversationId}:active`;
@@ -38,7 +20,7 @@ export async function activateAgentStream(
   conversationId: string,
   runId: string,
 ): Promise<void> {
-  const client = getRedis();
+  const client = getRedisClient();
   const key = streamKey(runId);
   await client
     .pipeline()
@@ -85,7 +67,7 @@ async function appendSseChunk(
   runId: string,
   chunk: string,
 ): Promise<void> {
-  const client = getRedis();
+  const client = getRedisClient();
   await client
     .pipeline()
     .xadd(streamKey(runId), "*", "sse", chunk)
@@ -98,7 +80,7 @@ export async function deactivateAgentStream(
   conversationId: string,
   runId: string,
 ): Promise<void> {
-  await getRedis().eval(
+  await getRedisClient().eval(
     [
       "if redis.call('HGET', KEYS[1], 'run_id') == ARGV[1] then",
       "  return redis.call('DEL', KEYS[1])",
@@ -114,7 +96,7 @@ export async function deactivateAgentStream(
 export async function activeAgentStreamRunId(
   conversationId: string,
 ): Promise<string | null> {
-  return (await getRedis().hget(activeKey(conversationId), "run_id")) || null;
+  return (await getRedisClient().hget(activeKey(conversationId), "run_id")) || null;
 }
 
 const STALE_CHECK_EVERY_IDLE_ROUNDS = 6;
@@ -131,7 +113,7 @@ export async function* replayAgentSseStream(
   runId: string,
   options?: ReplayAgentStreamOptions,
 ): AsyncGenerator<string> {
-  const reader = getRedis().duplicate();
+  const reader = getRedisClient().duplicate();
   const key = streamKey(runId);
   let lastId = options?.startAfterId ?? "0-0";
   let idleRounds = 0;

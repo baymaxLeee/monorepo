@@ -9,6 +9,7 @@ import { getSettings } from "../../bootstrap/config.js";
 import type { BotProfileSnapshot } from "../../application/agent/context/instructions/index.js";
 import { AdminUnavailableError, ProviderNotConfiguredError, RequestError } from "../../application/errors.js";
 import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
+import { getRedisClient } from "../redis/index.js";
 
 export interface ProviderSnapshot {
   id: string;
@@ -24,6 +25,35 @@ export interface ProviderSnapshot {
   supportsImageInput: boolean;
   isDefault: boolean;
   isEnabled: boolean;
+}
+
+export interface ProviderLimits {
+  contextWindow: number;
+  maxOutputTokens: number;
+}
+
+function providerLimitsKey(orgId: string, providerId: string | null): string {
+  return `chat:provider-limits:${encodeURIComponent(orgId)}:${encodeURIComponent(providerId ?? "default")}`;
+}
+
+function parseProviderLimits(value: string | null): ProviderLimits | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as Partial<ProviderLimits>;
+    return typeof parsed.contextWindow === "number" &&
+      Number.isFinite(parsed.contextWindow) &&
+      parsed.contextWindow > 0 &&
+      typeof parsed.maxOutputTokens === "number" &&
+      Number.isFinite(parsed.maxOutputTokens) &&
+      parsed.maxOutputTokens >= 0
+      ? {
+          contextWindow: parsed.contextWindow,
+          maxOutputTokens: parsed.maxOutputTokens,
+        }
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /** L1 skill listing resolved for a bot: name/description advertised in
@@ -98,6 +128,26 @@ export async function getProvider(
     throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
   }
   return assertSnapshotUrl(toSnapshot(data));
+}
+
+export async function getProviderLimits(
+  orgId: string,
+  providerId?: string | null,
+): Promise<ProviderLimits> {
+  const cache = getRedisClient();
+  const key = providerLimitsKey(orgId, providerId ?? null);
+  const cached = await cache.get(key).then(parseProviderLimits).catch(() => null);
+  if (cached) return cached;
+
+  const provider = await getProvider(orgId, providerId);
+  const limits = {
+    contextWindow: provider.contextWindow,
+    maxOutputTokens: provider.maxOutputTokens,
+  };
+  await cache
+    .set(key, JSON.stringify(limits), "EX", getSettings().providerCacheTtlSeconds)
+    .catch(() => undefined);
+  return limits;
 }
 
 export async function getAgent(

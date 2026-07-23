@@ -36,6 +36,25 @@ export {
   getMediaCategory,
 } from "./attachments";
 export {
+  Confirmation,
+  ConfirmationAccepted,
+  ConfirmationAction,
+  type ConfirmationActionProps,
+  ConfirmationActions,
+  type ConfirmationActionsProps,
+  type ConfirmationProps,
+  ConfirmationRejected,
+  ConfirmationRequest,
+  ConfirmationTitle,
+  type ConfirmationTitleProps,
+} from "./confirmation";
+export {
+  ContextUsage,
+  type ContextUsageCategory,
+  type ContextUsageCategoryId,
+  type ContextUsageProps,
+} from "./context";
+export {
   Conversation,
   ConversationContent,
   type ConversationContentProps,
@@ -46,6 +65,7 @@ export {
   type ConversationProps,
   ConversationScrollButton,
   type ConversationScrollButtonProps,
+  downloadConversationMarkdown,
   messagesToMarkdown,
   type StickToBottomContext,
 } from "./conversation";

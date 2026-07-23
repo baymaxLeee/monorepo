@@ -5,6 +5,10 @@ import {
   recordToolCallStart,
   startAgentStep,
 } from "../runs/repository.js";
+import {
+  finalizeConversationContext,
+  type ContextEstimate,
+} from "../context/context-snapshot.js";
 import { isToolOutcome } from "../tools/outcome.js";
 
 function stepId(runId: string, stepNumber: number): string {
@@ -64,8 +68,9 @@ export function extractUsageTokens(usage: unknown): UsageTokens {
   };
 }
 
-export async function finishModelStep(input: { runId: string; stepNumber: number; finishReason: string; usage: unknown; toolCallCount: number; performance?: unknown }): Promise<void> {
+export async function finishModelStep(input: { runId: string; stepNumber: number; finishReason: string; usage: unknown; toolCallCount: number; performance?: unknown; contextEstimate?: ContextEstimate }): Promise<void> {
   const tokens = extractUsageTokens(input.usage);
+  const contextSnapshot = finalizeConversationContext(input.contextEstimate, tokens);
   // Cache/reasoning breakdown is not promoted to step columns: the full usage
   // (incl. inputTokenDetails/outputTokenDetails) is kept in metadata.usage, and
   // billing aggregates at the run level, not per step.
@@ -73,7 +78,12 @@ export async function finishModelStep(input: { runId: string; stepNumber: number
     stepId: stepId(input.runId, input.stepNumber),
     status: "completed",
     summary: `finish reason: ${input.finishReason}`,
-    metadata: { usage: input.usage, tool_call_count: input.toolCallCount, performance: input.performance },
+    metadata: {
+      usage: input.usage,
+      tool_call_count: input.toolCallCount,
+      performance: input.performance,
+      ...(contextSnapshot ? { context_snapshot: contextSnapshot } : {}),
+    },
     inputTokens: tokens.inputTokens,
     outputTokens: tokens.outputTokens,
     totalTokens: tokens.totalTokens,

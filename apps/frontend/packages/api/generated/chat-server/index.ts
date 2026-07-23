@@ -11,6 +11,114 @@ export interface RunCancellation {
   status?: string;
 }
 
+/**
+ * @nullable
+ */
+export type AgentRunTraceStepsItemContextSnapshot = {
+  version: 1;
+  usedTokens: number;
+  inputTokens: number;
+  retainedOutputTokens: number;
+  breakdownEstimated: true;
+  categories: ({
+  id: 'system' | 'tools' | 'rules' | 'skills' | 'mcp' | 'memory' | 'conversation';
+  tokens: number;
+})[];
+} | null;
+
+export type AgentRunTraceStepsItem = {
+  id: string;
+  stepIndex: number;
+  kind: string;
+  status: string;
+  /** @nullable */
+  summary: string | null;
+  createdAt: string;
+  /** @nullable */
+  finishedAt: string | null;
+  /** @nullable */
+  inputTokens: number | null;
+  /** @nullable */
+  outputTokens: number | null;
+  /** @nullable */
+  totalTokens: number | null;
+  /** @nullable */
+  contextSnapshot: AgentRunTraceStepsItemContextSnapshot;
+};
+
+export type AgentRunTraceToolCallsItem = { [key: string]: unknown };
+
+export interface AgentRunTrace {
+  runId: string;
+  status: string;
+  model: string;
+  /** @nullable */
+  inputTokens: number | null;
+  /** @nullable */
+  outputTokens: number | null;
+  /** @nullable */
+  cachedInputTokens: number | null;
+  /** @nullable */
+  reasoningTokens: number | null;
+  /** @nullable */
+  totalTokens: number | null;
+  /** @nullable */
+  contextWindow: number | null;
+  steps: AgentRunTraceStepsItem[];
+  toolCalls: AgentRunTraceToolCallsItem[];
+}
+
+export type ConversationContextCategoryId = typeof ConversationContextCategoryId[keyof typeof ConversationContextCategoryId];
+
+
+export const ConversationContextCategoryId = {
+  system: 'system',
+  tools: 'tools',
+  rules: 'rules',
+  skills: 'skills',
+  mcp: 'mcp',
+  memory: 'memory',
+  conversation: 'conversation',
+} as const;
+
+export interface ConversationContextCategory {
+  id: ConversationContextCategoryId;
+  tokens: number;
+  shareOfUsed: number;
+  /** @nullable */
+  shareOfEffectiveWindow: number | null;
+}
+
+export interface ConversationContextView {
+  conversationId: string;
+  runId: string;
+  stepId: string;
+  model: string;
+  /** @nullable */
+  contextWindow: number | null;
+  /** @nullable */
+  effectiveWindow: number | null;
+  /** @nullable */
+  reservedOutputTokens: number | null;
+  /** @nullable */
+  reservedOverheadTokens: number | null;
+  usedTokens: number;
+  /** @nullable */
+  utilization: number | null;
+  inputTokens: number;
+  retainedOutputTokens: number;
+  /** @nullable */
+  cachedInputTokens: number | null;
+  totalEstimated: boolean;
+  breakdownEstimated: true;
+  updatedAt: string;
+  categories: ConversationContextCategory[];
+}
+
+export interface ConversationContextResponse {
+  context: ConversationContextView | null;
+}
+
 export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
 
 
@@ -333,6 +441,15 @@ const deleteConversationsConversationId = (
       options);
     }
 
+const getConversationsConversationIdContext = (
+    conversationId: string,
+ options?: SecondParameter<typeof apiMutator<ConversationContextResponse>>,) => {
+      return apiMutator<ConversationContextResponse>(
+      {url: `/conversations/${conversationId}/context`, method: 'GET'
+    },
+      options);
+    }
+
 const getConversationsConversationIdAgentsRunStream = (
     conversationId: string,
  options?: SecondParameter<typeof apiMutator<void>>,) => {
@@ -384,8 +501,8 @@ const getConversationsConversationIdDocumentsDocumentIdSource = (
 const getConversationsConversationIdAgentsRunsRunIdTrace = (
     conversationId: string,
     runId: string,
- options?: SecondParameter<typeof apiMutator<void>>,) => {
-      return apiMutator<void>(
+ options?: SecondParameter<typeof apiMutator<AgentRunTrace>>,) => {
+      return apiMutator<AgentRunTrace>(
       {url: `/conversations/${conversationId}/agents/runs/${runId}/trace`, method: 'GET'
     },
       options);
@@ -518,13 +635,14 @@ const deleteMemoriesId = (
       options);
     }
 
-return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdTasksTaskId,getConversationsConversationIdVideoProductionsProductionId,postConversationsConversationIdVideoProductionsProductionIdDecisions,getConversationsConversationIdVideoProductionsProductionIdPreview,getConversationsConversationIdVideoProductionsProductionIdShotsShotIdTakesTakeIdPreview,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
+return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,getConversationsConversationIdContext,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdTasksTaskId,getConversationsConversationIdVideoProductionsProductionId,postConversationsConversationIdVideoProductionsProductionIdDecisions,getConversationsConversationIdVideoProductionsProductionIdPreview,getConversationsConversationIdVideoProductionsProductionIdShotsShotIdTakesTakeIdPreview,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
 export type GetHealthzResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getHealthz']>>>
 export type GetConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversations']>>>
 export type PostConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversations']>>>
 export type GetConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationId']>>>
 export type PatchConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchConversationsConversationId']>>>
 export type DeleteConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['deleteConversationsConversationId']>>>
+export type GetConversationsConversationIdContextResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdContext']>>>
 export type GetConversationsConversationIdAgentsRunStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdAgentsRunStream']>>>
 export type PostConversationsConversationIdAgentsRunStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunStream']>>>
 export type GetConversationsConversationIdDocumentsDocumentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdDocumentsDocumentId']>>>

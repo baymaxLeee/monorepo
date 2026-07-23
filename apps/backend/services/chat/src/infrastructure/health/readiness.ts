@@ -1,7 +1,5 @@
-import { Redis } from "ioredis";
-
-import { getSettings } from "../../bootstrap/config.js";
 import { getSql } from "../persistence/index.js";
+import { createRedisClient } from "../redis/index.js";
 
 export type ReadinessReport = {
   ok: boolean;
@@ -33,12 +31,7 @@ export function markBootFailed(error: unknown): void {
 }
 
 async function pingRedis(): Promise<boolean> {
-  const settings = getSettings();
-  const client = new Redis({
-    host: settings.redisHost,
-    port: settings.redisPort,
-    db: settings.redisDb,
-    lazyConnect: true,
+  const client = createRedisClient({
     maxRetriesPerRequest: 1,
     connectTimeout: 2_000,
   });

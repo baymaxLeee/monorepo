@@ -10,6 +10,7 @@ import { createApp } from "./bootstrap/app.js";
 import { bootstrapChat } from "./bootstrap/runtime.js";
 import { getSettings } from "./bootstrap/config.js";
 import { logger } from "./infrastructure/observability/logger.js";
+import { closeRedisClient } from "./infrastructure/redis/index.js";
 
 configureOpenTelemetry("chat");
 
@@ -24,6 +25,8 @@ void bootstrapChat().catch(() => undefined);
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {
-    void shutdownOpenTelemetry().finally(() => process.exit(0));
+    void Promise.allSettled([closeRedisClient(), shutdownOpenTelemetry()]).finally(
+      () => process.exit(0),
+    );
   });
 }

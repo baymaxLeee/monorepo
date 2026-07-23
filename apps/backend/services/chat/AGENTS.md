@@ -187,6 +187,9 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 ## Boundaries
 
 - No direct imports from another service.
+- Redis clients are created only through `infrastructure/redis`: ordinary
+  commands share `getRedisClient()`, blocking stream reads use `duplicate()`,
+  and readiness probes use an isolated client from `createRedisClient()`.
 - Service URLs, internal auth, DTOs and timeouts live in transport-ts clients;
   chat-local clients only add cache/error mapping.
 - User identity belongs to iam, provider configuration to admin, and document /

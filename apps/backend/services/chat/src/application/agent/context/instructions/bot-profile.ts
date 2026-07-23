@@ -1,4 +1,5 @@
 import type { BotProfileSnapshot, BotTone } from "./types.js";
+import { INSTRUCTION_SECTION_TAGS } from "./section-tags.js";
 import { xmlLeaf, xmlSection } from "./xml.js";
 
 const TONE_GUIDANCE: Record<BotTone, string> = {
@@ -35,5 +36,8 @@ export function renderBotProfile(profile: BotProfileSnapshot | null | undefined)
   if (profile?.tone) leaves.push(xmlLeaf("tone", TONE_GUIDANCE[profile.tone]));
 
   if (leaves.length === 0) return null;
-  return xmlSection("bot_profile", [PROFILE_PREAMBLE, ...leaves].join("\n"));
+  return xmlSection(
+    INSTRUCTION_SECTION_TAGS.botProfile,
+    [PROFILE_PREAMBLE, ...leaves].join("\n"),
+  );
 }

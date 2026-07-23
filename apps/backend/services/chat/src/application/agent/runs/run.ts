@@ -9,7 +9,12 @@ import {
 } from "ai";
 
 import type { AgentSkillRef, ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
-import { getSkillBody, getSkillFile } from "../../../infrastructure/clients/admin.js";
+import {
+  getProvider,
+  getProviderLimits,
+  getSkillBody,
+  getSkillFile,
+} from "../../../infrastructure/clients/admin.js";
 import { getDocument } from "../../../infrastructure/clients/knowledge.js";
 import type { PersistedMessageContent } from "../../../infrastructure/persistence/schema.js";
 import { NotFoundError, RequestError } from "../../errors.js";
@@ -33,6 +38,7 @@ import {
   finalizeCancelledRunToolCalls,
   finalizeRunToolCallsFromParts,
   getAgentRunById,
+  getLatestConversationContextRecord,
   getRunTrace,
   type AgentRunTrace,
 } from "./repository.js";
@@ -54,6 +60,11 @@ import {
   referencedDocumentIdsFromParts,
 } from "../context/file-parts.js";
 import { projectModelContext } from "../context/projector.js";
+import {
+  effectiveModelInputWindow,
+  MODEL_CONTEXT_OVERHEAD_TOKENS,
+} from "../context/budget.js";
+import type { ContextCategoryId } from "../context/context-snapshot.js";
 import { loadInstructionContext } from "../context/instruction-loader.js";
 import type { BotProfileSnapshot } from "../context/instructions/index.js";
 import { acquireRunLease, registerRunController, releaseRun } from "./lease.js";
@@ -503,7 +514,80 @@ export async function getAgentRunTrace(
   assertRunAccess(auth, conversationId, businessRun);
   const trace = await getRunTrace(businessRun.id);
   if (!trace) throw new NotFoundError("agent run trace not found");
-  return trace;
+  const contextWindow = await getProviderLimits(auth.orgId, businessRun.providerId)
+    .then((limits) => limits.contextWindow)
+    .catch(() => null);
+  return { ...trace, contextWindow };
+}
+
+export interface ConversationContextView {
+  conversationId: string;
+  runId: string;
+  stepId: string;
+  model: string;
+  contextWindow: number | null;
+  effectiveWindow: number | null;
+  reservedOutputTokens: number | null;
+  reservedOverheadTokens: number | null;
+  usedTokens: number;
+  utilization: number | null;
+  inputTokens: number;
+  retainedOutputTokens: number;
+  cachedInputTokens: number | null;
+  totalEstimated: boolean;
+  breakdownEstimated: true;
+  updatedAt: string;
+  categories: Array<{
+    id: ContextCategoryId;
+    tokens: number;
+    shareOfUsed: number;
+    shareOfEffectiveWindow: number | null;
+  }>;
+}
+
+export async function getConversationContext(
+  auth: AuthContext,
+  conversationId: string,
+): Promise<{ context: ConversationContextView | null }> {
+  await getConversationRow(auth, conversationId);
+  const record = await getLatestConversationContextRecord(conversationId);
+  if (!record) return { context: null };
+  const limits = await getProviderLimits(auth.orgId, record.providerId)
+    .catch(() => null);
+  const effectiveWindow = limits ? effectiveModelInputWindow(limits) : null;
+  const { snapshot } = record;
+  return {
+    context: {
+      conversationId,
+      runId: record.runId,
+      stepId: record.stepId,
+      model: record.model,
+      contextWindow: limits?.contextWindow ?? null,
+      effectiveWindow,
+      reservedOutputTokens: limits?.maxOutputTokens ?? null,
+      reservedOverheadTokens: limits ? MODEL_CONTEXT_OVERHEAD_TOKENS : null,
+      usedTokens: snapshot.usedTokens,
+      utilization:
+        effectiveWindow && effectiveWindow > 0
+          ? snapshot.usedTokens / effectiveWindow
+          : null,
+      inputTokens: snapshot.inputTokens,
+      retainedOutputTokens: snapshot.retainedOutputTokens,
+      cachedInputTokens: record.cachedInputTokens,
+      totalEstimated: record.totalEstimated,
+      breakdownEstimated: snapshot.breakdownEstimated,
+      updatedAt: record.updatedAt,
+      categories: snapshot.categories.map((category) => ({
+        ...category,
+        shareOfUsed:
+          snapshot.usedTokens > 0 ? category.tokens / snapshot.usedTokens : 0,
+        shareOfEffectiveWindow:
+          effectiveWindow && effectiveWindow > 0
+            ? category.tokens / effectiveWindow
+            : null,
+      })),
+    },
+  };
 }
 
 function sanitizePersistedParts(parts: AnyUIMessage["parts"]): AnyUIMessage["parts"] {

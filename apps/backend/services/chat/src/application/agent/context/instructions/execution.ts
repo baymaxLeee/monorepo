@@ -1,3 +1,4 @@
+import { INSTRUCTION_SECTION_TAGS } from "./section-tags.js";
 import { xmlSection } from "./xml.js";
 
 const EXECUTION_PROTOCOL = [
@@ -19,5 +20,5 @@ const EXECUTION_PROTOCOL = [
 ].join("\n");
 
 export function renderExecutionProtocol(): string {
-  return xmlSection("execution_protocol", EXECUTION_PROTOCOL)!;
+  return xmlSection(INSTRUCTION_SECTION_TAGS.executionProtocol, EXECUTION_PROTOCOL)!;
 }

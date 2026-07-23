@@ -9,6 +9,7 @@ import {
   type SkillListing,
 } from "./types.js";
 import { escapeXmlText, xmlSection } from "./xml.js";
+import { INSTRUCTION_SECTION_TAGS } from "./section-tags.js";
 
 /**
  * The single, fixed-order instruction assembler. Section order is code-owned and
@@ -21,15 +22,20 @@ export function assembleInstructions(
   contributions: InstructionContributions = {},
 ): string {
   const sections = [
-    xmlSection("core_policy", CORE_POLICY),
+    xmlSection(INSTRUCTION_SECTION_TAGS.corePolicy, CORE_POLICY),
     renderRuntimeContract(input.mode),
     renderExecutionProtocol(),
-    xmlSection("capability_contract", contributions.capabilities ?? null),
+    xmlSection(
+      INSTRUCTION_SECTION_TAGS.capabilityContract,
+      contributions.capabilities ?? null,
+    ),
     renderAvailableSkills(contributions.skills),
     input.activatedSkill
-      ? xmlSection("activated_skill", escapeXmlText(input.activatedSkill.body), {
-          name: input.activatedSkill.name,
-        })
+      ? xmlSection(
+          INSTRUCTION_SECTION_TAGS.activatedSkill,
+          escapeXmlText(input.activatedSkill.body),
+          { name: input.activatedSkill.name },
+        )
       : null,
     renderBotProfile(input.botProfile),
     renderMemory(input.memories),
@@ -54,7 +60,7 @@ function renderAvailableSkills(skills: SkillListing[] | null | undefined): strin
     "Load one skill before substantive work when the user's request clearly matches its description. At most one Skill may be loaded in the current logical turn. A Skill loaded in an earlier logical turn is not active now; load it again before reading its files when the current request clearly needs it. The load_skill call must be the only tool call in that step: observe the loaded instructions before deciding any clarification or workflow action. Do not load skills for unrelated requests.",
     ...skills.map((skill) => `- ${escapeXmlText(skill.name)}: ${escapeXmlText(skill.description)}`),
   ].join("\n");
-  return xmlSection("available_skills", body);
+  return xmlSection(INSTRUCTION_SECTION_TAGS.availableSkills, body);
 }
 
 function renderEnvironment(now: Date = new Date()): string {
@@ -67,5 +73,5 @@ function renderEnvironment(now: Date = new Date()): string {
     'Your training data has a cutoff and may be stale. For anything time-sensitive, rely on web_search and treat the date above as the authoritative "today" — never default to an earlier year such as 2025.',
   ].join("\n");
   // Non-null: body is always a non-empty constant-derived string.
-  return xmlSection("environment", body)!;
+  return xmlSection(INSTRUCTION_SECTION_TAGS.environment, body)!;
 }

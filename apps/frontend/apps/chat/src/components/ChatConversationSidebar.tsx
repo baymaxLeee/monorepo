@@ -12,6 +12,7 @@ import {
 } from "components";
 import {
   BoxesIcon,
+  DownloadIcon,
   MessageSquareIcon,
   MoreHorizontalIcon,
   PanelLeftIcon,
@@ -34,6 +35,7 @@ export type ChatConversationSidebarProps = {
   showToggle: boolean;
   onCreate: () => void;
   onDelete: (id: string) => void;
+  onExport: (id: string) => void;
   onOpenTrace: (id: string) => void;
   onToggle: () => void;
   onResize: (deltaX: number) => void;
@@ -53,6 +55,7 @@ export function ChatConversationSidebar({
   showToggle,
   onCreate,
   onDelete,
+  onExport,
   onOpenTrace,
   onToggle,
   onResize,
@@ -172,6 +175,15 @@ export function ChatConversationSidebar({
                               className="mr-2 size-4"
                             />
                             执行轨迹
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => onExport(conversation.id)}
+                          >
+                            <DownloadIcon
+                              aria-hidden="true"
+                              className="mr-2 size-4"
+                            />
+                            导出 Markdown
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem

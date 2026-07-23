@@ -1,4 +1,10 @@
-export { createAgentRunResponse, getAgentRunTrace, type RunAgentInput } from "./runs/run.js";
+export {
+  createAgentRunResponse,
+  getAgentRunTrace,
+  getConversationContext,
+  type ConversationContextView,
+  type RunAgentInput,
+} from "./runs/run.js";
 export { cancelRun, reconcileOrphanedRuns, startOrphanRunReconciler } from "./runs/lease.js";
 export { isRunActive } from "./runs/repository.js";
 export {
