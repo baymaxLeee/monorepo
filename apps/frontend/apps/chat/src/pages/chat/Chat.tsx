@@ -145,6 +145,7 @@ export function Chat() {
   const messagesRef = useRef<ChatUIMessage[]>([]);
   const titleRafRef = useRef<number | null>(null);
   const pendingTitleRef = useRef<{ id: string; title: string } | null>(null);
+  const pendingClientContinuationRef = useRef(false);
   const {
     agents,
     selectedAgentId,
@@ -271,7 +272,10 @@ export function Chat() {
             reconnectAbortRef.current = controller;
             requestInit = { ...init, signal: controller.signal };
           }
-          const response = await authFetch(input, requestInit);
+          let response = await authFetch(input, requestInit);
+          if (response.status === 401) {
+            response = await authFetch(input, requestInit);
+          }
           const runId = response.headers.get("x-agent-run-id");
           if (runId && id) setTraceRun(id, runId);
           return response;
@@ -333,9 +337,11 @@ export function Chat() {
       if (!title || !id) return;
       scheduleConversationTitle(id, title);
     },
-    onFinish: () => {
+    onFinish: ({ isError }) => {
       bumpTraceRefresh();
       if (!id) return;
+      if (isError && pendingClientContinuationRef.current) return;
+      pendingClientContinuationRef.current = false;
       // A client tool (ask_user) pause fires onFinish too. Re-syncing messages
       // from the DB here would clobber the in-memory tool output the user is
       // about to submit (or just submitted) before the auto-continuation POST
@@ -413,6 +419,7 @@ export function Chat() {
 
   useEffect(() => {
     resumedConversationRef.current = null;
+    pendingClientContinuationRef.current = false;
   }, [id]);
 
   useEffect(() => {
@@ -437,6 +444,7 @@ export function Chat() {
 
   async function submit(value: PromptInputValue) {
     if (busy || !id) return;
+    pendingClientContinuationRef.current = false;
     const hasReadyFile = value.tokens.some(
       (token) => typeof token.meta?.artifactId === "string",
     );
@@ -539,12 +547,13 @@ export function Chat() {
     await sent;
   }
 
-  async function answerClientTool(
+  function answerClientTool(
     toolName: string,
     toolCallId: string,
     output: unknown,
   ) {
-    await addToolOutput({
+    pendingClientContinuationRef.current = true;
+    addToolOutput({
       tool: toolName,
       toolCallId,
       output:
@@ -595,9 +604,7 @@ export function Chat() {
                 deliverableCompletion={deliverableCompletion}
                 onOpenArtifact={openArtifact}
                 onAnswerClientTool={(toolName, toolCallId, output) => {
-                  void answerClientTool(toolName, toolCallId, output).catch(
-                    () => {},
-                  );
+                  answerClientTool(toolName, toolCallId, output);
                 }}
                 onToolApproval={(approvalId, approved) => {
                   void addToolApprovalResponse({

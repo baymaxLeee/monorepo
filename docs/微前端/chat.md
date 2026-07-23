@@ -17,6 +17,10 @@
 - `ask_user` 等 client tool 通过 `addToolOutput` 回填；所有 client tool 完成后由
   `lastAssistantMessageIsCompleteWithToolCalls` 自动发起下一次 run。一个 `ask_user`
   卡片可展示多个带稳定 ID 的问题，全部回答后只提交一次结构化 tool output。
+- client-tool continuation 的 401 先由 `authFetch` 刷新 token 并重放；最终仍失败时保留
+  本地 tool output。transport 在进入 AI SDK error 状态前透明地额外重放一次；全部失败
+  表示 refresh session 已失效，由全局 session 事件触发路由重新认证，不显示无效的业务
+  重试按钮。失败回调不得从持久化历史覆盖尚未写入服务端的回答。
 - POST 与恢复 GET 都返回 `x-agent-run-id`，用于 Stop 和执行轨迹查询；stream 内容
   仍完全遵循 AI SDK UIMessage 协议。
 - plan 作为 `tool-write_markdown` part 随消息持久化；后续 run 从

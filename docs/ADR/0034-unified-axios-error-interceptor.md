@@ -60,6 +60,13 @@ AI SDK transport、blob 源和少量 multipart/raw fetch 改用 `authFetch`—�
 refresh-ahead + retry-once 策略，但不经 axios。这些调用点**保留**自身
 `toast.error(getErrorMessage(err))`，因为拦截器看不到它们。
 
+AI SDK client-tool continuation 还有一层 UI 恢复：`addToolOutput` 只更新本地消息，
+`sendAutomaticallyWhen` 发起的流式请求不会把网络失败回传给该调用。若 `authFetch`
+刷新并重放后仍返回 401，transport 在把失败交给 AI SDK 前透明地再调用一次
+`authFetch`。全部失败表示 refresh session 已失效，沿既有 `clearSession` 事件与 platform
+route revalidation 进入重新认证，不在业务 UI 增加无效的重试按钮。失败的 continuation
+不得在 `onFinish` 中用数据库历史覆盖本地 tool output。
+
 ### 4. `getErrorMessage`（`packages/shared`）
 
 纯模块级函数，统一从 `Error`/string/unknown 提取展示文案（带 fallback）。放在组件体外
@@ -75,3 +82,5 @@ refresh-ahead + retry-once 策略，但不经 axios。这些调用点**保留**�
   可接受，因为提示是 API 层的既定职责，且 `sonner` 已是 MF 场景下的既有依赖。
 - 边界仍清晰：SSE 是唯一"绕过 axios"的通道，且用 `authFetch` 复用同一 401 策略，不产生
   第二套鉴权逻辑。
+- Client-tool 的额外重放只发生在服务端以 401 拒绝、尚未执行 continuation 的边界；
+  transport 透明重放固定一次；refresh session 失效后统一重新认证，避免无限重试。
