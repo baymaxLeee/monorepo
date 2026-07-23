@@ -359,7 +359,7 @@ const openapi = {
       },
       ConversationContextCategory: {
         type: "object",
-        required: ["id", "tokens", "shareOfUsed", "shareOfEffectiveWindow"],
+        required: ["id", "tokens"],
         properties: {
           id: {
             type: "string",
@@ -369,40 +369,14 @@ const openapi = {
             ],
           },
           tokens: { type: "integer" },
-          shareOfUsed: { type: "number", format: "double" },
-          shareOfEffectiveWindow: {
-            type: "number",
-            format: "double",
-            nullable: true,
-          },
         },
       },
       ConversationContextView: {
         type: "object",
-        required: [
-          "conversationId", "runId", "stepId", "model", "contextWindow",
-          "effectiveWindow", "reservedOutputTokens", "reservedOverheadTokens",
-          "usedTokens", "utilization", "inputTokens", "retainedOutputTokens",
-          "cachedInputTokens", "totalEstimated", "breakdownEstimated",
-          "updatedAt", "categories",
-        ],
+        required: ["contextWindow", "usedTokens", "categories"],
         properties: {
-          conversationId: { type: "string" },
-          runId: { type: "string" },
-          stepId: { type: "string" },
-          model: { type: "string" },
           contextWindow: { type: "integer", nullable: true },
-          effectiveWindow: { type: "integer", nullable: true },
-          reservedOutputTokens: { type: "integer", nullable: true },
-          reservedOverheadTokens: { type: "integer", nullable: true },
           usedTokens: { type: "integer" },
-          utilization: { type: "number", format: "double", nullable: true },
-          inputTokens: { type: "integer" },
-          retainedOutputTokens: { type: "integer" },
-          cachedInputTokens: { type: "integer", nullable: true },
-          totalEstimated: { type: "boolean" },
-          breakdownEstimated: { type: "boolean", enum: [true] },
-          updatedAt: { type: "string", format: "date-time" },
           categories: {
             type: "array",
             items: ref("ConversationContextCategory"),

@@ -84,34 +84,12 @@ export const ConversationContextCategoryId = {
 export interface ConversationContextCategory {
   id: ConversationContextCategoryId;
   tokens: number;
-  shareOfUsed: number;
-  /** @nullable */
-  shareOfEffectiveWindow: number | null;
 }
 
 export interface ConversationContextView {
-  conversationId: string;
-  runId: string;
-  stepId: string;
-  model: string;
   /** @nullable */
   contextWindow: number | null;
-  /** @nullable */
-  effectiveWindow: number | null;
-  /** @nullable */
-  reservedOutputTokens: number | null;
-  /** @nullable */
-  reservedOverheadTokens: number | null;
   usedTokens: number;
-  /** @nullable */
-  utilization: number | null;
-  inputTokens: number;
-  retainedOutputTokens: number;
-  /** @nullable */
-  cachedInputTokens: number | null;
-  totalEstimated: boolean;
-  breakdownEstimated: true;
-  updatedAt: string;
   categories: ConversationContextCategory[];
 }
 

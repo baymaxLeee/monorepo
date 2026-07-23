@@ -25,6 +25,7 @@ class DocumentRow(Base):
     object_bucket: Mapped[str | None] = mapped_column(String(64), nullable=True)
     object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     object_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    current_revision_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     source_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ingest_status: Mapped[str] = mapped_column(String(20), nullable=False, default="ready")
     ingest_progress: Mapped[int] = mapped_column(Integer, nullable=False, default=100)

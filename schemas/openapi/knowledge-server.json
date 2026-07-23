@@ -3225,6 +3225,18 @@
             "maxLength": 40,
             "minLength": 1,
             "title": "Type"
+          },
+          "source_version_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Version Id"
           }
         },
         "type": "object",
@@ -3302,6 +3314,10 @@
             "type": "string",
             "title": "Document Id"
           },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
           "manifest": {
             "additionalProperties": true,
             "type": "object",
@@ -3318,6 +3334,7 @@
         "type": "object",
         "required": [
           "document_id",
+          "revision_id",
           "manifest",
           "blocks"
         ],
@@ -4184,6 +4201,10 @@
             "type": "string",
             "title": "Document Id"
           },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
           "title": {
             "type": "string",
             "title": "Title"
@@ -4205,6 +4226,7 @@
         "type": "object",
         "required": [
           "document_id",
+          "revision_id",
           "title",
           "filename",
           "total_chars"
@@ -4282,6 +4304,18 @@
               }
             ],
             "title": "Document Id"
+          },
+          "base_revision_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Revision Id"
           }
         },
         "type": "object",
@@ -4582,6 +4616,10 @@
             "type": "string",
             "title": "Id"
           },
+          "version_id": {
+            "type": "string",
+            "title": "Version Id"
+          },
           "type": {
             "type": "string",
             "title": "Type"
@@ -4589,6 +4627,10 @@
           "position": {
             "type": "integer",
             "title": "Position"
+          },
+          "content_sha256": {
+            "type": "string",
+            "title": "Content Sha256"
           },
           "content": {
             "type": "string",
@@ -4598,8 +4640,10 @@
         "type": "object",
         "required": [
           "id",
+          "version_id",
           "type",
           "position",
+          "content_sha256",
           "content"
         ],
         "title": "StoredArtifactBlock"

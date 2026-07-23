@@ -4,7 +4,13 @@ from hashlib import blake2b
 
 import anyio
 from infrastructure.persistence.database import get_session_factory, write_tx
-from infrastructure.persistence.models.artifact import ArtifactBlockVersionRow, ArtifactGenerationRow
+from infrastructure.persistence.models.artifact import (
+    ArtifactBlockVersionRow,
+    ArtifactGenerationBlockRow,
+    ArtifactGenerationRow,
+    ArtifactRevisionBlockRow,
+    ArtifactRevisionRow,
+)
 from infrastructure.persistence.models.conversation_cleanup import ConversationArtifactTombstoneRow
 from infrastructure.persistence.models.document import DocumentRow
 from infrastructure.persistence.models.staged_media import StagedMediaRow
@@ -98,16 +104,18 @@ async def cleanup_conversation_artifacts(
                 )
             ).all()
         )
-        generation_ids = [row.id for row in generations]
+        artifact_document_ids = {row.id for row in documents} | {row.document_id for row in generations}
         blocks = (
             list(
                 (
                     await session.scalars(
-                        select(ArtifactBlockVersionRow).where(ArtifactBlockVersionRow.generation_id.in_(generation_ids))
+                        select(ArtifactBlockVersionRow).where(
+                            ArtifactBlockVersionRow.document_id.in_(artifact_document_ids)
+                        )
                     )
                 ).all()
             )
-            if generation_ids
+            if artifact_document_ids
             else []
         )
         staged_media = list(
@@ -144,11 +152,23 @@ async def cleanup_conversation_artifacts(
         ArtifactGenerationRow.conversation_id == payload.conversation_id,
         ArtifactGenerationRow.user_id == payload.user_id,
     )
+    document_scope = select(ArtifactGenerationRow.document_id).where(
+        ArtifactGenerationRow.conversation_id == payload.conversation_id,
+        ArtifactGenerationRow.user_id == payload.user_id,
+    )
+    revision_scope = select(ArtifactRevisionRow.id).where(ArtifactRevisionRow.document_id.in_(document_scope))
     async with factory() as session, write_tx(session):
+        await session.execute(
+            delete(ArtifactRevisionBlockRow).where(ArtifactRevisionBlockRow.revision_id.in_(revision_scope))
+        )
+        await session.execute(delete(ArtifactRevisionRow).where(ArtifactRevisionRow.document_id.in_(document_scope)))
+        await session.execute(
+            delete(ArtifactGenerationBlockRow).where(ArtifactGenerationBlockRow.generation_id.in_(generation_scope))
+        )
         deleted_blocks = (
             await session.execute(
                 delete(ArtifactBlockVersionRow)
-                .where(ArtifactBlockVersionRow.generation_id.in_(generation_scope))
+                .where(ArtifactBlockVersionRow.document_id.in_(document_scope))
                 .returning(ArtifactBlockVersionRow.object_bucket, ArtifactBlockVersionRow.object_key)
             )
         ).all()
@@ -193,19 +213,13 @@ async def cleanup_conversation_artifacts(
         ).all()
 
     deleted_refs = {
-        (row.object_bucket, row.object_key)
-        for row in deleted_blocks
-        if row.object_bucket and row.object_key
+        (row.object_bucket, row.object_key) for row in deleted_blocks if row.object_bucket and row.object_key
     }
     deleted_refs.update(
-        (row.object_bucket, row.object_key)
-        for row in deleted_staged_media
-        if row.object_bucket and row.object_key
+        (row.object_bucket, row.object_key) for row in deleted_staged_media if row.object_bucket and row.object_key
     )
     deleted_refs.update(
-        (row.object_bucket, row.object_key)
-        for row in deleted_documents
-        if row.object_bucket and row.object_key
+        (row.object_bucket, row.object_key) for row in deleted_documents if row.object_bucket and row.object_key
     )
     for bucket, key in deleted_refs - object_refs:
         await anyio.to_thread.run_sync(partial(store.delete, bucket=bucket, key=key))

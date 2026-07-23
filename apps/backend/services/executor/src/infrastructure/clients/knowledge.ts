@@ -119,6 +119,7 @@ export async function reserveArtifactGeneration(input: {
   brief: string;
   idempotencyKey: string;
   documentId?: string;
+  baseRevisionId?: string;
 }): Promise<ArtifactGeneration> {
   return knowledgeClient().reserveArtifactGeneration(input);
 }
@@ -127,7 +128,7 @@ export async function saveArtifactPlan(input: {
   userId: string;
   generationId: string;
   manifest: Record<string, unknown>;
-  blocks: ArtifactBlockPlan[];
+  blocks: Array<{ id: string; type: string; sourceVersionId?: string }>;
 }): Promise<ArtifactGeneration> {
   return knowledgeClient().saveArtifactPlan(input);
 }

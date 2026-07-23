@@ -595,6 +595,8 @@ export interface components {
             id: string;
             /** Type */
             type: string;
+            /** Source Version Id */
+            source_version_id?: string | null;
         };
         /** ArtifactGeneration */
         ArtifactGeneration: {
@@ -619,6 +621,8 @@ export interface components {
         ArtifactRevisionWorkspace: {
             /** Document Id */
             document_id: string;
+            /** Revision Id */
+            revision_id: string;
             /** Manifest */
             manifest: {
                 [key: string]: unknown;
@@ -908,6 +912,8 @@ export interface components {
         PublishedArtifactRevision: {
             /** Document Id */
             document_id: string;
+            /** Revision Id */
+            revision_id: string;
             /** Title */
             title: string;
             /** Filename */
@@ -944,6 +950,8 @@ export interface components {
             idempotency_key: string;
             /** Document Id */
             document_id?: string | null;
+            /** Base Revision Id */
+            base_revision_id?: string | null;
         };
         /** RetrieveInput */
         RetrieveInput: {
@@ -1046,10 +1054,14 @@ export interface components {
         StoredArtifactBlock: {
             /** Id */
             id: string;
+            /** Version Id */
+            version_id: string;
             /** Type */
             type: string;
             /** Position */
             position: number;
+            /** Content Sha256 */
+            content_sha256: string;
             /** Content */
             content: string;
         };

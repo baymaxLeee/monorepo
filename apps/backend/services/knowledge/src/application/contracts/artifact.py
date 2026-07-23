@@ -17,6 +17,7 @@ class ReserveArtifactGenerationInput(BaseModel):
     brief: str = Field(min_length=1, max_length=20_000)
     idempotency_key: str = Field(min_length=1, max_length=128)
     document_id: str | None = Field(default=None, max_length=32)
+    base_revision_id: str | None = Field(default=None, max_length=32)
 
 
 class FailArtifactGenerationInput(BaseModel):
@@ -31,6 +32,7 @@ class CancelArtifactGenerationInput(BaseModel):
 class ArtifactBlockPlan(BaseModel):
     id: str = Field(pattern=r"^[A-Za-z0-9_-]+$", min_length=1, max_length=80)
     type: str = Field(min_length=1, max_length=40)
+    source_version_id: str | None = Field(default=None, max_length=32)
 
 
 class SaveArtifactPlanInput(BaseModel):
@@ -65,6 +67,7 @@ class ArtifactGeneration(BaseModel):
 
 class PublishedArtifactRevision(BaseModel):
     document_id: str
+    revision_id: str
     title: str
     filename: str
     mime_type: str = "text/html"
@@ -73,12 +76,15 @@ class PublishedArtifactRevision(BaseModel):
 
 class StoredArtifactBlock(BaseModel):
     id: str
+    version_id: str
     type: str
     position: int
+    content_sha256: str
     content: str
 
 
 class ArtifactRevisionWorkspace(BaseModel):
     document_id: str
+    revision_id: str
     manifest: dict[str, Any]
     blocks: list[StoredArtifactBlock]

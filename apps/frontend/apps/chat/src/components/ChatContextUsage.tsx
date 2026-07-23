@@ -45,18 +45,16 @@ export function ChatContextUsage({
 
   return (
     <ContextUsage
-      usedTokens={context?.usedTokens}
-      maxTokens={context?.effectiveWindow}
-      contextWindow={context?.contextWindow}
-      reservedOutputTokens={context?.reservedOutputTokens}
-      reservedOverheadTokens={context?.reservedOverheadTokens}
-      utilization={context?.utilization}
-      categories={context?.categories}
-      cachedInputTokens={context?.cachedInputTokens}
-      model={context?.model}
+      value={
+        context
+          ? {
+              usedTokens: context.usedTokens,
+              contextWindow: context.contextWindow,
+              categories: context.categories,
+            }
+          : null
+      }
       loading={loading || running}
-      totalEstimated={context?.totalEstimated}
-      breakdownEstimated={context?.breakdownEstimated}
     />
   );
 }

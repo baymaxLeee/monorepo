@@ -121,6 +121,15 @@ class ObjectStore:
         if path.is_dir():
             shutil.rmtree(path)
 
+    def list_keys(self, *, bucket: str, key_prefix: str) -> list[str]:
+        if not _SAFE_SEGMENT.match(bucket) or not self._valid_key(key_prefix):
+            raise RequestError("invalid bucket or object key prefix")
+        bucket_root = (self._root / bucket).resolve()
+        path = (bucket_root / key_prefix).resolve()
+        if not path.is_relative_to(bucket_root) or not path.is_dir():
+            return []
+        return [item.relative_to(bucket_root).as_posix() for item in path.rglob("*") if item.is_file()]
+
     @staticmethod
     def _safe_filename_segment(filename: str) -> str:
         """Coerce any (possibly non-ASCII) filename into a storage-key-safe

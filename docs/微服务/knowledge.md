@@ -9,6 +9,7 @@
 - `documents` 单表：同时保存 `object_key`（原始文件）与 `content_md`（转换结果）
 - 上传 ingest（HTTP 接收后后台转换/索引）
 - Agent artifact 持久化（`POST /internal/artifacts`）
+- HTML artifact 的 content-addressed block 与 revision 快照
 - 面向用户的文档 CRUD（未来知识库 app）
 
 ## 端口
@@ -26,6 +27,18 @@
 - `object_bucket` / `object_key` / `object_sha256` — 原始对象
 - `content_md` — MarkItDown 或 artifact 正文
 - `ingest_status` / `ingest_progress` — 上传流水线状态
+- `current_revision_id` — HTML artifact 当前发布快照；编译 HTML 固定覆盖
+  `artifacts/<document>/<user>/current.html`
+
+HTML artifact 存储分为：
+
+- `artifact_generations` / `artifact_generation_blocks`：Workflow 执行进度与重试状态
+- `artifact_block_versions`：按 SHA-256 寻址的不可变 block 内容
+- `artifact_revisions` / `artifact_revision_blocks`：revision 到 block version 的轻量引用
+
+精准修改只为变化的 block 创建新 version；未修改 block 直接继承 version ID，不复制
+JSON 或对象字节。发布时锁定 document 并校验 `base_revision_id`，因此过期并发编辑不能
+覆盖当前 HTML。
 
 业务表与 RAG 向量统一存储在 PostgreSQL + pgvector。single-VPS 的统一 `db-init`
 容器使用 knowledge 专属 role 执行服务自有迁移，再启动 API 容器，避免应用启动时

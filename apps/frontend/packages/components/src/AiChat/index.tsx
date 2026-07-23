@@ -53,6 +53,7 @@ export {
   type ContextUsageCategory,
   type ContextUsageCategoryId,
   type ContextUsageProps,
+  type ContextUsageValue,
 } from "./context";
 export {
   Conversation,

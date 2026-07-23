@@ -2,7 +2,7 @@
 
 ## Status
 
-Superseded in part by ADR 0023, ADR 0047, ADR 0048, and ADR 0049. The artifact generation
+Superseded in part by ADR 0023, ADR 0047, ADR 0048, ADR 0049, and ADR 0054. The artifact generation
 pipeline remains accepted. ADR 0048 restores validation as Chat-local
 `validate_html`; the Executor endpoint and `html_validate` name remain removed.
 
@@ -33,8 +33,8 @@ pipeline remains accepted. ADR 0048 restores validation as Chat-local
 - `edit_file` reads the latest immutable knowledge revision. It revises all
   blocks by default or only explicit `block_ids`, reusing every other block
   byte-for-byte (including failed placeholders). Failed blocks targeted for
-  edit are regenerated; OK blocks not in the edit set reuse stored JSON
-  verbatim. Publishing creates a child revision on the same document and accepts
+  edit are regenerated; OK blocks not in the edit set reuse their immutable
+  block-version references without copying JSON or object bytes. Publishing creates a child revision on the same document and accepts
   an optional `expected_object_sha256` compare-and-swap guard.
 - The artifact manifest persists the narrative and per-block layout intents.
   Editing remains deterministic: missing historical fields receive static

@@ -84,8 +84,9 @@ type ArtifactPlan = {
   blocks: ArtifactBlock[];
   reviewBrief: string;
   blockStrategies?: BlockStrategy[];
+  baseRevisionId?: string;
+  sourceVersionById?: Record<string, string>;
   sourceHtmlById?: Record<string, string>;
-  sourceContentById?: Record<string, string>;
   sourceFailedById?: Record<string, boolean>;
 };
 
@@ -130,11 +131,11 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
     const manifestBlocks = Array.isArray(manifest.blocks) ? (manifest.blocks as ArtifactBlock[]) : [];
     const metaById = new Map(manifestBlocks.map((block) => [block.id, block]));
     const sourceHtmlById: Record<string, string> = {};
-    const sourceContentById: Record<string, string> = {};
+    const sourceVersionById: Record<string, string> = {};
     const sourceFailedById: Record<string, boolean> = {};
 
     for (const stored of workspace.blocks) {
-      sourceContentById[stored.id] = stored.content;
+      sourceVersionById[stored.id] = stored.version_id;
       const parsed = parseStoredBlock(stored.content);
       sourceFailedById[stored.id] = parsed.failed;
       if (parsed.html != null) sourceHtmlById[stored.id] = parsed.html;
@@ -220,8 +221,9 @@ async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
         `Current revision request: ${input.brief!}`,
       ].filter(Boolean).join("\n"),
       blockStrategies,
+      baseRevisionId: workspace.revision_id,
+      sourceVersionById,
       sourceHtmlById,
-      sourceContentById,
       sourceFailedById,
     };
   } finally {
@@ -242,6 +244,7 @@ async function reserveStep(input: HtmlArtifactInput, plan: ArtifactPlan, idempot
       mode: plan.mode,
       brief: input.plan?.sourceBrief ?? input.brief!,
       idempotencyKey,
+      baseRevisionId: plan.baseRevisionId,
     });
     await saveArtifactPlan({
       userId: input.userId,
@@ -253,7 +256,14 @@ async function reserveStep(input: HtmlArtifactInput, plan: ArtifactPlan, idempot
         narrative: plan.narrative,
         blocks: plan.blocks,
       },
-      blocks: plan.blocks.map((block) => ({ id: block.id, type: block.type })),
+      blocks: plan.blocks.map((block) => ({
+        id: block.id,
+        type: block.type,
+        sourceVersionId:
+          plan.blockStrategies?.find((strategy) => strategy.id === block.id)?.action === "reuse"
+            ? plan.sourceVersionById?.[block.id]
+            : undefined,
+      })),
     });
     const { workflowRunId } = getWorkflowMetadata();
     await recordArtifactGeneration(workflowRunId, generation.id);
@@ -279,8 +289,8 @@ async function generateBlockStep(input: {
   narrative: string;
   artifactBrief: string;
   strategy?: BlockStrategy;
+  sourceVersionId?: string;
   sourceHtml?: string;
-  sourceContent?: string;
   sourceFailed?: boolean;
 }): Promise<{ id: string; ok: boolean }> {
   "use step";
@@ -290,14 +300,9 @@ async function generateBlockStep(input: {
     const action = input.strategy?.action ?? "generate";
 
     if (action === "reuse") {
-      if (!input.sourceContent) throw new Error(`reuse block ${input.block.id} has no stored content`);
-      await saveArtifactBlock({
-        userId: input.userId,
-        generationId: input.generationId,
-        blockId: input.block.id,
-        content: input.sourceContent,
-        failed: input.sourceFailed ?? false,
-      });
+      if (!input.sourceVersionId) {
+        throw new Error(`reuse block ${input.block.id} has no source version`);
+      }
       return { id: input.block.id, ok: !(input.sourceFailed ?? false) };
     }
 
@@ -520,8 +525,8 @@ export async function htmlArtifactWorkflow(input: HtmlArtifactInput) {
         narrative: plan.narrative,
         artifactBrief: plan.reviewBrief,
         strategy,
+        sourceVersionId: plan.sourceVersionById?.[block.id],
         sourceHtml: plan.sourceHtmlById?.[block.id],
-        sourceContent: plan.sourceContentById?.[block.id],
         sourceFailed: plan.sourceFailedById?.[block.id],
       });
       done += 1;

@@ -18,6 +18,7 @@ export interface ArtifactBlockPlan {
      * @maxLength 40
      */
   type: string;
+  source_version_id?: string | null;
 }
 
 export interface ArtifactGeneration {
@@ -35,13 +36,16 @@ export type ArtifactRevisionWorkspaceManifest = { [key: string]: unknown };
 
 export interface StoredArtifactBlock {
   id: string;
+  version_id: string;
   type: string;
   position: number;
+  content_sha256: string;
   content: string;
 }
 
 export interface ArtifactRevisionWorkspace {
   document_id: string;
+  revision_id: string;
   manifest: ArtifactRevisionWorkspaceManifest;
   blocks: StoredArtifactBlock[];
 }
@@ -345,6 +349,7 @@ export interface PublishArtifactRevisionInput {
 
 export interface PublishedArtifactRevision {
   document_id: string;
+  revision_id: string;
   title: string;
   filename: string;
   mime_type?: string;
@@ -394,6 +399,7 @@ export interface ReserveArtifactGenerationInput {
      */
   idempotency_key: string;
   document_id?: string | null;
+  base_revision_id?: string | null;
 }
 
 export interface RetrieveInput {

@@ -1,18 +1,11 @@
-"""Storage API for chat's durable artifact workflow.
-
-The executor's Workflow DevKit run is the sole owner of a generation from
-reserve to publish — there is no worker pool or lease protocol. A generation
-is purely the durable background-task record (progress + idempotency) that the
-executor task's cancel handler can flip to `cancelled`; the served artifact is
-documents.object_key, overwritten in place at publish, and the "current" block
-set is the latest completed generation's blocks.
-"""
+"""Content-addressed storage API for Executor's durable artifact workflow."""
 
 from datetime import UTC, datetime
 from hashlib import sha256
-from typing import cast
 from uuid import uuid4
 
+from application.artifact_generation_state import assert_generation_writable, get_owned_generation
+from application.artifact_publish import publish_artifact_revision
 from application.contracts.artifact import (
     ArtifactGeneration,
     ArtifactRevisionWorkspace,
@@ -25,18 +18,21 @@ from application.contracts.artifact import (
     SaveArtifactPlanInput,
     StoredArtifactBlock,
 )
-from application.conversation_cleanup import (
-    ConversationDeletedError,
-    assert_conversation_accepts_artifacts,
-)
+from application.conversation_cleanup import assert_conversation_accepts_artifacts
 from application.object_store import ObjectStore
 from fastapi import APIRouter, Depends
 from infrastructure.persistence.database import write_tx
-from infrastructure.persistence.models.artifact import ArtifactBlockVersionRow, ArtifactGenerationRow
-from infrastructure.persistence.models.document import DocumentRow
+from infrastructure.persistence.models.artifact import (
+    ArtifactBlockVersionRow,
+    ArtifactGenerationBlockRow,
+    ArtifactGenerationRow,
+    ArtifactRevisionBlockRow,
+    ArtifactRevisionRow,
+)
 from infrastructure.persistence.repositories import documents as document_crud
 from kernel.errors import ConflictError, NotFoundError
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
 
 from api.http.dependencies import DbSession, require_internal_token
 
@@ -64,35 +60,59 @@ def _generation_schema(row: ArtifactGenerationRow) -> ArtifactGeneration:
     )
 
 
-async def _owned_generation(
-    session: DbSession, generation_id: str, user_id: str, *, for_update: bool = False
-) -> ArtifactGenerationRow:
-    stmt = select(ArtifactGenerationRow).where(
-        ArtifactGenerationRow.id == generation_id,
-        ArtifactGenerationRow.user_id == user_id,
-    )
-    if for_update:
-        stmt = stmt.with_for_update()
-    row = await session.scalar(stmt)
-    if row is None:
-        raise NotFoundError(f"artifact generation {generation_id} not found")
-    return row
-
-
-async def _head_generation(session: DbSession, document_id: str, user_id: str) -> ArtifactGenerationRow | None:
-    """The document's current state = its most recent completed generation."""
-    return cast(
-        "ArtifactGenerationRow | None",
+async def _refresh_counts(session: DbSession, generation: ArtifactGenerationRow) -> None:
+    generation.completed_blocks = int(
         await session.scalar(
-            select(ArtifactGenerationRow)
+            select(func.count())
+            .select_from(ArtifactGenerationBlockRow)
             .where(
-                ArtifactGenerationRow.document_id == document_id,
-                ArtifactGenerationRow.user_id == user_id,
-                ArtifactGenerationRow.status == "completed",
+                ArtifactGenerationBlockRow.generation_id == generation.id,
+                ArtifactGenerationBlockRow.status == "ready",
+                ArtifactGenerationBlockRow.version_id.is_not(None),
             )
-            .order_by(ArtifactGenerationRow.finished_at.desc())
-        ),
+        )
+        or 0
     )
+    generation.failed_blocks = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(ArtifactGenerationBlockRow)
+            .where(
+                ArtifactGenerationBlockRow.generation_id == generation.id,
+                ArtifactGenerationBlockRow.error.is_not(None),
+            )
+        )
+        or 0
+    )
+
+
+async def _stored_blocks_for_generation(session: DbSession, generation_id: str) -> list[StoredArtifactBlock]:
+    rows = (
+        await session.execute(
+            select(ArtifactGenerationBlockRow, ArtifactBlockVersionRow)
+            .join(
+                ArtifactBlockVersionRow,
+                ArtifactBlockVersionRow.id == ArtifactGenerationBlockRow.version_id,
+            )
+            .where(
+                ArtifactGenerationBlockRow.generation_id == generation_id,
+                ArtifactGenerationBlockRow.status == "ready",
+            )
+            .order_by(ArtifactGenerationBlockRow.position)
+        )
+    ).all()
+    store = ObjectStore()
+    return [
+        StoredArtifactBlock(
+            id=block.block_id,
+            version_id=version.id,
+            type=version.block_type,
+            position=block.position,
+            content_sha256=version.object_sha256,
+            content=store.get_bytes(bucket=version.object_bucket, key=version.object_key).decode(),
+        )
+        for block, version in rows
+    ]
 
 
 @router.post("", response_model=ArtifactGeneration, status_code=201)
@@ -114,7 +134,11 @@ async def reserve_generation(payload: ReserveArtifactGenerationInput, session: D
             document = await document_crud.get_document(session, payload.document_id, payload.user_id)
             if document is None or document.kind != "artifact":
                 raise NotFoundError(f"artifact document {payload.document_id} not found")
+            if not payload.base_revision_id or payload.base_revision_id != document.current_revision_id:
+                raise ConflictError("artifact base revision is stale")
             document_id = payload.document_id
+        elif payload.base_revision_id:
+            raise ConflictError("a new artifact cannot have a base revision")
 
         now = datetime.now(UTC)
         row = ArtifactGenerationRow(
@@ -126,6 +150,7 @@ async def reserve_generation(payload: ReserveArtifactGenerationInput, session: D
             filename=payload.filename,
             brief=payload.brief,
             idempotency_key=payload.idempotency_key,
+            base_revision_id=payload.base_revision_id,
             status="queued",
             manifest_json={
                 "schemaVersion": 1,
@@ -150,7 +175,7 @@ async def fail_generation(
     generation_id: str, payload: FailArtifactGenerationInput, session: DbSession
 ) -> ArtifactGeneration:
     async with write_tx(session):
-        row = await _owned_generation(session, generation_id, payload.user_id)
+        row = await get_owned_generation(session, generation_id, payload.user_id)
         now = datetime.now(UTC)
         row.status = "failed"
         row.error = payload.error
@@ -164,7 +189,7 @@ async def cancel_generation(
     generation_id: str, payload: CancelArtifactGenerationInput, session: DbSession
 ) -> ArtifactGeneration:
     async with write_tx(session):
-        row = await _owned_generation(session, generation_id, payload.user_id)
+        row = await get_owned_generation(session, generation_id, payload.user_id)
         if row.status in {"completed", "failed", "cancelled"}:
             return _generation_schema(row)
         now = datetime.now(UTC)
@@ -178,45 +203,56 @@ async def cancel_generation(
 @router.put("/{generation_id}/plan", response_model=ArtifactGeneration)
 async def save_plan(generation_id: str, payload: SaveArtifactPlanInput, session: DbSession) -> ArtifactGeneration:
     async with write_tx(session):
-        row = await _owned_generation(session, generation_id, payload.user_id)
+        generation = await get_owned_generation(session, generation_id, payload.user_id, for_update=True)
+        assert_generation_writable(generation)
         await assert_conversation_accepts_artifacts(
-            session, user_id=payload.user_id, conversation_id=row.conversation_id
+            session, user_id=payload.user_id, conversation_id=generation.conversation_id
         )
-        now = datetime.now(UTC)
-        row.manifest_json = payload.manifest
-        row.total_blocks = len(payload.blocks)
-        if row.status == "queued":
-            row.status = "running"
-        row.updated_at = now
         existing_ids = set(
             (
                 await session.scalars(
-                    select(ArtifactBlockVersionRow.block_id).where(
-                        ArtifactBlockVersionRow.generation_id == generation_id
+                    select(ArtifactGenerationBlockRow.block_id).where(
+                        ArtifactGenerationBlockRow.generation_id == generation_id
                     )
                 )
             ).all()
         )
-        missing = [(position, block) for position, block in enumerate(payload.blocks) if block.id not in existing_ids]
-        if missing:
-            session.add_all(
-                ArtifactBlockVersionRow(
+        now = datetime.now(UTC)
+        for position, block in enumerate(payload.blocks):
+            if block.id in existing_ids:
+                continue
+            status = "planned"
+            if block.source_version_id:
+                inherited = await session.scalar(
+                    select(ArtifactRevisionBlockRow.version_id).where(
+                        ArtifactRevisionBlockRow.revision_id == generation.base_revision_id,
+                        ArtifactRevisionBlockRow.block_id == block.id,
+                    )
+                )
+                if inherited != block.source_version_id:
+                    raise ConflictError(f"artifact block {block.id} source version is stale")
+                status = "ready"
+            session.add(
+                ArtifactGenerationBlockRow(
                     id=_id(),
-                    generation_id=row.id,
+                    generation_id=generation.id,
                     block_id=block.id,
                     block_type=block.type,
                     position=position,
-                    status="planned",
-                    object_bucket=None,
-                    object_key=None,
-                    object_sha256=None,
+                    status=status,
+                    version_id=block.source_version_id,
                     error=None,
                     created_at=now,
                     updated_at=now,
                 )
-                for position, block in missing
             )
-    return _generation_schema(row)
+        generation.manifest_json = payload.manifest
+        generation.total_blocks = len(payload.blocks)
+        generation.status = "running"
+        generation.updated_at = now
+        await session.flush()
+        await _refresh_counts(session, generation)
+    return _generation_schema(generation)
 
 
 @router.put("/{generation_id}/blocks/{block_id}", response_model=ArtifactGeneration)
@@ -224,52 +260,39 @@ async def save_block(
     generation_id: str, block_id: str, payload: SaveArtifactBlockInput, session: DbSession
 ) -> ArtifactGeneration:
     async with write_tx(session):
-        generation = await _owned_generation(session, generation_id, payload.user_id)
-        if generation.status == "cancelled":
-            raise ConflictError("artifact generation was cancelled")
-        if generation.status == "failed":
-            raise ConflictError("artifact generation failed")
-        if generation.status == "completed":
-            raise ConflictError("completed artifact blocks are immutable")
+        generation = await get_owned_generation(session, generation_id, payload.user_id)
+        assert_generation_writable(generation)
         block = await session.scalar(
-            select(ArtifactBlockVersionRow).where(
-                ArtifactBlockVersionRow.generation_id == generation_id,
-                ArtifactBlockVersionRow.block_id == block_id,
+            select(ArtifactGenerationBlockRow).where(
+                ArtifactGenerationBlockRow.generation_id == generation_id,
+                ArtifactGenerationBlockRow.block_id == block_id,
             )
         )
         if block is None:
             raise NotFoundError(f"artifact block {block_id} not found")
         if block.status == "ready":
             return _generation_schema(generation)
-    # Upload the block payload OUTSIDE the transaction; the DB write below is a
-    # short transaction that never spans object-store IO.
+
+    content = payload.content.encode()
+    content_sha256 = sha256(content).hexdigest()
     stored = ObjectStore().put_bytes(
-        content=payload.content.encode(),
-        filename=f"{block_id}.json",
+        content=content,
+        filename=f"{content_sha256}.json",
         mime_type="application/json",
         user_id=payload.user_id,
-        prefix=f"artifacts/{generation.document_id}/blocks/{generation.id}",
+        prefix=f"artifacts/{generation.document_id}/blocks",
     )
     async with write_tx(session):
-        generation = await _owned_generation(session, generation_id, payload.user_id, for_update=True)
-        try:
-            await assert_conversation_accepts_artifacts(
-                session, user_id=payload.user_id, conversation_id=generation.conversation_id
-            )
-        except ConversationDeletedError:
-            ObjectStore().delete(bucket=stored.bucket, key=stored.key)
-            raise
-        if generation.status == "cancelled":
-            raise ConflictError("artifact generation was cancelled")
-        if generation.status == "failed":
-            raise ConflictError("artifact generation failed")
-        if generation.status == "completed":
-            raise ConflictError("completed artifact blocks are immutable")
+        generation = await get_owned_generation(session, generation_id, payload.user_id, for_update=True)
+        assert_generation_writable(generation)
+        await assert_conversation_accepts_artifacts(
+            session, user_id=payload.user_id, conversation_id=generation.conversation_id
+        )
         block = await session.scalar(
-            select(ArtifactBlockVersionRow)
+            select(ArtifactGenerationBlockRow)
             .where(
-                ArtifactBlockVersionRow.generation_id == generation_id,
-                ArtifactBlockVersionRow.block_id == block_id,
+                ArtifactGenerationBlockRow.generation_id == generation_id,
+                ArtifactGenerationBlockRow.block_id == block_id,
             )
             .with_for_update()
         )
@@ -277,63 +300,51 @@ async def save_block(
             raise NotFoundError(f"artifact block {block_id} not found")
         if block.status == "ready":
             return _generation_schema(generation)
+        version_id = _id()
+        await session.execute(
+            insert(ArtifactBlockVersionRow)
+            .values(
+                id=version_id,
+                document_id=generation.document_id,
+                user_id=payload.user_id,
+                block_id=block.block_id,
+                block_type=block.block_type,
+                object_bucket=stored.bucket,
+                object_key=stored.key,
+                object_sha256=stored.sha256,
+                created_at=datetime.now(UTC),
+            )
+            .on_conflict_do_nothing(
+                index_elements=[
+                    ArtifactBlockVersionRow.document_id,
+                    ArtifactBlockVersionRow.block_id,
+                    ArtifactBlockVersionRow.object_sha256,
+                ]
+            )
+        )
+        version = await session.scalar(
+            select(ArtifactBlockVersionRow).where(
+                ArtifactBlockVersionRow.document_id == generation.document_id,
+                ArtifactBlockVersionRow.block_id == block.block_id,
+                ArtifactBlockVersionRow.object_sha256 == stored.sha256,
+            )
+        )
+        if version is None:
+            raise ConflictError("artifact block version could not be resolved")
         block.status = "ready"
-        block.object_bucket = stored.bucket
-        block.object_key = stored.key
-        block.object_sha256 = stored.sha256
+        block.version_id = version.id
         block.error = "block generation failed" if payload.failed else None
         block.updated_at = datetime.now(UTC)
         await session.flush()
-        generation.completed_blocks = int(
-            await session.scalar(
-                select(func.count())
-                .select_from(ArtifactBlockVersionRow)
-                .where(
-                    ArtifactBlockVersionRow.generation_id == generation_id,
-                    ArtifactBlockVersionRow.status == "ready",
-                )
-            )
-            or 0
-        )
-        generation.failed_blocks = int(
-            await session.scalar(
-                select(func.count())
-                .select_from(ArtifactBlockVersionRow)
-                .where(
-                    ArtifactBlockVersionRow.generation_id == generation_id,
-                    ArtifactBlockVersionRow.error.is_not(None),
-                )
-            )
-            or 0
-        )
+        await _refresh_counts(session, generation)
         generation.updated_at = datetime.now(UTC)
     return _generation_schema(generation)
 
 
 @router.get("/{generation_id}/blocks", response_model=list[StoredArtifactBlock])
 async def list_ready_blocks(generation_id: str, user_id: str, session: DbSession) -> list[StoredArtifactBlock]:
-    await _owned_generation(session, generation_id, user_id)
-    rows = (
-        await session.scalars(
-            select(ArtifactBlockVersionRow)
-            .where(
-                ArtifactBlockVersionRow.generation_id == generation_id,
-                ArtifactBlockVersionRow.status == "ready",
-            )
-            .order_by(ArtifactBlockVersionRow.position)
-        )
-    ).all()
-    store = ObjectStore()
-    return [
-        StoredArtifactBlock(
-            id=row.block_id,
-            type=row.block_type,
-            position=row.position,
-            content=store.get_bytes(bucket=row.object_bucket, key=row.object_key).decode(),
-        )
-        for row in rows
-        if row.object_bucket and row.object_key
-    ]
+    await get_owned_generation(session, generation_id, user_id)
+    return await _stored_blocks_for_generation(session, generation_id)
 
 
 @router.get("/documents/{document_id}/latest", response_model=ArtifactRevisionWorkspace)
@@ -341,13 +352,35 @@ async def get_latest_workspace(document_id: str, user_id: str, session: DbSessio
     document = await document_crud.get_document(session, document_id, user_id)
     if document is None or document.kind != "artifact":
         raise NotFoundError(f"artifact document {document_id} not found")
-    head = await _head_generation(session, document_id, user_id)
-    if head is None:
+    if not document.current_revision_id:
         raise NotFoundError(f"artifact workspace for document {document_id} not found")
-    blocks = await list_ready_blocks(head.id, user_id, session)
+    revision = await session.get(ArtifactRevisionRow, document.current_revision_id)
+    if revision is None:
+        raise NotFoundError(f"artifact revision {document.current_revision_id} not found")
+    rows = (
+        await session.execute(
+            select(ArtifactRevisionBlockRow, ArtifactBlockVersionRow)
+            .join(ArtifactBlockVersionRow, ArtifactBlockVersionRow.id == ArtifactRevisionBlockRow.version_id)
+            .where(ArtifactRevisionBlockRow.revision_id == revision.id)
+            .order_by(ArtifactRevisionBlockRow.position)
+        )
+    ).all()
+    store = ObjectStore()
+    blocks = [
+        StoredArtifactBlock(
+            id=block.block_id,
+            version_id=version.id,
+            type=version.block_type,
+            position=block.position,
+            content_sha256=version.object_sha256,
+            content=store.get_bytes(bucket=version.object_bucket, key=version.object_key).decode(),
+        )
+        for block, version in rows
+    ]
     return ArtifactRevisionWorkspace(
         document_id=document_id,
-        manifest=head.manifest_json or {},
+        revision_id=revision.id,
+        manifest=revision.manifest_json,
         blocks=blocks,
     )
 
@@ -356,114 +389,4 @@ async def get_latest_workspace(document_id: str, user_id: str, session: DbSessio
 async def publish_revision(
     generation_id: str, payload: PublishArtifactRevisionInput, session: DbSession
 ) -> PublishedArtifactRevision:
-    async with write_tx(session):
-        generation = await _owned_generation(session, generation_id, payload.user_id)
-        if generation.status == "cancelled":
-            raise ConflictError("artifact generation was cancelled")
-        if generation.status == "completed":
-            # Idempotent: the durable publish step already ran (WDK may retry it).
-            published_doc = await document_crud.get_document(session, generation.document_id, payload.user_id)
-            return PublishedArtifactRevision(
-                document_id=generation.document_id,
-                title=generation.title,
-                filename=generation.filename,
-                total_chars=published_doc.source_size if published_doc else 0,
-            )
-        if generation.completed_blocks != generation.total_blocks:
-            raise ConflictError("artifact blocks are not complete")
-    # Compile + store the HTML OUTSIDE the transaction so the document row lock
-    # below is never held across object-store IO.
-    stored = ObjectStore().put_bytes(
-        content=payload.compiled_html.encode(),
-        filename=generation.filename,
-        mime_type="text/html",
-        user_id=payload.user_id,
-        prefix=f"artifacts/{generation.document_id}",
-    )
-    async with write_tx(session):
-        generation = await _owned_generation(session, generation_id, payload.user_id, for_update=True)
-        try:
-            await assert_conversation_accepts_artifacts(
-                session, user_id=payload.user_id, conversation_id=generation.conversation_id
-            )
-        except ConversationDeletedError:
-            ObjectStore().delete(bucket=stored.bucket, key=stored.key)
-            raise
-        if generation.status == "cancelled":
-            raise ConflictError("artifact generation was cancelled")
-        if generation.status == "completed":
-            published_doc = await document_crud.get_document(session, generation.document_id, payload.user_id)
-            return PublishedArtifactRevision(
-                document_id=generation.document_id,
-                title=generation.title,
-                filename=generation.filename,
-                total_chars=published_doc.source_size if published_doc else 0,
-            )
-        if generation.completed_blocks != generation.total_blocks:
-            raise ConflictError("artifact blocks are not complete")
-        # Lock the document row so concurrent edits to the same artifact serialize
-        # and the in-place HTML overwrite stays consistent (last writer wins).
-        document = await session.scalar(
-            select(DocumentRow)
-            .where(DocumentRow.id == generation.document_id, DocumentRow.user_id == payload.user_id)
-            .with_for_update()
-        )
-        now = datetime.now(UTC)
-        if document is None:
-            org_id = payload.org_id
-            if org_id is None and isinstance(generation.manifest_json, dict):
-                manifest_org = generation.manifest_json.get("org_id")
-                if isinstance(manifest_org, str) and manifest_org:
-                    org_id = manifest_org
-            await document_crud.create_document(
-                session,
-                user_id=payload.user_id,
-                org_id=org_id,
-                conversation_id=generation.conversation_id,
-                kind="artifact",
-                title=generation.title,
-                filename=generation.filename,
-                mime_type="text/html",
-                content_md="",
-                source_size=stored.size,
-                source_mime_type="text/html",
-                object_bucket=stored.bucket,
-                object_key=stored.key,
-                object_sha256=stored.sha256,
-                ingest_status="ready",
-                ingest_progress=100,
-                document_id=generation.document_id,
-            )
-        else:
-            if (
-                payload.expected_object_sha256
-                and document.object_sha256
-                and document.object_sha256 != payload.expected_object_sha256
-            ):
-                raise ConflictError("artifact document was modified concurrently")
-            await document_crud.update_document(
-                session,
-                document,
-                {
-                    "title": generation.title,
-                    "filename": generation.filename,
-                    "mime_type": "text/html",
-                    "content_md": "",
-                    "source_size": stored.size,
-                    "source_mime_type": "text/html",
-                    "object_bucket": stored.bucket,
-                    "object_key": stored.key,
-                    "object_sha256": stored.sha256,
-                },
-            )
-        generation.updated_at = now
-        await session.flush()
-        generation.status = "completed"
-        generation.finished_at = now
-        generation.updated_at = now
-    return PublishedArtifactRevision(
-        document_id=generation.document_id,
-        title=generation.title,
-        filename=generation.filename,
-        total_chars=stored.size,
-    )
+    return await publish_artifact_revision(session, generation_id, payload)

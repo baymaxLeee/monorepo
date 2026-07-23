@@ -18,8 +18,6 @@ export type ContextUsageCategoryId =
 export interface ContextUsageCategory {
   id: ContextUsageCategoryId;
   tokens: number;
-  shareOfUsed: number;
-  shareOfEffectiveWindow: number | null;
 }
 
 const CATEGORY_META: Record<
@@ -35,51 +33,44 @@ const CATEGORY_META: Record<
   conversation: { label: "Conversation", color: "bg-orange-500" },
 };
 
-function compactTokens(value: number | null | undefined) {
+const TOKENS_PER_K = 1024;
+
+function formatTokens(value: number | null | undefined) {
   if (value == null) return "—";
-  return new Intl.NumberFormat("en-US", {
+  if (value < TOKENS_PER_K) return String(value);
+  return `${new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 1,
-    notation: "compact",
-  }).format(value);
+    useGrouping: false,
+  }).format(value / TOKENS_PER_K)}K`;
+}
+
+export interface ContextUsageValue {
+  usedTokens: number;
+  contextWindow: number | null;
+  categories: ContextUsageCategory[];
 }
 
 export type ContextUsageProps = ComponentProps<typeof Popover> & {
-  usedTokens?: number | null;
-  maxTokens?: number | null;
-  contextWindow?: number | null;
-  reservedOutputTokens?: number | null;
-  reservedOverheadTokens?: number | null;
-  utilization?: number | null;
-  categories?: ContextUsageCategory[];
-  cachedInputTokens?: number | null;
-  model?: string | null;
+  value?: ContextUsageValue | null;
   loading?: boolean;
-  totalEstimated?: boolean;
-  breakdownEstimated?: boolean;
 };
 
-export function ContextUsage({
-  usedTokens,
-  maxTokens,
-  contextWindow,
-  reservedOutputTokens,
-  reservedOverheadTokens,
-  utilization,
-  categories = [],
-  cachedInputTokens,
-  model,
-  loading,
-  totalEstimated,
-  breakdownEstimated,
-  ...props
-}: ContextUsageProps) {
-  const hasUsage = usedTokens != null;
+export function ContextUsage({ value, loading, ...props }: ContextUsageProps) {
+  const hasUsage = value != null;
+  const usedTokens = value?.usedTokens;
+  const contextWindow = value?.contextWindow;
+  const utilization =
+    usedTokens != null && contextWindow != null && contextWindow > 0
+      ? usedTokens / contextWindow
+      : null;
   const fraction =
     utilization != null ? Math.min(1, Math.max(0, utilization)) : 0;
   const percent = utilization != null ? Math.round(utilization * 100) : null;
-  const visibleCategories = categories.filter(
+  const visibleCategories = (value?.categories ?? []).filter(
     (category) => category.tokens > 0,
   );
+  const categoryDenominator =
+    contextWindow != null && contextWindow > 0 ? contextWindow : usedTokens;
   const ringClass =
     fraction >= 0.9
       ? "text-destructive"
@@ -139,81 +130,48 @@ export function ContextUsage({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        align="end"
+        align="center"
         side="top"
-        className="w-[calc(100vw-2rem)] max-w-[420px] space-y-4 p-5"
+        className="w-72 space-y-2.5 p-3"
       >
-        <div className="space-y-1">
-          <div className="flex items-center justify-between gap-4">
-            <h3 className="text-base font-medium">Context Usage</h3>
-            <span className="text-sm text-muted-foreground">
-              {percent != null
-                ? `${percent}% Full`
-                : hasUsage
-                  ? "上限未知"
-                  : "暂无数据"}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
-            <span className="truncate">{model ?? "尚未调用模型"}</span>
-            {hasUsage ? (
-              <span className="shrink-0 font-mono">
-                ~{compactTokens(usedTokens)} / {compactTokens(maxTokens)}{" "}
-                effective tokens
-              </span>
-            ) : null}
-          </div>
-        </div>
+        <h3 className="text-sm font-medium">Context Usage</h3>
 
         {hasUsage ? (
           <>
-            <div className="flex h-2 overflow-hidden rounded-full bg-muted">
+            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span>{percent != null ? `${percent}% Full` : "上限未知"}</span>
+              <span className="shrink-0 tabular-nums">
+                ~{formatTokens(usedTokens)} / {formatTokens(contextWindow)}{" "}
+                Tokens
+              </span>
+            </div>
+            <div className="flex h-1 overflow-hidden rounded-full bg-muted">
               {visibleCategories.map((category) => (
                 <span
                   key={category.id}
                   className={cn("h-full", CATEGORY_META[category.id].color)}
                   style={{
-                    width: `${Math.min(
-                      100,
-                      (category.shareOfEffectiveWindow ??
-                        category.shareOfUsed) * 100,
-                    )}%`,
+                    width: `${
+                      categoryDenominator && categoryDenominator > 0
+                        ? Math.min(
+                            100,
+                            (category.tokens / categoryDenominator) * 100,
+                          )
+                        : 0
+                    }%`,
                   }}
                 />
               ))}
             </div>
-            <div className="grid gap-1">
+            <div className="grid gap-0.5">
               {visibleCategories.map((category) => (
                 <ContextUsageRow key={category.id} category={category} />
               ))}
             </div>
-            <div className="space-y-1 border-t pt-3 text-[11px] leading-relaxed text-muted-foreground">
-              {cachedInputTokens != null ? (
-                <p>
-                  Provider cache hit: {compactTokens(cachedInputTokens)} tokens
-                </p>
-              ) : null}
-              {contextWindow != null ? (
-                <p>
-                  Full window: {compactTokens(contextWindow)}; output reserve:{" "}
-                  {compactTokens(reservedOutputTokens)}; safety headroom:{" "}
-                  {compactTokens(reservedOverheadTokens)}.
-                </p>
-              ) : null}
-              <p>
-                总占用
-                {totalEstimated ? "为请求内容估算" : "使用 provider 实际 usage"}
-                ；类别拆分
-                {breakdownEstimated
-                  ? "按实际请求内容估算并校准"
-                  : "来自上下文快照"}
-                。
-              </p>
-            </div>
           </>
         ) : (
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            发送一条消息后，这里会显示该会话送入模型的统一上下文快照。
+          <p className="text-xs text-muted-foreground">
+            {percent != null ? `${percent}% Full` : "暂无数据"}
           </p>
         )}
       </PopoverContent>
@@ -224,13 +182,13 @@ export function ContextUsage({
 function ContextUsageRow({ category }: { category: ContextUsageCategory }) {
   const meta = CATEGORY_META[category.id];
   return (
-    <div className="flex items-center justify-between gap-4 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60">
-      <span className="flex items-center gap-3 text-muted-foreground">
-        <span className={cn("size-3 rounded-sm", meta.color)} />
-        {meta.label}
+    <div className="flex items-center justify-between gap-3 py-0.5 text-xs">
+      <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
+        <span className={cn("size-2 shrink-0 rounded-sm", meta.color)} />
+        <span className="truncate">{meta.label}</span>
       </span>
-      <span className="font-mono text-muted-foreground">
-        {compactTokens(category.tokens)}
+      <span className="shrink-0 tabular-nums text-muted-foreground">
+        {formatTokens(category.tokens)}
       </span>
     </div>
   );

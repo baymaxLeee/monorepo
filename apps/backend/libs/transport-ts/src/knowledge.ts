@@ -285,6 +285,7 @@ export class KnowledgeInternalClient {
     brief: string;
     idempotencyKey: string;
     documentId?: string;
+    baseRevisionId?: string;
   }): Promise<ArtifactGeneration> {
     return this.unwrap(
       this.client.POST("/internal/artifact-generations", {
@@ -298,6 +299,7 @@ export class KnowledgeInternalClient {
           brief: input.brief,
           idempotency_key: input.idempotencyKey,
           document_id: input.documentId,
+          base_revision_id: input.baseRevisionId,
         },
       }),
     );
@@ -335,12 +337,20 @@ export class KnowledgeInternalClient {
     userId: string;
     generationId: string;
     manifest: Record<string, unknown>;
-    blocks: ArtifactBlockPlan[];
+    blocks: Array<{ id: string; type: string; sourceVersionId?: string }>;
   }): Promise<ArtifactGeneration> {
     return this.unwrap(
       this.client.PUT("/internal/artifact-generations/{generation_id}/plan", {
         params: { path: { generation_id: input.generationId } },
-        body: { user_id: input.userId, manifest: input.manifest, blocks: input.blocks },
+        body: {
+          user_id: input.userId,
+          manifest: input.manifest,
+          blocks: input.blocks.map((block) => ({
+            id: block.id,
+            type: block.type,
+            source_version_id: block.sourceVersionId,
+          })),
+        },
       }),
     );
   }

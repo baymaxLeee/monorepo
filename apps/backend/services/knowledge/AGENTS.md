@@ -16,7 +16,7 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 ## Owns
 - DB tables: `documents` (source uploads + agent artifacts, per user),
   `document_chunks` (RAG: `embedding vector` + generated `tsv` for hybrid),
-  artifact generation tables (written by executor).
+  and the content-addressed artifact generation/revision graph (written by executor).
 - Local filesystem object backend (demo / single-VPS)
 - HTTP API: `/ingest/*` (public via gateway), `/internal/*` (service-to-service),
   including `POST /internal/retrieve` (hybrid dense+BM25+RRF+rerank, user-scoped)
@@ -40,6 +40,10 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 
 ## Conventions
 - Documents are user-scoped; `conversation_id` is an optional tag only (no FK).
+- HTML artifact generations are execution state, not content ownership. Immutable
+  block versions own SHA-addressed bytes; generation/revision block rows only reference
+  them. `documents.current_revision_id` is the sole published head, and compiled HTML
+  always replaces the document's fixed `current.html` object.
 - Deleting a chat conversation asynchronously removes generated `artifact`
   documents, artifact-generation blocks, and staged media through Chat's
   transactional outbox. User-uploaded `source` documents remain independently
@@ -63,8 +67,9 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 - Errors via `kernel.errors.*`, NEVER raw HTTPException.
 - Transactions (ADR-0037): persistence repositories only read/stage and never commit; the
   router/service owning a write opens `async with write_tx(session):`
-  (autobegin-first) around its reads + writes. `ObjectStore` IO stays OUTSIDE the block
-  (upload before, purge after) so the artifact-publish `FOR UPDATE` lock never
-  spans object IO. `index_document` is DB-free (snapshot -> chunks); the
+  (autobegin-first) around its reads + writes. `ObjectStore` IO normally stays outside
+  the block. Artifact publish is the deliberate exception: its local-filesystem atomic
+  replacement runs under the document `FOR UPDATE` lock so a stale revision can never
+  overwrite `current.html`. `index_document` is DB-free (snapshot -> chunks); the
   ingest/indexer worker sessions keep intentional multi-stage `write_tx` blocks
   for durable SSE/background progress; the `pg_advisory_lock` raw connection is exempt.
