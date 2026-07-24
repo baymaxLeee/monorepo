@@ -107,12 +107,31 @@ pipeline remains accepted. ADR 0048 restores validation as Chat-local
   not declare one. Validation still reports `CHART_TOOLTIP_MISSING` on persisted
   artifacts so legacy output is repaired block-by-block rather than silently
   accepted.
-- Standard bar, line, area, pie, and radar charts use the compact `data-chart`
-  shorthand. Validation-directed repairs prefer that shorthand so a block model
-  does not repeatedly hand-write deeply nested ECharts JSON; `data-chart-option`
-  remains available for chart types the shorthand cannot express. Radar series
-  must contain one finite numeric value per indicator and are rejected rather
-  than padded or truncated, so validation never fabricates chart data.
+- Standard bar, line, area, pie, radar, tree, graph, and gantt charts use the
+  compact `data-chart` shorthand. Tree handles organization charts and mind
+  maps; graph handles relation-first networks and dependency-topology
+  exploration; gantt handles numeric start/end task timelines. A project or
+  system architecture diagram is not classified as a graph chart by default:
+  conventional layered, container, deployment, and request-flow views use
+  semantic HTML/CSS with inline SVG or Canvas when needed. ECharts graph remains
+  available when the requested architecture view is explicitly topology-first.
+  The compiler converts these semantic inputs into bounded ECharts options so a
+  block model cannot omit required layout data or race runtime initialization.
+  `data-chart-option` remains available only for unsupported chart types. Radar
+  series must contain one finite numeric value per indicator and are rejected
+  rather than padded or truncated, so validation never fabricates chart data.
+- ECharts is loaded by a compiler-owned local-first Promise loader, with the
+  pinned CDN asset as fallback. Declarative charts and model-authored scripts
+  that reference ECharts wait for that Promise; unrelated inline
+  JavaScript remains unrestricted and executes normally. This preserves custom
+  reports, Canvas interactions, and self-contained HTML5 games without relying
+  on deprecated parser mutation or allowing blocks to load another ECharts
+  version.
+- Static `[data-*]` selectors in model scripts must resolve inside their own
+  block. When a missing selector exactly matches a local element id, compilation
+  adds that data attribute deterministically; all other missing targets fail
+  validation. Hidden compiled charts also fail validation instead of acting as
+  invisible runtime sentinels.
 - The web client auto-continues only tools explicitly marked for client execution.
   Completed durable server tools are never echoed as client tool responses.
 - `validate_html` is read-only and never executes model-authored HTML. Automated

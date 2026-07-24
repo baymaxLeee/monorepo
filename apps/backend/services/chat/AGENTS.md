@@ -98,8 +98,13 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   directly under `runtime_contract` (including parallel deliverables in one
   step); `update_todos` does not return routing advice.
 - File tools are one `files` capability: list/read plus Markdown full-write and
-  HTML generation/inspection/editing. `write_html` has a dedicated object-only plan schema so providers never see a
-  Markdown/HTML `anyOf`; it dispatches to `executor` and foreground-blocks
+  HTML generation/inspection/editing. `write_html` has a shallow dedicated
+  schema: `title` and authoritative `brief` are required, while simple ordered
+  `sections` and visual hints are optional; omitting sections produces one
+  block. Chat forwards the same flat semantic shape to Executor, which
+  deterministically materializes its internal block contracts without another
+  model call. Providers never see a Markdown/HTML `anyOf`. The tool dispatches
+  to `executor` and foreground-blocks
   this turn** until compile + publish complete (`agent_task_执行时服务` plan,
   Phase 2; ADR-0015 revision). Progress 100% means block generation completed;
   compile + publish still follow. The generation workflow owns compilation and

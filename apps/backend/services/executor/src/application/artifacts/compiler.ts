@@ -1,11 +1,11 @@
-import { buildArtifactNavScript, buildArtifactRuntimeHead, buildChartHydrationScript } from "./template.js";
+import { buildArtifactNavScript, buildArtifactRuntimeHead, buildChartHydrationScript, buildEChartsScriptExecutionScript } from "./template.js";
 import sanitizeHtml from "sanitize-html";
 import { DomUtils, parseDocument } from "htmlparser2";
 import postcss from "postcss";
 import selectorParser from "postcss-selector-parser";
-
+import { expandDiagramChartSpec, type DiagramChartSpec } from "./diagram-charts.js";
+import { bindStaticDataSelectors } from "./script-bindings.js";
 export type ArtifactPartPlan = { id: string; type: string; title: string };
-
 export const ARTIFACT_VISUAL_CAPABILITIES = [
   "The platform owns the responsive shell, accessible color tokens, typography, spacing scale, and reusable Grid/Flex primitives.",
   "Compose layouts with artifact-stack, artifact-cluster, artifact-grid, artifact-split, artifact-card, artifact-metric-grid, artifact-frame, artifact-table-scroll, and artifact-prose.",
@@ -16,20 +16,22 @@ export const ARTIFACT_VISUAL_CAPABILITIES = [
   "Wrap every table in artifact-table-scroll. Images, charts, tables, and code must remain usable on narrow viewports.",
   "Do not load external CSS, fonts, images, or other resources from CSS.",
 ].join("\n");
-
 export const ARTIFACT_CHART_SPEC = [
   "Prefer compiler-hydrated chart divs for standard charts. Use custom JavaScript only when the requested interaction cannot be expressed by the chart spec.",
-  "Chart spec fields: type (one of \"bar\" | \"line\" | \"area\" | \"pie\" | \"radar\"), title (optional string), categories (string[] labels; radar indicator names), series (see below), optional stack:true, optional horizontal:true, optional max:number (radar indicator ceiling, default 100).",
+  "Chart spec type is one of \"bar\" | \"line\" | \"area\" | \"pie\" | \"radar\" | \"tree\" | \"graph\" | \"gantt\". title is optional.",
   "series for bar/line/area: an array of {\"name\":string,\"data\":number[]} aligned with categories; for a single series you may pass a bare number[] as series.",
   "series for pie: an array of {\"name\":string,\"value\":number}.",
   "series for radar: an array of {\"name\":string,\"data\":number[]} aligned with categories (one value per indicator).",
+  "tree uses data:{name:string,children?:node[]} (or an array of roots), optional layout:\"orthogonal\"|\"radial\", optional orient:\"LR\"|\"RL\"|\"TB\"|\"BT\". Use tree for organization charts and mind maps.",
+  "graph uses nodes:[{id:string,name:string,category?:string,value?:string|number}] and links:[{source:string,target:string,name?:string}], optional layout:\"force\"|\"circular\". Use graph for relation-first networks and dependency-topology exploration. Do not default a project or system architecture diagram to graph: conventional layered, container, deployment, and request-flow architecture should use stable semantic HTML/CSS layout with inline SVG or Canvas where needed. Do not use layout:none unless every graph node has explicit x/y coordinates.",
+  "gantt uses tasks:[{name:string,start:number,end:number,stage?:string}] where end is greater than start. Use numeric project units such as day or week; the compiler builds the timeline bars.",
   "Bar example: <div data-chart=\"{&quot;type&quot;:&quot;bar&quot;,&quot;title&quot;:&quot;销量&quot;,&quot;categories&quot;:[&quot;Q1&quot;,&quot;Q2&quot;],&quot;series&quot;:[{&quot;name&quot;:&quot;华东&quot;,&quot;data&quot;:[120,200]}]}\"></div>",
   "Pie example: <div data-chart=\"{&quot;type&quot;:&quot;pie&quot;,&quot;series&quot;:[{&quot;name&quot;:&quot;A&quot;,&quot;value&quot;:40},{&quot;name&quot;:&quot;B&quot;,&quot;value&quot;:60}]}\"></div>",
   "Radar example: <div data-chart=\"{&quot;type&quot;:&quot;radar&quot;,&quot;max&quot;:100,&quot;categories&quot;:[&quot;A&quot;,&quot;B&quot;,&quot;C&quot;],&quot;series&quot;:[{&quot;name&quot;:&quot;2024&quot;,&quot;data&quot;:[40,55,70]},{&quot;name&quot;:&quot;2026&quot;,&quot;data&quot;:[60,75,88]}]}\"></div>",
-  "Only when the chart spec cannot express the design, use data-chart-option with escaped JSON ECharts option. Never hand-write data-chart-option for standard bar/line/area/pie/radar charts.",
+  "Only when the chart spec cannot express the design, use data-chart-option with escaped JSON ECharts option. Never hand-write data-chart-option or ECharts initialization JavaScript for a supported chart type.",
+  "Never hide a data-chart or data-chart-option element. Remove a redundant chart instead of using display:none or aria-hidden.",
   "Use only numbers in data/value (no units, no strings). Escape every double quote inside the attribute as &quot;.",
 ].join("\n");
-
 function stripUnsafeCss(value: string): string {
   return value
     .replace(/@import\s+[^;]+;?/gi, "")
@@ -38,7 +40,6 @@ function stripUnsafeCss(value: string): string {
     .replace(/(?:behavior|-moz-binding)\s*:[^;}]*/gi, "")
     .replace(/javascript\s*:/gi, "");
 }
-
 function stripRootCanvasCss(value: string): string {
   try {
     const root = postcss.parse(`x{${stripUnsafeCss(value)}}`);
@@ -55,14 +56,12 @@ function stripRootCanvasCss(value: string): string {
     return "";
   }
 }
-
 type HtmlNode = {
   type?: string;
   attribs?: Record<string, string>;
   children?: HtmlNode[];
   data?: string;
 };
-
 const BLOCK_ID_PATTERN = /^page-[1-9]\d*$/;
 const IDREF_ATTRIBUTES = ["aria-activedescendant", "aria-controls", "aria-describedby", "aria-details", "aria-errormessage", "aria-flowto", "aria-labelledby", "aria-owns"];
 
@@ -199,14 +198,20 @@ function sanitizeArtifactCss(value: string, scopeId: string, localIds: Map<strin
     return "";
   }
 }
-
 function namespaceArtifactIds(value: string, scopeId: string, localIds: Map<string, string>): string {
   const root = parseDocument(value, { lowerCaseAttributeNames: false }) as unknown as HtmlNode;
   for (const node of htmlNodes(root)) {
     if (node.type === "script") {
+      const attributes = node.attribs ?? (node.attribs = {});
+      const scriptType = (attributes.type ?? "").trim();
+      const isJavaScript = /^(?:|module|text\/javascript|application\/javascript)$/i.test(scriptType);
       for (const child of node.children ?? []) {
         if (typeof child.data === "string") {
           child.data = rewriteJavaScriptIdReferences(child.data, localIds);
+          if (isJavaScript && /\becharts\b/i.test(child.data)) {
+            if (scriptType) attributes["data-artifact-original-type"] = scriptType;
+            attributes.type = "application/x-artifact-echarts";
+          }
         }
       }
     }
@@ -348,9 +353,9 @@ export function compileArtifactHtml(input: {
       return renderErrorSection(planned, parsed.error ?? "part produced no HTML");
     }
     partsOk += 1;
-    return `<section id="${escapeAttribute(planned.id)}" class="artifact-block artifact-block--${escapeAttribute(planned.type)}" data-block-id="${escapeAttribute(planned.id)}"><div class="artifact-block__content"><article class="artifact-content">${compileCharts(parsed.html, accent)}</article></div></section>`;
+    return `<section id="${escapeAttribute(planned.id)}" class="artifact-block artifact-block--${escapeAttribute(planned.type)}" data-block-id="${escapeAttribute(planned.id)}"><div class="artifact-block__content"><article class="artifact-content">${compileCharts(bindStaticDataSelectors(parsed.html), accent)}</article></div></section>`;
   });
-  const usesEcharts = sections.some((section) => section.includes("data-chart-option"));
+  const usesEcharts = sections.some((section) => section.includes("data-chart-option") || /\becharts\b/i.test(section));
   const themeGuard = artifactThemeGuardStyles(input.parts);
   const html = [
     "<!doctype html>", '<html lang="zh-CN">', "<head>", '  <meta charset="utf-8" />',
@@ -358,7 +363,7 @@ export function compileArtifactHtml(input: {
     `  <title>${escapeHtml(input.title)}</title>`, buildArtifactRuntimeHead({ usesEcharts }),
     `  <style>${artifactRuntimeStyles(input.theme.appearance, accent)}</style>`, "</head>",
     `<body class="artifact-shell artifact-shell--${input.mode} artifact-shell--${input.theme.appearance}">`,
-    ...sections, `<style data-artifact-theme-guard>${themeGuard}</style>`, buildChartHydrationScript(), buildArtifactNavScript(), "</body>", "</html>",
+    ...sections, `<style data-artifact-theme-guard>${themeGuard}</style>`, buildEChartsScriptExecutionScript(), buildChartHydrationScript(), buildArtifactNavScript(), "</body>", "</html>",
   ].join("\n");
   return { html, partsOk, partsFailed };
 }
@@ -375,11 +380,9 @@ function artifactThemeGuardStyles(parts: ArtifactPartPlan[]): string {
   });
   return `${selectors.join(",")}{background:var(--artifact-bg)!important;background-image:none!important;color:var(--artifact-text)!important}`;
 }
-
 function renderErrorSection(part: ArtifactPartPlan, reason: string): string {
   return `<section class="artifact-block artifact-block--${escapeAttribute(part.type)} artifact-block--error" data-block-id="${escapeAttribute(part.id)}"><div class="artifact-block__content"><h2>${escapeHtml(part.title)}</h2><p class="artifact-block__error">本节生成失败：${escapeHtml(reason)}</p></div></section>`;
 }
-
 function compileCharts(html: string, accent: string): string {
   const withSpecs = html.replace(/data-chart=(["'])([\s\S]*?)\1/gi, (_match, _quote, raw) => {
     const decoded = decodeAttribute(String(raw));
@@ -396,9 +399,8 @@ function compileCharts(html: string, accent: string): string {
   return validateChartOptions(withSpecs, accent);
 }
 
-const CHART_TYPES = new Set(["bar", "line", "area", "pie", "radar"]);
-
-type ChartSpec = {
+const CHART_TYPES = new Set(["bar", "line", "area", "pie", "radar", "tree", "graph", "gantt"]);
+type ChartSpec = DiagramChartSpec & {
   type: string;
   title?: unknown;
   categories?: unknown;
@@ -425,6 +427,10 @@ function expandChartSpec(spec: unknown, accent: string): Record<string, unknown>
           },
         }
       : {};
+
+  if (type === "tree" || type === "graph" || type === "gantt") {
+    return expandDiagramChartSpec(type, input, title, palette);
+  }
 
   if (type === "pie") {
     const slices = normalizePieData(input.series, input.categories);

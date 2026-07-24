@@ -264,9 +264,20 @@ function inspectCss(css: string, blockId: string | undefined, enforceScope = tru
   return findings;
 }
 
+function staticScriptDataSelectors(source: string): string[] {
+  const selectors = new Set<string>();
+  for (const call of source.matchAll(/querySelector(?:All)?\(\s*(['"])(.*?)\1\s*\)/g)) {
+    for (const attribute of call[2]?.matchAll(/\[\s*(data-[a-z0-9_-]+)(?:\s*[~|^$*]?=|\s*\])/gi) ?? []) {
+      if (attribute[1]) selectors.add(attribute[1].toLowerCase());
+    }
+  }
+  return [...selectors];
+}
+
 function inspectElements(root: NodeLike, defaultBlockId?: string): HtmlValidationFinding[] {
   const findings: HtmlValidationFinding[] = [];
-  for (const element of elements(root)) {
+  const allElements = elements(root);
+  for (const element of allElements) {
     const tag = (element.tagName ?? element.name ?? "").toLowerCase();
     const attrs = element.attribs ?? {};
     const blockId = closestBlockId(element) ?? defaultBlockId;
@@ -282,6 +293,34 @@ function inspectElements(root: NodeLike, defaultBlockId?: string): HtmlValidatio
     }
     if (tag === "a" && (!attrs.href || attrs.href === "#")) {
       findings.push(finding("NAV_EMPTY_LINK", "warning", "navigation", "Link has no usable destination.", "Provide a valid fragment target or https URL.", { block_id: blockId, evidence: htmlEvidence }));
+    }
+    if (tag === "script" && blockId) {
+      const script = (element.children ?? []).map((child) => child.data ?? "").join("");
+      if (/(?:cdn\.jsdelivr\.net\/npm\/echarts|echarts(?:\.min)?\.js)/i.test(script)) {
+        findings.push(finding(
+          "ECHARTS_RUNTIME_SELF_LOAD",
+          "error",
+          "chart",
+          "A model-authored block attempts to load its own ECharts runtime.",
+          "Remove the runtime loader and use the platform-provided window.echarts; the compiler waits for it automatically.",
+          { block_id: blockId },
+        ));
+      }
+      for (const attribute of staticScriptDataSelectors(script)) {
+        const matched = allElements.some(
+          (candidate) => closestBlockId(candidate) === blockId && attribute in (candidate.attribs ?? {}),
+        );
+        if (!matched) {
+          findings.push(finding(
+            "SCRIPT_SELECTOR_TARGET_MISSING",
+            "error",
+            "structure",
+            `Script selector [${attribute}] has no matching element in its block.`,
+            `Add ${attribute} to the intended element or query its existing id instead.`,
+            { block_id: blockId, evidence: { kind: "html", excerpt: `[${attribute}]` } },
+          ));
+        }
+      }
     }
     if (tag === "style") findings.push(...inspectCss((element.children ?? []).map((child) => child.data ?? "").join(""), blockId));
     if (attrs.style) findings.push(...inspectCss(`.__inline__{${attrs.style}}`, blockId, false).map((item) => ({ ...item, selector: `<${tag}>` })));
@@ -403,12 +442,22 @@ export function validateArtifactHtml(html: string): HtmlValidationReport {
       "error",
       "chart",
       "A chart specification is invalid (compiler marked data-chart-invalid).",
-      "For bar, line, area, pie, or radar, replace the chart with a data-chart shorthand div instead of hand-writing data-chart-option. Radar uses categories (indicator names) and series [{name, data:number[]}]. Escape inner quotes as &quot;. Use a corrected data-chart-option only for chart types the shorthand cannot express.",
+      "Replace the data chart with the compiler-owned data-chart shorthand. It supports bar, line, area, pie, radar, tree, graph, and gantt; use tree for organization charts or mind maps, graph only for relation-first networks or dependency-topology exploration, and gantt for tasks with numeric start/end values. A conventional layered project or system architecture diagram is not a data chart and should use semantic HTML/CSS with inline SVG or Canvas where needed. Escape inner quotes as &quot;. Use data-chart-option only for unsupported data-chart types.",
       { block_id: closestBlockId(invalidChart) },
     ));
   }
   for (const chart of allElements.filter((element) => "data-chart-option" in (element.attribs ?? {}))) {
     const raw = chart.attribs?.["data-chart-option"];
+    if (/\bdisplay\s*:\s*none\b/i.test(chart.attribs?.style ?? "") || chart.attribs?.["aria-hidden"] === "true") {
+      findings.push(finding(
+        "CHART_HIDDEN",
+        "error",
+        "chart",
+        "A compiled chart is hidden and cannot be reviewed or used.",
+        "Remove display:none/aria-hidden from the chart, or remove the redundant chart entirely.",
+        { block_id: closestBlockId(chart) },
+      ));
+    }
     try {
       const option = JSON.parse(raw ?? "") as Record<string, unknown>;
       if (!option.tooltip || typeof option.tooltip !== "object") {

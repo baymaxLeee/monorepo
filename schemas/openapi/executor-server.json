@@ -858,95 +858,52 @@
           "filename": {
             "type": "string"
           },
-          "plan": {
-            "type": "object",
-            "properties": {
-              "mode": {
-                "type": "string",
-                "enum": [
-                  "document",
-                  "presentation",
-                  "dashboard"
-                ]
-              },
-              "sourceBrief": {
-                "type": "string"
-              },
-              "theme": {
-                "type": "object",
-                "properties": {
-                  "visualDirection": {
-                    "type": "string"
-                  },
-                  "accent": {
-                    "type": "string"
-                  },
-                  "appearance": {
-                    "type": "string",
-                    "enum": [
-                      "light",
-                      "dark"
-                    ]
-                  }
-                },
-                "required": [
-                  "visualDirection",
-                  "accent",
-                  "appearance"
-                ]
-              },
-              "narrative": {
-                "type": "string"
-              },
-              "blocks": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "title": {
-                      "type": "string"
-                    },
-                    "brief": {
-                      "type": "string"
-                    },
-                    "layout": {
-                      "type": "string"
-                    },
-                    "contentScope": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "acceptanceCriteria": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    }
-                  },
-                  "required": [
-                    "title",
-                    "brief",
-                    "layout",
-                    "contentScope",
-                    "acceptanceCriteria"
-                  ]
-                }
-              }
-            },
-            "required": [
-              "mode",
-              "sourceBrief",
-              "theme",
-              "narrative",
-              "blocks"
+          "mode": {
+            "type": "string",
+            "enum": [
+              "document",
+              "presentation",
+              "dashboard"
             ]
           },
-          "documentId": {
+          "visualDirection": {
             "type": "string"
           },
+          "accent": {
+            "type": "string"
+          },
+          "appearance": {
+            "type": "string",
+            "enum": [
+              "light",
+              "dark"
+            ]
+          },
           "brief": {
+            "type": "string"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "brief": {
+                  "type": "string"
+                },
+                "layout": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title",
+                "brief"
+              ]
+            }
+          },
+          "documentId": {
             "type": "string"
           },
           "blockIds": {

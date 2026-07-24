@@ -30,24 +30,11 @@ import {
 import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
 import { rethrowTerminalArtifactError } from "../src/application/tasks/errors.js";
 
-export const htmlArtifactPlanSchema = z.object({
-  mode: z.enum(["document", "presentation", "dashboard"]),
-  sourceBrief: z.string().min(1).max(20_000),
-  theme: z.object({
-    visualDirection: z.string().min(1).max(1_200),
-    accent: z.string().regex(/^#[0-9a-f]{6}$/i),
-    appearance: z.enum(["light", "dark"]),
-  }),
-  narrative: z.string().min(1).max(1_500),
-  blocks: z.array(z.object({
-    title: z.string().min(1).max(160),
-    brief: z.string().min(1).max(4_000),
-    layout: z.string().min(1).max(400),
-    contentScope: z.array(z.string().min(1).max(240)).min(1),
-    acceptanceCriteria: z.array(z.string().min(1).max(320)).min(1),
-  })).min(1).max(100),
+const htmlArtifactSectionSchema = z.object({
+  title: z.string().min(1).max(160),
+  brief: z.string().min(1).max(8_000),
+  layout: z.string().min(1).max(400).optional(),
 });
-export type HtmlArtifactPlanInput = z.infer<typeof htmlArtifactPlanSchema>;
 
 export const htmlArtifactInputSchema = z.object({
   orgId: z.string().min(1),
@@ -56,21 +43,30 @@ export const htmlArtifactInputSchema = z.object({
   providerId: z.string().min(1),
   title: z.string().min(1).max(120),
   filename: z.string().min(1).max(160),
-  plan: htmlArtifactPlanSchema.optional(),
-  brief: z.string().min(1).max(12_000).optional(),
+  mode: z.enum(["document", "presentation", "dashboard"]).optional(),
+  visualDirection: z.string().min(1).max(1_200).optional(),
+  accent: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
+  appearance: z.enum(["light", "dark"]).optional(),
+  brief: z.string().min(1).max(20_000).optional(),
+  sections: z.array(htmlArtifactSectionSchema).min(1).max(100).optional(),
   documentId: z.string().max(32).optional(),
   blockIds: z.array(z.string()).max(100).optional(),
   blockBriefs: z.record(z.string(), z.string().min(1).max(8_000)).optional(),
   expectedObjectSha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
   idempotencyKey: z.string().min(1).max(120).optional(),
 }).superRefine((input, ctx) => {
+  const creationFields = ["mode", "visualDirection", "accent", "appearance", "sections"] as const;
   if (input.documentId) {
     if (!input.brief) ctx.addIssue({ code: "custom", path: ["brief"], message: "brief is required for revisions" });
-    if (input.plan) ctx.addIssue({ code: "custom", path: ["plan"], message: "plan is only valid for new artifacts" });
+    for (const field of creationFields) {
+      if (input[field] !== undefined) ctx.addIssue({ code: "custom", path: [field], message: `${field} is only valid for new artifacts` });
+    }
     return;
   }
-  if (!input.plan) ctx.addIssue({ code: "custom", path: ["plan"], message: "plan is required for new HTML artifacts" });
-  if (input.brief) ctx.addIssue({ code: "custom", path: ["brief"], message: "brief is represented by plan.sourceBrief for new artifacts" });
+  for (const field of creationFields) {
+    if (field !== "sections" && input[field] === undefined) ctx.addIssue({ code: "custom", path: [field], message: `${field} is required for new HTML artifacts` });
+  }
+  if (!input.brief) ctx.addIssue({ code: "custom", path: ["brief"], message: "brief is required for new HTML artifacts" });
 });
 export type HtmlArtifactInput = z.infer<typeof htmlArtifactInputSchema>;
 
@@ -94,16 +90,30 @@ const LEGACY_ARTIFACT_NARRATIVE =
   "Maintain a coherent progression through the existing document while preserving each block's established intent.";
 const LEGACY_BLOCK_LAYOUT = "Preserve the current block composition unless the current change request requires another layout.";
 
-function materializeChatPlan(plan: HtmlArtifactPlanInput): ArtifactPlan {
+function materializeChatPlan(input: HtmlArtifactInput): ArtifactPlan {
+  const sections = input.sections ?? [{ title: input.title, brief: input.brief!, layout: undefined }];
+  const singleSection = sections.length === 1;
   return {
-    mode: plan.mode,
-    theme: plan.theme,
-    narrative: plan.narrative,
-    reviewBrief: plan.sourceBrief,
-    blocks: plan.blocks.map((block, index) => ({
+    mode: input.mode!,
+    theme: {
+      visualDirection: input.visualDirection!,
+      accent: input.accent!,
+      appearance: input.appearance!,
+    },
+    narrative: singleSection
+      ? "Render the authoritative brief as one coherent self-contained composition."
+      : "Render the ordered sections as one coherent artifact without duplicating their assigned content.",
+    reviewBrief: input.brief!,
+    blocks: sections.map((section, index) => ({
       id: `page-${index + 1}`,
-      type: plan.mode === "presentation" ? "slide" : "section",
-      ...block,
+      type: input.mode === "presentation" ? "slide" : "section",
+      title: section.title,
+      brief: section.brief,
+      layout: section.layout ?? (singleSection
+        ? "One self-contained responsive composition within a single page block."
+        : "One responsive section that composes with the surrounding artifact."),
+      contentScope: [section.brief],
+      acceptanceCriteria: ["Preserve every explicit requirement assigned to this section in its brief and the authoritative source brief."],
     })),
   };
 }
@@ -121,7 +131,7 @@ function parseStoredBlock(content: string): { html: string | null; error?: strin
 
 async function planStep(input: HtmlArtifactInput): Promise<ArtifactPlan> {
   "use step";
-  if (!input.documentId) return materializeChatPlan(input.plan!);
+  if (!input.documentId) return materializeChatPlan(input);
   const { workflowRunId } = getWorkflowMetadata();
   const cancellation = observeTaskCancellation(workflowRunId);
 
@@ -242,7 +252,7 @@ async function reserveStep(input: HtmlArtifactInput, plan: ArtifactPlan, idempot
       title: input.title,
       filename: input.filename,
       mode: plan.mode,
-      brief: input.plan?.sourceBrief ?? input.brief!,
+      brief: input.brief!,
       idempotencyKey,
       baseRevisionId: plan.baseRevisionId,
     });

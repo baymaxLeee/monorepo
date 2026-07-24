@@ -449,27 +449,19 @@ export interface components {
             providerId: string;
             title: string;
             filename: string;
-            plan?: {
-                /** @enum {string} */
-                mode: "document" | "presentation" | "dashboard";
-                sourceBrief: string;
-                theme: {
-                    visualDirection: string;
-                    accent: string;
-                    /** @enum {string} */
-                    appearance: "light" | "dark";
-                };
-                narrative: string;
-                blocks: {
-                    title: string;
-                    brief: string;
-                    layout: string;
-                    contentScope: string[];
-                    acceptanceCriteria: string[];
-                }[];
-            };
-            documentId?: string;
+            /** @enum {string} */
+            mode?: "document" | "presentation" | "dashboard";
+            visualDirection?: string;
+            accent?: string;
+            /** @enum {string} */
+            appearance?: "light" | "dark";
             brief?: string;
+            sections?: {
+                title: string;
+                brief: string;
+                layout?: string;
+            }[];
+            documentId?: string;
             blockIds?: string[];
             blockBriefs?: {
                 [key: string]: string;

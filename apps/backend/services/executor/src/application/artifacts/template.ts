@@ -115,6 +115,33 @@ export function buildChartHydrationScript(): string {
   ].join("\n");
 }
 
+export function buildEChartsScriptExecutionScript(): string {
+  return [
+    "  <script>",
+    "    (function () {",
+    "      var sources = document.querySelectorAll('script[type=\"application/x-artifact-echarts\"]');",
+    "      if (!sources.length) return;",
+    "      function execute(available) {",
+    "        sources.forEach(function (source) {",
+    "          if (!available) { source.setAttribute('data-echarts-runtime-unavailable', 'true'); return; }",
+    "          var script = document.createElement('script');",
+    "          Array.from(source.attributes).forEach(function (attribute) {",
+    "            if (attribute.name !== 'type' && attribute.name !== 'data-artifact-original-type') script.setAttribute(attribute.name, attribute.value);",
+    "          });",
+    "          var originalType = source.getAttribute('data-artifact-original-type');",
+    "          if (originalType) script.type = originalType;",
+    "          script.textContent = source.textContent || '';",
+    "          source.replaceWith(script);",
+    "        });",
+    "      }",
+    "      var ready = window.__artifactEChartsReady;",
+    "      if (ready && typeof ready.then === 'function') ready.then(execute);",
+    "      else execute(!!window.echarts);",
+    "    })();",
+    "  </script>",
+  ].join("\n");
+}
+
 export function buildArtifactNavScript(): string {
   return [
     "  <script>",

@@ -52,23 +52,13 @@ const taskSchema = {
   ],
 };
 
-const htmlArtifactPlanSchema = {
-  type: "object",
-  properties: {
-    mode: { type: "string", enum: ["document", "presentation", "dashboard"] },
-    sourceBrief: { type: "string" },
-    theme: { type: "object", properties: { visualDirection: { type: "string" }, accent: { type: "string" }, appearance: { type: "string", enum: ["light", "dark"] } }, required: ["visualDirection", "accent", "appearance"] },
-    narrative: { type: "string" },
-    blocks: { type: "array", items: { type: "object", properties: { title: { type: "string" }, brief: { type: "string" }, layout: { type: "string" }, contentScope: { type: "array", items: { type: "string" } }, acceptanceCriteria: { type: "array", items: { type: "string" } } }, required: ["title", "brief", "layout", "contentScope", "acceptanceCriteria"] } },
-  },
-  required: ["mode", "sourceBrief", "theme", "narrative", "blocks"],
-};
-
 const htmlArtifactTaskPayloadSchema = {
   type: "object",
   properties: {
-    orgId: { type: "string" }, userId: { type: "string" }, conversationId: { type: "string" }, providerId: { type: "string" }, title: { type: "string" }, filename: { type: "string" }, plan: htmlArtifactPlanSchema,
-    documentId: { type: "string" }, brief: { type: "string" }, blockIds: { type: "array", items: { type: "string" } }, blockBriefs: { type: "object", additionalProperties: { type: "string" } }, expectedObjectSha256: { type: "string" }, idempotencyKey: { type: "string" },
+    orgId: { type: "string" }, userId: { type: "string" }, conversationId: { type: "string" }, providerId: { type: "string" }, title: { type: "string" }, filename: { type: "string" },
+    mode: { type: "string", enum: ["document", "presentation", "dashboard"] }, visualDirection: { type: "string" }, accent: { type: "string" }, appearance: { type: "string", enum: ["light", "dark"] }, brief: { type: "string" },
+    sections: { type: "array", items: { type: "object", properties: { title: { type: "string" }, brief: { type: "string" }, layout: { type: "string" } }, required: ["title", "brief"] } },
+    documentId: { type: "string" }, blockIds: { type: "array", items: { type: "string" } }, blockBriefs: { type: "object", additionalProperties: { type: "string" } }, expectedObjectSha256: { type: "string" }, idempotencyKey: { type: "string" },
   },
   required: ["orgId", "userId", "providerId", "title", "filename"],
 };

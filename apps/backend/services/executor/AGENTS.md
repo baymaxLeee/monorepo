@@ -55,6 +55,13 @@ for the full rationale.
   `src/application/tasks/service.ts` — those stay type-agnostic.
 - Only `html-artifact` and `video-generation` are registered. Executor does not
   host smoke workflows or synchronous HTML validation/review endpoints.
+- `html-artifact` creation accepts a flat semantic payload: authoritative
+  `brief`, optional simple ordered `sections`, mode, and visual fields live at
+  the task-payload top level. There is no `plan`, nested `theme`, narrative, or
+  transport-level block contract. Omitted sections become one block;
+  `planStep` deterministically materializes internal block contracts without an
+  LLM call. Revision-only fields remain top-level and mutually exclusive with
+  creation fields.
 - `video-generation` is a durable **Chat-owned plan -> per-shot
   create/poll -> ffmpeg-assemble** workflow for vertical short-drama (see
   ADR-0018 and ADR-0049). Chat passes a complete typed creative plan; Executor

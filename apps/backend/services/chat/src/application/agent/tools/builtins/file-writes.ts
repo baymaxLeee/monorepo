@@ -59,22 +59,10 @@ const artifactToolOutputSchema = z.union([
   artifactTaskOutputSchema,
 ]);
 
-const htmlArtifactPlanInputSchema = z.object({
-  mode: z.enum(["document", "presentation", "dashboard"]),
-  source_brief: z.string().min(1).max(20_000),
-  theme: z.object({
-    visual_direction: z.string().min(1).max(1_200),
-    accent: z.string().regex(/^#[0-9a-f]{6}$/i),
-    appearance: z.enum(["light", "dark"]),
-  }),
-  narrative: z.string().min(1).max(1_500),
-  blocks: z.array(z.object({
-    title: z.string().min(1).max(160),
-    brief: z.string().min(1).max(4_000),
-    layout: z.string().min(1).max(400),
-    content_scope: z.array(z.string().min(1).max(240)).min(1),
-    acceptance_criteria: z.array(z.string().min(1).max(320)).min(1),
-  })).min(1).max(100),
+const htmlArtifactSectionInputSchema = z.object({
+  title: z.string().min(1).max(160),
+  brief: z.string().min(1).max(8_000),
+  layout: z.string().min(1).max(400).optional(),
 });
 
 const writeMarkdownInputSchema = z.object({
@@ -86,8 +74,13 @@ const writeMarkdownInputSchema = z.object({
 
 const writeHtmlInputSchema = z.object({
   title: z.string().min(1).max(120).describe("Human-readable artifact title."),
-  filename: z.string().min(1).max(160).regex(/\.html$/i).describe("Filename including the .html extension."),
-  plan: htmlArtifactPlanInputSchema.describe("Complete execution plan. Preserve user facts, ordering, visual constraints, and acceptance criteria in this structure."),
+  brief: z.string().min(1).max(20_000).describe("Complete authoritative content and visual requirements for the HTML artifact. Preserve every user fact, constraint, prohibition, and acceptance condition here."),
+  filename: z.string().min(1).max(160).regex(/\.html$/i).optional().describe("Optional filename including .html. Omit to derive it from title."),
+  mode: z.enum(["document", "presentation", "dashboard"]).optional().describe("Optional content intent; defaults to document."),
+  visual_direction: z.string().min(1).max(1_200).optional().describe("Optional overall visual direction. Omit when the brief already makes it clear."),
+  accent: z.string().regex(/^#[0-9a-f]{6}$/i).optional().describe("Optional six-digit hex accent color."),
+  appearance: z.enum(["light", "dark"]).optional().describe("Optional canvas appearance; defaults to light."),
+  sections: z.array(htmlArtifactSectionInputSchema).min(1).max(100).optional().describe("Optional independently generated sections in display order. Omit for one single-page block; each section needs only a title and complete brief."),
 });
 
 function safeFilename(filename: string): string {
@@ -96,6 +89,14 @@ function safeFilename(filename: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 160) || "file.md";
+}
+
+function htmlFilename(filename: string | undefined, title: string): string {
+  const base = safeFilename(filename ?? title)
+    .replace(/\.html$/i, "")
+    .trim()
+    .slice(0, 155) || "artifact";
+  return `${base}.html`;
 }
 
 function planFilename(value: string): string {
@@ -449,7 +450,7 @@ export function createFileWriteToolManifests(mode: AgentMode, textProvider: Chat
       "write_html",
       tool({
         description:
-          "Generate and persist a new HTML artifact from a complete execution plan containing every block, narrative, theme, content owner, and acceptance criterion. Executor only renders this frozen plan.",
+          "Generate and persist a new HTML artifact from one complete authoritative brief. Omit sections for a single-page artifact; provide simple ordered sections only when separate generation blocks are genuinely needed. Executor validates the same flat payload and deterministically materializes its frozen internal plan without another model call.",
         inputSchema: writeHtmlInputSchema,
         outputSchema: artifactToolOutputSchema,
         contextSchema: artifactToolContextSchema,
@@ -464,8 +465,8 @@ export function createFileWriteToolManifests(mode: AgentMode, textProvider: Chat
         uiKind: "artifact",
       },
       {
-        summary: "Generate and persist an HTML artifact from a complete ordered execution plan.",
-        constraints: ["Plan every HTML block before execution.", "HTML charts use the platform-provided ECharts runtime."],
+        summary: "Generate and persist an HTML artifact from a complete brief, with optional simple sections.",
+        constraints: ["Omit sections for a single-page artifact.", "HTML data charts use the platform-provided ECharts runtime; diagrams choose HTML/CSS, SVG, Canvas, or ECharts from their information structure."],
         parallelizable: true,
       },
     ),
@@ -483,7 +484,7 @@ export function createFileWriteToolManifests(mode: AgentMode, textProvider: Chat
           .min(1)
           .max(12_000)
           .describe(
-            "Overall change description. With no block_ids/changes it rewrites every block; otherwise it is the fallback brief for targeted blocks. Preserve the artifact's light appearance unless the user explicitly requests dark mode. Describe chart type/data only — never name a charting library; all charts render via ECharts.",
+            "Overall change description. With no block_ids/changes it rewrites every block; otherwise it is the fallback brief for targeted blocks. Preserve the artifact's light appearance unless the user explicitly requests dark mode. For data charts, describe chart type/data only and never name a charting library; the platform renders them with ECharts. Diagrams may use HTML/CSS, inline SVG, or Canvas when appropriate.",
           ),
         block_ids: z
           .array(z.string().regex(/^page-[1-9]\d*$/))
@@ -607,7 +608,7 @@ export async function* writeHtmlTool(
   { context, toolCallId, abortSignal }: { context: ArtifactToolContext; toolCallId: string; abortSignal?: AbortSignal },
   textProvider: ChatProvider,
 ): AsyncGenerator<z.infer<typeof artifactToolOutputSchema> | ToolEmission> {
-  const filename = safeFilename(input.filename);
+  const filename = htmlFilename(input.filename, input.title);
   try {
     const task = await startExecutorTask(
       {
@@ -620,23 +621,12 @@ export async function* writeHtmlTool(
           providerId: textProvider.id,
           title: input.title,
           filename,
-          plan: {
-            mode: input.plan.mode,
-            sourceBrief: input.plan.source_brief,
-            theme: {
-              visualDirection: input.plan.theme.visual_direction,
-              accent: input.plan.theme.accent,
-              appearance: input.plan.theme.appearance,
-            },
-            narrative: input.plan.narrative,
-            blocks: input.plan.blocks.map((block) => ({
-              title: block.title,
-              brief: block.brief,
-              layout: block.layout,
-              contentScope: block.content_scope,
-              acceptanceCriteria: block.acceptance_criteria,
-            })),
-          },
+          mode: input.mode ?? "document",
+          brief: input.brief,
+          visualDirection: input.visual_direction ?? "Use a polished responsive composition appropriate to the source brief.",
+          accent: input.accent ?? "#6366f1",
+          appearance: input.appearance ?? "light",
+          sections: input.sections,
           idempotencyKey: toolCallId,
         },
       },

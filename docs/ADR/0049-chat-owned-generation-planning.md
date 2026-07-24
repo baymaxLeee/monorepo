@@ -20,12 +20,27 @@ not become a second agent loop.
 ## Decision
 
 - Chat's native AI SDK tool inputs are the only semantic planning boundary for
-  new HTML and video generation. A tool call contains the complete typed
-  execution plan before a task is accepted.
+  new HTML and video generation. A tool call contains the complete semantic
+  plan; Executor validates the same flat payload and deterministically
+  materializes its internal execution plan without another model call.
+- `write_html` exposes a flat model-facing input: `title` and one authoritative
+  `brief` are required; filename, mode, visual hints, and simple ordered
+  `sections` are optional. Omitting `sections` deterministically creates one
+  single-page block. The same compact shape crosses the service boundary. This
+  keeps the trust boundary strict without making the model or Chat reproduce
+  nested transport structure or redundant content-scope and acceptance arrays.
+- The Chat-to-Executor `html-artifact` task payload is flat as well. `brief`,
+  optional simple `sections`, `mode`, and visual fields live directly beside
+  trusted actor and artifact fields; there is no `plan`, nested `theme`,
+  `narrative`, or transport-level block contract. Executor deterministically
+  turns omitted sections into one block and simple sections into ordered block
+  contracts before Workflow execution. Revision-only fields remain top-level
+  and mutually exclusive with creation fields. This is a direct contract
+  replacement with no legacy wrapper or compatibility branch.
 - Markdown and HTML creation use separate `write_markdown` and `write_html`
-  tools. This keeps HTML's nested plan as one object-only JSON Schema instead of
-  placing it inside a Markdown/HTML `anyOf`, while preserving one semantic tool
-  per deliverable rather than one tool per file extension.
+  tools. This keeps each model-visible schema shallow and preserves one semantic
+  tool per deliverable rather than placing unrelated formats inside a large
+  Markdown/HTML `anyOf`.
   ADR 0050 further makes `write_markdown` a direct complete-content persistence
   tool shared by ordinary Markdown and Plan mode, without a nested LLM.
 - Executor validates and materializes that plan, then performs durable
