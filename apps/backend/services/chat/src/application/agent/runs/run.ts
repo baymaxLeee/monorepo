@@ -56,7 +56,7 @@ import {
   activatedSkillNameFromParts,
   attachedImageDocumentIdsFromParts,
   hasUntrustedFilePart,
-  planExecutionDocumentIdFromParts,
+  planExecutionPathFromParts,
   referencedDocumentIdsFromParts,
 } from "../context/file-parts.js";
 import { projectModelContext } from "../context/projector.js";
@@ -317,7 +317,7 @@ export async function createAgentRunResponse(
 
     const activatedSkillName = latestUser ? activatedSkillNameFromParts(latestUser.parts) : null;
     const executionPlanDocumentId = latestUser
-      ? planExecutionDocumentIdFromParts(latestUser.parts)
+      ? planExecutionPathFromParts(latestUser.parts)
       : null;
     const currentSkillName = continuedSkill?.name ?? activatedSkillName;
     if (currentSkillName) {

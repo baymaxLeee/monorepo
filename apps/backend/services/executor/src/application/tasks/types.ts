@@ -16,7 +16,6 @@ export type TaskStatus = "queued" | "running" | "completed" | "failed" | "cancel
 export interface TaskProgress {
   done: number;
   total: number;
-  artifactGenerationId?: string;
   externalTaskIds?: string[];
 }
 

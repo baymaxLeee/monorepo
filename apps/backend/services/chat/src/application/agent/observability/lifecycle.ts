@@ -103,7 +103,7 @@ export async function finishModelStep(input: { runId: string; stepNumber: number
 
 function sanitizeToolInput(toolName: string, input: unknown): unknown {
   if (typeof input !== "object" || input == null) return input;
-  const field = toolName === "write_markdown" ? "content" : toolName === "edit_file" ? "brief" : null;
+  const field = toolName === "write_file" ? "content" : toolName === "edit_file" ? "edits" : null;
   if (!field) return input;
   const value = (input as Record<string, unknown>)[field];
   if (typeof value !== "string" || value.length <= 400) return input;

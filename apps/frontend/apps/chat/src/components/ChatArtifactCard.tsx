@@ -9,9 +9,11 @@ import {
 } from "components/ai-chat";
 import { FileTextIcon, Loader2Icon } from "lucide-react";
 import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
+import { ArtifactFileCard } from "./ChatFileArtifactCard";
 
 export type ArtifactOutput = {
-  documentId: string;
+  documentId?: string;
+  path?: string;
   status: string;
   title: string;
   filename: string;
@@ -25,13 +27,27 @@ export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
   const payload = toolOutcomePayload(outcome);
   if (!payload || typeof payload !== "object") return null;
   const raw = payload as Record<string, unknown>;
-  if (typeof raw.document_id !== "string") return null;
+  if (typeof raw.task_id === "string") return null;
+  const documentId =
+    typeof raw.document_id === "string" ? raw.document_id : undefined;
+  const path = typeof raw.path === "string" ? raw.path : undefined;
+  if (!documentId && !path) return null;
+  const filename =
+    typeof raw.filename === "string"
+      ? raw.filename
+      : (path?.split("/").at(-1) ?? "artifact");
   return {
-    documentId: raw.document_id,
+    documentId,
+    path,
     status: typeof raw.status === "string" ? raw.status : "persisted",
-    title: typeof raw.title === "string" ? raw.title : "Artifact",
-    filename: typeof raw.filename === "string" ? raw.filename : "artifact",
-    kind: typeof raw.kind === "string" ? raw.kind : "file",
+    title: typeof raw.title === "string" ? raw.title : filename,
+    filename,
+    kind:
+      typeof raw.kind === "string"
+        ? raw.kind
+        : path?.endsWith("-plan.md")
+          ? "plan"
+          : "file",
     totalChars:
       typeof raw.total_chars === "number" ? raw.total_chars : undefined,
   };
@@ -43,9 +59,10 @@ export type ArtifactTaskOutput = {
   filename: string;
   kind: string;
   status?: TaskStatus;
-  blocksDone?: number;
-  blocksTotal?: number;
+  tasksDone?: number;
+  tasksTotal?: number;
   documentId?: string;
+  path?: string;
   totalChars?: number;
   error?: string;
 };
@@ -59,21 +76,25 @@ export function parseArtifactTaskOutput(
   if (!payload || typeof payload !== "object") return null;
   const raw = payload as Record<string, unknown>;
   if (typeof raw.task_id !== "string") return null;
+  const path = typeof raw.path === "string" ? raw.path : undefined;
+  const filename =
+    typeof raw.filename === "string"
+      ? raw.filename
+      : (path?.split("/").at(-1) ?? "artifact");
   return {
     taskId: raw.task_id,
-    title: typeof raw.title === "string" ? raw.title : "Artifact",
-    filename: typeof raw.filename === "string" ? raw.filename : "artifact",
+    title: typeof raw.title === "string" ? raw.title : filename,
+    filename,
     kind: typeof raw.kind === "string" ? raw.kind : "html",
     status:
       outcome.status === "running" || outcome.status === "completed"
         ? outcome.status
         : undefined,
-    blocksDone:
-      typeof raw.blocks_done === "number" ? raw.blocks_done : undefined,
-    blocksTotal:
-      typeof raw.blocks_total === "number" ? raw.blocks_total : undefined,
+    tasksDone: typeof raw.done === "number" ? raw.done : undefined,
+    tasksTotal: typeof raw.total === "number" ? raw.total : undefined,
     documentId:
       typeof raw.document_id === "string" ? raw.document_id : undefined,
+    path,
     totalChars:
       typeof raw.total_chars === "number" ? raw.total_chars : undefined,
     error:
@@ -85,19 +106,16 @@ export function parseArtifactTaskOutput(
   };
 }
 
-/**
- * Renders the live HTML-artifact task card directly from the streaming
- * `tool-write_html` output (preliminary → terminal). Progress rides the main
- * useChat stream (ADR-0035); there is no separate task SSE subscription.
- */
 export function ArtifactTaskCard({
   task,
   documents,
   onOpen,
+  onOpenFile,
 }: {
   task: ArtifactTaskOutput;
   documents: Map<string, ConversationDocument>;
   onOpen: (documentId: string) => void;
+  onOpenFile: (path: string) => void;
 }) {
   const status = task.status ?? "queued";
 
@@ -115,6 +133,21 @@ export function ArtifactTaskCard({
           totalChars: task.totalChars ?? undefined,
         }}
         onOpen={() => onOpen(task.documentId!)}
+      />
+    );
+  }
+
+  if (status === "completed" && task.path) {
+    return (
+      <ArtifactFileCard
+        artifact={{
+          path: task.path,
+          status: "persisted",
+          title: task.title,
+          filename: task.path.split("/").at(-1) ?? task.filename,
+          kind: task.kind,
+        }}
+        onOpen={() => onOpenFile(task.path!)}
       />
     );
   }
@@ -140,9 +173,9 @@ export function ArtifactTaskCard({
     );
   }
 
-  const done = task.blocksDone ?? 0;
-  const total = task.blocksTotal ?? 0;
-  const hasBlockProgress = total > 0;
+  const done = task.tasksDone ?? 0;
+  const total = task.tasksTotal ?? 0;
+  const hasTaskProgress = total > 0;
   return (
     <Artifact>
       <ArtifactHeader>
@@ -156,8 +189,9 @@ export function ArtifactTaskCard({
       </ArtifactHeader>
       <ArtifactContent className="flex-none px-4 py-3 text-xs text-muted-foreground">
         <FileTextIcon className="mr-1 inline size-3" />
-        后台生成中
-        {hasBlockProgress ? ` · 已生成 ${done}/${total} 页` : ""}
+        {hasTaskProgress
+          ? `并发生成中 · 已完成 ${done}/${total} 个文件`
+          : "正在启动并发生成"}
       </ArtifactContent>
     </Artifact>
   );

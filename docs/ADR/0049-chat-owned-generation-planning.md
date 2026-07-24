@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Accepted for Chat-owned planning; its HTML-specific workflow shape is
+superseded by ADR 0055.
 
 ## Context
 

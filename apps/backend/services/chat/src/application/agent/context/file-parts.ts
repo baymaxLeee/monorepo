@@ -21,18 +21,17 @@ export function referencedDocumentIdsFromParts(parts: ChatPart[]): string[] {
       return id ? [id] : [];
     }
     if (part.type === "data-plan-execution") {
-      const id = (part.data as { document_id?: unknown } | undefined)?.document_id;
-      return typeof id === "string" ? [id] : [];
+      return [];
     }
     return [];
   });
 }
 
-export function planExecutionDocumentIdFromParts(parts: ChatPart[]): string | null {
+export function planExecutionPathFromParts(parts: ChatPart[]): string | null {
   for (const part of parts) {
     if (part.type !== "data-plan-execution") continue;
-    const id = (part.data as { document_id?: unknown } | undefined)?.document_id;
-    if (typeof id === "string" && id) return id;
+    const path = (part.data as { path?: unknown } | undefined)?.path;
+    if (typeof path === "string" && path) return path;
   }
   return null;
 }

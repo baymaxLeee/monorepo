@@ -1,6 +1,8 @@
-import { htmlArtifactInputSchema, htmlArtifactWorkflow } from "../../../workflows/html-artifact.js";
+import {
+  fileTaskBatchInputSchema,
+  fileTaskBatchWorkflow,
+} from "../../../workflows/file-task-batch.js";
 import { videoGenerationInputSchema, videoGenerationWorkflow } from "../../../workflows/video-generation.js";
-import { cancelHtmlArtifact } from "../artifacts/cancel.js";
 import { cancelVideoGeneration } from "../video/cancel.js";
 import type { TaskTypeDefinition } from "./types.js";
 
@@ -20,10 +22,9 @@ export function getTaskType(name: string): TaskTypeDefinition | undefined {
 }
 
 registerTaskType({
-  name: "html-artifact",
-  inputSchema: htmlArtifactInputSchema,
-  workflow: htmlArtifactWorkflow,
-  cancel: cancelHtmlArtifact,
+  name: "file-task-batch",
+  inputSchema: fileTaskBatchInputSchema,
+  workflow: fileTaskBatchWorkflow,
 });
 
 registerTaskType({

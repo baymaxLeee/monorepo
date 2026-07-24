@@ -20,17 +20,12 @@
     "ai": "catalog:",
     "drizzle-orm": "^0.44.0",
     "hono": "^4.7.0",
-    "htmlparser2": "^10.1.0",
-    "postcss": "^8.5.15",
-    "postcss-selector-parser": "^7.1.4",
     "postgres": "^3.4.5",
-    "sanitize-html": "^2.17.0",
     "workflow": "catalog:",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "@types/sanitize-html": "^2.16.0",
     "@typescript/native": "catalog:",
     "nitro": "3.0.260610-beta",
     "rollup": "^4.62.2",

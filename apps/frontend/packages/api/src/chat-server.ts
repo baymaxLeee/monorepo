@@ -57,7 +57,7 @@ export interface Conversation {
   title: string;
   model: string;
   provider_id: string;
-  active_plan_document_id: string | null;
+  active_plan_path: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -128,6 +128,18 @@ export type IndexStatus =
 
 export interface ConversationDocumentDetail extends ConversationDocument {
   content_md: string;
+}
+
+export interface ConversationFileDetail {
+  path: string;
+  title: string;
+  filename: string;
+  mime_type: string;
+  size: number | null;
+  sha256: string;
+  writable: boolean;
+  derived: boolean;
+  content: string;
 }
 
 export interface UpdateConversationDocumentInput {
@@ -215,6 +227,36 @@ export function fetchConversationDocument(
     url: `${BASE}/${encodeURIComponent(conversationId)}/documents/${encodeURIComponent(documentId)}`,
     method: "GET",
   });
+}
+
+export function fetchConversationFile(
+  conversationId: string,
+  path: string,
+): Promise<ConversationFileDetail> {
+  const params = new URLSearchParams({ path });
+  return request<ConversationFileDetail>({
+    url: `${BASE}/${encodeURIComponent(conversationId)}/files/detail?${params.toString()}`,
+    method: "GET",
+  });
+}
+
+export function conversationFileSourceUrl(
+  conversationId: string,
+  path: string,
+): string {
+  const params = new URLSearchParams({ path });
+  return `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/files/source?${params.toString()}`;
+}
+
+export async function fetchConversationFileSource(
+  conversationId: string,
+  path: string,
+): Promise<Blob> {
+  const response = await authFetch(
+    conversationFileSourceUrl(conversationId, path),
+  );
+  if (!response.ok) throw new Error(`file source failed: ${response.status}`);
+  return response.blob();
 }
 
 export function conversationDocumentSourceUrl(

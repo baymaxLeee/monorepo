@@ -8,8 +8,8 @@
 - MarkItDown 文档转换 → `content_md`
 - `documents` 单表：同时保存 `object_key`（原始文件）与 `content_md`（转换结果）
 - 上传 ingest（HTTP 接收后后台转换/索引）
-- Agent artifact 持久化（`POST /internal/artifacts`）
-- HTML artifact 的 content-addressed block 与 revision 快照
+- 用户上传 source 与媒体 artifact 持久化
+- 会话级虚拟文件树、per-deliverable change set staging 与原子发布
 - 面向用户的文档 CRUD（未来知识库 app）
 
 ## 端口
@@ -27,18 +27,17 @@
 - `object_bucket` / `object_key` / `object_sha256` — 原始对象
 - `content_md` — MarkItDown 或 artifact 正文
 - `ingest_status` / `ingest_progress` — 上传流水线状态
-- `current_revision_id` — HTML artifact 当前发布快照；编译 HTML 固定覆盖
-  `artifacts/<document>/<user>/current.html`
 
-HTML artifact 存储分为：
+通用 FileStore 分为：
 
-- `artifact_generations` / `artifact_generation_blocks`：Workflow 执行进度与重试状态
-- `artifact_block_versions`：按 SHA-256 寻址的不可变 block 内容
-- `artifact_revisions` / `artifact_revision_blocks`：revision 到 block version 的轻量引用
+- `file_entries`：`(user_id, conversation_id, path)` 唯一的当前文件树，记录 MIME、SHA、
+  writable 与 derived。
+- `file_change_sets`：按 deliverable root 保存 baseline SHA map 与 staging 元数据。
+- `file_change_set_entries`：同一 delivery 内的候选文件；clean check 后整体 promote。
 
-精准修改只为变化的 block 创建新 version；未修改 block 直接继承 version ID，不复制
-JSON 或对象字节。发布时锁定 document 并校验 `base_revision_id`，因此过期并发编辑不能
-覆盖当前 HTML。
+用户上传的 `documents(kind=source)` 以只读 `sources/*` 路径投影进 `list/read/search`，
+原始对象和转换后的 `content_md` 保持原有生命周期。发布时按 root 获取 advisory lock
+并核对 baseline，因此不同 root 可并行、同 root 的过期写入不能覆盖当前快照。
 
 业务表与 RAG 向量统一存储在 PostgreSQL + pgvector。single-VPS 的统一 `db-init`
 容器使用 knowledge 专属 role 执行服务自有迁移，再启动 API 容器，避免应用启动时
@@ -54,12 +53,12 @@ JSON 或对象字节。发布时锁定 document 并校验 `base_revision_id`，�
 
 ## 与 chat 的关系
 
-- **chat 是消费者**：通过 `knowledge_client` 调 `/internal/documents` 拉取上下文、写入 artifact。
-- 删除 chat 会话会通过事务 outbox 异步清理该会话生成的 `artifact`、HTML block、
+- **chat 是消费者**：通过生成的 transport client 调 `/internal/documents` 与
+  `/internal/files` 读取 source、管理 current tree/change set。
+- 删除 chat 会话会通过事务 outbox 异步清理该会话生成的 `artifact`、虚拟文件树、
   staged media 及其对象存储字节；用户上传的 `source` 文档继续由 knowledge 独立持有。
 - Knowledge 保存 conversation tombstone，拒绝已删除会话的迟到生成写入；清理接口幂等，
   允许 chat 至少一次重试投递。
-- 消息中的 `[16hex]` slot 引用 knowledge `documents.id`。
 
 ## 开发
 

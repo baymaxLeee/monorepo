@@ -27,8 +27,7 @@ import { isToolOutcome } from "../tools/outcome.js";
 import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
 import {
   exactTextResponseModel,
-  exactToolDirectiveModel,
-} from "./exact-tool-directive-model.js";
+} from "./exact-text-response-model.js";
 import {
   deriveOrchestrationState,
   resolveOrchestrationDirective,
@@ -219,18 +218,6 @@ export async function createToolLoopAgent(
           activeTools: ["read_file"],
           toolChoice: { type: "tool", toolName: "read_file" },
           instructions: `${baseInstructions}\n<${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>${directive.instruction}</${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>`,
-        };
-      }
-      if (directive.kind === "exact-tools") {
-        return {
-          runtimeContext: nextContext,
-          model: wrapLanguageModel({
-            model: exactToolDirectiveModel(defaultModel, directive.directive),
-            middleware: contextCaptureMiddleware,
-          }),
-          activeTools: [directive.directive.toolName],
-          toolChoice: { type: "tool", toolName: directive.directive.toolName },
-          instructions: `${baseInstructions}\n<${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>${directive.directive.instruction}</${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>`,
         };
       }
       return { runtimeContext: nextContext, activeTools, instructions: initialInstructions };

@@ -5,17 +5,16 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from api.http.routes import (
-    artifacts_internal,
     conversation_cleanup_internal,
     documents,
     documents_internal,
+    files_internal,
     health,
     ingest,
     resources,
     retrieval_internal,
 )
 from application.admin_client import close_admin_client
-from application.artifact_object_convergence import converge_artifact_block_objects
 from application.indexer import sweep_claim
 from application.processor import sweep_process
 from bootstrap.config import get_settings
@@ -31,12 +30,6 @@ logger = logging.getLogger("knowledge.main")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    try:
-        converged, deleted = await converge_artifact_block_objects()
-        if converged or deleted:
-            logger.info("converged %d artifact block object(s), removed %d duplicate(s)", converged, deleted)
-    except Exception:
-        logger.exception("artifact block object convergence on startup failed")
     # Convert sweep first: a doc must reach ``ready`` (content_md written) before
     # the indexer can chunk it, so recover pending converts ahead of indexing.
     try:
@@ -81,7 +74,7 @@ def create_app() -> FastAPI:
     app.include_router(documents.router)
     app.include_router(documents_internal.router)
     app.include_router(resources.router)
-    app.include_router(artifacts_internal.router)
+    app.include_router(files_internal.router)
     app.include_router(conversation_cleanup_internal.router)
     app.include_router(retrieval_internal.router)
     return app

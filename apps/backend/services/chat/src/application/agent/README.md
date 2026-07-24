@@ -5,7 +5,7 @@ runtime 决定，业务行为由 profile、context、tools 和 policy 组合，�
 
 ```text
 agent/
-├── agents/          # Agent factory、ToolLoop 实现及未来 Workflow/Harness adapters
+├── agents/          # Agent factory、ToolLoop 实现
 ├── profiles/        # normal、plan 等行为配置；不是独立 Agent
 ├── context/         # UIMessage → bounded ModelMessage、instructions、compaction
 ├── tools/           # 薄 tool adapters；files 统一读写与 artifact 能力
@@ -13,7 +13,6 @@ agent/
 ├── runs/            # run 编排、lease/cancel、trace persistence
 ├── streams/         # Redis-backed UIMessage SSE transport resume
 ├── memory/          # durable memory 与 extraction
-├── artifacts/       # HTML validation/review support
 ├── providers/       # provider/model adapter
 └── observability/   # product run/step/tool lifecycle
 ```
@@ -24,17 +23,15 @@ agent/
 - 必须跨进程、部署、重试或长时间等待后恢复的工作**不会**塞进主 ToolLoopAgent。它们委派给
   独立的 `executor` 服务（真实的 Workflow DevKit，`apps/backend/services/executor`），
   通过 `@backend/transport-ts` 的 `ExecutorInternalClient` 非阻塞地起一个 task 就返回。
-  `write_html`/`edit_file` 是第一个例子，详见
+  `delegate_tasks` 是文件 materialization 的例子，详见
   `agent_task_执行时服务` plan 与 `apps/backend/services/executor/AGENTS.md`。
-- `HarnessAgent` 只用于 Codex、Claude Code、Pi 等外部 harness session；其 API 仍属实验边界，
-  未来会作为 executor 内的另一种执行引擎接入，工具契约和前端协议不因此改变。
 - Runtime 在 run 开始前由 profile/policy 明确选择并持久化，模型不能自行切换 runtime。
 
 ## Context and tools
 
-- AI SDK `runtimeContext.orchestration` 是唯一的 run 编排快照；视为 immutable，
-  `prepareStep` 作为项目内的 `PostToolBatch` / `prepareNextTurn` 适配层，每次从 run seed
-  和完整 terminal step history 纯函数重放后替换它。tool callbacks 只做 telemetry，不得改写编排状态。
+- AI SDK `runtimeContext.orchestration` 只保存运行所需的少量编排快照；视为 immutable，
+  `prepareStep` 仅处理显式 Plan 读取等边界，不维护 HTML verification 或 exact-tool
+  状态机。tool callbacks 只做 telemetry，不得改写编排状态。
 - 每个 tool 通过自己的 `contextSchema` 获得最小权限数据，不共享万能 ToolContext。
 - `tools/` 只放模型调用边界；artifact、memory、plan 的业务实现属于各自 subsystem。
 - `ToolCatalog` 是可实例化对象。默认 catalog 只作为应用 composition root，禁止模块级数组泄漏租户状态。

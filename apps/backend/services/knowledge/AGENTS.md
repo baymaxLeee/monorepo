@@ -16,7 +16,7 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 ## Owns
 - DB tables: `documents` (source uploads + agent artifacts, per user),
   `document_chunks` (RAG: `embedding vector` + generated `tsv` for hybrid),
-  and the content-addressed artifact generation/revision graph (written by executor).
+  and the staged generic file-tree/change-set store shared by chat and executor.
 - Local filesystem object backend (demo / single-VPS)
 - HTTP API: `/ingest/*` (public via gateway), `/internal/*` (service-to-service),
   including `POST /internal/retrieve` (hybrid dense+BM25+RRF+rerank, user-scoped)
@@ -40,10 +40,10 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 
 ## Conventions
 - Documents are user-scoped; `conversation_id` is an optional tag only (no FK).
-- HTML artifact generations are execution state, not content ownership. Immutable
-  block versions own SHA-addressed bytes; generation/revision block rows only reference
-  them. `documents.current_revision_id` is the sole published head, and compiled HTML
-  always replaces the document's fixed `current.html` object.
+- HTML artifact generation is execution state, not the model-facing file API.
+  The target file tree uses stable relative paths and per-path SHA values;
+  deliverable change sets compare their baseline at promotion time and replace
+  the current tree atomically.
 - Deleting a chat conversation asynchronously removes generated `artifact`
   documents, artifact-generation blocks, and staged media through Chat's
   transactional outbox. User-uploaded `source` documents remain independently

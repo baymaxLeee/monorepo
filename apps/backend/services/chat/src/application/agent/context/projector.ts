@@ -278,11 +278,11 @@ export async function projectModelContext(input: {
   const converted = await convertToModelMessages(modelReadyRecent, {
     convertDataPart: (part) => {
       if (part.type === "data-plan-execution") {
-        const documentId = (part.data as { document_id?: unknown } | undefined)?.document_id;
-        if (typeof documentId !== "string" || !documentId) return undefined;
+        const path = (part.data as { path?: unknown } | undefined)?.path;
+        if (typeof path !== "string" || !path) return undefined;
         return {
           type: "text",
-          text: `<plan_execution_request document_id="${escapeXmlText(documentId)}">Read this exact plan completely with read_file before using update_todos or any generation tool.</plan_execution_request>`,
+          text: `<plan_execution_request path="${escapeXmlText(path)}">Read this exact plan completely with read_file before using update_todos or any generation tool.</plan_execution_request>`,
         };
       }
       return undefined;

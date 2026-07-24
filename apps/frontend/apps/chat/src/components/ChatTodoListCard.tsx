@@ -120,14 +120,19 @@ function deliverablePartStatus(part: ToolPart): DeliverablePartStatus {
       if (parsed?.status === "cancelled") return "cancelled";
       if (parsed?.status === "failed") return "error";
       return parsed?.status === "completed" &&
-        Boolean(parsed.productionId || parsed.documentId)
+        (parsed.productionId || parsed.documentId)
         ? "completed"
         : "running";
     }
     case "artifact": {
-      if (parseArtifactOutput(output)?.documentId) return "completed";
+      const artifact = parseArtifactOutput(output);
+      if (artifact?.documentId || artifact?.path) {
+        return "completed";
+      }
       const task = parseArtifactTaskOutput(output);
-      if (task?.status === "completed") return "completed";
+      if (task?.status === "completed" && task.path) {
+        return "completed";
+      }
       if (task?.status === "cancelled") return "cancelled";
       if (task?.status === "failed") return "error";
       return "running";
@@ -164,7 +169,8 @@ export function collectDeliverableCompletion(
       }
       const kind = uiKind(part);
       const deliverable = kind ? DELIVERABLE_BY_UI_KIND[kind] : undefined;
-      if (deliverable) result[deliverable].push(deliverablePartStatus(part));
+      if (!deliverable) continue;
+      result[deliverable].push(deliverablePartStatus(part));
     }
   }
   return result;

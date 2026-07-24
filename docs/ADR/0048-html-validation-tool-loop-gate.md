@@ -2,9 +2,8 @@
 
 ## Status
 
-Accepted. Supersedes the HTML-validation removal in ADR 0047. Executor remains
-generation-only and registers only the `html-artifact` and `video-generation`
-workflows. Validation is a local Chat tool operation.
+Superseded by ADR 0055. `check_file` is now optional and read-only; HTML
+publication is no longer controlled by a ToolLoop validation gate.
 
 ## Context
 

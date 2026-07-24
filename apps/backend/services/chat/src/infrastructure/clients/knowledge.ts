@@ -1,22 +1,26 @@
 import {
   KnowledgeInternalClient,
   TransportError,
-  type ArtifactRevisionWorkspace,
   type DocumentSlice,
   type KnowledgeDocument,
   type RetrieveResult,
-  type StoredArtifactBlock,
+  type VirtualFileEntry,
+  type VirtualFileRead,
+  type FileChangeSet,
+  type FileSearchMatch,
 } from "@backend/transport-ts";
 import { propagationHeaders } from "@backend/kernel-ts";
 import { getSettings } from "../../bootstrap/config.js";
 import { NotFoundError } from "../../application/errors.js";
 
 export type {
-  ArtifactRevisionWorkspace,
   DocumentSlice,
   KnowledgeDocument,
   RetrieveResult,
-  StoredArtifactBlock,
+  VirtualFileEntry,
+  VirtualFileRead,
+  FileChangeSet,
+  FileSearchMatch,
 } from "@backend/transport-ts";
 
 function knowledgeClient(timeoutMs?: number): KnowledgeInternalClient {
@@ -37,6 +41,42 @@ export async function listDocuments(
   return knowledgeClient().listDocuments({ userId, conversationId });
 }
 
+export function listVirtualFiles(userId: string, conversationId: string, path?: string): Promise<VirtualFileEntry[]> {
+  return knowledgeClient().listVirtualFiles({ userId, conversationId, path });
+}
+
+export function readVirtualFile(input: { userId: string; conversationId: string; path: string; offset?: number; limit?: number }): Promise<VirtualFileRead> {
+  return knowledgeClient().readVirtualFile(input);
+}
+
+export function createFileChangeSet(input: { userId: string; orgId: string; conversationId: string; metadata?: Record<string, string> }): Promise<FileChangeSet> {
+  return knowledgeClient().createFileChangeSet(input);
+}
+
+export function writeChangeSetFile(input: { userId: string; changeSetId: string; path: string; content: string; mimeType: string; writable?: boolean; derived?: boolean }): Promise<VirtualFileEntry> {
+  return knowledgeClient().writeChangeSetFile(input);
+}
+
+export function listChangeSetFiles(input: { userId: string; changeSetId: string }): Promise<VirtualFileEntry[]> {
+  return knowledgeClient().listChangeSetFiles(input);
+}
+
+export function readChangeSetFile(input: { userId: string; changeSetId: string; path: string; offset?: number; limit?: number }): Promise<VirtualFileRead> {
+  return knowledgeClient().readChangeSetFile(input);
+}
+
+export function promoteFileChangeSet(input: { userId: string; changeSetId: string }): Promise<VirtualFileEntry[]> {
+  return knowledgeClient().promoteFileChangeSet(input);
+}
+
+export function discardFileChangeSet(input: { userId: string; changeSetId: string }): Promise<FileChangeSet> {
+  return knowledgeClient().discardFileChangeSet(input);
+}
+
+export function searchVirtualFiles(input: { userId: string; conversationId: string; pattern: string; path?: string; glob?: string }): Promise<FileSearchMatch[]> {
+  return knowledgeClient().searchVirtualFiles(input);
+}
+
 export async function cleanupConversationArtifacts(input: {
   userId: string;
   orgId: string;
@@ -51,20 +91,6 @@ export async function getDocument(userId: string, documentId: string): Promise<K
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new NotFoundError(`document ${documentId} not found`);
-    }
-    throw err;
-  }
-}
-
-export async function getLatestArtifactWorkspace(
-  userId: string,
-  documentId: string,
-): Promise<ArtifactRevisionWorkspace | null> {
-  try {
-    return await knowledgeClient().getLatestArtifactWorkspace({ userId, documentId });
-  } catch (err) {
-    if (err instanceof TransportError && err.status === 404) {
-      return null;
     }
     throw err;
   }

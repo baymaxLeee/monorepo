@@ -6,50 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import { apiMutator } from '../../src/orval-mutator';
-export interface ArtifactBlockPlan {
-  /**
-     * @minLength 1
-     * @maxLength 80
-     * @pattern ^[A-Za-z0-9_-]+$
-     */
-  id: string;
-  /**
-     * @minLength 1
-     * @maxLength 40
-     */
-  type: string;
-  source_version_id?: string | null;
-}
-
-export interface ArtifactGeneration {
-  id: string;
-  document_id: string;
-  status: string;
-  total_blocks: number;
-  completed_blocks: number;
-  failed_blocks: number;
-  error: string | null;
-  finished_at: string | null;
-}
-
-export type ArtifactRevisionWorkspaceManifest = { [key: string]: unknown };
-
-export interface StoredArtifactBlock {
-  id: string;
-  version_id: string;
-  type: string;
-  position: number;
-  content_sha256: string;
-  content: string;
-}
-
-export interface ArtifactRevisionWorkspace {
-  document_id: string;
-  revision_id: string;
-  manifest: ArtifactRevisionWorkspaceManifest;
-  blocks: StoredArtifactBlock[];
-}
-
 export interface BatchDeleteInput {
   /**
      * @minItems 1
@@ -70,12 +26,10 @@ export interface BodyIngestIngestPost {
   provider_id?: string | null;
 }
 
-export interface CancelArtifactGenerationInput {
-  /**
-     * @minLength 1
-     * @maxLength 26
-     */
-  user_id: string;
+export interface ChangeSet {
+  id: string;
+  status: string;
+  conversation_id: string;
 }
 
 export interface CleanupConversationArtifactsInput {
@@ -131,6 +85,27 @@ export interface CreateArtifactInput {
   content: string;
   mime_type?: string | null;
   idempotency_key?: string | null;
+}
+
+export type CreateChangeSetInputMetadata = {[key: string]: string} | null;
+
+export interface CreateChangeSetInput {
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  user_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  org_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 32
+     */
+  conversation_id: string;
+  metadata?: CreateChangeSetInputMetadata;
 }
 
 /**
@@ -289,13 +264,55 @@ export interface DocumentSlice {
   error?: string | null;
 }
 
-export interface FailArtifactGenerationInput {
+export interface FileEntry {
+  path: string;
+  type?: 'file';
+  mime_type: string;
+  size: number;
+  sha256: string;
+  writable: boolean;
+  derived: boolean;
+}
+
+export interface FileRead {
+  path: string;
+  type?: 'file';
+  mime_type: string;
+  size: number;
+  sha256: string;
+  writable: boolean;
+  derived: boolean;
+  offset: number;
+  total_lines: number;
+  next_offset: number | null;
+  content: string;
+}
+
+export interface FileSearchInput {
   /**
      * @minLength 1
      * @maxLength 26
      */
   user_id: string;
-  error?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 32
+     */
+  conversation_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  pattern: string;
+  path?: string | null;
+  glob?: string | null;
+}
+
+export interface FileSearchMatch {
+  path: string;
+  line: number;
+  column: number;
+  text: string;
 }
 
 export type ValidationErrorCtx = { [key: string]: unknown };
@@ -331,75 +348,12 @@ export interface IngestResult {
   failed?: IngestFailure[];
 }
 
-export interface PublishArtifactRevisionInput {
+export interface PromoteChangeSetInput {
   /**
      * @minLength 1
      * @maxLength 26
      */
   user_id: string;
-  /**
-     * @minLength 1
-     * @maxLength 26
-     */
-  org_id: string;
-  /** @minLength 1 */
-  compiled_html: string;
-  expected_object_sha256?: string | null;
-}
-
-export interface PublishedArtifactRevision {
-  document_id: string;
-  revision_id: string;
-  title: string;
-  filename: string;
-  mime_type?: string;
-  total_chars: number;
-}
-
-export type ReserveArtifactGenerationInputMode = typeof ReserveArtifactGenerationInputMode[keyof typeof ReserveArtifactGenerationInputMode];
-
-
-export const ReserveArtifactGenerationInputMode = {
-  document: 'document',
-  presentation: 'presentation',
-  dashboard: 'dashboard',
-} as const;
-
-export interface ReserveArtifactGenerationInput {
-  /**
-     * @minLength 1
-     * @maxLength 26
-     */
-  user_id: string;
-  /**
-     * @minLength 1
-     * @maxLength 26
-     */
-  org_id: string;
-  conversation_id?: string | null;
-  /**
-     * @minLength 1
-     * @maxLength 120
-     */
-  title: string;
-  /**
-     * @minLength 1
-     * @maxLength 160
-     */
-  filename: string;
-  mode?: ReserveArtifactGenerationInputMode;
-  /**
-     * @minLength 1
-     * @maxLength 20000
-     */
-  brief: string;
-  /**
-     * @minLength 1
-     * @maxLength 128
-     */
-  idempotency_key: string;
-  document_id?: string | null;
-  base_revision_id?: string | null;
 }
 
 export interface RetrieveInput {
@@ -434,33 +388,6 @@ export interface RetrieveResult {
   query: string;
   chunks: RetrievedChunk[];
   note?: string | null;
-}
-
-export interface SaveArtifactBlockInput {
-  /**
-     * @minLength 1
-     * @maxLength 26
-     */
-  user_id: string;
-  /** @minLength 1 */
-  content: string;
-  failed?: boolean;
-}
-
-export type SaveArtifactPlanInputManifest = { [key: string]: unknown };
-
-export interface SaveArtifactPlanInput {
-  /**
-     * @minLength 1
-     * @maxLength 26
-     */
-  user_id: string;
-  manifest: SaveArtifactPlanInputManifest;
-  /**
-     * @minItems 1
-     * @maxItems 200
-     */
-  blocks: ArtifactBlockPlan[];
 }
 
 export type StagedMediaStatus = typeof StagedMediaStatus[keyof typeof StagedMediaStatus];
@@ -517,6 +444,28 @@ export interface UpdateArtifactInput {
 export interface UpdateDocumentInput {
   title?: string | null;
   content_md?: string | null;
+}
+
+export interface WriteChangeSetFileInput {
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  user_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 512
+     */
+  path: string;
+  /** @maxLength 500000 */
+  content: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  mime_type: string;
+  writable?: boolean;
+  derived?: boolean;
 }
 
 export type LivezLivezGet200 = {[key: string]: string};
@@ -591,12 +540,43 @@ version: string;
 signature: string;
 };
 
-export type ListReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGetParams = {
+export type ListFilesInternalFilesGetParams = {
+user_id: string;
+conversation_id: string;
+path?: string | null;
+};
+
+export type ReadFileInternalFilesReadGetParams = {
+user_id: string;
+conversation_id: string;
+path: string;
+/**
+ * @minimum 1
+ */
+offset?: number;
+/**
+ * @minimum 1
+ * @maximum 400
+ */
+limit?: number;
+};
+
+export type ListChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGetParams = {
 user_id: string;
 };
 
-export type GetLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGetParams = {
+export type ReadChangeSetFileInternalFilesChangeSetsChangeSetIdReadGetParams = {
 user_id: string;
+path: string;
+/**
+ * @minimum 1
+ */
+offset?: number;
+/**
+ * @minimum 1
+ * @maximum 400
+ */
+limit?: number;
 };
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
@@ -986,119 +966,128 @@ const getSignedResourceResourcesDocumentIdGet = (
     }
 
 /**
- * @summary Reserve Generation
+ * @summary List Files
  */
-const reserveGenerationInternalArtifactGenerationsPost = (
-    reserveArtifactGenerationInput: ReserveArtifactGenerationInput,
- options?: SecondParameter<typeof apiMutator<ArtifactGeneration>>,) => {
-      return apiMutator<ArtifactGeneration>(
-      {url: `/internal/artifact-generations`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: reserveArtifactGenerationInput
-    },
-      options);
-    }
-
-/**
- * @summary Fail Generation
- */
-const failGenerationInternalArtifactGenerationsGenerationIdFailPost = (
-    generationId: string,
-    failArtifactGenerationInput: FailArtifactGenerationInput,
- options?: SecondParameter<typeof apiMutator<ArtifactGeneration>>,) => {
-      return apiMutator<ArtifactGeneration>(
-      {url: `/internal/artifact-generations/${generationId}/fail`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: failArtifactGenerationInput
-    },
-      options);
-    }
-
-/**
- * @summary Cancel Generation
- */
-const cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost = (
-    generationId: string,
-    cancelArtifactGenerationInput: CancelArtifactGenerationInput,
- options?: SecondParameter<typeof apiMutator<ArtifactGeneration>>,) => {
-      return apiMutator<ArtifactGeneration>(
-      {url: `/internal/artifact-generations/${generationId}/cancel`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: cancelArtifactGenerationInput
-    },
-      options);
-    }
-
-/**
- * @summary Save Plan
- */
-const savePlanInternalArtifactGenerationsGenerationIdPlanPut = (
-    generationId: string,
-    saveArtifactPlanInput: SaveArtifactPlanInput,
- options?: SecondParameter<typeof apiMutator<ArtifactGeneration>>,) => {
-      return apiMutator<ArtifactGeneration>(
-      {url: `/internal/artifact-generations/${generationId}/plan`, method: 'PUT',
-      headers: {'Content-Type': 'application/json', },
-      data: saveArtifactPlanInput
-    },
-      options);
-    }
-
-/**
- * @summary Save Block
- */
-const saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut = (
-    generationId: string,
-    blockId: string,
-    saveArtifactBlockInput: SaveArtifactBlockInput,
- options?: SecondParameter<typeof apiMutator<ArtifactGeneration>>,) => {
-      return apiMutator<ArtifactGeneration>(
-      {url: `/internal/artifact-generations/${generationId}/blocks/${blockId}`, method: 'PUT',
-      headers: {'Content-Type': 'application/json', },
-      data: saveArtifactBlockInput
-    },
-      options);
-    }
-
-/**
- * @summary List Ready Blocks
- */
-const listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet = (
-    generationId: string,
-    params: ListReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGetParams,
- options?: SecondParameter<typeof apiMutator<StoredArtifactBlock[]>>,) => {
-      return apiMutator<StoredArtifactBlock[]>(
-      {url: `/internal/artifact-generations/${generationId}/blocks`, method: 'GET',
+const listFilesInternalFilesGet = (
+    params: ListFilesInternalFilesGetParams,
+ options?: SecondParameter<typeof apiMutator<FileEntry[]>>,) => {
+      return apiMutator<FileEntry[]>(
+      {url: `/internal/files`, method: 'GET',
         params
     },
       options);
     }
 
 /**
- * @summary Get Latest Workspace
+ * @summary Read File
  */
-const getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet = (
-    documentId: string,
-    params: GetLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGetParams,
- options?: SecondParameter<typeof apiMutator<ArtifactRevisionWorkspace>>,) => {
-      return apiMutator<ArtifactRevisionWorkspace>(
-      {url: `/internal/artifact-generations/documents/${documentId}/latest`, method: 'GET',
+const readFileInternalFilesReadGet = (
+    params: ReadFileInternalFilesReadGetParams,
+ options?: SecondParameter<typeof apiMutator<FileRead>>,) => {
+      return apiMutator<FileRead>(
+      {url: `/internal/files/read`, method: 'GET',
         params
     },
       options);
     }
 
 /**
- * @summary Publish Revision
+ * @summary Create Change Set
  */
-const publishRevisionInternalArtifactGenerationsGenerationIdPublishPost = (
-    generationId: string,
-    publishArtifactRevisionInput: PublishArtifactRevisionInput,
- options?: SecondParameter<typeof apiMutator<PublishedArtifactRevision>>,) => {
-      return apiMutator<PublishedArtifactRevision>(
-      {url: `/internal/artifact-generations/${generationId}/publish`, method: 'POST',
+const createChangeSetInternalFilesChangeSetsPost = (
+    createChangeSetInput: CreateChangeSetInput,
+ options?: SecondParameter<typeof apiMutator<ChangeSet>>,) => {
+      return apiMutator<ChangeSet>(
+      {url: `/internal/files/change-sets`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
-      data: publishArtifactRevisionInput
+      data: createChangeSetInput
+    },
+      options);
+    }
+
+/**
+ * @summary Write Change Set File
+ */
+const writeChangeSetFileInternalFilesChangeSetsChangeSetIdFilesPut = (
+    changeSetId: string,
+    writeChangeSetFileInput: WriteChangeSetFileInput,
+ options?: SecondParameter<typeof apiMutator<FileEntry>>,) => {
+      return apiMutator<FileEntry>(
+      {url: `/internal/files/change-sets/${changeSetId}/files`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: writeChangeSetFileInput
+    },
+      options);
+    }
+
+/**
+ * @summary List Change Set Files
+ */
+const listChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGet = (
+    changeSetId: string,
+    params: ListChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGetParams,
+ options?: SecondParameter<typeof apiMutator<FileEntry[]>>,) => {
+      return apiMutator<FileEntry[]>(
+      {url: `/internal/files/change-sets/${changeSetId}/files`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+/**
+ * @summary Read Change Set File
+ */
+const readChangeSetFileInternalFilesChangeSetsChangeSetIdReadGet = (
+    changeSetId: string,
+    params: ReadChangeSetFileInternalFilesChangeSetsChangeSetIdReadGetParams,
+ options?: SecondParameter<typeof apiMutator<FileRead>>,) => {
+      return apiMutator<FileRead>(
+      {url: `/internal/files/change-sets/${changeSetId}/read`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+/**
+ * @summary Promote Change Set
+ */
+const promoteChangeSetInternalFilesChangeSetsChangeSetIdPromotePost = (
+    changeSetId: string,
+    promoteChangeSetInput: PromoteChangeSetInput,
+ options?: SecondParameter<typeof apiMutator<FileEntry[]>>,) => {
+      return apiMutator<FileEntry[]>(
+      {url: `/internal/files/change-sets/${changeSetId}/promote`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: promoteChangeSetInput
+    },
+      options);
+    }
+
+/**
+ * @summary Discard Change Set
+ */
+const discardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPost = (
+    changeSetId: string,
+    promoteChangeSetInput: PromoteChangeSetInput,
+ options?: SecondParameter<typeof apiMutator<ChangeSet>>,) => {
+      return apiMutator<ChangeSet>(
+      {url: `/internal/files/change-sets/${changeSetId}/discard`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: promoteChangeSetInput
+    },
+      options);
+    }
+
+/**
+ * @summary Search Files
+ */
+const searchFilesInternalFilesSearchPost = (
+    fileSearchInput: FileSearchInput,
+ options?: SecondParameter<typeof apiMutator<FileSearchMatch[]>>,) => {
+      return apiMutator<FileSearchMatch[]>(
+      {url: `/internal/files/search`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: fileSearchInput
     },
       options);
     }
@@ -1131,7 +1120,7 @@ const retrieveChunksInternalRetrievePost = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createStagedMediaInternalStagedMediaPost,getStagedMediaInternalStagedMediaStagedIdGet,getStagedMediaSourceInternalStagedMediaStagedIdSourceGet,publishStagedMediaInternalStagedMediaStagedIdPublishPost,discardStagedMediaInternalStagedMediaStagedIdDiscardPost,createResourceUrlDocumentsDocumentIdResourceUrlPost,getSignedResourceResourcesDocumentIdGet,reserveGenerationInternalArtifactGenerationsPost,failGenerationInternalArtifactGenerationsGenerationIdFailPost,cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost,savePlanInternalArtifactGenerationsGenerationIdPlanPut,saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut,listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet,getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet,publishRevisionInternalArtifactGenerationsGenerationIdPublishPost,cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost,retrieveChunksInternalRetrievePost}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createStagedMediaInternalStagedMediaPost,getStagedMediaInternalStagedMediaStagedIdGet,getStagedMediaSourceInternalStagedMediaStagedIdSourceGet,publishStagedMediaInternalStagedMediaStagedIdPublishPost,discardStagedMediaInternalStagedMediaStagedIdDiscardPost,createResourceUrlDocumentsDocumentIdResourceUrlPost,getSignedResourceResourcesDocumentIdGet,listFilesInternalFilesGet,readFileInternalFilesReadGet,createChangeSetInternalFilesChangeSetsPost,writeChangeSetFileInternalFilesChangeSetsChangeSetIdFilesPut,listChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGet,readChangeSetFileInternalFilesChangeSetsChangeSetIdReadGet,promoteChangeSetInternalFilesChangeSetsChangeSetIdPromotePost,discardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPost,searchFilesInternalFilesSearchPost,cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost,retrieveChunksInternalRetrievePost}};
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['healthzHealthzGet']>>>
@@ -1158,13 +1147,14 @@ export type PublishStagedMediaInternalStagedMediaStagedIdPublishPostResult = Non
 export type DiscardStagedMediaInternalStagedMediaStagedIdDiscardPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['discardStagedMediaInternalStagedMediaStagedIdDiscardPost']>>>
 export type CreateResourceUrlDocumentsDocumentIdResourceUrlPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createResourceUrlDocumentsDocumentIdResourceUrlPost']>>>
 export type GetSignedResourceResourcesDocumentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getSignedResourceResourcesDocumentIdGet']>>>
-export type ReserveGenerationInternalArtifactGenerationsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['reserveGenerationInternalArtifactGenerationsPost']>>>
-export type FailGenerationInternalArtifactGenerationsGenerationIdFailPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['failGenerationInternalArtifactGenerationsGenerationIdFailPost']>>>
-export type CancelGenerationInternalArtifactGenerationsGenerationIdCancelPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['cancelGenerationInternalArtifactGenerationsGenerationIdCancelPost']>>>
-export type SavePlanInternalArtifactGenerationsGenerationIdPlanPutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['savePlanInternalArtifactGenerationsGenerationIdPlanPut']>>>
-export type SaveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['saveBlockInternalArtifactGenerationsGenerationIdBlocksBlockIdPut']>>>
-export type ListReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['listReadyBlocksInternalArtifactGenerationsGenerationIdBlocksGet']>>>
-export type GetLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getLatestWorkspaceInternalArtifactGenerationsDocumentsDocumentIdLatestGet']>>>
-export type PublishRevisionInternalArtifactGenerationsGenerationIdPublishPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['publishRevisionInternalArtifactGenerationsGenerationIdPublishPost']>>>
+export type ListFilesInternalFilesGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['listFilesInternalFilesGet']>>>
+export type ReadFileInternalFilesReadGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['readFileInternalFilesReadGet']>>>
+export type CreateChangeSetInternalFilesChangeSetsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createChangeSetInternalFilesChangeSetsPost']>>>
+export type WriteChangeSetFileInternalFilesChangeSetsChangeSetIdFilesPutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['writeChangeSetFileInternalFilesChangeSetsChangeSetIdFilesPut']>>>
+export type ListChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['listChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGet']>>>
+export type ReadChangeSetFileInternalFilesChangeSetsChangeSetIdReadGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['readChangeSetFileInternalFilesChangeSetsChangeSetIdReadGet']>>>
+export type PromoteChangeSetInternalFilesChangeSetsChangeSetIdPromotePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['promoteChangeSetInternalFilesChangeSetsChangeSetIdPromotePost']>>>
+export type DiscardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['discardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPost']>>>
+export type SearchFilesInternalFilesSearchPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['searchFilesInternalFilesSearchPost']>>>
 export type CleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost']>>>
 export type RetrieveChunksInternalRetrievePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['retrieveChunksInternalRetrievePost']>>>

@@ -2,8 +2,8 @@
 
 ## Status
 
-Accepted. ADR 0047 narrows the registered TaskTypes to HTML/video generation and
-removes the historical `echo` and synchronous HTML-validation paths.
+Accepted. ADR 0055 replaces the HTML-specific TaskType with generic
+`file-task-batch`; video generation remains durable Executor work.
 
 ## Context
 

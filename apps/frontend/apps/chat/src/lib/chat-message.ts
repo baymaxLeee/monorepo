@@ -2,7 +2,7 @@ import type { UIMessage } from "ai";
 
 export type ChatUIDataTypes = {
   "plan-execution": {
-    document_id: string;
+    path: string;
   };
   "conversation-title": {
     title: string;

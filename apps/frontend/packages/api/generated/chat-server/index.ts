@@ -11,6 +11,19 @@ export interface RunCancellation {
   status?: string;
 }
 
+export interface ConversationFile {
+  path: string;
+  title: string;
+  filename: string;
+  mime_type: string;
+  /** @nullable */
+  size: number | null;
+  sha256: string;
+  writable: boolean;
+  derived: boolean;
+  content: string;
+}
+
 /**
  * @nullable
  */
@@ -361,6 +374,14 @@ export interface DeletedMemory {
   deleted: boolean;
 }
 
+export type GetConversationsConversationIdFilesDetailParams = {
+path: string;
+};
+
+export type GetConversationsConversationIdFilesSourceParams = {
+path: string;
+};
+
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
@@ -476,6 +497,28 @@ const getConversationsConversationIdDocumentsDocumentIdSource = (
       options);
     }
 
+const getConversationsConversationIdFilesDetail = (
+    conversationId: string,
+    params: GetConversationsConversationIdFilesDetailParams,
+ options?: SecondParameter<typeof apiMutator<ConversationFile>>,) => {
+      return apiMutator<ConversationFile>(
+      {url: `/conversations/${conversationId}/files/detail`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+const getConversationsConversationIdFilesSource = (
+    conversationId: string,
+    params: GetConversationsConversationIdFilesSourceParams,
+ options?: SecondParameter<typeof apiMutator<string>>,) => {
+      return apiMutator<string>(
+      {url: `/conversations/${conversationId}/files/source`, method: 'GET',
+        params
+    },
+      options);
+    }
+
 const getConversationsConversationIdAgentsRunsRunIdTrace = (
     conversationId: string,
     runId: string,
@@ -497,7 +540,7 @@ const postConversationsConversationIdAgentsRunsRunIdCancel = (
     }
 
 /**
- * @summary Proxy to the executor service's task status (see write_html/edit_file tool output task_id).
+ * @summary Proxy to the executor service's task status (see delegate_tasks tool output task_id).
  */
 const getConversationsConversationIdTasksTaskId = (
     conversationId: string,
@@ -613,7 +656,7 @@ const deleteMemoriesId = (
       options);
     }
 
-return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,getConversationsConversationIdContext,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdTasksTaskId,getConversationsConversationIdVideoProductionsProductionId,postConversationsConversationIdVideoProductionsProductionIdDecisions,getConversationsConversationIdVideoProductionsProductionIdPreview,getConversationsConversationIdVideoProductionsProductionIdShotsShotIdTakesTakeIdPreview,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
+return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,getConversationsConversationIdContext,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdFilesDetail,getConversationsConversationIdFilesSource,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdTasksTaskId,getConversationsConversationIdVideoProductionsProductionId,postConversationsConversationIdVideoProductionsProductionIdDecisions,getConversationsConversationIdVideoProductionsProductionIdPreview,getConversationsConversationIdVideoProductionsProductionIdShotsShotIdTakesTakeIdPreview,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
 export type GetHealthzResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getHealthz']>>>
 export type GetConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversations']>>>
 export type PostConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversations']>>>
@@ -626,6 +669,8 @@ export type PostConversationsConversationIdAgentsRunStreamResult = NonNullable<A
 export type GetConversationsConversationIdDocumentsDocumentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdDocumentsDocumentId']>>>
 export type PatchConversationsConversationIdDocumentsDocumentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchConversationsConversationIdDocumentsDocumentId']>>>
 export type GetConversationsConversationIdDocumentsDocumentIdSourceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdDocumentsDocumentIdSource']>>>
+export type GetConversationsConversationIdFilesDetailResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdFilesDetail']>>>
+export type GetConversationsConversationIdFilesSourceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdFilesSource']>>>
 export type GetConversationsConversationIdAgentsRunsRunIdTraceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdAgentsRunsRunIdTrace']>>>
 export type PostConversationsConversationIdAgentsRunsRunIdCancelResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunsRunIdCancel']>>>
 export type GetConversationsConversationIdTasksTaskIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdTasksTaskId']>>>

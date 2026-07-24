@@ -52,15 +52,28 @@ const taskSchema = {
   ],
 };
 
-const htmlArtifactTaskPayloadSchema = {
+const fileTaskBatchPayloadSchema = {
   type: "object",
   properties: {
-    orgId: { type: "string" }, userId: { type: "string" }, conversationId: { type: "string" }, providerId: { type: "string" }, title: { type: "string" }, filename: { type: "string" },
-    mode: { type: "string", enum: ["document", "presentation", "dashboard"] }, visualDirection: { type: "string" }, accent: { type: "string" }, appearance: { type: "string", enum: ["light", "dark"] }, brief: { type: "string" },
-    sections: { type: "array", items: { type: "object", properties: { title: { type: "string" }, brief: { type: "string" }, layout: { type: "string" } }, required: ["title", "brief"] } },
-    documentId: { type: "string" }, blockIds: { type: "array", items: { type: "string" } }, blockBriefs: { type: "object", additionalProperties: { type: "string" } }, expectedObjectSha256: { type: "string" }, idempotencyKey: { type: "string" },
+    orgId: { type: "string" },
+    userId: { type: "string" },
+    providerId: { type: "string" },
+    stagingId: { type: "string" },
+    sharedContext: { type: "string" },
+    tasks: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          instruction: { type: "string" },
+          outputPath: { type: "string" },
+        },
+        required: ["id", "instruction", "outputPath"],
+      },
+    },
   },
-  required: ["orgId", "userId", "providerId", "title", "filename"],
+  required: ["orgId", "userId", "providerId", "stagingId", "sharedContext", "tasks"],
 };
 
 const videoGenerationTaskPayloadSchema = {
@@ -89,7 +102,7 @@ const taskEnvelope = (type: string, payload: object) => ({
 
 const createTaskInputSchema = {
   oneOf: [
-    taskEnvelope("html-artifact", ref("HtmlArtifactTaskPayload")),
+    taskEnvelope("file-task-batch", ref("FileTaskBatchPayload")),
     taskEnvelope("video-generation", ref("VideoGenerationTaskPayload")),
   ],
   discriminator: { propertyName: "type" },
@@ -392,7 +405,7 @@ const openapi = {
     schemas: {
       Task: taskSchema,
       CreateTaskInput: createTaskInputSchema,
-      HtmlArtifactTaskPayload: htmlArtifactTaskPayloadSchema,
+      FileTaskBatchPayload: fileTaskBatchPayloadSchema,
       VideoGenerationTaskPayload: videoGenerationTaskPayloadSchema,
       ReferenceAsset: referenceAssetSchema,
       ShotSpec: shotSpecSchema,

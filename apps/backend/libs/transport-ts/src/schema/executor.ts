@@ -58,12 +58,12 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** @constant */
-                        type: "html-artifact";
+                        type: "file-task-batch";
                         /** @description calling service, e.g. chat */
                         owner_service: string;
                         /** @description idempotency key scoped to owner_service */
                         owner_ref: string;
-                        payload: components["schemas"]["HtmlArtifactTaskPayload"];
+                        payload: components["schemas"]["FileTaskBatchPayload"];
                     } | {
                         /** @constant */
                         type: "video-generation";
@@ -427,12 +427,12 @@ export interface components {
         };
         CreateTaskInput: {
             /** @constant */
-            type: "html-artifact";
+            type: "file-task-batch";
             /** @description calling service, e.g. chat */
             owner_service: string;
             /** @description idempotency key scoped to owner_service */
             owner_ref: string;
-            payload: components["schemas"]["HtmlArtifactTaskPayload"];
+            payload: components["schemas"]["FileTaskBatchPayload"];
         } | {
             /** @constant */
             type: "video-generation";
@@ -442,32 +442,17 @@ export interface components {
             owner_ref: string;
             payload: components["schemas"]["VideoGenerationTaskPayload"];
         };
-        HtmlArtifactTaskPayload: {
+        FileTaskBatchPayload: {
             orgId: string;
             userId: string;
-            conversationId?: string;
             providerId: string;
-            title: string;
-            filename: string;
-            /** @enum {string} */
-            mode?: "document" | "presentation" | "dashboard";
-            visualDirection?: string;
-            accent?: string;
-            /** @enum {string} */
-            appearance?: "light" | "dark";
-            brief?: string;
-            sections?: {
-                title: string;
-                brief: string;
-                layout?: string;
+            stagingId: string;
+            sharedContext: string;
+            tasks: {
+                id: string;
+                instruction: string;
+                outputPath: string;
             }[];
-            documentId?: string;
-            blockIds?: string[];
-            blockBriefs?: {
-                [key: string]: string;
-            };
-            expectedObjectSha256?: string;
-            idempotencyKey?: string;
         };
         VideoGenerationTaskPayload: {
             orgId: string;

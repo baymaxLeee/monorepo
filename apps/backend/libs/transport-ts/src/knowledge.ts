@@ -15,14 +15,13 @@ export type KnowledgeDocument = Omit<
   source_mime_type: string | null;
 };
 export type DocumentSlice = components["schemas"]["DocumentSlice"];
-export type ArtifactGeneration = components["schemas"]["ArtifactGeneration"];
-export type ArtifactBlockPlan = components["schemas"]["ArtifactBlockPlan"];
-export type PublishedArtifactRevision = components["schemas"]["PublishedArtifactRevision"];
-export type StoredArtifactBlock = components["schemas"]["StoredArtifactBlock"];
-export type ArtifactRevisionWorkspace = components["schemas"]["ArtifactRevisionWorkspace"];
 export type RetrieveResult = components["schemas"]["RetrieveResult"];
 export type RetrievedChunk = components["schemas"]["RetrievedChunk"];
 export type StagedMedia = components["schemas"]["StagedMedia"];
+export type VirtualFileEntry = components["schemas"]["FileEntry"];
+export type VirtualFileRead = components["schemas"]["FileRead"];
+export type FileChangeSet = components["schemas"]["ChangeSet"];
+export type FileSearchMatch = components["schemas"]["FileSearchMatch"];
 export type CleanupConversationArtifactsResult =
   components["schemas"]["CleanupConversationArtifactsResult"];
 
@@ -60,6 +59,47 @@ export class KnowledgeInternalClient {
       }),
       normalizeDocument,
     );
+  }
+
+  listVirtualFiles(input: { userId: string; conversationId: string; path?: string }): Promise<VirtualFileEntry[]> {
+    return this.unwrap(this.client.GET("/internal/files", { params: { query: { user_id: input.userId, conversation_id: input.conversationId, path: input.path } } }));
+  }
+
+  readVirtualFile(input: { userId: string; conversationId: string; path: string; offset?: number; limit?: number }): Promise<VirtualFileRead> {
+    return this.unwrap(this.client.GET("/internal/files/read", { params: { query: { user_id: input.userId, conversation_id: input.conversationId, path: input.path, offset: input.offset ?? 1, limit: input.limit ?? 200 } } }));
+  }
+
+  createFileChangeSet(input: { userId: string; orgId: string; conversationId: string; metadata?: Record<string, string> }): Promise<FileChangeSet> {
+    return this.unwrap(this.client.POST("/internal/files/change-sets", { body: { user_id: input.userId, org_id: input.orgId, conversation_id: input.conversationId, metadata: input.metadata } }));
+  }
+
+  writeChangeSetFile(input: { userId: string; changeSetId: string; path: string; content: string; mimeType: string; writable?: boolean; derived?: boolean }): Promise<VirtualFileEntry> {
+    return this.unwrap(this.client.PUT("/internal/files/change-sets/{change_set_id}/files", { params: { path: { change_set_id: input.changeSetId } }, body: { user_id: input.userId, path: input.path, content: input.content, mime_type: input.mimeType, writable: input.writable ?? true, derived: input.derived ?? false } }));
+  }
+
+  listChangeSetFiles(input: { userId: string; changeSetId: string }): Promise<VirtualFileEntry[]> {
+    return this.unwrap(this.client.GET("/internal/files/change-sets/{change_set_id}/files", {
+      params: {
+        path: { change_set_id: input.changeSetId },
+        query: { user_id: input.userId },
+      },
+    }));
+  }
+
+  readChangeSetFile(input: { userId: string; changeSetId: string; path: string; offset?: number; limit?: number }): Promise<VirtualFileRead> {
+    return this.unwrap(this.client.GET("/internal/files/change-sets/{change_set_id}/read", { params: { path: { change_set_id: input.changeSetId }, query: { user_id: input.userId, path: input.path, offset: input.offset ?? 1, limit: input.limit ?? 400 } } }));
+  }
+
+  promoteFileChangeSet(input: { userId: string; changeSetId: string }): Promise<VirtualFileEntry[]> {
+    return this.unwrap(this.client.POST("/internal/files/change-sets/{change_set_id}/promote", { params: { path: { change_set_id: input.changeSetId } }, body: { user_id: input.userId } }));
+  }
+
+  discardFileChangeSet(input: { userId: string; changeSetId: string }): Promise<FileChangeSet> {
+    return this.unwrap(this.client.POST("/internal/files/change-sets/{change_set_id}/discard", { params: { path: { change_set_id: input.changeSetId } }, body: { user_id: input.userId } }));
+  }
+
+  searchVirtualFiles(input: { userId: string; conversationId: string; pattern: string; path?: string; glob?: string }): Promise<FileSearchMatch[]> {
+    return this.unwrap(this.client.POST("/internal/files/search", { body: { user_id: input.userId, conversation_id: input.conversationId, pattern: input.pattern, path: input.path, glob: input.glob } }));
   }
 
   getDocumentSlice(input: {
@@ -272,139 +312,6 @@ export class KnowledgeInternalClient {
         },
       }),
       normalizeDocument,
-    );
-  }
-
-  reserveArtifactGeneration(input: {
-    userId: string;
-    orgId: string;
-    conversationId?: string;
-    title: string;
-    filename: string;
-    mode: "document" | "presentation" | "dashboard";
-    brief: string;
-    idempotencyKey: string;
-    documentId?: string;
-    baseRevisionId?: string;
-  }): Promise<ArtifactGeneration> {
-    return this.unwrap(
-      this.client.POST("/internal/artifact-generations", {
-        body: {
-          user_id: input.userId,
-          org_id: input.orgId,
-          conversation_id: input.conversationId,
-          title: input.title,
-          filename: input.filename,
-          mode: input.mode,
-          brief: input.brief,
-          idempotency_key: input.idempotencyKey,
-          document_id: input.documentId,
-          base_revision_id: input.baseRevisionId,
-        },
-      }),
-    );
-  }
-
-  failArtifactGeneration(input: { userId: string; generationId: string; error?: string }): Promise<ArtifactGeneration> {
-    return this.unwrap(this.client.POST("/internal/artifact-generations/{generation_id}/fail", {
-      params: { path: { generation_id: input.generationId } },
-      body: { user_id: input.userId, error: input.error },
-    }));
-  }
-
-  cancelArtifactGeneration(input: { userId: string; generationId: string }): Promise<ArtifactGeneration> {
-    return this.unwrap(this.client.POST("/internal/artifact-generations/{generation_id}/cancel", {
-      params: { path: { generation_id: input.generationId } },
-      body: { user_id: input.userId },
-    }));
-  }
-
-  getLatestArtifactWorkspace(input: {
-    userId: string;
-    documentId: string;
-  }): Promise<ArtifactRevisionWorkspace> {
-    return this.unwrap(
-      this.client.GET("/internal/artifact-generations/documents/{document_id}/latest", {
-        params: {
-          path: { document_id: input.documentId },
-          query: { user_id: input.userId },
-        },
-      }),
-    );
-  }
-
-  saveArtifactPlan(input: {
-    userId: string;
-    generationId: string;
-    manifest: Record<string, unknown>;
-    blocks: Array<{ id: string; type: string; sourceVersionId?: string }>;
-  }): Promise<ArtifactGeneration> {
-    return this.unwrap(
-      this.client.PUT("/internal/artifact-generations/{generation_id}/plan", {
-        params: { path: { generation_id: input.generationId } },
-        body: {
-          user_id: input.userId,
-          manifest: input.manifest,
-          blocks: input.blocks.map((block) => ({
-            id: block.id,
-            type: block.type,
-            source_version_id: block.sourceVersionId,
-          })),
-        },
-      }),
-    );
-  }
-
-  saveArtifactBlock(input: {
-    userId: string;
-    generationId: string;
-    blockId: string;
-    content: string;
-    failed?: boolean;
-  }): Promise<ArtifactGeneration> {
-    return this.unwrap(
-      this.client.PUT("/internal/artifact-generations/{generation_id}/blocks/{block_id}", {
-        params: { path: { generation_id: input.generationId, block_id: input.blockId } },
-        body: {
-          user_id: input.userId,
-          content: input.content,
-          failed: input.failed ?? false,
-        },
-      }),
-    );
-  }
-
-  listArtifactBlocks(input: {
-    userId: string;
-    generationId: string;
-  }): Promise<StoredArtifactBlock[]> {
-    return this.unwrap(
-      this.client.GET("/internal/artifact-generations/{generation_id}/blocks", {
-        params: {
-          path: { generation_id: input.generationId },
-          query: { user_id: input.userId },
-        },
-      }),
-    );
-  }
-
-  publishArtifactRevision(input: {
-    userId: string;
-    orgId: string;
-    generationId: string;
-    compiledHtml: string;
-    expectedObjectSha256?: string;
-  }): Promise<PublishedArtifactRevision> {
-    return this.unwrap(
-      this.client.POST("/internal/artifact-generations/{generation_id}/publish", {
-        params: { path: { generation_id: input.generationId } },
-        body: {
-          user_id: input.userId,
-          org_id: input.orgId,
-          compiled_html: input.compiledHtml,
-          expected_object_sha256: input.expectedObjectSha256 ?? null,
-        },
-      }),
     );
   }
 

@@ -54,6 +54,13 @@ const takePathParam = {
   schema: { type: "string" },
 };
 
+const filePathQuery = {
+  name: "path",
+  in: "query",
+  required: true,
+  schema: { type: "string" },
+};
+
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 const jsonResponse = (description: string, schema: object) => ({
   description,
@@ -138,6 +145,27 @@ const openapi = {
         responses: { "200": { description: "conversation document source bytes" } },
       },
     },
+    "/conversations/{conversation_id}/files/detail": {
+      get: {
+        parameters: [pathParam, filePathQuery],
+        responses: {
+          "200": jsonResponse("conversation virtual file detail", ref("ConversationFile")),
+          "404": { description: "file not found" },
+        },
+      },
+    },
+    "/conversations/{conversation_id}/files/source": {
+      get: {
+        parameters: [pathParam, filePathQuery],
+        responses: {
+          "200": {
+            description: "conversation virtual file content",
+            content: { "text/plain": { schema: { type: "string" } } },
+          },
+          "404": { description: "file not found" },
+        },
+      },
+    },
     "/conversations/{conversation_id}/agents/runs/{run_id}/trace": {
       get: {
         parameters: [pathParam, runPathParam],
@@ -154,7 +182,7 @@ const openapi = {
     },
     "/conversations/{conversation_id}/tasks/{task_id}": {
       get: {
-        summary: "Proxy to the executor service's task status (see write_html/edit_file tool output task_id).",
+        summary: "Proxy to the executor service's task status (see delegate_tasks tool output task_id).",
         parameters: [pathParam, taskPathParam],
         responses: {
           "200": jsonResponse("task snapshot", ref("Task")),
@@ -274,6 +302,31 @@ const openapi = {
         properties: {
           cancelled: { type: "boolean" },
           status: { type: "string" },
+        },
+      },
+      ConversationFile: {
+        type: "object",
+        required: [
+          "path",
+          "title",
+          "filename",
+          "mime_type",
+          "size",
+          "sha256",
+          "writable",
+          "derived",
+          "content",
+        ],
+        properties: {
+          path: { type: "string" },
+          title: { type: "string" },
+          filename: { type: "string" },
+          mime_type: { type: "string" },
+          size: { type: "integer", nullable: true },
+          sha256: { type: "string" },
+          writable: { type: "boolean" },
+          derived: { type: "boolean" },
+          content: { type: "string" },
         },
       },
       AgentRunTrace: {

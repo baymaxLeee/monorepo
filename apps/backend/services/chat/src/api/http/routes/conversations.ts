@@ -18,6 +18,7 @@ import {
   getConversation,
   getConversationDocument,
   getConversationDocumentSource,
+  getConversationFile,
   listConversations,
   updateConversation,
   updateConversationDocument,
@@ -179,6 +180,30 @@ conversationsRoutes.get("/:conversationId/documents/:documentId", async (c) => {
       c.req.param("documentId"),
     ),
   );
+});
+
+conversationsRoutes.get("/:conversationId/files/detail", async (c) => {
+  const path = c.req.query("path");
+  if (!path) throw new NotFoundError("file path is required");
+  return c.json(
+    await getConversationFile(getAuth(c), c.req.param("conversationId"), path),
+  );
+});
+
+conversationsRoutes.get("/:conversationId/files/source", async (c) => {
+  const path = c.req.query("path");
+  if (!path) throw new NotFoundError("file path is required");
+  const file = await getConversationFile(
+    getAuth(c),
+    c.req.param("conversationId"),
+    path,
+  );
+  return new Response(file.content, {
+    headers: {
+      "Content-Type": `${file.mime_type}; charset=utf-8`,
+      "Content-Security-Policy": "frame-ancestors 'self'",
+    },
+  });
 });
 
 conversationsRoutes.get("/:conversationId/video-productions/:productionId", async (c) => {

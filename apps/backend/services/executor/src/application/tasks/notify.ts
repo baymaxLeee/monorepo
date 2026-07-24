@@ -29,16 +29,6 @@ export async function reportTaskProgress(
   });
 }
 
-export async function recordArtifactGeneration(
-  workflowRunId: string,
-  generationId: string,
-): Promise<void> {
-  await updateRuntimeProgress(workflowRunId, (progress) => ({
-    ...progress,
-    artifactGenerationId: generationId,
-  }));
-}
-
 export async function recordExternalTask(
   workflowRunId: string,
   externalTaskId: string,

@@ -43,16 +43,15 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 - Tool orchestration (ADR-0035): **thin harness — no general runtime
   scheduler or lock.** The SDK owns the tool loop and same-step concurrency;
   `prepareStep` is the project's `PostToolBatch` / `prepareNextTurn` adapter and
-  contains only bounded correctness gates: read an explicitly selected Plan
-  before execution, and complete the ephemeral HTML validate/repair loop from
-  a pure full-history fold. A model middleware in every mode makes
-  `ask_user` and plan-mode `write_markdown` mutually exclusive: the first group
+  contains only the bounded gate that reads an explicitly selected Plan before
+  execution. A model middleware in every mode makes
+  `ask_user` and plan-mode `write_file` mutually exclusive: the first group
   emitted for the step remains and later conflicts are dropped, so selected
   plan-tool input keeps streaming live instead of being buffered until the model
   step ends. It also makes `load_skill` a batch barrier. All other independent
   tool calls retain native concurrency.
-  User-requested HTML revisions are ordinary `edit_file` calls selected by the
-  primary ToolLoopAgent; validation-directed repairs use the bounded quality gate.
+  User-requested text and HTML revisions are ordinary exact `edit_file` calls
+  selected by the primary ToolLoopAgent.
   If a user asks to execute or resume work while the current run is still in
   plan mode, the agent stops without tools and tells the user to switch to Agent
   mode; execution tools remain absent from the plan-mode ToolSet.
@@ -60,7 +59,7 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   (`renderRuntimeContract` "barrier step": `update_todos` called alone, then
   deliverables dispatched together in the NEXT step) plus the SDK step boundary.
   Todos are not mandatory for every query: plan mode may research, then must
-  produce only one complete-plan `write_markdown`; it must not call `update_todos` or any
+  produce only one complete-plan `write_file`; it must not call `update_todos` or any
   content-generation tool. After switching to normal/agent execution mode,
   `update_todos` is an optional visible execution checklist — call it only when
   the task needs a real multi-item breakdown (multiple dependent steps,
@@ -73,12 +72,10 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   serialize independent deliverables (md/html/image/video run concurrently via
   the SDK's per-step `Promise.all`). Rare co-emission of todos with a deliverable
   is an accepted cosmetic glitch, not a bug to guard at runtime.
-- `write_markdown` is the sole Markdown persistence primitive in both modes. It
-  receives complete content; omitting `file_id` creates a file and providing it
-  overwrites that Markdown file in full. Plan mode normalizes `*-plan.md`,
-  validates the required plan headings/checklist, and records the resulting
-  document as the active Plan. There is no Markdown patch tool, create/update
-  pair, CAS token, or nested generation LLM.
+- `write_file` is the sole text persistence primitive in both modes. It writes
+  complete UTF-8 content to a relative path. Plan mode validates `*-plan.md`
+  headings/checklist and records that path as the active Plan; `edit_file` is
+  available only in normal mode and applies atomic exact replacements.
 - `update_todos` (normal/agent execution mode only) is a stateless,
   side-effect-free tool: it
   always replaces the full `{id, content, status, deliverable?}` list and has
@@ -97,47 +94,28 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   After `update_todos`, the next model step should execute the ready work
   directly under `runtime_contract` (including parallel deliverables in one
   step); `update_todos` does not return routing advice.
-- File tools are one `files` capability: list/read plus Markdown full-write and
-  HTML generation/inspection/editing. `write_html` has a shallow dedicated
-  schema: `title` and authoritative `brief` are required, while simple ordered
-  `sections` and visual hints are optional; omitting sections produces one
-  block. Chat forwards the same flat semantic shape to Executor, which
-  deterministically materializes its internal block contracts without another
-  model call. Providers never see a Markdown/HTML `anyOf`. The tool dispatches
-  to `executor` and foreground-blocks
-  this turn** until compile + publish complete (`agent_task_执行时服务` plan,
-  Phase 2; ADR-0015 revision). Progress 100% means block generation completed;
-  compile + publish still follow. The generation workflow owns compilation and
-  safe publication; the user owns acceptance and requests any follow-up revision.
-  The tool `execute`
-  is an async generator that consumes `pollTaskSnapshots`
-  (`agent/tasks/executor-task.ts`): it yields a preliminary `{ status, task_id }`
-  (so the card mounts at once), then polls `GET /tasks/:id`, yielding running
-  `{ status: "running", blocks_done, blocks_total }` snapshots, and finally
-  `{ status: "completed", document_id, ... }`. Progress rides the **main**
-  useChat UIMessage stream as preliminary `tool-*` results — there is NO separate
-  task-progress SSE, no `data-artifact-progress`, and no executor→chat push
-  (ADR-0035). The ToolLoopAgent waits for the document before its next step —
-  this is what stops the model from dispatching a second competing edit for an
-  artifact still being written. The `GET /tasks/:id` poll is the authoritative
-  completion signal (executor's `tasks.progress` column is the only progress
-  source; Knowledge is not). `GET .../tasks/:taskId` stays as a plain JSON read
-  for cold-start/debug. Knowledge/ObjectStore owns full content; chat history and
-  traces never carry HTML fragments.
-- Every successful `write_html` or HTML `edit_file` creates a mandatory local
-  Chat quality gate. `prepareStep` replays terminal history from the immutable
-  run seed and injects exact, zero-token validate/repair batches until each
-  artifact revision has been checked. The tool
-  reads the current revision from Knowledge and runs deterministic validation
-  plus a non-blocking content-contract review inside Chat; Executor has no
-  validation route, TaskType, or Workflow. No hard findings finishes the gate;
-  deterministic addressable findings produce a targeted `edit_file` directive,
-  and the new edit triggers `validate_html` again. Advisories never block or
-  auto-repair. Repeated deterministic fingerprints stop as `no_progress`; the
-  20th step is reserved for a no-tool terminal explanation. Do not put this
-  state in `projectModelContext` or mutate it from callbacks.
+- File tools are one path-based capability: `list_files`, `read_file`,
+  `search_files`, `write_file`, `edit_file`, and `check_file`. Exact
+  `write_file`/`edit_file` own small and sequential HTML. `delegate_tasks` is a
+  separate generic orchestration capability used only when independent file
+  outputs would strain the primary model's output/context budget.
+- `delegate_tasks` freezes one shared context plus unique
+  `{id,instruction,output_path}` tasks and starts Executor's durable
+  `file-task-batch`. Workers do not receive the conversation or HTML planning
+  authority. Each worker returns one complete file; Chat atomically promotes the
+  successful batch. Progress rides preliminary official `tool-delegate_tasks`
+  parts.
+- HTML remains a complete browser artifact in both paths. Direct and delegated
+  output may use scripts, modules, dynamic DOM, Canvas/SVG/WebGL, forms, media,
+  workers, and external runtimes. Capability is never inferred from page count.
+  Preview isolation comes from an opaque-origin iframe sandbox with scripts
+  enabled, not from stripping browser features out of generated content.
+- Every successful `write_file`/`edit_file` is promoted immediately and can be
+  previewed without a verification state. `check_file` is an optional read-only
+  diagnostic for markup, links, local resources, CSS, and inline script syntax;
+  it neither mutates files nor blocks delivery or imposes design policy.
 - Cancelling a chat run **does** cancel the in-flight executor task the current
-  `write_html`/`edit_file` call is blocking on: Stop aborts the turn, the tool's
+  `delegate_tasks` call is blocking on: Stop aborts the turn, the tool's
   `abortSignal` fires, and it calls `POST /tasks/:id/cancel` before unwinding —
   like Cursor aborting an in-flight file write. (The executor task stays durable
   against *process* loss; it is only tied to the turn for user-initiated Stop.)

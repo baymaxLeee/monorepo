@@ -91,19 +91,20 @@ There is **one** stream — the main chat stream:
   `ChatUIMessage = UIMessage<unknown, ChatUIDataTypes>`
   (`apps/frontend/apps/chat/src/lib/chat-message.ts`).
 
-There is no separate task-progress SSE stream. HTML-artifact and video progress
+There is no separate task-progress SSE stream. Delegated file and video progress
 now ride the main stream as **preliminary `tool-*` results** (see ADR-0035): the
-`write_file`/`edit_file` and `create_video_production` tools poll executor
-`GET /tasks/:id` and `yield` running snapshots (`blocks_done`/`blocks_total`,
+`delegate_tasks` and `create_video_production` tools poll executor
+`GET /tasks/:id` and `yield` running snapshots (`done`/`total`,
 `progress_done`/`progress_total`) that the SDK emits as preliminary tool
-outputs, then a terminal `yield` with `document_id`. `ChatArtifactCard` /
+outputs, then a terminal `yield` with the published path(s) or production id.
+`ChatArtifactCard` /
 `ChatVideoCard` read progress straight off the tool part — no second connection,
 no `data-artifact-progress`.
 
 | `data-*` type              | Stream | Persistence | Reconciled by id | Direction        | Producer                                                       | Consumer                                                    | Why not an official part                                                                                   |
 | -------------------------- | ------ | ----------- | ---------------- | ---------------- | ------------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `data-conversation-title`  | main   | transient   | no               | server → client  | `agent/runs/run.ts` (`writer.write`, first turn)              | `pages/Chat.tsx` `onData` → header + sidebar               | No official "conversation title" part; title is conversation-level, not message-level, so metadata is wrong too. Transient + `onData` is the documented pattern. |
-| `data-plan-execution`      | main   | persistent  | no               | **client → server** (+ persisted) | `pages/Chat.tsx` (`executePlan`, added to the user message)  | `agent/context/file-parts.ts` + `agent/agents/tool-loop.ts` | No official "execute this document" part. The part persists only the document id; the run projects that reference and forces the existing `read_file` tool until the selected Plan is fully read before execution tools are enabled. |
+| `data-plan-execution`      | main   | persistent  | no               | **client → server** (+ persisted) | `pages/Chat.tsx` (`executePlan`, added to the user message)  | `agent/context/file-parts.ts` + `agent/agents/tool-loop.ts` | No official "execute this file" part. The part persists only the stable Plan path; the run projects that reference and forces `read_file` over contiguous line ranges until the selected Plan is fully read before execution tools are enabled. |
 | `data-skill-activation`    | main   | persistent  | no               | **client → server** (+ persisted) | `pages/Chat.tsx` (`submit`, added to the user message when a `/` skill is active) | `agent/context/file-parts.ts` (`activatedSkillNameFromParts` → server injects `<activated_skill>` body for that turn) + `components/ChatMessageView.tsx` (renders a skill badge) | No official "invoke this skill" part. Mirrors `data-plan-execution` (client→server reference): the L2 body never rides the part — only the skill `name`. Persisted so history/continuation show which skill drove the turn; the projector's `convertDataPart` returns `undefined` for it, so older turns are dropped from model context and the body is injected server-side only for the turn its message triggers (ADR-0033 §4, ADR-0036). |
 
 ### Verdict on redundancy
@@ -115,15 +116,16 @@ no `data-artifact-progress`.
   `tool-*`, `file`, and `source-*` (`sendSources: true`). Do not wrap any of
   these in `data-*`.
 - Known non-redundant overlaps to leave alone:
-  - Document references travel only as message parts: a `file` part whose URL
-    carries the document id, or a `data-plan-execution` part. The latter is a
-    command reference, not copied Plan content: the tool loop forces the existing
-    `read_file` tool to read that document completely. There is no separate
+  - Source-document references use an official `file` part whose URL carries
+    the document id. Plan execution uses `data-plan-execution` as a command
+    reference containing a stable virtual path, not copied Plan content: the
+    tool loop forces `read_file` to read that path completely. There is no separate
     `document_ids` request field.
-  - The HTML-artifact tool (`write_file`/`edit_file`) carries BOTH coarse
-    control-flow (`task_id` → `document_id`) and fine per-block progress
-    (`blocks_done`/`blocks_total`) on the SAME `tool-*` part: preliminary
-    `yield`s while polling executor `GET /tasks/:id`, then a terminal `yield`.
+  - `delegate_tasks` carries BOTH coarse control-flow
+    (`task_id` + stable `path`) and per-file progress
+    (`done`/`total`) on the SAME `tool-delegate_tasks` part:
+    preliminary `yield`s while polling executor `GET /tasks/:id`, then a
+    terminal `yield` with the atomically published `paths`.
     There is no separate progress channel (ADR-0035 collapsed the old
     task-progress SSE into these preliminary tool results).
   - `generate_images` (media generation) returns its result **as tool output**,
@@ -157,12 +159,9 @@ no `data-artifact-progress`.
     official tool parts; the frontend selects artifact/media/todo/approval UI by
     `uiKind`, not by hard-coded public tool names. This is metadata on the
     official tool part, not a custom `data-*` channel.
-  - `validate_html` uses `uiKind: "validation"` and an async-generator output.
-    Its `deterministic_validation` and `content_review` running snapshots are
-    preliminary results that replace the output on the same official
-    `tool-validate_html` part; the terminal `{ valid, file_id, errors,
-    advisories }` result completes that part. No validation `data-*` part or
-    secondary stream exists.
+  - `check_file` uses `uiKind: "validation"` and returns deterministic
+    diagnostics on its official `tool-check_file` part. No validation `data-*`
+    part or secondary stream exists.
   - `update_todos` output items carry an optional `deliverable` tag
     (`"artifact" | "image" | "video"`). It is **not** a new part: it rides the
     existing `tool-update_todos` output. The frontend

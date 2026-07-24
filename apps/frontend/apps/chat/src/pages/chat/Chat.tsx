@@ -98,16 +98,13 @@ function hasCompletedClientTool(messages: ChatUIMessage[]): boolean {
   });
 }
 
-function collectExecutedPlanDocumentIds(
-  messages: ChatUIMessage[],
-): Set<string> {
+function collectExecutedPlanPaths(messages: ChatUIMessage[]): Set<string> {
   const executed = new Set<string>();
   for (const message of messages) {
     for (const part of message.parts) {
       if (part.type !== "data-plan-execution") continue;
-      const documentId = (part.data as { document_id?: unknown } | undefined)
-        ?.document_id;
-      if (typeof documentId === "string") executed.add(documentId);
+      const path = (part.data as { path?: unknown } | undefined)?.path;
+      if (typeof path === "string") executed.add(path);
     }
   }
   return executed;
@@ -156,6 +153,7 @@ export function Chat() {
     clearTraceRun,
     bumpTraceRefresh,
     openArtifactPreview,
+    openFilePreview,
     closeArtifactPreview,
     closeImagePreview,
     applyConversationTitle,
@@ -169,6 +167,7 @@ export function Chat() {
       clearTraceRun: s.clearTraceRun,
       bumpTraceRefresh: s.bumpTraceRefresh,
       openArtifactPreview: s.openArtifactPreview,
+      openFilePreview: s.openFilePreview,
       closeArtifactPreview: s.closeArtifactPreview,
       closeImagePreview: s.closeImagePreview,
       applyConversationTitle: s.applyConversationTitle,
@@ -386,8 +385,8 @@ export function Chat() {
     () => collectDeliverableCompletion(messages, latestTodoCallId),
     [messages, latestTodoCallId],
   );
-  const executedPlanDocumentIds = useMemo(
-    () => collectExecutedPlanDocumentIds(messages),
+  const executedPlanPaths = useMemo(
+    () => collectExecutedPlanPaths(messages),
     [messages],
   );
 
@@ -533,7 +532,7 @@ export function Chat() {
     } catch {}
   }
 
-  async function executePlan(documentId: string) {
+  async function executePlan(path: string) {
     if (!id || busy) return;
     setMode("normal");
     // Execute in normal mode this turn. `requestBody` still reflects the
@@ -543,7 +542,7 @@ export function Chat() {
       {
         parts: [
           { type: "text", text: "请按照这个计划开始执行。" },
-          { type: "data-plan-execution", data: { document_id: documentId } },
+          { type: "data-plan-execution", data: { path } },
         ] as ChatUIMessage["parts"],
       },
       { body: { ...requestBody, mode: "normal" as const } },
@@ -572,6 +571,11 @@ export function Chat() {
   function openArtifact(documentId: string) {
     if (!id) return;
     openArtifactPreview(id, documentId);
+  }
+
+  function openFile(path: string) {
+    if (!id) return;
+    openFilePreview(id, path);
   }
 
   return (
@@ -608,6 +612,7 @@ export function Chat() {
                 latestTodoCallId={latestTodoCallId}
                 deliverableCompletion={deliverableCompletion}
                 onOpenArtifact={openArtifact}
+                onOpenFile={openFile}
                 onAnswerClientTool={(toolName, toolCallId, output) => {
                   answerClientTool(toolName, toolCallId, output);
                 }}
@@ -618,10 +623,8 @@ export function Chat() {
                     options: { body: requestBody },
                   });
                 }}
-                onExecutePlan={(documentId) =>
-                  void executePlan(documentId).catch(() => {})
-                }
-                planExecutedIds={executedPlanDocumentIds}
+                onExecutePlan={(path) => void executePlan(path).catch(() => {})}
+                planExecutedIds={executedPlanPaths}
                 planBusy={busy}
               />
             ))

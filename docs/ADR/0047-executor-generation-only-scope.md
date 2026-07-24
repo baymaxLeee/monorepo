@@ -2,8 +2,8 @@
 
 ## Status
 
-Accepted, superseded in part by ADR 0048. Executor remains generation-only;
-ADR 0048 restores HTML validation as the Chat-local `validate_html` tool.
+Superseded by ADR 0055. Executor remains a durable execution service, while its
+HTML-specific workflow was replaced by generic complete-file fan-out.
 
 ## Context
 

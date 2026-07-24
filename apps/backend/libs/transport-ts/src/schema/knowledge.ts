@@ -415,100 +415,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/artifact-generations": {
+    "/internal/files": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
-        /** Reserve Generation */
-        post: operations["reserve_generation_internal_artifact_generations_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/artifact-generations/{generation_id}/fail": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Fail Generation */
-        post: operations["fail_generation_internal_artifact_generations__generation_id__fail_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/artifact-generations/{generation_id}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Cancel Generation */
-        post: operations["cancel_generation_internal_artifact_generations__generation_id__cancel_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/artifact-generations/{generation_id}/plan": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Save Plan */
-        put: operations["save_plan_internal_artifact_generations__generation_id__plan_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/artifact-generations/{generation_id}/blocks/{block_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Save Block */
-        put: operations["save_block_internal_artifact_generations__generation_id__blocks__block_id__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/artifact-generations/{generation_id}/blocks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Ready Blocks */
-        get: operations["list_ready_blocks_internal_artifact_generations__generation_id__blocks_get"];
+        /** List Files */
+        get: operations["list_files_internal_files_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -517,15 +432,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/artifact-generations/documents/{document_id}/latest": {
+    "/internal/files/read": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Latest Workspace */
-        get: operations["get_latest_workspace_internal_artifact_generations_documents__document_id__latest_get"];
+        /** Read File */
+        get: operations["read_file_internal_files_read_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -534,7 +449,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/artifact-generations/{generation_id}/publish": {
+    "/internal/files/change-sets": {
         parameters: {
             query?: never;
             header?: never;
@@ -543,8 +458,94 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Publish Revision */
-        post: operations["publish_revision_internal_artifact_generations__generation_id__publish_post"];
+        /** Create Change Set */
+        post: operations["create_change_set_internal_files_change_sets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/files/change-sets/{change_set_id}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Change Set Files */
+        get: operations["list_change_set_files_internal_files_change_sets__change_set_id__files_get"];
+        /** Write Change Set File */
+        put: operations["write_change_set_file_internal_files_change_sets__change_set_id__files_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/files/change-sets/{change_set_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Change Set File */
+        get: operations["read_change_set_file_internal_files_change_sets__change_set_id__read_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/files/change-sets/{change_set_id}/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Promote Change Set */
+        post: operations["promote_change_set_internal_files_change_sets__change_set_id__promote_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/files/change-sets/{change_set_id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discard Change Set */
+        post: operations["discard_change_set_internal_files_change_sets__change_set_id__discard_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/files/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Search Files */
+        post: operations["search_files_internal_files_search_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -589,47 +590,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** ArtifactBlockPlan */
-        ArtifactBlockPlan: {
-            /** Id */
-            id: string;
-            /** Type */
-            type: string;
-            /** Source Version Id */
-            source_version_id?: string | null;
-        };
-        /** ArtifactGeneration */
-        ArtifactGeneration: {
-            /** Id */
-            id: string;
-            /** Document Id */
-            document_id: string;
-            /** Status */
-            status: string;
-            /** Total Blocks */
-            total_blocks: number;
-            /** Completed Blocks */
-            completed_blocks: number;
-            /** Failed Blocks */
-            failed_blocks: number;
-            /** Error */
-            error: string | null;
-            /** Finished At */
-            finished_at: string | null;
-        };
-        /** ArtifactRevisionWorkspace */
-        ArtifactRevisionWorkspace: {
-            /** Document Id */
-            document_id: string;
-            /** Revision Id */
-            revision_id: string;
-            /** Manifest */
-            manifest: {
-                [key: string]: unknown;
-            };
-            /** Blocks */
-            blocks: components["schemas"]["StoredArtifactBlock"][];
-        };
         /** BatchDeleteInput */
         BatchDeleteInput: {
             /** Ids */
@@ -653,10 +613,14 @@ export interface components {
             /** Provider Id */
             provider_id?: string | null;
         };
-        /** CancelArtifactGenerationInput */
-        CancelArtifactGenerationInput: {
-            /** User Id */
-            user_id: string;
+        /** ChangeSet */
+        ChangeSet: {
+            /** Id */
+            id: string;
+            /** Status */
+            status: string;
+            /** Conversation Id */
+            conversation_id: string;
         };
         /** CleanupConversationArtifactsInput */
         CleanupConversationArtifactsInput: {
@@ -700,6 +664,19 @@ export interface components {
             mime_type?: string | null;
             /** Idempotency Key */
             idempotency_key?: string | null;
+        };
+        /** CreateChangeSetInput */
+        CreateChangeSetInput: {
+            /** User Id */
+            user_id: string;
+            /** Org Id */
+            org_id: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: string;
+            } | null;
         };
         /**
          * CreateMediaDocumentInput
@@ -857,12 +834,79 @@ export interface components {
             /** Error */
             error?: string | null;
         };
-        /** FailArtifactGenerationInput */
-        FailArtifactGenerationInput: {
+        /** FileEntry */
+        FileEntry: {
+            /** Path */
+            path: string;
+            /**
+             * Type
+             * @default file
+             * @constant
+             */
+            type: "file";
+            /** Mime Type */
+            mime_type: string;
+            /** Size */
+            size: number;
+            /** Sha256 */
+            sha256: string;
+            /** Writable */
+            writable: boolean;
+            /** Derived */
+            derived: boolean;
+        };
+        /** FileRead */
+        FileRead: {
+            /** Path */
+            path: string;
+            /**
+             * Type
+             * @default file
+             * @constant
+             */
+            type: "file";
+            /** Mime Type */
+            mime_type: string;
+            /** Size */
+            size: number;
+            /** Sha256 */
+            sha256: string;
+            /** Writable */
+            writable: boolean;
+            /** Derived */
+            derived: boolean;
+            /** Offset */
+            offset: number;
+            /** Total Lines */
+            total_lines: number;
+            /** Next Offset */
+            next_offset: number | null;
+            /** Content */
+            content: string;
+        };
+        /** FileSearchInput */
+        FileSearchInput: {
             /** User Id */
             user_id: string;
-            /** Error */
-            error?: string | null;
+            /** Conversation Id */
+            conversation_id: string;
+            /** Pattern */
+            pattern: string;
+            /** Path */
+            path?: string | null;
+            /** Glob */
+            glob?: string | null;
+        };
+        /** FileSearchMatch */
+        FileSearchMatch: {
+            /** Path */
+            path: string;
+            /** Line */
+            line: number;
+            /** Column */
+            column: number;
+            /** Text */
+            text: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -897,61 +941,10 @@ export interface components {
             /** Failed */
             failed?: components["schemas"]["IngestFailure"][];
         };
-        /** PublishArtifactRevisionInput */
-        PublishArtifactRevisionInput: {
+        /** PromoteChangeSetInput */
+        PromoteChangeSetInput: {
             /** User Id */
             user_id: string;
-            /** Org Id */
-            org_id: string;
-            /** Compiled Html */
-            compiled_html: string;
-            /** Expected Object Sha256 */
-            expected_object_sha256?: string | null;
-        };
-        /** PublishedArtifactRevision */
-        PublishedArtifactRevision: {
-            /** Document Id */
-            document_id: string;
-            /** Revision Id */
-            revision_id: string;
-            /** Title */
-            title: string;
-            /** Filename */
-            filename: string;
-            /**
-             * Mime Type
-             * @default text/html
-             */
-            mime_type: string;
-            /** Total Chars */
-            total_chars: number;
-        };
-        /** ReserveArtifactGenerationInput */
-        ReserveArtifactGenerationInput: {
-            /** User Id */
-            user_id: string;
-            /** Org Id */
-            org_id: string;
-            /** Conversation Id */
-            conversation_id?: string | null;
-            /** Title */
-            title: string;
-            /** Filename */
-            filename: string;
-            /**
-             * Mode
-             * @default document
-             * @enum {string}
-             */
-            mode: "document" | "presentation" | "dashboard";
-            /** Brief */
-            brief: string;
-            /** Idempotency Key */
-            idempotency_key: string;
-            /** Document Id */
-            document_id?: string | null;
-            /** Base Revision Id */
-            base_revision_id?: string | null;
         };
         /** RetrieveInput */
         RetrieveInput: {
@@ -987,29 +980,6 @@ export interface components {
             title: string;
             /** Filename */
             filename: string;
-        };
-        /** SaveArtifactBlockInput */
-        SaveArtifactBlockInput: {
-            /** User Id */
-            user_id: string;
-            /** Content */
-            content: string;
-            /**
-             * Failed
-             * @default false
-             */
-            failed: boolean;
-        };
-        /** SaveArtifactPlanInput */
-        SaveArtifactPlanInput: {
-            /** User Id */
-            user_id: string;
-            /** Manifest */
-            manifest: {
-                [key: string]: unknown;
-            };
-            /** Blocks */
-            blocks: components["schemas"]["ArtifactBlockPlan"][];
         };
         /** StagedMedia */
         StagedMedia: {
@@ -1050,21 +1020,6 @@ export interface components {
             /** Org Id */
             org_id: string;
         };
-        /** StoredArtifactBlock */
-        StoredArtifactBlock: {
-            /** Id */
-            id: string;
-            /** Version Id */
-            version_id: string;
-            /** Type */
-            type: string;
-            /** Position */
-            position: number;
-            /** Content Sha256 */
-            content_sha256: string;
-            /** Content */
-            content: string;
-        };
         /** UpdateArtifactInput */
         UpdateArtifactInput: {
             /** User Id */
@@ -1099,6 +1054,27 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WriteChangeSetFileInput */
+        WriteChangeSetFileInput: {
+            /** User Id */
+            user_id: string;
+            /** Path */
+            path: string;
+            /** Content */
+            content: string;
+            /** Mime Type */
+            mime_type: string;
+            /**
+             * Writable
+             * @default true
+             */
+            writable: boolean;
+            /**
+             * Derived
+             * @default false
+             */
+            derived: boolean;
         };
     };
     responses: never;
@@ -2023,7 +1999,81 @@ export interface operations {
             };
         };
     };
-    reserve_generation_internal_artifact_generations_post: {
+    list_files_internal_files_get: {
+        parameters: {
+            query: {
+                user_id: string;
+                conversation_id: string;
+                path?: string | null;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileEntry"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_file_internal_files_read_get: {
+        parameters: {
+            query: {
+                user_id: string;
+                conversation_id: string;
+                path: string;
+                offset?: number;
+                limit?: number;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_change_set_internal_files_change_sets_post: {
         parameters: {
             query?: never;
             header?: {
@@ -2035,7 +2085,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ReserveArtifactGenerationInput"];
+                "application/json": components["schemas"]["CreateChangeSetInput"];
             };
         };
         responses: {
@@ -2045,7 +2095,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ArtifactGeneration"];
+                    "application/json": components["schemas"]["ChangeSet"];
                 };
             };
             /** @description Validation Error */
@@ -2059,160 +2109,7 @@ export interface operations {
             };
         };
     };
-    fail_generation_internal_artifact_generations__generation_id__fail_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Internal-Token"?: string | null;
-                "X-Caller-Service"?: string | null;
-            };
-            path: {
-                generation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FailArtifactGenerationInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ArtifactGeneration"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    cancel_generation_internal_artifact_generations__generation_id__cancel_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Internal-Token"?: string | null;
-                "X-Caller-Service"?: string | null;
-            };
-            path: {
-                generation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CancelArtifactGenerationInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ArtifactGeneration"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    save_plan_internal_artifact_generations__generation_id__plan_put: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Internal-Token"?: string | null;
-                "X-Caller-Service"?: string | null;
-            };
-            path: {
-                generation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SaveArtifactPlanInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ArtifactGeneration"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    save_block_internal_artifact_generations__generation_id__blocks__block_id__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Internal-Token"?: string | null;
-                "X-Caller-Service"?: string | null;
-            };
-            path: {
-                generation_id: string;
-                block_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SaveArtifactBlockInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ArtifactGeneration"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_ready_blocks_internal_artifact_generations__generation_id__blocks_get: {
+    list_change_set_files_internal_files_change_sets__change_set_id__files_get: {
         parameters: {
             query: {
                 user_id: string;
@@ -2222,7 +2119,7 @@ export interface operations {
                 "X-Caller-Service"?: string | null;
             };
             path: {
-                generation_id: string;
+                change_set_id: string;
             };
             cookie?: never;
         };
@@ -2234,7 +2131,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StoredArtifactBlock"][];
+                    "application/json": components["schemas"]["FileEntry"][];
                 };
             };
             /** @description Validation Error */
@@ -2248,17 +2145,58 @@ export interface operations {
             };
         };
     };
-    get_latest_workspace_internal_artifact_generations_documents__document_id__latest_get: {
+    write_change_set_file_internal_files_change_sets__change_set_id__files_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path: {
+                change_set_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteChangeSetFileInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileEntry"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_change_set_file_internal_files_change_sets__change_set_id__read_get: {
         parameters: {
             query: {
                 user_id: string;
+                path: string;
+                offset?: number;
+                limit?: number;
             };
             header?: {
                 "X-Internal-Token"?: string | null;
                 "X-Caller-Service"?: string | null;
             };
             path: {
-                document_id: string;
+                change_set_id: string;
             };
             cookie?: never;
         };
@@ -2270,7 +2208,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ArtifactRevisionWorkspace"];
+                    "application/json": components["schemas"]["FileRead"];
                 };
             };
             /** @description Validation Error */
@@ -2284,7 +2222,7 @@ export interface operations {
             };
         };
     };
-    publish_revision_internal_artifact_generations__generation_id__publish_post: {
+    promote_change_set_internal_files_change_sets__change_set_id__promote_post: {
         parameters: {
             query?: never;
             header?: {
@@ -2292,13 +2230,13 @@ export interface operations {
                 "X-Caller-Service"?: string | null;
             };
             path: {
-                generation_id: string;
+                change_set_id: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PublishArtifactRevisionInput"];
+                "application/json": components["schemas"]["PromoteChangeSetInput"];
             };
         };
         responses: {
@@ -2308,7 +2246,81 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PublishedArtifactRevision"];
+                    "application/json": components["schemas"]["FileEntry"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discard_change_set_internal_files_change_sets__change_set_id__discard_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path: {
+                change_set_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromoteChangeSetInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangeSet"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_files_internal_files_search_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileSearchInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileSearchMatch"][];
                 };
             };
             /** @description Validation Error */

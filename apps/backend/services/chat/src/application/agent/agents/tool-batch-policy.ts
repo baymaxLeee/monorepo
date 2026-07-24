@@ -10,7 +10,7 @@ type SkillBarrierSide = "load-skill" | "ordinary";
 
 function exclusivePlanToolKind(mode: AgentMode, toolName: string): ExclusivePlanToolKind | null {
   if (toolName === "ask_user") return "ask-user";
-  return mode === "plan" && toolName === "write_markdown" ? "plan-write" : null;
+  return mode === "plan" && toolName === "write_file" ? "plan-write" : null;
 }
 
 function createBatchFilter(mode: AgentMode) {

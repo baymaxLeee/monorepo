@@ -13,12 +13,12 @@ data:
   # lives in the Secret below, not here.
   WORKFLOW_TARGET_WORLD: "@workflow/world-postgres"
   # Workflow World step concurrency (per process/replica, shared by all task
-  # types and every "use step"). Raised from the default 10 so html-artifact
-  # block fan-out (HTML_BLOCK_CONCURRENCY) plus video + progress steps have
+  # types and every "use step"). Raised from the default 10 so delegated file
+  # fan-out (FILE_TASK_CONCURRENCY) plus video + progress steps have
   # headroom; maxPoolSize follows Graphile's "queueConcurrency + 2" guidance.
   WORKFLOW_POSTGRES_WORKER_CONCURRENCY: "20"
   WORKFLOW_POSTGRES_MAX_POOL_SIZE: "24"
-  # Per-workflow-run concurrent HTML block generations (clamped 1..32 in code).
-  HTML_BLOCK_CONCURRENCY: "8"
+  # Per-workflow-run concurrent delegated file generations (clamped 1..32 in code).
+  FILE_TASK_CONCURRENCY: "8"
   ADMIN_SERVICE_URL: "http://admin:8001"
   KNOWLEDGE_SERVICE_URL: "http://knowledge:8010"

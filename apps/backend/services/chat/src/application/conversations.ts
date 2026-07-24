@@ -15,6 +15,7 @@ import {
   getDocument,
   getDocumentSource,
   listDocuments,
+  readVirtualFile,
   updateArtifact,
   type KnowledgeDocument,
 } from "../infrastructure/clients/knowledge.js";
@@ -27,7 +28,7 @@ export interface Conversation {
   title: string;
   model: string;
   provider_id: string;
-  active_plan_document_id: string | null;
+  active_plan_path: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -87,6 +88,18 @@ export interface ConversationDocumentDetail extends ConversationDocument {
   content_md: string;
 }
 
+export interface ConversationFileDetail {
+  path: string;
+  title: string;
+  filename: string;
+  mime_type: string;
+  size: number | null;
+  sha256: string;
+  writable: boolean;
+  derived: boolean;
+  content: string;
+}
+
 export interface ConversationDetail extends Conversation {
   messages: Message[];
   documents: ConversationDocument[];
@@ -106,7 +119,7 @@ function toConversation(row: typeof conversations.$inferSelect): Conversation {
     title: row.title,
     model: row.model,
     provider_id: row.providerId,
-    active_plan_document_id: row.activePlanDocumentId,
+    active_plan_path: row.activePlanPath,
     created_at: iso(row.createdAt),
     updated_at: iso(row.updatedAt),
   };
@@ -202,13 +215,13 @@ export async function updateConversation(
   return toConversation(updated!);
 }
 
-export async function setActivePlanDocument(
+export async function setActivePlanPath(
   conversationId: string,
-  documentId: string,
+  path: string,
 ): Promise<void> {
   await getDb()
     .update(conversations)
-    .set({ activePlanDocumentId: documentId, updatedAt: new Date() })
+    .set({ activePlanPath: path, updatedAt: new Date() })
     .where(eq(conversations.id, conversationId));
 }
 
@@ -254,6 +267,42 @@ export async function getConversationDocument(
   return {
     ...mapKnowledgeDocument(doc, conversationId),
     content_md: doc.content_md ?? "",
+  };
+}
+
+export async function getConversationFile(
+  auth: AuthContext,
+  conversationId: string,
+  path: string,
+): Promise<ConversationFileDetail> {
+  const conversation = await getConversationRow(auth, conversationId);
+  let offset = 1;
+  let first: Awaited<ReturnType<typeof readVirtualFile>> | null = null;
+  const chunks: string[] = [];
+  while (true) {
+    const slice = await readVirtualFile({
+      userId: conversation.userId,
+      conversationId,
+      path,
+      offset,
+      limit: 400,
+    });
+    first ??= slice;
+    chunks.push(slice.content);
+    if (slice.next_offset === null) break;
+    offset = slice.next_offset;
+  }
+  if (!first) throw new NotFoundError(`file ${path} not found in conversation ${conversationId}`);
+  return {
+    path: first.path,
+    title: first.path.split("/").at(-1) ?? first.path,
+    filename: first.path,
+    mime_type: first.mime_type,
+    size: first.size,
+    sha256: first.sha256,
+    writable: first.writable,
+    derived: first.derived,
+    content: chunks.join("\n"),
   };
 }
 

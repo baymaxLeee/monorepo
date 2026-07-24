@@ -4,20 +4,19 @@ import type { ChatProvider } from "@backend/transport-ts/provider-model";
 
 import type { AgentMode } from "../../agents/types.js";
 import {
-  getDocument,
-  getDocumentSource,
-  getDocumentSlice,
-  listDocuments,
+  listVirtualFiles,
+  readVirtualFile,
+  searchVirtualFiles,
 } from "../../../../infrastructure/clients/knowledge.js";
 import { fileToolContextSchema, type FileToolContext } from "../context.js";
 import { defineAgentTool } from "../manifest.js";
-import { toolBlocked, ToolBlockedError, type ToolEmission } from "../outcome.js";
+import type { ToolEmission } from "../outcome.js";
 import { createFileWriteToolManifests } from "./file-writes.js";
 
 const listFilesOutputSchema = z.object({
   files: z.array(
     z.object({
-      id: z.string(),
+      path: z.string(),
       title: z.string(),
       filename: z.string(),
       kind: z.string(),
@@ -25,127 +24,104 @@ const listFilesOutputSchema = z.object({
       size: z.number().nullable(),
       status: z.string(),
       updated_at: z.string(),
+      writable: z.boolean(),
+      derived: z.boolean(),
     }),
   ),
 });
 
 const readFileOutputSchema = z.object({
-  file_id: z.string(),
+  path: z.string(),
   title: z.string(),
   filename: z.string(),
   mime_type: z.string(),
   offset: z.number(),
-  total_chars: z.number(),
+  total_lines: z.number(),
   next_offset: z.number().nullable(),
+  sha256: z.string(),
   content: z.string(),
   untrusted: z.boolean(),
 });
 
-// The document is referenceable at upload (ingest_status="received"); the heavy
-// MarkItDown/vision convert then runs in the background. When the model reads a
-// just-uploaded file we long-poll the slice endpoint for this long so a single
-// tool call returns the content once convert finishes, instead of the model
-// having to give up and retry.
-const READ_FILE_CONVERT_WAIT_MS = 60_000;
+const searchFilesOutputSchema = z.object({
+  matches: z.array(z.object({ path: z.string(), line: z.number(), column: z.number(), text: z.string() })),
+  truncated: z.boolean(),
+});
 
-async function listFiles(_input: {}, { context }: { context: FileToolContext }) {
-  const rows = await listDocuments(context.userId, context.conversationId);
+async function listFiles(
+  input: { path?: string },
+  { context }: { context: FileToolContext },
+) {
+  const rows = await listVirtualFiles(context.userId, context.conversationId, input.path);
   return {
-    files: rows.map((row) => ({
-      id: row.id,
-      title: row.title,
-      filename: row.filename,
-      kind: row.kind,
+    files: rows
+      .filter((row) => !input.path || row.path.startsWith(`${input.path.replace(/\/+$/, "")}/`))
+      .map((row) => ({
+      path: row.path,
+      title: row.path.split("/").at(-1) ?? row.path,
+      filename: row.path,
+      kind: row.derived ? "derived" : "text",
       mime_type: row.mime_type,
-      size: row.source_size,
-      status: row.ingest_status,
-      updated_at: row.updated_at,
+      size: row.size,
+      status: row.writable ? "ready" : "readonly",
+      updated_at: "",
+      writable: row.writable,
+      derived: row.derived,
     })),
   };
 }
 
 async function readFile(
-  input: { file_id: string; offset: number; max_chars: number },
+  input: { path: string; offset: number; limit: number },
   { context }: { context: FileToolContext },
 ): Promise<z.infer<typeof readFileOutputSchema> | ToolEmission> {
-  const document = await getDocument(context.userId, input.file_id);
-  if (document.conversation_id !== context.conversationId) {
-    throw new ToolBlockedError({
-      code: "FILE_NOT_ATTACHED",
-      message: `file ${input.file_id} is not attached to this conversation`,
-      retryable: false,
-      source: "knowledge",
-      details: { file_id: input.file_id },
-    });
-  }
-  if (
-    document.kind === "artifact" &&
-    document.object_key &&
-    document.mime_type.startsWith("text/")
-  ) {
-    const source = await getDocumentSource(context.userId, input.file_id);
-    const content = new TextDecoder().decode(source.bytes);
-    const chunk = content.slice(input.offset, input.offset + input.max_chars);
-    const nextOffset =
-      input.offset + chunk.length < content.length
-        ? input.offset + chunk.length
-        : null;
-    return {
-      file_id: document.id,
-      title: document.title,
-      filename: document.filename,
-      mime_type: source.mimeType,
-      offset: input.offset,
-      total_chars: content.length,
-      next_offset: nextOffset,
-      content: chunk,
-      untrusted: false,
-    };
-  }
-  const alreadyConverted = Boolean(document.content_md) || document.ingest_status === "ready";
-  const slice = await getDocumentSlice(
-    context.userId,
-    input.file_id,
-    input.offset,
-    input.max_chars,
-    alreadyConverted ? 0 : READ_FILE_CONVERT_WAIT_MS,
-  );
-  if (slice.state === "processing") {
-    return toolBlocked({
-      code: "FILE_PROCESSING",
-      message:
-        "file received but still being processed (converting); tell the user it is not readable yet and retry read_file shortly",
-      retryable: true,
-      source: "knowledge",
-      details: { file_id: document.id, filename: document.filename },
-    });
-  }
-  if (slice.state === "failed") {
-    throw Object.assign(new Error(slice.error ?? "file conversion failed"), {
-      code: "FILE_CONVERSION_FAILED",
-      details: { file_id: document.id, filename: document.filename },
-    });
-  }
+  const slice = await readVirtualFile({
+    userId: context.userId,
+    conversationId: context.conversationId,
+    path: input.path,
+    offset: input.offset,
+    limit: input.limit,
+  });
   return {
-    file_id: document.id,
-    title: slice.title,
-    filename: slice.filename,
+    path: slice.path,
+    title: slice.path.split("/").at(-1) ?? slice.path,
+    filename: slice.path,
     mime_type: slice.mime_type,
-    offset: slice.start,
-    total_chars: slice.total_chars,
-    next_offset: slice.next_start ?? null,
+    offset: slice.offset,
+    total_lines: slice.total_lines,
+    next_offset: slice.next_offset,
+    sha256: slice.sha256,
     content: slice.content,
-    untrusted: document.kind === "source",
+    untrusted: input.path.startsWith("sources/"),
   };
 }
 
-export function createFileToolManifests(mode: AgentMode, textProvider: ChatProvider) {
+async function searchFiles(
+  input: { pattern: string; path?: string; glob?: string },
+  { context }: { context: FileToolContext },
+): Promise<z.infer<typeof searchFilesOutputSchema>> {
+  const matches = await searchVirtualFiles({
+    userId: context.userId,
+    conversationId: context.conversationId,
+    pattern: input.pattern,
+    path: input.path,
+    glob: input.glob,
+  });
+  return { matches, truncated: matches.length >= 200 };
+}
+
+export function createFileToolManifests(
+  mode: AgentMode,
+  textProvider: ChatProvider,
+) {
   return [
     defineAgentTool(
       "list_files",
       tool({
         description: "List files attached to the current conversation, including generated artifacts.",
-        inputSchema: z.object({}),
+        inputSchema: z.object({
+          path: z.string().min(1).max(512).optional(),
+        }),
         outputSchema: listFilesOutputSchema,
         contextSchema: fileToolContextSchema,
         execute: listFiles,
@@ -164,15 +140,9 @@ export function createFileToolManifests(mode: AgentMode, textProvider: ChatProvi
       tool({
         description: "Read a bounded slice of a conversation file. Continue from next_offset when present.",
         inputSchema: z.object({
-          file_id: z.string().min(1).max(32),
-          offset: z.number().int().min(0).default(0),
-          max_chars: z
-            .number()
-            .int()
-            .min(1)
-            .default(8_000)
-            .transform((value) => Math.min(value, 8_000))
-            .describe("Maximum characters to return; values above 8000 are clamped."),
+          path: z.string().min(1).max(512),
+          offset: z.number().int().min(1).default(1),
+          limit: z.number().int().min(1).max(400).default(200),
         }),
         outputSchema: readFileOutputSchema,
         contextSchema: fileToolContextSchema,
@@ -186,6 +156,28 @@ export function createFileToolManifests(mode: AgentMode, textProvider: ChatProvi
         modes: ["normal", "plan"],
       },
       { summary: "Read bounded slices of a conversation file." },
+    ),
+    defineAgentTool(
+      "search_files",
+      tool({
+        description: "Search attached text files with a bounded regular expression scan.",
+        inputSchema: z.object({
+          pattern: z.string().min(1).max(500),
+          path: z.string().min(1).max(512).optional(),
+          glob: z.string().max(120).optional(),
+        }),
+        outputSchema: searchFilesOutputSchema,
+        contextSchema: fileToolContextSchema,
+        execute: searchFiles,
+      }),
+      {
+        capability: "files",
+        effect: "read",
+        trust: "private-untrusted",
+        execution: "inline",
+        modes: ["normal", "plan"],
+      },
+      { summary: "Search attached text files by regular expression." },
     ),
     ...createFileWriteToolManifests(mode, textProvider),
   ];

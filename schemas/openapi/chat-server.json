@@ -244,6 +244,80 @@
         }
       }
     },
+    "/conversations/{conversation_id}/files/detail": {
+      "get": {
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "conversation virtual file detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationFile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "file not found"
+          }
+        }
+      }
+    },
+    "/conversations/{conversation_id}/files/source": {
+      "get": {
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "conversation virtual file content",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "file not found"
+          }
+        }
+      }
+    },
     "/conversations/{conversation_id}/agents/runs/{run_id}/trace": {
       "get": {
         "parameters": [
@@ -314,7 +388,7 @@
     },
     "/conversations/{conversation_id}/tasks/{task_id}": {
       "get": {
-        "summary": "Proxy to the executor service's task status (see write_html/edit_file tool output task_id).",
+        "summary": "Proxy to the executor service's task status (see delegate_tasks tool output task_id).",
         "parameters": [
           {
             "name": "conversation_id",
@@ -688,6 +762,50 @@
             "type": "boolean"
           },
           "status": {
+            "type": "string"
+          }
+        }
+      },
+      "ConversationFile": {
+        "type": "object",
+        "required": [
+          "path",
+          "title",
+          "filename",
+          "mime_type",
+          "size",
+          "sha256",
+          "writable",
+          "derived",
+          "content"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "mime_type": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "nullable": true
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "writable": {
+            "type": "boolean"
+          },
+          "derived": {
+            "type": "boolean"
+          },
+          "content": {
             "type": "string"
           }
         }

@@ -2384,13 +2384,231 @@
         }
       }
     },
-    "/internal/artifact-generations": {
+    "/internal/files": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "List Files",
+        "operationId": "list_files_internal_files_get",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "conversation_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Path"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FileEntry"
+                  },
+                  "title": "Response List Files Internal Files Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/files/read": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Read File",
+        "operationId": "read_file_internal_files_read_get",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "conversation_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 400,
+              "minimum": 1,
+              "default": 200,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/files/change-sets": {
       "post": {
         "tags": [
-          "artifact-generations"
+          "files"
         ],
-        "summary": "Reserve Generation",
-        "operationId": "reserve_generation_internal_artifact_generations_post",
+        "summary": "Create Change Set",
+        "operationId": "create_change_set_internal_files_change_sets_post",
         "parameters": [
           {
             "name": "X-Internal-Token",
@@ -2430,7 +2648,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReserveArtifactGenerationInput"
+                "$ref": "#/components/schemas/CreateChangeSetInput"
               }
             }
           }
@@ -2441,7 +2659,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ArtifactGeneration"
+                  "$ref": "#/components/schemas/ChangeSet"
                 }
               }
             }
@@ -2459,189 +2677,21 @@
         }
       }
     },
-    "/internal/artifact-generations/{generation_id}/fail": {
-      "post": {
-        "tags": [
-          "artifact-generations"
-        ],
-        "summary": "Fail Generation",
-        "operationId": "fail_generation_internal_artifact_generations__generation_id__fail_post",
-        "parameters": [
-          {
-            "name": "generation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Generation Id"
-            }
-          },
-          {
-            "name": "X-Internal-Token",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Internal-Token"
-            }
-          },
-          {
-            "name": "X-Caller-Service",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Caller-Service"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FailArtifactGenerationInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ArtifactGeneration"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/internal/artifact-generations/{generation_id}/cancel": {
-      "post": {
-        "tags": [
-          "artifact-generations"
-        ],
-        "summary": "Cancel Generation",
-        "operationId": "cancel_generation_internal_artifact_generations__generation_id__cancel_post",
-        "parameters": [
-          {
-            "name": "generation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Generation Id"
-            }
-          },
-          {
-            "name": "X-Internal-Token",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Internal-Token"
-            }
-          },
-          {
-            "name": "X-Caller-Service",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Caller-Service"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CancelArtifactGenerationInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ArtifactGeneration"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/internal/artifact-generations/{generation_id}/plan": {
+    "/internal/files/change-sets/{change_set_id}/files": {
       "put": {
         "tags": [
-          "artifact-generations"
+          "files"
         ],
-        "summary": "Save Plan",
-        "operationId": "save_plan_internal_artifact_generations__generation_id__plan_put",
+        "summary": "Write Change Set File",
+        "operationId": "write_change_set_file_internal_files_change_sets__change_set_id__files_put",
         "parameters": [
           {
-            "name": "generation_id",
+            "name": "change_set_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Generation Id"
+              "title": "Change Set Id"
             }
           },
           {
@@ -2682,7 +2732,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SaveArtifactPlanInput"
+                "$ref": "#/components/schemas/WriteChangeSetFileInput"
               }
             }
           }
@@ -2693,7 +2743,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ArtifactGeneration"
+                  "$ref": "#/components/schemas/FileEntry"
                 }
               }
             }
@@ -2709,116 +2759,21 @@
             }
           }
         }
-      }
-    },
-    "/internal/artifact-generations/{generation_id}/blocks/{block_id}": {
-      "put": {
-        "tags": [
-          "artifact-generations"
-        ],
-        "summary": "Save Block",
-        "operationId": "save_block_internal_artifact_generations__generation_id__blocks__block_id__put",
-        "parameters": [
-          {
-            "name": "generation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Generation Id"
-            }
-          },
-          {
-            "name": "block_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Block Id"
-            }
-          },
-          {
-            "name": "X-Internal-Token",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Internal-Token"
-            }
-          },
-          {
-            "name": "X-Caller-Service",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Caller-Service"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SaveArtifactBlockInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ArtifactGeneration"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/internal/artifact-generations/{generation_id}/blocks": {
+      },
       "get": {
         "tags": [
-          "artifact-generations"
+          "files"
         ],
-        "summary": "List Ready Blocks",
-        "operationId": "list_ready_blocks_internal_artifact_generations__generation_id__blocks_get",
+        "summary": "List Change Set Files",
+        "operationId": "list_change_set_files_internal_files_change_sets__change_set_id__files_get",
         "parameters": [
           {
-            "name": "generation_id",
+            "name": "change_set_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Generation Id"
+              "title": "Change Set Id"
             }
           },
           {
@@ -2871,9 +2826,9 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/StoredArtifactBlock"
+                    "$ref": "#/components/schemas/FileEntry"
                   },
-                  "title": "Response List Ready Blocks Internal Artifact Generations  Generation Id  Blocks Get"
+                  "title": "Response List Change Set Files Internal Files Change Sets  Change Set Id  Files Get"
                 }
               }
             }
@@ -2891,21 +2846,21 @@
         }
       }
     },
-    "/internal/artifact-generations/documents/{document_id}/latest": {
+    "/internal/files/change-sets/{change_set_id}/read": {
       "get": {
         "tags": [
-          "artifact-generations"
+          "files"
         ],
-        "summary": "Get Latest Workspace",
-        "operationId": "get_latest_workspace_internal_artifact_generations_documents__document_id__latest_get",
+        "summary": "Read Change Set File",
+        "operationId": "read_change_set_file_internal_files_change_sets__change_set_id__read_get",
         "parameters": [
           {
-            "name": "document_id",
+            "name": "change_set_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Document Id"
+              "title": "Change Set Id"
             }
           },
           {
@@ -2915,6 +2870,38 @@
             "schema": {
               "type": "string",
               "title": "User Id"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 400,
+              "minimum": 1,
+              "default": 400,
+              "title": "Limit"
             }
           },
           {
@@ -2956,7 +2943,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ArtifactRevisionWorkspace"
+                  "$ref": "#/components/schemas/FileRead"
                 }
               }
             }
@@ -2974,21 +2961,21 @@
         }
       }
     },
-    "/internal/artifact-generations/{generation_id}/publish": {
+    "/internal/files/change-sets/{change_set_id}/promote": {
       "post": {
         "tags": [
-          "artifact-generations"
+          "files"
         ],
-        "summary": "Publish Revision",
-        "operationId": "publish_revision_internal_artifact_generations__generation_id__publish_post",
+        "summary": "Promote Change Set",
+        "operationId": "promote_change_set_internal_files_change_sets__change_set_id__promote_post",
         "parameters": [
           {
-            "name": "generation_id",
+            "name": "change_set_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Generation Id"
+              "title": "Change Set Id"
             }
           },
           {
@@ -3029,7 +3016,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PublishArtifactRevisionInput"
+                "$ref": "#/components/schemas/PromoteChangeSetInput"
               }
             }
           }
@@ -3040,7 +3027,174 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PublishedArtifactRevision"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FileEntry"
+                  },
+                  "title": "Response Promote Change Set Internal Files Change Sets  Change Set Id  Promote Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/files/change-sets/{change_set_id}/discard": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Discard Change Set",
+        "operationId": "discard_change_set_internal_files_change_sets__change_set_id__discard_post",
+        "parameters": [
+          {
+            "name": "change_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Change Set Id"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoteChangeSetInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeSet"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/files/search": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Search Files",
+        "operationId": "search_files_internal_files_search_post",
+        "parameters": [
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileSearchInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FileSearchMatch"
+                  },
+                  "title": "Response Search Files Internal Files Search Post"
                 }
               }
             }
@@ -3211,135 +3365,6 @@
   },
   "components": {
     "schemas": {
-      "ArtifactBlockPlan": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "maxLength": 80,
-            "minLength": 1,
-            "pattern": "^[A-Za-z0-9_-]+$",
-            "title": "Id"
-          },
-          "type": {
-            "type": "string",
-            "maxLength": 40,
-            "minLength": 1,
-            "title": "Type"
-          },
-          "source_version_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 32
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Version Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "type"
-        ],
-        "title": "ArtifactBlockPlan"
-      },
-      "ArtifactGeneration": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "document_id": {
-            "type": "string",
-            "title": "Document Id"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "total_blocks": {
-            "type": "integer",
-            "title": "Total Blocks"
-          },
-          "completed_blocks": {
-            "type": "integer",
-            "title": "Completed Blocks"
-          },
-          "failed_blocks": {
-            "type": "integer",
-            "title": "Failed Blocks"
-          },
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
-          },
-          "finished_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Finished At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "document_id",
-          "status",
-          "total_blocks",
-          "completed_blocks",
-          "failed_blocks",
-          "error",
-          "finished_at"
-        ],
-        "title": "ArtifactGeneration"
-      },
-      "ArtifactRevisionWorkspace": {
-        "properties": {
-          "document_id": {
-            "type": "string",
-            "title": "Document Id"
-          },
-          "revision_id": {
-            "type": "string",
-            "title": "Revision Id"
-          },
-          "manifest": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Manifest"
-          },
-          "blocks": {
-            "items": {
-              "$ref": "#/components/schemas/StoredArtifactBlock"
-            },
-            "type": "array",
-            "title": "Blocks"
-          }
-        },
-        "type": "object",
-        "required": [
-          "document_id",
-          "revision_id",
-          "manifest",
-          "blocks"
-        ],
-        "title": "ArtifactRevisionWorkspace"
-      },
       "BatchDeleteInput": {
         "properties": {
           "ids": {
@@ -3420,20 +3445,28 @@
         ],
         "title": "Body_ingest_ingest_post"
       },
-      "CancelArtifactGenerationInput": {
+      "ChangeSet": {
         "properties": {
-          "user_id": {
+          "id": {
             "type": "string",
-            "maxLength": 26,
-            "minLength": 1,
-            "title": "User Id"
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "conversation_id": {
+            "type": "string",
+            "title": "Conversation Id"
           }
         },
         "type": "object",
         "required": [
-          "user_id"
+          "id",
+          "status",
+          "conversation_id"
         ],
-        "title": "CancelArtifactGenerationInput"
+        "title": "ChangeSet"
       },
       "CleanupConversationArtifactsInput": {
         "properties": {
@@ -3580,6 +3613,49 @@
           "content"
         ],
         "title": "CreateArtifactInput"
+      },
+      "CreateChangeSetInput": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "User Id"
+          },
+          "org_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "Org Id"
+          },
+          "conversation_id": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Conversation Id"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "org_id",
+          "conversation_id"
+        ],
+        "title": "CreateChangeSetInput"
       },
       "CreateMediaDocumentInput": {
         "properties": {
@@ -4025,7 +4101,122 @@
         ],
         "title": "DocumentSlice"
       },
-      "FailArtifactGenerationInput": {
+      "FileEntry": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "type": {
+            "type": "string",
+            "const": "file",
+            "title": "Type",
+            "default": "file"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "writable": {
+            "type": "boolean",
+            "title": "Writable"
+          },
+          "derived": {
+            "type": "boolean",
+            "title": "Derived"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "mime_type",
+          "size",
+          "sha256",
+          "writable",
+          "derived"
+        ],
+        "title": "FileEntry"
+      },
+      "FileRead": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "type": {
+            "type": "string",
+            "const": "file",
+            "title": "Type",
+            "default": "file"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "writable": {
+            "type": "boolean",
+            "title": "Writable"
+          },
+          "derived": {
+            "type": "boolean",
+            "title": "Derived"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "total_lines": {
+            "type": "integer",
+            "title": "Total Lines"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Offset"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "mime_type",
+          "size",
+          "sha256",
+          "writable",
+          "derived",
+          "offset",
+          "total_lines",
+          "next_offset",
+          "content"
+        ],
+        "title": "FileRead"
+      },
+      "FileSearchInput": {
         "properties": {
           "user_id": {
             "type": "string",
@@ -4033,24 +4224,78 @@
             "minLength": 1,
             "title": "User Id"
           },
-          "error": {
+          "conversation_id": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Conversation Id"
+          },
+          "pattern": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Pattern"
+          },
+          "path": {
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 4000
+                "maxLength": 512
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Error"
+            "title": "Path"
+          },
+          "glob": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Glob"
           }
         },
         "type": "object",
         "required": [
-          "user_id"
+          "user_id",
+          "conversation_id",
+          "pattern"
         ],
-        "title": "FailArtifactGenerationInput"
+        "title": "FileSearchInput"
+      },
+      "FileSearchMatch": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "line": {
+            "type": "integer",
+            "title": "Line"
+          },
+          "column": {
+            "type": "integer",
+            "title": "Column"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "line",
+          "column",
+          "text"
+        ],
+        "title": "FileSearchMatch"
       },
       "HTTPValidationError": {
         "properties": {
@@ -4155,179 +4400,20 @@
         ],
         "title": "IngestResult"
       },
-      "PublishArtifactRevisionInput": {
+      "PromoteChangeSetInput": {
         "properties": {
           "user_id": {
             "type": "string",
             "maxLength": 26,
             "minLength": 1,
             "title": "User Id"
-          },
-          "org_id": {
-            "type": "string",
-            "maxLength": 26,
-            "minLength": 1,
-            "title": "Org Id"
-          },
-          "compiled_html": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Compiled Html"
-          },
-          "expected_object_sha256": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expected Object Sha256"
           }
         },
         "type": "object",
         "required": [
-          "user_id",
-          "org_id",
-          "compiled_html"
+          "user_id"
         ],
-        "title": "PublishArtifactRevisionInput"
-      },
-      "PublishedArtifactRevision": {
-        "properties": {
-          "document_id": {
-            "type": "string",
-            "title": "Document Id"
-          },
-          "revision_id": {
-            "type": "string",
-            "title": "Revision Id"
-          },
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "filename": {
-            "type": "string",
-            "title": "Filename"
-          },
-          "mime_type": {
-            "type": "string",
-            "title": "Mime Type",
-            "default": "text/html"
-          },
-          "total_chars": {
-            "type": "integer",
-            "title": "Total Chars"
-          }
-        },
-        "type": "object",
-        "required": [
-          "document_id",
-          "revision_id",
-          "title",
-          "filename",
-          "total_chars"
-        ],
-        "title": "PublishedArtifactRevision"
-      },
-      "ReserveArtifactGenerationInput": {
-        "properties": {
-          "user_id": {
-            "type": "string",
-            "maxLength": 26,
-            "minLength": 1,
-            "title": "User Id"
-          },
-          "org_id": {
-            "type": "string",
-            "maxLength": 26,
-            "minLength": 1,
-            "title": "Org Id"
-          },
-          "conversation_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 32
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Conversation Id"
-          },
-          "title": {
-            "type": "string",
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Title"
-          },
-          "filename": {
-            "type": "string",
-            "maxLength": 160,
-            "minLength": 1,
-            "title": "Filename"
-          },
-          "mode": {
-            "type": "string",
-            "enum": [
-              "document",
-              "presentation",
-              "dashboard"
-            ],
-            "title": "Mode",
-            "default": "document"
-          },
-          "brief": {
-            "type": "string",
-            "maxLength": 20000,
-            "minLength": 1,
-            "title": "Brief"
-          },
-          "idempotency_key": {
-            "type": "string",
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Idempotency Key"
-          },
-          "document_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 32
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Document Id"
-          },
-          "base_revision_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 32
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Revision Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "user_id",
-          "org_id",
-          "title",
-          "filename",
-          "brief",
-          "idempotency_key"
-        ],
-        "title": "ReserveArtifactGenerationInput"
+        "title": "PromoteChangeSetInput"
       },
       "RetrieveInput": {
         "properties": {
@@ -4441,63 +4527,6 @@
         ],
         "title": "RetrievedChunk"
       },
-      "SaveArtifactBlockInput": {
-        "properties": {
-          "user_id": {
-            "type": "string",
-            "maxLength": 26,
-            "minLength": 1,
-            "title": "User Id"
-          },
-          "content": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Content"
-          },
-          "failed": {
-            "type": "boolean",
-            "title": "Failed",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "user_id",
-          "content"
-        ],
-        "title": "SaveArtifactBlockInput"
-      },
-      "SaveArtifactPlanInput": {
-        "properties": {
-          "user_id": {
-            "type": "string",
-            "maxLength": 26,
-            "minLength": 1,
-            "title": "User Id"
-          },
-          "manifest": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Manifest"
-          },
-          "blocks": {
-            "items": {
-              "$ref": "#/components/schemas/ArtifactBlockPlan"
-            },
-            "type": "array",
-            "maxItems": 200,
-            "minItems": 1,
-            "title": "Blocks"
-          }
-        },
-        "type": "object",
-        "required": [
-          "user_id",
-          "manifest",
-          "blocks"
-        ],
-        "title": "SaveArtifactPlanInput"
-      },
       "StagedMedia": {
         "properties": {
           "id": {
@@ -4609,44 +4638,6 @@
           "org_id"
         ],
         "title": "StagedMediaActionInput"
-      },
-      "StoredArtifactBlock": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "version_id": {
-            "type": "string",
-            "title": "Version Id"
-          },
-          "type": {
-            "type": "string",
-            "title": "Type"
-          },
-          "position": {
-            "type": "integer",
-            "title": "Position"
-          },
-          "content_sha256": {
-            "type": "string",
-            "title": "Content Sha256"
-          },
-          "content": {
-            "type": "string",
-            "title": "Content"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "version_id",
-          "type",
-          "position",
-          "content_sha256",
-          "content"
-        ],
-        "title": "StoredArtifactBlock"
       },
       "UpdateArtifactInput": {
         "properties": {
@@ -4796,6 +4787,51 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WriteChangeSetFileInput": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "User Id"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Path"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 500000,
+            "title": "Content"
+          },
+          "mime_type": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Mime Type"
+          },
+          "writable": {
+            "type": "boolean",
+            "title": "Writable",
+            "default": true
+          },
+          "derived": {
+            "type": "boolean",
+            "title": "Derived",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "path",
+          "content",
+          "mime_type"
+        ],
+        "title": "WriteChangeSetFileInput"
       }
     }
   }

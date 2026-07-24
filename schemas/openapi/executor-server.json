@@ -28,7 +28,7 @@
                     "type": "object",
                     "properties": {
                       "type": {
-                        "const": "html-artifact"
+                        "const": "file-task-batch"
                       },
                       "owner_service": {
                         "type": "string",
@@ -39,7 +39,7 @@
                         "description": "idempotency key scoped to owner_service"
                       },
                       "payload": {
-                        "$ref": "#/components/schemas/HtmlArtifactTaskPayload"
+                        "$ref": "#/components/schemas/FileTaskBatchPayload"
                       }
                     },
                     "required": [
@@ -786,7 +786,7 @@
             "type": "object",
             "properties": {
               "type": {
-                "const": "html-artifact"
+                "const": "file-task-batch"
               },
               "owner_service": {
                 "type": "string",
@@ -797,7 +797,7 @@
                 "description": "idempotency key scoped to owner_service"
               },
               "payload": {
-                "$ref": "#/components/schemas/HtmlArtifactTaskPayload"
+                "$ref": "#/components/schemas/FileTaskBatchPayload"
               }
             },
             "required": [
@@ -837,7 +837,7 @@
           "propertyName": "type"
         }
       },
-      "HtmlArtifactTaskPayload": {
+      "FileTaskBatchPayload": {
         "type": "object",
         "properties": {
           "orgId": {
@@ -846,91 +846,45 @@
           "userId": {
             "type": "string"
           },
-          "conversationId": {
-            "type": "string"
-          },
           "providerId": {
             "type": "string"
           },
-          "title": {
+          "stagingId": {
             "type": "string"
           },
-          "filename": {
+          "sharedContext": {
             "type": "string"
           },
-          "mode": {
-            "type": "string",
-            "enum": [
-              "document",
-              "presentation",
-              "dashboard"
-            ]
-          },
-          "visualDirection": {
-            "type": "string"
-          },
-          "accent": {
-            "type": "string"
-          },
-          "appearance": {
-            "type": "string",
-            "enum": [
-              "light",
-              "dark"
-            ]
-          },
-          "brief": {
-            "type": "string"
-          },
-          "sections": {
+          "tasks": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
-                "title": {
+                "id": {
                   "type": "string"
                 },
-                "brief": {
+                "instruction": {
                   "type": "string"
                 },
-                "layout": {
+                "outputPath": {
                   "type": "string"
                 }
               },
               "required": [
-                "title",
-                "brief"
+                "id",
+                "instruction",
+                "outputPath"
               ]
             }
-          },
-          "documentId": {
-            "type": "string"
-          },
-          "blockIds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "blockBriefs": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            }
-          },
-          "expectedObjectSha256": {
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "type": "string"
           }
         },
         "required": [
           "orgId",
           "userId",
           "providerId",
-          "title",
-          "filename"
+          "stagingId",
+          "sharedContext",
+          "tasks"
         ]
       },
       "VideoGenerationTaskPayload": {

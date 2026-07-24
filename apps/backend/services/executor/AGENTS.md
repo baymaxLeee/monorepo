@@ -53,15 +53,15 @@ for the full rationale.
   functions for the actual work) and register it in `src/application/tasks/registry.ts`.
   Do not put business logic directly in `src/api/http/routes/tasks.ts` or
   `src/application/tasks/service.ts` — those stay type-agnostic.
-- Only `html-artifact` and `video-generation` are registered. Executor does not
+- Only `file-task-batch` and `video-generation` are registered. Executor does not
   host smoke workflows or synchronous HTML validation/review endpoints.
-- `html-artifact` creation accepts a flat semantic payload: authoritative
-  `brief`, optional simple ordered `sections`, mode, and visual fields live at
-  the task-payload top level. There is no `plan`, nested `theme`, narrative, or
-  transport-level block contract. Omitted sections become one block;
-  `planStep` deterministically materializes internal block contracts without an
-  LLM call. Revision-only fields remain top-level and mutually exclusive with
-  creation fields.
+- `file-task-batch` accepts a frozen shared context and independent
+  `{id,instruction,outputPath}` tasks. Every output path is unique. Each Workflow
+  step performs one context-free complete-file generation and writes only its
+  assigned staged path. Executor does not receive chat history and does not plan
+  HTML sections, themes, narratives, or repairs.
+  File content is exact model output. Executor does not sanitize HTML or remove
+  JavaScript/browser capabilities; the rendering host owns isolation.
 - `video-generation` is a durable **Chat-owned plan -> per-shot
   create/poll -> ffmpeg-assemble** workflow for vertical short-drama (see
   ADR-0018 and ADR-0049). Chat passes a complete typed creative plan; Executor
@@ -231,11 +231,10 @@ under the default Local World it throws `Invalid version string: "bundled"`
 (caught, logged, harmless, but pointless noise on every local boot) —
 empirically confirmed, not a documentation assumption.
 
-Validated end to end (Phase 2 of the plan, and again for bugs 3-4 above): a
-real `html-artifact` task ran through `planStep` → `generateBlockStep` × N →
-`compileAndPublishStep` against a real provider and produced a real published
-document, on both Local World and Postgres World, under `nitro dev`, plain
-`node`, and `node --env-file`.
+The generic `file-task-batch` keeps every provider/model call and Knowledge
+write inside `use step` functions. The workflow orchestrator receives only
+plain frozen task data, applies bounded concurrency, and returns staged paths;
+compilation, validation, and publication remain with the calling service.
 
 ## Cancellation
 
@@ -245,7 +244,8 @@ of a cancelled video run showed already-running `use step` polls continuing
 after the run became `cancelled`. Every long provider call therefore combines
 its normal timeout with `observeTaskCancellation()`; every task type that owns
 external durable state registers a `cancel` hook. Video records Ark task ids and
-DELETEs them; HTML records and cancels the Knowledge generation. Cancellation
+DELETEs them. File batches own no external provider job; Chat discards their
+unpublished Knowledge change set when the task becomes terminal. Cancellation
 state is persisted before cleanup, and cleanup failures are logged without
 resurrecting the task.
 

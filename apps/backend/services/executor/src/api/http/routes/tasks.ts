@@ -2,7 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { htmlArtifactInputSchema } from "../../../../workflows/html-artifact.js";
+import { fileTaskBatchInputSchema } from "../../../../workflows/file-task-batch.js";
 import { videoGenerationInputSchema } from "../../../../workflows/video-generation.js";
 import { RequestError } from "../../../application/errors.js";
 import { requireCallerService } from "../middleware/auth.js";
@@ -27,7 +27,7 @@ const createTaskEnvelope = {
 };
 
 const createTaskSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("html-artifact"), payload: htmlArtifactInputSchema, ...createTaskEnvelope }),
+  z.object({ type: z.literal("file-task-batch"), payload: fileTaskBatchInputSchema, ...createTaskEnvelope }),
   z.object({ type: z.literal("video-generation"), payload: videoGenerationInputSchema, ...createTaskEnvelope }),
 ]);
 

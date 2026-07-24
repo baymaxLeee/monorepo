@@ -1,12 +1,3 @@
-import {
-  artifactVerificationDirective,
-  createArtifactVerificationState,
-  markArtifactVerificationBudgetExhausted,
-  reduceArtifactVerificationEvents,
-  type ArtifactVerificationDirective,
-  type ArtifactVerificationEvent,
-  type ArtifactVerificationState,
-} from "../../../domain/agent/artifact-verification.js";
 import { isToolOutcome, toolOutcomeData } from "../tools/outcome.js";
 
 const FINAL_RESPONSE_STEP_INDEX = 19;
@@ -30,7 +21,7 @@ export type ExecutionPlanReadState = {
   documentId: string | null;
   status: "not_required" | "pending" | "complete" | "failed";
   coveredThrough: number;
-  totalChars: number;
+  totalLines: number;
 };
 
 export type OrchestrationSeed = {
@@ -40,21 +31,21 @@ export type OrchestrationSeed = {
 export type OrchestrationState = {
   skillLoadedThisRun: boolean;
   executionPlan: ExecutionPlanReadState;
-  artifactVerification: ArtifactVerificationState;
 };
-
-export type ExactToolDirective = Extract<
-  ArtifactVerificationDirective,
-  { toolName: "validate_html" | "edit_file" }
->;
 
 export type OrchestrationDirective =
   | { kind: "final"; instruction: string }
   | { kind: "read-plan"; instruction: string }
-  | { kind: "exact-tools"; directive: ExactToolDirective }
   | { kind: "default" };
 
-type TerminalToolEvent = ArtifactVerificationEvent & { stepNumber: number; order: number };
+type TerminalToolEvent = {
+  stepNumber: number;
+  order: number;
+  toolCallId: string;
+  toolName: string;
+  input?: unknown;
+  outcome: { kind: "completed"; data: unknown } | { kind: "failed"; message: string };
+};
 
 function recordValue(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -144,49 +135,40 @@ function executionPlanReadState(
       documentId: null,
       status: "not_required",
       coveredThrough: 0,
-      totalChars: 0,
+      totalLines: 0,
     };
   }
-  const slices: Array<{ offset: number; end: number; total: number }> = [];
+  let coveredThrough = 0;
+  let totalLines = 0;
   for (const event of events) {
     if (event.toolName !== "read_file") continue;
     const input = recordValue(event.input);
-    if (input?.file_id !== documentId) continue;
+    if (input?.path !== documentId) continue;
     if (event.outcome.kind === "failed") {
       return {
         documentId,
         status: "failed",
         coveredThrough: 0,
-        totalChars: 0,
+        totalLines: 0,
       };
     }
     const data = recordValue(event.outcome.data);
-    if (!data || data.file_id !== documentId) continue;
-    if (
-      typeof data.offset === "number" &&
-      typeof data.total_chars === "number" &&
-      typeof data.content === "string"
-    ) {
-      slices.push({
-        offset: data.offset,
-        end: data.offset + data.content.length,
-        total: data.total_chars,
-      });
+    if (!data || data.path !== documentId) continue;
+    const offset = typeof input.offset === "number" ? input.offset : 1;
+    if (offset > coveredThrough + 1) continue;
+    if (typeof data.total_lines === "number") totalLines = data.total_lines;
+    if (typeof data.next_offset === "number") {
+      coveredThrough = Math.max(coveredThrough, data.next_offset - 1);
+    } else if (data.next_offset === null && totalLines > 0) {
+      coveredThrough = totalLines;
     }
   }
-  slices.sort((left, right) => left.offset - right.offset);
-  let coveredThrough = 0;
-  let totalChars = 0;
-  for (const slice of slices) {
-    totalChars = Math.max(totalChars, slice.total);
-    if (slice.offset > coveredThrough) break;
-    coveredThrough = Math.max(coveredThrough, slice.end);
-  }
+  const complete = totalLines > 0 && coveredThrough >= totalLines;
   return {
     documentId,
-    status: totalChars > 0 && coveredThrough >= totalChars ? "complete" : "pending",
+    status: complete ? "complete" : "pending",
     coveredThrough,
-    totalChars,
+    totalLines,
   };
 }
 
@@ -195,19 +177,11 @@ export function deriveOrchestrationState(
   steps: AgentStepHistory,
 ): OrchestrationState {
   const events = terminalToolEvents(steps);
-  const artifactVerification = reduceArtifactVerificationEvents(
-    createArtifactVerificationState(),
-    events,
-  );
   return {
     skillLoadedThisRun: events.some(
       (event) => event.toolName === "load_skill" && event.outcome.kind === "completed",
     ),
     executionPlan: executionPlanReadState(seed.executionPlanDocumentId, events),
-    artifactVerification:
-      steps.length >= FINAL_RESPONSE_STEP_INDEX
-        ? markArtifactVerificationBudgetExhausted(artifactVerification)
-        : artifactVerification,
   };
 }
 
@@ -215,17 +189,15 @@ export function resolveOrchestrationDirective(
   state: OrchestrationState,
   completedStepCount: number,
 ): OrchestrationDirective {
-  const artifactDirective = artifactVerificationDirective(state.artifactVerification);
   if (completedStepCount >= FINAL_RESPONSE_STEP_INDEX) {
     const hasIncompleteWork =
       state.executionPlan.status === "pending" ||
-      state.executionPlan.status === "failed" ||
-      artifactDirective != null;
+      state.executionPlan.status === "failed";
     return {
       kind: "final",
       instruction:
         (hasIncompleteWork
-          ? "本轮已保留已生成的产物，但仍有工作或质量校验未完成。请根据上方工具卡片中的结果继续处理。"
+          ? "本轮已保留已生成的产物，但选定的 Plan 尚未完整读取。请根据上方工具卡片中的结果继续处理。"
           : "本轮处理已完成。"),
     };
   }
@@ -239,16 +211,7 @@ export function resolveOrchestrationDirective(
   if (state.executionPlan.status === "pending") {
     return {
       kind: "read-plan",
-      instruction: `Read the selected Plan document ${state.executionPlan.documentId} from offset ${state.executionPlan.coveredThrough} before executing it.`,
-    };
-  }
-  if (artifactDirective?.toolName) {
-    return { kind: "exact-tools", directive: artifactDirective };
-  }
-  if (artifactDirective) {
-    return {
-      kind: "final",
-      instruction: "HTML 产物已生成，但质量校验未通过，自动修复未能继续。请根据上方校验结果调整后重试。",
+      instruction: `Read the selected Plan document ${state.executionPlan.documentId} from offset ${state.executionPlan.coveredThrough + 1} before executing it.`,
     };
   }
   return { kind: "default" };

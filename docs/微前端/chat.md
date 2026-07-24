@@ -23,14 +23,20 @@
   重试按钮。失败回调不得从持久化历史覆盖尚未写入服务端的回答。
 - POST 与恢复 GET 都返回 `x-agent-run-id`，用于 Stop 和执行轨迹查询；stream 内容
   仍完全遵循 AI SDK UIMessage 协议。
-- plan 作为 `tool-write_markdown` part 随消息持久化；后续 run 从
+- plan 作为 `tool-write_file` part 随消息持久化；后续 run 从
   服务端会话历史恢复。
-- “执行计划”发送持久化 `data-plan-execution` 文档引用；正文不由浏览器复制。后端
+- “执行计划”发送持久化 `data-plan-execution` path 引用；正文不由浏览器复制。后端
   强制先用现有 `read_file` 读取该 Plan 最新全文。执行结束后按钮变为“再次执行”而
-  不是永久禁用，后续点击仍携带结构化文档 ID，不依赖长对话里的旧计划内容。
-- HTML artifact 使用 sandbox iframe 和独立右侧面板；完整正文按需从 knowledge
-  加载，不进入聊天消息。iframe 只有 `allow-scripts`，不授予 same-origin；课件目录
-  使用 artifact 内部 `#fragment` 跳转。
+  不是永久禁用，后续点击仍携带稳定 path，不依赖长对话里的旧计划内容。
+- `write_file`/`edit_file`/`delegate_tasks` 的官方 tool output 直接携带 path 和
+  task progress。Markdown/Plan 渲染 path 卡片；委派任务在同一 tool part 上增量更新
+  `done`/`total`。写入或编辑成功的 HTML 立即显示可预览入口；`check_file` 只渲染
+  非阻塞诊断，不控制 artifact 卡片状态。
+- HTML artifact 使用独立右侧 sandbox iframe，开放脚本、表单、modal、pointer lock、
+  下载和 sandbox 内 popup，以支持动态 Dashboard、H5 游戏和互动课件；不开放
+  `allow-same-origin` 或顶层导航，因此生成代码运行在 opaque origin，不能接触宿主
+  应用凭据和 DOM。完整正文经 chat 的鉴权 file facade 按需加载，不进入聊天消息。
+  Markdown path 在同一面板只读渲染。
 - 视频工具在进入耐久审批点后返回普通完成态并结束 SSE。右侧导演工作台按
   production id 读取 Executor 投影，展示并结构化编辑分镜，预览/重拍/选择每镜头
   Take，并展示成本、QA、暂存成片和事件；批准或拒绝直接恢复 Workflow Hook，不创建

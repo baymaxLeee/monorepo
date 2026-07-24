@@ -132,10 +132,6 @@ function documentReferences(messages: AnyUIMessage[]): string[] {
         const id = documentIdFromFilePart(part);
         return id ? [id] : [];
       }
-      if (part.type === "data-plan-execution") {
-        const id = (part.data as { document_id?: unknown } | undefined)?.document_id;
-        return typeof id === "string" ? [id] : [];
-      }
       return [];
     }),
   );
