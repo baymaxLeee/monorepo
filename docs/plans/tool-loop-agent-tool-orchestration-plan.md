@@ -1,5 +1,8 @@
 # ToolLoopAgent 工具编排重构计划
 
+> 已由 ADR-0055 的通用文件工具与薄 Harness 决策取代。以下内容仅记录旧的
+> mandatory validation gate 方案，不代表当前运行时。
+
 ## 目标
 
 保持单一 `ToolLoopAgent`，不引入 `WorkflowAgent`、手写 agent loop 或声明式 DAG，形成以下薄编排链路：
@@ -113,7 +116,7 @@ Directive 优先级固定为：
   - `deterministic_validation`
   - `content_review`
   - terminal `completed/failed`
-- 为 tool metadata 增加 `uiKind: "validation"`，Chat MFE 增加专用校验卡片，显示：
+- 旧方案曾为 tool metadata 和 Chat MFE 增加专用校验卡片，显示：
   - 确定性检查中。
   - 内容复核中。
   - 校验通过。

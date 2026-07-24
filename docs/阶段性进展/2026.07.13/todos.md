@@ -71,7 +71,7 @@
 
 - [ ] 运行一次包含文本、文件、Tool Call、Tool Result 和多 Step 的真实 Run。
 - [ ] 从日志分别确认 Provider Request 的 `instructions`、`tools`、`messages` 三条物理输入。
-- [ ] 更新 `apps/backend/services/chat/src/application/agent/context/system-prompt.xml` 的真实英文 Instructions 和中文翻译。
+- [x] 删除不参与运行且会失真的静态 Instructions 快照，以组合模块作为唯一可信来源。
 - [ ] 更新 `techloge-shar.md` 第 2 章的真实 Runtime 示例，保证示例与实现完全一致。
 - [ ] 修正 `techloge-shar.md` 第 3 章"三条物理输入管道"措辞：改为"AI SDK 请求构造层的三个入参"，并补一句 provider 物理层实为 `prompt(含 system 消息) + tools` 两条内容通道 + 控制参数。
 - [ ] 复核第 3.2.1 节"聚合哪些 Runtime Context"表：重构后确认 instructions 侧不再列出 summary/state/todo/plan/document metadata，与代码一致。

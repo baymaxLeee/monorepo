@@ -40,14 +40,14 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
 ## Files
 
 - `files` capability 统一为 path-based `list_files`、`read_file`、`search_files`、
-  `write_file`、`edit_file`、`check_file` 和通用 `delegate_tasks`；不再存在独立 artifact
+  `write_file`、`edit_file` 和通用 `delegate_tasks`；不再存在独立 artifact
   tool category、document-id 文本写入或 revision/block 公共契约。
-- 普通文本由 `write_file` 完整写入并立即发布；`edit_file` 只接受唯一、互不重叠的
-  `{old_text,new_text}` 精确替换。`expected_sha256` 是可选的提前冲突检查。
+- 普通文本由 `write_file` 完整写入并立即发布；`edit_file` 原子应用互不重叠的
+  `{old_text,new_text,replace_all?}` 精确替换。`old_text` 默认必须唯一；确定性的全局
+  替换可显式启用 `replace_all`。`expected_sha256` 是可选的提前冲突检查。
 - `write_file` 完整写入后立即发布，HTML 无需等待检查即可预览；`edit_file` 在单次调用中
-  原子应用一组唯一、互不重叠的精确替换并立即发布。`check_file` 是模型按需调用的只读
-  诊断，只报告 markup、链接、本地资源、CSS 和内联脚本语法问题，不改变文件、不阻塞
-  交付，也不规定设计风格。
+  原子应用一组互不重叠的精确替换并立即发布。Harness 不提供 HTML 专用校验或修复流程；
+  主 Agent 根据用户反馈和真实运行证据决定后续精准编辑。
 - 主 Agent 默认自己决定 HTML 的生成粒度：能在一次输出中保持整体一致性时直接写完整
   HTML；更大的产物通过多轮 `write_file`/`edit_file` 创建页面或模块。只有独立完整文件
   确实会挤压主模型输出或上下文预算时，才把冻结的共享上下文交给 `delegate_tasks`。

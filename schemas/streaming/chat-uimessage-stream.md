@@ -159,9 +159,6 @@ no `data-artifact-progress`.
     official tool parts; the frontend selects artifact/media/todo/approval UI by
     `uiKind`, not by hard-coded public tool names. This is metadata on the
     official tool part, not a custom `data-*` channel.
-  - `check_file` uses `uiKind: "validation"` and returns deterministic
-    diagnostics on its official `tool-check_file` part. No validation `data-*`
-    part or secondary stream exists.
   - `update_todos` output items carry an optional `deliverable` tag
     (`"artifact" | "image" | "video"`). It is **not** a new part: it rides the
     existing `tool-update_todos` output. The frontend

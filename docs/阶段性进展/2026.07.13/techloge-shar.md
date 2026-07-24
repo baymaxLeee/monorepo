@@ -683,7 +683,9 @@ async function compilePublishStep(input: CompileArtifactInput) {
 
 ### A. 真实 Run Instructions（双语快照）
 
-本地 Chat Service 的真实 HTTP Run 会在 `ToolLoopAgent` 创建前捕获 `assembleInstructions()` 的最终返回值。完整快照位于 `apps/backend/services/chat/src/application/agent/context/system-prompt.xml`：约 34KB，前半部分是 Runtime 实际消费的英文 Instructions，后半部分是逐段中文翻译；中文部分只供分享阅读，不会注入模型。
+本地 Chat Service 的真实 HTTP Run 会在 `ToolLoopAgent` 创建前调用
+`assembleInstructions()`。阶段性分析曾保存过一份双语静态快照；由于它不参与运行且会
+迅速偏离真实指令，后续已删除。当前唯一可信来源是 `context/instructions/` 下的组合模块。
 
 下面保留与本次分享直接相关的真实原文。为控制母稿长度，只选取关键 section；内容逐行来自该快照，不是重新编写的示例。
 
@@ -764,7 +766,7 @@ Your training data has a cutoff and may be stale. For anything time-sensitive, r
 | Run orchestration / persistence / continuation | `apps/backend/services/chat/src/application/agent/runs/run.ts` |
 | ToolLoopAgent / prepareStep / toolsContext | `apps/backend/services/chat/src/application/agent/agents/tool-loop.ts` |
 | Instructions assembly | `apps/backend/services/chat/src/application/agent/context/instructions/` |
-| 真实双语 Instructions | `apps/backend/services/chat/src/application/agent/context/system-prompt.xml` |
+| Instructions source | `apps/backend/services/chat/src/application/agent/context/instructions/` |
 | Context budget / file transform / ModelMessage projection | `apps/backend/services/chat/src/application/agent/context/projector.ts` |
 | Tool Catalog / Manifest policy | `apps/backend/services/chat/src/application/agent/tools/catalog.ts`、`manifest.ts` |
 | Search / Artifact Tool Schema | `apps/backend/services/chat/src/application/agent/tools/builtins/search.ts`、`artifacts.ts` |

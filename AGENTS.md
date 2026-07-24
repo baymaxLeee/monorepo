@@ -201,6 +201,26 @@ not supported by clear product requirements, operational necessity, or common
 industry practice, do not add it. If it already exists, remove it or justify it
 explicitly in code comments, docs, or an ADR, depending on the blast radius.
 
+### Evidence and verification order: local data first
+
+When diagnosing or reviewing behavior already persisted by this project, agents
+MUST use the cheapest authoritative local evidence before opening a browser:
+
+1. Query persisted database records, messages, tool calls, artifact versions,
+   workflow state, and application logs with read-only operations.
+2. Inspect the relevant source, prompt, configuration, and local API response to
+   explain the persisted behavior.
+3. Use browser tools only when local evidence is insufficient, the user
+   explicitly requests browser verification, or the claim is inherently about
+   rendered layout, real interaction, accessibility, browser runtime behavior,
+   or other client-only state.
+
+Do NOT open or control a browser merely to reread conversation content, tool
+calls, artifacts, or status already available in the local database or logs.
+Browser verification is a targeted capability, not a default validation step.
+Never expose credentials, tokens, or unrelated user data while querying local
+stores.
+
 ### Future-first compatibility policy
 This project has no forward-compatibility obligations during the current demo
 phase. When an existing local convention conflicts with AI-native or Vercel AI

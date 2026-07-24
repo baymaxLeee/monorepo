@@ -29,7 +29,6 @@ export interface AgentToolPolicy {
     | "ask-user"
     | "image-gallery"
     | "todo-list"
-    | "validation"
     | "video";
   visibility?: "visible" | "internal";
 }

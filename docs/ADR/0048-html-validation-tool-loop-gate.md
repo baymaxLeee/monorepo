@@ -2,8 +2,8 @@
 
 ## Status
 
-Superseded by ADR 0055. `check_file` is now optional and read-only; HTML
-publication is no longer controlled by a ToolLoop validation gate.
+Superseded by ADR 0055. The dedicated HTML validation tool and verification
+state machine have been removed; HTML publication is immediate.
 
 ## Context
 

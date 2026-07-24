@@ -8,7 +8,6 @@ import { z } from "zod";
 import {
   createFileChangeSet,
   discardFileChangeSet,
-  listVirtualFiles,
   promoteFileChangeSet,
   readVirtualFile,
   writeChangeSetFile,
@@ -27,7 +26,6 @@ import {
   toolRunning,
   ToolBlockedError,
 } from "../outcome.js";
-import { diagnoseHtml } from "./html-diagnostics.js";
 
 const textPath = z.string().min(1).max(512).regex(/^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\\:*?"<>|]+$/);
 const sha = z.string().regex(/^[0-9a-f]{64}$/);
@@ -42,17 +40,9 @@ const editInput = z.object({
   edits: z.array(z.object({
     old_text: z.string().min(1).max(80_000),
     new_text: z.string().max(80_000),
+    replace_all: z.boolean().optional(),
   })).min(1).max(100),
   expected_sha256: sha.optional(),
-});
-const diagnosticSchema = z.object({
-  severity: z.enum(["error", "warning"]),
-  code: z.string(),
-  path: z.string(),
-  line: z.number().nullable(),
-  column: z.number().nullable(),
-  message: z.string(),
-  suggestion: z.string(),
 });
 const fileOutput = z.object({
   path: z.string(),
@@ -63,11 +53,6 @@ const editOutput = fileOutput.extend({
   replacements: z.number(),
   first_changed_line: z.number(),
   diff: z.string(),
-});
-const checkOutput = z.object({
-  path: z.string(),
-  valid: z.boolean(),
-  diagnostics: z.array(diagnosticSchema),
 });
 const delegatedTask = z.object({
   id: z.string().min(1).max(80).regex(/^[a-z][a-z0-9-]*$/),
@@ -281,35 +266,45 @@ function writeFile(
 function applyEdits(
   original: string,
   edits: z.infer<typeof editInput>["edits"],
-): { content: string; ranges: Array<{ start: number; end: number }> } {
-  const ranges: Array<{ start: number; end: number }> = [];
+): { content: string; ranges: Array<{ start: number; end: number; newText: string }> } {
+  const ranges: Array<{ start: number; end: number; newText: string }> = [];
   for (const edit of edits) {
-    const start = original.indexOf(edit.old_text);
-    if (start < 0 || start !== original.lastIndexOf(edit.old_text)) {
+    const starts: number[] = [];
+    for (
+      let start = original.indexOf(edit.old_text);
+      start >= 0;
+      start = original.indexOf(edit.old_text, start + edit.old_text.length)
+    ) {
+      starts.push(start);
+      if (!edit.replace_all) break;
+    }
+    if (
+      starts.length === 0
+      || (!edit.replace_all && starts[0] !== original.lastIndexOf(edit.old_text))
+    ) {
       throw new ToolBlockedError({
         code: "EDIT_TARGET_NOT_UNIQUE",
-        message: "each old_text must occur exactly once",
+        message: "old_text must occur exactly once unless replace_all is true",
         retryable: true,
         source: "chat",
       });
     }
-    const end = start + edit.old_text.length;
-    if (ranges.some((range) => start < range.end && end > range.start)) {
-      throw new ToolBlockedError({
-        code: "EDIT_TARGET_OVERLAP",
-        message: "edit targets must not overlap",
-        retryable: true,
-        source: "chat",
-      });
+    for (const start of starts) {
+      const end = start + edit.old_text.length;
+      if (ranges.some((range) => start < range.end && end > range.start)) {
+        throw new ToolBlockedError({
+          code: "EDIT_TARGET_OVERLAP",
+          message: "edit targets must not overlap",
+          retryable: true,
+          source: "chat",
+        });
+      }
+      ranges.push({ start, end, newText: edit.new_text });
     }
-    ranges.push({ start, end });
   }
   let content = original;
-  for (const edit of [...edits].sort(
-    (left, right) => original.indexOf(right.old_text) - original.indexOf(left.old_text),
-  )) {
-    const start = content.indexOf(edit.old_text);
-    content = `${content.slice(0, start)}${edit.new_text}${content.slice(start + edit.old_text.length)}`;
+  for (const range of [...ranges].sort((left, right) => right.start - left.start)) {
+    content = `${content.slice(0, range.start)}${range.newText}${content.slice(range.end)}`;
   }
   return { content, ranges };
 }
@@ -350,7 +345,7 @@ async function editFileUnlocked(
     path: change.entry.path,
     sha256: change.entry.sha256,
     total_chars: edited.content.length,
-    replacements: input.edits.length,
+    replacements: edited.ranges.length,
     first_changed_line: current.content.slice(0, firstChanged).split("\n").length,
     diff: input.edits.map((edit) => `-${edit.old_text}\n+${edit.new_text}`).join("\n"),
   };
@@ -364,59 +359,6 @@ function editFile(
     `${options.context.userId}:${options.context.conversationId}:${input.path}`,
     () => editFileUnlocked(input, options),
   );
-}
-
-function diagnosticsFor(
-  target: string,
-  html: string,
-  availablePaths: ReadonlySet<string>,
-) {
-  const report = diagnoseHtml(html, {
-    sourcePath: target,
-    availablePaths,
-  });
-  return {
-    valid: report.ok,
-    diagnostics: report.findings.map((finding) => ({
-      severity: finding.actionable ? "error" as const : "warning" as const,
-      code: finding.code,
-      path: target,
-      line: null,
-      column: null,
-      message: finding.message,
-      suggestion: finding.suggestion,
-    })),
-  };
-}
-
-async function checkFileUnlocked(
-  input: { path: string },
-  { context }: { context: ArtifactToolContext },
-) {
-  const source = await readCurrent(context, input.path);
-  if (!isHtml(input.path)) {
-    return {
-      path: input.path,
-      valid: true,
-      diagnostics: [],
-    };
-  }
-  const files = await listVirtualFiles(context.userId, context.conversationId);
-  return {
-    path: input.path,
-    ...diagnosticsFor(
-      input.path,
-      source.content,
-      new Set(files.map((file) => file.path)),
-    ),
-  };
-}
-
-function checkFile(
-  input: { path: string },
-  options: { context: ArtifactToolContext },
-) {
-  return checkFileUnlocked(input, options);
 }
 
 async function* delegateTasks(
@@ -582,7 +524,7 @@ export function createFileWriteToolManifests(
     defineAgentTool(
       "edit_file",
       tool({
-        description: "Atomically apply one or more exact unique old_text/new_text replacements and publish the new version immediately.",
+        description: "Atomically apply exact old_text/new_text replacements and publish immediately. Each old_text must be unique unless its optional replace_all flag is true.",
         inputSchema: editInput,
         outputSchema: editOutput,
         contextSchema: artifactToolContextSchema,
@@ -597,25 +539,6 @@ export function createFileWriteToolManifests(
         uiKind: "artifact",
       },
       { summary: "Precisely edit a text file." },
-    ),
-    defineAgentTool(
-      "check_file",
-      tool({
-        description: "Read and diagnose current HTML structure, links, local resources, CSS, and inline script syntax without modifying, publishing, or blocking the file.",
-        inputSchema: z.object({ path: textPath }),
-        outputSchema: checkOutput,
-        contextSchema: artifactToolContextSchema,
-        execute: checkFile,
-      }),
-      {
-        capability: "files",
-        effect: "read",
-        trust: "private-untrusted",
-        execution: "inline",
-        modes: ["normal"],
-        uiKind: "validation",
-      },
-      { summary: "Check one file deterministically." },
     ),
     defineAgentTool(
       "delegate_tasks",

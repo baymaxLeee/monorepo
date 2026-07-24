@@ -30,8 +30,7 @@
   不是永久禁用，后续点击仍携带稳定 path，不依赖长对话里的旧计划内容。
 - `write_file`/`edit_file`/`delegate_tasks` 的官方 tool output 直接携带 path 和
   task progress。Markdown/Plan 渲染 path 卡片；委派任务在同一 tool part 上增量更新
-  `done`/`total`。写入或编辑成功的 HTML 立即显示可预览入口；`check_file` 只渲染
-  非阻塞诊断，不控制 artifact 卡片状态。
+  `done`/`total`。写入或编辑成功的 HTML 立即显示可预览入口，不等待额外校验状态。
 - HTML artifact 使用独立右侧 sandbox iframe，开放脚本、表单、modal、pointer lock、
   下载和 sandbox 内 popup，以支持动态 Dashboard、H5 游戏和互动课件；不开放
   `allow-same-origin` 或顶层导航，因此生成代码运行在 opaque origin，不能接触宿主

@@ -6,14 +6,12 @@
 
 - 所有 HTML 默认由主 `ToolLoopAgent` 使用 exact `write_file` /
   `edit_file` 一次或多轮完成。
-- `check_file` 是模型主动调用的只读诊断工具，不参与 promotion，也不接管
-  ToolLoop。
 - 通用 `delegate_tasks` 只作为独立文件超出主模型实际输出/上下文预算时的
   可选逃生口，不再承载 HTML Shell 或编译协议。
 - 删除模型可见的 `generate_files`、Executor `html-artifact` 任务和可变
   spec 二次读取。
-- 保留 change set、原子写入、取消、进度和诊断能力，删除确定性 HTML
-  compile、强制 check 和 runtime repair loop。
+- 保留 change set、原子写入、取消、进度和可观测性，删除确定性 HTML
+  compile、专用校验和 runtime repair loop。
 
 ## 现状判断
 
@@ -26,7 +24,7 @@
 | 主 Agent 多轮输出大型 HTML | 接受；用首稿一致性与可精确编辑性换取初次生成延迟 |
 | 全量迁移 Chat 到 `WorkflowAgent` | 本轮不做；短任务继续使用 `ToolLoopAgent` |
 | HTML compiler / artifact shell | 删除；模型拥有完整文档结构 |
-| `prepareStep` verification fold | 删除；提示词让主 Agent 自主检查 |
+| `prepareStep` verification fold | 删除；主 Agent 根据用户反馈和真实运行证据修复 |
 
 ## 最终工具面
 
@@ -37,7 +35,6 @@
 - `search_files({ pattern, path?, glob? })`
 - `write_file({ path, content, expected_sha256? })`
 - `edit_file({ path, edits, expected_sha256? })`
-- `check_file({ path })`
 
 `write_file` 始终表示完整精确写入，不根据扩展名或内容启动生成任务。
 
@@ -73,7 +70,7 @@ chooses only who materializes which files.
 ### 可在一次模型输出内完成
 
 ```text
-write_file(index.html) -> optional check_file -> optional edit_file
+write_file(index.html) -> immediate preview -> optional exact edit
 ```
 
 文件立即可预览，不创建 Executor task。
@@ -83,8 +80,7 @@ write_file(index.html) -> optional check_file -> optional edit_file
 ```text
 primary write_file(index.html or application shell)
   -> primary write_file/edit_file in later ToolLoop steps
-  -> optional check_file
-  -> primary exact repairs when diagnostics matter
+  -> primary exact repairs when user feedback or runtime evidence matters
 ```
 
 始终由同一个主 Agent 和完整会话上下文完成，不设置页数阈值。
@@ -112,7 +108,7 @@ primary proves independent outputs exceed its practical budget
    - 将现有 HTML 并发配置改成通用 file-task fan-out 配置，不新增第二套旋钮。
 3. **Thin harness cutover**
    - `write_file`/`edit_file` 对所有格式立即 promotion。
-   - `check_file` 只读当前文件并返回诊断。
+   - 删除 HTML 专用校验工具和前端校验状态。
    - 删除 `prepareStep` verification fold、exact tool directive 和 delivery repair
      协议。
 4. **删除 HTML 私有链路**
@@ -129,8 +125,7 @@ primary proves independent outputs exceed its practical budget
 
 - [x] 轻量 HTML 不创建 Executor task。
 - [x] HTML write/edit 立即产生可预览版本。
-- [x] `prepareStep` 不再强制 `check_file`。
-- [x] `check_file` 只读且不影响交付状态。
+- [x] 运行时不含 HTML 专用校验工具或 verification state。
 - [x] 主 Agent 默认一次或多轮完成大型 HTML。
 - [x] `delegate_tasks` 不含 HTML fragment/compiler 约定。
 - [x] Executor 重启后 task 可继续并被重新附着。
@@ -149,10 +144,8 @@ primary proves independent outputs exceed its practical budget
 - 全仓检索旧工具、task type、compiler、verification state、delivery status 及其调用者；
   运行时代码和 streaming 契约均已清除，旧 ADR 明确标记由 ADR-0055 supersede。
 - 最终残留清扫删除 Chat 无调用的 artifact model/timeout 文件、Executor 无调用的
-  `artifactGenerationId` progress 支路，并将可选 HTML 诊断移入通用 file tools，
-  彻底移除 `agent/artifacts/` 子系统。
-- 通用执行提示不再要求 validation 必须运行；只有用户或任务明确要求时才视为必需，
-  其他情况由主 Agent 自主决定是否调用只读诊断。
+  `artifactGenerationId` progress 支路、HTML 专用诊断和 `agent/artifacts/` 子系统。
+- 通用执行提示不再编排 HTML 校验；主 Agent 根据用户反馈或真实运行证据进行精准修复。
 - 复核 K8s、single-VPS 与 `.env.example`：只保留通用
   `FILE_TASK_CONCURRENCY`，没有 HTML 专属配置或第二套并发旋钮。
 - 复核失败与取消路径：委派批次只有完整结果集才 promotion；失败、取消或调用异常均
@@ -164,17 +157,12 @@ primary proves independent outputs exceed its practical budget
 ## HTML runtime capability correction
 
 - [x] 删除 delegated HTML 的静态 sanitizer；模型输出保留完整 HTML/CSS/JS。
-- [x] validator 只阻止结构损坏，不把脚本、动态选择器、外部 runtime、固定布局等
-  浏览器能力当作 hard diagnostic。
+- [x] 删除无法覆盖真实浏览器行为且会产生错误置信度的静态 HTML validator。
 - [x] File Artifact iframe 开放脚本、表单、modal、pointer lock、下载与 sandbox 内
   popup，同时保持 opaque origin，不开放 `allow-same-origin` 或顶层导航。
 - [x] 更新生成指令和当前服务文档，明确报告、Dashboard、H5 游戏和互动课件共用
   同一套 direct/delegated file tools。
 - [x] 重新运行 affected lint/build、根级 lint 和 `git diff --check`。
-
-`check_file` 不在服务端执行不可信浏览器脚本；它报告文档结构、内部链接、本地资源、
-CSS 和内联经典脚本语法。真实运行时仍在 opaque-origin iframe 中执行，避免把浏览器
-执行权限重新塞回 Chat harness。
 
 ## 非目标
 

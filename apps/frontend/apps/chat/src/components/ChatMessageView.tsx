@@ -46,7 +46,6 @@ import {
   isTodoListSettled,
   parseTodoListOutput,
 } from "./ChatTodoListCard";
-import { ChatValidationCard } from "./ChatValidationCard";
 import { ChatVideoCard } from "./ChatVideoCard";
 
 export interface ChatMessageViewProps {
@@ -412,16 +411,6 @@ function ToolPartView({
         state={part.state}
         errorText={errorText}
         onOpen={onOpenArtifact}
-      />
-    );
-  }
-
-  if (kind === "validation") {
-    return (
-      <ChatValidationCard
-        output={output}
-        state={part.state}
-        errorText={errorText}
       />
     );
   }

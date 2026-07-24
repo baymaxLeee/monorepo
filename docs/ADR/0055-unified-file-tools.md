@@ -25,10 +25,12 @@ baseline at promotion time.
 ## Decision
 
 1. The model-facing file capability is one generic protocol: `list_files`,
-   `read_file`, `write_file`, `edit_file`, `search_files`, and `check_file`.
-   Text writes are exact UTF-8 writes; edits use Pi-style unique,
-   non-overlapping `{old_text,new_text}` replacements applied atomically to one
-   source. `write_file` never interprets content as a generation request.
+   `read_file`, `write_file`, `edit_file`, and `search_files`.
+   Text writes are exact UTF-8 writes; edits use Pi-style non-overlapping
+   `{old_text,new_text,replace_all?}` replacements applied atomically to one
+   source. A target is unique by default; intentional mechanical substitutions
+   can opt into `replace_all`. `write_file` never interprets content as a
+   generation request.
 2. `expected_sha256` is optional on individual writes/edits. Cross-run
    concurrency is owned by a host-only change-set store: a deliverable records
    baseline path SHAs and promotion fails atomically if any target changed.
@@ -37,9 +39,7 @@ baseline at promotion time.
    other service's storage or exposes host filesystem commands.
 4. Every direct `write_file` and `edit_file`, including HTML, promotes its
    change set immediately and produces a readable version. HTML is not held in
-   a private staging state pending validation. `check_file` is a read-only
-   diagnostic tool and never publishes, rejects, rewrites, or otherwise gates a
-   file.
+   a private staging state pending validation.
 5. HTML uses the same exact `write_file` and `edit_file` contract as every other
    text format and stays in the primary `ToolLoopAgent` by default. The primary
    model may write one complete document or materialize a larger site over
@@ -68,13 +68,13 @@ baseline at promotion time.
    revision and block-version tables/current revision pointer, create the
    generic current-tree/change-set storage, and do not migrate old generated
    HTML. User-uploaded source documents remain intact.
-10. HTML quality control is prompt-directed rather than runtime-orchestrated.
-    For important, scripted, or structurally complex HTML, the primary agent is
-    instructed to call `check_file`, interpret its syntax and link diagnostics,
-    and perform exact edits when useful. `prepareStep` does not force tool
-    selection, maintain a verification state machine, or stop delivery because
-    a diagnostic remains.
-11. UI progress, diffs, diagnostics, and promotion status use official AI SDK
+10. The harness exposes no HTML-specific validation or repair tool. Static
+    checks provided incomplete confidence while missing rendered layout,
+    browser runtime, interaction, external dependencies, and business semantics.
+    The primary agent responds to user feedback or real runtime evidence with
+    ordinary reads and exact edits. `prepareStep` does not force tool selection,
+    maintain a verification state machine, or stop delivery after publication.
+11. UI progress, diffs, and promotion status use official AI SDK
    `tool-*` parts and metadata. No duplicate custom progress part is added.
 12. HTML is a complete browser artifact format, not a static-document subset.
     Direct and delegated output may use JavaScript, modules, dynamic DOM,
@@ -87,12 +87,12 @@ baseline at promotion time.
 
 ## Consequences
 
-The primary agent creates, checks, and repairs HTML without an HTML-specific
-protocol. Direct writes become visible immediately, so lightweight reports do
-not pay compilation or mandatory-validation latency and later changes remain
-precise edits against one coherent document. Large artifacts remain in the
-primary context across multiple tool-loop steps; generic context-free fan-out is
-available but is no longer the recommended HTML path.
+The primary agent creates and repairs HTML without an HTML-specific protocol.
+Direct writes become visible immediately, so lightweight reports do not pay
+compilation or routine-validation latency and later changes remain precise edits
+against one coherent document. Large artifacts remain in the primary context
+across multiple tool-loop steps; generic context-free fan-out is available but
+is no longer the recommended HTML path.
 
 Reports, dashboards, H5 games, simulations, and long interactive teaching
 courseware share the same file tools. Artifact type and generation scale are

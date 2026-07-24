@@ -95,7 +95,7 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   directly under `runtime_contract` (including parallel deliverables in one
   step); `update_todos` does not return routing advice.
 - File tools are one path-based capability: `list_files`, `read_file`,
-  `search_files`, `write_file`, `edit_file`, and `check_file`. Exact
+  `search_files`, `write_file`, and `edit_file`. Exact
   `write_file`/`edit_file` own small and sequential HTML. `delegate_tasks` is a
   separate generic orchestration capability used only when independent file
   outputs would strain the primary model's output/context budget.
@@ -111,9 +111,8 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   Preview isolation comes from an opaque-origin iframe sandbox with scripts
   enabled, not from stripping browser features out of generated content.
 - Every successful `write_file`/`edit_file` is promoted immediately and can be
-  previewed without a verification state. `check_file` is an optional read-only
-  diagnostic for markup, links, local resources, CSS, and inline script syntax;
-  it neither mutates files nor blocks delivery or imposes design policy.
+  previewed without a verification state. The harness does not run a dedicated
+  HTML validation or repair workflow.
 - Cancelling a chat run **does** cancel the in-flight executor task the current
   `delegate_tasks` call is blocking on: Stop aborts the turn, the tool's
   `abortSignal` fires, and it calls `POST /tasks/:id/cancel` before unwinding —
