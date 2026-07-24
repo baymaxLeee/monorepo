@@ -64,9 +64,11 @@ pipeline remains accepted. ADR 0048 restores validation as Chat-local
   `#id` selectors and `getElementById("id")` calls to the same namespaced IDs;
   generated dynamic selectors should use block-scoped `data-*` attributes.
 - Chart artifacts load the pinned full ECharts 6.1.0 runtime from the web
-  image at `/runtime/echarts/6.1.0/echarts.min.js`, not a public CDN. The full
-  build keeps generated options functional when they use components such as
-  tooltip, legend, title, radar, or gauge.
+  image at `/runtime/echarts/6.1.0/echarts.min.js` first. If that URL is
+  unavailable, as it is when a downloaded HTML file is opened outside the app,
+  the runtime loader falls back to the same pinned file on jsDelivr with SRI.
+  The full build keeps generated options functional when they use components
+  such as tooltip, legend, title, radar, or gauge.
   The platform build copies the package-owned file into its dist; nginx serves
   the versioned path with immutable caching and anonymous CORS for SRI. HTML
   preview uses the same short-lived Knowledge resource URL capability as
@@ -162,7 +164,8 @@ repair orchestration.
 - HTML directories and teaching-course navigation use stable block IDs and
   ordinary fragment links.
 - The full ECharts runtime is served from a fixed, versioned same-origin URL and
-  reused from the browser cache after the first request; first load does not
-  depend on jsDelivr.
+  reused from the browser cache after the first request. jsDelivr is attempted
+  only when the same-origin runtime fails, so in-app preview does not depend on
+  the CDN while downloaded HTML remains portable.
 - Active process loss still cancels the run; completed blocks and revisions
   remain in knowledge for later product-level recovery work.

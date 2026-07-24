@@ -1,11 +1,13 @@
 export const ECHARTS_RUNTIME_URL = "/runtime/echarts/6.1.0/echarts.min.js";
+export const ECHARTS_RUNTIME_CDN_URL =
+  "https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js";
 export const ECHARTS_RUNTIME_INTEGRITY =
   "sha384-C2iskrW/uPW46KzOjrvJIQo4YkV8lkD+QS0CrDN18IIPIpT/g2USu8bTP3nvmIAD";
 export const ARTIFACT_CSP = [
   "default-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
   "style-src 'unsafe-inline'",
   "img-src data: blob:",
   "font-src data:",
@@ -29,13 +31,34 @@ export const ARTIFACT_ERROR_BOUNDARY = [
   "  </script>",
 ].join("\n");
 
-const ECHARTS_RUNTIME_TAG = `  <script src="${ECHARTS_RUNTIME_URL}" integrity="${ECHARTS_RUNTIME_INTEGRITY}" crossorigin="anonymous" referrerpolicy="no-referrer"></script>`;
+const ECHARTS_RUNTIME_LOADER = [
+  "  <script>",
+  "    window.__artifactEChartsReady = new Promise(function (resolve) {",
+  `      var sources = [${JSON.stringify(ECHARTS_RUNTIME_URL)}, ${JSON.stringify(ECHARTS_RUNTIME_CDN_URL)}];`,
+  "      function load(index) {",
+  "        if (window.echarts) { resolve(true); return; }",
+  "        if (index >= sources.length) { resolve(false); return; }",
+  "        var script = document.createElement('script');",
+  "        script.src = sources[index];",
+  `        script.integrity = ${JSON.stringify(ECHARTS_RUNTIME_INTEGRITY)};`,
+  "        script.crossOrigin = 'anonymous';",
+  "        script.referrerPolicy = 'no-referrer';",
+  "        script.onload = function () {",
+  "          if (window.echarts) { resolve(true); } else { script.remove(); load(index + 1); }",
+  "        };",
+  "        script.onerror = function () { script.remove(); load(index + 1); };",
+  "        document.head.appendChild(script);",
+  "      }",
+  "      load(0);",
+  "    });",
+  "  </script>",
+].join("\n");
 
 export function buildArtifactRuntimeHead(options: { usesEcharts: boolean }): string {
   return [
     `  <meta http-equiv="Content-Security-Policy" content="${ARTIFACT_CSP}" data-chat-artifact-runtime="true" />`,
     ARTIFACT_ERROR_BOUNDARY,
-    options.usesEcharts ? ECHARTS_RUNTIME_TAG : "",
+    options.usesEcharts ? ECHARTS_RUNTIME_LOADER : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -45,11 +68,14 @@ export function buildChartHydrationScript(): string {
   return [
     "  <script>",
     "    (function () {",
+    "      function showRuntimeUnavailable() {",
+    "        document.querySelectorAll('[data-chart-option]').forEach(function (el) { el.textContent = '图表运行时不可用'; });",
+    "      }",
     "      function hydrate() {",
     "        var nodes = document.querySelectorAll('[data-chart-option]');",
     "        if (!nodes.length) return;",
     "        if (!window.echarts) {",
-    "          nodes.forEach(function (el) { el.textContent = '图表运行时不可用'; });",
+    "          showRuntimeUnavailable();",
     "          return;",
     "        }",
     "        nodes.forEach(function (el) {",
@@ -69,10 +95,20 @@ export function buildChartHydrationScript(): string {
     "          }",
     "        });",
     "      }",
+    "      function hydrateWhenReady() {",
+    "        var ready = window.__artifactEChartsReady;",
+    "        if (ready && typeof ready.then === 'function') {",
+    "          ready.then(function (available) {",
+    "            if (available) hydrate(); else showRuntimeUnavailable();",
+    "          });",
+    "        } else {",
+    "          hydrate();",
+    "        }",
+    "      }",
     "      if (document.readyState === 'loading') {",
-    "        document.addEventListener('DOMContentLoaded', hydrate);",
+    "        document.addEventListener('DOMContentLoaded', hydrateWhenReady);",
     "      } else {",
-    "        hydrate();",
+    "        hydrateWhenReady();",
     "      }",
     "    })();",
     "  </script>",
