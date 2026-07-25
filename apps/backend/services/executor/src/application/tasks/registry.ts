@@ -1,16 +1,11 @@
-import {
-  fileTaskBatchInputSchema,
-  fileTaskBatchWorkflow,
-} from "../../../workflows/file-task-batch.js";
+import { fileTaskBatchInputSchema, fileTaskBatchWorkflow } from "../../../workflows/file-task-batch.js";
 import { videoGenerationInputSchema, videoGenerationWorkflow } from "../../../workflows/video-generation.js";
 import { cancelVideoGeneration } from "../video/cancel.js";
 import type { TaskTypeDefinition } from "./types.js";
 
 const registry = new Map<string, TaskTypeDefinition>();
 
-export function registerTaskType<TInput, TOutput>(
-  definition: TaskTypeDefinition<TInput, TOutput>,
-): void {
+export function registerTaskType<TInput, TOutput>(definition: TaskTypeDefinition<TInput, TOutput>): void {
   if (registry.has(definition.name)) {
     throw new Error(`task type "${definition.name}" is already registered`);
   }

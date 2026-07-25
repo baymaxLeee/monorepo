@@ -20,11 +20,15 @@ export function createLogger(options: CreateLoggerOptions): Logger {
     },
     mixin() {
       const context = getRequestContext();
-      if (!context) return {};
+      if (!context) {
+        return {};
+      }
       const fields: Record<string, string> = {};
       for (const field of PROPAGATED_FIELDS) {
         const value = context[field.ctxKey];
-        if (value) fields[field.logKey] = value;
+        if (value) {
+          fields[field.logKey] = value;
+        }
       }
       return fields;
     },

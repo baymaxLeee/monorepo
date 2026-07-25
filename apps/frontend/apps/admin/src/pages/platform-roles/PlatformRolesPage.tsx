@@ -1,10 +1,4 @@
-import {
-  assignUserRole,
-  listPlatformRoles,
-  listUserPlatformRoles,
-  type PlatformRole,
-  removeUserRole,
-} from "api";
+import { assignUserRole, listPlatformRoles, listUserPlatformRoles, type PlatformRole, removeUserRole } from "api";
 import {
   Alert,
   AlertDescription,
@@ -28,6 +22,7 @@ import {
   toast,
 } from "components";
 import { useEffect, useState } from "react";
+
 import { useAdminIdentity } from "../../identity";
 
 const SUPER_ADMIN = "super_admin";
@@ -42,7 +37,9 @@ export function PlatformRolesPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!isSuperAdmin) return;
+    if (!isSuperAdmin) {
+      return;
+    }
     listPlatformRoles()
       .then(setAllRoles)
       .catch(() => {
@@ -61,9 +58,7 @@ export function PlatformRolesPage() {
         </PageHeader>
         <Alert>
           <AlertTitle>无权访问</AlertTitle>
-          <AlertDescription>
-            平台角色管理仅对 super_admin 开放。
-          </AlertDescription>
+          <AlertDescription>平台角色管理仅对 super_admin 开放。</AlertDescription>
         </Alert>
       </Page>
     );
@@ -91,7 +86,9 @@ export function PlatformRolesPage() {
   }
 
   async function toggleSuper() {
-    if (!queried || !superRole) return;
+    if (!queried || !superRole) {
+      return;
+    }
     setBusy(true);
     try {
       if (hasSuper) {
@@ -113,18 +110,14 @@ export function PlatformRolesPage() {
       <PageHeader>
         <PageHeaderContent>
           <PageTitle>平台角色</PageTitle>
-          <PageDescription>
-            按用户 ID 授予或撤销平台级 super_admin（不能撤销最后一个）。
-          </PageDescription>
+          <PageDescription>按用户 ID 授予或撤销平台级 super_admin（不能撤销最后一个）。</PageDescription>
         </PageHeaderContent>
       </PageHeader>
 
       <Card>
         <CardHeader>
           <CardTitle>查询用户角色</CardTitle>
-          <CardDescription>
-            用户 ID 可在「成员管理」列表中获取。
-          </CardDescription>
+          <CardDescription>用户 ID 可在「成员管理」列表中获取。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-end gap-3">
@@ -144,9 +137,7 @@ export function PlatformRolesPage() {
           {userRoles && (
             <div className="space-y-3 border-t pt-4">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  当前角色：
-                </span>
+                <span className="text-sm text-muted-foreground">当前角色：</span>
                 {userRoles.length > 0 ? (
                   userRoles.map((r) => (
                     <Badge key={r.id} variant="outline">

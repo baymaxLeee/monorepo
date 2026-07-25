@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { RouterProvider } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
+
 import { queryClient } from "./query-client";
 import { router } from "./router";
 
@@ -24,7 +25,9 @@ export function App() {
       }
       resetPlatformState();
       queryClient.clear();
-      if (hadUser) router.revalidate();
+      if (hadUser) {
+        router.revalidate();
+      }
     });
   }, [resetPlatformState, setUser]);
 

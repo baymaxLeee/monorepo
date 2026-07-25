@@ -1,16 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { VideoShotPlan } from "api";
-import {
-  Button,
-  Field,
-  FieldError,
-  FieldLabel,
-  Form,
-  FormControl,
-  FormField,
-  Input,
-  Textarea,
-} from "components";
+import { Button, Field, FieldError, FieldLabel, Form, FormControl, FormField, Input, Textarea } from "components";
 import { SaveIcon } from "lucide-react";
 import { useEffect } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -125,11 +115,7 @@ export function VideoStoryboardEditor({
                   <FormControl>
                     <Textarea {...field} rows={2} />
                   </FormControl>
-                  <FieldError
-                    errors={[
-                      form.formState.errors.shots?.[index]?.narrativeBeat,
-                    ]}
-                  />
+                  <FieldError errors={[form.formState.errors.shots?.[index]?.narrativeBeat]} />
                 </Field>
               )}
             />
@@ -142,9 +128,7 @@ export function VideoStoryboardEditor({
                   <FormControl>
                     <Textarea {...field} rows={2} />
                   </FormControl>
-                  <FieldError
-                    errors={[form.formState.errors.shots?.[index]?.action]}
-                  />
+                  <FieldError errors={[form.formState.errors.shots?.[index]?.action]} />
                 </Field>
               )}
             />
@@ -161,9 +145,7 @@ export function VideoStoryboardEditor({
                         type="number"
                         min={4}
                         max={15}
-                        onChange={(event) =>
-                          field.onChange(event.currentTarget.valueAsNumber)
-                        }
+                        onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
                       />
                     </FormControl>
                   </Field>
@@ -242,13 +224,7 @@ export function VideoStoryboardEditor({
                 </Field>
               )}
             />
-            {(
-              [
-                "subjectAnchors",
-                "continuityContract",
-                "acceptanceCriteria",
-              ] as const
-            ).map((name) => (
+            {(["subjectAnchors", "continuityContract", "acceptanceCriteria"] as const).map((name) => (
               <FormField
                 key={name}
                 control={form.control}
@@ -272,12 +248,7 @@ export function VideoStoryboardEditor({
             ))}
           </article>
         ))}
-        <Button
-          type="submit"
-          variant="outline"
-          className="w-full"
-          disabled={disabled || form.formState.isSubmitting}
-        >
+        <Button type="submit" variant="outline" className="w-full" disabled={disabled || form.formState.isSubmitting}>
           <SaveIcon className="mr-2 size-4" />
           保存新分镜版本
         </Button>

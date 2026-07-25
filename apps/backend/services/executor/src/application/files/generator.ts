@@ -1,6 +1,5 @@
-import { streamText } from "ai";
-
 import { createProviderModel, type ChatProvider } from "@backend/transport-ts/provider-model";
+import { streamText } from "ai";
 
 import { getProvider } from "../../infrastructure/clients/admin.js";
 
@@ -18,7 +17,9 @@ export async function buildFileTextModel(providerId: string, orgId: string) {
 
 async function collectText(result: { textStream: AsyncIterable<string> }): Promise<string> {
   let raw = "";
-  for await (const delta of result.textStream) raw += delta;
+  for await (const delta of result.textStream) {
+    raw += delta;
+  }
   return raw;
 }
 
@@ -37,7 +38,9 @@ function fileInstructions(outputPath: string): string {
     /\.html?$/i.test(outputPath)
       ? "HTML retains the complete browser runtime. Use scripts, modules, dynamic DOM, events, Canvas, SVG, WebGL, forms, media, workers, and external libraries whenever the task asks for them."
       : null,
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export async function generateFileContent(input: {
@@ -52,19 +55,16 @@ export async function generateFileContent(input: {
     model: input.tools.model,
     maxOutputTokens: input.tools.maxOutputTokens,
     instructions: fileInstructions(input.outputPath),
-    prompt: [
-      "<shared_context>",
-      input.sharedContext,
-      "</shared_context>",
-      "<task>",
-      input.instruction,
-      "</task>",
-    ].join("\n"),
+    prompt: ["<shared_context>", input.sharedContext, "</shared_context>", "<task>", input.instruction, "</task>"].join(
+      "\n",
+    ),
     timeout: FILE_GENERATION_TIMEOUT,
     abortSignal: input.abortSignal,
   });
   const raw = await collectText(result);
   const content = stripFence(raw);
-  if (!content) throw new Error(`task ${input.taskId} produced empty file content`);
+  if (!content) {
+    throw new Error(`task ${input.taskId} produced empty file content`);
+  }
   return content;
 }

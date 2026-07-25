@@ -1,9 +1,9 @@
 import { and, eq, inArray, lte } from "drizzle-orm";
 
+import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import { conversationRunLeases } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError } from "../../errors.js";
-import { logger } from "../../../infrastructure/observability/logger.js";
 import { deactivateAgentStream } from "../streams/service.js";
 import {
   finishAgentRun,
@@ -57,9 +57,9 @@ export async function acquireRunLease(conversationId: string, runId: string): Pr
   });
   // Cross-table run finalization for the leases we just reclaimed runs outside
   // the lease transaction — a slow/failed run update must not widen the window.
-  await Promise.all(expired.map((lease) =>
-    finishAgentRun({ runId: lease.runId, status: "interrupted" }).catch(() => undefined),
-  ));
+  await Promise.all(
+    expired.map((lease) => finishAgentRun({ runId: lease.runId, status: "interrupted" }).catch(() => undefined)),
+  );
 }
 
 export function registerRunController(runId: string): AbortSignal {
@@ -70,24 +70,32 @@ export function registerRunController(runId: string): AbortSignal {
     resolve = done;
   });
   completions.set(runId, { promise, resolve });
-  heartbeats.set(runId, setInterval(() => {
-    const now = new Date();
-    void getDb().update(conversationRunLeases).set({
-      heartbeatAt: now,
-      expiresAt: new Date(now.getTime() + LEASE_MS),
-    }).where(eq(conversationRunLeases.runId, runId)).catch((error) =>
-      logger.error({ err: error }, "run lease heartbeat failed"),
-    );
-  }, 60_000));
-  cancellationPolls.set(runId, setInterval(() => {
-    void getAgentRunById(runId)
-      .then((run) => {
-        if (run?.status === "cancel_requested") {
-          controller.abort(new DOMException("agent run cancelled", "AbortError"));
-        }
-      })
-      .catch((error) => logger.error({ err: error }, "cancellation poll failed"));
-  }, CANCELLATION_POLL_MS));
+  heartbeats.set(
+    runId,
+    setInterval(() => {
+      const now = new Date();
+      void getDb()
+        .update(conversationRunLeases)
+        .set({
+          heartbeatAt: now,
+          expiresAt: new Date(now.getTime() + LEASE_MS),
+        })
+        .where(eq(conversationRunLeases.runId, runId))
+        .catch((error) => logger.error({ err: error }, "run lease heartbeat failed"));
+    }, 60_000),
+  );
+  cancellationPolls.set(
+    runId,
+    setInterval(() => {
+      void getAgentRunById(runId)
+        .then((run) => {
+          if (run?.status === "cancel_requested") {
+            controller.abort(new DOMException("agent run cancelled", "AbortError"));
+          }
+        })
+        .catch((error) => logger.error({ err: error }, "cancellation poll failed"));
+    }, CANCELLATION_POLL_MS),
+  );
   return controller.signal;
 }
 
@@ -96,17 +104,23 @@ export async function releaseRun(runId: string): Promise<void> {
   completions.get(runId)?.resolve();
   completions.delete(runId);
   const heartbeat = heartbeats.get(runId);
-  if (heartbeat) clearInterval(heartbeat);
+  if (heartbeat) {
+    clearInterval(heartbeat);
+  }
   heartbeats.delete(runId);
   const cancellationPoll = cancellationPolls.get(runId);
-  if (cancellationPoll) clearInterval(cancellationPoll);
+  if (cancellationPoll) {
+    clearInterval(cancellationPoll);
+  }
   cancellationPolls.delete(runId);
   await getDb().delete(conversationRunLeases).where(eq(conversationRunLeases.runId, runId));
 }
 
 export async function cancelRun(conversationId: string, runId: string): Promise<boolean> {
   const run = await getAgentRunById(runId);
-  if (!run || run.conversationId !== conversationId) return false;
+  if (!run || run.conversationId !== conversationId) {
+    return false;
+  }
   await requestAgentRunCancellation(runId);
   const completion = completions.get(runId)?.promise;
   controllers.get(runId)?.abort(new DOMException("agent run cancelled", "AbortError"));
@@ -117,7 +131,9 @@ export async function cancelRun(conversationId: string, runId: string): Promise<
 export async function reconcileOrphanedRuns(): Promise<void> {
   const now = new Date();
   const orphaned = await listOrphanedRuns(now);
-  if (orphaned.length === 0) return;
+  if (orphaned.length === 0) {
+    return;
+  }
   const runIds = orphaned.map((run) => run.id);
   await interruptRuns(runIds);
   await Promise.all(
@@ -135,11 +151,11 @@ const ORPHAN_RECONCILE_MS = 5 * 60_000;
 let orphanReconcileTimer: ReturnType<typeof setInterval> | null = null;
 
 export function startOrphanRunReconciler(): void {
-  if (orphanReconcileTimer) return;
+  if (orphanReconcileTimer) {
+    return;
+  }
   orphanReconcileTimer = setInterval(() => {
-    void reconcileOrphanedRuns().catch((error) =>
-      logger.error({ err: error }, "periodic orphan run reconcile failed"),
-    );
+    void reconcileOrphanedRuns().catch((error) => logger.error({ err: error }, "periodic orphan run reconcile failed"));
   }, ORPHAN_RECONCILE_MS);
   orphanReconcileTimer.unref();
 }

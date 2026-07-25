@@ -12,12 +12,7 @@ export interface ContinuedSkillReference {
   name: string;
 }
 
-const CLIENT_RESPONSE_STATES = new Set([
-  "output-available",
-  "output-error",
-  "output-denied",
-  "approval-responded",
-]);
+const CLIENT_RESPONSE_STATES = new Set(["output-available", "output-error", "output-denied", "approval-responded"]);
 
 const AWAITING_CLIENT_STATES = new Set(["input-available", "approval-requested"]);
 
@@ -40,12 +35,12 @@ export function mergeClientContinuation(persisted: AnyUIMessage, client: AnyUIMe
   }
 
   const persistedByToolCallId = new Map(
-    persisted.parts
-      .filter(isToolPart)
-      .map((part) => [part.toolCallId, part] as const),
+    persisted.parts.filter(isToolPart).map((part) => [part.toolCallId, part] as const),
   );
   const clientResponses = client.parts.filter((part) => {
-    if (!isToolPart(part) || !CLIENT_RESPONSE_STATES.has(toolState(part))) return false;
+    if (!isToolPart(part) || !CLIENT_RESPONSE_STATES.has(toolState(part))) {
+      return false;
+    }
     const existing = persistedByToolCallId.get(part.toolCallId);
     return existing !== undefined && AWAITING_CLIENT_STATES.has(toolState(existing));
   });
@@ -54,7 +49,9 @@ export function mergeClientContinuation(persisted: AnyUIMessage, client: AnyUIMe
   }
 
   for (const part of clientResponses) {
-    if (part.type !== "tool-ask_user" || toolState(part) !== "output-available") continue;
+    if (part.type !== "tool-ask_user" || toolState(part) !== "output-available") {
+      continue;
+    }
     const output = "output" in part ? part.output : undefined;
     const parsed = askUserOutcomeSchema.safeParse(output);
     if (!parsed.success || parsed.data.status !== "completed") {
@@ -62,11 +59,11 @@ export function mergeClientContinuation(persisted: AnyUIMessage, client: AnyUIMe
     }
   }
 
-  const respondedIds = new Set(
-    clientResponses.map((part) => (part as { toolCallId: string }).toolCallId),
-  );
+  const respondedIds = new Set(clientResponses.map((part) => (part as { toolCallId: string }).toolCallId));
   for (const part of client.parts) {
-    if (!isToolPart(part) || respondedIds.has(part.toolCallId)) continue;
+    if (!isToolPart(part) || respondedIds.has(part.toolCallId)) {
+      continue;
+    }
     const existing = persistedByToolCallId.get(part.toolCallId);
     if (!existing) {
       throw new RequestError(`unknown toolCallId ${part.toolCallId}`);
@@ -90,23 +87,29 @@ export function mergeClientContinuation(persisted: AnyUIMessage, client: AnyUIMe
     clientResponses.map((part) => [(part as { toolCallId: string }).toolCallId, part] as const),
   );
   const mergedParts = persisted.parts.map((part) => {
-    if (!isToolPart(part)) return part;
+    if (!isToolPart(part)) {
+      return part;
+    }
     return responseById.get(part.toolCallId) ?? part;
   });
 
   return { ...persisted, parts: mergedParts };
 }
 
-export function continuedSkillReference(
-  message: AnyUIMessage,
-): ContinuedSkillReference | null {
+export function continuedSkillReference(message: AnyUIMessage): ContinuedSkillReference | null {
   let loaded: ContinuedSkillReference | null = null;
   for (const part of message.parts) {
-    if (part.type !== "tool-load_skill" || toolState(part) !== "output-available") continue;
+    if (part.type !== "tool-load_skill" || toolState(part) !== "output-available") {
+      continue;
+    }
     const output = toolOutcomeData("output" in part ? part.output : null);
-    if (!output || typeof output !== "object") continue;
+    if (!output || typeof output !== "object") {
+      continue;
+    }
     const name = "name" in output && typeof output.name === "string" ? output.name : "";
-    if (!name) continue;
+    if (!name) {
+      continue;
+    }
     if (loaded && loaded.name !== name) {
       throw new RequestError("client continuation contains multiple loaded skills");
     }
@@ -124,7 +127,9 @@ export function compactHistoricalSkillOutputs(message: AnyUIMessage): AnyUIMessa
       }
       const envelope = "output" in part ? part.output : null;
       const output = toolOutcomeData(envelope);
-      if (!output || typeof output !== "object" || !("instructions" in output)) return part;
+      if (!output || typeof output !== "object" || !("instructions" in output)) {
+        return part;
+      }
       return {
         ...part,
         output: {

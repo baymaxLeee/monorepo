@@ -156,11 +156,7 @@ export interface XMindPreviewerProps {
    * @zh 节点点击回调
    * @default undefined
    */
-  onNodeClick?: (payload: {
-    node: any;
-    data: XMindNodeData | undefined;
-    event: MouseEvent;
-  }) => void;
+  onNodeClick?: (payload: { node: any; data: XMindNodeData | undefined; event: MouseEvent }) => void;
   /**
    * @zh XMind 解析成功回调
    * @default undefined

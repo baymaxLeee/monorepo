@@ -10,6 +10,7 @@ import { MessageResponse } from "components/ai-chat";
 import { Loader2Icon, RefreshCwIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getErrorMessage } from "shared";
+
 import { VideoApprovalFooter } from "./VideoApprovalFooter";
 import { VideoStoryboardEditor } from "./VideoStoryboardEditor";
 import { VideoTakeReview } from "./VideoTakeReview";
@@ -28,19 +29,12 @@ const STAGE_LABELS: Record<string, string> = {
   cancelled: "已取消",
 };
 
-const ACTIVE_STAGES = new Set([
-  "planning",
-  "generating",
-  "assembling",
-  "final_qa",
-  "publishing",
-]);
+const ACTIVE_STAGES = new Set(["planning", "generating", "assembling", "final_qa", "publishing"]);
 
-function formatCost(
-  micros: number | null | undefined,
-  currency: string | null,
-) {
-  if (micros == null) return "—";
+function formatCost(micros: number | null | undefined, currency: string | null) {
+  if (micros == null) {
+    return "—";
+  }
   return `${currency ?? ""} ${(micros / 1_000_000).toFixed(2)}`.trim();
 }
 
@@ -85,20 +79,22 @@ export function VideoProductionWorkspace({
     let url: string | null = null;
     void fetchVideoProductionPreview(conversationId, productionId)
       .then((blob) => {
-        if (!active) return;
+        if (!active) {
+          return;
+        }
         url = URL.createObjectURL(blob);
         setPreviewUrl(url);
       })
       .catch(() => setPreviewUrl(null));
     return () => {
       active = false;
-      if (url) URL.revokeObjectURL(url);
+      if (url) {
+        URL.revokeObjectURL(url);
+      }
     };
   }, [conversationId, detail?.production.stagedMediaId, productionId]);
 
-  async function submitDecision(
-    decision: Parameters<typeof decideVideoProduction>[2],
-  ) {
+  async function submitDecision(decision: Parameters<typeof decideVideoProduction>[2]) {
     setDeciding(true);
     try {
       await decideVideoProduction(conversationId, productionId, decision);
@@ -110,7 +106,9 @@ export function VideoProductionWorkspace({
 
   async function saveStoryboard(shotPlan: VideoShotPlan) {
     const production = detail?.production;
-    if (!production) return;
+    if (!production) {
+      return;
+    }
     try {
       await submitDecision({
         action: "revise_storyboard",
@@ -126,7 +124,9 @@ export function VideoProductionWorkspace({
 
   async function retryTake(shotId: string) {
     const production = detail?.production;
-    if (!production) return;
+    if (!production) {
+      return;
+    }
     try {
       await submitDecision({
         action: "request_take",
@@ -139,11 +139,11 @@ export function VideoProductionWorkspace({
     }
   }
 
-  async function approveTakes(
-    selections: Array<{ shotId: string; takeId: string }>,
-  ) {
+  async function approveTakes(selections: Array<{ shotId: string; takeId: string }>) {
     const production = detail?.production;
-    if (!production) return;
+    if (!production) {
+      return;
+    }
     try {
       await submitDecision({
         action: "approve_takes",
@@ -159,12 +159,11 @@ export function VideoProductionWorkspace({
     }
   }
 
-  async function decide(
-    approved: boolean,
-    input: { budgetLimitMicros?: number; waiverReason?: string },
-  ) {
+  async function decide(approved: boolean, input: { budgetLimitMicros?: number; waiverReason?: string }) {
     const production = detail?.production;
-    if (!production?.awaitingAction) return;
+    if (!production?.awaitingAction) {
+      return;
+    }
     try {
       const common = {
         action_id: crypto.randomUUID(),
@@ -173,13 +172,11 @@ export function VideoProductionWorkspace({
       if (production.awaitingAction === "storyboard_approval") {
         const estimate = production.cost.estimatedMicros;
         const currency = production.cost.currency;
-        if (estimate == null || !currency)
+        if (estimate == null || !currency) {
           throw new Error("缺少视频定价，无法审批");
+        }
         const budgetLimitMicros = input.budgetLimitMicros;
-        if (
-          approved &&
-          (budgetLimitMicros == null || budgetLimitMicros < estimate)
-        ) {
+        if (approved && (budgetLimitMicros == null || budgetLimitMicros < estimate)) {
           throw new Error("预算上限不能低于预计成本");
         }
         await submitDecision(
@@ -223,22 +220,13 @@ export function VideoProductionWorkspace({
     <div className="flex h-full min-h-0 flex-col bg-background">
       <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">
-            {production?.title ?? "视频制片"}
-          </p>
+          <p className="truncate text-sm font-medium">{production?.title ?? "视频制片"}</p>
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             {isActive ? <Loader2Icon className="size-3 animate-spin" /> : null}
-            {production
-              ? (STAGE_LABELS[production.stage] ?? production.stage)
-              : "加载中"}
+            {production ? (STAGE_LABELS[production.stage] ?? production.stage) : "加载中"}
           </p>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="刷新"
-          onClick={() => void load()}
-        >
+        <Button variant="ghost" size="icon" aria-label="刷新" onClick={() => void load()}>
           <RefreshCwIcon className="size-4" />
         </Button>
         <Button variant="ghost" size="icon" aria-label="关闭" onClick={onClose}>
@@ -261,19 +249,13 @@ export function VideoProductionWorkspace({
               <div className="rounded-lg border p-3">
                 <p className="text-muted-foreground">预计成本</p>
                 <p className="mt-1 font-medium">
-                  {formatCost(
-                    production.cost.estimatedMicros,
-                    production.cost.currency,
-                  )}
+                  {formatCost(production.cost.estimatedMicros, production.cost.currency)}
                 </p>
               </div>
               <div className="rounded-lg border p-3">
                 <p className="text-muted-foreground">已核销</p>
                 <p className="mt-1 font-medium">
-                  {formatCost(
-                    production.cost.reconciledMicros,
-                    production.cost.currency,
-                  )}
+                  {formatCost(production.cost.reconciledMicros, production.cost.currency)}
                 </p>
               </div>
             </section>
@@ -282,53 +264,34 @@ export function VideoProductionWorkspace({
               <section className="space-y-2">
                 <h3 className="text-sm font-medium">成片预览</h3>
                 {/* biome-ignore lint/a11y/useMediaCaption: generated previews do not have a VTT artifact yet */}
-                <video
-                  className="w-full rounded-lg border bg-black"
-                  controls
-                  src={previewUrl}
-                />
+                <video className="w-full rounded-lg border bg-black" controls src={previewUrl} />
               </section>
             ) : null}
 
             <section className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium">镜头清单</h3>
-                <Badge variant="secondary">
-                  v{production.shotPlan?.version ?? 0}
-                </Badge>
+                <Badge variant="secondary">v{production.shotPlan?.version ?? 0}</Badge>
               </div>
-              {production.awaitingAction === "storyboard_approval" &&
-              production.shotPlan ? (
-                <VideoStoryboardEditor
-                  plan={production.shotPlan}
-                  disabled={deciding}
-                  onSave={saveStoryboard}
-                />
+              {production.awaitingAction === "storyboard_approval" && production.shotPlan ? (
+                <VideoStoryboardEditor plan={production.shotPlan} disabled={deciding} onSave={saveStoryboard} />
               ) : (
                 production.shotPlan?.shots.map((shot) => (
-                  <article
-                    key={shot.id}
-                    className="space-y-2 rounded-lg border p-3"
-                  >
+                  <article key={shot.id} className="space-y-2 rounded-lg border p-3">
                     <div className="flex items-center justify-between text-xs">
                       <span>镜头 {shot.order + 1}</span>
                       <span className="text-muted-foreground">
                         {shot.seconds}s · {shot.camera.shotSize}
                       </span>
                     </div>
-                    <MessageResponse className="text-sm">
-                      {shot.narrativeBeat}
-                    </MessageResponse>
-                    <p className="text-xs text-muted-foreground">
-                      {shot.action}
-                    </p>
+                    <MessageResponse className="text-sm">{shot.narrativeBeat}</MessageResponse>
+                    <p className="text-xs text-muted-foreground">{shot.action}</p>
                   </article>
                 ))
               )}
             </section>
 
-            {production.awaitingAction === "shot_review" &&
-            production.shotPlan ? (
+            {production.awaitingAction === "shot_review" && production.shotPlan ? (
               <VideoTakeReview
                 conversationId={conversationId}
                 productionId={productionId}
@@ -350,9 +313,7 @@ export function VideoProductionWorkspace({
             ) : null}
 
             {production.error ? (
-              <p className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive">
-                {production.error}
-              </p>
+              <p className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive">{production.error}</p>
             ) : null}
             <Separator />
             <section className="space-y-2">
@@ -361,13 +322,8 @@ export function VideoProductionWorkspace({
                 .slice()
                 .reverse()
                 .map((event) => (
-                  <div
-                    key={String(event.sequence)}
-                    className="flex gap-2 text-xs"
-                  >
-                    <span className="text-muted-foreground">
-                      #{String(event.sequence ?? "–")}
-                    </span>
+                  <div key={String(event.sequence)} className="flex gap-2 text-xs">
+                    <span className="text-muted-foreground">#{String(event.sequence ?? "–")}</span>
                     <span>{String(event.kind ?? "event")}</span>
                   </div>
                 ))}
@@ -379,13 +335,8 @@ export function VideoProductionWorkspace({
           </div>
         )}
       </ScrollArea>
-      {production?.awaitingAction &&
-      production.awaitingAction !== "shot_review" ? (
-        <VideoApprovalFooter
-          production={production}
-          disabled={deciding}
-          onDecision={decide}
-        />
+      {production?.awaitingAction && production.awaitingAction !== "shot_review" ? (
+        <VideoApprovalFooter production={production} disabled={deciding} onDecision={decide} />
       ) : null}
     </div>
   );

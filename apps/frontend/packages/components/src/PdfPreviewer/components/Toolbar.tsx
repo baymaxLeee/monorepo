@@ -11,8 +11,8 @@ import {
   RotateCw,
 } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
-
 import { cn } from "shared";
+
 import { Button } from "../../shadcn/button";
 import {
   DropdownMenu,
@@ -109,8 +109,12 @@ const PdfToolbar = ({
   const sidebarPresets = useMemo(
     () =>
       SIDEBAR_PRESETS.filter((preset) => {
-        if (preset.key === "outline") return enabled.outline;
-        if (preset.key === "thumbnail") return enabled.thumbnail;
+        if (preset.key === "outline") {
+          return enabled.outline;
+        }
+        if (preset.key === "thumbnail") {
+          return enabled.thumbnail;
+        }
         return true;
       }),
     [enabled.outline, enabled.thumbnail],
@@ -146,21 +150,14 @@ const PdfToolbar = ({
             </TooltipTrigger>
             <TooltipContent container={popupContainer}>侧边栏</TooltipContent>
           </Tooltip>
-          <DropdownMenuContent
-            align="start"
-            container={popupContainer}
-            className="min-w-28"
-          >
+          <DropdownMenuContent align="start" container={popupContainer} className="min-w-28">
             {sidebarPresets.map((preset) => {
               const active = (sidebarType ?? "none") === preset.key;
               return (
                 <DropdownMenuItem
                   key={preset.key}
                   data-active={active || undefined}
-                  className={cn(
-                    active && "bg-accent text-accent-foreground",
-                    "justify-between",
-                  )}
+                  className={cn(active && "bg-accent text-accent-foreground", "justify-between")}
                   onSelect={() => {
                     onSetSidebar(preset.key === "none" ? null : preset.key);
                   }}
@@ -183,12 +180,7 @@ const PdfToolbar = ({
             onClick={onPrevPage}
             ariaLabel="prev-page"
           />
-          <PageInput
-            value={currentPage}
-            numPages={numPages}
-            disabled={!canOperate}
-            onCommit={onGoToPage}
-          />
+          <PageInput value={currentPage} numPages={numPages} disabled={!canOperate} onCommit={onGoToPage} />
           <ToolbarIconButton
             icon={ChevronRight}
             label="下一页"
@@ -222,16 +214,9 @@ const PdfToolbar = ({
                 {Math.round(scale * 100)}%
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="center"
-              container={popupContainer}
-              className="min-w-32"
-            >
+            <DropdownMenuContent align="center" container={popupContainer} className="min-w-32">
               {FIT_PRESETS.map((preset) => (
-                <DropdownMenuItem
-                  key={preset.key}
-                  onSelect={() => onFit(preset.key)}
-                >
+                <DropdownMenuItem key={preset.key} onSelect={() => onFit(preset.key)}>
                   {preset.label}
                 </DropdownMenuItem>
               ))}
@@ -291,9 +276,7 @@ const PdfToolbar = ({
         />
       ) : null}
 
-      {extra ? (
-        <div className="ml-auto flex items-center gap-1.5">{extra}</div>
-      ) : null}
+      {extra ? <div className="ml-auto flex items-center gap-1.5">{extra}</div> : null}
     </div>
   );
 };
@@ -365,16 +348,15 @@ function PageInput({ value, numPages, disabled, onCommit }: PageInputProps) {
   const commit = () => {
     setEditing(false);
     const parsed = Number.parseInt(draft, 10);
-    if (
-      !Number.isFinite(parsed) ||
-      parsed < 1 ||
-      (numPages > 0 && parsed > numPages)
-    ) {
+    if (!Number.isFinite(parsed) || parsed < 1 || (numPages > 0 && parsed > numPages)) {
       setDraft(String(value));
       return;
     }
-    if (parsed !== value) onCommit(parsed);
-    else setDraft(String(value));
+    if (parsed !== value) {
+      onCommit(parsed);
+    } else {
+      setDraft(String(value));
+    }
   };
 
   return (
@@ -401,16 +383,12 @@ function PageInput({ value, numPages, disabled, onCommit }: PageInputProps) {
           }
         }}
       />
-      <span className="font-mono text-muted-foreground">
-        / {numPages || "-"}
-      </span>
+      <span className="font-mono text-muted-foreground">/ {numPages || "-"}</span>
     </div>
   );
 }
 
-export const resolveToolbarConfig = (
-  toolbar: boolean | PdfToolbarConfig | undefined,
-): Required<PdfToolbarConfig> => {
+export const resolveToolbarConfig = (toolbar: boolean | PdfToolbarConfig | undefined): Required<PdfToolbarConfig> => {
   if (toolbar === false) {
     return {
       pageNav: false,
@@ -428,9 +406,7 @@ export const resolveToolbarConfig = (
   return { ...DEFAULT_TOOLBAR_CONFIG, ...toolbar };
 };
 
-export const isToolbarVisible = (
-  config: Required<PdfToolbarConfig>,
-): boolean => {
+export const isToolbarVisible = (config: Required<PdfToolbarConfig>): boolean => {
   return (
     config.pageNav ||
     config.zoom ||

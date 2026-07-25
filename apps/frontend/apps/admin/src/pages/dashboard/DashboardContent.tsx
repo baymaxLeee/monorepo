@@ -1,25 +1,12 @@
 import type { TelemetryErrorEvent } from "api";
-import {
-  Badge,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  InlineCode,
-  Skeleton,
-} from "components";
+import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, InlineCode, Skeleton } from "components";
 import type { EChartsOption } from "echarts";
 import { BarChart, LineChart, PieChart, ScatterChart } from "echarts/charts";
-import {
-  GridComponent,
-  LegendComponent,
-  TooltipComponent,
-} from "echarts/components";
+import { GridComponent, LegendComponent, TooltipComponent } from "echarts/components";
 import { type EChartsType, init, use } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef } from "react";
-import { RecentErrors } from "./DashboardRecentErrors";
+
 import {
   barOption,
   type DashboardData,
@@ -30,17 +17,9 @@ import {
   VITAL_LABELS,
   type VitalSummary,
 } from "./dashboardData";
+import { RecentErrors } from "./DashboardRecentErrors";
 
-use([
-  BarChart,
-  CanvasRenderer,
-  GridComponent,
-  LegendComponent,
-  LineChart,
-  PieChart,
-  ScatterChart,
-  TooltipComponent,
-]);
+use([BarChart, CanvasRenderer, GridComponent, LegendComponent, LineChart, PieChart, ScatterChart, TooltipComponent]);
 
 type DashboardContentProps = {
   data: DashboardData;
@@ -49,12 +28,7 @@ type DashboardContentProps = {
   vitals: VitalSummary[];
 };
 
-export function DashboardContent({
-  data,
-  items,
-  loading,
-  vitals,
-}: DashboardContentProps) {
+export function DashboardContent({ data, items, loading, vitals }: DashboardContentProps) {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-4">
@@ -151,9 +125,7 @@ function VitalCard({ item }: { item: VitalSummary }) {
           <CardDescription>{VITAL_LABELS[item.metric]}</CardDescription>
           {item.rating ? <Badge variant="outline">{item.rating}</Badge> : null}
         </div>
-        <CardTitle className="text-2xl">
-          {item.p75 === null ? "-" : formatVitalValue(item.metric, item.p75)}
-        </CardTitle>
+        <CardTitle className="text-2xl">{item.p75 === null ? "-" : formatVitalValue(item.metric, item.p75)}</CardTitle>
         <CardDescription>p75 · {item.count} samples</CardDescription>
       </CardHeader>
     </Card>
@@ -189,7 +161,9 @@ function EChart({ option }: { option: EChartsOption }) {
   const chartRef = useRef<EChartsType | null>(null);
 
   useEffect(() => {
-    if (!ref.current) return;
+    if (!ref.current) {
+      return;
+    }
     const chart = init(ref.current);
     chartRef.current = chart;
     const observer = new ResizeObserver(() => chart.resize());

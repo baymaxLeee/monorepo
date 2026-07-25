@@ -1,11 +1,4 @@
-import {
-  forwardRef,
-  type ReactNode,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
-} from "react";
+import { forwardRef, type ReactNode, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { cn } from "shared";
 
 export interface SuggestionListHandle {
@@ -30,10 +23,10 @@ export interface SuggestionListProps {
  * shapes live in the extension wrapper). Exposes `onKeyDown` for the suggestion
  * plugin to forward arrow/enter handling into.
  */
-export const SuggestionList = forwardRef<
-  SuggestionListHandle,
-  SuggestionListProps
->(function SuggestionList({ options, loading, emptyLabel, onPick }, ref) {
+export const SuggestionList = forwardRef<SuggestionListHandle, SuggestionListProps>(function SuggestionList(
+  { options, loading, emptyLabel, onPick },
+  ref,
+) {
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -43,7 +36,9 @@ export const SuggestionList = forwardRef<
     ref,
     () => ({
       onKeyDown: ({ event }) => {
-        if (options.length === 0) return false;
+        if (options.length === 0) {
+          return false;
+        }
         if (event.key === "ArrowUp") {
           setActive((index) => (index - 1 + options.length) % options.length);
           return true;
@@ -63,17 +58,13 @@ export const SuggestionList = forwardRef<
   );
 
   useEffect(() => {
-    listRef.current
-      ?.querySelector<HTMLElement>('[data-active="true"]')
-      ?.scrollIntoView({ block: "nearest" });
+    listRef.current?.querySelector<HTMLElement>('[data-active="true"]')?.scrollIntoView({ block: "nearest" });
   }, [active]);
 
   if (options.length === 0) {
     return (
       <div className="prompt-input-suggestion">
-        <div className="prompt-input-suggestion-empty">
-          {loading ? "搜索中…" : (emptyLabel ?? "无匹配项")}
-        </div>
+        <div className="prompt-input-suggestion-empty">{loading ? "搜索中…" : (emptyLabel ?? "无匹配项")}</div>
       </div>
     );
   }
@@ -89,10 +80,7 @@ export const SuggestionList = forwardRef<
             role="option"
             aria-selected={isActive}
             data-active={isActive}
-            className={cn(
-              "prompt-input-suggestion-item",
-              isActive && "is-active",
-            )}
+            className={cn("prompt-input-suggestion-item", isActive && "is-active")}
             onMouseEnter={() => setActive(index)}
             onMouseDown={(event) => {
               event.preventDefault();

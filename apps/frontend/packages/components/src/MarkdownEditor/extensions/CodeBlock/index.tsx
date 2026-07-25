@@ -1,24 +1,14 @@
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
-import {
-  NodeViewContent,
-  type NodeViewProps,
-  NodeViewWrapper,
-  ReactNodeViewRenderer,
-} from "@tiptap/react";
+import { NodeViewContent, type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import { common, createLowlight } from "lowlight";
 import { ChevronDown, ChevronRight, Copy, WrapText } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
 import { cn } from "shared";
 import { toast } from "sonner";
+
 import { Input } from "../../../shadcn/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../../shadcn/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../shadcn/select";
 import { Tooltip, TooltipTrigger } from "../../../shadcn/tooltip";
 import { EditorTooltipContent } from "../../components/EditorTooltipContent";
 import { useEditorContext } from "../../context";
@@ -26,19 +16,14 @@ import { useEditorContext } from "../../context";
 const lowlight = createLowlight(common);
 lowlight.registerAlias("xml", ["html"]);
 
-const supportedLanguages: string[] = [...lowlight.listLanguages(), "html"].sort(
-  (a, b) => a.localeCompare(b),
-);
+const supportedLanguages: string[] = [...lowlight.listLanguages(), "html"].sort((a, b) => a.localeCompare(b));
 
 const ACTION_BTN_CLS =
   "flex h-6 cursor-pointer select-none items-center gap-1 rounded px-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
 
 const ACTION_BTN_ACTIVE_CLS = "bg-blue-50 text-blue-600 hover:text-blue-600";
 
-export const CodeBlockComponent: React.FC<NodeViewProps> = ({
-  node,
-  updateAttributes,
-}) => {
+export const CodeBlockComponent: React.FC<NodeViewProps> = ({ node, updateAttributes }) => {
   const { language, title } = node.attrs;
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isAutoWrap, setIsAutoWrap] = useState(false);
@@ -100,9 +85,7 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({
                   <div>
                     <Select
                       value={language || ""}
-                      onValueChange={(value) =>
-                        updateAttributes({ language: value })
-                      }
+                      onValueChange={(value) => updateAttributes({ language: value })}
                       disabled={!editable}
                     >
                       <SelectTrigger className="h-6 w-[120px] border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground focus:ring-0 focus-visible:ring-0">
@@ -125,10 +108,7 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({
 
               <button
                 type="button"
-                className={cn(
-                  ACTION_BTN_CLS,
-                  isAutoWrap && ACTION_BTN_ACTIVE_CLS,
-                )}
+                className={cn(ACTION_BTN_CLS, isAutoWrap && ACTION_BTN_ACTIVE_CLS)}
                 onClick={() => setIsAutoWrap(!isAutoWrap)}
               >
                 <WrapText className="size-3.5" />
@@ -137,11 +117,7 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({
 
               <span className="mx-2 h-3 w-px bg-border" />
 
-              <button
-                type="button"
-                className={ACTION_BTN_CLS}
-                onClick={handleCopy}
-              >
+              <button type="button" className={ACTION_BTN_CLS} onClick={handleCopy}>
                 <Copy className="size-3.5" />
                 <span className="text-xs">复制</span>
               </button>
@@ -149,22 +125,14 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({
           )}
         </div>
 
-        <div
-          className={cn(
-            "relative flex w-full bg-background transition-all duration-200",
-            isCollapsed && "hidden",
-          )}
-        >
+        <div className={cn("relative flex w-full bg-background transition-all duration-200", isCollapsed && "hidden")}>
           <div
             className="flex-none select-none border-r bg-muted py-4 pr-2 text-right"
             style={{ width: 40 }}
             contentEditable={false}
           >
             {Array.from({ length: lineCount }).map((_, i) => (
-              <div
-                key={i}
-                className="font-mono text-xs leading-[22px] text-muted-foreground"
-              >
+              <div key={i} className="font-mono text-xs leading-[22px] text-muted-foreground">
                 {i + 1}
               </div>
             ))}

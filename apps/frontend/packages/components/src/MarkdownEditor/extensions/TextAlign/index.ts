@@ -11,7 +11,9 @@ export const createTextAlignExtension = () =>
 
       return parentAttributes.map((config) => {
         const textAlignAttribute = config.attributes?.textAlign;
-        if (!textAlignAttribute) return config;
+        if (!textAlignAttribute) {
+          return config;
+        }
 
         const originalRenderHTML = textAlignAttribute.renderHTML;
         return {
@@ -21,9 +23,7 @@ export const createTextAlignExtension = () =>
             textAlign: {
               ...textAlignAttribute,
               renderHTML: (attributes: Record<string, any>) => {
-                const rendered =
-                  originalRenderHTML?.(attributes) ??
-                  ({} as Record<string, any>);
+                const rendered = originalRenderHTML?.(attributes) ?? ({} as Record<string, any>);
                 const textAlign = attributes.textAlign;
 
                 if (typeof textAlign === "string" && textAlign.length > 0) {

@@ -6,12 +6,8 @@ export function isSuperAdmin(user: Pick<PlatformUser, "roles">): boolean {
   return Array.isArray(user.roles) && user.roles.includes(SUPER_ADMIN);
 }
 
-export function activeMemberships(
-  user: Pick<PlatformUser, "memberships">,
-): PlatformMembership[] {
-  return Array.isArray(user.memberships)
-    ? user.memberships.filter((m) => m.status === "active")
-    : [];
+export function activeMemberships(user: Pick<PlatformUser, "memberships">): PlatformMembership[] {
+  return Array.isArray(user.memberships) ? user.memberships.filter((m) => m.status === "active") : [];
 }
 
 export function canEnterPlatform(user: PlatformUser): boolean {
@@ -28,7 +24,11 @@ export function canEnterPlatform(user: PlatformUser): boolean {
  * initial landing so users never stare at an empty, org-scoped shell.
  */
 export function landingPath(user: PlatformUser): string {
-  if (canEnterPlatform(user)) return "/platform/chat";
-  if (activeMemberships(user).length > 0) return "/select-org";
+  if (canEnterPlatform(user)) {
+    return "/platform/chat";
+  }
+  if (activeMemberships(user).length > 0) {
+    return "/select-org";
+  }
   return "/pending";
 }

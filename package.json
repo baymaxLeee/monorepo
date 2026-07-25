@@ -2,14 +2,25 @@
   "name": "monorepo-root",
   "private": true,
   "description": "Meta-monorepo: micro-frontends + microservices",
+  "type": "module",
+  "scripts": {
+    "sync": "just sync",
+    "lint:ts": "oxlint -f agent --quiet --report-unused-disable-directives oxlint.config.ts oxfmt.config.ts apps/frontend apps/backend && oxfmt --check oxlint.config.ts oxfmt.config.ts package.json 'apps/{frontend,backend}/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "lint:ts:frontend": "oxlint -f agent --quiet --report-unused-disable-directives apps/frontend && oxfmt --check 'apps/frontend/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "lint:ts:backend": "oxlint -f agent --quiet --report-unused-disable-directives apps/backend && oxfmt --check 'apps/backend/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "format:ts": "oxfmt --write oxlint.config.ts oxfmt.config.ts package.json 'apps/{frontend,backend}/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "format:ts:check": "oxfmt --check oxlint.config.ts oxfmt.config.ts package.json 'apps/{frontend,backend}/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "format:ts:frontend": "oxfmt --write 'apps/frontend/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "format:ts:backend": "oxfmt --write 'apps/backend/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.60.0",
+    "oxlint": "^1.75.0",
+    "oxlint-tsgolint": "^7.0.2001",
+    "turbo": "^2.0.0"
+  },
   "engines": {
     "node": "24.18.0"
   },
-  "packageManager": "pnpm@11.9.0",
-  "scripts": {
-    "sync": "just sync"
-  },
-  "devDependencies": {
-    "turbo": "^2.0.0"
-  }
+  "packageManager": "pnpm@11.9.0"
 }

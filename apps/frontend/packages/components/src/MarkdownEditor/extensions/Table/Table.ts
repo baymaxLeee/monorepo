@@ -7,6 +7,7 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
 import StarterKit from "@tiptap/starter-kit";
+
 import { createCodeBlockExtension } from "../CodeBlock";
 
 const tableClassName = "markdown-editor-table-table";
@@ -39,9 +40,7 @@ export const getCellMarkdownManager = () => {
   return cellMarkdownManager;
 };
 
-export const createParagraphNode = (
-  content: JSONContent[] = [],
-): JSONContent => ({
+export const createParagraphNode = (content: JSONContent[] = []): JSONContent => ({
   type: "paragraph",
   content,
 });
@@ -49,11 +48,7 @@ export const createParagraphNode = (
 export const parseTableCellContent = (
   cell: { text?: string; tokens?: any[] },
   helpers: {
-    createNode: (
-      type: string,
-      attrs?: any,
-      content?: JSONContent[],
-    ) => JSONContent;
+    createNode: (type: string, attrs?: any, content?: JSONContent[]) => JSONContent;
     parseInline: (tokens: any[]) => JSONContent[];
   },
 ): JSONContent[] => {
@@ -73,9 +68,7 @@ export const parseTableCellContent = (
   return content;
 };
 
-export const serializeTableCellContent = (
-  cell: JSONContent | undefined,
-): string => {
+export const serializeTableCellContent = (cell: JSONContent | undefined): string => {
   const content = cell?.content?.filter(Boolean);
 
   if (!content?.length) {
@@ -91,10 +84,7 @@ export const serializeTableCellContent = (
     .replace(/\n/g, TABLE_CELL_NEWLINE_TOKEN);
 };
 
-export const renderTableToMarkdown = (
-  node: JSONContent,
-  _helpers: unknown,
-): string => {
+export const renderTableToMarkdown = (node: JSONContent, _helpers: unknown): string => {
   const rows: Array<Array<{ isHeader: boolean; text: string }>> = [];
 
   node.content?.forEach((row) => {
@@ -133,13 +123,10 @@ export const renderTableToMarkdown = (
     }
   });
 
-  const pad = (value: string, width: number) =>
-    value + " ".repeat(Math.max(0, width - value.length));
+  const pad = (value: string, width: number) => value + " ".repeat(Math.max(0, width - value.length));
   const headerRow = rows[0];
   const hasHeader = headerRow.some((cell) => cell.isHeader);
-  const headerTexts = new Array(columnCount)
-    .fill(0)
-    .map((_, index) => (hasHeader ? headerRow[index]?.text || "" : ""));
+  const headerTexts = new Array(columnCount).fill(0).map((_, index) => (hasHeader ? headerRow[index]?.text || "" : ""));
   let output = "\n";
 
   output += `| ${headerTexts.map((text, index) => pad(text, colWidths[index])).join(" | ")} |\n`;
@@ -175,13 +162,8 @@ export const createTableExtension = () => {
       const rows: JSONContent[] = [];
 
       if (token.header) {
-        const headerCells = token.header.map(
-          (cell: { text?: string; tokens?: any[] }) =>
-            helpers.createNode(
-              "tableHeader",
-              {},
-              parseTableCellContent(cell, helpers),
-            ),
+        const headerCells = token.header.map((cell: { text?: string; tokens?: any[] }) =>
+          helpers.createNode("tableHeader", {}, parseTableCellContent(cell, helpers)),
         );
 
         rows.push(helpers.createNode("tableRow", {}, headerCells));
@@ -190,11 +172,7 @@ export const createTableExtension = () => {
       if (token.rows) {
         token.rows.forEach((row: Array<{ text?: string; tokens?: any[] }>) => {
           const bodyCells = row.map((cell) =>
-            helpers.createNode(
-              "tableCell",
-              {},
-              parseTableCellContent(cell, helpers),
-            ),
+            helpers.createNode("tableCell", {}, parseTableCellContent(cell, helpers)),
           );
 
           rows.push(helpers.createNode("tableRow", {}, bodyCells));
@@ -236,46 +214,56 @@ export const createTableExtension = () => {
             const insertRow = (tablePos: number) => {
               const { state } = editorView;
               const tableNode = state.doc.nodeAt(tablePos);
-              if (tableNode?.type.name !== "table") return;
+              if (tableNode?.type.name !== "table") {
+                return;
+              }
 
               const { tableRow, tableCell } = state.schema.nodes;
-              if (!tableRow || !tableCell) return;
+              if (!tableRow || !tableCell) {
+                return;
+              }
 
               const colCount = TableMap.get(tableNode).width;
               const cells: ProseMirrorNode[] = [];
               for (let i = 0; i < colCount; i++) {
                 const cell = tableCell.createAndFill();
-                if (cell) cells.push(cell);
+                if (cell) {
+                  cells.push(cell);
+                }
               }
 
               const insertPos = tablePos + 1 + tableNode.content.size;
-              editorView.dispatch(
-                state.tr.insert(insertPos, tableRow.create(null, cells)),
-              );
+              editorView.dispatch(state.tr.insert(insertPos, tableRow.create(null, cells)));
             };
 
             const insertColumn = (tablePos: number) => {
               const { state } = editorView;
               const tableNode = state.doc.nodeAt(tablePos);
-              if (tableNode?.type.name !== "table") return;
+              if (tableNode?.type.name !== "table") {
+                return;
+              }
 
               const { tableCell, tableHeader } = state.schema.nodes;
-              if (!tableCell) return;
+              if (!tableCell) {
+                return;
+              }
 
               const tr = state.tr;
               let shift = 0;
 
               tableNode.forEach((row, rowOffset) => {
-                if (row.type.name !== "tableRow") return;
+                if (row.type.name !== "tableRow") {
+                  return;
+                }
 
                 const isHeader = row.firstChild?.type.name === "tableHeader";
-                const cellType =
-                  isHeader && tableHeader ? tableHeader : tableCell;
+                const cellType = isHeader && tableHeader ? tableHeader : tableCell;
                 const newCell = cellType.createAndFill();
-                if (!newCell) return;
+                if (!newCell) {
+                  return;
+                }
 
-                const insertAt =
-                  tablePos + 1 + rowOffset + 1 + row.content.size + shift;
+                const insertAt = tablePos + 1 + rowOffset + 1 + row.content.size + shift;
                 tr.insert(insertAt, newCell);
                 shift += newCell.nodeSize;
               });
@@ -284,36 +272,26 @@ export const createTableExtension = () => {
             };
 
             const handleClick = (event: MouseEvent) => {
-              if (!editorView.editable) return;
+              if (!editorView.editable) {
+                return;
+              }
 
               const target = event.target as HTMLElement;
-              const tableEl = target.closest(
-                "table",
-              ) as HTMLTableElement | null;
-              if (!tableEl || !editorView.dom.contains(tableEl)) return;
+              const tableEl = target.closest("table");
+              if (!tableEl || !editorView.dom.contains(tableEl)) {
+                return;
+              }
 
               const rect = tableEl.getBoundingClientRect();
               const { clientX: x, clientY: y } = event;
-              const colBtnW =
-                parseFloat(getComputedStyle(tableEl, "::after").width) || 16;
-              const rowBtnH =
-                parseFloat(getComputedStyle(tableEl, "::before").height) || 16;
+              const colBtnW = parseFloat(getComputedStyle(tableEl, "::after").width) || 16;
+              const rowBtnH = parseFloat(getComputedStyle(tableEl, "::before").height) || 16;
 
               let action: ((pos: number) => void) | null = null;
 
-              if (
-                x >= rect.right &&
-                x <= rect.right + colBtnW &&
-                y >= rect.top &&
-                y <= rect.bottom
-              ) {
+              if (x >= rect.right && x <= rect.right + colBtnW && y >= rect.top && y <= rect.bottom) {
                 action = insertColumn;
-              } else if (
-                x >= rect.left &&
-                x <= rect.right &&
-                y >= rect.bottom &&
-                y <= rect.bottom + rowBtnH
-              ) {
+              } else if (x >= rect.left && x <= rect.right && y >= rect.bottom && y <= rect.bottom + rowBtnH) {
                 action = insertRow;
               }
 
@@ -321,7 +299,9 @@ export const createTableExtension = () => {
                 event.preventDefault();
                 event.stopPropagation();
                 const pos = resolveTablePos(tableEl);
-                if (pos !== null) action(pos);
+                if (pos !== null) {
+                  action(pos);
+                }
               }
             };
 
@@ -329,15 +309,15 @@ export const createTableExtension = () => {
             root?.addEventListener("click", handleClick, true);
 
             const applyTableStyles = () => {
-              if (!editorView.editable) return;
+              if (!editorView.editable) {
+                return;
+              }
               editorView.state.doc.descendants((node, pos) => {
                 if (node.type.name === "table") {
                   const wrapper = editorView.nodeDOM(pos) as HTMLElement | null;
                   if (wrapper?.classList.contains("tableWrapper")) {
                     wrapper.classList.add(tableWrapperClassName);
-                    wrapper
-                      .querySelector("table")
-                      ?.classList.add(tableClassName);
+                    wrapper.querySelector("table")?.classList.add(tableClassName);
                   }
                   return false;
                 }

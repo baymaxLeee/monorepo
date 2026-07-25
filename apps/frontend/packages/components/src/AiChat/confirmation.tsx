@@ -2,6 +2,7 @@ import type { ToolUIPart } from "ai";
 import type { ComponentProps, ReactNode } from "react";
 import { createContext, useContext, useMemo } from "react";
 import { cn } from "shared";
+
 import { Alert, AlertDescription } from "../shadcn/alert";
 import { Button } from "../shadcn/button";
 
@@ -12,9 +13,7 @@ type ConfirmationContextValue = {
   state: ToolUIPart["state"];
 };
 
-const ConfirmationContext = createContext<ConfirmationContextValue | null>(
-  null,
-);
+const ConfirmationContext = createContext<ConfirmationContextValue | null>(null);
 
 function useConfirmation() {
   const context = useContext(ConfirmationContext);
@@ -29,12 +28,7 @@ export type ConfirmationProps = ComponentProps<typeof Alert> & {
   state: ToolUIPart["state"];
 };
 
-export function Confirmation({
-  approval,
-  state,
-  className,
-  ...props
-}: ConfirmationProps) {
+export function Confirmation({ approval, state, className, ...props }: ConfirmationProps) {
   const value = useMemo(() => ({ approval, state }), [approval, state]);
   if (!approval || state === "input-streaming" || state === "input-available") {
     return null;
@@ -58,33 +52,23 @@ export function ConfirmationRequest({ children }: { children?: ReactNode }) {
 
 export function ConfirmationAccepted({ children }: { children?: ReactNode }) {
   const { approval, state } = useConfirmation();
-  return approval?.approved === true &&
-    ["approval-responded", "output-available"].includes(state)
-    ? children
-    : null;
+  return approval?.approved === true && ["approval-responded", "output-available"].includes(state) ? children : null;
 }
 
 export function ConfirmationRejected({ children }: { children?: ReactNode }) {
   const { approval, state } = useConfirmation();
-  return approval?.approved === false &&
-    ["approval-responded", "output-denied", "output-available"].includes(state)
+  return approval?.approved === false && ["approval-responded", "output-denied", "output-available"].includes(state)
     ? children
     : null;
 }
 
 export type ConfirmationActionsProps = ComponentProps<"div">;
 
-export function ConfirmationActions({
-  className,
-  ...props
-}: ConfirmationActionsProps) {
-  if (useConfirmation().state !== "approval-requested") return null;
-  return (
-    <div
-      className={cn("flex items-center justify-end gap-2", className)}
-      {...props}
-    />
-  );
+export function ConfirmationActions({ className, ...props }: ConfirmationActionsProps) {
+  if (useConfirmation().state !== "approval-requested") {
+    return null;
+  }
+  return <div className={cn("flex items-center justify-end gap-2", className)} {...props} />;
 }
 
 export type ConfirmationActionProps = ComponentProps<typeof Button>;

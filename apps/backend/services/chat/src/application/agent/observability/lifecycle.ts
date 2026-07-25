@@ -1,3 +1,4 @@
+import { finalizeConversationContext, type ContextEstimate } from "../context/context-snapshot.js";
 import {
   finishAgentRun,
   finishAgentStep,
@@ -6,19 +7,25 @@ import {
   recordToolCallStart,
   startAgentStep,
 } from "../runs/repository.js";
-import {
-  finalizeConversationContext,
-  type ContextEstimate,
-} from "../context/context-snapshot.js";
 import { isToolOutcome } from "../tools/outcome.js";
 
 function stepId(runId: string, stepNumber: number): string {
-  const compact = runId.replace(/[^a-f0-9]/gi, "").padEnd(30, "0").slice(0, 30);
+  const compact = runId
+    .replace(/[^a-f0-9]/gi, "")
+    .padEnd(30, "0")
+    .slice(0, 30);
   return `${compact}${stepNumber.toString(16).padStart(2, "0").slice(-2)}`;
 }
 
 export async function startModelStep(input: { runId: string; stepNumber: number; model: string }): Promise<void> {
-  await startAgentStep({ stepId: stepId(input.runId, input.stepNumber), runId: input.runId, stepIndex: input.stepNumber, kind: "model", summary: "model step started", metadata: { model: input.model } });
+  await startAgentStep({
+    stepId: stepId(input.runId, input.stepNumber),
+    runId: input.runId,
+    stepIndex: input.stepNumber,
+    kind: "model",
+    summary: "model step started",
+    metadata: { model: input.model },
+  });
 }
 
 export interface UsageTokens {
@@ -43,12 +50,16 @@ export async function captureModelStepContext(input: {
   contextEstimate: ContextEstimate;
 }): Promise<void> {
   const snapshot = finalizeConversationContext(input.contextEstimate, EMPTY_USAGE);
-  if (!snapshot) return;
+  if (!snapshot) {
+    return;
+  }
   await recordAgentStepContextSnapshot(stepId(input.runId, input.stepNumber), snapshot);
 }
 
 function addToken(left: number | null, right: number | null): number | null {
-  if (left == null && right == null) return null;
+  if (left == null && right == null) {
+    return null;
+  }
   return (left ?? 0) + (right ?? 0);
 }
 
@@ -79,7 +90,15 @@ export function extractUsageTokens(usage: unknown): UsageTokens {
   };
 }
 
-export async function finishModelStep(input: { runId: string; stepNumber: number; finishReason: string; usage: unknown; toolCallCount: number; performance?: unknown; contextEstimate?: ContextEstimate }): Promise<void> {
+export async function finishModelStep(input: {
+  runId: string;
+  stepNumber: number;
+  finishReason: string;
+  usage: unknown;
+  toolCallCount: number;
+  performance?: unknown;
+  contextEstimate?: ContextEstimate;
+}): Promise<void> {
   const tokens = extractUsageTokens(input.usage);
   const contextSnapshot = finalizeConversationContext(input.contextEstimate, tokens);
   // Cache/reasoning breakdown is not promoted to step columns: the full usage
@@ -103,11 +122,13 @@ export async function finishModelStep(input: { runId: string; stepNumber: number
 
 function sanitizeToolInput(toolName: string, input: unknown): unknown {
   const truncate = (value: string) =>
-    value.length <= 400
-      ? value
-      : `${value.slice(0, 400).trimEnd()}\n...[truncated ${value.length} chars]`;
-  if (typeof input === "string") return truncate(input);
-  if (typeof input !== "object" || input == null) return input;
+    value.length <= 400 ? value : `${value.slice(0, 400).trimEnd()}\n...[truncated ${value.length} chars]`;
+  if (typeof input === "string") {
+    return truncate(input);
+  }
+  if (typeof input !== "object" || input == null) {
+    return input;
+  }
   const source = input as Record<string, unknown>;
   if (toolName === "write_file" && typeof source.content === "string") {
     return { ...source, content: truncate(source.content) };
@@ -116,7 +137,9 @@ function sanitizeToolInput(toolName: string, input: unknown): unknown {
     return {
       ...source,
       edits: source.edits.slice(0, 100).map((edit) => {
-        if (!edit || typeof edit !== "object") return edit;
+        if (!edit || typeof edit !== "object") {
+          return edit;
+        }
         const item = edit as Record<string, unknown>;
         return {
           ...item,
@@ -129,11 +152,30 @@ function sanitizeToolInput(toolName: string, input: unknown): unknown {
   return input;
 }
 
-export async function recordToolStart(input: { runId: string; toolCallId: string; stepNumber: number; toolName: string; toolInput: unknown }): Promise<void> {
-  await recordToolCallStart({ runId: input.runId, toolCallId: input.toolCallId, stepIndex: input.stepNumber, toolName: input.toolName, toolInput: sanitizeToolInput(input.toolName, input.toolInput) });
+export async function recordToolStart(input: {
+  runId: string;
+  toolCallId: string;
+  stepNumber: number;
+  toolName: string;
+  toolInput: unknown;
+}): Promise<void> {
+  await recordToolCallStart({
+    runId: input.runId,
+    toolCallId: input.toolCallId,
+    stepIndex: input.stepNumber,
+    toolName: input.toolName,
+    toolInput: sanitizeToolInput(input.toolName, input.toolInput),
+  });
 }
 
-export async function recordToolEnd(input: { toolCallId: string; toolName: string; success: boolean; output?: unknown; error?: unknown; durationMs: number }): Promise<void> {
+export async function recordToolEnd(input: {
+  toolCallId: string;
+  toolName: string;
+  success: boolean;
+  output?: unknown;
+  error?: unknown;
+  durationMs: number;
+}): Promise<void> {
   const outcome = isToolOutcome(input.output) ? input.output : null;
   const semanticFailure = input.success && outcome?.ok === false;
   const success = input.success && !semanticFailure;
@@ -141,10 +183,9 @@ export async function recordToolEnd(input: { toolCallId: string; toolName: strin
     toolCallId: input.toolCallId,
     status: success ? "completed" : "failed",
     output: input.success ? input.output : undefined,
-    error:
-      success
-        ? undefined
-        : input.error ?? (outcome && outcome.ok === false ? outcome.error.message : input.output),
+    error: success
+      ? undefined
+      : (input.error ?? (outcome && outcome.ok === false ? outcome.error.message : input.output)),
     durationMs: Math.max(0, Math.round(input.durationMs)),
   });
 }
@@ -174,11 +215,7 @@ export async function recordRejectedToolCall(input: {
   });
 }
 
-export async function failAgentRun(input: {
-  runId: string;
-  error: unknown;
-  usage?: UsageTokens;
-}): Promise<void> {
+export async function failAgentRun(input: { runId: string; error: unknown; usage?: UsageTokens }): Promise<void> {
   await finishAgentRun({
     runId: input.runId,
     status: "failed",

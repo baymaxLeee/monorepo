@@ -1,14 +1,15 @@
+import { propagationHeaders } from "@backend/kernel-ts";
 import {
   AdminInternalClient,
   TransportError,
   type AdminProviderSnapshot,
   type AdminResolvedAgent,
 } from "@backend/transport-ts";
-import { propagationHeaders } from "@backend/kernel-ts";
-import { getSettings } from "../../bootstrap/config.js";
+import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
+
 import type { BotProfileSnapshot } from "../../application/agent/context/instructions/index.js";
 import { AdminUnavailableError, ProviderNotConfiguredError, RequestError } from "../../application/errors.js";
-import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
+import { getSettings } from "../../bootstrap/config.js";
 import { getRedisClient } from "../redis/index.js";
 
 export interface ProviderSnapshot {
@@ -37,7 +38,9 @@ function providerLimitsKey(orgId: string, providerId: string | null): string {
 }
 
 function parseProviderLimits(value: string | null): ProviderLimits | null {
-  if (!value) return null;
+  if (!value) {
+    return null;
+  }
   try {
     const parsed = JSON.parse(value) as Partial<ProviderLimits>;
     return typeof parsed.contextWindow === "number" &&
@@ -111,16 +114,11 @@ async function assertSnapshotUrl(snapshot: ProviderSnapshot): Promise<ProviderSn
   return snapshot;
 }
 
-export async function getProvider(
-  orgId: string,
-  providerId?: string | null,
-): Promise<ProviderSnapshot> {
+export async function getProvider(orgId: string, providerId?: string | null): Promise<ProviderSnapshot> {
   let data: AdminProviderSnapshot;
   try {
     const client = adminClient();
-    data = providerId
-      ? await client.getProvider(providerId, orgId)
-      : await client.getDefaultProvider(orgId);
+    data = providerId ? await client.getProvider(providerId, orgId) : await client.getDefaultProvider(orgId);
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new ProviderNotConfiguredError("no model provider configured");
@@ -130,31 +128,27 @@ export async function getProvider(
   return assertSnapshotUrl(toSnapshot(data));
 }
 
-export async function getProviderLimits(
-  orgId: string,
-  providerId?: string | null,
-): Promise<ProviderLimits> {
+export async function getProviderLimits(orgId: string, providerId?: string | null): Promise<ProviderLimits> {
   const cache = getRedisClient();
   const key = providerLimitsKey(orgId, providerId ?? null);
-  const cached = await cache.get(key).then(parseProviderLimits).catch(() => null);
-  if (cached) return cached;
+  const cached = await cache
+    .get(key)
+    .then(parseProviderLimits)
+    .catch(() => null);
+  if (cached) {
+    return cached;
+  }
 
   const provider = await getProvider(orgId, providerId);
   const limits = {
     contextWindow: provider.contextWindow,
     maxOutputTokens: provider.maxOutputTokens,
   };
-  await cache
-    .set(key, JSON.stringify(limits), "EX", getSettings().providerCacheTtlSeconds)
-    .catch(() => undefined);
+  await cache.set(key, JSON.stringify(limits), "EX", getSettings().providerCacheTtlSeconds).catch(() => undefined);
   return limits;
 }
 
-export async function getAgent(
-  userId: string,
-  agentId: string,
-  orgId = "",
-): Promise<ResolvedAgentProviders> {
+export async function getAgent(userId: string, agentId: string, orgId = ""): Promise<ResolvedAgentProviders> {
   let data: AdminResolvedAgent;
   try {
     data = await adminClient().getResolvedAgent(userId, agentId, orgId);
@@ -164,8 +158,7 @@ export async function getAgent(
     }
     throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
   }
-  const resolve = async (p: AdminProviderSnapshot | null | undefined) =>
-    p ? assertSnapshotUrl(toSnapshot(p)) : null;
+  const resolve = async (p: AdminProviderSnapshot | null | undefined) => (p ? assertSnapshotUrl(toSnapshot(p)) : null);
   return {
     agentId: data.id,
     agentName: data.name,
@@ -205,11 +198,7 @@ export async function getSkillBody(
   return { id: data.id, name: data.name, body: data.body, files: data.files };
 }
 
-export async function getSkillFile(
-  skillId: string,
-  orgId: string,
-  path: string,
-): Promise<string> {
+export async function getSkillFile(skillId: string, orgId: string, path: string): Promise<string> {
   try {
     return (await adminClient().getSkillFile(skillId, orgId, path)).content;
   } catch (err) {

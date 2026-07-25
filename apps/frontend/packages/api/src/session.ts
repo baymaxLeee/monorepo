@@ -81,7 +81,9 @@ export async function logout(): Promise<void> {
 }
 
 export async function refreshSession(): Promise<AuthSession | null> {
-  if (refreshPromise) return refreshPromise;
+  if (refreshPromise) {
+    return refreshPromise;
+  }
   refreshPromise = request<AuthSession>({
     url: "/api/iam-server/refresh",
     method: "POST",

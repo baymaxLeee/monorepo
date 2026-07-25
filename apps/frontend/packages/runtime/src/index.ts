@@ -19,11 +19,10 @@ export function emit<T = unknown>(event: string, payload: T): void {
   });
 }
 
-export function on<T = unknown>(
-  event: string,
-  handler: Handler<T>,
-): () => void {
-  if (!handlers.has(event)) handlers.set(event, new Set());
+export function on<T = unknown>(event: string, handler: Handler<T>): () => void {
+  if (!handlers.has(event)) {
+    handlers.set(event, new Set());
+  }
   handlers.get(event)!.add(handler as Handler);
   return () => handlers.get(event)?.delete(handler as Handler);
 }

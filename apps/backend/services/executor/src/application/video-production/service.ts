@@ -1,8 +1,7 @@
 import { randomBytes } from "node:crypto";
+
 import { desc, eq } from "drizzle-orm";
 
-import type { Script } from "../video/contracts.js";
-import { ConflictError, NotFoundError } from "../errors.js";
 import {
   shotPlanSchema,
   type ProductionArtifactType,
@@ -17,6 +16,8 @@ import {
   videoProductionEvents,
   videoProductions,
 } from "../../infrastructure/persistence/schema.js";
+import { ConflictError, NotFoundError } from "../errors.js";
+import type { Script } from "../video/contracts.js";
 import { SEEDANCE_PROMPT_COMPILER_VERSION, sha256Json } from "./compiler.js";
 
 function newId(): string {
@@ -75,19 +76,17 @@ export async function initializeVideoProduction(input: {
   sourceCharacterRefs?: Array<{ name: string; documentId?: string }>;
 }): Promise<VideoProductionProjection> {
   const db = getDb();
-  const [task] = await db
-    .select()
-    .from(tasks)
-    .where(eq(tasks.workflowRunId, input.workflowRunId));
-  if (!task)
-    throw new NotFoundError(
-      `task for workflow ${input.workflowRunId} not found`,
-    );
+  const [task] = await db.select().from(tasks).where(eq(tasks.workflowRunId, input.workflowRunId));
+  if (!task) {
+    throw new NotFoundError(`task for workflow ${input.workflowRunId} not found`);
+  }
   const [existing] = await db
     .select({ projection: videoProductions.projection })
     .from(videoProductions)
     .where(eq(videoProductions.taskId, task.id));
-  if (existing) return existing.projection;
+  if (existing) {
+    return existing.projection;
+  }
 
   const shotPlan = shotPlanSchema.parse(input.shotPlan);
   const now = new Date();
@@ -155,8 +154,8 @@ export async function initializeVideoProduction(input: {
       payload: {
         references: shotPlan.shots.flatMap((shot) => shot.references),
       },
-      sourceDocumentIds: (input.sourceCharacterRefs ?? []).flatMap(
-        (reference) => (reference.documentId ? [reference.documentId] : []),
+      sourceDocumentIds: (input.sourceCharacterRefs ?? []).flatMap((reference) =>
+        reference.documentId ? [reference.documentId] : [],
       ),
     });
     await tx.insert(videoProductionEvents).values({
@@ -171,9 +170,7 @@ export async function initializeVideoProduction(input: {
   return projection;
 }
 
-export async function markAwaitingStoryboardApproval(
-  productionId: string,
-): Promise<VideoProductionProjection> {
+export async function markAwaitingStoryboardApproval(productionId: string): Promise<VideoProductionProjection> {
   return updateProjection(
     productionId,
     (projection) => ({
@@ -235,26 +232,14 @@ export async function markVideoProductionGenerating(
   );
 }
 
-export async function reviseStoryboard(
-  productionId: string,
-  shotPlan: ShotPlan,
-  actorId: string,
-): Promise<ShotPlan> {
+export async function reviseStoryboard(productionId: string, shotPlan: ShotPlan, actorId: string): Promise<ShotPlan> {
   return getDb().transaction(async (tx) => {
-    const [row] = await tx
-      .select()
-      .from(videoProductions)
-      .where(eq(videoProductions.id, productionId))
-      .for("update");
+    const [row] = await tx.select().from(videoProductions).where(eq(videoProductions.id, productionId)).for("update");
     if (!row?.projection.shotPlan) {
-      throw new NotFoundError(
-        `video production ${productionId} has no shot plan`,
-      );
+      throw new NotFoundError(`video production ${productionId} has no shot plan`);
     }
     if (row.stage !== "awaiting_storyboard_approval") {
-      throw new ConflictError(
-        "video production is not awaiting storyboard approval",
-      );
+      throw new ConflictError("video production is not awaiting storyboard approval");
     }
     const version = row.projection.shotPlan.version + 1;
     const revised = shotPlanSchema.parse({ ...shotPlan, version });
@@ -273,10 +258,7 @@ export async function reviseStoryboard(
         estimatedMicros:
           unitPriceMicros == null
             ? null
-            : revised.shots.reduce(
-                (total, shot) => total + shot.seconds * unitPriceMicros,
-                0,
-              ),
+            : revised.shots.reduce((total, shot) => total + shot.seconds * unitPriceMicros, 0),
       },
       updatedAt: now.toISOString(),
     };
@@ -298,9 +280,7 @@ export async function reviseStoryboard(
       provenance: {
         compilerVersion: SEEDANCE_PROMPT_COMPILER_VERSION,
         sourceDocumentIds: revised.shots.flatMap((shot) =>
-          shot.references.flatMap((reference) =>
-            reference.documentId ? [reference.documentId] : [],
-          ),
+          shot.references.flatMap((reference) => (reference.documentId ? [reference.documentId] : [])),
         ),
         actorId,
         createdAt: now.toISOString(),
@@ -351,9 +331,7 @@ export async function recordVideoTake(
       stage: "shot_review",
       awaitingAction: "shot_review",
       shotReviews: projection.shotReviews.map((review) =>
-        review.shotId === shotId
-          ? { ...review, takes: [...review.takes, take] }
-          : review,
+        review.shotId === shotId ? { ...review, takes: [...review.takes, take] } : review,
       ),
     }),
     "take_created",
@@ -370,9 +348,7 @@ export async function markVideoTakesSelected(
   productionId: string,
   selections: Array<{ shotId: string; takeId: string }>,
 ): Promise<VideoProductionProjection> {
-  const selected = new Map(
-    selections.map((selection) => [selection.shotId, selection.takeId]),
-  );
+  const selected = new Map(selections.map((selection) => [selection.shotId, selection.takeId]));
   return updateProjection(
     productionId,
     (projection) => ({
@@ -478,9 +454,7 @@ export async function recordVideoRenderReport(
   return projection;
 }
 
-export async function markVideoProductionFinalQa(
-  productionId: string,
-): Promise<VideoProductionProjection> {
+export async function markVideoProductionFinalQa(productionId: string): Promise<VideoProductionProjection> {
   return updateProjection(
     productionId,
     (projection) => ({
@@ -517,10 +491,7 @@ export async function markVideoProductionPublishing(
   );
 }
 
-export async function failVideoProduction(
-  productionId: string,
-  error: string,
-): Promise<VideoProductionProjection> {
+export async function failVideoProduction(productionId: string, error: string): Promise<VideoProductionProjection> {
   return updateProjection(
     productionId,
     (projection) => ({
@@ -536,18 +507,15 @@ export async function failVideoProduction(
   );
 }
 
-export async function cancelVideoProductionProjection(
-  productionId: string,
-): Promise<VideoProductionProjection | null> {
+export async function cancelVideoProductionProjection(productionId: string): Promise<VideoProductionProjection | null> {
   const [row] = await getDb()
     .select({ projection: videoProductions.projection })
     .from(videoProductions)
     .where(eq(videoProductions.id, productionId));
-  if (!row) return null;
-  if (
-    row.projection.status === "completed" ||
-    row.projection.status === "cancelled"
-  ) {
+  if (!row) {
+    return null;
+  }
+  if (row.projection.status === "completed" || row.projection.status === "cancelled") {
     return row.projection;
   }
   return updateProjection(
@@ -573,13 +541,10 @@ async function updateProjection(
 ): Promise<VideoProductionProjection> {
   const db = getDb();
   return db.transaction(async (tx) => {
-    const [row] = await tx
-      .select()
-      .from(videoProductions)
-      .where(eq(videoProductions.id, productionId))
-      .for("update");
-    if (!row)
+    const [row] = await tx.select().from(videoProductions).where(eq(videoProductions.id, productionId)).for("update");
+    if (!row) {
       throw new NotFoundError(`video production ${productionId} not found`);
+    }
     if (["completed", "failed", "cancelled"].includes(row.projection.status)) {
       return row.projection;
     }

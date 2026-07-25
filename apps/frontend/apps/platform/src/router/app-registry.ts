@@ -14,7 +14,9 @@ function remoteEntry(entry: string): string {
 }
 
 export function loadApps(): Promise<AppEntry[]> {
-  if (loadPromise) return loadPromise;
+  if (loadPromise) {
+    return loadPromise;
+  }
 
   const request = fetchApps({ skipErrorNotify: true })
     .then((apps) => {
@@ -27,7 +29,9 @@ export function loadApps(): Promise<AppEntry[]> {
       return apps;
     })
     .catch((error) => {
-      if (loadPromise === request) loadPromise = null;
+      if (loadPromise === request) {
+        loadPromise = null;
+      }
       throw error;
     });
   loadPromise = request;

@@ -1,13 +1,16 @@
 import type { TraceSpan } from "api";
 import { Badge, InlineCode, Skeleton } from "components";
 import { useMemo } from "react";
+
 import { formatTraceDuration, formatTraceTime } from "./trace-utils";
 
 function spanDepths(spans: TraceSpan[]) {
   const byId = new Map(spans.map((span) => [span.span_id, span]));
   const memo = new Map<string, number>();
   const depthOf = (span: TraceSpan): number => {
-    if (memo.has(span.span_id)) return memo.get(span.span_id) ?? 0;
+    if (memo.has(span.span_id)) {
+      return memo.get(span.span_id) ?? 0;
+    }
     const parent = byId.get(span.parent_span_id);
     const depth = parent ? Math.min(depthOf(parent) + 1, 8) : 0;
     memo.set(span.span_id, depth);
@@ -19,11 +22,7 @@ function spanDepths(spans: TraceSpan[]) {
 function spanLabel(span: TraceSpan) {
   const attrs = span.span_attributes;
   return (
-    attrs["agent.tool_name"] ||
-    attrs["agent.step_number"] ||
-    attrs["http.request.method"] ||
-    attrs["url.path"] ||
-    ""
+    attrs["agent.tool_name"] || attrs["agent.step_number"] || attrs["http.request.method"] || attrs["url.path"] || ""
   );
 }
 
@@ -38,11 +37,7 @@ export function TraceTimeline({
 }) {
   const depths = useMemo(() => spanDepths(spans), [spans]);
   if (!traceId) {
-    return (
-      <div className="rounded-md border border-dashed p-6 text-sm">
-        选择一条 trace 查看 timeline
-      </div>
-    );
+    return <div className="rounded-md border border-dashed p-6 text-sm">选择一条 trace 查看 timeline</div>;
   }
   if (loading && spans.length === 0) {
     return (
@@ -78,22 +73,15 @@ export function TraceTimeline({
                 <div className="min-w-0">
                   <div className="truncate font-medium">{span.span_name}</div>
                   <div className="text-xs text-muted-foreground">
-                    {formatTraceTime(span.timestamp)} · {span.service_name} ·{" "}
-                    {span.span_kind}
+                    {formatTraceTime(span.timestamp)} · {span.service_name} · {span.span_kind}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {label ? <Badge variant="outline">{label}</Badge> : null}
-                  <Badge variant={isError ? "destructive" : "secondary"}>
-                    {formatTraceDuration(span.duration_ms)}
-                  </Badge>
+                  <Badge variant={isError ? "destructive" : "secondary"}>{formatTraceDuration(span.duration_ms)}</Badge>
                 </div>
               </div>
-              {span.status_message ? (
-                <div className="mt-2 text-xs text-destructive">
-                  {span.status_message}
-                </div>
-              ) : null}
+              {span.status_message ? <div className="mt-2 text-xs text-destructive">{span.status_message}</div> : null}
             </div>
           );
         })}

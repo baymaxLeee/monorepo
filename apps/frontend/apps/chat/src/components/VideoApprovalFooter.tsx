@@ -1,16 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { VideoProduction } from "api";
-import {
-  Button,
-  Field,
-  FieldError,
-  FieldLabel,
-  Form,
-  FormControl,
-  FormField,
-  Input,
-  Textarea,
-} from "components";
+import { Button, Field, FieldError, FieldLabel, Form, FormControl, FormField, Input, Textarea } from "components";
 import { CheckIcon, Loader2Icon, XIcon } from "lucide-react";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
@@ -24,13 +14,12 @@ const approvalSchema = z.object({
 type ApprovalValues = z.infer<typeof approvalSchema>;
 
 function needsWaiver(production: VideoProduction): boolean {
-  if (!production.qaReport || typeof production.qaReport !== "object")
+  if (!production.qaReport || typeof production.qaReport !== "object") {
     return false;
+  }
   const semantic = Reflect.get(production.qaReport, "semantic");
   return Boolean(
-    semantic &&
-      typeof semantic === "object" &&
-      Reflect.get(semantic, "status") === "human_review_required",
+    semantic && typeof semantic === "object" && Reflect.get(semantic, "status") === "human_review_required",
   );
 }
 
@@ -41,10 +30,7 @@ export function VideoApprovalFooter({
 }: {
   production: VideoProduction;
   disabled: boolean;
-  onDecision: (
-    approved: boolean,
-    input: { budgetLimitMicros?: number; waiverReason?: string },
-  ) => Promise<void>;
+  onDecision: (approved: boolean, input: { budgetLimitMicros?: number; waiverReason?: string }) => Promise<void>;
 }) {
   const estimate = production.cost.estimatedMicros ?? 0;
   const form = useForm<ApprovalValues>({
@@ -87,9 +73,7 @@ export function VideoApprovalFooter({
               name="budgetUnits"
               render={({ field }) => (
                 <Field>
-                  <FieldLabel>
-                    预算上限（{production.cost.currency ?? "币种"}）
-                  </FieldLabel>
+                  <FieldLabel>预算上限（{production.cost.currency ?? "币种"}）</FieldLabel>
                   <FormControl>
                     <Input
                       {...field}
@@ -97,21 +81,16 @@ export function VideoApprovalFooter({
                       min={estimate / 1_000_000}
                       step="0.01"
                       disabled={disabled}
-                      onChange={(event) =>
-                        field.onChange(event.currentTarget.valueAsNumber)
-                      }
+                      onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
                     />
                   </FormControl>
                   <FieldError errors={[form.formState.errors.budgetUnits]} />
-                  <p className="text-xs text-muted-foreground">
-                    提高预算上限后才有余量进行局部重拍。
-                  </p>
+                  <p className="text-xs text-muted-foreground">提高预算上限后才有余量进行局部重拍。</p>
                 </Field>
               )}
             />
           ) : null}
-          {production.awaitingAction === "publish_approval" &&
-          needsWaiver(production) ? (
+          {production.awaitingAction === "publish_approval" && needsWaiver(production) ? (
             <FormField
               control={form.control}
               name="waiverReason"
@@ -138,14 +117,8 @@ export function VideoApprovalFooter({
               拒绝
             </Button>
             <Button type="submit" className="flex-1" disabled={disabled}>
-              {disabled ? (
-                <Loader2Icon className="mr-2 size-4 animate-spin" />
-              ) : (
-                <CheckIcon className="mr-2 size-4" />
-              )}
-              {production.awaitingAction === "publish_approval"
-                ? "批准发布"
-                : "批准分镜并开始生成"}
+              {disabled ? <Loader2Icon className="mr-2 size-4 animate-spin" /> : <CheckIcon className="mr-2 size-4" />}
+              {production.awaitingAction === "publish_approval" ? "批准发布" : "批准分镜并开始生成"}
             </Button>
           </div>
         </form>

@@ -3,8 +3,8 @@ import { z } from "zod";
 
 import type { SkillListing } from "../../context/instructions/index.js";
 import { defineAgentTool } from "../../tools/manifest.js";
-import type { AgentToolManifest } from "../../tools/types.js";
 import { ToolBlockedError } from "../../tools/outcome.js";
+import type { AgentToolManifest } from "../../tools/types.js";
 
 /** Per-run admin (bot-bound) skill source: L1 listings + an on-demand body
  *  loader keyed by skill id. */
@@ -25,9 +25,10 @@ const loadSkillOutputSchema = z.object({
  * pulls their bodies. `load_skill` refuses any name not in the advertised set,
  * so the model can only load published, enabled skills bound to this bot.
  */
-export function resolveSkills(
-  adminSource?: AdminSkillSource | null,
-): { manifests: AgentToolManifest[]; skills: SkillListing[] } {
+export function resolveSkills(adminSource?: AdminSkillSource | null): {
+  manifests: AgentToolManifest[];
+  skills: SkillListing[];
+} {
   const loaders = new Map<string, () => Promise<string>>();
   const fileLoaders = new Map<string, (path: string) => Promise<string>>();
   const listings = new Map<string, SkillListing>();
@@ -42,7 +43,9 @@ export function resolveSkills(
     listings.set(skill.name, { name: skill.name, description: skill.description });
   }
 
-  if (loaders.size === 0) return { manifests: [], skills: [] };
+  if (loaders.size === 0) {
+    return { manifests: [], skills: [] };
+  }
 
   const manifests: AgentToolManifest[] = [];
   const loadSkill = defineAgentTool(
@@ -102,7 +105,9 @@ export function resolveSkills(
       parallelizable: false,
     },
   );
-  if (!loadedSkillName) manifests.push(loadSkill);
+  if (!loadedSkillName) {
+    manifests.push(loadSkill);
+  }
 
   const readSkillFile = defineAgentTool(
     "read_skill_file",
@@ -153,7 +158,9 @@ export function resolveSkills(
       parallelizable: true,
     },
   );
-  if (fileLoaders.size > 0) manifests.push(readSkillFile);
+  if (fileLoaders.size > 0) {
+    manifests.push(readSkillFile);
+  }
 
   return {
     manifests,

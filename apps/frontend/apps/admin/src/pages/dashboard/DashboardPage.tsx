@@ -19,15 +19,14 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePlatformStore } from "runtime";
 import { getErrorMessage } from "shared";
+
 import { DashboardContent } from "./DashboardContent";
 import { buildDashboardData, buildVitalSummaries } from "./dashboardData";
 
 export function DashboardPage() {
   const user = usePlatformStore((state) => state.user);
   const [items, setItems] = useState<TelemetryErrorEvent[]>([]);
-  const [performanceItems, setPerformanceItems] = useState<
-    TelemetryPerformanceEvent[]
-  >([]);
+  const [performanceItems, setPerformanceItems] = useState<TelemetryPerformanceEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -53,19 +52,14 @@ export function DashboardPage() {
   }, [load]);
 
   const data = useMemo(() => buildDashboardData(items), [items]);
-  const vitals = useMemo(
-    () => buildVitalSummaries(performanceItems),
-    [performanceItems],
-  );
+  const vitals = useMemo(() => buildVitalSummaries(performanceItems), [performanceItems]);
 
   return (
     <Page>
       <PageHeader>
         <PageHeaderContent>
           <PageTitle>Dashboard</PageTitle>
-          <PageDescription>
-            {user ? `${user.displayName} 的可观测视图` : "可观测视图"}
-          </PageDescription>
+          <PageDescription>{user ? `${user.displayName} 的可观测视图` : "可观测视图"}</PageDescription>
         </PageHeaderContent>
         <PageActions>
           <Button variant="outline" onClick={load} disabled={loading}>
@@ -81,12 +75,7 @@ export function DashboardPage() {
         </Alert>
       ) : null}
 
-      <DashboardContent
-        data={data}
-        items={items}
-        loading={loading}
-        vitals={vitals}
-      />
+      <DashboardContent data={data} items={items} loading={loading} vitals={vitals} />
     </Page>
   );
 }

@@ -17,7 +17,9 @@ export function buildUserFilePart(input: {
 
 export function documentIdFromFilePart(part: FileUIPart): string | null {
   const match = part.url.match(/\/documents\/([^/?#]+)\/source(?:[?#]|$)/);
-  if (!match?.[1]) return null;
+  if (!match?.[1]) {
+    return null;
+  }
   try {
     return decodeURIComponent(match[1]);
   } catch {

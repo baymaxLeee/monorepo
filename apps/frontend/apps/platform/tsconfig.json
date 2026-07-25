@@ -2,6 +2,7 @@
   "extends": "@project/typescript-config",
   "compilerOptions": {
     "outDir": "dist",
+    "rootDir": "src",
     "paths": {
       "@/*": ["./src/*"]
     }

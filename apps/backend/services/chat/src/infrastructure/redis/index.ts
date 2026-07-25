@@ -15,9 +15,7 @@ export function createRedisClient(options: RedisClientOptions = {}): Redis {
     db: settings.redisDb,
     lazyConnect: true,
     maxRetriesPerRequest: options.maxRetriesPerRequest ?? 2,
-    ...(options.connectTimeout == null
-      ? {}
-      : { connectTimeout: options.connectTimeout }),
+    ...(options.connectTimeout == null ? {} : { connectTimeout: options.connectTimeout }),
   });
 }
 
@@ -31,6 +29,8 @@ export function getRedisClient(): Redis {
 export async function closeRedisClient(): Promise<void> {
   const client = sharedRedisClient;
   sharedRedisClient = null;
-  if (!client) return;
+  if (!client) {
+    return;
+  }
   await client.quit().catch(() => client.disconnect());
 }

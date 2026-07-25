@@ -79,12 +79,72 @@ const fileTaskBatchPayloadSchema = {
 const videoGenerationTaskPayloadSchema = {
   type: "object",
   properties: {
-    orgId: { type: "string" }, userId: { type: "string" }, conversationId: { type: "string" }, providerId: { type: "string" }, imageProviderId: { type: "string" }, title: { type: "string" }, filename: { type: "string" }, creativeBrief: { type: "string" }, idempotencyKey: { type: "string" },
-    plan: { type: "object", properties: {
-      targetDurationSec: { type: "integer", minimum: 5, maximum: 120 }, logline: { type: "string" }, motif: { type: "string" }, styleBible: { type: "string" }, settingBible: { type: "string" },
-      characters: { type: "array", items: { type: "object", properties: { name: { type: "string" }, appearance: { type: "string" }, documentId: { type: "string" } }, required: ["name", "appearance"] } },
-      shots: { type: "array", items: { type: "object", properties: { purpose: { type: "string" }, plot: { type: "string" }, emotion: { type: "string" }, characterNames: { type: "array", items: { type: "string" } }, seconds: { type: "integer", minimum: 4, maximum: 15 }, action: { type: "string" }, camera: { type: "object", properties: { shotSize: { type: "string" }, movement: { type: "string" }, focus: { type: "string" } }, required: ["shotSize", "movement"] }, environment: { type: "string" }, lightingPalette: { type: "string" }, audioDirection: { type: "string" }, continuityContract: { type: "array", items: { type: "string" } }, acceptanceCriteria: { type: "array", items: { type: "string" } } }, required: ["purpose", "plot", "emotion", "characterNames", "seconds", "action", "camera", "environment", "lightingPalette", "audioDirection", "continuityContract", "acceptanceCriteria"] } },
-    }, required: ["targetDurationSec", "logline", "motif", "styleBible", "settingBible", "characters", "shots"] },
+    orgId: { type: "string" },
+    userId: { type: "string" },
+    conversationId: { type: "string" },
+    providerId: { type: "string" },
+    imageProviderId: { type: "string" },
+    title: { type: "string" },
+    filename: { type: "string" },
+    creativeBrief: { type: "string" },
+    idempotencyKey: { type: "string" },
+    plan: {
+      type: "object",
+      properties: {
+        targetDurationSec: { type: "integer", minimum: 5, maximum: 120 },
+        logline: { type: "string" },
+        motif: { type: "string" },
+        styleBible: { type: "string" },
+        settingBible: { type: "string" },
+        characters: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { name: { type: "string" }, appearance: { type: "string" }, documentId: { type: "string" } },
+            required: ["name", "appearance"],
+          },
+        },
+        shots: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              purpose: { type: "string" },
+              plot: { type: "string" },
+              emotion: { type: "string" },
+              characterNames: { type: "array", items: { type: "string" } },
+              seconds: { type: "integer", minimum: 4, maximum: 15 },
+              action: { type: "string" },
+              camera: {
+                type: "object",
+                properties: { shotSize: { type: "string" }, movement: { type: "string" }, focus: { type: "string" } },
+                required: ["shotSize", "movement"],
+              },
+              environment: { type: "string" },
+              lightingPalette: { type: "string" },
+              audioDirection: { type: "string" },
+              continuityContract: { type: "array", items: { type: "string" } },
+              acceptanceCriteria: { type: "array", items: { type: "string" } },
+            },
+            required: [
+              "purpose",
+              "plot",
+              "emotion",
+              "characterNames",
+              "seconds",
+              "action",
+              "camera",
+              "environment",
+              "lightingPalette",
+              "audioDirection",
+              "continuityContract",
+              "acceptanceCriteria",
+            ],
+          },
+        },
+      },
+      required: ["targetDurationSec", "logline", "motif", "styleBible", "settingBible", "characters", "shots"],
+    },
   },
   required: ["orgId", "userId", "providerId", "title", "filename", "creativeBrief", "plan"],
 };
@@ -147,7 +207,21 @@ const shotSpecSchema = {
     continuityContract: { type: "array", items: { type: "string" } },
     acceptanceCriteria: { type: "array", items: { type: "string" } },
   },
-  required: ["id", "order", "seconds", "narrativeBeat", "subjectAnchors", "action", "camera", "environment", "lightingPalette", "audioDirection", "references", "continuityContract", "acceptanceCriteria"],
+  required: [
+    "id",
+    "order",
+    "seconds",
+    "narrativeBeat",
+    "subjectAnchors",
+    "action",
+    "camera",
+    "environment",
+    "lightingPalette",
+    "audioDirection",
+    "references",
+    "continuityContract",
+    "acceptanceCriteria",
+  ],
 };
 
 const shotPlanSchema = {
@@ -209,7 +283,20 @@ const videoProductionProjectionSchema = {
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },
   },
-  required: ["id", "taskId", "orgId", "userId", "title", "status", "stage", "version", "shotReviews", "cost", "createdAt", "updatedAt"],
+  required: [
+    "id",
+    "taskId",
+    "orgId",
+    "userId",
+    "title",
+    "status",
+    "stage",
+    "version",
+    "shotReviews",
+    "cost",
+    "createdAt",
+    "updatedAt",
+  ],
 };
 
 const productionDecisionSchema = {

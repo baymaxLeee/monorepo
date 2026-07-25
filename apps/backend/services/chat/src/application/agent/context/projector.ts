@@ -1,22 +1,19 @@
+import type { ChatProvider } from "@backend/transport-ts/provider-model";
 import { convertToModelMessages, pruneMessages, type ModelMessage, type UIMessage } from "ai";
 import { and, eq } from "drizzle-orm";
-import type { ChatProvider } from "@backend/transport-ts/provider-model";
 
 import { getDocumentSource } from "../../../infrastructure/clients/knowledge.js";
+import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import { conversationContexts } from "../../../infrastructure/persistence/schema.js";
-import { logger } from "../../../infrastructure/observability/logger.js";
 import { EMPTY_USAGE, type UsageTokens } from "../observability/lifecycle.js";
+import { isToolOutcome, toolOutcomeData } from "../tools/outcome.js";
 import { effectiveModelInputWindow } from "./budget.js";
-import { compactConversationPrefix } from "./compactor.js";
 import { parseCompactionState, type CompactionState } from "./compaction-state.js";
-import {
-  documentIdFromFilePart,
-  isImageMediaType,
-} from "./file-parts.js";
+import { compactConversationPrefix } from "./compactor.js";
+import { documentIdFromFilePart, isImageMediaType } from "./file-parts.js";
 import { escapeXmlText } from "./instructions/xml.js";
 import { estimateTextTokens } from "./token-estimate.js";
-import { isToolOutcome, toolOutcomeData } from "../tools/outcome.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
@@ -24,11 +21,7 @@ const COMPACTION_MESSAGE_RESERVE_TOKENS = 6_000;
 // The original stays in Knowledge; only model-bound bytes are normalized.
 const VISION_MAX_DIM = 1536;
 
-const HISTORICAL_FILE_MUTATIONS = new Set([
-  "tool-write_file",
-  "tool-edit_file",
-  "tool-delegate_tasks",
-]);
+const HISTORICAL_FILE_MUTATIONS = new Set(["tool-write_file", "tool-edit_file", "tool-delegate_tasks"]);
 
 function compactHistoricalToolInputs(messages: AnyUIMessage[]): AnyUIMessage[] {
   return messages.map((message) => ({
@@ -37,23 +30,20 @@ function compactHistoricalToolInputs(messages: AnyUIMessage[]): AnyUIMessage[] {
       if (part.type.startsWith("tool-") && "state" in part && part.state === "output-error") {
         const errorText = "errorText" in part ? part.errorText : undefined;
         if (
-          typeof errorText === "string"
-          && (
-            errorText.includes("AI_InvalidToolInputError")
-            || errorText.includes("AI_NoSuchToolError")
-          )
+          typeof errorText === "string" &&
+          (errorText.includes("AI_InvalidToolInputError") || errorText.includes("AI_NoSuchToolError"))
         ) {
           return [];
         }
       }
-      if (!HISTORICAL_FILE_MUTATIONS.has(part.type) || !("state" in part)) return [part];
+      if (!HISTORICAL_FILE_MUTATIONS.has(part.type) || !("state" in part)) {
+        return [part];
+      }
       const name = part.type.slice(5);
       if (part.state === "output-available" && "output" in part) {
         const outcome = isToolOutcome(part.output) ? part.output : null;
         const data = toolOutcomeData(part.output);
-        const value = data && typeof data === "object"
-          ? data as Record<string, unknown>
-          : {};
+        const value = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
         const summary = {
           status: outcome?.status ?? "completed",
           path: value.path,
@@ -63,19 +53,22 @@ function compactHistoricalToolInputs(messages: AnyUIMessage[]): AnyUIMessage[] {
           replacements: value.replacements,
           error: outcome?.ok === false ? outcome.error : undefined,
         };
-        return [{
-          type: "text",
-          text: `<historical_tool_result name="${name}">${escapeXmlText(JSON.stringify(summary))}</historical_tool_result>`,
-        }];
+        return [
+          {
+            type: "text",
+            text: `<historical_tool_result name="${name}">${escapeXmlText(JSON.stringify(summary))}</historical_tool_result>`,
+          },
+        ];
       }
       if (part.state === "output-error") {
-        const errorText = "errorText" in part && typeof part.errorText === "string"
-          ? part.errorText.slice(0, 500)
-          : "tool call failed";
-        return [{
-          type: "text",
-          text: `<historical_tool_result name="${name}" status="failed">${escapeXmlText(errorText)}</historical_tool_result>`,
-        }];
+        const errorText =
+          "errorText" in part && typeof part.errorText === "string" ? part.errorText.slice(0, 500) : "tool call failed";
+        return [
+          {
+            type: "text",
+            text: `<historical_tool_result name="${name}" status="failed">${escapeXmlText(errorText)}</historical_tool_result>`,
+          },
+        ];
       }
       return [part];
     }),
@@ -85,16 +78,16 @@ function compactHistoricalToolInputs(messages: AnyUIMessage[]): AnyUIMessage[] {
 function textParts(message: AnyUIMessage): string {
   return message.parts
     .flatMap((part) => {
-      if (part.type === "text") return [part.text];
-      if (part.type === "source-url") return [`source: ${part.title ?? part.url} ${part.url}`];
+      if (part.type === "text") {
+        return [part.text];
+      }
+      if (part.type === "source-url") {
+        return [`source: ${part.title ?? part.url} ${part.url}`];
+      }
       if (part.type.startsWith("tool-") && "state" in part && part.state === "output-available") {
         const data = "output" in part ? toolOutcomeData(part.output) : undefined;
-        const output = data && typeof data === "object"
-          ? data as Record<string, unknown>
-          : null;
-        const reference = output && (
-          output.document_id ?? output.file_id ?? output.url ?? output.status
-        );
+        const output = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+        const reference = output && (output.document_id ?? output.file_id ?? output.url ?? output.status);
         return [`tool ${part.type.slice(5)}${reference ? `: ${String(reference)}` : " completed"}`];
       }
       return [];
@@ -133,12 +126,16 @@ async function saveSnapshot(input: {
         estimatedTokens,
         updatedAt: now,
       })
-      .where(and(
-        eq(conversationContexts.conversationId, input.conversationId),
-        eq(conversationContexts.revision, input.currentRevision),
-      ))
+      .where(
+        and(
+          eq(conversationContexts.conversationId, input.conversationId),
+          eq(conversationContexts.revision, input.currentRevision),
+        ),
+      )
       .returning({ revision: conversationContexts.revision });
-    if (updated.length !== 1) throw new Error("conversation context revision conflict");
+    if (updated.length !== 1) {
+      throw new Error("conversation context revision conflict");
+    }
     return;
   }
   await db.insert(conversationContexts).values({
@@ -162,56 +159,74 @@ async function transformUserFilePartsForModel(
   if (supportsImageInput) {
     const imageDocIds = new Set<string>();
     for (const message of messages) {
-      if (message.role !== "user") continue;
+      if (message.role !== "user") {
+        continue;
+      }
       for (const part of message.parts) {
-        if (part.type !== "file") continue;
+        if (part.type !== "file") {
+          continue;
+        }
         const docId = documentIdFromFilePart(part);
-        if (docId && isImageMediaType(String(part.mediaType ?? ""))) imageDocIds.add(docId);
+        if (docId && isImageMediaType(String(part.mediaType ?? ""))) {
+          imageDocIds.add(docId);
+        }
       }
     }
-    await Promise.all([...imageDocIds].map(async (documentId) => {
-      try {
-        const source = await getDocumentSource(userId, documentId, { maxDim: VISION_MAX_DIM });
-        const part = messages
-          .flatMap((message) => (message.role === "user" ? message.parts : []))
-          .find((candidate) => candidate.type === "file" && documentIdFromFilePart(candidate) === documentId);
-        imageFiles.set(documentId, {
-          data: source.bytes,
-          filename: (part?.type === "file" ? part.filename : undefined) || "image",
-          mediaType: source.mimeType || "application/octet-stream",
-        });
-      } catch (error) {
-        logger.error({ err: error }, "failed to load image attachment");
-      }
-    }));
+    await Promise.all(
+      [...imageDocIds].map(async (documentId) => {
+        try {
+          const source = await getDocumentSource(userId, documentId, { maxDim: VISION_MAX_DIM });
+          const part = messages
+            .flatMap((message) => (message.role === "user" ? message.parts : []))
+            .find((candidate) => candidate.type === "file" && documentIdFromFilePart(candidate) === documentId);
+          imageFiles.set(documentId, {
+            data: source.bytes,
+            filename: (part?.type === "file" ? part.filename : undefined) || "image",
+            mediaType: source.mimeType || "application/octet-stream",
+          });
+        } catch (error) {
+          logger.error({ err: error }, "failed to load image attachment");
+        }
+      }),
+    );
   }
 
   return messages.map((message) => {
-    if (message.role !== "user") return message;
+    if (message.role !== "user") {
+      return message;
+    }
     return {
       ...message,
       parts: message.parts.flatMap((part): AnyUIMessage["parts"] => {
-        if (part.type !== "file") return [part];
+        if (part.type !== "file") {
+          return [part];
+        }
         const docId = documentIdFromFilePart(part);
-        if (!docId) return [];
+        if (!docId) {
+          return [];
+        }
         const mediaType = String(part.mediaType ?? "application/octet-stream");
         if (isImageMediaType(mediaType)) {
           const image = imageFiles.get(docId);
           if (image) {
             const base64 = Buffer.from(image.data).toString("base64");
-            return [{
-              type: "file" as const,
-              mediaType: image.mediaType,
-              filename: image.filename,
-              url: `data:${image.mediaType};base64,${base64}`,
-            }];
+            return [
+              {
+                type: "file" as const,
+                mediaType: image.mediaType,
+                filename: image.filename,
+                url: `data:${image.mediaType};base64,${base64}`,
+              },
+            ];
           }
         }
         const reference = JSON.stringify({
           documentId: docId,
           filename: String(part.filename ?? ""),
           mediaType,
-        }).replaceAll("<", "\\u003c").replaceAll(">", "\\u003e");
+        })
+          .replaceAll("<", "\\u003c")
+          .replaceAll(">", "\\u003e");
         return [{ type: "text" as const, text: `<document_reference>${reference}</document_reference>` }];
       }),
     } as AnyUIMessage;
@@ -238,13 +253,19 @@ function renderCompaction(state: CompactionState, coveredThroughMessageId: strin
 
 function prependCompactedHistory(messages: ModelMessage[], body: string): ModelMessage[] {
   const first = messages[0];
-  if (!first || first.role !== "user") return [{ role: "user", content: body }, ...messages];
-  return [{
-    ...first,
-    content: typeof first.content === "string"
-      ? `${body}\n\n${first.content}`
-      : [{ type: "text", text: body }, ...first.content],
-  } as ModelMessage, ...messages.slice(1)];
+  if (!first || first.role !== "user") {
+    return [{ role: "user", content: body }, ...messages];
+  }
+  return [
+    {
+      ...first,
+      content:
+        typeof first.content === "string"
+          ? `${body}\n\n${first.content}`
+          : [{ type: "text", text: body }, ...first.content],
+    },
+    ...messages.slice(1),
+  ];
 }
 
 export async function projectModelContext(input: {
@@ -261,15 +282,14 @@ export async function projectModelContext(input: {
     .select()
     .from(conversationContexts)
     .where(eq(conversationContexts.conversationId, input.conversationId));
-  const recentTokenBudget = Math.max(
-    512,
-    inputTokenBudget - COMPACTION_MESSAGE_RESERVE_TOKENS,
-  );
+  const recentTokenBudget = Math.max(512, inputTokenBudget - COMPACTION_MESSAGE_RESERVE_TOKENS);
   let recentTokens = 0;
   let splitAt = projectedMessages.length;
   while (splitAt > 0) {
-    const next = estimatedMessageTokens(projectedMessages[splitAt - 1]!);
-    if (recentTokens + next > recentTokenBudget && splitAt < projectedMessages.length) break;
+    const next = estimatedMessageTokens(projectedMessages[splitAt - 1]);
+    if (recentTokens + next > recentTokenBudget && splitAt < projectedMessages.length) {
+      break;
+    }
     recentTokens += next;
     splitAt -= 1;
   }
@@ -309,9 +329,8 @@ export async function projectModelContext(input: {
           "context compaction used a run-local deterministic fallback",
         );
       }
-      const successfullyCoveredMessage = compacted.coveredMessageCount > 0
-        ? messagesToCompact[compacted.coveredMessageCount - 1]
-        : null;
+      const successfullyCoveredMessage =
+        compacted.coveredMessageCount > 0 ? messagesToCompact[compacted.coveredMessageCount - 1] : null;
       if (compacted.successfulState && successfullyCoveredMessage) {
         await saveSnapshot({
           conversationId: input.conversationId,
@@ -338,7 +357,9 @@ export async function projectModelContext(input: {
     convertDataPart: (part) => {
       if (part.type === "data-plan-execution") {
         const path = (part.data as { path?: unknown } | undefined)?.path;
-        if (typeof path !== "string" || !path) return undefined;
+        if (typeof path !== "string" || !path) {
+          return undefined;
+        }
         return {
           type: "text",
           text: `<plan_execution_request path="${escapeXmlText(path)}">Read this exact plan completely with read_file before using update_todos or any generation tool.</plan_execution_request>`,
@@ -357,10 +378,7 @@ export async function projectModelContext(input: {
     return { messages: pruned, compactionUsage };
   }
   return {
-    messages: prependCompactedHistory(
-      pruned,
-      renderCompaction(compactionState, compactionCoveredThroughMessageId),
-    ),
+    messages: prependCompactedHistory(pruned, renderCompaction(compactionState, compactionCoveredThroughMessageId)),
     compactionUsage,
   };
 }

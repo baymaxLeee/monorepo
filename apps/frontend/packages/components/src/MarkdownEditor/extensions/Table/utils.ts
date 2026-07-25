@@ -8,10 +8,7 @@ export const isRectSelected = (rect: Rect) => (selection: CellSelection) => {
   const start = selection.$anchorCell.start(-1);
   const cells = map.cellsInRect(rect);
   const selectedCells = map.cellsInRect(
-    map.rectBetween(
-      selection.$anchorCell.pos - start,
-      selection.$headCell.pos - start,
-    ),
+    map.rectBetween(selection.$anchorCell.pos - start, selection.$headCell.pos - start),
   );
 
   for (let i = 0, count = cells.length; i < count; i += 1) {
@@ -24,29 +21,24 @@ export const isRectSelected = (rect: Rect) => (selection: CellSelection) => {
 };
 
 export const findTable = (selection: Selection) =>
-  findParentNode(
-    (node) => node.type.spec.tableRole && node.type.spec.tableRole === "table",
-  )(selection);
+  findParentNode((node) => node.type.spec.tableRole && node.type.spec.tableRole === "table")(selection);
 
-export const isCellSelection = (
-  selection: Selection,
-): selection is CellSelection => selection instanceof CellSelection;
+export const isCellSelection = (selection: Selection): selection is CellSelection => selection instanceof CellSelection;
 
-export const isColumnSelected =
-  (columnIndex: number) => (selection: Selection) => {
-    if (isCellSelection(selection)) {
-      const map = TableMap.get(selection.$anchorCell.node(-1));
+export const isColumnSelected = (columnIndex: number) => (selection: Selection) => {
+  if (isCellSelection(selection)) {
+    const map = TableMap.get(selection.$anchorCell.node(-1));
 
-      return isRectSelected({
-        left: columnIndex,
-        right: columnIndex + 1,
-        top: 0,
-        bottom: map.height,
-      })(selection);
-    }
+    return isRectSelected({
+      left: columnIndex,
+      right: columnIndex + 1,
+      top: 0,
+      bottom: map.height,
+    })(selection);
+  }
 
-    return false;
-  };
+  return false;
+};
 
 export const isRowSelected = (rowIndex: number) => (selection: Selection) => {
   if (isCellSelection(selection)) {
@@ -78,83 +70,77 @@ export const isEntireTableSelected = (selection: Selection) => {
   })(selection);
 };
 
-export const getCellsInColumn =
-  (columnIndex: number | number[]) => (selection: Selection) => {
-    const table = findTable(selection);
+export const getCellsInColumn = (columnIndex: number | number[]) => (selection: Selection) => {
+  const table = findTable(selection);
 
-    if (table) {
-      const map = TableMap.get(table.node);
-      const indexes = Array.isArray(columnIndex)
-        ? columnIndex
-        : Array.from([columnIndex]);
+  if (table) {
+    const map = TableMap.get(table.node);
+    const indexes = Array.isArray(columnIndex) ? columnIndex : Array.from([columnIndex]);
 
-      return indexes.reduce(
-        (acc, index) => {
-          if (index >= 0 && index <= map.width - 1) {
-            const cells = map.cellsInRect({
-              left: index,
-              right: index + 1,
-              top: 0,
-              bottom: map.height,
-            });
+    return indexes.reduce(
+      (acc, index) => {
+        if (index >= 0 && index <= map.width - 1) {
+          const cells = map.cellsInRect({
+            left: index,
+            right: index + 1,
+            top: 0,
+            bottom: map.height,
+          });
 
-            return acc.concat(
-              cells.map((nodePos) => {
-                const node = table.node.nodeAt(nodePos);
-                const pos = nodePos + table.start;
+          return acc.concat(
+            cells.map((nodePos) => {
+              const node = table.node.nodeAt(nodePos);
+              const pos = nodePos + table.start;
 
-                return { pos, start: pos + 1, node };
-              }),
-            );
-          }
+              return { pos, start: pos + 1, node };
+            }),
+          );
+        }
 
-          return acc;
-        },
-        [] as { pos: number; start: number; node: Node | null | undefined }[],
-      );
-    }
+        return acc;
+      },
+      [] as { pos: number; start: number; node: Node | null | undefined }[],
+    );
+  }
 
-    return null;
-  };
+  return null;
+};
 
-export const getCellsInRow =
-  (rowIndex: number | number[]) => (selection: Selection) => {
-    const table = findTable(selection);
+export const getCellsInRow = (rowIndex: number | number[]) => (selection: Selection) => {
+  const table = findTable(selection);
 
-    if (table) {
-      const map = TableMap.get(table.node);
-      const indexes = Array.isArray(rowIndex)
-        ? rowIndex
-        : Array.from([rowIndex]);
+  if (table) {
+    const map = TableMap.get(table.node);
+    const indexes = Array.isArray(rowIndex) ? rowIndex : Array.from([rowIndex]);
 
-      return indexes.reduce(
-        (acc, index) => {
-          if (index >= 0 && index <= map.height - 1) {
-            const cells = map.cellsInRect({
-              left: 0,
-              right: map.width,
-              top: index,
-              bottom: index + 1,
-            });
+    return indexes.reduce(
+      (acc, index) => {
+        if (index >= 0 && index <= map.height - 1) {
+          const cells = map.cellsInRect({
+            left: 0,
+            right: map.width,
+            top: index,
+            bottom: index + 1,
+          });
 
-            return acc.concat(
-              cells.map((nodePos) => {
-                const node = table.node.nodeAt(nodePos);
-                const pos = nodePos + table.start;
+          return acc.concat(
+            cells.map((nodePos) => {
+              const node = table.node.nodeAt(nodePos);
+              const pos = nodePos + table.start;
 
-                return { pos, start: pos + 1, node };
-              }),
-            );
-          }
+              return { pos, start: pos + 1, node };
+            }),
+          );
+        }
 
-          return acc;
-        },
-        [] as { pos: number; start: number; node: Node | null | undefined }[],
-      );
-    }
+        return acc;
+      },
+      [] as { pos: number; start: number; node: Node | null | undefined }[],
+    );
+  }
 
-    return null;
-  };
+  return null;
+};
 
 export const getCellsInTable = (selection: Selection) => {
   const table = findTable(selection);
@@ -179,10 +165,7 @@ export const getCellsInTable = (selection: Selection) => {
   return null;
 };
 
-export const findParentNodeClosestToPos = (
-  $pos: ResolvedPos,
-  predicate: (node: Node) => boolean,
-) => {
+export const findParentNodeClosestToPos = ($pos: ResolvedPos, predicate: (node: Node) => boolean) => {
   for (let i = $pos.depth; i > 0; i -= 1) {
     const node = $pos.node(i);
 
@@ -199,48 +182,47 @@ export const findParentNodeClosestToPos = (
   return null;
 };
 
-const select =
-  (type: "row" | "column") => (index: number) => (tr: Transaction) => {
-    const table = findTable(tr.selection);
-    const isRowSelection = type === "row";
+const select = (type: "row" | "column") => (index: number) => (tr: Transaction) => {
+  const table = findTable(tr.selection);
+  const isRowSelection = type === "row";
 
-    if (table) {
-      const map = TableMap.get(table.node);
+  if (table) {
+    const map = TableMap.get(table.node);
 
-      if (index >= 0 && index < (isRowSelection ? map.height : map.width)) {
-        const left = isRowSelection ? 0 : index;
-        const top = isRowSelection ? index : 0;
-        const right = isRowSelection ? map.width : index + 1;
-        const bottom = isRowSelection ? index + 1 : map.height;
+    if (index >= 0 && index < (isRowSelection ? map.height : map.width)) {
+      const left = isRowSelection ? 0 : index;
+      const top = isRowSelection ? index : 0;
+      const right = isRowSelection ? map.width : index + 1;
+      const bottom = isRowSelection ? index + 1 : map.height;
 
-        const cellsInFirstRow = map.cellsInRect({
-          left,
-          top,
-          right: isRowSelection ? right : left + 1,
-          bottom: isRowSelection ? top + 1 : bottom,
-        });
+      const cellsInFirstRow = map.cellsInRect({
+        left,
+        top,
+        right: isRowSelection ? right : left + 1,
+        bottom: isRowSelection ? top + 1 : bottom,
+      });
 
-        const cellsInLastRow =
-          bottom - top === 1
-            ? cellsInFirstRow
-            : map.cellsInRect({
-                left: isRowSelection ? left : right - 1,
-                top: isRowSelection ? bottom - 1 : top,
-                right,
-                bottom,
-              });
+      const cellsInLastRow =
+        bottom - top === 1
+          ? cellsInFirstRow
+          : map.cellsInRect({
+              left: isRowSelection ? left : right - 1,
+              top: isRowSelection ? bottom - 1 : top,
+              right,
+              bottom,
+            });
 
-        const head = table.start + cellsInFirstRow[0];
-        const anchor = table.start + cellsInLastRow[cellsInLastRow.length - 1];
-        const $head = tr.doc.resolve(head);
-        const $anchor = tr.doc.resolve(anchor);
+      const head = table.start + cellsInFirstRow[0];
+      const anchor = table.start + cellsInLastRow[cellsInLastRow.length - 1];
+      const $head = tr.doc.resolve(head);
+      const $anchor = tr.doc.resolve(anchor);
 
-        return tr.setSelection(new CellSelection($anchor, $head));
-      }
+      return tr.setSelection(new CellSelection($anchor, $head));
     }
+  }
 
-    return tr;
-  };
+  return tr;
+};
 
 export const selectColumn = select("column");
 

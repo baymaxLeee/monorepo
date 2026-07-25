@@ -3,11 +3,13 @@ import { randomBytes } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
 import { getDb } from "../../../infrastructure/persistence/index.js";
-import { agentRuns, agentSteps, agentToolCalls, conversationRunLeases } from "../../../infrastructure/persistence/schema.js";
 import {
-  parseConversationContextSnapshot,
-  type ConversationContextSnapshot,
-} from "../context/context-snapshot.js";
+  agentRuns,
+  agentSteps,
+  agentToolCalls,
+  conversationRunLeases,
+} from "../../../infrastructure/persistence/schema.js";
+import { parseConversationContextSnapshot, type ConversationContextSnapshot } from "../context/context-snapshot.js";
 import { isToolOutcome } from "../tools/outcome.js";
 import { cancelTodoOutput } from "./cancellation.js";
 
@@ -19,7 +21,9 @@ function id(bytes = 8): string {
 }
 
 function asJsonValue(value: unknown): unknown {
-  if (value == null) return null;
+  if (value == null) {
+    return null;
+  }
   try {
     return JSON.parse(JSON.stringify(value)) as unknown;
   } catch {
@@ -28,8 +32,12 @@ function asJsonValue(value: unknown): unknown {
 }
 
 function errorText(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
   try {
     return JSON.stringify(error) ?? String(error);
   } catch {
@@ -46,35 +54,33 @@ export async function createAgentRun(input: {
 }): Promise<string> {
   const now = new Date();
   const runId = id(16);
-  await getDb().insert(agentRuns).values({
-    id: runId,
-    conversationId: input.conversationId,
-    userId: input.userId,
-    providerId: input.providerId,
-    model: input.model,
-    status: "running",
-    inputMessageId: input.inputMessageId ?? null,
-    createdAt: now,
-    startedAt: now,
-  });
+  await getDb()
+    .insert(agentRuns)
+    .values({
+      id: runId,
+      conversationId: input.conversationId,
+      userId: input.userId,
+      providerId: input.providerId,
+      model: input.model,
+      status: "running",
+      inputMessageId: input.inputMessageId ?? null,
+      createdAt: now,
+      startedAt: now,
+    });
   return runId;
 }
 
-export async function getAgentRunById(runId: string): Promise<
-  | {
-      id: string;
-      conversationId: string;
-      userId: string;
-      providerId: string;
-      status: AgentRunStatus;
-    }
-  | null
-> {
-  const [row] = await getDb()
-    .select()
-    .from(agentRuns)
-    .where(eq(agentRuns.id, runId));
-  if (!row) return null;
+export async function getAgentRunById(runId: string): Promise<{
+  id: string;
+  conversationId: string;
+  userId: string;
+  providerId: string;
+  status: AgentRunStatus;
+} | null> {
+  const [row] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, runId));
+  if (!row) {
+    return null;
+  }
   return {
     id: row.id,
     conversationId: row.conversationId,
@@ -103,9 +109,7 @@ export async function finishAgentRun(input: {
       .limit(1);
     const incompleteCompletion = input.status === "completed" && unfinishedStep != null;
     const status = incompleteCompletion ? "failed" : input.status;
-    const error = incompleteCompletion
-      ? input.error ?? "run ended before its model step completed"
-      : input.error;
+    const error = incompleteCompletion ? (input.error ?? "run ended before its model step completed") : input.error;
     const now = new Date();
 
     if (status !== "completed") {
@@ -162,7 +166,9 @@ export async function listOrphanedRuns(now = new Date()): Promise<Array<{ id: st
 }
 
 export async function interruptRuns(runIds: string[]): Promise<void> {
-  if (runIds.length === 0) return;
+  if (runIds.length === 0) {
+    return;
+  }
   await getDb()
     .update(agentRuns)
     .set({ status: "interrupted", finishedAt: new Date() })
@@ -224,7 +230,9 @@ function isoOrNull(d: Date | null): string | null {
 export async function getRunTrace(runId: string): Promise<AgentRunTrace | null> {
   const db = getDb();
   const [run] = await db.select().from(agentRuns).where(eq(agentRuns.id, runId));
-  if (!run) return null;
+  if (!run) {
+    return null;
+  }
   const steps = await db
     .select()
     .from(agentSteps)
@@ -299,14 +307,16 @@ export async function getLatestConversationContextRecord(
       desc(agentSteps.stepIndex),
     )
     .limit(1);
-  if (!row) return null;
+  if (!row) {
+    return null;
+  }
   const snapshot = parseConversationContextSnapshot(row.metadata?.context_snapshot);
-  if (!snapshot) return null;
+  if (!snapshot) {
+    return null;
+  }
   const usage = row.metadata?.usage;
   const inputDetails =
-    usage && typeof usage === "object"
-      ? (usage as { inputTokenDetails?: unknown }).inputTokenDetails
-      : null;
+    usage && typeof usage === "object" ? (usage as { inputTokenDetails?: unknown }).inputTokenDetails : null;
   const cachedInputTokens =
     inputDetails && typeof inputDetails === "object"
       ? (inputDetails as { cacheReadTokens?: unknown }).cacheReadTokens
@@ -316,8 +326,7 @@ export async function getLatestConversationContextRecord(
     stepId: row.stepId,
     providerId: row.providerId,
     model: row.model,
-    cachedInputTokens:
-      typeof cachedInputTokens === "number" ? cachedInputTokens : null,
+    cachedInputTokens: typeof cachedInputTokens === "number" ? cachedInputTokens : null,
     totalEstimated: !(row.inputTokens != null && row.inputTokens > 0),
     updatedAt: isoOrNull(row.finishedAt) ?? isoOrNull(row.runCreatedAt) ?? "",
     snapshot,
@@ -345,24 +354,27 @@ export async function startAgentStep(input: {
   stepId?: string;
 }): Promise<string> {
   const stepId = input.stepId ?? id(16);
-  await getDb().insert(agentSteps).values({
-    id: stepId,
-    runId: input.runId,
-    stepIndex: input.stepIndex,
-    kind: input.kind,
-    status: "running",
-    summary: input.summary ?? null,
-    metadata: input.metadata ?? null,
-    createdAt: new Date(),
-  }).onConflictDoUpdate({
-    target: agentSteps.id,
-    set: {
+  await getDb()
+    .insert(agentSteps)
+    .values({
+      id: stepId,
+      runId: input.runId,
+      stepIndex: input.stepIndex,
+      kind: input.kind,
       status: "running",
       summary: input.summary ?? null,
       metadata: input.metadata ?? null,
-      finishedAt: null,
-    },
-  });
+      createdAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: agentSteps.id,
+      set: {
+        status: "running",
+        summary: input.summary ?? null,
+        metadata: input.metadata ?? null,
+        finishedAt: null,
+      },
+    });
   return stepId;
 }
 
@@ -448,9 +460,13 @@ function terminalToolPart(part: unknown): {
   output?: unknown;
   error?: unknown;
 } | null {
-  if (!part || typeof part !== "object") return null;
+  if (!part || typeof part !== "object") {
+    return null;
+  }
   const row = part as Record<string, unknown>;
-  if (typeof row.toolCallId !== "string") return null;
+  if (typeof row.toolCallId !== "string") {
+    return null;
+  }
   if (row.state === "output-available") {
     const output = row.output;
     const semanticFailure = isToolOutcome(output) && output.ok === false;
@@ -482,9 +498,13 @@ export async function finalizeRunToolCallsFromParts(runId: string, parts: unknow
   const terminalById = new Map<string, ReturnType<typeof terminalToolPart>>();
   for (const part of parts) {
     const terminal = terminalToolPart(part);
-    if (terminal) terminalById.set(terminal.toolCallId, terminal);
+    if (terminal) {
+      terminalById.set(terminal.toolCallId, terminal);
+    }
   }
-  if (terminalById.size === 0) return;
+  if (terminalById.size === 0) {
+    return;
+  }
 
   const db = getDb();
   const rows = await db
@@ -495,7 +515,9 @@ export async function finalizeRunToolCallsFromParts(runId: string, parts: unknow
   await Promise.all(
     rows.map((row) => {
       const terminal = terminalById.get(row.id);
-      if (!terminal) return Promise.resolve();
+      if (!terminal) {
+        return Promise.resolve();
+      }
       return db
         .update(agentToolCalls)
         .set({
@@ -512,10 +534,7 @@ export async function finalizeRunToolCallsFromParts(runId: string, parts: unknow
 
 export async function finalizeCancelledRunToolCalls(runId: string): Promise<void> {
   const db = getDb();
-  const rows = await db
-    .select()
-    .from(agentToolCalls)
-    .where(eq(agentToolCalls.runId, runId));
+  const rows = await db.select().from(agentToolCalls).where(eq(agentToolCalls.runId, runId));
   const now = new Date();
   await Promise.all(
     rows.map((row) => {

@@ -1,8 +1,8 @@
+import { createProviderModel } from "@backend/transport-ts/provider-model";
+import type { ChatProvider } from "@backend/transport-ts/provider-model";
 import { generateText } from "ai";
 
 import { logger } from "../../../infrastructure/observability/logger.js";
-import { createProviderModel } from "@backend/transport-ts/provider-model";
-import type { ChatProvider } from "@backend/transport-ts/provider-model";
 
 const MAX_TITLE_CHARS = 40;
 
@@ -11,7 +11,7 @@ const TITLE_INSTRUCTIONS = [
   "Rules:",
   "- Summarize the user's intent in at most 6 words (or ~16 Chinese characters).",
   "- Write the title in the same language as the user's message.",
-  "- Output the title text only: no quotes, no surrounding punctuation, no prefix such as \"Title:\".",
+  '- Output the title text only: no quotes, no surrounding punctuation, no prefix such as "Title:".',
   "- Do not answer the question, translate it, or add any commentary.",
 ].join("\n");
 
@@ -32,7 +32,9 @@ export async function generateConversationTitle(input: {
   userText: string;
 }): Promise<string | null> {
   const source = input.userText.trim().slice(0, 4_000);
-  if (source.length < 2) return null;
+  if (source.length < 2) {
+    return null;
+  }
   try {
     const model = createProviderModel(input.provider, { disableReasoning: true });
     const result = await generateText({

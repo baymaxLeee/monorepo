@@ -1,17 +1,13 @@
-import axios, {
-  type AxiosError,
-  type AxiosInstance,
-  type AxiosRequestConfig,
-} from "axios";
+import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig } from "axios";
 import { attachAxios, type MinimalAxiosInstance } from "observability";
 import { toast } from "sonner";
+
 import { getToken, isAccessTokenValid } from "./storage";
 
 declare const process: { env: { API_BASE_URL?: string } } | undefined;
 
 const rawApiBaseUrl =
-  (typeof window !== "undefined" &&
-    (window as { __API_BASE__?: string }).__API_BASE__) ||
+  (typeof window !== "undefined" && (window as { __API_BASE__?: string }).__API_BASE__) ||
   (typeof process !== "undefined" ? process.env.API_BASE_URL : undefined) ||
   "";
 
@@ -88,9 +84,7 @@ apiHttp.interceptors.request.use(async (config) => {
   config.url = target.url;
   config.baseURL = target.baseURL;
 
-  const skipProactiveRefresh = NO_REFRESH_PATHS.some((path) =>
-    config.url?.includes(path),
-  );
+  const skipProactiveRefresh = NO_REFRESH_PATHS.some((path) => config.url?.includes(path));
   if (!skipProactiveRefresh && !isAccessTokenValid()) {
     await refreshAccessToken?.();
   }
@@ -105,9 +99,7 @@ apiHttp.interceptors.request.use(async (config) => {
 apiHttp.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const config = error.config as
-      | (ApiRequestConfig & { __retried?: boolean })
-      | undefined;
+    const config = error.config as (ApiRequestConfig & { __retried?: boolean }) | undefined;
 
     const canRefresh =
       error.response?.status === 401 &&
@@ -189,11 +181,7 @@ function normalizeRequestTarget(
   }
 
   const normalizedBaseURL = normalizeApiBaseURL(baseURL ?? "");
-  if (
-    !url?.startsWith("/") ||
-    url.startsWith("/api/") ||
-    gatewayServiceBaseURL(normalizedBaseURL)
-  ) {
+  if (!url?.startsWith("/") || url.startsWith("/api/") || gatewayServiceBaseURL(normalizedBaseURL)) {
     return { url, baseURL: normalizedBaseURL };
   }
 
@@ -226,10 +214,7 @@ function normalizeDirectLocalUrl(value: string | undefined): string | null {
 }
 
 function gatewayServiceBaseURL(value: string | undefined): boolean {
-  return (
-    typeof value === "string" &&
-    /\/api\/[a-z-]+$/.test(value.replace(/\/$/, ""))
-  );
+  return typeof value === "string" && /\/api\/[a-z-]+$/.test(value.replace(/\/$/, ""));
 }
 
 function isLocalBackendOrigin(value: string | undefined): boolean {
@@ -242,10 +227,7 @@ function isLocalBackendOrigin(value: string | undefined): boolean {
   } catch {
     return false;
   }
-  return (
-    isLocalHostname(parsed.hostname) &&
-    (parsed.port === "8000" || parsed.port in GATEWAY_PREFIX_BY_LOCAL_PORT)
-  );
+  return isLocalHostname(parsed.hostname) && (parsed.port === "8000" || parsed.port in GATEWAY_PREFIX_BY_LOCAL_PORT);
 }
 
 function isLocalHostname(value: string): boolean {

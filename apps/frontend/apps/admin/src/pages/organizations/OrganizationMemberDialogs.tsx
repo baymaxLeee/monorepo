@@ -65,41 +65,25 @@ export function CreateOrgAdminDialog({ onClose, onDone, org }: DialogProps) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>新建组织管理员</DialogTitle>
-          <DialogDescription>
-            为「{org?.name}」创建一个 active 的 org_admin 账号。
-          </DialogDescription>
+          <DialogDescription>为「{org?.name}」创建一个 active 的 org_admin 账号。</DialogDescription>
         </DialogHeader>
         <DialogBody>
           <FieldGroup>
             <Field>
               <FieldLabel>账号</FieldLabel>
-              <Input
-                value={account}
-                onChange={(e) => setAccount(e.target.value)}
-              />
+              <Input value={account} onChange={(e) => setAccount(e.target.value)} />
             </Field>
             <Field>
               <FieldLabel>密码</FieldLabel>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </Field>
             <Field>
               <FieldLabel>邮箱</FieldLabel>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </Field>
             <Field>
               <FieldLabel>昵称（可选）</FieldLabel>
-              <Input
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-              />
+              <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
             </Field>
           </FieldGroup>
         </DialogBody>
@@ -121,7 +105,9 @@ export function TransferOwnerDialog({ onClose, onDone, org }: DialogProps) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (org) setNewOwnerUserId("");
+    if (org) {
+      setNewOwnerUserId("");
+    }
   }, [org]);
 
   async function submit() {
@@ -146,18 +132,13 @@ export function TransferOwnerDialog({ onClose, onDone, org }: DialogProps) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>转让负责人</DialogTitle>
-          <DialogDescription>
-            将「{org?.name}」的负责人转给一位已是该组织成员的用户。
-          </DialogDescription>
+          <DialogDescription>将「{org?.name}」的负责人转给一位已是该组织成员的用户。</DialogDescription>
         </DialogHeader>
         <DialogBody>
           <FieldGroup>
             <Field>
               <FieldLabel>新负责人用户 ID</FieldLabel>
-              <Input
-                value={newOwnerUserId}
-                onChange={(e) => setNewOwnerUserId(e.target.value)}
-              />
+              <Input value={newOwnerUserId} onChange={(e) => setNewOwnerUserId(e.target.value)} />
             </Field>
           </FieldGroup>
         </DialogBody>

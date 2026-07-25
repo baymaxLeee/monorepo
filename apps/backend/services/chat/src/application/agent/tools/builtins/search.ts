@@ -3,10 +3,7 @@ import { z } from "zod";
 
 import { getSettings } from "../../../../bootstrap/config.js";
 import { retrieveKnowledge } from "../../../../infrastructure/clients/knowledge.js";
-import {
-  knowledgeSearchToolContextSchema,
-  type KnowledgeSearchToolContext,
-} from "../context.js";
+import { knowledgeSearchToolContextSchema, type KnowledgeSearchToolContext } from "../context.js";
 import { defineAgentTool } from "../manifest.js";
 import { ToolBlockedError } from "../outcome.js";
 
@@ -78,7 +75,9 @@ function searchHttpError(provider: string, status: number, body: string): Error 
 }
 
 function errorSummary(error: unknown): string {
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) {
+    return error.message;
+  }
   try {
     return JSON.stringify(error) ?? `non-Error ${typeof error}`;
   } catch {
@@ -87,13 +86,13 @@ function errorSummary(error: unknown): string {
 }
 
 function timeoutSignal(abortSignal?: AbortSignal): AbortSignal {
-  return abortSignal
-    ? AbortSignal.any([abortSignal, AbortSignal.timeout(45_000)])
-    : AbortSignal.timeout(45_000);
+  return abortSignal ? AbortSignal.any([abortSignal, AbortSignal.timeout(45_000)]) : AbortSignal.timeout(45_000);
 }
 
 function startDateForRange(range: WebSearchInput["time_range"]): string | undefined {
-  if (!range) return undefined;
+  if (!range) {
+    return undefined;
+  }
   const date = new Date();
   const days = { day: 1, week: 7, month: 31, year: 366 }[range];
   date.setUTCDate(date.getUTCDate() - days);
@@ -113,15 +112,17 @@ async function searchExa(
   input: WebSearchInput,
   abortSignal?: AbortSignal,
 ): Promise<WebSearchCompleted> {
-  const startPublishedDate = input.start_date
-    ? startOfDayIso(input.start_date)
-    : startDateForRange(input.time_range);
+  const startPublishedDate = input.start_date ? startOfDayIso(input.start_date) : startDateForRange(input.time_range);
 
   // highlights are the token-efficient snippet Exa recommends for agents; the
   // heavier whole-page summary is only worth its extra cost/latency for research.
   const contents: Record<string, unknown> = { highlights: true };
-  if (input.category === "research_paper") contents.summary = true;
-  if (input.time_range) contents.maxAgeHours = TIME_RANGE_HOURS[input.time_range];
+  if (input.category === "research_paper") {
+    contents.summary = true;
+  }
+  if (input.time_range) {
+    contents.maxAgeHours = TIME_RANGE_HOURS[input.time_range];
+  }
 
   const response = await fetch("https://api.exa.ai/search", {
     method: "POST",
@@ -151,9 +152,7 @@ async function searchExa(
       title: row.title ?? "",
       url: row.url ?? "",
       snippet:
-        row.highlights && row.highlights.length > 0
-          ? row.highlights.join(" … ")
-          : (row.summary ?? row.text ?? ""),
+        row.highlights && row.highlights.length > 0 ? row.highlights.join(" … ") : (row.summary ?? row.text ?? ""),
       published_date: row.publishedDate ?? null,
       score: row.highlightScores?.[0] ?? null,
     })),
@@ -219,10 +218,14 @@ async function webSearch(
   if (settings.exaApiKey) {
     try {
       const exa = await searchExa(settings.exaApiKey, input, abortSignal);
-      if (exa.results.length > 0 || !settings.tavilyApiKey) return exa;
+      if (exa.results.length > 0 || !settings.tavilyApiKey) {
+        return exa;
+      }
     } catch (error) {
       exaError = error;
-      if (!settings.tavilyApiKey) throw error;
+      if (!settings.tavilyApiKey) {
+        throw error;
+      }
     }
   }
 
@@ -230,13 +233,10 @@ async function webSearch(
     return await searchTavily(settings.tavilyApiKey, input, abortSignal);
   } catch (error) {
     if (exaError) {
-      throw Object.assign(
-        new Error(`Exa primary failed, then Tavily fallback failed: ${errorSummary(error)}`),
-        {
-          code: "WEB_SEARCH_PROVIDERS_FAILED",
-          details: { exa: errorSummary(exaError), tavily: errorSummary(error) },
-        },
-      );
+      throw Object.assign(new Error(`Exa primary failed, then Tavily fallback failed: ${errorSummary(error)}`), {
+        code: "WEB_SEARCH_PROVIDERS_FAILED",
+        details: { exa: errorSummary(exaError), tavily: errorSummary(error) },
+      });
     }
     throw error;
   }
@@ -262,13 +262,7 @@ async function knowledgeSearch(
   input: { query: string; top_k?: number },
   { context, abortSignal }: { context: KnowledgeSearchToolContext; abortSignal?: AbortSignal },
 ): Promise<z.infer<typeof knowledgeSearchOutputSchema>> {
-  const result = await retrieveKnowledge(
-    context.userId,
-    context.orgId,
-    input.query,
-    input.top_k,
-    abortSignal,
-  );
+  const result = await retrieveKnowledge(context.userId, context.orgId, input.query, input.top_k, abortSignal);
   const emptyNote =
     "no relevant knowledge base passages found; use web_search for public information or report that private knowledge does not cover the question";
   return {
@@ -315,13 +309,15 @@ export function createSearchToolManifests() {
             .optional()
             .describe("Optional inclusive publication end date in YYYY-MM-DD format."),
         }),
-        inputExamples: [{
-          input: {
-            query: "Vercel AI SDK tool calling reliability",
-            category: "research_paper",
-            max_results: 5,
+        inputExamples: [
+          {
+            input: {
+              query: "Vercel AI SDK tool calling reliability",
+              category: "research_paper",
+              max_results: 5,
+            },
           },
-        }],
+        ],
         outputSchema: webSearchOutputSchema,
         execute: webSearch,
       }),

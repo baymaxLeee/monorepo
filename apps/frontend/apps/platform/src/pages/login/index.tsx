@@ -22,6 +22,7 @@ import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 import { z } from "zod";
+
 import { landingPath } from "../../onboarding";
 
 const loginSchema = z.object({
@@ -70,11 +71,7 @@ function LoginPage() {
                     <Field>
                       <FieldLabel htmlFor="account">账号</FieldLabel>
                       <FormControl>
-                        <Input
-                          id="account"
-                          autoComplete="username"
-                          {...field}
-                        />
+                        <Input id="account" autoComplete="username" {...field} />
                       </FormControl>
                       <FieldError errors={[form.formState.errors.account]} />
                     </Field>
@@ -87,30 +84,18 @@ function LoginPage() {
                     <Field>
                       <FieldLabel htmlFor="password">密码</FieldLabel>
                       <FormControl>
-                        <Input
-                          id="password"
-                          type="password"
-                          autoComplete="current-password"
-                          {...field}
-                        />
+                        <Input id="password" type="password" autoComplete="current-password" {...field} />
                       </FormControl>
                       <FieldError errors={[form.formState.errors.password]} />
                     </Field>
                   )}
                 />
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={form.formState.isSubmitting}
-                >
+                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
                   {form.formState.isSubmitting ? "登录中…" : "登录"}
                 </Button>
                 <div className="text-center text-sm text-muted-foreground">
                   没有账号？
-                  <Link
-                    to="/register"
-                    className="ml-1 font-medium text-foreground underline-offset-4 hover:underline"
-                  >
+                  <Link to="/register" className="ml-1 font-medium text-foreground underline-offset-4 hover:underline">
                     创建账号
                   </Link>
                 </div>

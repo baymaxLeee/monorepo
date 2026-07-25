@@ -1,11 +1,7 @@
 import { PluginKey } from "@tiptap/pm/state";
 import { Sparkles } from "lucide-react";
-import type {
-  PromptInputApi,
-  PromptSkillsLoad,
-  PromptSlashCommand,
-  PromptSlashSource,
-} from "../interface";
+
+import type { PromptInputApi, PromptSkillsLoad, PromptSlashCommand, PromptSlashSource } from "../interface";
 import { createSuggestionExtension } from "./Suggestion";
 
 export const slashPluginKey = new PluginKey("promptSlash");
@@ -44,14 +40,11 @@ export const DEFAULT_SLASH_COMMANDS: PromptSlashCommand[] = [
 
 function filterCommands(list: PromptSlashCommand[], query: string) {
   const q = query.trim().toLowerCase();
-  if (!q) return list;
+  if (!q) {
+    return list;
+  }
   return list.filter((command) =>
-    [
-      command.title,
-      command.description ?? "",
-      command.id,
-      ...(command.keywords ?? []),
-    ]
+    [command.title, command.description ?? "", command.id, ...(command.keywords ?? [])]
       .join(" ")
       .toLowerCase()
       .includes(q),
@@ -80,7 +73,9 @@ export function buildSlashExtension(options: {
       const onSkillsLoad = options.getOnSkillsLoad();
       if (onSkillsLoad) {
         const loaded = await onSkillsLoad(signal);
-        if (signal.aborted) return [];
+        if (signal.aborted) {
+          return [];
+        }
         return filterCommands(loaded, query);
       }
       const source = options.getSource() ?? DEFAULT_SLASH_COMMANDS;
@@ -90,23 +85,19 @@ export function buildSlashExtension(options: {
     getItemKey: (command) => command.id,
     renderItem: (command) => (
       <>
-        <span className="prompt-input-suggestion-icon">
-          {command.icon ?? <Sparkles className="size-4" />}
-        </span>
+        <span className="prompt-input-suggestion-icon">{command.icon ?? <Sparkles className="size-4" />}</span>
         <span className="prompt-input-suggestion-text">
           <span className="prompt-input-suggestion-label">{command.title}</span>
-          {command.description ? (
-            <span className="prompt-input-suggestion-desc">
-              {command.description}
-            </span>
-          ) : null}
+          {command.description ? <span className="prompt-input-suggestion-desc">{command.description}</span> : null}
         </span>
       </>
     ),
     onSelect: (editor, range, command) => {
       editor.chain().focus().deleteRange(range).run();
       const api = options.getApi();
-      if (!api) return;
+      if (!api) {
+        return;
+      }
       if (command.run) {
         command.run(api);
         return;

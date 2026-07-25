@@ -11,17 +11,19 @@ const TRACE_PARENT_HEADER = "traceparent";
 const SKIP_PATHS = new Set(["/livez", "/readyz", "/healthz"]);
 
 function normalizeTraceId(value: string | undefined): string {
-  if (!value) return "";
+  if (!value) {
+    return "";
+  }
   const normalized = value.trim().toLowerCase();
   return /^[0-9a-f]{32}$/.test(normalized) ? normalized : "";
 }
 
 function normalizeTraceParent(value: string | undefined): string {
-  if (!value) return "";
+  if (!value) {
+    return "";
+  }
   const normalized = value.trim().toLowerCase();
-  return /^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/.test(normalized)
-    ? normalized
-    : "";
+  return /^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/.test(normalized) ? normalized : "";
 }
 
 function traceIdFromTraceParent(value: string): string {
@@ -34,8 +36,12 @@ function newTraceParent(traceId: string): string {
 
 function traceParentFromActiveSpan(fallback: string): string {
   const spanContext = trace.getActiveSpan()?.spanContext();
-  if (!spanContext?.traceId || !spanContext?.spanId) return fallback;
-  if (/^0+$/.test(spanContext.traceId) || /^0+$/.test(spanContext.spanId)) return fallback;
+  if (!spanContext?.traceId || !spanContext?.spanId) {
+    return fallback;
+  }
+  if (/^0+$/.test(spanContext.traceId) || /^0+$/.test(spanContext.spanId)) {
+    return fallback;
+  }
   const flags = spanContext.traceFlags.toString(16).padStart(2, "0");
   return `00-${spanContext.traceId}-${spanContext.spanId}-${flags}`;
 }
@@ -66,48 +72,52 @@ export function traceMiddleware(): MiddlewareHandler {
     carrier[TRACE_HEADER.toLowerCase()] = traceId;
     const parentContext = propagation.extract(otelContext.active(), carrier, headerGetter);
 
-    await trace
-      .getTracer("backend-http")
-      .startActiveSpan(
-        `${c.req.method} ${c.req.path}`,
-        {
-          kind: SpanKind.SERVER,
-          attributes: {
-            "http.request.method": c.req.method,
-            "url.path": c.req.path,
-          },
+    await trace.getTracer("backend-http").startActiveSpan(
+      `${c.req.method} ${c.req.path}`,
+      {
+        kind: SpanKind.SERVER,
+        attributes: {
+          "http.request.method": c.req.method,
+          "url.path": c.req.path,
         },
-        parentContext,
-        async (span) => {
-          const activeTraceParent = traceParentFromActiveSpan(fallbackTraceParent);
-          const activeTraceId = traceIdFromTraceParent(activeTraceParent) || traceId;
-          c.header(TRACE_HEADER, activeTraceId);
-          c.header(TRACE_PARENT_HEADER, activeTraceParent);
-          const requestContext: RequestContext = {
-            traceId: activeTraceId,
-            traceParent: activeTraceParent,
-          };
-          for (const field of PROPAGATED_FIELDS) {
-            if (field.ctxKey === "traceId" || field.ctxKey === "traceParent") continue;
-            const value = c.req.header(field.header);
-            if (value) requestContext[field.ctxKey] = value;
+      },
+      parentContext,
+      async (span) => {
+        const activeTraceParent = traceParentFromActiveSpan(fallbackTraceParent);
+        const activeTraceId = traceIdFromTraceParent(activeTraceParent) || traceId;
+        c.header(TRACE_HEADER, activeTraceId);
+        c.header(TRACE_PARENT_HEADER, activeTraceParent);
+        const requestContext: RequestContext = {
+          traceId: activeTraceId,
+          traceParent: activeTraceParent,
+        };
+        for (const field of PROPAGATED_FIELDS) {
+          if (field.ctxKey === "traceId" || field.ctxKey === "traceParent") {
+            continue;
           }
+          const value = c.req.header(field.header);
+          if (value) {
+            requestContext[field.ctxKey] = value;
+          }
+        }
 
-          try {
-            await runWithContext(requestContext, () => next());
-            span.setAttribute("http.response.status_code", c.res.status);
-            if (c.res.status >= 500) {
-              span.setStatus({ code: SpanStatusCode.ERROR });
-            }
-          } catch (error) {
+        try {
+          await runWithContext(requestContext, () => next());
+          span.setAttribute("http.response.status_code", c.res.status);
+          if (c.res.status >= 500) {
             span.setStatus({ code: SpanStatusCode.ERROR });
-            if (error instanceof Error) span.recordException(error);
-            throw error;
-          } finally {
-            span.end();
           }
-        },
-      );
+        } catch (error) {
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          if (error instanceof Error) {
+            span.recordException(error);
+          }
+          throw error;
+        } finally {
+          span.end();
+        }
+      },
+    );
   };
 }
 

@@ -38,13 +38,7 @@ export class ArkRequestError extends Error {
   }
 }
 
-export type ArkVideoStatus =
-  | "queued"
-  | "running"
-  | "succeeded"
-  | "failed"
-  | "cancelled"
-  | (string & {});
+export type ArkVideoStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled" | (string & {});
 
 export interface ArkVideoSnapshot {
   status: ArkVideoStatus;
@@ -95,8 +89,7 @@ export async function createArkVideoTask(input: {
 
   const inReferenceMode = images.some((image) => image.role === "reference_image");
   const durationSeconds = clampArkDuration(input.seconds);
-  const durationValue =
-    caps.durationField === "duration" ? durationSeconds : String(durationSeconds);
+  const durationValue = caps.durationField === "duration" ? durationSeconds : String(durationSeconds);
 
   const body: Record<string, unknown> = {
     model: input.model,
@@ -120,7 +113,9 @@ export async function createArkVideoTask(input: {
     throw new ArkRequestError(response.status, detail);
   }
   const data = (await response.json()) as { id?: string };
-  if (!data.id) throw new Error("ark create video task returned no task id");
+  if (!data.id) {
+    throw new Error("ark create video task returned no task id");
+  }
   console.log("[executor] ark video task created", {
     taskId: data.id,
     requestedSeconds: input.seconds ?? null,
@@ -149,7 +144,7 @@ export async function generateArkImageUrl(input: {
     body: JSON.stringify({
       model: input.model,
       prompt: input.prompt,
-      ...(input.extraBody ?? {}),
+      ...input.extraBody,
       response_format: "url",
     }),
     signal: input.signal,
@@ -160,7 +155,9 @@ export async function generateArkImageUrl(input: {
   }
   const data = (await response.json()) as { data?: Array<{ url?: string }> };
   const imageUrl = data.data?.[0]?.url;
-  if (!imageUrl) throw new Error("ark image generation returned no url");
+  if (!imageUrl) {
+    throw new Error("ark image generation returned no url");
+  }
   return imageUrl;
 }
 
@@ -186,11 +183,7 @@ export async function getArkVideoTask(input: {
     error?: unknown;
   };
   const error =
-    typeof data.error === "string"
-      ? data.error
-      : data.error
-        ? JSON.stringify(data.error).slice(0, 500)
-        : undefined;
+    typeof data.error === "string" ? data.error : data.error ? JSON.stringify(data.error).slice(0, 500) : undefined;
   const status = (data.status as ArkVideoStatus) ?? "unknown";
   if (status === "succeeded") {
     console.log("[executor] ark video task succeeded", {

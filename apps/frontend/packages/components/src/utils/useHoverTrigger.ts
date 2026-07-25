@@ -68,15 +68,9 @@ export function useHoverTrigger({
 }: UseHoverTriggerOptions): UseHoverTriggerResult {
   const enabled = trigger === "hover";
   const isControlled = controlledOpen !== undefined;
-  const [internalOpen, setInternalOpen] = useState<boolean>(
-    defaultOpen ?? false,
-  );
+  const [internalOpen, setInternalOpen] = useState<boolean>(defaultOpen ?? false);
 
-  const open = enabled
-    ? isControlled
-      ? controlledOpen
-      : internalOpen
-    : controlledOpen;
+  const open = enabled ? (isControlled ? controlledOpen : internalOpen) : controlledOpen;
 
   const insideRef = useRef(false);
   const openRef = useRef<boolean | undefined>(open);
@@ -109,7 +103,9 @@ export function useHoverTrigger({
 
   const setOpen = useCallback(
     (next: boolean) => {
-      if (enabled && !isControlled) setInternalOpen(next);
+      if (enabled && !isControlled) {
+        setInternalOpen(next);
+      }
       onOpenChange?.(next);
     },
     [enabled, isControlled, onOpenChange],
@@ -123,21 +119,33 @@ export function useHoverTrigger({
       onMouseEnter: () => {
         insideRef.current = true;
         cancelClose();
-        if (openRef.current === true) return;
-        if (openTimerRef.current) return;
+        if (openRef.current === true) {
+          return;
+        }
+        if (openTimerRef.current) {
+          return;
+        }
         openTimerRef.current = setTimeout(() => {
           openTimerRef.current = null;
-          if (insideRef.current) setOpen(true);
+          if (insideRef.current) {
+            setOpen(true);
+          }
         }, hoverEnterDelay);
       },
       onMouseLeave: () => {
         insideRef.current = false;
         cancelOpen();
-        if (openRef.current === false) return;
-        if (closeTimerRef.current) return;
+        if (openRef.current === false) {
+          return;
+        }
+        if (closeTimerRef.current) {
+          return;
+        }
         closeTimerRef.current = setTimeout(() => {
           closeTimerRef.current = null;
-          if (!insideRef.current) setOpen(false);
+          if (!insideRef.current) {
+            setOpen(false);
+          }
         }, hoverCloseDelay);
       },
     };

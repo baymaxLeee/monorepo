@@ -2,14 +2,7 @@ import type { ToolSet } from "ai";
 
 import type { AgentMode } from "../agents/types.js";
 
-export type ToolCapability =
-  | "search"
-  | "files"
-  | "planning"
-  | "interaction"
-  | "media"
-  | "memory"
-  | "external";
+export type ToolCapability = "search" | "files" | "planning" | "interaction" | "media" | "memory" | "external";
 
 export type ToolEffect = "read" | "write" | "add" | "update" | "destructive" | "none" | "unknown";
 export type ToolTrust = "closed" | "private-untrusted" | "open-world" | "unknown";
@@ -24,12 +17,7 @@ export interface AgentToolPolicy {
   execution: ToolExecution;
   modes: AgentMode[];
   source: ToolSource;
-  uiKind?:
-    | "artifact"
-    | "ask-user"
-    | "image-gallery"
-    | "todo-list"
-    | "video";
+  uiKind?: "artifact" | "ask-user" | "image-gallery" | "todo-list" | "video";
   visibility?: "visible" | "internal";
 }
 

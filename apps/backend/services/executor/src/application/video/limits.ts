@@ -1,4 +1,3 @@
-
 export const SEGMENT_SECONDS_TARGET = 12;
 
 export const MAX_SEGMENTS = 12;

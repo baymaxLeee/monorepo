@@ -16,7 +16,5 @@ export interface AgentExtensionContribution {
 
 export interface AgentExtension {
   id: string;
-  resolve(
-    context: AgentExtensionContext,
-  ): AgentExtensionContribution | Promise<AgentExtensionContribution>;
+  resolve(context: AgentExtensionContext): AgentExtensionContribution | Promise<AgentExtensionContribution>;
 }

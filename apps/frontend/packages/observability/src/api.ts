@@ -41,17 +41,17 @@ export function attachAxios(instance: MinimalAxiosInstance): void {
     const next = config as AxiosRequestConfigLike;
     const traceId = createTraceId();
     next.metadata = {
-      ...(next.metadata ?? {}),
+      ...next.metadata,
       startedAt: performance.now(),
       traceId,
     };
-    next.headers = { ...(next.headers ?? {}), ...traceHeaders(traceId) };
+    next.headers = { ...next.headers, ...traceHeaders(traceId) };
     return next;
   });
 
   instance.interceptors.response.use(
     (response) => {
-      recordHttp(response as AxiosResponseLike);
+      recordHttp(response);
       return response;
     },
     async (error) => {
@@ -66,11 +66,7 @@ export const telemetry = createTelemetryScope();
 
 export function createTelemetryScope(scope: TelemetryScope = {}) {
   return {
-    captureException(
-      error: unknown,
-      attrs: Record<string, unknown> = {},
-      options: TrackOptions = {},
-    ) {
+    captureException(error: unknown, attrs: Record<string, unknown> = {}, options: TrackOptions = {}) {
       track(
         "error",
         {
@@ -81,22 +77,14 @@ export function createTelemetryScope(scope: TelemetryScope = {}) {
         options,
       );
     },
-    event(
-      name: string,
-      attrs: Record<string, unknown> = {},
-      options: TrackOptions = {},
-    ) {
+    event(name: string, attrs: Record<string, unknown> = {}, options: TrackOptions = {}) {
       track("event", { name, ...attrs }, scope, options);
     },
     flush,
     scope(nextScope: TelemetryScope) {
       return createTelemetryScope({ ...scope, ...nextScope });
     },
-    warn(
-      message: string,
-      attrs: Record<string, unknown> = {},
-      options: TrackOptions = {},
-    ) {
+    warn(message: string, attrs: Record<string, unknown> = {}, options: TrackOptions = {}) {
       track("warning", { message, ...attrs }, scope, options);
     },
   };
@@ -125,11 +113,11 @@ export function track(
 
 function recordHttp(response: AxiosResponseLike): void {
   const config = response.config;
-  if (!config || isObservabilityUrl(config.url)) return;
+  if (!config || isObservabilityUrl(config.url)) {
+    return;
+  }
   const traceId = config.metadata?.traceId ?? null;
-  const duration = config.metadata?.startedAt
-    ? performance.now() - config.metadata.startedAt
-    : 0;
+  const duration = config.metadata?.startedAt ? performance.now() - config.metadata.startedAt : 0;
   track(
     "perform",
     {
@@ -146,7 +134,9 @@ function recordHttp(response: AxiosResponseLike): void {
 
 function recordHttpError(error: AxiosErrorLike): void {
   const config = error.config;
-  if (!config || isObservabilityUrl(config.url)) return;
+  if (!config || isObservabilityUrl(config.url)) {
+    return;
+  }
   const traceId = config.metadata?.traceId ?? null;
   recordHttp({
     config,
@@ -200,7 +190,9 @@ function installGlobalHandlers(): void {
 function observePageLifecycle(): void {
   window.addEventListener("pagehide", flushWithBeacon);
   window.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") flushWithBeacon();
+    if (document.visibilityState === "hidden") {
+      flushWithBeacon();
+    }
   });
 }
 
@@ -226,9 +218,15 @@ function errorPayload(error: unknown): Record<string, unknown> {
 }
 
 function resourceSource(target: HTMLElement): string {
-  if (target instanceof HTMLScriptElement) return target.src;
-  if (target instanceof HTMLImageElement) return target.src;
-  if (target instanceof HTMLLinkElement) return target.href;
+  if (target instanceof HTMLScriptElement) {
+    return target.src;
+  }
+  if (target instanceof HTMLImageElement) {
+    return target.src;
+  }
+  if (target instanceof HTMLLinkElement) {
+    return target.href;
+  }
   return "";
 }
 

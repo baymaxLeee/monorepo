@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type React from "react";
+
 import { Menu } from "../../../../../shadcn/menu";
 import { useEditorContext } from "../../../../context";
 import { isCellSelection, isEntireTableSelected } from "../../utils";
@@ -52,8 +53,7 @@ export const TableColumnMenu: React.FC<TableColumnMenuProps> = ({ editor }) => {
       };
     },
     equalityFn: (prev, next) =>
-      prev.canDeleteColumn === next?.canDeleteColumn &&
-      prev.isTableSelected === next?.isTableSelected,
+      prev.canDeleteColumn === next?.canDeleteColumn && prev.isTableSelected === next?.isTableSelected,
   });
 
   return (
@@ -68,38 +68,21 @@ export const TableColumnMenu: React.FC<TableColumnMenuProps> = ({ editor }) => {
       <Menu>
         {!isMarkdown && (
           <>
-            <MenuItem
-              icon={<AlignLeft />}
-              onClick={() => editor.chain().focus().setTextAlign("left").run()}
-            >
+            <MenuItem icon={<AlignLeft />} onClick={() => editor.chain().focus().setTextAlign("left").run()}>
               左对齐
             </MenuItem>
-            <MenuItem
-              icon={<AlignCenter />}
-              onClick={() =>
-                editor.chain().focus().setTextAlign("center").run()
-              }
-            >
+            <MenuItem icon={<AlignCenter />} onClick={() => editor.chain().focus().setTextAlign("center").run()}>
               居中对齐
             </MenuItem>
-            <MenuItem
-              icon={<AlignRight />}
-              onClick={() => editor.chain().focus().setTextAlign("right").run()}
-            >
+            <MenuItem icon={<AlignRight />} onClick={() => editor.chain().focus().setTextAlign("right").run()}>
               右对齐
             </MenuItem>
           </>
         )}
-        <MenuItem
-          icon={<ArrowLeftToLine />}
-          onClick={() => editor.chain().focus().addColumnBefore().run()}
-        >
+        <MenuItem icon={<ArrowLeftToLine />} onClick={() => editor.chain().focus().addColumnBefore().run()}>
           在左侧插入
         </MenuItem>
-        <MenuItem
-          icon={<ArrowRightToLine />}
-          onClick={() => editor.chain().focus().addColumnAfter().run()}
-        >
+        <MenuItem icon={<ArrowRightToLine />} onClick={() => editor.chain().focus().addColumnAfter().run()}>
           在右侧插入
         </MenuItem>
         <MenuItem
@@ -119,16 +102,10 @@ export const TableColumnMenu: React.FC<TableColumnMenuProps> = ({ editor }) => {
         </MenuItem>
         {!isMarkdown && (
           <>
-            <MenuItem
-              icon={<Merge />}
-              onClick={() => editor.chain().focus().mergeCells().run()}
-            >
+            <MenuItem icon={<Merge />} onClick={() => editor.chain().focus().mergeCells().run()}>
               合并单元格
             </MenuItem>
-            <MenuItem
-              icon={<Split />}
-              onClick={() => editor.chain().focus().splitCell().run()}
-            >
+            <MenuItem icon={<Split />} onClick={() => editor.chain().focus().splitCell().run()}>
               分割单元格
             </MenuItem>
           </>

@@ -1,22 +1,19 @@
 import type { JSONContent } from "@tiptap/core";
-import type {
-  PromptInputSegment,
-  PromptInputToken,
-  PromptInputValue,
-} from "./interface";
+
+import type { PromptInputSegment, PromptInputToken, PromptInputValue } from "./interface";
 
 const isToken = (value: unknown): value is PromptInputToken => {
-  if (!value || typeof value !== "object") return false;
+  if (!value || typeof value !== "object") {
+    return false;
+  }
   const token = value as Partial<PromptInputToken>;
-  return (
-    typeof token.id === "string" &&
-    typeof token.kind === "string" &&
-    typeof token.label === "string"
-  );
+  return typeof token.id === "string" && typeof token.kind === "string" && typeof token.label === "string";
 };
 
 const pushText = (segments: PromptInputSegment[], text: string) => {
-  if (!text) return;
+  if (!text) {
+    return;
+  }
   const previous = segments.at(-1);
   if (previous?.type === "text") {
     previous.text += text;
@@ -41,10 +38,7 @@ const visitNode = (node: JSONContent, segments: PromptInputSegment[]) => {
   node.content?.forEach((child) => visitNode(child, segments));
 };
 
-export const serializePromptInput = (
-  doc: JSONContent,
-  files: Record<string, File>,
-): PromptInputValue => {
+export const serializePromptInput = (doc: JSONContent, files: Record<string, File>): PromptInputValue => {
   const segments: PromptInputSegment[] = [];
   doc.content?.forEach((node, index) => {
     if (index > 0) {
@@ -53,16 +47,10 @@ export const serializePromptInput = (
     visitNode(node, segments);
   });
 
-  const tokens = segments
-    .filter((segment) => segment.type === "token")
-    .map((segment) => segment.token);
+  const tokens = segments.filter((segment) => segment.type === "token").map((segment) => segment.token);
 
   return {
-    text: segments
-      .map((segment) =>
-        segment.type === "text" ? segment.text : `[[${segment.token.id}]]`,
-      )
-      .join(""),
+    text: segments.map((segment) => (segment.type === "text" ? segment.text : `[[${segment.token.id}]]`)).join(""),
     segments,
     tokens,
     files,

@@ -255,10 +255,7 @@ const openapi = {
       post: {
         parameters: [memoryIdPathParam],
         responses: {
-          "200": jsonResponse(
-            "approve a memory candidate into active memory",
-            ref("ApprovedMemory"),
-          ),
+          "200": jsonResponse("approve a memory candidate into active memory", ref("ApprovedMemory")),
         },
       },
     },
@@ -278,10 +275,7 @@ const openapi = {
           content: { "application/json": { schema: ref("UpdateMemoryCandidate") } },
         },
         responses: {
-          "200": jsonResponse(
-            "edit a pending memory candidate before approval",
-            ref("UpdatedMemoryCandidate"),
-          ),
+          "200": jsonResponse("edit a pending memory candidate before approval", ref("UpdatedMemoryCandidate")),
         },
       },
     },
@@ -306,17 +300,7 @@ const openapi = {
       },
       ConversationFile: {
         type: "object",
-        required: [
-          "path",
-          "title",
-          "filename",
-          "mime_type",
-          "size",
-          "sha256",
-          "writable",
-          "derived",
-          "content",
-        ],
+        required: ["path", "title", "filename", "mime_type", "size", "sha256", "writable", "derived", "content"],
         properties: {
           path: { type: "string" },
           title: { type: "string" },
@@ -332,9 +316,17 @@ const openapi = {
       AgentRunTrace: {
         type: "object",
         required: [
-          "runId", "status", "model", "inputTokens", "outputTokens",
-          "cachedInputTokens", "reasoningTokens", "totalTokens",
-          "contextWindow", "steps", "toolCalls",
+          "runId",
+          "status",
+          "model",
+          "inputTokens",
+          "outputTokens",
+          "cachedInputTokens",
+          "reasoningTokens",
+          "totalTokens",
+          "contextWindow",
+          "steps",
+          "toolCalls",
         ],
         properties: {
           runId: { type: "string" },
@@ -351,8 +343,16 @@ const openapi = {
             items: {
               type: "object",
               required: [
-                "id", "stepIndex", "kind", "status", "summary", "createdAt",
-                "finishedAt", "inputTokens", "outputTokens", "totalTokens",
+                "id",
+                "stepIndex",
+                "kind",
+                "status",
+                "summary",
+                "createdAt",
+                "finishedAt",
+                "inputTokens",
+                "outputTokens",
+                "totalTokens",
                 "contextSnapshot",
               ],
               properties: {
@@ -370,8 +370,12 @@ const openapi = {
                   type: "object",
                   nullable: true,
                   required: [
-                    "version", "usedTokens", "inputTokens",
-                    "retainedOutputTokens", "breakdownEstimated", "categories",
+                    "version",
+                    "usedTokens",
+                    "inputTokens",
+                    "retainedOutputTokens",
+                    "breakdownEstimated",
+                    "categories",
                   ],
                   properties: {
                     version: { type: "integer", enum: [1] },
@@ -387,10 +391,7 @@ const openapi = {
                         properties: {
                           id: {
                             type: "string",
-                            enum: [
-                              "system", "tools", "rules", "skills", "mcp",
-                              "memory", "conversation",
-                            ],
+                            enum: ["system", "tools", "rules", "skills", "mcp", "memory", "conversation"],
                           },
                           tokens: { type: "integer" },
                         },
@@ -416,10 +417,7 @@ const openapi = {
         properties: {
           id: {
             type: "string",
-            enum: [
-              "system", "tools", "rules", "skills", "mcp", "memory",
-              "conversation",
-            ],
+            enum: ["system", "tools", "rules", "skills", "mcp", "memory", "conversation"],
           },
           tokens: { type: "integer" },
         },
@@ -449,8 +447,16 @@ const openapi = {
       Task: {
         type: "object",
         required: [
-          "id", "type", "status", "ownerService", "ownerRef", "result", "error",
-          "createdAt", "updatedAt", "finishedAt",
+          "id",
+          "type",
+          "status",
+          "ownerService",
+          "ownerRef",
+          "result",
+          "error",
+          "createdAt",
+          "updatedAt",
+          "finishedAt",
         ],
         properties: {
           id: { type: "string" },
@@ -467,7 +473,21 @@ const openapi = {
       },
       VideoShot: {
         type: "object",
-        required: ["id", "order", "seconds", "narrativeBeat", "subjectAnchors", "action", "camera", "environment", "lightingPalette", "audioDirection", "references", "continuityContract", "acceptanceCriteria"],
+        required: [
+          "id",
+          "order",
+          "seconds",
+          "narrativeBeat",
+          "subjectAnchors",
+          "action",
+          "camera",
+          "environment",
+          "lightingPalette",
+          "audioDirection",
+          "references",
+          "continuityContract",
+          "acceptanceCriteria",
+        ],
         properties: {
           id: { type: "string" },
           order: { type: "integer" },
@@ -516,7 +536,20 @@ const openapi = {
       },
       VideoProduction: {
         type: "object",
-        required: ["id", "taskId", "orgId", "userId", "title", "status", "stage", "version", "shotReviews", "cost", "createdAt", "updatedAt"],
+        required: [
+          "id",
+          "taskId",
+          "orgId",
+          "userId",
+          "title",
+          "status",
+          "stage",
+          "version",
+          "shotReviews",
+          "cost",
+          "createdAt",
+          "updatedAt",
+        ],
         properties: {
           id: { type: "string" },
           taskId: { type: "string" },
@@ -543,7 +576,15 @@ const openapi = {
           },
           cost: {
             type: "object",
-            required: ["currency", "unitPriceMicros", "estimatedMicros", "budgetLimitMicros", "reservedMicros", "reconciledMicros", "releasedMicros"],
+            required: [
+              "currency",
+              "unitPriceMicros",
+              "estimatedMicros",
+              "budgetLimitMicros",
+              "reservedMicros",
+              "reconciledMicros",
+              "releasedMicros",
+            ],
             properties: {
               currency: { type: "string", nullable: true },
               unitPriceMicros: { type: "integer", nullable: true },

@@ -1,5 +1,5 @@
-import type { BotProfileSnapshot, BotTone } from "./types.js";
 import { INSTRUCTION_SECTION_TAGS } from "./section-tags.js";
+import type { BotProfileSnapshot, BotTone } from "./types.js";
 import { xmlLeaf, xmlSection } from "./xml.js";
 
 const TONE_GUIDANCE: Record<BotTone, string> = {
@@ -22,22 +22,31 @@ export function renderBotProfile(profile: BotProfileSnapshot | null | undefined)
   const leaves: string[] = [];
 
   const name = profile?.name?.trim();
-  if (name) leaves.push(xmlLeaf("name", name));
+  if (name) {
+    leaves.push(xmlLeaf("name", name));
+  }
 
   const role = profile?.roleDescription?.trim();
-  if (role) leaves.push(xmlLeaf("role_description", role));
+  if (role) {
+    leaves.push(xmlLeaf("role_description", role));
+  }
 
   const domain = profile?.domainDescription?.trim();
-  if (domain) leaves.push(xmlLeaf("domain_description", domain));
+  if (domain) {
+    leaves.push(xmlLeaf("domain_description", domain));
+  }
 
   const audience = profile?.audience?.trim();
-  if (audience) leaves.push(xmlLeaf("audience", audience));
+  if (audience) {
+    leaves.push(xmlLeaf("audience", audience));
+  }
 
-  if (profile?.tone) leaves.push(xmlLeaf("tone", TONE_GUIDANCE[profile.tone]));
+  if (profile?.tone) {
+    leaves.push(xmlLeaf("tone", TONE_GUIDANCE[profile.tone]));
+  }
 
-  if (leaves.length === 0) return null;
-  return xmlSection(
-    INSTRUCTION_SECTION_TAGS.botProfile,
-    [PROFILE_PREAMBLE, ...leaves].join("\n"),
-  );
+  if (leaves.length === 0) {
+    return null;
+  }
+  return xmlSection(INSTRUCTION_SECTION_TAGS.botProfile, [PROFILE_PREAMBLE, ...leaves].join("\n"));
 }

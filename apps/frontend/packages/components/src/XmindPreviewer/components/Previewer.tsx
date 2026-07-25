@@ -1,39 +1,18 @@
-import {
-  Fullscreen,
-  type LucideIcon,
-  Maximize2,
-  Minimize2,
-  Minus,
-  Plus,
-  Scan,
-} from "lucide-react";
-import {
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Fullscreen, type LucideIcon, Maximize2, Minimize2, Minus, Plus, Scan } from "lucide-react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { cn } from "shared";
 import MindMap from "simple-mind-map";
+
 import { Button } from "../../shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../shadcn/tooltip";
-import type {
-  XMindFullData,
-  XMindNode,
-  XMindPreviewerProps,
-  XMindPreviewerRef,
-} from "../interface";
+import type { XMindFullData, XMindNode, XMindPreviewerProps, XMindPreviewerRef } from "../interface";
 import xmindParser from "./xmindParser";
 
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 2;
 const SCALE_STEP = 0.1;
 
-const isFullData = (
-  data?: XMindNode | XMindFullData,
-): data is XMindFullData => {
+const isFullData = (data?: XMindNode | XMindFullData): data is XMindFullData => {
   return Boolean(data && typeof data === "object" && "root" in data);
 };
 
@@ -41,10 +20,7 @@ const canUseMindMap = () => {
   if (typeof window === "undefined" || typeof document === "undefined") {
     return false;
   }
-  if (
-    typeof SVGElement === "undefined" &&
-    typeof (window as any).SVGGraphicsElement === "undefined"
-  ) {
+  if (typeof SVGElement === "undefined" && typeof (window as any).SVGGraphicsElement === "undefined") {
     return false;
   }
   const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -89,18 +65,14 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
     const autoFitFrameRef = useRef<number | null>(null);
     const autoFitInnerFrameRef = useRef<number | null>(null);
     const layoutRenderEndHandlerRef = useRef<(() => void) | null>(null);
-    const prevEffectiveDataRef = useRef<
-      XMindNode | XMindFullData | null | undefined
-    >();
+    const prevEffectiveDataRef = useRef<XMindNode | XMindFullData | null | undefined>();
     const prevFitRef = useRef(fit);
     const onReadyRef = useRef(onReady);
     const onNodeClickRef = useRef(onNodeClick);
     const onParseSuccessRef = useRef(onParseSuccess);
     const onParseErrorRef = useRef(onParseError);
     const [parsedData, setParsedData] = useState<XMindNode | null>(null);
-    const [parseStatus, setParseStatus] = useState<
-      "idle" | "loading" | "error"
-    >("idle");
+    const [parseStatus, setParseStatus] = useState<"idle" | "loading" | "error">("idle");
     const [isCanvasReady, setIsCanvasReady] = useState(false);
     const [isMindMapReady, setIsMindMapReady] = useState(false);
     const [viewportScale, setViewportScale] = useState(1);
@@ -114,19 +86,13 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
     const supported = useMemo(canUseMindMap, []);
     const effectiveData = file || src ? parsedData : data;
     const normalizedData = effectiveData ?? undefined;
-    const hasData = Boolean(
-      effectiveData &&
-        (isFullData(effectiveData) ? effectiveData.root : effectiveData),
-    );
-    const canInteract =
-      supported &&
-      isCanvasReady &&
-      isMindMapReady &&
-      parseStatus === "idle" &&
-      hasData;
+    const hasData = Boolean(effectiveData && (isFullData(effectiveData) ? effectiveData.root : effectiveData));
+    const canInteract = supported && isCanvasReady && isMindMapReady && parseStatus === "idle" && hasData;
 
     const rootData = useMemo(() => {
-      if (!effectiveData) return undefined;
+      if (!effectiveData) {
+        return undefined;
+      }
       return isFullData(effectiveData) ? effectiveData.root : effectiveData;
     }, [effectiveData]);
 
@@ -157,10 +123,7 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
       if (!mindMapRef.current || !layoutRenderEndHandlerRef.current) {
         return;
       }
-      mindMapRef.current.off(
-        "node_tree_render_end",
-        layoutRenderEndHandlerRef.current,
-      );
+      mindMapRef.current.off("node_tree_render_end", layoutRenderEndHandlerRef.current);
       layoutRenderEndHandlerRef.current = null;
     };
 
@@ -195,10 +158,7 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
 
     const setScaleByStep = (delta: number) => {
       const currentScale = mindMapRef.current?.view?.scale ?? 1;
-      const nextScale = Math.min(
-        MAX_SCALE,
-        Math.max(MIN_SCALE, Number((currentScale + delta).toFixed(2))),
-      );
+      const nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Number((currentScale + delta).toFixed(2))));
       mindMapRef.current?.view?.setScale(nextScale, undefined, undefined);
       syncViewportScale();
     };
@@ -212,9 +172,7 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
 
       const fullscreenElement = document.fullscreenElement;
       return Boolean(
-        fullscreenElement &&
-          (fullscreenElement === rootRef.current ||
-            rootRef.current.contains(fullscreenElement)),
+        fullscreenElement && (fullscreenElement === rootRef.current || rootRef.current.contains(fullscreenElement)),
       );
     };
 
@@ -258,18 +216,20 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
             source = await response.blob();
           }
 
-          const nextData = (await xmindParser.parseXmindFile(
-            source,
-          )) as XMindNode;
+          const nextData = (await xmindParser.parseXmindFile(source)) as XMindNode;
           if (!nextData || typeof nextData !== "object") {
             throw new Error("invalid xmind content");
           }
-          if (cancelled) return;
+          if (cancelled) {
+            return;
+          }
           setParsedData(nextData);
           setParseStatus("idle");
           onParseSuccessRef.current?.(nextData);
         } catch (error) {
-          if (cancelled) return;
+          if (cancelled) {
+            return;
+          }
           setParsedData(null);
           setParseStatus("error");
           onParseErrorRef.current?.(error as Error);
@@ -304,7 +264,9 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
         },
         getInstance: () => mindMapRef.current,
         getData: (withConfig = true) => {
-          if (!mindMapRef.current) return null;
+          if (!mindMapRef.current) {
+            return null;
+          }
           return mindMapRef.current.getData(withConfig);
         },
       }),
@@ -322,12 +284,8 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
       const instance = new MindMap({
         el: canvasRef.current,
         data: rootData,
-        layout: isFullData(normalizedData)
-          ? (normalizedData.layout ?? layout)
-          : layout,
-        theme: isFullData(normalizedData)
-          ? (normalizedData.theme?.template ?? theme)
-          : theme,
+        layout: isFullData(normalizedData) ? (normalizedData.layout ?? layout) : layout,
+        theme: isFullData(normalizedData) ? (normalizedData.theme?.template ?? theme) : theme,
         themeConfig: isFullData(normalizedData)
           ? (normalizedData.theme?.config ?? themeConfig ?? {})
           : (themeConfig ?? {}),
@@ -382,9 +340,7 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
 
       const updateCanvasReady = () => {
         const nextReady = getCanvasReady();
-        setIsCanvasReady((current) =>
-          current === nextReady ? current : nextReady,
-        );
+        setIsCanvasReady((current) => (current === nextReady ? current : nextReady));
       };
 
       updateCanvasReady();
@@ -406,7 +362,9 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
 
     useEffect(() => {
       const instance = mindMapRef.current;
-      if (!instance) return;
+      if (!instance) {
+        return;
+      }
       let layoutChanged = false;
       const dataChanged = prevEffectiveDataRef.current !== effectiveData;
       const fitEnabled = fit && !prevFitRef.current;
@@ -447,16 +405,7 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
 
       prevEffectiveDataRef.current = effectiveData;
       prevFitRef.current = fit;
-    }, [
-      effectiveData,
-      layout,
-      theme,
-      themeConfig,
-      readonly,
-      fit,
-      zoomable,
-      collapsible,
-    ]);
+    }, [effectiveData, layout, theme, themeConfig, readonly, fit, zoomable, collapsible]);
 
     useEffect(() => {
       if (!supported || !rootRef.current) {
@@ -465,7 +414,9 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
 
       const handleResize = () => {
         const instance = mindMapRef.current;
-        if (!instance) return;
+        if (!instance) {
+          return;
+        }
         instance.resize();
         if (fit) {
           clearLayoutRenderEndHandler();
@@ -507,10 +458,7 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
       document.addEventListener("fullscreenchange", handleFullscreenChange);
 
       return () => {
-        document.removeEventListener(
-          "fullscreenchange",
-          handleFullscreenChange,
-        );
+        document.removeEventListener("fullscreenchange", handleFullscreenChange);
       };
     }, []);
 
@@ -518,10 +466,7 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
       <div
         ref={rootRef}
         style={{ ...style, width, height }}
-        className={cn(
-          "relative min-h-80 overflow-hidden rounded-md border bg-background",
-          className,
-        )}
+        className={cn("relative min-h-80 overflow-hidden rounded-md border bg-background", className)}
       >
         {toolbar ? (
           <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
@@ -582,9 +527,7 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
           </div>
         ) : null}
         <div ref={canvasRef} className="size-full" />
-        {(!supported ||
-          parseStatus !== "idle" ||
-          (parseStatus === "idle" && !hasData)) && (
+        {(!supported || parseStatus !== "idle" || (parseStatus === "idle" && !hasData)) && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
             {!supported
               ? unsupportedText
@@ -616,13 +559,7 @@ interface ToolbarIconButtonProps {
   tooltipContainer?: HTMLElement | null;
 }
 
-function ToolbarIconButton({
-  icon: Icon,
-  label,
-  disabled,
-  onClick,
-  tooltipContainer,
-}: ToolbarIconButtonProps) {
+function ToolbarIconButton({ icon: Icon, label, disabled, onClick, tooltipContainer }: ToolbarIconButtonProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>

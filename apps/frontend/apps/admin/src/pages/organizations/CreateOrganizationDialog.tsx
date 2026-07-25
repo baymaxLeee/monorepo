@@ -26,6 +26,7 @@ import {
 } from "components";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+
 import { NewOrganizationOwnerFields } from "./NewOrganizationOwnerFields";
 
 const createOrgSchema = z.object({
@@ -35,10 +36,7 @@ const createOrgSchema = z.object({
     .trim()
     .min(1, "请输入 slug")
     .max(64)
-    .regex(
-      /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
-      "slug 仅限小写字母、数字与连字符",
-    ),
+    .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, "slug 仅限小写字母、数字与连字符"),
   ownerMode: z.enum(["existing", "new"]),
   ownerUserId: z.string().trim().optional(),
   ownerAccount: z.string().trim().optional(),
@@ -88,11 +86,7 @@ export function CreateOrganizationDialog({
         ownerUserId: values.ownerUserId.trim(),
       };
     } else {
-      if (
-        !values.ownerAccount?.trim() ||
-        !values.ownerPassword ||
-        !values.ownerEmail?.trim()
-      ) {
+      if (!values.ownerAccount?.trim() || !values.ownerPassword || !values.ownerEmail?.trim()) {
         form.setError("ownerAccount", {
           message: "请填写负责人账号、邮箱与密码",
         });
@@ -121,15 +115,15 @@ export function CreateOrganizationDialog({
       open={open}
       onOpenChange={(next) => {
         onOpenChange(next);
-        if (!next) form.reset(defaults);
+        if (!next) {
+          form.reset(defaults);
+        }
       }}
     >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>新建组织</DialogTitle>
-          <DialogDescription>
-            每个组织都必须有一个负责人（org_admin）。
-          </DialogDescription>
+          <DialogDescription>每个组织都必须有一个负责人（org_admin）。</DialogDescription>
         </DialogHeader>
         <DialogBody>
           <Form {...form}>
@@ -167,22 +161,15 @@ export function CreateOrganizationDialog({
                   render={({ field }) => (
                     <Field>
                       <FieldLabel>负责人</FieldLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                      >
+                      <Select value={field.value} onValueChange={field.onChange}>
                         <FormControl>
                           <SelectTrigger className="w-full">
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="new">
-                            新建账号作为负责人
-                          </SelectItem>
-                          <SelectItem value="existing">
-                            使用已有用户 ID
-                          </SelectItem>
+                          <SelectItem value="new">新建账号作为负责人</SelectItem>
+                          <SelectItem value="existing">使用已有用户 ID</SelectItem>
                         </SelectContent>
                       </Select>
                     </Field>
@@ -198,9 +185,7 @@ export function CreateOrganizationDialog({
                         <FormControl>
                           <Input {...field} />
                         </FormControl>
-                        <FieldError
-                          errors={[form.formState.errors.ownerUserId]}
-                        />
+                        <FieldError errors={[form.formState.errors.ownerUserId]} />
                       </Field>
                     )}
                   />
@@ -212,18 +197,10 @@ export function CreateOrganizationDialog({
           </Form>
         </DialogBody>
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button
-            type="submit"
-            form="organization-form"
-            disabled={form.formState.isSubmitting}
-          >
+          <Button type="submit" form="organization-form" disabled={form.formState.isSubmitting}>
             创建
           </Button>
         </DialogFooter>

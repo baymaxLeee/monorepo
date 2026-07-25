@@ -4,6 +4,7 @@ import { BubbleMenu } from "@tiptap/react/menus";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+
 import { AiPolishStatus } from "../../constants";
 import { isCellSelection } from "../../extensions/Table/utils";
 import { getMountedEditorDom } from "../../utils";
@@ -27,19 +28,25 @@ const BUBBLE_TOOLBAR_HOOK_CLASS = "markdown-editor-bubble-toolbar";
 /** 浮起气泡工具栏容器（高保真还原自原 BubbleToolbar/index.less） */
 const FLOATING_PANEL_CLS = `${BUBBLE_TOOLBAR_HOOK_CLASS} relative z-[101] rounded-md border bg-background text-sm text-foreground shadow-lg`;
 /** AI 润色面板（独立 portal，固定定位） */
-const POLISH_PANEL_CLS =
-  "fixed z-[102] rounded-md border bg-background text-sm text-foreground shadow-lg";
+const POLISH_PANEL_CLS = "fixed z-[102] rounded-md border bg-background text-sm text-foreground shadow-lg";
 /** 用于 closest 查找编辑器根容器的稳定 hook */
 const EDITOR_ROOT_CLASS = "markdown-editor";
-const OVERLAY_CONTENT_SELECTOR =
-  '[data-slot="sheet-content"], [data-slot="dialog-content"]';
+const OVERLAY_CONTENT_SELECTOR = '[data-slot="sheet-content"], [data-slot="dialog-content"]';
 
 const isValidSelection = (editor: Editor) => {
   const { selection } = editor.state;
-  if (selection.empty) return false;
-  if (!editor.isFocused) return false;
-  if (isNodeSelection(selection)) return false;
-  if (isCellSelection(selection)) return false;
+  if (selection.empty) {
+    return false;
+  }
+  if (!editor.isFocused) {
+    return false;
+  }
+  if (isNodeSelection(selection)) {
+    return false;
+  }
+  if (isCellSelection(selection)) {
+    return false;
+  }
   return true;
 };
 
@@ -65,15 +72,15 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
 
   const getPortalContainer = useCallback(() => {
     const dom = getMountedEditorDom(editor);
-    const overlayContent = dom?.closest(
-      OVERLAY_CONTENT_SELECTOR,
-    ) as HTMLElement | null;
+    const overlayContent = dom?.closest(OVERLAY_CONTENT_SELECTOR) as HTMLElement | null;
     return overlayContent ?? document.body;
   }, [editor]);
 
   useEffect(() => {
     const dom = getMountedEditorDom(editor);
-    if (!dom) return;
+    if (!dom) {
+      return;
+    }
 
     const onMouseDown = (e: MouseEvent) => {
       isRightClickRef.current = e.button === 2;
@@ -94,7 +101,9 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
     };
 
     const onScroll = () => {
-      if (dragRef.current.selecting) dragRef.current.scrolled = true;
+      if (dragRef.current.selecting) {
+        dragRef.current.scrolled = true;
+      }
     };
 
     dom.addEventListener("mousedown", onMouseDown);
@@ -121,16 +130,20 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
   }, [editor]);
 
   const shouldShow = useCallback(({ editor }: { editor: Editor }) => {
-    if (showCenteredRef.current) return false;
-    if (isRightClickRef.current) return false;
+    if (showCenteredRef.current) {
+      return false;
+    }
+    if (isRightClickRef.current) {
+      return false;
+    }
     return isValidSelection(editor);
   }, []);
 
   const getEditorCenterPos = (): PolishPosition | null => {
-    const wrapper = getMountedEditorDom(editor)?.closest(
-      `.${EDITOR_ROOT_CLASS}`,
-    ) as HTMLElement | null;
-    if (!wrapper) return null;
+    const wrapper = getMountedEditorDom(editor)?.closest(`.${EDITOR_ROOT_CLASS}`) as HTMLElement | null;
+    if (!wrapper) {
+      return null;
+    }
     const rect = wrapper.getBoundingClientRect();
     return {
       top: rect.top + rect.height / 2,
@@ -139,10 +152,10 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
   };
 
   const getCurrentToolbarPos = (): PolishPosition | null => {
-    const toolbar = document.querySelector(
-      `.${BUBBLE_TOOLBAR_HOOK_CLASS}`,
-    ) as HTMLElement | null;
-    if (!toolbar) return null;
+    const toolbar = document.querySelector(`.${BUBBLE_TOOLBAR_HOOK_CLASS}`) as HTMLElement | null;
+    if (!toolbar) {
+      return null;
+    }
     const rect = toolbar.getBoundingClientRect();
     return {
       top: rect.top,
@@ -152,7 +165,9 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
 
   const handleOpenPolish = useCallback(() => {
     const { selection } = editor.state;
-    if (selection.empty) return;
+    if (selection.empty) {
+      return;
+    }
 
     polishCenteredRef.current = showCenteredRef.current;
     skipNextResizeAdjustRef.current = true;
@@ -180,7 +195,9 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
   }, [editor]);
 
   const handleClosePolish = useCallback(() => {
-    if (polishStatusRef.current !== AiPolishStatus.Pending) return;
+    if (polishStatusRef.current !== AiPolishStatus.Pending) {
+      return;
+    }
     setPolishVisible(false);
     setPolishPos(null);
     lastPolishPosRef.current = null;
@@ -189,12 +206,14 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
   }, [editor]);
 
   useEffect(() => {
-    if (!polishVisible) return;
+    if (!polishVisible) {
+      return;
+    }
 
-    const editorWrapper = getMountedEditorDom(editor)?.closest(
-      `.${EDITOR_ROOT_CLASS}`,
-    ) as HTMLElement | null;
-    if (!editorWrapper) return;
+    const editorWrapper = getMountedEditorDom(editor)?.closest(`.${EDITOR_ROOT_CLASS}`) as HTMLElement | null;
+    if (!editorWrapper) {
+      return;
+    }
 
     const onMouseDown = () => handleClosePolish();
     editorWrapper.addEventListener("mousedown", onMouseDown);
@@ -202,23 +221,27 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
   }, [polishVisible, editor, handleClosePolish]);
 
   useEffect(() => {
-    if (!polishVisible) return;
+    if (!polishVisible) {
+      return;
+    }
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") handleClosePolish();
+      if (e.key === "Escape") {
+        handleClosePolish();
+      }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [polishVisible, handleClosePolish]);
 
   const adjustPolishPosition = useCallback(() => {
-    if (!polishRef.current || polishCenteredRef.current) return;
+    if (!polishRef.current || polishCenteredRef.current) {
+      return;
+    }
     const el = polishRef.current;
     const { width, height } = el.getBoundingClientRect();
     const anchor = anchorRef.current;
 
-    const wrapper = getMountedEditorDom(editor)?.closest(
-      `.${EDITOR_ROOT_CLASS}`,
-    ) as HTMLElement | null;
+    const wrapper = getMountedEditorDom(editor)?.closest(`.${EDITOR_ROOT_CLASS}`) as HTMLElement | null;
     const bounds = wrapper?.getBoundingClientRect() ?? {
       top: 0,
       bottom: window.innerHeight,
@@ -227,32 +250,20 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
     };
     const pad = 8;
 
-    const baseLeft = anchor
-      ? anchor.centerX
-      : (lastPolishPosRef.current?.left ?? 0);
+    const baseLeft = anchor ? anchor.centerX : (lastPolishPosRef.current?.left ?? 0);
     let left = baseLeft - width / 2;
-    left = Math.max(
-      bounds.left + pad,
-      Math.min(left, bounds.right - width - pad),
-    );
+    left = Math.max(bounds.left + pad, Math.min(left, bounds.right - width - pad));
 
-    const baseTop = anchor
-      ? anchor.bottom + 8
-      : (lastPolishPosRef.current?.top ?? 0);
+    const baseTop = anchor ? anchor.bottom + 8 : (lastPolishPosRef.current?.top ?? 0);
     let top = baseTop;
     if (top + height > bounds.bottom - pad && anchor) {
       top = anchor.top - height - 8;
     }
-    top = Math.max(
-      bounds.top + pad,
-      Math.min(top, bounds.bottom - height - pad),
-    );
+    top = Math.max(bounds.top + pad, Math.min(top, bounds.bottom - height - pad));
 
     const prevPos = lastPolishPosRef.current;
     const positionChanged =
-      !prevPos ||
-      Math.abs(top - prevPos.top) > POSITION_EPSILON ||
-      Math.abs(left - prevPos.left) > POSITION_EPSILON;
+      !prevPos || Math.abs(top - prevPos.top) > POSITION_EPSILON || Math.abs(left - prevPos.left) > POSITION_EPSILON;
 
     if (positionChanged) {
       const nextPos = { top, left };
@@ -262,8 +273,9 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
   }, [editor]);
 
   useEffect(() => {
-    if (!polishVisible || !polishRef.current || polishCenteredRef.current)
+    if (!polishVisible || !polishRef.current || polishCenteredRef.current) {
       return;
+    }
     const el = polishRef.current;
     const ro = new ResizeObserver(() => {
       if (skipNextResizeAdjustRef.current) {
@@ -341,11 +353,7 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
               ...(polishCenteredRef.current ? centerStyle : undefined),
             }}
           >
-            <AIPolishContent
-              editor={editor}
-              onClose={handleClosePolish}
-              statusRef={polishStatusRef}
-            />
+            <AIPolishContent editor={editor} onClose={handleClosePolish} statusRef={polishStatusRef} />
           </div>,
           getPortalContainer(),
         )}

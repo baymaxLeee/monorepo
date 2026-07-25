@@ -2,6 +2,7 @@ import type { SourceUrlUIPart } from "ai";
 import { ExternalLinkIcon, LinkIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 import { cn, isPublicHttpUrl } from "shared";
+
 import { Badge } from "../shadcn/badge";
 
 export type SourceItem =
@@ -21,7 +22,9 @@ export type SourcesProps = HTMLAttributes<HTMLDivElement> & {
 };
 
 export function Sources({ className, sources, ...props }: SourcesProps) {
-  if (!sources.length) return null;
+  if (!sources.length) {
+    return null;
+  }
   return (
     <div className={cn("flex flex-col gap-2", className)} {...props}>
       {sources.map((source, index) => (
@@ -54,18 +57,13 @@ export function Source({ className, source, ...props }: SourceProps) {
           {source.type.replace("source-", "")}
         </Badge>
       ) : null}
-      {href ? (
-        <ExternalLinkIcon className="size-3 shrink-0 text-muted-foreground" />
-      ) : null}
+      {href ? <ExternalLinkIcon className="size-3 shrink-0 text-muted-foreground" /> : null}
     </>
   );
   if (!href) {
     return (
       <div
-        className={cn(
-          "flex min-w-0 items-center gap-2 rounded-md border bg-background px-3 py-2 text-xs",
-          className,
-        )}
+        className={cn("flex min-w-0 items-center gap-2 rounded-md border bg-background px-3 py-2 text-xs", className)}
       >
         {content}
       </div>
@@ -93,19 +91,9 @@ export type InlineCitationProps = ComponentProps<"a"> & {
   children?: ReactNode;
 };
 
-export function InlineCitation({
-  className,
-  index,
-  source,
-  children,
-  href: propsHref,
-  ...props
-}: InlineCitationProps) {
+export function InlineCitation({ className, index, source, children, href: propsHref, ...props }: InlineCitationProps) {
   const rawHref = propsHref ?? source?.url;
-  const href =
-    typeof rawHref === "string" && isPublicHttpUrl(rawHref)
-      ? rawHref
-      : undefined;
+  const href = typeof rawHref === "string" && isPublicHttpUrl(rawHref) ? rawHref : undefined;
   const classNameMerged = cn(
     "inline-flex h-5 min-w-5 items-center justify-center rounded-full border bg-muted px-1.5 align-baseline text-[10px] font-medium text-muted-foreground hover:text-foreground",
     className,
@@ -118,13 +106,7 @@ export function InlineCitation({
     );
   }
   return (
-    <a
-      className={classNameMerged}
-      href={href}
-      rel="noreferrer"
-      target="_blank"
-      {...props}
-    >
+    <a className={classNameMerged} href={href} rel="noreferrer" target="_blank" {...props}>
       {children ?? index ?? "src"}
     </a>
   );

@@ -1,8 +1,5 @@
 import type { ConversationDocumentDetail } from "api";
-import {
-  createKnowledgeDocumentResourceUrl,
-  fetchConversationDocumentSource,
-} from "api";
+import { createKnowledgeDocumentResourceUrl, fetchConversationDocumentSource } from "api";
 import { useEffect, useState } from "react";
 
 const MAX_CACHED_DOCUMENTS = 8;
@@ -18,21 +15,14 @@ function docPrefix(conversationId: string, documentId: string) {
   return `${conversationId}:${documentId}:`;
 }
 
-function normalizeSourceOptions(
-  versionOrOptions?: string | DocumentSourceOptions,
-): DocumentSourceOptions {
+function normalizeSourceOptions(versionOrOptions?: string | DocumentSourceOptions): DocumentSourceOptions {
   if (typeof versionOrOptions === "string") {
     return { version: versionOrOptions };
   }
   return versionOrOptions ?? {};
 }
 
-function cacheKey(
-  conversationId: string,
-  documentId: string,
-  version: string,
-  maxDim?: number,
-) {
+function cacheKey(conversationId: string, documentId: string, version: string, maxDim?: number) {
   const variant = maxDim ? `thumb-${maxDim}` : "full";
   return `${docPrefix(conversationId, documentId)}${variant}:${version}`;
 }
@@ -54,7 +44,9 @@ export function fetchCachedDocumentSource(
   const variant = maxDim ? `thumb-${maxDim}` : "full";
   const variantPrefix = `${docPrefix(conversationId, documentId)}${variant}:`;
   for (const existing of sourceCache.keys()) {
-    if (existing.startsWith(variantPrefix)) sourceCache.delete(existing);
+    if (existing.startsWith(variantPrefix)) {
+      sourceCache.delete(existing);
+    }
   }
 
   const request = fetchConversationDocumentSource(conversationId, documentId, {
@@ -66,7 +58,9 @@ export function fetchCachedDocumentSource(
   sourceCache.set(key, request);
   while (sourceCache.size > MAX_CACHED_DOCUMENTS) {
     const oldest = sourceCache.keys().next().value;
-    if (oldest) sourceCache.delete(oldest);
+    if (oldest) {
+      sourceCache.delete(oldest);
+    }
   }
   return request;
 }
@@ -79,19 +73,14 @@ export async function downloadConversationDocument(
 ) {
   const blob =
     document.source_object_bucket && document.source_object_key
-      ? await fetchCachedDocumentSource(
-          conversationId,
-          documentId,
-          document.updated_at,
-        )
+      ? await fetchCachedDocumentSource(conversationId, documentId, document.updated_at)
       : new Blob([content], {
           type: document.mime_type || "application/octet-stream",
         });
   const url = URL.createObjectURL(blob);
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download =
-    document.source_filename || document.filename || document.title;
+  anchor.download = document.source_filename || document.filename || document.title;
   window.document.body.append(anchor);
   anchor.click();
   anchor.remove();
@@ -125,30 +114,34 @@ export function useDocumentBlobUrl(
       maxDim,
     })
       .then((blob) => {
-        if (!active) return;
+        if (!active) {
+          return;
+        }
         objectUrl = URL.createObjectURL(blob);
         setBlobUrl(objectUrl);
       })
       .catch((nextError: unknown) => {
-        if (active) setError(nextError);
+        if (active) {
+          setError(nextError);
+        }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       });
     return () => {
       active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
     };
   }, [conversationId, documentId, enabled, maxDim, version]);
 
   return { blobUrl, loading, error };
 }
 
-export function useDocumentResourceUrl(
-  documentId: string | null,
-  enabled: boolean,
-  version: string,
-) {
+export function useDocumentResourceUrl(documentId: string | null, enabled: boolean, version: string) {
   const [resourceUrl, setResourceUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -166,13 +159,19 @@ export function useDocumentResourceUrl(
     setError(null);
     void createKnowledgeDocumentResourceUrl(documentId)
       .then((resource) => {
-        if (active) setResourceUrl(resource.url);
+        if (active) {
+          setResourceUrl(resource.url);
+        }
       })
       .catch((nextError: unknown) => {
-        if (active) setError(nextError);
+        if (active) {
+          setError(nextError);
+        }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       });
     return () => {
       active = false;
@@ -187,9 +186,7 @@ export function useDocumentBlobUrls(
   documentIds: string[],
   versions?: Array<string | undefined>,
 ): Array<string | null> {
-  const key = documentIds
-    .map((id, index) => `${id}@${versions?.[index] ?? ""}`)
-    .join("|");
+  const key = documentIds.map((id, index) => `${id}@${versions?.[index] ?? ""}`).join("|");
   const [urlMap, setUrlMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -207,14 +204,12 @@ export function useDocumentBlobUrls(
       const version = entry.slice(separator + 1);
       void (async () => {
         try {
-          const blob = await fetchCachedDocumentSource(
-            conversationId,
-            documentId,
-            {
-              version,
-            },
-          );
-          if (!active) return;
+          const blob = await fetchCachedDocumentSource(conversationId, documentId, {
+            version,
+          });
+          if (!active) {
+            return;
+          }
           const url = URL.createObjectURL(blob);
           created.push(url);
           setUrlMap((prev) => ({ ...prev, [documentId]: url }));
@@ -223,7 +218,9 @@ export function useDocumentBlobUrls(
     }
     return () => {
       active = false;
-      for (const url of created) URL.revokeObjectURL(url);
+      for (const url of created) {
+        URL.revokeObjectURL(url);
+      }
     };
   }, [conversationId, key]);
 

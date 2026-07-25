@@ -16,10 +16,7 @@ function streamKey(runId: string): string {
   return `chat:agent-streams:${runId}:sse`;
 }
 
-export async function activateAgentStream(
-  conversationId: string,
-  runId: string,
-): Promise<void> {
+export async function activateAgentStream(conversationId: string, runId: string): Promise<void> {
   const client = getRedisClient();
   const key = streamKey(runId);
   await client
@@ -43,8 +40,12 @@ export async function consumeAgentSseStream(
   try {
     while (true) {
       const { value, done } = await reader.read();
-      if (done) break;
-      if (!value) continue;
+      if (done) {
+        break;
+      }
+      if (!value) {
+        continue;
+      }
       try {
         await appendSseChunk(conversationId, runId, value);
       } catch (error) {
@@ -62,11 +63,7 @@ export async function consumeAgentSseStream(
   }
 }
 
-async function appendSseChunk(
-  conversationId: string,
-  runId: string,
-  chunk: string,
-): Promise<void> {
+async function appendSseChunk(conversationId: string, runId: string, chunk: string): Promise<void> {
   const client = getRedisClient();
   await client
     .pipeline()
@@ -76,10 +73,7 @@ async function appendSseChunk(
     .exec();
 }
 
-export async function deactivateAgentStream(
-  conversationId: string,
-  runId: string,
-): Promise<void> {
+export async function deactivateAgentStream(conversationId: string, runId: string): Promise<void> {
   await getRedisClient().eval(
     [
       "if redis.call('HGET', KEYS[1], 'run_id') == ARGV[1] then",
@@ -93,9 +87,7 @@ export async function deactivateAgentStream(
   );
 }
 
-export async function activeAgentStreamRunId(
-  conversationId: string,
-): Promise<string | null> {
+export async function activeAgentStreamRunId(conversationId: string): Promise<string | null> {
   return (await getRedisClient().hget(activeKey(conversationId), "run_id")) || null;
 }
 
@@ -121,7 +113,9 @@ export async function* replayAgentSseStream(
   options?.signal?.addEventListener("abort", abortRead, { once: true });
   try {
     while (true) {
-      if (options?.signal?.aborted) return;
+      if (options?.signal?.aborted) {
+        return;
+      }
       const response = await (reader as XReadRedis).xread(
         "BLOCK",
         STREAM_READ_BLOCK_MS,
@@ -131,16 +125,22 @@ export async function* replayAgentSseStream(
         key,
         lastId,
       );
-      if (options?.signal?.aborted) return;
+      if (options?.signal?.aborted) {
+        return;
+      }
       if (response) {
         idleRounds = 0;
         for (const [, entries] of response) {
           for (const [entryId, fields] of entries) {
             lastId = entryId;
             const chunk = fieldValue(fields, "sse");
-            if (!chunk) continue;
+            if (!chunk) {
+              continue;
+            }
             yield chunk;
-            if (chunk.includes("data: [DONE]")) return;
+            if (chunk.includes("data: [DONE]")) {
+              return;
+            }
           }
         }
         continue;
@@ -150,36 +150,37 @@ export async function* replayAgentSseStream(
       let stillActive = activeRunId === runId;
       if (stillActive && options?.isRunLive) {
         idleRounds += 1;
-        if (
-          idleRounds % STALE_CHECK_EVERY_IDLE_ROUNDS === 0 &&
-          !(await options.isRunLive(runId).catch(() => true))
-        ) {
+        if (idleRounds % STALE_CHECK_EVERY_IDLE_ROUNDS === 0 && !(await options.isRunLive(runId).catch(() => true))) {
           stillActive = false;
         }
       }
-      if (stillActive) continue;
+      if (stillActive) {
+        continue;
+      }
 
-      const tail = await (reader as XReadRedis).xread(
-        "COUNT",
-        50,
-        "STREAMS",
-        key,
-        lastId,
-      );
-      if (!tail) return;
+      const tail = await (reader as XReadRedis).xread("COUNT", 50, "STREAMS", key, lastId);
+      if (!tail) {
+        return;
+      }
       for (const [, entries] of tail) {
         for (const [entryId, fields] of entries) {
           lastId = entryId;
           const chunk = fieldValue(fields, "sse");
-          if (!chunk) continue;
+          if (!chunk) {
+            continue;
+          }
           yield chunk;
-          if (chunk.includes("data: [DONE]")) return;
+          if (chunk.includes("data: [DONE]")) {
+            return;
+          }
         }
       }
       return;
     }
   } catch (error) {
-    if (!options?.signal?.aborted) throw error;
+    if (!options?.signal?.aborted) {
+      throw error;
+    }
   } finally {
     options?.signal?.removeEventListener("abort", abortRead);
     await reader.quit().catch(() => reader.disconnect());
@@ -188,7 +189,9 @@ export async function* replayAgentSseStream(
 
 function fieldValue(fields: string[], name: string): string | null {
   for (let index = 0; index < fields.length - 1; index += 2) {
-    if (fields[index] === name) return fields[index + 1] ?? null;
+    if (fields[index] === name) {
+      return fields[index + 1] ?? null;
+    }
   }
   return null;
 }

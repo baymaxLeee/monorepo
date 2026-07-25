@@ -9,8 +9,7 @@ export const ALLOWED_IMAGE_MIME_TYPES = new Set([
 
 export const ALLOWED_IMAGE_ACCEPT = [...ALLOWED_IMAGE_MIME_TYPES].join(",");
 
-export const isAllowedImageFile = (file: File): boolean =>
-  ALLOWED_IMAGE_MIME_TYPES.has(file.type);
+export const isAllowedImageFile = (file: File): boolean => ALLOWED_IMAGE_MIME_TYPES.has(file.type);
 
 export const URL_REGEX =
   /^\s*(https?:\/\/)?(localhost|\d{1,3}(\.\d{1,3}){3}|([a-zA-Z\d]([a-zA-Z\d-]{0,61}[a-zA-Z\d])?\.)+[a-zA-Z]{2,})(:\d{1,5})?(\/[a-zA-Z\d\-._~:/?#[\]@!$&'()*+,;=%]*)?\s*$/;

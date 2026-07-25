@@ -37,8 +37,7 @@ if (!existsSync(serverDir)) {
 const source = join(pnpmDir, oidcPackageDir, "node_modules/@vercel/oidc/dist");
 const target = join(serverDir, "node_modules/@vercel/oidc/dist");
 const indexPath = join(serverDir, "index.mjs");
-const brokenPrefix =
-  `../../../../../node_modules/.pnpm/${oidcPackageDir}/node_modules/@vercel/oidc/dist/`;
+const brokenPrefix = `../../../../../node_modules/.pnpm/${oidcPackageDir}/node_modules/@vercel/oidc/dist/`;
 const stablePrefix = "./node_modules/@vercel/oidc/dist/";
 
 cpSync(source, target, { recursive: true });

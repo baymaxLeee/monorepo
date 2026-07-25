@@ -53,17 +53,10 @@ export type ChatUIState = {
   openFilePreview: (conversationId: string, path: string) => void;
   closeArtifactPreview: () => void;
   videoProductionWorkspace: VideoProductionWorkspaceState;
-  openVideoProductionWorkspace: (
-    conversationId: string,
-    productionId: string,
-  ) => void;
+  openVideoProductionWorkspace: (conversationId: string, productionId: string) => void;
   closeVideoProductionWorkspace: () => void;
   imagePreview: ImagePreviewState;
-  openImagePreview: (
-    conversationId: string,
-    images: ImagePreviewRef[],
-    index: number,
-  ) => void;
+  openImagePreview: (conversationId: string, images: ImagePreviewRef[], index: number) => void;
   closeImagePreview: () => void;
   setImagePreviewIndex: (index: number) => void;
   conversationTitleUpdate: { id: string; title: string; seq: number } | null;
@@ -97,21 +90,20 @@ export const useChatStore = create<ChatUIState>()(
   persist(
     (set, get) => ({
       sendingConversationId: null,
-      setSendingConversationId: (sendingConversationId) =>
-        set({ sendingConversationId }),
+      setSendingConversationId: (sendingConversationId) => set({ sendingConversationId }),
 
       agents: null,
       agentsError: null,
       isLoadingAgents: false,
       async loadAgents() {
-        if (get().isLoadingAgents) return;
+        if (get().isLoadingAgents) {
+          return;
+        }
         set({ isLoadingAgents: true, agentsError: null });
         try {
           const list = await fetchBots({ skipErrorNotify: true });
           const selected = get().selectedAgentId;
-          const stillExists = selected
-            ? list.some((a) => a.id === selected)
-            : false;
+          const stillExists = selected ? list.some((a) => a.id === selected) : false;
           set({
             agents: list,
             selectedAgentId: stillExists ? selected : (list[0]?.id ?? null),
@@ -143,8 +135,7 @@ export const useChatStore = create<ChatUIState>()(
       traceConversationId: null,
       traceRunId: null,
       traceRefreshKey: 0,
-      setTraceRun: (conversationId, runId) =>
-        set({ traceConversationId: conversationId, traceRunId: runId }),
+      setTraceRun: (conversationId, runId) => set({ traceConversationId: conversationId, traceRunId: runId }),
       clearTraceRun: () => set({ traceRunId: null }),
       openTracePanel: (conversationId) =>
         set((state) => ({
@@ -153,10 +144,7 @@ export const useChatStore = create<ChatUIState>()(
           artifactPreview: CLOSED_ARTIFACT_PREVIEW,
           videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
           traceConversationId: conversationId,
-          traceRunId:
-            state.traceConversationId === conversationId
-              ? state.traceRunId
-              : null,
+          traceRunId: state.traceConversationId === conversationId ? state.traceRunId : null,
         })),
       setTracePanelOpen: (tracePanelOpen) =>
         set((state) => ({
@@ -168,12 +156,9 @@ export const useChatStore = create<ChatUIState>()(
                 videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
               }
             : {}),
-          traceConversationId: tracePanelOpen
-            ? state.traceConversationId
-            : null,
+          traceConversationId: tracePanelOpen ? state.traceConversationId : null,
         })),
-      bumpTraceRefresh: () =>
-        set((state) => ({ traceRefreshKey: state.traceRefreshKey + 1 })),
+      bumpTraceRefresh: () => set((state) => ({ traceRefreshKey: state.traceRefreshKey + 1 })),
 
       artifactPreview: {
         ...CLOSED_ARTIFACT_PREVIEW,
@@ -221,8 +206,7 @@ export const useChatStore = create<ChatUIState>()(
             productionId,
           },
         }),
-      closeVideoProductionWorkspace: () =>
-        set({ videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE }),
+      closeVideoProductionWorkspace: () => set({ videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE }),
 
       imagePreview: { ...CLOSED_IMAGE_PREVIEW },
       openImagePreview: (conversationId, images, index) =>
@@ -246,10 +230,7 @@ export const useChatStore = create<ChatUIState>()(
       conversationTitleUpdate: null,
       applyConversationTitle: (id, title) =>
         set((state) => {
-          if (
-            state.conversationTitleUpdate?.id === id &&
-            state.conversationTitleUpdate.title === title
-          ) {
+          if (state.conversationTitleUpdate?.id === id && state.conversationTitleUpdate.title === title) {
             return state;
           }
           return {

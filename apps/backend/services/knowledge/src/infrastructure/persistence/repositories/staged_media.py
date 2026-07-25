@@ -15,9 +15,7 @@ async def get_staged_media(session: AsyncSession, staged_id: str, user_id: str) 
     )
 
 
-async def get_by_idempotency_key(
-    session: AsyncSession, idempotency_key: str, user_id: str
-) -> StagedMediaRow | None:
+async def get_by_idempotency_key(session: AsyncSession, idempotency_key: str, user_id: str) -> StagedMediaRow | None:
     return await session.scalar(
         select(StagedMediaRow).where(
             StagedMediaRow.idempotency_key == idempotency_key,

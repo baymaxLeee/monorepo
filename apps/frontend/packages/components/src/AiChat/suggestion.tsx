@@ -1,6 +1,7 @@
 import { SparklesIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes } from "react";
 import { cn } from "shared";
+
 import { Button } from "../shadcn/button";
 
 export type SuggestionsProps = HTMLAttributes<HTMLDivElement>;
@@ -23,10 +24,7 @@ export function Suggestion({
 }: SuggestionProps) {
   return (
     <Button
-      className={cn(
-        "h-8 max-w-full justify-start gap-1.5 rounded-full",
-        className,
-      )}
+      className={cn("h-8 max-w-full justify-start gap-1.5 rounded-full", className)}
       size={size}
       type="button"
       variant={variant}

@@ -1,15 +1,12 @@
 import { Image as TiptapImage } from "@tiptap/extension-image";
 import { TextSelection } from "@tiptap/pm/state";
-import {
-  type NodeViewProps,
-  NodeViewWrapper,
-  ReactNodeViewRenderer,
-} from "@tiptap/react";
+import { type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import { Loader2 } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { cn } from "shared";
 import { v4 as uuidv4 } from "uuid";
+
 import { isSelectionInsideTableCell } from "../../utils";
 
 export interface CreateImageExtensionOptions {
@@ -41,8 +38,7 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
     title?: string;
     uploadId: string | null;
   };
-  const { onUpload, imageLoader } =
-    extension?.options as CreateImageExtensionOptions;
+  const { onUpload, imageLoader } = (extension?.options ?? {}) as Partial<CreateImageExtensionOptions>;
   const storage = extension?.storage as ImageStorage | undefined;
   const hasPendingFile = !!uploadId && !!storage?.pendingFiles.has(uploadId);
 
@@ -51,7 +47,9 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
   const [error, setError] = useState<boolean>(false);
 
   useEffect(() => {
-    if (hasPendingFile) return;
+    if (hasPendingFile) {
+      return;
+    }
     if (!src) {
       setImgSrc(undefined);
       setLoading(false);
@@ -64,13 +62,17 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
     const load = async () => {
       try {
         const finalUrl = imageLoader ? await imageLoader(src) : src;
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         setImgSrc(finalUrl);
         setLoading(false);
         setError(false);
       } catch (err) {
         console.error("[image] load failed:", err);
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         setImgSrc(src);
         setLoading(false);
       }
@@ -84,14 +86,18 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
   }, [src]);
 
   useEffect(() => {
-    if (!hasPendingFile) return;
+    if (!hasPendingFile) {
+      return;
+    }
 
     let cancelled = false;
     let blobUrl: string | null = null;
 
     const init = async () => {
-      const file = storage?.pendingFiles.get(uploadId!);
-      if (!file) return;
+      const file = storage?.pendingFiles.get(uploadId);
+      if (!file) {
+        return;
+      }
 
       blobUrl = URL.createObjectURL(file);
       if (!cancelled) {
@@ -101,13 +107,19 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
       }
 
       try {
-        if (!onUpload) throw new Error("onUpload is not configured");
+        if (!onUpload) {
+          throw new Error("onUpload is not configured");
+        }
         const realUrl = await onUpload(file);
-        if (!realUrl) throw new Error("onUpload returned empty url");
-        if (cancelled) return;
+        if (!realUrl) {
+          throw new Error("onUpload returned empty url");
+        }
+        if (cancelled) {
+          return;
+        }
 
         const pos = typeof getPos === "function" ? getPos() : null;
-        storage?.pendingFiles.delete(uploadId!);
+        storage?.pendingFiles.delete(uploadId);
         if (typeof pos === "number" && !editor.isDestroyed) {
           const fresh = editor.state.doc.nodeAt(pos);
           if (fresh && fresh.type.name === "image") {
@@ -137,7 +149,9 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
 
     return () => {
       cancelled = true;
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
     };
   }, []);
 
@@ -163,10 +177,7 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
   );
 };
 
-export const createImageExtension = ({
-  onUpload,
-  imageLoader,
-}: CreateImageExtensionOptions = {}) =>
+export const createImageExtension = ({ onUpload, imageLoader }: CreateImageExtensionOptions = {}) =>
   TiptapImage.extend<CreateImageExtensionOptions, ImageStorage>({
     addOptions() {
       return {
@@ -201,18 +212,18 @@ export const createImageExtension = ({
         insertImages:
           (files: File[]) =>
           ({ commands, state, tr }) => {
-            if (files.length === 0 || !this.options.onUpload) return false;
+            if (files.length === 0 || !this.options.onUpload) {
+              return false;
+            }
 
-            const storage = this.storage as ImageStorage;
+            const storage = this.storage;
             const entries = files.map((file) => {
               const uploadId = uuidv4();
               storage.pendingFiles.set(uploadId, file);
               return { uploadId };
             });
             const rollback = () => {
-              entries.forEach(({ uploadId }) =>
-                storage.pendingFiles.delete(uploadId),
-              );
+              entries.forEach(({ uploadId }) => storage.pendingFiles.delete(uploadId));
             };
 
             const { selection, schema } = state;
@@ -220,21 +231,16 @@ export const createImageExtension = ({
             const attrsList = entries.map(({ uploadId }) => ({ uploadId }));
 
             if ($from.depth <= 1 || isSelectionInsideTableCell(selection)) {
-              const inserted = commands.insertContent(
-                attrsList.map((attrs) => ({ type: "image", attrs })),
-              );
+              const inserted = commands.insertContent(attrsList.map((attrs) => ({ type: "image", attrs })));
               if (!inserted) {
                 rollback();
                 return false;
               }
             } else {
-              const imageNodes = attrsList.map((attrs) =>
-                schema.nodes.image.create(attrs),
-              );
+              const imageNodes = attrsList.map((attrs) => schema.nodes.image.create(attrs));
               const insertPos = $from.after(1);
               tr.insert(insertPos, imageNodes);
-              const endPos =
-                insertPos + imageNodes.reduce((sum, n) => sum + n.nodeSize, 0);
+              const endPos = insertPos + imageNodes.reduce((sum, n) => sum + n.nodeSize, 0);
               tr.setSelection(TextSelection.near(tr.doc.resolve(endPos)));
               tr.scrollIntoView();
             }

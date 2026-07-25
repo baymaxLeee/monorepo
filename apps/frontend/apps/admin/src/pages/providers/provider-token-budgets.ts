@@ -32,11 +32,17 @@ export const CHAT_TOKEN_BUDGET_FALLBACK: ProviderTokenBudget = {
 
 export function resolveChatTokenBudget(model: string): ProviderTokenBudget {
   const normalized = model.trim().toLowerCase();
-  if (!normalized) return CHAT_TOKEN_BUDGET_FALLBACK;
+  if (!normalized) {
+    return CHAT_TOKEN_BUDGET_FALLBACK;
+  }
   const exact = CHAT_MODEL_TOKEN_BUDGETS[normalized];
-  if (exact) return exact;
+  if (exact) {
+    return exact;
+  }
   for (const [key, budget] of Object.entries(CHAT_MODEL_TOKEN_BUDGETS)) {
-    if (normalized.includes(key)) return budget;
+    if (normalized.includes(key)) {
+      return budget;
+    }
   }
   return CHAT_TOKEN_BUDGET_FALLBACK;
 }

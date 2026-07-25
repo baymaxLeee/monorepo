@@ -8,13 +8,7 @@
  * data 属性存储方括号内的原始字符串，渲染时尝试 JSON.parse
  */
 
-import {
-  mergeAttributes,
-  Node,
-  type NodeViewProps,
-  NodeViewWrapper,
-  ReactNodeViewRenderer,
-} from "@tiptap/react";
+import { mergeAttributes, Node, type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import type { FC } from "react";
 
 const NODE_NAME = "attachmentNode";
@@ -50,17 +44,11 @@ const AttachmentComponent: FC<NodeViewProps> = ({ node }) => {
         fontFamily: "monospace",
       }}
     >
-      <span style={{ color: "rgb(115, 122, 135)", marginRight: 6 }}>
-        attachment
-      </span>
+      <span style={{ color: "rgb(115, 122, 135)", marginRight: 6 }}>attachment</span>
       {isObject ? (
-        <span style={{ wordBreak: "break-all" }}>
-          {JSON.stringify(parsed, null, 0)}
-        </span>
+        <span style={{ wordBreak: "break-all" }}>{JSON.stringify(parsed, null, 0)}</span>
       ) : (
-        <span style={{ color: "#86909c", wordBreak: "break-all" }}>
-          {String(parsed)}
-        </span>
+        <span style={{ color: "#86909c", wordBreak: "break-all" }}>{String(parsed)}</span>
       )}
     </NodeViewWrapper>
   );
@@ -84,7 +72,7 @@ export const AttachmentNode = Node.create({
       {
         tag: `div[data-type="${NODE_NAME}"]`,
         getAttrs: (el) => ({
-          data: (el as HTMLElement).getAttribute("data-attachment"),
+          data: el.getAttribute("data-attachment"),
         }),
       },
     ];
@@ -93,13 +81,7 @@ export const AttachmentNode = Node.create({
   renderHTML({ HTMLAttributes }) {
     const raw = HTMLAttributes.data;
     const serialized = typeof raw === "string" ? raw : JSON.stringify(raw);
-    return [
-      "div",
-      mergeAttributes(
-        { "data-type": NODE_NAME, "data-attachment": serialized },
-        HTMLAttributes,
-      ),
-    ];
+    return ["div", mergeAttributes({ "data-type": NODE_NAME, "data-attachment": serialized }, HTMLAttributes)];
   },
 
   addNodeView() {
@@ -115,7 +97,9 @@ export const AttachmentNode = Node.create({
     tokenize(src) {
       const re = /^:attachment\[([^\]]*)\](?:\n|$)/;
       const match = re.exec(src);
-      if (!match) return undefined;
+      if (!match) {
+        return undefined;
+      }
 
       return {
         type: NODE_NAME,

@@ -1,9 +1,9 @@
-import { z } from "zod";
-import { extractJsonMiddleware, generateText, Output, wrapLanguageModel } from "ai";
-
-import { logger } from "../../../infrastructure/observability/logger.js";
 import { createProviderModel, JSON_OBJECT_MODE_INSTRUCTION } from "@backend/transport-ts/provider-model";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
+import { extractJsonMiddleware, generateText, Output, wrapLanguageModel } from "ai";
+import { z } from "zod";
+
+import { logger } from "../../../infrastructure/observability/logger.js";
 import {
   createMemoryCandidate,
   listActiveMemories,
@@ -37,7 +37,9 @@ const MEMORY_SIGNAL_PATTERNS: RegExp[] = [
 
 export function hasMemorySignal(text: string): boolean {
   const trimmed = text.trim();
-  if (trimmed.length < 8) return false;
+  if (trimmed.length < 8) {
+    return false;
+  }
   return MEMORY_SIGNAL_PATTERNS.some((re) => re.test(trimmed));
 }
 
@@ -86,7 +88,9 @@ export interface ExtractMemoryInput {
 
 export async function extractMemoryCandidates(input: ExtractMemoryInput): Promise<{ created: number }> {
   const conversationText = input.userText.trim().slice(-8_000);
-  if (!hasMemorySignal(conversationText)) return { created: 0 };
+  if (!hasMemorySignal(conversationText)) {
+    return { created: 0 };
+  }
 
   const [active, pending, dedupEntries] = await Promise.all([
     listActiveMemories(input.userId),
@@ -117,16 +121,20 @@ export async function extractMemoryCandidates(input: ExtractMemoryInput): Promis
     return { created: 0 };
   }
 
-  if (!candidates.length) return { created: 0 };
+  if (!candidates.length) {
+    return { created: 0 };
+  }
 
   const seen = new Set(dedupEntries.map((m) => normalize(m.content)));
   let created = 0;
   for (const candidate of candidates) {
     const key = normalize(candidate.content);
-    if (seen.has(key)) continue;
+    if (seen.has(key)) {
+      continue;
+    }
     seen.add(key);
     const supersedesId = candidate.supersedes_content
-      ? active.find((m) => normalize(m.content) === normalize(candidate.supersedes_content ?? ""))?.id ?? null
+      ? (active.find((m) => normalize(m.content) === normalize(candidate.supersedes_content ?? ""))?.id ?? null)
       : null;
     await createMemoryCandidate({
       userId: input.userId,

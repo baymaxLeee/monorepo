@@ -3,6 +3,7 @@ import type { ComponentProps, HTMLAttributes } from "react";
 import { memo } from "react";
 import { cn } from "shared";
 import { Streamdown } from "streamdown";
+
 import "streamdown/styles.css";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
@@ -26,11 +27,7 @@ export function Message({ className, from, ...props }: MessageProps) {
 
 export type MessageContentProps = HTMLAttributes<HTMLDivElement>;
 
-export function MessageContent({
-  children,
-  className,
-  ...props
-}: MessageContentProps) {
+export function MessageContent({ children, className, ...props }: MessageContentProps) {
   return (
     <div
       className={cn(
@@ -48,11 +45,7 @@ export function MessageContent({
 
 export type MessageActionsProps = ComponentProps<"div">;
 
-export function MessageActions({
-  className,
-  children,
-  ...props
-}: MessageActionsProps) {
+export function MessageActions({ className, children, ...props }: MessageActionsProps) {
   return (
     <div className={cn("flex items-center gap-1", className)} {...props}>
       {children}
@@ -65,35 +58,21 @@ export type MessageResponseProps = ComponentProps<typeof Streamdown>;
 export const MessageResponse = memo(
   ({ className, ...props }: MessageResponseProps) => (
     <Streamdown
-      className={cn(
-        "size-full break-words leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-        className,
-      )}
+      className={cn("size-full break-words leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
       {...props}
     />
   ),
   (prevProps, nextProps) =>
-    prevProps.children === nextProps.children &&
-    prevProps.isAnimating === nextProps.isAnimating,
+    prevProps.children === nextProps.children && prevProps.isAnimating === nextProps.isAnimating,
 );
 
 MessageResponse.displayName = "MessageResponse";
 
 export type MessageToolbarProps = ComponentProps<"div">;
 
-export function MessageToolbar({
-  className,
-  children,
-  ...props
-}: MessageToolbarProps) {
+export function MessageToolbar({ className, children, ...props }: MessageToolbarProps) {
   return (
-    <div
-      className={cn(
-        "mt-3 flex w-full items-center justify-between gap-4",
-        className,
-      )}
-      {...props}
-    >
+    <div className={cn("mt-3 flex w-full items-center justify-between gap-4", className)} {...props}>
       {children}
     </div>
   );

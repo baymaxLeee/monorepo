@@ -3,11 +3,8 @@ import { ArrowDownIcon, DownloadIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import { useCallback } from "react";
 import { cn } from "shared";
-import {
-  StickToBottom,
-  type StickToBottomContext,
-  useStickToBottomContext,
-} from "use-stick-to-bottom";
+import { StickToBottom, type StickToBottomContext, useStickToBottomContext } from "use-stick-to-bottom";
+
 import { Button } from "../shadcn/button";
 
 export type { StickToBottomContext };
@@ -31,15 +28,9 @@ export function Conversation({ className, ...props }: ConversationProps) {
   );
 }
 
-export type ConversationContentProps = ComponentProps<
-  typeof StickToBottom.Content
->;
+export type ConversationContentProps = ComponentProps<typeof StickToBottom.Content>;
 
-export function ConversationContent({
-  className,
-  scrollClassName,
-  ...props
-}: ConversationContentProps) {
+export function ConversationContent({ className, scrollClassName, ...props }: ConversationContentProps) {
   return (
     <StickToBottom.Content
       className={cn("flex flex-col gap-4 p-4", className)}
@@ -65,10 +56,7 @@ export function ConversationEmptyState({
 }: ConversationEmptyStateProps) {
   return (
     <div
-      className={cn(
-        "flex size-full flex-col items-center justify-center gap-3 p-8 text-center",
-        className,
-      )}
+      className={cn("flex size-full flex-col items-center justify-center gap-3 p-8 text-center", className)}
       {...props}
     >
       {children ?? (
@@ -76,9 +64,7 @@ export function ConversationEmptyState({
           {icon ? <div className="text-muted-foreground">{icon}</div> : null}
           <div className="space-y-1">
             <h3 className="text-sm font-medium">{title}</h3>
-            {description ? (
-              <p className="text-sm text-muted-foreground">{description}</p>
-            ) : null}
+            {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
           </div>
         </>
       )}
@@ -88,23 +74,19 @@ export function ConversationEmptyState({
 
 export type ConversationScrollButtonProps = ComponentProps<typeof Button>;
 
-export function ConversationScrollButton({
-  className,
-  ...props
-}: ConversationScrollButtonProps) {
+export function ConversationScrollButton({ className, ...props }: ConversationScrollButtonProps) {
   const { isAtBottom, scrollToBottom } = useStickToBottomContext();
   const handleScrollToBottom = useCallback(() => {
     scrollToBottom();
   }, [scrollToBottom]);
 
-  if (isAtBottom) return null;
+  if (isAtBottom) {
+    return null;
+  }
 
   return (
     <Button
-      className={cn(
-        "absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full",
-        className,
-      )}
+      className={cn("absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full", className)}
       onClick={handleScrollToBottom}
       size="icon"
       type="button"
@@ -124,15 +106,11 @@ function getMessageText(message: UIMessage): string {
 }
 
 function defaultFormatMessage(message: UIMessage): string {
-  const roleLabel =
-    message.role.charAt(0).toUpperCase() + message.role.slice(1);
+  const roleLabel = message.role.charAt(0).toUpperCase() + message.role.slice(1);
   return `**${roleLabel}:** ${getMessageText(message)}`;
 }
 
-export type ConversationDownloadProps = Omit<
-  ComponentProps<typeof Button>,
-  "onClick"
-> & {
+export type ConversationDownloadProps = Omit<ComponentProps<typeof Button>, "onClick"> & {
   messages: UIMessage[];
   filename?: string;
   formatMessage?: (message: UIMessage, index: number) => string;
@@ -140,23 +118,15 @@ export type ConversationDownloadProps = Omit<
 
 export function messagesToMarkdown(
   messages: UIMessage[],
-  formatMessage: (
-    message: UIMessage,
-    index: number,
-  ) => string = defaultFormatMessage,
+  formatMessage: (message: UIMessage, index: number) => string = defaultFormatMessage,
 ): string {
-  return messages
-    .map((message, index) => formatMessage(message, index))
-    .join("\n\n");
+  return messages.map((message, index) => formatMessage(message, index)).join("\n\n");
 }
 
 export function downloadConversationMarkdown(
   messages: UIMessage[],
   filename = "conversation.md",
-  formatMessage: (
-    message: UIMessage,
-    index: number,
-  ) => string = defaultFormatMessage,
+  formatMessage: (message: UIMessage, index: number) => string = defaultFormatMessage,
 ) {
   const markdown = messagesToMarkdown(messages, formatMessage);
   const blob = new Blob([markdown], { type: "text/markdown" });

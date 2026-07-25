@@ -3,6 +3,7 @@ import { type EditorState, Plugin, PluginKey } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { cn } from "shared";
+
 import { findTable, getCellsInColumn, isRowSelected, selectRow } from "./utils";
 
 export interface TableCellOptions {
@@ -32,11 +33,7 @@ export const createTableCellExtension = () => {
     },
 
     renderHTML({ HTMLAttributes }) {
-      return [
-        "td",
-        mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
-        0,
-      ];
+      return ["td", mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0];
     },
 
     addAttributes() {
@@ -72,15 +69,21 @@ export const createTableCellExtension = () => {
       const { editor } = this;
 
       const buildDecorations = (state: EditorState): DecorationSet => {
-        if (!editor.isEditable) return DecorationSet.empty;
+        if (!editor.isEditable) {
+          return DecorationSet.empty;
+        }
 
         const { doc, selection } = state;
         const table = findTable(selection);
-        if (!table) return DecorationSet.empty;
+        if (!table) {
+          return DecorationSet.empty;
+        }
 
         const cells = getCellsInColumn(0)(selection);
         const map = TableMap.get(table.node);
-        if (!cells) return DecorationSet.empty;
+        if (!cells) {
+          return DecorationSet.empty;
+        }
 
         const decorations: Decoration[] = [];
         cells.forEach(({ pos }: { pos: number }, index: number) => {
@@ -96,8 +99,7 @@ export const createTableCellExtension = () => {
                 "markdown-editor-table-grip-row",
                 rowSelected && "markdown-editor-table-grip-row-selected",
                 index === 0 && "markdown-editor-table-grip-row-first",
-                index === cells.length - 1 &&
-                  "markdown-editor-table-grip-row-last",
+                index === cells.length - 1 && "markdown-editor-table-grip-row-last",
               );
               grip.addEventListener("mousedown", (event) => {
                 event.preventDefault();
@@ -128,8 +130,7 @@ export const createTableCellExtension = () => {
             },
           },
           props: {
-            decorations: (state) =>
-              rowGripKey.getState(state) ?? DecorationSet.empty,
+            decorations: (state) => rowGripKey.getState(state) ?? DecorationSet.empty,
           },
         }),
       ];

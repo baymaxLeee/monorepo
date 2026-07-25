@@ -83,13 +83,7 @@ export const productionStageSchema = z.enum([
 ]);
 export type ProductionStage = z.infer<typeof productionStageSchema>;
 
-export const productionStatusSchema = z.enum([
-  "running",
-  "awaiting_approval",
-  "completed",
-  "failed",
-  "cancelled",
-]);
+export const productionStatusSchema = z.enum(["running", "awaiting_approval", "completed", "failed", "cancelled"]);
 export type ProductionStatus = z.infer<typeof productionStatusSchema>;
 
 export interface ProductionArtifactProvenance {
@@ -150,7 +144,10 @@ export const productionDecisionSchema = z.discriminatedUnion("action", [
     expectedVersion: z.number().int().positive(),
     actorId: z.string().min(1).max(32),
     budgetLimitMicros: z.number().int().nonnegative(),
-    currency: z.string().length(3).transform((value) => value.toUpperCase()),
+    currency: z
+      .string()
+      .length(3)
+      .transform((value) => value.toUpperCase()),
   }),
   z.object({
     action: z.literal("reject_storyboard"),
@@ -185,10 +182,15 @@ export const productionDecisionSchema = z.discriminatedUnion("action", [
     actionId: z.string().min(1).max(80),
     expectedVersion: z.number().int().positive(),
     actorId: z.string().min(1).max(32),
-    selections: z.array(z.object({
-      shotId: z.string().min(1).max(80),
-      takeId: z.string().min(1).max(80),
-    })).min(1).max(12),
+    selections: z
+      .array(
+        z.object({
+          shotId: z.string().min(1).max(80),
+          takeId: z.string().min(1).max(80),
+        }),
+      )
+      .min(1)
+      .max(12),
   }),
   z.object({
     action: z.literal("reject_publish"),

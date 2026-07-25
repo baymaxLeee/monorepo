@@ -1,3 +1,7 @@
+import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
+import type { InferToolSetContext } from "@ai-sdk/provider-utils";
+import { finishSpan, runWithActiveSpan, startSpan } from "@backend/kernel-ts";
+import { createProviderModel } from "@backend/transport-ts/provider-model";
 import {
   addToolInputExamplesMiddleware,
   InvalidToolInputError,
@@ -6,12 +10,12 @@ import {
   wrapLanguageModel,
 } from "ai";
 import type { ToolSet } from "ai";
-import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
-import type { InferToolSetContext } from "@ai-sdk/provider-utils";
-import { finishSpan, runWithActiveSpan, startSpan } from "@backend/kernel-ts";
 
 import { getSettings } from "../../../bootstrap/config.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
+import { estimateConversationContext, type ContextEstimate } from "../context/context-snapshot.js";
+import { assembleInstructions } from "../context/instructions/index.js";
+import { INSTRUCTION_SECTION_TAGS } from "../context/instructions/section-tags.js";
 import {
   captureModelStepContext,
   finishModelStep,
@@ -21,26 +25,13 @@ import {
   recordToolStart,
   startModelStep,
 } from "../observability/lifecycle.js";
-import { createProviderModel } from "@backend/transport-ts/provider-model";
-import { assembleInstructions } from "../context/instructions/index.js";
-import { INSTRUCTION_SECTION_TAGS } from "../context/instructions/section-tags.js";
-import {
-  estimateConversationContext,
-  type ContextEstimate,
-} from "../context/context-snapshot.js";
 import { ToolCatalog } from "../tools/catalog.js";
-import { createToolApprovalPolicy } from "../tools/policy.js";
 import { isToolOutcome } from "../tools/outcome.js";
-import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
-import {
-  exactTextResponseModel,
-} from "./exact-text-response-model.js";
-import {
-  deriveOrchestrationState,
-  resolveOrchestrationDirective,
-  type OrchestrationSeed,
-} from "./orchestration.js";
+import { createToolApprovalPolicy } from "../tools/policy.js";
+import { exactTextResponseModel } from "./exact-text-response-model.js";
+import { deriveOrchestrationState, resolveOrchestrationDirective, type OrchestrationSeed } from "./orchestration.js";
 import { createToolBatchPolicyMiddleware } from "./tool-batch-policy.js";
+import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {
   return operation.catch((error) => {
@@ -53,20 +44,23 @@ type ExecutableTool = ToolSet[string] & {
 };
 
 function toolCallIdFromOptions(options: unknown): string | undefined {
-  if (!options || typeof options !== "object") return undefined;
+  if (!options || typeof options !== "object") {
+    return undefined;
+  }
   const value = options as { toolCall?: unknown; toolCallId?: unknown };
-  if (typeof value.toolCallId === "string") return value.toolCallId;
+  if (typeof value.toolCallId === "string") {
+    return value.toolCallId;
+  }
   if (value.toolCall && typeof value.toolCall === "object") {
     const toolCallId = (value.toolCall as { toolCallId?: unknown }).toolCallId;
-    if (typeof toolCallId === "string") return toolCallId;
+    if (typeof toolCallId === "string") {
+      return toolCallId;
+    }
   }
   return undefined;
 }
 
-function withActiveToolSpans(
-  tools: ToolSet,
-  toolSpans: Map<string, ReturnType<typeof startSpan>>,
-): ToolSet {
+function withActiveToolSpans(tools: ToolSet, toolSpans: Map<string, ReturnType<typeof startSpan>>): ToolSet {
   return Object.fromEntries(
     Object.entries(tools).map(([name, definition]) => {
       if (!("execute" in definition) || typeof definition.execute !== "function") {
@@ -80,19 +74,18 @@ function withActiveToolSpans(
           execute: (...args: unknown[]) => {
             const toolCallId = toolCallIdFromOptions(args[1]);
             const span = toolCallId ? toolSpans.get(toolCallId) : undefined;
-            if (!span) return execute(...args);
+            if (!span) {
+              return execute(...args);
+            }
             return runWithActiveSpan(span, () => execute(...args));
           },
         } satisfies ExecutableTool,
       ];
     }),
-  ) as ToolSet;
+  );
 }
 
-export async function createToolLoopAgent(
-  input: ChatAgentInput,
-  toolCatalog: ToolCatalog = new ToolCatalog(),
-) {
+export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: ToolCatalog = new ToolCatalog()) {
   const provider = input.provider;
   const botSkills = input.botSkills ?? [];
   const loadSkillBody = input.loadSkillBody;
@@ -140,8 +133,7 @@ export async function createToolLoopAgent(
   const instrumentedTools = withActiveToolSpans(tools, toolSpans);
 
   const orchestrationSeed: OrchestrationSeed = {
-    executionPlanDocumentId:
-      input.mode === "normal" ? (input.executionPlanDocumentId ?? null) : null,
+    executionPlanDocumentId: input.mode === "normal" ? (input.executionPlanDocumentId ?? null) : null,
   };
   const runtimeContext: AgentRuntimeContext = {
     runId: input.runId,
@@ -151,16 +143,11 @@ export async function createToolLoopAgent(
     runtimeKind: "tool-loop",
     orchestration: deriveOrchestrationState(orchestrationSeed, []),
   };
-  const instructions = assembleInstructions(
-    input.instructionInput,
-    resolvedTools.contributions,
-  );
+  const instructions = assembleInstructions(input.instructionInput, resolvedTools.contributions);
   const providerModel = createProviderModel(provider, {
     parallelToolCalls: true,
   });
-  const toolSources = new Map(
-    resolvedTools.manifests.map((manifest) => [manifest.name, manifest.policy.source]),
-  );
+  const toolSources = new Map(resolvedTools.manifests.map((manifest) => [manifest.name, manifest.policy.source]));
   const contextCaptureMiddleware: LanguageModelV4Middleware = {
     specificationVersion: "v4",
     transformParams: async ({ params }) => {
@@ -211,9 +198,7 @@ export async function createToolLoopAgent(
           stepNumber: currentStepNumber,
           toolName: toolCall.toolName,
           toolInput: toolCall.input,
-          code: InvalidToolInputError.isInstance(error)
-            ? "INVALID_TOOL_INPUT"
-            : "NO_SUCH_TOOL",
+          code: InvalidToolInputError.isInstance(error) ? "INVALID_TOOL_INPUT" : "NO_SUCH_TOOL",
           error,
         }),
       );
@@ -223,9 +208,7 @@ export async function createToolLoopAgent(
     prepareStep: ({ runtimeContext: stepContext, steps, initialInstructions }) => {
       const orchestration = deriveOrchestrationState(orchestrationSeed, steps);
       const directive = resolveOrchestrationDirective(orchestration, steps.length);
-      const activeTools = orchestration.skillLoadedThisRun
-        ? loadSkillActiveTools
-        : resolvedTools.activeTools;
+      const activeTools = orchestration.skillLoadedThisRun ? loadSkillActiveTools : resolvedTools.activeTools;
       const nextContext = { ...stepContext, orchestration };
       const baseInstructions = String(initialInstructions ?? instructions);
       if (directive.kind === "final") {
@@ -329,13 +312,9 @@ export async function createToolLoopAgent(
     },
     onToolExecutionEnd: (event) => {
       const executionSucceeded = event.toolOutput.type === "tool-result";
-      const outcome = executionSucceeded && isToolOutcome(event.toolOutput.output)
-        ? event.toolOutput.output
-        : null;
+      const outcome = executionSucceeded && isToolOutcome(event.toolOutput.output) ? event.toolOutput.output : null;
       const semanticSuccess = executionSucceeded && outcome?.ok !== false;
-      const failure = executionSucceeded
-        ? (outcome?.ok === false ? outcome.error : undefined)
-        : event.toolOutput.error;
+      const failure = executionSucceeded ? (outcome?.ok === false ? outcome.error : undefined) : event.toolOutput.error;
       const span = toolSpans.get(event.toolCall.toolCallId);
       if (span) {
         toolSpans.delete(event.toolCall.toolCallId);
@@ -345,9 +324,7 @@ export async function createToolLoopAgent(
             "agent.tool_success": semanticSuccess,
             "agent.tool_duration_ms": event.toolExecutionMs,
             ...(outcome ? { "agent.tool_outcome_status": outcome.status } : {}),
-            ...(outcome && outcome.ok === false
-              ? { "agent.tool_retryable": outcome.error.retryable }
-              : {}),
+            ...(outcome && outcome.ok === false ? { "agent.tool_retryable": outcome.error.retryable } : {}),
           },
           failure,
         );

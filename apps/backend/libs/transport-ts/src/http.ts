@@ -68,7 +68,9 @@ export class InternalHttpClient {
     const extra = this.options.propagatedHeaders?.();
     if (extra) {
       for (const [key, value] of Object.entries(extra)) {
-        if (!request.headers.has(key)) request.headers.set(key, value);
+        if (!request.headers.has(key)) {
+          request.headers.set(key, value);
+        }
       }
     }
     const controller = new AbortController();
@@ -76,7 +78,9 @@ export class InternalHttpClient {
     try {
       return await this.fetchImpl(request, { signal: anySignal([controller.signal, request.signal]) });
     } catch (err) {
-      if (err instanceof Error) throw err;
+      if (err instanceof Error) {
+        throw err;
+      }
       throw new Error(String(err));
     } finally {
       clearTimeout(timer);
@@ -119,7 +123,9 @@ export class InternalHttpClient {
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     const url = new URL(`${this.baseUrl}${options.path}`);
     for (const [key, value] of Object.entries(options.query ?? {})) {
-      if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
+      if (value !== undefined && value !== null) {
+        url.searchParams.set(key, String(value));
+      }
     }
 
     const extra = this.options.propagatedHeaders?.() ?? {};
@@ -144,7 +150,9 @@ export class InternalHttpClient {
 
 function anySignal(signals: Array<AbortSignal | undefined>): AbortSignal {
   const liveSignals = signals.filter((signal): signal is AbortSignal => Boolean(signal));
-  if (liveSignals.length === 1) return liveSignals[0];
+  if (liveSignals.length === 1) {
+    return liveSignals[0];
+  }
 
   const controller = new AbortController();
   for (const signal of liveSignals) {
@@ -159,7 +167,9 @@ function anySignal(signals: Array<AbortSignal | undefined>): AbortSignal {
 
 async function readJson(response: Response): Promise<unknown> {
   const text = await response.text();
-  if (!text) return null;
+  if (!text) {
+    return null;
+  }
   try {
     return JSON.parse(text);
   } catch {

@@ -3,12 +3,8 @@ import { type EditorState, Plugin, PluginKey } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { cn } from "shared";
-import {
-  findTable,
-  getCellsInRow,
-  isColumnSelected,
-  selectColumn,
-} from "./utils";
+
+import { findTable, getCellsInRow, isColumnSelected, selectColumn } from "./utils";
 
 export const createTableHeaderExtension = () => {
   const columnGripKey = new PluginKey<DecorationSet>("tableColumnGrip");
@@ -26,9 +22,7 @@ export const createTableHeaderExtension = () => {
           default: null,
           parseHTML: (element) => {
             const colwidth = element.getAttribute("colwidth");
-            return colwidth
-              ? colwidth.split(",").map((item) => parseInt(item, 10))
-              : null;
+            return colwidth ? colwidth.split(",").map((item) => parseInt(item, 10)) : null;
           },
         },
         style: {
@@ -41,15 +35,21 @@ export const createTableHeaderExtension = () => {
       const { editor } = this;
 
       const buildDecorations = (state: EditorState): DecorationSet => {
-        if (!editor.isEditable) return DecorationSet.empty;
+        if (!editor.isEditable) {
+          return DecorationSet.empty;
+        }
 
         const { doc, selection } = state;
         const table = findTable(selection);
-        if (!table) return DecorationSet.empty;
+        if (!table) {
+          return DecorationSet.empty;
+        }
 
         const cells = getCellsInRow(0)(selection);
         const map = TableMap.get(table.node);
-        if (!cells) return DecorationSet.empty;
+        if (!cells) {
+          return DecorationSet.empty;
+        }
 
         const decorations: Decoration[] = [];
         cells.forEach(({ pos }: { pos: number }, index: number) => {
@@ -65,8 +65,7 @@ export const createTableHeaderExtension = () => {
                 "markdown-editor-table-grip-column",
                 colSelected && "markdown-editor-table-grip-column-selected",
                 index === 0 && "markdown-editor-table-grip-column-first",
-                index === cells.length - 1 &&
-                  "markdown-editor-table-grip-column-last",
+                index === cells.length - 1 && "markdown-editor-table-grip-column-last",
               );
               grip.addEventListener("mousedown", (event) => {
                 event.preventDefault();
@@ -97,8 +96,7 @@ export const createTableHeaderExtension = () => {
             },
           },
           props: {
-            decorations: (state) =>
-              columnGripKey.getState(state) ?? DecorationSet.empty,
+            decorations: (state) => columnGripKey.getState(state) ?? DecorationSet.empty,
           },
         }),
       ];

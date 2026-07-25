@@ -1,22 +1,10 @@
-import type {
-  LanguageModelV4FunctionTool,
-  LanguageModelV4Prompt,
-  LanguageModelV4ProviderTool,
-} from "@ai-sdk/provider";
+import type { LanguageModelV4FunctionTool, LanguageModelV4Prompt, LanguageModelV4ProviderTool } from "@ai-sdk/provider";
 
 import type { UsageTokens } from "../observability/lifecycle.js";
 import type { ToolSource } from "../tools/types.js";
 import { INSTRUCTION_SECTION_TAGS } from "./instructions/section-tags.js";
 
-export const CONTEXT_CATEGORY_IDS = [
-  "system",
-  "tools",
-  "rules",
-  "skills",
-  "mcp",
-  "memory",
-  "conversation",
-] as const;
+export const CONTEXT_CATEGORY_IDS = ["system", "tools", "rules", "skills", "mcp", "memory", "conversation"] as const;
 
 export type ContextCategoryId = (typeof CONTEXT_CATEGORY_IDS)[number];
 
@@ -51,18 +39,18 @@ const RULE_TAGS = [
   INSTRUCTION_SECTION_TAGS.capabilityContract,
   INSTRUCTION_SECTION_TAGS.orchestrationDirective,
 ];
-const SKILL_TAGS = [
-  INSTRUCTION_SECTION_TAGS.availableSkills,
-  INSTRUCTION_SECTION_TAGS.activatedSkill,
-];
+const SKILL_TAGS = [INSTRUCTION_SECTION_TAGS.availableSkills, INSTRUCTION_SECTION_TAGS.activatedSkill];
 const MEMORY_TAGS = [INSTRUCTION_SECTION_TAGS.userMemoryData];
 
 function estimateTokens(value: string): number {
   let ascii = 0;
   let nonAscii = 0;
   for (const character of value) {
-    if (character.charCodeAt(0) <= 0x7f) ascii += 1;
-    else nonAscii += 1;
+    if (character.charCodeAt(0) <= 0x7f) {
+      ascii += 1;
+    } else {
+      nonAscii += 1;
+    }
   }
   return Math.ceil(ascii / 4) + nonAscii;
 }
@@ -71,17 +59,22 @@ function serialized(value: unknown): string {
   const seen = new WeakSet<object>();
   return (
     JSON.stringify(value, (key, current) => {
-      if (key === "providerOptions") return undefined;
-      if (current instanceof Uint8Array) return `[binary:${current.byteLength}]`;
+      if (key === "providerOptions") {
+        return undefined;
+      }
+      if (current instanceof Uint8Array) {
+        return `[binary:${current.byteLength}]`;
+      }
       if (current && typeof current === "object") {
-        if (seen.has(current)) return "[circular]";
+        if (seen.has(current)) {
+          return "[circular]";
+        }
         seen.add(current);
       }
       if (
         typeof current === "string" &&
         current.length > 2_048 &&
-        (/^data:[^;]+;base64,/.test(current) ||
-          /^[A-Za-z0-9+/=\r\n]+$/.test(current.slice(0, 512)))
+        (/^data:[^;]+;base64,/.test(current) || /^[A-Za-z0-9+/=\r\n]+$/.test(current.slice(0, 512)))
       ) {
         return `[binary:${current.length}]`;
       }
@@ -105,7 +98,9 @@ function instructionCategories(prompt: LanguageModelV4Prompt): Record<ContextCat
     .filter((message) => message.role === "system")
     .map((message) => message.content)
     .join("\n");
-  if (!instructions) return totals;
+  if (!instructions) {
+    return totals;
+  }
 
   const system = tagContent(instructions, SYSTEM_TAGS);
   const rules = tagContent(instructions, RULE_TAGS);
@@ -122,10 +117,7 @@ function instructionCategories(prompt: LanguageModelV4Prompt): Record<ContextCat
 }
 
 function emptyTotals(): Record<ContextCategoryId, number> {
-  return Object.fromEntries(CONTEXT_CATEGORY_IDS.map((id) => [id, 0])) as Record<
-    ContextCategoryId,
-    number
-  >;
+  return Object.fromEntries(CONTEXT_CATEGORY_IDS.map((id) => [id, 0])) as Record<ContextCategoryId, number>;
 }
 
 export function estimateConversationContext(input: {
@@ -138,7 +130,9 @@ export function estimateConversationContext(input: {
   const conversation = input.prompt
     .filter((message) => message.role !== "system")
     .map((message) => {
-      if (!Array.isArray(message.content)) return message;
+      if (!Array.isArray(message.content)) {
+        return message;
+      }
       return {
         ...message,
         content: message.content.filter((part) => {
@@ -146,10 +140,7 @@ export function estimateConversationContext(input: {
             return true;
           }
           const toolName = part.toolName;
-          if (
-            typeof toolName !== "string" ||
-            input.toolSources.get(toolName) !== "skill"
-          ) {
+          if (typeof toolName !== "string" || input.toolSources.get(toolName) !== "skill") {
             return true;
           }
           skillConversationParts.push(part);
@@ -164,9 +155,13 @@ export function estimateConversationContext(input: {
     const name = "name" in tool ? tool.name : "";
     const source = input.toolSources.get(name) ?? "builtin";
     const tokens = estimateTokens(serialized(tool));
-    if (source === "mcp") totals.mcp += tokens;
-    else if (source === "skill") totals.skills += tokens;
-    else totals.tools += tokens;
+    if (source === "mcp") {
+      totals.mcp += tokens;
+    } else if (source === "skill") {
+      totals.skills += tokens;
+    } else {
+      totals.tools += tokens;
+    }
   }
 
   return {
@@ -178,16 +173,12 @@ export function finalizeConversationContext(
   estimate: ContextEstimate | undefined,
   usage: UsageTokens,
 ): ConversationContextSnapshot | null {
-  if (!estimate) return null;
+  if (!estimate) {
+    return null;
+  }
   const estimatedInput = estimate.categories.reduce((sum, item) => sum + item.tokens, 0);
-  const inputTokens =
-    usage.inputTokens != null && usage.inputTokens > 0
-      ? usage.inputTokens
-      : estimatedInput;
-  const retainedOutputTokens = Math.max(
-    0,
-    (usage.outputTokens ?? 0) - (usage.reasoningTokens ?? 0),
-  );
+  const inputTokens = usage.inputTokens != null && usage.inputTokens > 0 ? usage.inputTokens : estimatedInput;
+  const retainedOutputTokens = Math.max(0, (usage.outputTokens ?? 0) - (usage.reasoningTokens ?? 0));
   const scaled = estimate.categories.map((category) => ({ ...category }));
 
   if (estimatedInput > inputTokens && estimatedInput > 0) {
@@ -209,10 +200,10 @@ export function finalizeConversationContext(
   };
 }
 
-export function parseConversationContextSnapshot(
-  value: unknown,
-): ConversationContextSnapshot | null {
-  if (!value || typeof value !== "object") return null;
+export function parseConversationContextSnapshot(value: unknown): ConversationContextSnapshot | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
   const snapshot = value as Partial<ConversationContextSnapshot>;
   if (
     snapshot.version !== 1 ||
@@ -223,18 +214,17 @@ export function parseConversationContextSnapshot(
   ) {
     return null;
   }
-  const categories = snapshot.categories.filter(
-    (category): category is ContextCategoryUsage =>
-      Boolean(
-        category &&
-          typeof category === "object" &&
-          CONTEXT_CATEGORY_IDS.includes(category.id as ContextCategoryId) &&
-          typeof category.tokens === "number" &&
-          Number.isFinite(category.tokens) &&
-          category.tokens >= 0,
-      ),
+  const categories = snapshot.categories.filter((category): category is ContextCategoryUsage =>
+    Boolean(
+      category &&
+      typeof category === "object" &&
+      CONTEXT_CATEGORY_IDS.includes(category.id) &&
+      typeof category.tokens === "number" &&
+      Number.isFinite(category.tokens) &&
+      category.tokens >= 0,
+    ),
   );
   return categories.length === snapshot.categories.length
-    ? { ...snapshot, breakdownEstimated: true, categories } as ConversationContextSnapshot
+    ? ({ ...snapshot, breakdownEstimated: true, categories } as ConversationContextSnapshot)
     : null;
 }

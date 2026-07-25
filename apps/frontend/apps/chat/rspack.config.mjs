@@ -1,13 +1,11 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { ModuleFederationPlugin } from "@module-federation/enhanced/rspack";
 import { defineConfig } from "@rspack/cli";
+
 import { buildShared } from "../../mf-shared.mjs";
-import {
-  createAppResolveAlias,
-  createRemoteCssRule,
-  createSwcRule,
-} from "../../rspack.shared.mjs";
+import { createAppResolveAlias, createRemoteCssRule, createSwcRule } from "../../rspack.shared.mjs";
 
 const PORT = Number(process.env.PORT ?? 3005);
 const appDir = path.dirname(fileURLToPath(import.meta.url));
@@ -30,10 +28,7 @@ export default defineConfig({
     alias: createAppResolveAlias(appDir),
   },
   module: {
-    rules: [
-      createSwcRule({ reactCompiler: { target: "18" } }),
-      createRemoteCssRule(),
-    ],
+    rules: [createSwcRule({ reactCompiler: { target: "18" } }), createRemoteCssRule()],
   },
   plugins: [
     new ModuleFederationPlugin({

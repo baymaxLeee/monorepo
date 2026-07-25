@@ -34,7 +34,9 @@ export function ChatPanelResizeHandle({
   }, []);
 
   const finishDrag = useCallback(() => {
-    if (!draggingRef.current) return;
+    if (!draggingRef.current) {
+      return;
+    }
     draggingRef.current = false;
     pointerIdRef.current = null;
     setDragging(false);
@@ -44,12 +46,16 @@ export function ChatPanelResizeHandle({
 
   useEffect(
     () => () => {
-      if (draggingRef.current) restoreBody();
+      if (draggingRef.current) {
+        restoreBody();
+      }
     },
     [restoreBody],
   );
 
-  if (disabled) return null;
+  if (disabled) {
+    return null;
+  }
 
   const label = edge === "left-panel" ? "调整会话列表宽度" : "调整预览区宽度";
   const isLeft = edge === "left-panel";
@@ -71,14 +77,18 @@ export function ChatPanelResizeHandle({
         "focus-visible:[&>span]:w-0.5 focus-visible:[&>span]:bg-ring",
       )}
       onKeyDown={(event) => {
-        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+          return;
+        }
         event.preventDefault();
         onDragStart();
         onDrag(event.key === "ArrowLeft" ? -16 : 16);
         onDragEnd();
       }}
       onPointerDown={(event) => {
-        if (event.button !== 0) return;
+        if (event.button !== 0) {
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
         draggingRef.current = true;
@@ -94,11 +104,9 @@ export function ChatPanelResizeHandle({
         onDragStart();
 
         const onMove = (moveEvent: PointerEvent) => {
-          if (
-            !draggingRef.current ||
-            pointerIdRef.current !== moveEvent.pointerId
-          )
+          if (!draggingRef.current || pointerIdRef.current !== moveEvent.pointerId) {
             return;
+          }
           moveEvent.preventDefault();
           const deltaX = moveEvent.clientX - lastClientXRef.current;
           lastClientXRef.current = moveEvent.clientX;
@@ -106,7 +114,9 @@ export function ChatPanelResizeHandle({
         };
 
         const onUp = (upEvent: PointerEvent) => {
-          if (pointerIdRef.current !== upEvent.pointerId) return;
+          if (pointerIdRef.current !== upEvent.pointerId) {
+            return;
+          }
           window.removeEventListener("pointermove", onMove);
           window.removeEventListener("pointerup", onUp);
           window.removeEventListener("pointercancel", onUp);

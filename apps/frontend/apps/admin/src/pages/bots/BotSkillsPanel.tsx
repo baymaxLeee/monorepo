@@ -1,10 +1,4 @@
-import {
-  attachBotSkill,
-  detachBotSkill,
-  fetchBotSkills,
-  fetchSkills,
-  type SkillSummary,
-} from "api";
+import { attachBotSkill, detachBotSkill, fetchBotSkills, fetchSkills, type SkillSummary } from "api";
 import { Badge, Button, Skeleton, Switch, toast } from "components";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -29,12 +23,16 @@ export function BotSkillsPanel({ botId }: { botId: string }) {
     setAll(null);
     Promise.all([fetchBotSkills(botId), fetchSkills()])
       .then(([bound, every]) => {
-        if (!alive) return;
+        if (!alive) {
+          return;
+        }
         setAttached(bound);
         setAll(every);
       })
       .catch(() => {
-        if (!alive) return;
+        if (!alive) {
+          return;
+        }
         setAttached([]);
         setAll([]);
       });
@@ -43,17 +41,12 @@ export function BotSkillsPanel({ botId }: { botId: string }) {
     };
   }, [botId]);
 
-  const boundIds = useMemo(
-    () => new Set((attached ?? []).map((s) => s.id)),
-    [attached],
-  );
+  const boundIds = useMemo(() => new Set((attached ?? []).map((s) => s.id)), [attached]);
 
   async function toggle(skill: SkillSummary, next: boolean) {
     setBusyId(skill.id);
     try {
-      const list = next
-        ? await attachBotSkill(botId, skill.id)
-        : await detachBotSkill(botId, skill.id);
+      const list = next ? await attachBotSkill(botId, skill.id) : await detachBotSkill(botId, skill.id);
       setAttached(list);
       toast.success(next ? "已挂载技能" : "已移除技能");
     } catch {
@@ -71,12 +64,7 @@ export function BotSkillsPanel({ botId }: { botId: string }) {
         <p className="text-xs text-muted-foreground">
           已挂载 {boundIds.size} 个 · 仅「已发布且已启用」的技能会进入模型
         </p>
-        <Button
-          variant="link"
-          size="sm"
-          className="h-auto shrink-0 p-0"
-          asChild
-        >
+        <Button variant="link" size="sm" className="h-auto shrink-0 p-0" asChild>
           <Link to="/platform/admin/skills">管理技能 →</Link>
         </Button>
       </div>
@@ -95,10 +83,7 @@ export function BotSkillsPanel({ botId }: { botId: string }) {
           {skills.map((skill) => {
             const bound = boundIds.has(skill.id);
             return (
-              <li
-                key={skill.id}
-                className="flex items-start justify-between gap-3 rounded-md border px-3 py-2.5"
-              >
+              <li key={skill.id} className="flex items-start justify-between gap-3 rounded-md border px-3 py-2.5">
                 <div className="min-w-0 space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs">{skill.name}</span>
@@ -109,18 +94,14 @@ export function BotSkillsPanel({ botId }: { botId: string }) {
                     )}
                   </div>
                   {skill.description ? (
-                    <p className="truncate text-xs text-muted-foreground">
-                      {skill.description}
-                    </p>
+                    <p className="truncate text-xs text-muted-foreground">{skill.description}</p>
                   ) : null}
                 </div>
                 <Switch
                   checked={bound}
                   disabled={busyId === skill.id}
                   onCheckedChange={(next) => void toggle(skill, next)}
-                  aria-label={
-                    bound ? `移除 ${skill.name}` : `挂载 ${skill.name}`
-                  }
+                  aria-label={bound ? `移除 ${skill.name}` : `挂载 ${skill.name}`}
                 />
               </li>
             );

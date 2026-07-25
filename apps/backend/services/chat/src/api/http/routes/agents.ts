@@ -1,11 +1,9 @@
 import { zValidator } from "@hono/zod-validator";
+import { UI_MESSAGE_STREAM_HEADERS } from "ai";
 import { Hono } from "hono";
 import { z } from "zod";
-import { UI_MESSAGE_STREAM_HEADERS } from "ai";
 
-import { type AgentSkillRef, getAgent, getProvider, type ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
 import type { BotProfileSnapshot } from "../../../application/agent/context/instructions/index.js";
-import { getAuth } from "../middleware/auth.js";
 import {
   createAgentRunResponse,
   getAgentRunTrace,
@@ -14,8 +12,15 @@ import {
   isRunActive,
   replayAgentSseStream,
 } from "../../../application/agent/index.js";
-import { logger } from "../../../infrastructure/observability/logger.js";
 import { getConversationRow } from "../../../application/conversations.js";
+import {
+  type AgentSkillRef,
+  getAgent,
+  getProvider,
+  type ProviderSnapshot,
+} from "../../../infrastructure/clients/admin.js";
+import { logger } from "../../../infrastructure/observability/logger.js";
+import { getAuth } from "../middleware/auth.js";
 
 export const agentsRoutes = new Hono();
 
@@ -55,19 +60,13 @@ agentsRoutes.post(
       textProvider = await getProvider(auth.orgId, null);
     }
 
-    return createAgentRunResponse(
-      auth,
-      conversationId,
-      textProvider,
-      [payload.message],
-      {
-        imageProvider,
-        videoProviderId,
-        botProfile,
-        botSkills,
-        mode: payload.mode,
-      },
-    );
+    return createAgentRunResponse(auth, conversationId, textProvider, [payload.message], {
+      imageProvider,
+      videoProviderId,
+      botProfile,
+      botSkills,
+      mode: payload.mode,
+    });
   },
 );
 
@@ -76,7 +75,9 @@ agentsRoutes.get("/:conversationId/agents/run/stream", async (c) => {
   const conversationId = c.req.param("conversationId");
   await getConversationRow(auth, conversationId);
   const runId = await activeAgentStreamRunId(conversationId);
-  if (!runId) return new Response(null, { status: 204 });
+  if (!runId) {
+    return new Response(null, { status: 204 });
+  }
 
   const encoder = new TextEncoder();
   let cancelled = false;
@@ -91,14 +92,20 @@ agentsRoutes.get("/:conversationId/agents/run/stream", async (c) => {
           isRunLive: isRunActive,
           signal: subscriberController.signal,
         })) {
-          if (cancelled) return;
+          if (cancelled) {
+            return;
+          }
           controller.enqueue(encoder.encode(chunk));
         }
       } catch (error) {
-        if (!cancelled) controller.error(error);
+        if (!cancelled) {
+          controller.error(error);
+        }
         return;
       }
-      if (!cancelled) controller.close();
+      if (!cancelled) {
+        controller.close();
+      }
     },
     cancel() {
       cancelled = true;
@@ -114,11 +121,7 @@ agentsRoutes.get("/:conversationId/agents/run/stream", async (c) => {
 });
 
 agentsRoutes.get("/:conversationId/agents/runs/:runId/trace", async (c) => {
-  const trace = await getAgentRunTrace(
-    getAuth(c),
-    c.req.param("conversationId"),
-    c.req.param("runId"),
-  );
+  const trace = await getAgentRunTrace(getAuth(c), c.req.param("conversationId"), c.req.param("runId"));
   return c.json(trace);
 });
 

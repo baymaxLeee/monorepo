@@ -3,12 +3,6 @@ import type { ToolResultOutput } from "@ai-sdk/provider-utils";
 import type { ToolSet } from "ai";
 import { z } from "zod";
 
-import type {
-  AgentToolManifest,
-  AgentToolPlanning,
-  AgentToolPolicy,
-  ToolAvailability,
-} from "./types.js";
 import {
   isToolEmission,
   normalizeToolIssue,
@@ -20,24 +14,17 @@ import {
   ToolBlockedError,
   type ToolOutcome,
 } from "./outcome.js";
+import type { AgentToolManifest, AgentToolPlanning, AgentToolPolicy, ToolAvailability } from "./types.js";
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
-  return Boolean(
-    value &&
-      (typeof value === "object" || typeof value === "function") &&
-      Symbol.asyncIterator in value,
-  );
+  return Boolean(value && (typeof value === "object" || typeof value === "function") && Symbol.asyncIterator in value);
 }
 
 function caughtErrorOutcome(error: unknown, toolCallId?: string): ToolOutcome {
   return outcomeFromEmission(
     error instanceof ToolBlockedError
       ? toolBlocked(error.issue)
-      : toolFailed(
-          normalizeToolIssue(error, {
-            ...(toolCallId ? { details: { tool_call_id: toolCallId } } : {}),
-          }),
-        ),
+      : toolFailed(normalizeToolIssue(error, toolCallId ? { details: { tool_call_id: toolCallId } } : {})),
   );
 }
 
@@ -60,7 +47,9 @@ async function* wrapAsyncToolResult(
       }
       const outcome = outcomeFromEmission(value);
       yield outcome;
-      if (outcome.status !== "running") return;
+      if (outcome.status !== "running") {
+        return;
+      }
     }
     yield outcomeFromEmission(
       toolFailed({
@@ -71,21 +60,17 @@ async function* wrapAsyncToolResult(
       }),
     );
   } catch (error) {
-    if (shouldRethrowToolError(error, options.abortSignal)) throw error;
+    if (shouldRethrowToolError(error, options.abortSignal)) {
+      throw error;
+    }
     yield caughtErrorOutcome(error, options.toolCallId);
   }
 }
 
-function wrapToolDefinition(
-  definition: ToolSet[string],
-  options: { strictByDefault: boolean },
-): ToolSet[string] {
+function wrapToolDefinition(definition: ToolSet[string], options: { strictByDefault: boolean }): ToolSet[string] {
   const candidate = definition as ToolSet[string] & {
     outputSchema?: z.ZodType<unknown>;
-    execute?: (
-      input: unknown,
-      options: { abortSignal?: AbortSignal; toolCallId?: string },
-    ) => unknown;
+    execute?: (input: unknown, options: { abortSignal?: AbortSignal; toolCallId?: string }) => unknown;
     toModelOutput?: (options: Record<string, unknown> & { output: unknown }) => unknown;
   };
   const dataSchema = candidate.outputSchema ?? z.unknown();
@@ -98,9 +83,7 @@ function wrapToolDefinition(
     const { output } = options;
     if (output.status === "completed") {
       return toModelOutput
-        ? (toModelOutput({ ...options, output: output.data }) as
-            | ToolResultOutput
-            | PromiseLike<ToolResultOutput>)
+        ? (toModelOutput({ ...options, output: output.data }) as ToolResultOutput | PromiseLike<ToolResultOutput>)
         : { type: "json", value: (output.data ?? null) as JSONValue };
     }
     if (output.status === "blocked" || output.status === "failed") {
@@ -111,19 +94,16 @@ function wrapToolDefinition(
 
   return {
     ...candidate,
-    ...(options.strictByDefault && "inputSchema" in candidate
-      ? { strict: candidate.strict ?? true }
-      : {}),
+    ...(options.strictByDefault && "inputSchema" in candidate ? { strict: candidate.strict ?? true } : {}),
     outputSchema: toolOutcomeSchema(dataSchema),
     ...(execute
       ? {
-          execute: (
-            input: unknown,
-            options: { abortSignal?: AbortSignal; toolCallId?: string },
-          ) => {
+          execute: (input: unknown, options: { abortSignal?: AbortSignal; toolCallId?: string }) => {
             try {
               const result = execute(input, options);
-              if (isAsyncIterable(result)) return wrapAsyncToolResult(result, options);
+              if (isAsyncIterable(result)) {
+                return wrapAsyncToolResult(result, options);
+              }
               return Promise.resolve(result)
                 .then((data) =>
                   isToolEmission(data)
@@ -131,11 +111,15 @@ function wrapToolDefinition(
                     : ({ ok: true, status: "completed", data } satisfies ToolOutcome),
                 )
                 .catch((error: unknown) => {
-                  if (shouldRethrowToolError(error, options.abortSignal)) throw error;
+                  if (shouldRethrowToolError(error, options.abortSignal)) {
+                    throw error;
+                  }
                   return caughtErrorOutcome(error, options.toolCallId);
                 });
             } catch (error) {
-              if (shouldRethrowToolError(error, options.abortSignal)) throw error;
+              if (shouldRethrowToolError(error, options.abortSignal)) {
+                throw error;
+              }
               return caughtErrorOutcome(error, options.toolCallId);
             }
           },
@@ -171,7 +155,7 @@ export function defineAgentTool(
         strictByDefault: resolvedPolicy.source === "builtin",
       }),
       metadata: {
-        ...(definition.metadata ?? {}),
+        ...definition.metadata,
         agent: agentMetadata,
       },
     },
@@ -195,9 +179,7 @@ export function defineUnavailableCapability(
 }
 
 export function manifestsToTools(manifests: AgentToolManifest[]): ToolSet {
-  return Object.fromEntries(
-    manifests.flatMap((manifest) => (manifest.tool ? [[manifest.name, manifest.tool]] : [])),
-  );
+  return Object.fromEntries(manifests.flatMap((manifest) => (manifest.tool ? [[manifest.name, manifest.tool]] : [])));
 }
 
 export function renderExecutionCapabilities(manifests: AgentToolManifest[]): string {
@@ -207,7 +189,9 @@ export function renderExecutionCapabilities(manifests: AgentToolManifest[]): str
       !manifest.policy.modes.includes("plan") &&
       manifest.policy.capability !== "planning",
   );
-  if (executionCapabilities.length === 0) return "";
+  if (executionCapabilities.length === 0) {
+    return "";
+  }
 
   const lines = executionCapabilities.map((manifest) => {
     const details = [
@@ -228,9 +212,13 @@ export function renderExecutionCapabilities(manifests: AgentToolManifest[]): str
 }
 
 export function toolPolicyFromMetadata(metadata: unknown): AgentToolPolicy | null {
-  if (!metadata || typeof metadata !== "object") return null;
+  if (!metadata || typeof metadata !== "object") {
+    return null;
+  }
   const agent = (metadata as { agent?: unknown }).agent;
-  if (!agent || typeof agent !== "object") return null;
+  if (!agent || typeof agent !== "object") {
+    return null;
+  }
   const value = agent as Partial<AgentToolPolicy>;
   if (
     typeof value.source !== "string" ||

@@ -1,4 +1,5 @@
 import { cn } from "shared";
+
 import { Lazy } from "../Lazy";
 import type { CodeEditorProps } from "./interface";
 

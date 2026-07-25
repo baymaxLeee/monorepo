@@ -27,29 +27,23 @@ function DefaultFallback() {
 }
 
 type AnyLoader = LazyLoader<unknown>;
-type AnyLazyComponent = ComponentType<
-  Record<string, unknown> & { ref?: Ref<unknown> }
->;
+type AnyLazyComponent = ComponentType<Record<string, unknown> & { ref?: Ref<unknown> }>;
 const lazyComponentCache = new WeakMap<AnyLoader, AnyLazyComponent>();
 
 function resolveLazyComponent(loader: AnyLoader): AnyLazyComponent {
   let cached = lazyComponentCache.get(loader);
   if (!cached) {
-    cached = reactLazy(loader) as unknown as AnyLazyComponent;
+    cached = reactLazy(loader);
     lazyComponentCache.set(loader, cached);
   }
   return cached;
 }
 
-const LazyImpl = forwardRef<unknown, LazyBaseProps<unknown>>(function Lazy(
-  props: any,
-  ref,
-) {
-  const { loader, fallback, ...rest } = props as LazyBaseProps<unknown> &
-    Record<string, unknown>;
+const LazyImpl = forwardRef<unknown, LazyBaseProps<unknown>>(function Lazy(props: any, ref) {
+  const { loader, fallback, ...rest } = props as LazyBaseProps<unknown> & Record<string, unknown>;
   const [Component] = useState(() => resolveLazyComponent(loader));
   return (
-    <Suspense fallback={(fallback as ReactNode) ?? <DefaultFallback />}>
+    <Suspense fallback={fallback ?? <DefaultFallback />}>
       <Component ref={ref} {...rest} />
     </Suspense>
   );

@@ -92,10 +92,7 @@ export const agentRuns = pgTable(
     startedAt: timestamp("started_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     finishedAt: timestamp("finished_at", { mode: "date", withTimezone: true, precision: 6 }),
   },
-  (t) => [
-    index("ix_agent_runs_conversation_id").on(t.conversationId),
-    index("ix_agent_runs_user_id").on(t.userId),
-  ],
+  (t) => [index("ix_agent_runs_conversation_id").on(t.conversationId), index("ix_agent_runs_user_id").on(t.userId)],
 );
 
 export const agentSteps = pgTable(
@@ -114,10 +111,7 @@ export const agentSteps = pgTable(
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     finishedAt: timestamp("finished_at", { mode: "date", withTimezone: true, precision: 6 }),
   },
-  (t) => [
-    index("ix_agent_steps_run_id").on(t.runId),
-    index("ix_agent_steps_run_step").on(t.runId, t.stepIndex),
-  ],
+  (t) => [index("ix_agent_steps_run_id").on(t.runId), index("ix_agent_steps_run_step").on(t.runId, t.stepIndex)],
 );
 
 export const agentToolCalls = pgTable(
@@ -135,10 +129,7 @@ export const agentToolCalls = pgTable(
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     finishedAt: timestamp("finished_at", { mode: "date", withTimezone: true, precision: 6 }),
   },
-  (t) => [
-    index("ix_agent_tool_calls_run_id").on(t.runId),
-    index("ix_agent_tool_calls_tool_name").on(t.toolName),
-  ],
+  (t) => [index("ix_agent_tool_calls_run_id").on(t.runId), index("ix_agent_tool_calls_tool_name").on(t.toolName)],
 );
 
 export const userMemories = pgTable(
@@ -157,8 +148,5 @@ export const userMemories = pgTable(
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },
-  (t) => [
-    index("ix_user_memories_user_id").on(t.userId),
-    index("ix_user_memories_user_status").on(t.userId, t.status),
-  ],
+  (t) => [index("ix_user_memories_user_id").on(t.userId), index("ix_user_memories_user_status").on(t.userId, t.status)],
 );

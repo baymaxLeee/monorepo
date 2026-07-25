@@ -13,12 +13,11 @@ type QueueEntry = {
 const queue: QueueEntry[] = [];
 let timer: number | null = null;
 
-export function enqueue(
-  app: ObservabilityApp,
-  event: ObservabilityEvent,
-): void {
+export function enqueue(app: ObservabilityApp, event: ObservabilityEvent): void {
   const { sampleRate } = getObservabilityContext();
-  if (sampleRate < 1 && Math.random() > sampleRate) return;
+  if (sampleRate < 1 && Math.random() > sampleRate) {
+    return;
+  }
   queue.push({ app, event });
   if (queue.length >= FLUSH_SIZE) {
     void flush();
@@ -56,7 +55,9 @@ export function flushWithBeacon(): void {
 }
 
 function scheduleFlush(): void {
-  if (timer !== null) return;
+  if (timer !== null) {
+    return;
+  }
   timer = window.setTimeout(() => {
     void flush();
   }, FLUSH_INTERVAL_MS);

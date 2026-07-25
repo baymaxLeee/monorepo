@@ -55,24 +55,20 @@ const schema = z.object({
     .trim()
     .min(1, "请输入名称")
     .max(64)
-    .regex(
-      /^[a-z](?:[a-z0-9]|-(?=[a-z0-9]))*[a-z0-9]$|^[a-z]$/,
-      "请使用 kebab-case",
-    ),
+    .regex(/^[a-z](?:[a-z0-9]|-(?=[a-z0-9]))*[a-z0-9]$|^[a-z]$/, "请使用 kebab-case"),
   description: z.string().trim().min(1, "请输入使用场景").max(1024),
 });
 
 type Values = z.infer<typeof schema>;
 
 function SkillState({ skill }: { skill: SkillSummary }) {
-  if (skill.status !== "published")
+  if (skill.status !== "published") {
     return <Badge variant="secondary">草稿</Badge>;
+  }
   return (
     <div className="flex gap-2">
       <Badge>已发布</Badge>
-      {skill.has_unpublished_changes && (
-        <Badge variant="secondary">有未发布修改</Badge>
-      )}
+      {skill.has_unpublished_changes && <Badge variant="secondary">有未发布修改</Badge>}
     </div>
   );
 }
@@ -108,7 +104,9 @@ export function SkillsPage() {
   }
 
   async function remove(skill: SkillSummary) {
-    if (!window.confirm(`确认删除「${skill.name}」及其文件树？`)) return;
+    if (!window.confirm(`确认删除「${skill.name}」及其文件树？`)) {
+      return;
+    }
     await deleteSkill(skill.id);
     toast.success("技能已删除");
     load();
@@ -120,8 +118,7 @@ export function SkillsPage() {
         <PageHeaderContent>
           <PageTitle>技能管理</PageTitle>
           <PageDescription>
-            Skill 是包含
-            SKILL.md、参考资料、模板和脚本的文件工作区；发布后才会被智能体使用。
+            Skill 是包含 SKILL.md、参考资料、模板和脚本的文件工作区；发布后才会被智能体使用。
           </PageDescription>
         </PageHeaderContent>
         <PageActions>
@@ -142,9 +139,7 @@ export function SkillsPage() {
       <Card>
         <CardHeader>
           <CardTitle>全部技能</CardTitle>
-          <CardDescription>
-            {skills ? `共 ${skills.length} 条` : "加载中…"}
-          </CardDescription>
+          <CardDescription>{skills ? `共 ${skills.length} 条` : "加载中…"}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -166,12 +161,8 @@ export function SkillsPage() {
               <TableBody>
                 {skills.map((skill) => (
                   <TableRow key={skill.id}>
-                    <TableCell className="font-mono text-xs">
-                      {skill.name}
-                    </TableCell>
-                    <TableCell className="max-w-md truncate text-muted-foreground">
-                      {skill.description}
-                    </TableCell>
+                    <TableCell className="font-mono text-xs">{skill.name}</TableCell>
+                    <TableCell className="max-w-md truncate text-muted-foreground">{skill.description}</TableCell>
                     <TableCell>
                       <SkillState skill={skill} />
                     </TableCell>
@@ -179,18 +170,10 @@ export function SkillsPage() {
                       {new Date(skill.updated_at).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="link"
-                        size="sm"
-                        onClick={() => navigate(skill.id)}
-                      >
+                      <Button variant="link" size="sm" onClick={() => navigate(skill.id)}>
                         打开
                       </Button>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        onClick={() => void remove(skill)}
-                      >
+                      <Button variant="link" size="sm" onClick={() => void remove(skill)}>
                         删除
                       </Button>
                     </TableCell>
@@ -208,9 +191,7 @@ export function SkillsPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>新建技能</DialogTitle>
-            <DialogDescription>
-              创建后进入文件工作区，系统会生成标准 SKILL.md。
-            </DialogDescription>
+            <DialogDescription>创建后进入文件工作区，系统会生成标准 SKILL.md。</DialogDescription>
           </DialogHeader>
           <DialogBody>
             <Form {...form}>
@@ -238,9 +219,7 @@ export function SkillsPage() {
                         <FormControl>
                           <Textarea rows={3} {...field} />
                         </FormControl>
-                        <FieldError
-                          errors={[form.formState.errors.description]}
-                        />
+                        <FieldError errors={[form.formState.errors.description]} />
                       </Field>
                     )}
                   />
@@ -252,11 +231,7 @@ export function SkillsPage() {
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               取消
             </Button>
-            <Button
-              type="submit"
-              form="create-skill"
-              disabled={form.formState.isSubmitting}
-            >
+            <Button type="submit" form="create-skill" disabled={form.formState.isSubmitting}>
               创建
             </Button>
           </DialogFooter>

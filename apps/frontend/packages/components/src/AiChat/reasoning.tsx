@@ -1,15 +1,8 @@
 import { BrainIcon, ChevronRightIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
-import {
-  createContext,
-  memo,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { createContext, memo, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "shared";
+
 import { MessageResponse } from "./message";
 
 type ReasoningContextValue = {
@@ -23,8 +16,9 @@ const ReasoningContext = createContext<ReasoningContextValue | null>(null);
 
 function useReasoning() {
   const context = useContext(ReasoningContext);
-  if (!context)
+  if (!context) {
     throw new Error("Reasoning components must be used within Reasoning");
+  }
   return context;
 }
 
@@ -67,7 +61,9 @@ export const Reasoning = memo(function Reasoning({
   };
 
   useEffect(() => {
-    if (durationProp !== undefined) setDuration(durationProp);
+    if (durationProp !== undefined) {
+      setDuration(durationProp);
+    }
   }, [durationProp]);
 
   useEffect(() => {
@@ -87,13 +83,7 @@ export const Reasoning = memo(function Reasoning({
   }, [autoOpenOnStream, isOpen, isStreaming]);
 
   useEffect(() => {
-    if (
-      !autoCloseOnFinish ||
-      !hasAutoOpenedRef.current ||
-      hasAutoClosed ||
-      isStreaming ||
-      !isOpen
-    ) {
+    if (!autoCloseOnFinish || !hasAutoOpenedRef.current || hasAutoClosed || isStreaming || !isOpen) {
       return;
     }
     const timer = window.setTimeout(() => {
@@ -104,10 +94,7 @@ export const Reasoning = memo(function Reasoning({
     return () => window.clearTimeout(timer);
   }, [autoCloseDelay, autoCloseOnFinish, hasAutoClosed, isOpen, isStreaming]);
 
-  const value = useMemo(
-    () => ({ duration, isOpen, isStreaming, setIsOpen }),
-    [duration, isOpen, isStreaming],
-  );
+  const value = useMemo(() => ({ duration, isOpen, isStreaming, setIsOpen }), [duration, isOpen, isStreaming]);
 
   return (
     <ReasoningContext.Provider value={value}>
@@ -123,8 +110,12 @@ export type ReasoningTriggerProps = ComponentProps<"button"> & {
 };
 
 function defaultThinkingMessage(isStreaming: boolean, duration?: number) {
-  if (isStreaming || duration === 0) return "Thinking...";
-  if (duration === undefined) return "Thought for a few seconds";
+  if (isStreaming || duration === 0) {
+    return "Thinking...";
+  }
+  if (duration === undefined) {
+    return "Thought for a few seconds";
+  }
   return `Thought for ${duration} seconds`;
 }
 
@@ -149,12 +140,7 @@ export const ReasoningTrigger = memo(function ReasoningTrigger({
         <>
           <BrainIcon className="size-4" />
           <span>{getThinkingMessage(isStreaming, duration)}</span>
-          <ChevronRightIcon
-            className={cn(
-              "size-4 transition-transform",
-              isOpen ? "rotate-90" : "rotate-0",
-            )}
-          />
+          <ChevronRightIcon className={cn("size-4 transition-transform", isOpen ? "rotate-90" : "rotate-0")} />
         </>
       )}
     </button>
@@ -175,7 +161,9 @@ export const ReasoningContent = memo(function ReasoningContent({
 
   useEffect(() => {
     const node = contentRef.current;
-    if (!node) return;
+    if (!node) {
+      return;
+    }
     node.scrollTop = node.scrollHeight;
   }, [children, isOpen]);
 
@@ -184,9 +172,7 @@ export const ReasoningContent = memo(function ReasoningContent({
       ref={contentRef}
       className={cn(
         "text-sm leading-5 text-muted-foreground transition-[max-height]",
-        isOpen
-          ? "max-h-[min(24rem,50vh)] overflow-y-auto"
-          : "max-h-[3.75rem] overflow-hidden",
+        isOpen ? "max-h-[min(24rem,50vh)] overflow-y-auto" : "max-h-[3.75rem] overflow-hidden",
         className,
       )}
       {...props}

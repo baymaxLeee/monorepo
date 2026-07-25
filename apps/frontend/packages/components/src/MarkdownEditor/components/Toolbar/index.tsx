@@ -59,11 +59,7 @@ import {
 } from "../../../shadcn/dropdown-menu";
 import { Input } from "../../../shadcn/input";
 import { Menu, MenuItem, MenuItemGroup } from "../../../shadcn/menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "../../../shadcn/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "../../../shadcn/popover";
 import { Textarea } from "../../../shadcn/textarea";
 import { Tooltip, TooltipTrigger } from "../../../shadcn/tooltip";
 import {
@@ -75,11 +71,7 @@ import {
   URL_REGEX,
 } from "../../constants";
 import { useEditorContext } from "../../context";
-import {
-  type ContentType,
-  RewriteActionType,
-  type ToolbarMode,
-} from "../../interface";
+import { type ContentType, RewriteActionType, type ToolbarMode } from "../../interface";
 import {
   applyBlocksToSelection,
   extractSelectionToBlocks,
@@ -99,8 +91,7 @@ interface IProps {
   onOpenPolish?: () => void;
 }
 
-const colorNormalizer =
-  typeof document !== "undefined" ? document.createElement("div") : null;
+const colorNormalizer = typeof document !== "undefined" ? document.createElement("div") : null;
 
 /**
  * 普通图标按钮（B/I/U/S/Code/Link 等）。
@@ -133,63 +124,76 @@ function triggerCls(opts?: { isActive?: boolean; isDisabled?: boolean }) {
 
 /** 工具栏内的竖向分隔线 */
 const dividerCls = "mx-1 h-4 w-px shrink-0 bg-border";
-const OVERLAY_CONTENT_SELECTOR =
-  '[data-slot="sheet-content"], [data-slot="dialog-content"]';
+const OVERLAY_CONTENT_SELECTOR = '[data-slot="sheet-content"], [data-slot="dialog-content"]';
 
 function preventToolbarMouseDown(event: React.MouseEvent) {
   event.preventDefault();
 }
 
 function getOverlayContainer(editor: Editor): HTMLElement | null {
-  return (
-    (getMountedEditorDom(editor)?.closest(
-      OVERLAY_CONTENT_SELECTOR,
-    ) as HTMLElement | null) ?? null
-  );
+  return (getMountedEditorDom(editor)?.closest(OVERLAY_CONTENT_SELECTOR) as HTMLElement | null) ?? null;
 }
 
-export function getActiveNodeType(
-  editor: Editor,
-  toolbarMode: ToolbarMode,
-): string {
+export function getActiveNodeType(editor: Editor, toolbarMode: ToolbarMode): string {
   if (toolbarMode === "bubble") {
-    if (editor.isActive("codeBlock")) return "codeBlock";
-    if (editor.isActive("orderedList")) return "orderedList";
-    if (editor.isActive("taskList")) return "taskList";
-    if (editor.isActive("bulletList")) return "bulletList";
-    if (editor.isActive("blockquote")) return "blockquote";
+    if (editor.isActive("codeBlock")) {
+      return "codeBlock";
+    }
+    if (editor.isActive("orderedList")) {
+      return "orderedList";
+    }
+    if (editor.isActive("taskList")) {
+      return "taskList";
+    }
+    if (editor.isActive("bulletList")) {
+      return "bulletList";
+    }
+    if (editor.isActive("blockquote")) {
+      return "blockquote";
+    }
   }
   for (let i = 1; i <= 6; i++) {
-    if (editor.isActive("heading", { level: i })) return `h${i}`;
+    if (editor.isActive("heading", { level: i })) {
+      return `h${i}`;
+    }
   }
   return "paragraph";
 }
 
 export function getActiveTextAlign(editor: Editor): string {
-  if (editor.isActive({ textAlign: "center" })) return "center";
-  if (editor.isActive({ textAlign: "right" })) return "right";
+  if (editor.isActive({ textAlign: "center" })) {
+    return "center";
+  }
+  if (editor.isActive({ textAlign: "right" })) {
+    return "right";
+  }
   return "left";
 }
 
-export function computeCanChangeType(
-  editor: Editor,
-  contentType: ContentType,
-): boolean {
+export function computeCanChangeType(editor: Editor, contentType: ContentType): boolean {
   const { $from, $to } = editor.state.selection;
   if (contentType === "markdown") {
     for (let d = $from.depth; d >= 0; d--) {
       const name = $from.node(d).type.name;
-      if (name === "tableCell" || name === "tableHeader") return false;
+      if (name === "tableCell" || name === "tableHeader") {
+        return false;
+      }
     }
   }
-  if ($from.parent === $to.parent) return true;
+  if ($from.parent === $to.parent) {
+    return true;
+  }
   let allParagraph = true;
   editor.state.doc.nodesBetween($from.pos, $to.pos, (node, pos) => {
-    if (!allParagraph) return false;
+    if (!allParagraph) {
+      return false;
+    }
     if (node.isTextblock) {
       const $pos = editor.state.doc.resolve(pos);
       const topNode = $pos.depth >= 1 ? $pos.node(1) : node;
-      if (topNode.type.name !== "paragraph") allParagraph = false;
+      if (topNode.type.name !== "paragraph") {
+        allParagraph = false;
+      }
     }
     return true;
   });
@@ -201,12 +205,7 @@ export function computeIsTableContext(editor: Editor): boolean {
 
   for (let d = $from.depth; d >= 0; d--) {
     const name = $from.node(d).type.name;
-    if (
-      name === "table" ||
-      name === "tableRow" ||
-      name === "tableCell" ||
-      name === "tableHeader"
-    ) {
+    if (name === "table" || name === "tableRow" || name === "tableCell" || name === "tableHeader") {
       return true;
     }
   }
@@ -255,29 +254,33 @@ export function getAlignIcon(align: string) {
 }
 
 export const normalizeColor = (color: string) => {
-  if (!colorNormalizer) return color;
+  if (!colorNormalizer) {
+    return color;
+  }
   colorNormalizer.style.color = color;
   return colorNormalizer.style.color;
 };
 
-export const ColorPickerContent = ({
-  editor,
-  onClose,
-}: {
-  editor: Editor;
-  onClose: () => void;
-}) => {
+export const ColorPickerContent = ({ editor, onClose }: { editor: Editor; onClose: () => void }) => {
   const isColorActive = (color: string) => {
     const currentColor = editor.getAttributes("textStyle").color;
-    if (color === "inherit") return !currentColor;
-    if (!currentColor) return false;
+    if (color === "inherit") {
+      return !currentColor;
+    }
+    if (!currentColor) {
+      return false;
+    }
     return normalizeColor(currentColor) === normalizeColor(color);
   };
 
   const isBgActive = (color: string) => {
     const currentBg = editor.getAttributes("highlight").color;
-    if (color === "transparent") return !currentBg;
-    if (!currentBg) return false;
+    if (color === "transparent") {
+      return !currentBg;
+    }
+    if (!currentBg) {
+      return false;
+    }
     return normalizeColor(currentBg) === normalizeColor(color);
   };
 
@@ -311,16 +314,11 @@ export const ColorPickerContent = ({
                   type="button"
                   className={cn(
                     "flex size-6 cursor-pointer items-center justify-center rounded border border-border transition-all",
-                    isColorActive(item.color)
-                      ? "border-blue-600"
-                      : "hover:border-blue-600/60",
+                    isColorActive(item.color) ? "border-blue-600" : "hover:border-blue-600/60",
                   )}
                   onClick={() => handleSetColor(item.color)}
                 >
-                  <span
-                    className="text-sm font-medium leading-none"
-                    style={{ color: item.color }}
-                  >
+                  <span className="text-sm font-medium leading-none" style={{ color: item.color }}>
                     A
                   </span>
                 </button>
@@ -370,9 +368,7 @@ export const ColorPickerContent = ({
           variant="outline"
           size="sm"
           className="w-full"
-          onClick={() =>
-            editor.chain().focus().unsetColor().unsetHighlight().run()
-          }
+          onClick={() => editor.chain().focus().unsetColor().unsetHighlight().run()}
         >
           恢复默认
         </Button>
@@ -381,13 +377,7 @@ export const ColorPickerContent = ({
   );
 };
 
-const AlignDropdownItems = ({
-  editor,
-  textAlign,
-}: {
-  editor: Editor;
-  textAlign: string;
-}) => {
+const AlignDropdownItems = ({ editor, textAlign }: { editor: Editor; textAlign: string }) => {
   const handle = (key: "left" | "center" | "right" | "outdent" | "indent") => {
     switch (key) {
       case "left":
@@ -405,46 +395,28 @@ const AlignDropdownItems = ({
   };
 
   const itemCls = (active: boolean) =>
-    cn(
-      "gap-2 [&>svg]:size-4",
-      active && "font-medium text-blue-600 focus:text-blue-600",
-    );
+    cn("gap-2 [&>svg]:size-4", active && "font-medium text-blue-600 focus:text-blue-600");
 
   return (
     <>
-      <DropdownMenuItem
-        onClick={() => handle("left")}
-        className={itemCls(textAlign === "left")}
-      >
+      <DropdownMenuItem onClick={() => handle("left")} className={itemCls(textAlign === "left")}>
         <AlignLeft />
         左对齐
       </DropdownMenuItem>
-      <DropdownMenuItem
-        onClick={() => handle("center")}
-        className={itemCls(textAlign === "center")}
-      >
+      <DropdownMenuItem onClick={() => handle("center")} className={itemCls(textAlign === "center")}>
         <AlignCenter />
         居中对齐
       </DropdownMenuItem>
-      <DropdownMenuItem
-        onClick={() => handle("right")}
-        className={itemCls(textAlign === "right")}
-      >
+      <DropdownMenuItem onClick={() => handle("right")} className={itemCls(textAlign === "right")}>
         <AlignRight />
         右对齐
       </DropdownMenuItem>
       <DropdownMenuSeparator />
-      <DropdownMenuItem
-        onClick={() => handle("outdent")}
-        className="gap-2 [&>svg]:size-4"
-      >
+      <DropdownMenuItem onClick={() => handle("outdent")} className="gap-2 [&>svg]:size-4">
         <Outdent />
         减少缩进
       </DropdownMenuItem>
-      <DropdownMenuItem
-        onClick={() => handle("indent")}
-        className="gap-2 [&>svg]:size-4"
-      >
+      <DropdownMenuItem onClick={() => handle("indent")} className="gap-2 [&>svg]:size-4">
         <Indent />
         增加缩进
       </DropdownMenuItem>
@@ -464,11 +436,21 @@ const NodeTypeDropdownItems = ({
   const handle = (key: string) => {
     let chain = editor.chain().focus();
 
-    if (editor.isActive("bulletList")) chain = chain.toggleBulletList();
-    if (editor.isActive("orderedList")) chain = chain.toggleOrderedList();
-    if (editor.isActive("taskList")) chain = chain.toggleTaskList();
-    if (editor.isActive("blockquote")) chain = chain.toggleBlockquote();
-    if (editor.isActive("codeBlock")) chain = chain.toggleCodeBlock();
+    if (editor.isActive("bulletList")) {
+      chain = chain.toggleBulletList();
+    }
+    if (editor.isActive("orderedList")) {
+      chain = chain.toggleOrderedList();
+    }
+    if (editor.isActive("taskList")) {
+      chain = chain.toggleTaskList();
+    }
+    if (editor.isActive("blockquote")) {
+      chain = chain.toggleBlockquote();
+    }
+    if (editor.isActive("codeBlock")) {
+      chain = chain.toggleCodeBlock();
+    }
     for (let i = 1; i <= 6; i++) {
       if (editor.isActive("heading", { level: i })) {
         chain = chain.setParagraph();
@@ -499,26 +481,18 @@ const NodeTypeDropdownItems = ({
         if (key.startsWith("h")) {
           const level = parseInt(key.replace("h", ""), 10);
           if (!Number.isNaN(level)) {
-            chain
-              .toggleHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 })
-              .run();
+            chain.toggleHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 }).run();
           }
         }
     }
   };
 
   const itemCls = (key: string) =>
-    cn(
-      "gap-2 [&>svg]:size-4",
-      activeNodeType === key && "font-medium text-blue-600 focus:text-blue-600",
-    );
+    cn("gap-2 [&>svg]:size-4", activeNodeType === key && "font-medium text-blue-600 focus:text-blue-600");
 
   return (
     <>
-      <DropdownMenuItem
-        onClick={() => handle("paragraph")}
-        className={itemCls("paragraph")}
-      >
+      <DropdownMenuItem onClick={() => handle("paragraph")} className={itemCls("paragraph")}>
         <Pilcrow />
         正文
       </DropdownMenuItem>
@@ -542,24 +516,15 @@ const NodeTypeDropdownItems = ({
             其他标题
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
-            <DropdownMenuItem
-              onClick={() => handle("h4")}
-              className={itemCls("h4")}
-            >
+            <DropdownMenuItem onClick={() => handle("h4")} className={itemCls("h4")}>
               <Heading4 />
               四级标题
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handle("h5")}
-              className={itemCls("h5")}
-            >
+            <DropdownMenuItem onClick={() => handle("h5")} className={itemCls("h5")}>
               <Heading5 />
               五级标题
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handle("h6")}
-              className={itemCls("h6")}
-            >
+            <DropdownMenuItem onClick={() => handle("h6")} className={itemCls("h6")}>
               <Heading6 />
               六级标题
             </DropdownMenuItem>
@@ -567,24 +532,15 @@ const NodeTypeDropdownItems = ({
         </DropdownMenuSub>
       ) : (
         <>
-          <DropdownMenuItem
-            onClick={() => handle("h4")}
-            className={itemCls("h4")}
-          >
+          <DropdownMenuItem onClick={() => handle("h4")} className={itemCls("h4")}>
             <Heading4 />
             四级标题
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => handle("h5")}
-            className={itemCls("h5")}
-          >
+          <DropdownMenuItem onClick={() => handle("h5")} className={itemCls("h5")}>
             <Heading5 />
             五级标题
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => handle("h6")}
-            className={itemCls("h6")}
-          >
+          <DropdownMenuItem onClick={() => handle("h6")} className={itemCls("h6")}>
             <Heading6 />
             六级标题
           </DropdownMenuItem>
@@ -593,40 +549,25 @@ const NodeTypeDropdownItems = ({
       {toolbarMode === "bubble" && (
         <>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => handle("bulletList")}
-            className={itemCls("bulletList")}
-          >
+          <DropdownMenuItem onClick={() => handle("bulletList")} className={itemCls("bulletList")}>
             <List />
             无序列表
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => handle("orderedList")}
-            className={itemCls("orderedList")}
-          >
+          <DropdownMenuItem onClick={() => handle("orderedList")} className={itemCls("orderedList")}>
             <ListOrdered />
             有序列表
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => handle("taskList")}
-            className={itemCls("taskList")}
-          >
+          <DropdownMenuItem onClick={() => handle("taskList")} className={itemCls("taskList")}>
             <ListChecks />
             任务列表
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => handle("blockquote")}
-            className={itemCls("blockquote")}
-          >
+          <DropdownMenuItem onClick={() => handle("blockquote")} className={itemCls("blockquote")}>
             <Quote />
             引用
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => handle("codeBlock")}
-            className={itemCls("codeBlock")}
-          >
+          <DropdownMenuItem onClick={() => handle("codeBlock")} className={itemCls("codeBlock")}>
             <Code2 />
             代码块
           </DropdownMenuItem>
@@ -652,18 +593,18 @@ export const AIPolishContent = ({
   const overlayContainer = useMemo(() => getOverlayContainer(editor), [editor]);
   const setStatus = (s: AiPolishStatus) => {
     _setStatus(s);
-    if (statusRef) statusRef.current = s;
+    if (statusRef) {
+      statusRef.current = s;
+    }
   };
   const snapshotRef = useRef<SelectionSnapshot>();
   const promptRef = useRef<string>("");
   const actionTypeRef = useRef<RewriteActionType | undefined>();
   const abortControllerRef = useRef<AbortController | null>(null);
-  const { setMaskVisible, onAiPolish } = useEditorContext(
-    ({ onAiPolish, setMaskVisible }) => ({
-      onAiPolish,
-      setMaskVisible,
-    }),
-  );
+  const { setMaskVisible, onAiPolish } = useEditorContext(({ onAiPolish, setMaskVisible }) => ({
+    onAiPolish,
+    setMaskVisible,
+  }));
 
   const getInputValue = () => {
     return inputRef.current?.innerText || "";
@@ -687,10 +628,7 @@ export const AIPolishContent = ({
   }, []);
 
   const handlePolish = async () => {
-    if (
-      actionTypeRef.current === RewriteActionType.ChatInDoc &&
-      !promptRef.current
-    ) {
+    if (actionTypeRef.current === RewriteActionType.ChatInDoc && !promptRef.current) {
       toast.warning("请输入指令");
       return;
     }
@@ -727,17 +665,20 @@ export const AIPolishContent = ({
 
       let accumulated = "";
       for await (const token of parseSSEStream(stream)) {
-        if (controller.signal.aborted) break;
+        if (controller.signal.aborted) {
+          break;
+        }
         accumulated += token;
         setInputValue(extractTextFromPartialJson(accumulated));
       }
 
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted) {
+        return;
+      }
 
       let texts: string[];
       try {
-        const parsed: { content: string; type: string }[] =
-          JSON.parse(accumulated);
+        const parsed: { content: string; type: string }[] = JSON.parse(accumulated);
         texts = parsed.map((item) => item.content);
       } catch {
         texts = [accumulated];
@@ -748,23 +689,31 @@ export const AIPolishContent = ({
       setStatus(AiPolishStatus.Ready);
     } catch (e) {
       const error = e as { name?: string; message?: string };
-      if (error.name === "AbortError") return;
+      if (error.name === "AbortError") {
+        return;
+      }
       toast.warning(error.message || "AI 润色失败，请稍后重试");
       handleReset();
     }
   };
 
   const handleReplace = () => {
-    if (!snapshotRef.current) return;
+    if (!snapshotRef.current) {
+      return;
+    }
     applyBlocksToSelection(editor, snapshotRef.current, newTexts);
     toast.success("AI 润色成功");
     handleReset();
   };
 
   const handleInsert = () => {
-    if (!snapshotRef.current) return;
+    if (!snapshotRef.current) {
+      return;
+    }
     const text = getInputValue();
-    if (!text) return;
+    if (!text) {
+      return;
+    }
 
     editor.chain().insertContentAt(snapshotRef.current.range.to, text).run();
     toast.success("AI 插入成功");
@@ -788,8 +737,7 @@ export const AIPolishContent = ({
     const target = e.target as HTMLDivElement;
     const isEmpty =
       !target.textContent?.trim() &&
-      (!target.children.length ||
-        (target.children.length === 1 && target.children[0].nodeName === "BR"));
+      (!target.children.length || (target.children.length === 1 && target.children[0].nodeName === "BR"));
 
     if (isEmpty) {
       target.dataset.empty = "true";
@@ -842,12 +790,7 @@ export const AIPolishContent = ({
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              size="icon"
-              variant="default"
-              className="size-7 rounded-full"
-              onClick={handleSend}
-            >
+            <Button size="icon" variant="default" className="size-7 rounded-full" onClick={handleSend}>
               <Send className="size-3.5" />
             </Button>
           </TooltipTrigger>
@@ -858,12 +801,7 @@ export const AIPolishContent = ({
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              size="icon"
-              variant="default"
-              className="size-7 rounded-full"
-              onClick={handleStop}
-            >
+            <Button size="icon" variant="default" className="size-7 rounded-full" onClick={handleStop}>
               <Square className="size-3 fill-current" />
             </Button>
           </TooltipTrigger>
@@ -883,12 +821,7 @@ export const AIPolishContent = ({
             <RefreshCw className="size-3.5" />
             替换
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleInsert}
-            className="h-7 gap-1"
-          >
+          <Button size="sm" variant="outline" onClick={handleInsert} className="h-7 gap-1">
             <CornerDownLeft className="size-3.5" />
             插入
           </Button>
@@ -896,12 +829,7 @@ export const AIPolishContent = ({
         <div className="flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="outline"
-                className="size-7"
-                onClick={handleCopy}
-              >
+              <Button size="icon" variant="outline" className="size-7" onClick={handleCopy}>
                 <Copy className="size-3.5" />
               </Button>
             </TooltipTrigger>
@@ -909,12 +837,7 @@ export const AIPolishContent = ({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="outline"
-                className="size-7"
-                onClick={handleRetry}
-              >
+              <Button size="icon" variant="outline" className="size-7" onClick={handleRetry}>
                 <RefreshCw className="size-3.5" />
               </Button>
             </TooltipTrigger>
@@ -922,12 +845,7 @@ export const AIPolishContent = ({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="outline"
-                className="size-7"
-                onClick={() => handleReset(false)}
-              >
+              <Button size="icon" variant="outline" className="size-7" onClick={() => handleReset(false)}>
                 <RotateCcw className="size-3.5" />
               </Button>
             </TooltipTrigger>
@@ -967,9 +885,7 @@ export const AIPolishContent = ({
               }
             }}
           />
-          <div className="flex max-w-full flex-grow justify-between gap-2">
-            {render()}
-          </div>
+          <div className="flex max-w-full flex-grow justify-between gap-2">{render()}</div>
         </div>
       </PopoverTrigger>
       <PopoverContent
@@ -982,22 +898,13 @@ export const AIPolishContent = ({
       >
         <Menu inline>
           <MenuItemGroup label="快捷指令">
-            <MenuItem
-              icon={<Wand2 />}
-              onClick={() => handleMenuClick(RewriteActionType.Polish)}
-            >
+            <MenuItem icon={<Wand2 />} onClick={() => handleMenuClick(RewriteActionType.Polish)}>
               润色
             </MenuItem>
-            <MenuItem
-              icon={<ChevronsUpDown />}
-              onClick={() => handleMenuClick(RewriteActionType.Expansion)}
-            >
+            <MenuItem icon={<ChevronsUpDown />} onClick={() => handleMenuClick(RewriteActionType.Expansion)}>
               扩写
             </MenuItem>
-            <MenuItem
-              icon={<ChevronsDownUp />}
-              onClick={() => handleMenuClick(RewriteActionType.Abbreviation)}
-            >
+            <MenuItem icon={<ChevronsDownUp />} onClick={() => handleMenuClick(RewriteActionType.Abbreviation)}>
               缩写
             </MenuItem>
           </MenuItemGroup>
@@ -1013,19 +920,13 @@ interface ToolbarContentProps {
   onOpenPolish?: () => void;
 }
 
-const ToolbarContent = ({
-  editor,
-  aiEnable,
-  commentEnable,
-  onOpenPolish,
-}: ToolbarContentProps) => {
-  const { contentType, toolbarMode, toolbarRender, onUpload } =
-    useEditorContext((ctx) => ({
-      contentType: ctx.contentType,
-      toolbarMode: ctx.toolbarMode,
-      toolbarRender: ctx.toolbarRender,
-      onUpload: ctx.onUpload,
-    }));
+const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: ToolbarContentProps) => {
+  const { contentType, toolbarMode, toolbarRender, onUpload } = useEditorContext((ctx) => ({
+    contentType: ctx.contentType,
+    toolbarMode: ctx.toolbarMode,
+    toolbarRender: ctx.toolbarRender,
+    onUpload: ctx.onUpload,
+  }));
   const [linkUrl, setLinkUrl] = useState("");
   const [linkVisible, setLinkVisible] = useState(false);
   const [comment, setComment] = useState("");
@@ -1080,26 +981,20 @@ const ToolbarContent = ({
         canAlign: can.setTextAlign?.("left") ?? false,
         canUndo: can.undo(),
         canRedo: can.redo(),
-        canColor: !!(
-          can.setColor?.("#000") && can.setHighlight?.({ color: "#000" })
-        ),
+        canColor: !!(can.setColor?.("#000") && can.setHighlight?.({ color: "#000" })),
         canAddComment: !e.state.selection.empty,
         selectionTextLength: e.state.selection.empty
           ? 0
-          : e.state.doc.textBetween(
-              e.state.selection.from,
-              e.state.selection.to,
-              " ",
-            ).length,
-        currentColor:
-          (e.getAttributes("textStyle").color as string | undefined) ?? null,
-        currentBg:
-          (e.getAttributes("highlight").color as string | undefined) ?? null,
+          : e.state.doc.textBetween(e.state.selection.from, e.state.selection.to, " ").length,
+        currentColor: (e.getAttributes("textStyle").color as string | undefined) ?? null,
+        currentBg: (e.getAttributes("highlight").color as string | undefined) ?? null,
         canChangeType: computeCanChangeType(e, contentType),
       };
     },
     equalityFn: (prev, next) => {
-      if (!prev || !next) return prev === next;
+      if (!prev || !next) {
+        return prev === next;
+      }
       return (
         prev.isBold === next.isBold &&
         prev.isItalic === next.isItalic &&
@@ -1149,7 +1044,9 @@ const ToolbarContent = ({
   const linkInvalid = useMemo(() => !URL_REGEX.test(linkUrl), [linkUrl]);
 
   const handleAddComment = () => {
-    if (!editorState.canAddComment) return;
+    if (!editorState.canAddComment) {
+      return;
+    }
     if (!comment.trim()) {
       toast.warning("请输入评论内容");
       return;
@@ -1182,7 +1079,9 @@ const ToolbarContent = ({
           aria-disabled={!!isDisabled}
           className={btnCls({ isActive, isDisabled })}
           onClick={() => {
-            if (isDisabled) return;
+            if (isDisabled) {
+              return;
+            }
             onClick();
           }}
         >
@@ -1251,11 +1150,7 @@ const ToolbarContent = ({
           {getNodeTypeIcon(editorState.activeNodeType)}
           <ChevronDown className="icon-down" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="min-w-32"
-          container={overlayContainer}
-        >
+        <DropdownMenuContent align="start" className="min-w-32" container={overlayContainer}>
           <NodeTypeDropdownItems
             editor={editor}
             activeNodeType={editorState.activeNodeType}
@@ -1279,15 +1174,8 @@ const ToolbarContent = ({
               {getAlignIcon(editorState.textAlign)}
               <ChevronDown className="icon-down" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              className="min-w-28"
-              container={overlayContainer}
-            >
-              <AlignDropdownItems
-                editor={editor}
-                textAlign={editorState.textAlign}
-              />
+            <DropdownMenuContent align="start" className="min-w-28" container={overlayContainer}>
+              <AlignDropdownItems editor={editor} textAlign={editorState.textAlign} />
             </DropdownMenuContent>
           </DropdownMenu>
         </>
@@ -1335,7 +1223,9 @@ const ToolbarContent = ({
         open={linkVisible}
         onOpenChange={(v) => {
           setLinkVisible(v);
-          if (!v) setLinkUrl("");
+          if (!v) {
+            setLinkUrl("");
+          }
         }}
       >
         <Tooltip>
@@ -1394,11 +1284,7 @@ const ToolbarContent = ({
       </Popover>
 
       {contentType !== "markdown" && (
-        <Popover
-          trigger="hover"
-          open={colorPickerVisible}
-          onOpenChange={setColorPickerVisible}
-        >
+        <Popover trigger="hover" open={colorPickerVisible} onOpenChange={setColorPickerVisible}>
           <PopoverTrigger
             type="button"
             disabled={!editorState.canColor}
@@ -1418,15 +1304,8 @@ const ToolbarContent = ({
             </span>
             <ChevronDown className="icon-down" />
           </PopoverTrigger>
-          <PopoverContent
-            align="start"
-            className="w-auto p-3"
-            container={overlayContainer}
-          >
-            <ColorPickerContent
-              editor={editor}
-              onClose={() => setColorPickerVisible(false)}
-            />
+          <PopoverContent align="start" className="w-auto p-3" container={overlayContainer}>
+            <ColorPickerContent editor={editor} onClose={() => setColorPickerVisible(false)} />
           </PopoverContent>
         </Popover>
       )}
@@ -1481,28 +1360,16 @@ const ToolbarContent = ({
             <Popover>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <PopoverTrigger
-                    type="button"
-                    aria-label="插入表格"
-                    className={btnCls()}
-                  >
+                  <PopoverTrigger type="button" aria-label="插入表格" className={btnCls()}>
                     <TableIcon />
                   </PopoverTrigger>
                 </TooltipTrigger>
                 <EditorTooltipContent>插入表格</EditorTooltipContent>
               </Tooltip>
-              <PopoverContent
-                align="start"
-                className="w-auto p-2"
-                container={overlayContainer}
-              >
+              <PopoverContent align="start" className="w-auto p-2" container={overlayContainer}>
                 <TableSelector
                   onSelect={(rows, cols) => {
-                    editor
-                      .chain()
-                      .focus()
-                      .insertTable({ rows, cols, withHeaderRow: true })
-                      .run();
+                    editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
                   }}
                 />
               </PopoverContent>
@@ -1542,7 +1409,9 @@ const ToolbarContent = ({
           <Popover
             open={commentVisible}
             onOpenChange={(v) => {
-              if (!editorState.canAddComment && v) return;
+              if (!editorState.canAddComment && v) {
+                return;
+              }
               setCommentVisible(v);
             }}
           >
@@ -1561,11 +1430,7 @@ const ToolbarContent = ({
               </TooltipTrigger>
               <EditorTooltipContent>评论</EditorTooltipContent>
             </Tooltip>
-            <PopoverContent
-              align="end"
-              className="w-64 p-3"
-              container={overlayContainer}
-            >
+            <PopoverContent align="end" className="w-64 p-3" container={overlayContainer}>
               <Textarea
                 placeholder="输入评论"
                 value={comment}
@@ -1573,11 +1438,7 @@ const ToolbarContent = ({
                 className="mb-2 min-h-20"
               />
               <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCommentVisible(false)}
-                >
+                <Button variant="outline" size="sm" onClick={() => setCommentVisible(false)}>
                   取消
                 </Button>
                 <Button size="sm" onClick={handleAddComment}>
@@ -1612,11 +1473,6 @@ export const Toolbar: React.FC<IProps> = (props) => {
   const { editor, aiEnable, commentEnable, onOpenPolish } = props;
 
   return (
-    <ToolbarContent
-      editor={editor}
-      aiEnable={aiEnable}
-      commentEnable={commentEnable}
-      onOpenPolish={onOpenPolish}
-    />
+    <ToolbarContent editor={editor} aiEnable={aiEnable} commentEnable={commentEnable} onOpenPolish={onOpenPolish} />
   );
 };

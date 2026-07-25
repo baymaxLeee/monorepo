@@ -1,10 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  checkAccountAvailability,
-  fetchPublicOrgs,
-  type OrgSummary,
-  register,
-} from "api";
+import { checkAccountAvailability, fetchPublicOrgs, type OrgSummary, register } from "api";
 import {
   Button,
   Card,
@@ -34,6 +29,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 import { getErrorMessage } from "shared";
 import { z } from "zod";
+
 import { landingPath } from "../../onboarding";
 
 const registerSchema = z.object({
@@ -78,7 +74,9 @@ function RegisterPage() {
     let alive = true;
     fetchPublicOrgs({ skipErrorNotify: true })
       .then((list) => {
-        if (alive) setOrgs(list);
+        if (alive) {
+          setOrgs(list);
+        }
       })
       .catch((err: unknown) => {
         if (alive) {
@@ -119,7 +117,9 @@ function RegisterPage() {
     const normalizedName = values.name.trim().toLowerCase();
     if (lastCheckedName.current !== normalizedName) {
       const available = await validateNameAvailable(values.name);
-      if (!available) return;
+      if (!available) {
+        return;
+      }
     }
 
     try {
@@ -138,9 +138,7 @@ function RegisterPage() {
         username: session.user.displayName,
       });
       toast.success(
-        values.orgId === "guest-only"
-          ? "注册成功，已进入游客组织"
-          : "注册成功，已进入游客组织；目标组织等待审批",
+        values.orgId === "guest-only" ? "注册成功，已进入游客组织" : "注册成功，已进入游客组织；目标组织等待审批",
       );
       navigate(landingPath(session.user), { replace: true });
     } catch {}
@@ -189,12 +187,7 @@ function RegisterPage() {
                     <Field>
                       <FieldLabel htmlFor="password">Password</FieldLabel>
                       <FormControl>
-                        <Input
-                          id="password"
-                          type="password"
-                          autoComplete="new-password"
-                          {...field}
-                        />
+                        <Input id="password" type="password" autoComplete="new-password" {...field} />
                       </FormControl>
                       <FieldError errors={[form.formState.errors.password]} />
                     </Field>
@@ -205,26 +198,15 @@ function RegisterPage() {
                   name="orgId"
                   render={({ field }) => (
                     <Field>
-                      <FieldLabel htmlFor="orgId">
-                        申请加入其他组织（可选）
-                      </FieldLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                      >
+                      <FieldLabel htmlFor="orgId">申请加入其他组织（可选）</FieldLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
                         <FormControl>
                           <SelectTrigger id="orgId" className="w-full">
-                            <SelectValue
-                              placeholder={
-                                orgsError ? "组织列表加载失败" : "选择目标组织"
-                              }
-                            />
+                            <SelectValue placeholder={orgsError ? "组织列表加载失败" : "选择目标组织"} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="guest-only">
-                            暂不申请，直接体验
-                          </SelectItem>
+                          <SelectItem value="guest-only">暂不申请，直接体验</SelectItem>
                           {orgs.map((org) => (
                             <SelectItem key={org.id} value={org.id}>
                               {org.name}
@@ -243,12 +225,7 @@ function RegisterPage() {
                     <Field>
                       <FieldLabel htmlFor="avatar">Avatar</FieldLabel>
                       <FormControl>
-                        <Input
-                          id="avatar"
-                          type="url"
-                          placeholder="https://example.com/avatar.png"
-                          {...field}
-                        />
+                        <Input id="avatar" type="url" placeholder="https://example.com/avatar.png" {...field} />
                       </FormControl>
                       <FieldError errors={[form.formState.errors.avatar]} />
                     </Field>
@@ -261,12 +238,7 @@ function RegisterPage() {
                     <Field>
                       <FieldLabel htmlFor="email">Email</FieldLabel>
                       <FormControl>
-                        <Input
-                          id="email"
-                          type="email"
-                          autoComplete="email"
-                          {...field}
-                        />
+                        <Input id="email" type="email" autoComplete="email" {...field} />
                       </FormControl>
                       <FieldError errors={[form.formState.errors.email]} />
                     </Field>
@@ -277,36 +249,20 @@ function RegisterPage() {
                   name="phoneNumber"
                   render={({ field }) => (
                     <Field>
-                      <FieldLabel htmlFor="phoneNumber">
-                        Phone Number
-                      </FieldLabel>
+                      <FieldLabel htmlFor="phoneNumber">Phone Number</FieldLabel>
                       <FormControl>
-                        <Input
-                          id="phoneNumber"
-                          type="tel"
-                          autoComplete="tel"
-                          {...field}
-                        />
+                        <Input id="phoneNumber" type="tel" autoComplete="tel" {...field} />
                       </FormControl>
-                      <FieldError
-                        errors={[form.formState.errors.phoneNumber]}
-                      />
+                      <FieldError errors={[form.formState.errors.phoneNumber]} />
                     </Field>
                   )}
                 />
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={form.formState.isSubmitting}
-                >
+                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
                   {form.formState.isSubmitting ? "创建中…" : "创建账号"}
                 </Button>
                 <div className="text-center text-sm text-muted-foreground">
                   已有账号？
-                  <Link
-                    to="/login"
-                    className="ml-1 font-medium text-foreground underline-offset-4 hover:underline"
-                  >
+                  <Link to="/login" className="ml-1 font-medium text-foreground underline-offset-4 hover:underline">
                     去登录
                   </Link>
                 </div>

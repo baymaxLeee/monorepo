@@ -19,12 +19,9 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useRef, useState } from "react";
+
 import { Menu, MenuItem, MenuItemGroup } from "../../../shadcn/menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "../../../shadcn/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "../../../shadcn/popover";
 import { ALLOWED_IMAGE_ACCEPT, isAllowedImageFile } from "../../constants";
 import { useEditorContext } from "../../context";
 import { TableSelector } from "../TableSelector";
@@ -92,31 +89,19 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
               <MenuItemGroup label="基础">
                 <MenuItem
                   icon={<Heading1 />}
-                  onClick={() =>
-                    handleInsert(() =>
-                      editor.chain().focus().toggleHeading({ level: 1 }).run(),
-                    )
-                  }
+                  onClick={() => handleInsert(() => editor.chain().focus().toggleHeading({ level: 1 }).run())}
                 >
                   一级标题
                 </MenuItem>
                 <MenuItem
                   icon={<Heading2 />}
-                  onClick={() =>
-                    handleInsert(() =>
-                      editor.chain().focus().toggleHeading({ level: 2 }).run(),
-                    )
-                  }
+                  onClick={() => handleInsert(() => editor.chain().focus().toggleHeading({ level: 2 }).run())}
                 >
                   二级标题
                 </MenuItem>
                 <MenuItem
                   icon={<Heading3 />}
-                  onClick={() =>
-                    handleInsert(() =>
-                      editor.chain().focus().toggleHeading({ level: 3 }).run(),
-                    )
-                  }
+                  onClick={() => handleInsert(() => editor.chain().focus().toggleHeading({ level: 3 }).run())}
                 >
                   三级标题
                 </MenuItem>
@@ -133,43 +118,19 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
                     <Menu inline>
                       <MenuItem
                         icon={<Heading4 />}
-                        onClick={() =>
-                          handleInsert(() =>
-                            editor
-                              .chain()
-                              .focus()
-                              .toggleHeading({ level: 4 })
-                              .run(),
-                          )
-                        }
+                        onClick={() => handleInsert(() => editor.chain().focus().toggleHeading({ level: 4 }).run())}
                       >
                         四级标题
                       </MenuItem>
                       <MenuItem
                         icon={<Heading5 />}
-                        onClick={() =>
-                          handleInsert(() =>
-                            editor
-                              .chain()
-                              .focus()
-                              .toggleHeading({ level: 5 })
-                              .run(),
-                          )
-                        }
+                        onClick={() => handleInsert(() => editor.chain().focus().toggleHeading({ level: 5 }).run())}
                       >
                         五级标题
                       </MenuItem>
                       <MenuItem
                         icon={<Heading6 />}
-                        onClick={() =>
-                          handleInsert(() =>
-                            editor
-                              .chain()
-                              .focus()
-                              .toggleHeading({ level: 6 })
-                              .run(),
-                          )
-                        }
+                        onClick={() => handleInsert(() => editor.chain().focus().toggleHeading({ level: 6 }).run())}
                       >
                         六级标题
                       </MenuItem>
@@ -181,31 +142,19 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
               <MenuItemGroup label="列表">
                 <MenuItem
                   icon={<List />}
-                  onClick={() =>
-                    handleInsert(() =>
-                      editor.chain().focus().toggleBulletList().run(),
-                    )
-                  }
+                  onClick={() => handleInsert(() => editor.chain().focus().toggleBulletList().run())}
                 >
                   无序列表
                 </MenuItem>
                 <MenuItem
                   icon={<ListOrdered />}
-                  onClick={() =>
-                    handleInsert(() =>
-                      editor.chain().focus().toggleOrderedList().run(),
-                    )
-                  }
+                  onClick={() => handleInsert(() => editor.chain().focus().toggleOrderedList().run())}
                 >
                   有序列表
                 </MenuItem>
                 <MenuItem
                   icon={<CheckSquare />}
-                  onClick={() =>
-                    handleInsert(() =>
-                      editor.chain().focus().toggleTaskList().run(),
-                    )
-                  }
+                  onClick={() => handleInsert(() => editor.chain().focus().toggleTaskList().run())}
                 >
                   任务列表
                 </MenuItem>
@@ -214,31 +163,19 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
               <MenuItemGroup label="插入">
                 <MenuItem
                   icon={<Braces />}
-                  onClick={() =>
-                    handleInsert(() =>
-                      editor.chain().focus().setCodeBlock().run(),
-                    )
-                  }
+                  onClick={() => handleInsert(() => editor.chain().focus().setCodeBlock().run())}
                 >
                   代码块
                 </MenuItem>
                 <MenuItem
                   icon={<Quote />}
-                  onClick={() =>
-                    handleInsert(() =>
-                      editor.chain().focus().setBlockquote().run(),
-                    )
-                  }
+                  onClick={() => handleInsert(() => editor.chain().focus().setBlockquote().run())}
                 >
                   引用
                 </MenuItem>
                 <MenuItem
                   icon={<Minus />}
-                  onClick={() =>
-                    handleInsert(() =>
-                      editor.chain().focus().setHorizontalRule().run(),
-                    )
-                  }
+                  onClick={() => handleInsert(() => editor.chain().focus().setHorizontalRule().run())}
                 >
                   分割线
                 </MenuItem>
@@ -260,11 +197,7 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
                     <TableSelector
                       onSelect={(rows, cols) =>
                         handleInsert(() =>
-                          editor
-                            .chain()
-                            .focus()
-                            .insertTable({ rows, cols, withHeaderRow: true })
-                            .run(),
+                          editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run(),
                         )
                       }
                     />

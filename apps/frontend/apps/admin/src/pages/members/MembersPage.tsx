@@ -41,6 +41,7 @@ import {
 } from "components";
 import { useCallback, useEffect, useState } from "react";
 import { getErrorMessage } from "shared";
+
 import { useAdminIdentity } from "../../identity";
 
 type StatusFilter = "" | "pending" | "active" | "rejected";
@@ -51,19 +52,17 @@ const ROLE_LABEL: Record<OrgMemberView["role"], string> = {
 };
 
 function statusBadge(status: OrgMemberView["status"]) {
-  if (status === "active") return <Badge>已通过</Badge>;
-  if (status === "pending") return <Badge variant="secondary">待审批</Badge>;
+  if (status === "active") {
+    return <Badge>已通过</Badge>;
+  }
+  if (status === "pending") {
+    return <Badge variant="secondary">待审批</Badge>;
+  }
   return <Badge variant="destructive">已拒绝</Badge>;
 }
 
 export function MembersPage() {
-  const {
-    canViewMembers,
-    canManageMembers,
-    isSuperAdmin,
-    activeOrgId,
-    activeOrgName,
-  } = useAdminIdentity();
+  const { canViewMembers, canManageMembers, isSuperAdmin, activeOrgId, activeOrgName } = useAdminIdentity();
   const [orgOptions, setOrgOptions] = useState<OrgAdminView[]>([]);
   const [pickedOrgId, setPickedOrgId] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusFilter>("pending");
@@ -79,11 +78,12 @@ export function MembersPage() {
   // Write actions (approve/reject/role) are allowed only where the caller is an
   // active org_admin — i.e. its own active org. A super_admin browsing another
   // org gets a read-only view; to manage it, it must be an org_admin there.
-  const canActOnOrg =
-    canManageMembers && orgId != null && orgId === activeOrgId;
+  const canActOnOrg = canManageMembers && orgId != null && orgId === activeOrgId;
 
   useEffect(() => {
-    if (!isSuperAdmin) return;
+    if (!isSuperAdmin) {
+      return;
+    }
     listOrgsForAdmin({ skipErrorNotify: true })
       .then((orgs) => {
         setOrgOptions(orgs);
@@ -108,7 +108,9 @@ export function MembersPage() {
   }, [orgId, status]);
 
   useEffect(() => {
-    if (canViewMembers) load();
+    if (canViewMembers) {
+      load();
+    }
   }, [canViewMembers, load]);
 
   if (!canViewMembers) {
@@ -122,9 +124,7 @@ export function MembersPage() {
         </PageHeader>
         <Alert>
           <AlertTitle>无权访问</AlertTitle>
-          <AlertDescription>
-            成员管理仅对组织管理员（org_admin）或平台 super_admin 开放。
-          </AlertDescription>
+          <AlertDescription>成员管理仅对组织管理员（org_admin）或平台 super_admin 开放。</AlertDescription>
         </Alert>
       </Page>
     );
@@ -143,25 +143,27 @@ export function MembersPage() {
   }
 
   function approve(m: OrgMemberView) {
-    if (!orgId) return;
+    if (!orgId) {
+      return;
+    }
     void run(m.userId, () => approveMember(orgId, m.userId), "已通过申请");
   }
 
   function reject(m: OrgMemberView) {
-    if (!orgId) return;
-    const reason = window.prompt(
-      `拒绝「${m.displayName || m.account}」的理由（可选）`,
-    );
-    if (reason === null) return;
-    void run(
-      m.userId,
-      () => rejectMember(orgId, m.userId, reason),
-      "已拒绝申请",
-    );
+    if (!orgId) {
+      return;
+    }
+    const reason = window.prompt(`拒绝「${m.displayName || m.account}」的理由（可选）`);
+    if (reason === null) {
+      return;
+    }
+    void run(m.userId, () => rejectMember(orgId, m.userId, reason), "已拒绝申请");
   }
 
   function changeRole(m: OrgMemberView, role: OrgMemberView["role"]) {
-    if (!orgId) return;
+    if (!orgId) {
+      return;
+    }
     void run(
       m.userId,
       () => setMemberRole(orgId, m.userId, role),
@@ -200,10 +202,7 @@ export function MembersPage() {
         ) : (
           <Badge variant="outline">团队：{activeOrgName ?? "—"}</Badge>
         )}
-        <Select
-          value={status}
-          onValueChange={(v) => setStatus(v as StatusFilter)}
-        >
+        <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
           <SelectTrigger className="w-40">
             <SelectValue />
           </SelectTrigger>
@@ -220,10 +219,8 @@ export function MembersPage() {
         <Alert>
           <AlertTitle>只读视图</AlertTitle>
           <AlertDescription>
-            作为平台
-            super_admin，你可以查看任意组织的成员名册用于治理（如查取用户
-            ID），但审批与角色调整必须由该组织的 org_admin
-            执行。如需亲自管理，请先成为该组织的管理员。
+            作为平台 super_admin，你可以查看任意组织的成员名册用于治理（如查取用户 ID），但审批与角色调整必须由该组织的
+            org_admin 执行。如需亲自管理，请先成为该组织的管理员。
           </AlertDescription>
         </Alert>
       )}
@@ -239,13 +236,7 @@ export function MembersPage() {
         <CardHeader>
           <CardTitle>成员列表</CardTitle>
           <CardDescription>
-            {!orgId
-              ? "请选择要管理的组织"
-              : loading
-                ? "加载中…"
-                : members
-                  ? `共 ${members.length} 人`
-                  : "暂无数据"}
+            {!orgId ? "请选择要管理的组织" : loading ? "加载中…" : members ? `共 ${members.length} 人` : "暂无数据"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -273,9 +264,7 @@ export function MembersPage() {
                     <TableRow key={m.userId}>
                       <TableCell className="font-medium">{m.account}</TableCell>
                       <TableCell>{m.displayName || "—"}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {m.email || "—"}
-                      </TableCell>
+                      <TableCell className="text-muted-foreground">{m.email || "—"}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{ROLE_LABEL[m.role]}</Badge>
                       </TableCell>
@@ -287,20 +276,10 @@ export function MembersPage() {
                           <>
                             {m.status === "pending" && (
                               <>
-                                <Button
-                                  variant="link"
-                                  size="sm"
-                                  disabled={busy}
-                                  onClick={() => approve(m)}
-                                >
+                                <Button variant="link" size="sm" disabled={busy} onClick={() => approve(m)}>
                                   通过
                                 </Button>
-                                <Button
-                                  variant="link"
-                                  size="sm"
-                                  disabled={busy}
-                                  onClick={() => reject(m)}
-                                >
+                                <Button variant="link" size="sm" disabled={busy} onClick={() => reject(m)}>
                                   拒绝
                                 </Button>
                               </>

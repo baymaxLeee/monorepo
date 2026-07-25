@@ -16,4 +16,3 @@ export function rethrowTerminalArtifactError(error: unknown): never {
   }
   throw error;
 }
-

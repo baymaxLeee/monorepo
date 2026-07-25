@@ -1,12 +1,4 @@
-import {
-  applyToOrg,
-  fetchMe,
-  fetchPublicOrgs,
-  logout,
-  type Membership,
-  type OrgSummary,
-  switchActiveOrg,
-} from "api";
+import { applyToOrg, fetchMe, fetchPublicOrgs, logout, type Membership, type OrgSummary, switchActiveOrg } from "api";
 import {
   Badge,
   Button,
@@ -28,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { type PlatformUser, usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
+
 import { activeMemberships, isSuperAdmin } from "../../onboarding";
 
 const POLL_INTERVAL_MS = 5000;
@@ -40,9 +33,7 @@ const STATUS_LABEL: Record<Membership["status"], string> = {
 
 function PendingPage() {
   const navigate = useNavigate();
-  const { user, setUser } = usePlatformStore(
-    useShallow((state) => ({ user: state.user, setUser: state.setUser })),
-  );
+  const { user, setUser } = usePlatformStore(useShallow((state) => ({ user: state.user, setUser: state.setUser })));
   const [orgs, setOrgs] = useState<OrgSummary[]>([]);
   const [selectedOrg, setSelectedOrg] = useState("");
   const [applying, setApplying] = useState(false);
@@ -88,7 +79,9 @@ function PendingPage() {
       busy.current = true;
       try {
         const me = await fetchMe();
-        if (alive) await applyIdentity(me);
+        if (alive) {
+          await applyIdentity(me);
+        }
       } catch {
         /* transient; retry on next tick */
       } finally {
@@ -103,16 +96,14 @@ function PendingPage() {
     };
   }, [applyIdentity]);
 
-  if (!user) return null;
+  if (!user) {
+    return null;
+  }
 
   const heldOrgIds = new Set(user.memberships.map((m) => m.orgId));
   const joinableOrgs = orgs.filter((o) => !heldOrgIds.has(o.id));
-  const pendingMemberships = user.memberships.filter(
-    (m) => m.status === "pending",
-  );
-  const rejectedMemberships = user.memberships.filter(
-    (m) => m.status === "rejected",
-  );
+  const pendingMemberships = user.memberships.filter((m) => m.status === "pending");
+  const rejectedMemberships = user.memberships.filter((m) => m.status === "rejected");
 
   async function refresh() {
     try {
@@ -131,7 +122,9 @@ function PendingPage() {
   }
 
   async function handleApplyOther() {
-    if (!selectedOrg) return;
+    if (!selectedOrg) {
+      return;
+    }
     setApplying(true);
     try {
       await applyToOrg(selectedOrg);
@@ -156,9 +149,7 @@ function PendingPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>等待审批</CardTitle>
-          <CardDescription>
-            你的组织加入申请正在等待管理员审批，通过后会自动进入平台。
-          </CardDescription>
+          <CardDescription>你的组织加入申请正在等待管理员审批，通过后会自动进入平台。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {pendingMemberships.length > 0 && (
@@ -178,22 +169,12 @@ function PendingPage() {
           {rejectedMemberships.length > 0 && (
             <ul className="space-y-2">
               {rejectedMemberships.map((m) => (
-                <li
-                  key={m.orgId}
-                  className="space-y-2 rounded-md border border-destructive/40 px-3 py-2 text-sm"
-                >
+                <li key={m.orgId} className="space-y-2 rounded-md border border-destructive/40 px-3 py-2 text-sm">
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate">{m.orgName}</span>
-                    <Badge variant="destructive">
-                      {STATUS_LABEL[m.status]}
-                    </Badge>
+                    <Badge variant="destructive">{STATUS_LABEL[m.status]}</Badge>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleReapply(m.orgId)}
-                  >
+                  <Button type="button" variant="outline" size="sm" onClick={() => handleReapply(m.orgId)}>
                     重新申请
                   </Button>
                 </li>
@@ -217,11 +198,7 @@ function PendingPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button
-                  type="button"
-                  onClick={handleApplyOther}
-                  disabled={!selectedOrg || applying}
-                >
+                <Button type="button" onClick={handleApplyOther} disabled={!selectedOrg || applying}>
                   申请
                 </Button>
               </div>
@@ -230,12 +207,7 @@ function PendingPage() {
 
           <div className="flex items-center justify-between border-t pt-4">
             <Muted className="text-xs">正在检查审批状态…</Muted>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleLogout}
-            >
+            <Button type="button" variant="ghost" size="sm" onClick={handleLogout}>
               退出登录
             </Button>
           </div>

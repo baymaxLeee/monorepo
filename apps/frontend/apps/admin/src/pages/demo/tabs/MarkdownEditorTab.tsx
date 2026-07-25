@@ -1,5 +1,6 @@
 import { MarkdownEditor } from "components/markdown-editor";
 import { useState } from "react";
+
 import { DemoCard } from "../DemoCard";
 
 const demoHtml = `
@@ -66,21 +67,11 @@ export function MarkdownEditorTab() {
       fill
     >
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-md border">
-        <MarkdownEditor
-          value={value}
-          contentType="html"
-          editable
-          onChange={setValue}
-          className="h-full w-full"
-        />
+        <MarkdownEditor value={value} contentType="html" editable onChange={setValue} className="h-full w-full" />
       </div>
       <div className="shrink-0 rounded-md border bg-muted/40 p-3">
-        <div className="mb-2 text-xs font-medium text-muted-foreground">
-          HTML 输出
-        </div>
-        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all text-xs leading-5">
-          {value}
-        </pre>
+        <div className="mb-2 text-xs font-medium text-muted-foreground">HTML 输出</div>
+        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all text-xs leading-5">{value}</pre>
       </div>
     </DemoCard>
   );

@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+
 import type { CodeEditorProps } from "../CodeEditor/interface";
 
 export interface FileNode {
@@ -70,12 +71,7 @@ export interface FileTab {
   name: string;
 }
 
-export type FileChange =
-  | FileChangeCreate
-  | FileChangeDelete
-  | FileChangeRename
-  | FileChangeMove
-  | FileChangeUpdate;
+export type FileChange = FileChangeCreate | FileChangeDelete | FileChangeRename | FileChangeMove | FileChangeUpdate;
 
 export interface FileWorkspaceRef {
   /** 获取当前完整文件树 */
@@ -149,10 +145,7 @@ export interface FileWorkspaceProps {
    * @default undefined
    * @description 类型与 `CodeEditorProps` 保持一致；其中 `fileId`、`value`、`fileName`、`onChange`、`readOnly` 由工作区内部控制，外部传入会被忽略。若传入 `extensions`、`langMapExtensions`、`onSave` 等配置，建议业务侧保持引用稳定（如提到组件外或配合 `useMemo`），避免内部编辑器重复 reconfigure
    */
-  codeEditorProps?: Omit<
-    CodeEditorProps,
-    "fileId" | "value" | "fileName" | "onChange" | "readOnly"
-  >;
+  codeEditorProps?: Omit<CodeEditorProps, "fileId" | "value" | "fileName" | "onChange" | "readOnly">;
   /**
    * @zh 懒加载占位文案
    * @default "工作区加载中..."

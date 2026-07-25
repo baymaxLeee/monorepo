@@ -68,7 +68,9 @@ export async function checkReadiness(): Promise<ReadinessReport> {
   } catch {
     postgres = "down";
   }
-  if (await pingRedis()) redis = "up";
+  if (await pingRedis()) {
+    redis = "up";
+  }
 
   return {
     ok: postgres === "up" && redis === "up",

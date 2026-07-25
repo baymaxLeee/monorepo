@@ -39,11 +39,7 @@ export function ChatComposerControls({
         disabled={disabled}
         onClick={() => onModeChange(mode === "plan" ? "normal" : "plan")}
       >
-        {mode === "plan" ? (
-          <ListChecksIcon className="size-3.5" />
-        ) : (
-          <BotIcon className="size-3.5" />
-        )}
+        {mode === "plan" ? <ListChecksIcon className="size-3.5" /> : <BotIcon className="size-3.5" />}
         {mode === "plan" ? "Plan" : "Agent"}
       </Button>
       <ModelSelector
@@ -54,10 +50,7 @@ export function ChatComposerControls({
         disabled={options.length === 0}
       />
       {activatedSkillName ? (
-        <Badge
-          variant="secondary"
-          className="h-8 gap-1 rounded-full pl-2.5 pr-1.5"
-        >
+        <Badge variant="secondary" className="h-8 gap-1 rounded-full pl-2.5 pr-1.5">
           <SparklesIcon className="size-3.5" />
           <span className="font-mono text-xs">{activatedSkillName}</span>
           <button

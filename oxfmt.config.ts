@@ -1,0 +1,48 @@
+import { defineConfig } from "oxfmt";
+
+export default defineConfig({
+  arrowParens: "always",
+  bracketSameLine: false,
+  bracketSpacing: true,
+  endOfLine: "lf",
+  ignorePatterns: [
+    "**/node_modules",
+    "**/.git",
+    "**/dist",
+    "**/build",
+    "**/.output",
+    "**/.turbo",
+    "**/coverage",
+    "**/generated",
+    "**/__generated__",
+    "**/*.generated.*",
+    "**/*.gen.*",
+    "**/pnpm-lock.yaml",
+    "**/.rspack-build",
+    "**/dist-mfe",
+    "**/migrations/versions",
+    "**/patches",
+    "apps/backend/libs/transport-ts/src/schema",
+  ],
+  overrides: [
+    {
+      files: ["apps/backend/services/chat/src/application/agent/tools/builtins/files.ts"],
+      options: { printWidth: 160 },
+    },
+  ],
+  jsxSingleQuote: false,
+  printWidth: 120,
+  proseWrap: "never",
+  quoteProps: "as-needed",
+  semi: true,
+  singleQuote: false,
+  sortImports: {
+    ignoreCase: true,
+    newlinesBetween: true,
+    order: "asc",
+  },
+  sortPackageJson: true,
+  tabWidth: 2,
+  trailingComma: "all",
+  useTabs: false,
+});

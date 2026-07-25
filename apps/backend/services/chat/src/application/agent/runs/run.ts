@@ -8,18 +8,12 @@ import {
   validateUIMessages,
 } from "ai";
 
-import type { AgentSkillRef, ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
-import {
-  getProvider,
-  getProviderLimits,
-  getSkillBody,
-  getSkillFile,
-} from "../../../infrastructure/clients/admin.js";
-import { getDocument } from "../../../infrastructure/clients/knowledge.js";
-import type { PersistedMessageContent } from "../../../infrastructure/persistence/schema.js";
-import { NotFoundError, RequestError } from "../../errors.js";
-import { logger } from "../../../infrastructure/observability/logger.js";
 import type { AuthContext } from "../../../api/http/middleware/auth.js";
+import type { AgentSkillRef, ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
+import { getProvider, getProviderLimits, getSkillBody, getSkillFile } from "../../../infrastructure/clients/admin.js";
+import { getDocument } from "../../../infrastructure/clients/knowledge.js";
+import { logger } from "../../../infrastructure/observability/logger.js";
+import type { PersistedMessageContent } from "../../../infrastructure/persistence/schema.js";
 import {
   createMessage,
   getConversationRow,
@@ -30,8 +24,38 @@ import {
   updateConversationProvider,
   type Message,
 } from "../../conversations.js";
+import { NotFoundError, RequestError } from "../../errors.js";
+import { createAgent } from "../agents/factory.js";
+import type { ContextCategoryId } from "../context/context-snapshot.js";
+import {
+  activatedSkillNameFromParts,
+  attachedImageDocumentIdsFromParts,
+  hasUntrustedFilePart,
+  planExecutionPathFromParts,
+  referencedDocumentIdsFromParts,
+} from "../context/file-parts.js";
+import { loadInstructionContext } from "../context/instruction-loader.js";
+import type { BotProfileSnapshot } from "../context/instructions/index.js";
+import { projectModelContext } from "../context/projector.js";
+import { extractMemoryCandidates } from "../memory/extractor.js";
+import {
+  addUsage,
+  EMPTY_USAGE,
+  extractUsageTokens,
+  failAgentRun,
+  type UsageTokens,
+} from "../observability/lifecycle.js";
+import { activateAgentStream, consumeAgentSseStream, deactivateAgentStream } from "../streams/service.js";
 import { generateConversationTitle } from "../title/generator.js";
 import { isToolOutcome } from "../tools/outcome.js";
+import { finalizeCancelledParts } from "./cancellation.js";
+import {
+  compactHistoricalSkillOutputs,
+  continuedSkillReference,
+  mergeClientContinuation,
+  type ContinuedSkillReference,
+} from "./continuation.js";
+import { acquireRunLease, registerRunController, releaseRun } from "./lease.js";
 import {
   createAgentRun,
   finishAgentRun,
@@ -42,39 +66,6 @@ import {
   getRunTrace,
   type AgentRunTrace,
 } from "./repository.js";
-import { finalizeCancelledParts } from "./cancellation.js";
-import { createAgent } from "../agents/factory.js";
-import { extractMemoryCandidates } from "../memory/extractor.js";
-import {
-  addUsage,
-  EMPTY_USAGE,
-  extractUsageTokens,
-  failAgentRun,
-  type UsageTokens,
-} from "../observability/lifecycle.js";
-import {
-  activatedSkillNameFromParts,
-  attachedImageDocumentIdsFromParts,
-  hasUntrustedFilePart,
-  planExecutionPathFromParts,
-  referencedDocumentIdsFromParts,
-} from "../context/file-parts.js";
-import { projectModelContext } from "../context/projector.js";
-import type { ContextCategoryId } from "../context/context-snapshot.js";
-import { loadInstructionContext } from "../context/instruction-loader.js";
-import type { BotProfileSnapshot } from "../context/instructions/index.js";
-import { acquireRunLease, registerRunController, releaseRun } from "./lease.js";
-import {
-  compactHistoricalSkillOutputs,
-  continuedSkillReference,
-  mergeClientContinuation,
-  type ContinuedSkillReference,
-} from "./continuation.js";
-import {
-  activateAgentStream,
-  consumeAgentSseStream,
-  deactivateAgentStream,
-} from "../streams/service.js";
 
 export interface RunAgentInput {
   imageProvider?: ProviderSnapshot | null;
@@ -123,7 +114,9 @@ function describeStreamError(error: unknown): string {
             }
           })();
   const trimmed = message.trim();
-  if (!trimmed) return "工具调用失败，未返回具体原因。";
+  if (!trimmed) {
+    return "工具调用失败，未返回具体原因。";
+  }
   return `工具调用失败：${trimmed.slice(0, 600)}`;
 }
 
@@ -156,9 +149,7 @@ function serializeMessageContent(message: AnyUIMessage): PersistedMessageContent
   return { version: 1, parts: message.parts };
 }
 
-function partsFromPersistedContent(
-  content: PersistedMessageContent,
-): AnyUIMessage["parts"] | null {
+function partsFromPersistedContent(content: PersistedMessageContent): AnyUIMessage["parts"] | null {
   if (content && typeof content === "object" && Array.isArray(content.parts)) {
     return content.parts as AnyUIMessage["parts"];
   }
@@ -189,7 +180,9 @@ export async function createAgentRunResponse(
   const conversation = await getConversationRow(auth, conversationId);
   const uiMessages = await validateUIMessages<AnyUIMessage>({ messages: uiMessagesInput });
   const latestMessage = uiMessages.at(-1);
-  if (!latestMessage) throw new RequestError("agent prompt is required");
+  if (!latestMessage) {
+    throw new RequestError("agent prompt is required");
+  }
   if (latestMessage.role !== "user" && latestMessage.role !== "assistant") {
     throw new RequestError("the last chat message must be a user message or completed client tool call");
   }
@@ -197,9 +190,7 @@ export async function createAgentRunResponse(
   if (latestUser && hasUntrustedFilePart(latestUser.parts)) {
     throw new RequestError("file attachments must reference a conversation document");
   }
-  const requestedDocumentIds = latestUser
-    ? [...new Set(referencedDocumentIds(latestUser))]
-    : [];
+  const requestedDocumentIds = latestUser ? [...new Set(referencedDocumentIds(latestUser))] : [];
   if (latestMessage.role === "user") {
     const prompt = latestUser ? textFromUiMessage(latestUser) : "";
     if (!prompt.trim() && !requestedDocumentIds.length) {
@@ -207,16 +198,16 @@ export async function createAgentRunResponse(
     }
   }
 
-  await Promise.all(requestedDocumentIds.map(async (documentId) => {
-    const document = await getDocument(conversation.userId, documentId);
-    if (document.conversation_id !== conversation.id) {
-      throw new RequestError(`document ${documentId} does not belong to this conversation`);
-    }
-  }));
+  await Promise.all(
+    requestedDocumentIds.map(async (documentId) => {
+      const document = await getDocument(conversation.userId, documentId);
+      if (document.conversation_id !== conversation.id) {
+        throw new RequestError(`document ${documentId} does not belong to this conversation`);
+      }
+    }),
+  );
 
-  const inputMessageId = latestMessage.role === "user"
-    ? persistedMessageId(latestMessage.id)
-    : null;
+  const inputMessageId = latestMessage.role === "user" ? persistedMessageId(latestMessage.id) : null;
   const runId = await createAgentRun({
     conversationId: conversation.id,
     userId: conversation.userId,
@@ -283,7 +274,7 @@ export async function createAgentRunResponse(
       if (continuationIndex < 0) {
         throw new RequestError("client tool continuation message was not found");
       }
-      const persistedContinuation = historyMessages[continuationIndex]!;
+      const persistedContinuation = historyMessages[continuationIndex];
       continuedSkill = continuedSkillReference(persistedContinuation);
       const mergedMessage = mergeClientContinuation(persistedContinuation, latestMessage);
       await updateMessageContent({
@@ -296,8 +287,7 @@ export async function createAgentRunResponse(
       modelUiMessages[continuationIndex] = mergedMessage;
     }
 
-    const memorySourceUser =
-      latestUser ?? [...modelUiMessages].reverse().find((message) => message.role === "user");
+    const memorySourceUser = latestUser ?? [...modelUiMessages].reverse().find((message) => message.role === "user");
     const memorySourceText = memorySourceUser ? textFromUiMessage(memorySourceUser) : "";
 
     const runSignal = registerRunController(runId);
@@ -316,9 +306,7 @@ export async function createAgentRunResponse(
     const botSkills = input.botSkills ?? [];
 
     const activatedSkillName = latestUser ? activatedSkillNameFromParts(latestUser.parts) : null;
-    const executionPlanDocumentId = latestUser
-      ? planExecutionPathFromParts(latestUser.parts)
-      : null;
+    const executionPlanDocumentId = latestUser ? planExecutionPathFromParts(latestUser.parts) : null;
     const currentSkillName = continuedSkill?.name ?? activatedSkillName;
     if (currentSkillName) {
       const picked = botSkills.find((skill) => skill.name === currentSkillName);
@@ -345,21 +333,16 @@ export async function createAgentRunResponse(
       imageProvider: input.imageProvider,
       videoProviderId: input.videoProviderId,
       modelMessages,
-      attachedImageDocumentIds: latestUser
-        ? attachedImageDocumentIdsFromParts(latestUser.parts)
-        : [],
+      attachedImageDocumentIds: latestUser ? attachedImageDocumentIdsFromParts(latestUser.parts) : [],
       executionPlanDocumentId,
       instructionInput,
       activeSkillName: instructionInput.activatedSkill?.name ?? null,
       botSkills,
       loadSkillBody: async (skillId: string) => {
         const skill = await getSkillBody(skillId, auth.orgId);
-        return skill.files.length
-          ? `${skill.body}\n\nAvailable skill files:\n${skill.files.join("\n")}`
-          : skill.body;
+        return skill.files.length ? `${skill.body}\n\nAvailable skill files:\n${skill.files.join("\n")}` : skill.body;
       },
-      loadSkillFile: (skillId: string, path: string) =>
-        getSkillFile(skillId, auth.orgId, path),
+      loadSkillFile: (skillId: string, path: string) => getSkillFile(skillId, auth.orgId, path),
     });
     const agent = agentInstance.agent;
     disposeAgentResources = agentInstance.dispose;
@@ -382,14 +365,11 @@ export async function createAgentRunResponse(
       },
       onEnd: async ({ responseMessage, isContinuation, isAborted, finishReason }) => {
         const currentRun = await getAgentRunById(runId).catch(() => null);
-        const aborted =
-          isAborted || runSignal.aborted || currentRun?.status === "cancel_requested";
+        const aborted = isAborted || runSignal.aborted || currentRun?.status === "cancel_requested";
         const failed = streamFailure != null || finishReason === "error";
         try {
           const sanitizedParts = sanitizePersistedParts(responseMessage.parts);
-          const parts = aborted
-            ? finalizeCancelledParts(sanitizedParts)
-            : sanitizedParts;
+          const parts = aborted ? finalizeCancelledParts(sanitizedParts) : sanitizedParts;
           let outputMessageId: string | null = null;
           if (parts.length > 0) {
             const content = serializeMessageContent({ ...responseMessage, parts } as AnyUIMessage);
@@ -414,12 +394,15 @@ export async function createAgentRunResponse(
           }
           const usage = await Promise.resolve(result.totalUsage).catch(() => null);
           const tokens = addUsage(extractUsageTokens(usage), contextUsage);
-          if (aborted) await finalizeCancelledRunToolCalls(runId);
-          else await finalizeRunToolCallsFromParts(runId, parts);
+          if (aborted) {
+            await finalizeCancelledRunToolCalls(runId);
+          } else {
+            await finalizeRunToolCallsFromParts(runId, parts);
+          }
           await finishAgentRun({
             runId,
             status: aborted ? "cancelled" : failed ? "failed" : "completed",
-            error: failed ? streamFailure ?? "model stream ended with an error" : undefined,
+            error: failed ? (streamFailure ?? "model stream ended with an error") : undefined,
             outputMessageId,
             inputTokens: tokens.inputTokens,
             outputTokens: tokens.outputTokens,
@@ -435,9 +418,7 @@ export async function createAgentRunResponse(
               runId,
               provider,
               userText: memorySourceText,
-            }).catch((error) =>
-              logger.error({ err: error }, "memory extraction failed (non-fatal)"),
-            );
+            }).catch((error) => logger.error({ err: error }, "memory extraction failed (non-fatal)"));
           }
         } catch (error) {
           logger.error({ err: error }, "stream completion persistence failed");
@@ -459,16 +440,16 @@ export async function createAgentRunResponse(
                 provider,
                 userText: firstUserText,
               });
-              if (!title) return;
+              if (!title) {
+                return;
+              }
               await setConversationTitle(conversation.id, title);
               writer.write({
                 type: "data-conversation-title",
                 data: { title },
                 transient: true,
               });
-            })().catch((error) =>
-              logger.error({ err: error }, "conversation title update failed (non-fatal)"),
-            );
+            })().catch((error) => logger.error({ err: error }, "conversation title update failed (non-fatal)"));
             writer.merge(agentUiStream);
             await titlePromise;
           },
@@ -506,10 +487,14 @@ export async function getAgentRunTrace(
   runId: string,
 ): Promise<AgentRunTrace> {
   const businessRun = await getAgentRunById(runId);
-  if (!businessRun) throw new NotFoundError("agent run not found");
+  if (!businessRun) {
+    throw new NotFoundError("agent run not found");
+  }
   assertRunAccess(auth, conversationId, businessRun);
   const trace = await getRunTrace(businessRun.id);
-  if (!trace) throw new NotFoundError("agent run trace not found");
+  if (!trace) {
+    throw new NotFoundError("agent run trace not found");
+  }
   const contextWindow = await getProviderLimits(auth.orgId, businessRun.providerId)
     .then((limits) => limits.contextWindow)
     .catch(() => null);
@@ -531,9 +516,10 @@ export async function getConversationContext(
 ): Promise<{ context: ConversationContextView | null }> {
   await getConversationRow(auth, conversationId);
   const record = await getLatestConversationContextRecord(conversationId);
-  if (!record) return { context: null };
-  const limits = await getProviderLimits(auth.orgId, record.providerId)
-    .catch(() => null);
+  if (!record) {
+    return { context: null };
+  }
+  const limits = await getProviderLimits(auth.orgId, record.providerId).catch(() => null);
   const { snapshot } = record;
   return {
     context: {
@@ -545,7 +531,7 @@ export async function getConversationContext(
 }
 
 function sanitizePersistedParts(parts: AnyUIMessage["parts"]): AnyUIMessage["parts"] {
-  return parts.map(sanitizePersistedPart) as AnyUIMessage["parts"];
+  return parts.map(sanitizePersistedPart);
 }
 
 function sanitizePersistedPart(part: AnyUIMessage["parts"][number]): AnyUIMessage["parts"][number] {
@@ -577,11 +563,15 @@ function compactWebSearchOutput(output: unknown): unknown {
   if (!isToolOutcome(output) || (output.status !== "completed" && output.status !== "partial")) {
     return output;
   }
-  if (!output.data || typeof output.data !== "object") return output;
+  if (!output.data || typeof output.data !== "object") {
+    return output;
+  }
   const row = output.data as Record<string, unknown>;
   const results = Array.isArray(row.results)
     ? row.results.map((item) => {
-        if (!item || typeof item !== "object") return item;
+        if (!item || typeof item !== "object") {
+          return item;
+        }
         const result = item as Record<string, unknown>;
         return {
           ...result,
@@ -595,6 +585,8 @@ function compactWebSearchOutput(output: unknown): unknown {
 }
 
 function truncateString(value: unknown, maxLength: number): unknown {
-  if (typeof value !== "string" || value.length <= maxLength) return value;
+  if (typeof value !== "string" || value.length <= maxLength) {
+    return value;
+  }
   return `${value.slice(0, maxLength).trimEnd()}...[truncated ${value.length} chars]`;
 }

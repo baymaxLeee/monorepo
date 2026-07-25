@@ -19,4 +19,3 @@ async def cleanup_conversation_artifacts_route(
     payload: CleanupConversationArtifactsInput,
 ) -> CleanupConversationArtifactsResult:
     return await cleanup_conversation_artifacts(payload)
-

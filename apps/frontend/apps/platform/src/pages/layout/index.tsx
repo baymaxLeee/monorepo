@@ -1,9 +1,5 @@
 import { Layout as LayoutFrame, Main } from "components";
-import {
-  clearUser as clearObservabilityUser,
-  recordPageView,
-  setUser as setObservabilityUser,
-} from "observability";
+import { clearUser as clearObservabilityUser, recordPageView, setUser as setObservabilityUser } from "observability";
 import { useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { usePlatformStore } from "runtime";

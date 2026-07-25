@@ -1,3 +1,4 @@
+import { propagationHeaders } from "@backend/kernel-ts";
 import {
   ExecutorInternalClient,
   TransportError,
@@ -7,10 +8,9 @@ import {
   type VideoProductionDetail,
   type VideoProductionProjection,
 } from "@backend/transport-ts";
-import { propagationHeaders } from "@backend/kernel-ts";
 
-import { getSettings } from "../../bootstrap/config.js";
 import { NotFoundError } from "../../application/errors.js";
+import { getSettings } from "../../bootstrap/config.js";
 
 export type { Task } from "@backend/transport-ts";
 export type { ProductionDecision, VideoProductionDetail, VideoProductionProjection } from "@backend/transport-ts";
@@ -26,8 +26,16 @@ function executorClient(): ExecutorInternalClient {
 }
 
 type StartTaskInput =
-  | { type: "file-task-batch"; ownerRef: string; payload: Extract<CreateTaskInput, { type: "file-task-batch" }>["payload"] }
-  | { type: "video-generation"; ownerRef: string; payload: Extract<CreateTaskInput, { type: "video-generation" }>["payload"] };
+  | {
+      type: "file-task-batch";
+      ownerRef: string;
+      payload: Extract<CreateTaskInput, { type: "file-task-batch" }>["payload"];
+    }
+  | {
+      type: "video-generation";
+      ownerRef: string;
+      payload: Extract<CreateTaskInput, { type: "video-generation" }>["payload"];
+    };
 
 export async function startTask(input: StartTaskInput): Promise<Task> {
   if (input.type === "file-task-batch") {
@@ -69,7 +77,9 @@ export async function cancelTask(id: string, ownerRef: string): Promise<void> {
       owner_ref: ownerRef,
     });
   } catch (err) {
-    if (err instanceof TransportError && err.status === 404) return;
+    if (err instanceof TransportError && err.status === 404) {
+      return;
+    }
     throw err;
   }
 }

@@ -1,5 +1,6 @@
 import { Page, Tabs, TabsContent, TabsList, TabsTrigger } from "components";
 import { useState } from "react";
+
 import { type DemoTab, defaultDemoTab, resolveDemoTab } from "./data";
 import { BasicTab } from "./tabs/BasicTab";
 import { CodeEditorTab } from "./tabs/CodeEditorTab";
@@ -39,58 +40,31 @@ export function ComponentsDemoPage() {
           <TabsTrigger value="xmind-previewer">XMindPreviewer</TabsTrigger>
         </TabsList>
 
-        <TabsContent
-          value="basic"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4"
-        >
+        <TabsContent value="basic" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4">
           <BasicTab />
         </TabsContent>
-        <TabsContent
-          value="form"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4"
-        >
+        <TabsContent value="form" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4">
           <FormTab />
         </TabsContent>
-        <TabsContent
-          value="overlay"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4"
-        >
+        <TabsContent value="overlay" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4">
           <OverlayTab />
         </TabsContent>
-        <TabsContent
-          value="data"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4"
-        >
+        <TabsContent value="data" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4">
           <DataTab />
         </TabsContent>
-        <TabsContent
-          value="code-editor"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4"
-        >
+        <TabsContent value="code-editor" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4">
           <CodeEditorTab />
         </TabsContent>
-        <TabsContent
-          value="file-workspace"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4"
-        >
+        <TabsContent value="file-workspace" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4">
           <FileWorkspaceTab />
         </TabsContent>
-        <TabsContent
-          value="markdown-editor"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4"
-        >
+        <TabsContent value="markdown-editor" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4">
           <MarkdownEditorTab />
         </TabsContent>
-        <TabsContent
-          value="pdf-previewer"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4"
-        >
+        <TabsContent value="pdf-previewer" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4">
           <PdfPreviewerTab />
         </TabsContent>
-        <TabsContent
-          value="xmind-previewer"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4"
-        >
+        <TabsContent value="xmind-previewer" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden pb-4">
           <XMindPreviewerTab />
         </TabsContent>
       </Tabs>

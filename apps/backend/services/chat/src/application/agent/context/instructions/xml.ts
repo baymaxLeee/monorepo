@@ -12,7 +12,9 @@ export function xmlSection(
   attrs?: Record<string, string>,
 ): string | null {
   const trimmed = body?.trim();
-  if (!trimmed) return null;
+  if (!trimmed) {
+    return null;
+  }
   const attrString = attrs
     ? Object.entries(attrs)
         .map(([key, value]) => ` ${key}="${escapeXmlAttr(value)}"`)

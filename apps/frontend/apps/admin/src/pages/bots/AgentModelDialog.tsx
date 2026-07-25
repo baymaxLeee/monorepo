@@ -1,11 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  type Bot,
-  type BotStatus,
-  type BotTone,
-  type ModelProvider,
-  updateBot,
-} from "api";
+import { type Bot, type BotStatus, type BotTone, type ModelProvider, updateBot } from "api";
 import {
   Button,
   Dialog,
@@ -39,6 +33,7 @@ import {
 import { useEffect } from "react";
 import { type Control, useForm } from "react-hook-form";
 import { z } from "zod";
+
 import { BotSkillsPanel } from "./BotSkillsPanel";
 
 const NONE = "__none__";
@@ -153,7 +148,9 @@ export function AgentModelDialog({
   });
 
   useEffect(() => {
-    if (!bot) return;
+    if (!bot) {
+      return;
+    }
     form.reset({
       name: bot.name,
       status: bot.status ?? "draft",
@@ -173,7 +170,9 @@ export function AgentModelDialog({
     providers.filter((p) => p.is_enabled && p.provider_kind === kind);
 
   async function onSubmit(values: Values) {
-    if (!bot) return;
+    if (!bot) {
+      return;
+    }
     try {
       await updateBot(bot.id, {
         name: values.name.trim(),
@@ -200,9 +199,8 @@ export function AgentModelDialog({
         <DialogHeader>
           <DialogTitle>配置智能体</DialogTitle>
           <DialogDescription>
-            分「身份 / 模型 / 技能 /
-            展示」四组配置。身份进入模型上下文，模型决定可用能力，技能可在对话中通过
-            / 唤起，展示项仅用于前端。
+            分「身份 / 模型 / 技能 / 展示」四组配置。身份进入模型上下文，模型决定可用能力，技能可在对话中通过 /
+            唤起，展示项仅用于前端。
           </DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="identity" className="min-h-0 flex-1 gap-3">
@@ -214,10 +212,7 @@ export function AgentModelDialog({
           </TabsList>
           <DialogBody>
             <Form {...form}>
-              <form
-                id="agent-model-form"
-                onSubmit={form.handleSubmit(onSubmit)}
-              >
+              <form id="agent-model-form" onSubmit={form.handleSubmit(onSubmit)}>
                 <TabsContent value="identity" className="mt-0">
                   <FieldGroup>
                     <FormField
@@ -240,28 +235,20 @@ export function AgentModelDialog({
                         <Field>
                           <FieldLabel>发布状态</FieldLabel>
                           <FormControl>
-                            <Select
-                              value={field.value}
-                              onValueChange={field.onChange}
-                            >
+                            <Select value={field.value} onValueChange={field.onChange}>
                               <SelectTrigger>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
                                 {STATUS_OPTIONS.map((option) => (
-                                  <SelectItem
-                                    key={option.value}
-                                    value={option.value}
-                                  >
+                                  <SelectItem key={option.value} value={option.value}>
                                     {option.label}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           </FormControl>
-                          <FieldDescription>
-                            仅「已发布」的智能体会对终端用户可见。
-                          </FieldDescription>
+                          <FieldDescription>仅「已发布」的智能体会对终端用户可见。</FieldDescription>
                         </Field>
                       )}
                     />
@@ -279,9 +266,7 @@ export function AgentModelDialog({
                               {...field}
                             />
                           </FormControl>
-                          <FieldError
-                            errors={[form.formState.errors.role_description]}
-                          />
+                          <FieldError errors={[form.formState.errors.role_description]} />
                         </Field>
                       )}
                     />
@@ -290,9 +275,7 @@ export function AgentModelDialog({
                       name="domain_description"
                       render={({ field }) => (
                         <Field>
-                          <FieldLabel htmlFor="agent-domain">
-                            领域范围
-                          </FieldLabel>
+                          <FieldLabel htmlFor="agent-domain">领域范围</FieldLabel>
                           <FormControl>
                             <Textarea
                               id="agent-domain"
@@ -301,9 +284,7 @@ export function AgentModelDialog({
                               {...field}
                             />
                           </FormControl>
-                          <FieldError
-                            errors={[form.formState.errors.domain_description]}
-                          />
+                          <FieldError errors={[form.formState.errors.domain_description]} />
                         </Field>
                       )}
                     />
@@ -312,19 +293,11 @@ export function AgentModelDialog({
                       name="audience"
                       render={({ field }) => (
                         <Field>
-                          <FieldLabel htmlFor="agent-audience">
-                            目标受众
-                          </FieldLabel>
+                          <FieldLabel htmlFor="agent-audience">目标受众</FieldLabel>
                           <FormControl>
-                            <Input
-                              id="agent-audience"
-                              placeholder="例如：一线值班与运维工程师"
-                              {...field}
-                            />
+                            <Input id="agent-audience" placeholder="例如：一线值班与运维工程师" {...field} />
                           </FormControl>
-                          <FieldError
-                            errors={[form.formState.errors.audience]}
-                          />
+                          <FieldError errors={[form.formState.errors.audience]} />
                         </Field>
                       )}
                     />
@@ -335,19 +308,13 @@ export function AgentModelDialog({
                         <Field>
                           <FieldLabel>语气</FieldLabel>
                           <FormControl>
-                            <Select
-                              value={field.value}
-                              onValueChange={field.onChange}
-                            >
+                            <Select value={field.value} onValueChange={field.onChange}>
                               <SelectTrigger>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
                                 {TONE_OPTIONS.map((option) => (
-                                  <SelectItem
-                                    key={option.value}
-                                    value={option.value}
-                                  >
+                                  <SelectItem key={option.value} value={option.value}>
                                     {option.label}
                                   </SelectItem>
                                 ))}
@@ -380,9 +347,7 @@ export function AgentModelDialog({
                       label="视频模型"
                       options={byKind("video")}
                     />
-                    <FieldDescription>
-                      模型留空表示不启用该能力。仅列出已启用的 provider。
-                    </FieldDescription>
+                    <FieldDescription>模型留空表示不启用该能力。仅列出已启用的 provider。</FieldDescription>
                   </FieldGroup>
                 </TabsContent>
 
@@ -393,9 +358,7 @@ export function AgentModelDialog({
                       name="welcome_message"
                       render={({ field }) => (
                         <Field>
-                          <FieldLabel htmlFor="agent-welcome">
-                            欢迎语
-                          </FieldLabel>
+                          <FieldLabel htmlFor="agent-welcome">欢迎语</FieldLabel>
                           <FormControl>
                             <Textarea
                               id="agent-welcome"
@@ -404,9 +367,7 @@ export function AgentModelDialog({
                               {...field}
                             />
                           </FormControl>
-                          <FieldError
-                            errors={[form.formState.errors.welcome_message]}
-                          />
+                          <FieldError errors={[form.formState.errors.welcome_message]} />
                         </Field>
                       )}
                     />
@@ -415,9 +376,7 @@ export function AgentModelDialog({
                       name="suggested_questions"
                       render={({ field }) => (
                         <Field>
-                          <FieldLabel htmlFor="agent-questions">
-                            推荐问题
-                          </FieldLabel>
+                          <FieldLabel htmlFor="agent-questions">推荐问题</FieldLabel>
                           <FormControl>
                             <Textarea
                               id="agent-questions"
@@ -428,10 +387,7 @@ export function AgentModelDialog({
                               {...field}
                             />
                           </FormControl>
-                          <FieldDescription>
-                            每行一条，最多 6
-                            条。欢迎语与推荐问题仅用于前端展示。
-                          </FieldDescription>
+                          <FieldDescription>每行一条，最多 6 条。欢迎语与推荐问题仅用于前端展示。</FieldDescription>
                         </Field>
                       )}
                     />
@@ -444,26 +400,16 @@ export function AgentModelDialog({
               {bot ? (
                 <BotSkillsPanel botId={bot.id} />
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  请先保存智能体后再配置技能。
-                </p>
+                <p className="text-sm text-muted-foreground">请先保存智能体后再配置技能。</p>
               )}
             </TabsContent>
           </DialogBody>
         </Tabs>
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             关闭
           </Button>
-          <Button
-            type="submit"
-            form="agent-model-form"
-            disabled={form.formState.isSubmitting}
-          >
+          <Button type="submit" form="agent-model-form" disabled={form.formState.isSubmitting}>
             {form.formState.isSubmitting ? "保存中…" : "保存"}
           </Button>
         </DialogFooter>

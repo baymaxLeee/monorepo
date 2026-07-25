@@ -5,8 +5,8 @@ import { z } from "zod";
 import { fileTaskBatchInputSchema } from "../../../../workflows/file-task-batch.js";
 import { videoGenerationInputSchema } from "../../../../workflows/video-generation.js";
 import { RequestError } from "../../../application/errors.js";
-import { requireCallerService } from "../middleware/auth.js";
 import { cancelTask, createTask, getTask, type TaskOwner } from "../../../application/tasks/service.js";
+import { requireCallerService } from "../middleware/auth.js";
 
 export const tasksRoutes = new Hono();
 
@@ -17,7 +17,9 @@ function parseOwner(c: { req: { query: (key: string) => string | undefined } }):
     throw new RequestError("owner_service must match X-Caller-Service");
   }
   const ref = c.req.query("owner_ref");
-  if (!ref) throw new RequestError("owner_ref query parameter is required");
+  if (!ref) {
+    throw new RequestError("owner_ref query parameter is required");
+  }
   return { service, ref };
 }
 

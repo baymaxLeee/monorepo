@@ -1,10 +1,7 @@
 import { Button, Checkbox, Input } from "components";
 import { useId, useState } from "react";
-import type {
-  AskUserInput,
-  AskUserOutput,
-  AskUserQuestion,
-} from "../lib/ask-user";
+
+import type { AskUserInput, AskUserOutput, AskUserQuestion } from "../lib/ask-user";
 
 export function AskUserToolCard({
   input,
@@ -21,9 +18,7 @@ export function AskUserToolCard({
     const other = freeform[question.id]?.trim();
     return other ? [...values, other] : values;
   };
-  const canSubmit = input.questions.every(
-    (question) => valuesFor(question).length > 0,
-  );
+  const canSubmit = input.questions.every((question) => valuesFor(question).length > 0);
 
   function select(question: AskUserQuestion, value: string) {
     setSelected((current) => {
@@ -51,28 +46,16 @@ export function AskUserToolCard({
             {input.questions.length > 1 ? `${questionIndex + 1}. ` : ""}
             {question.question}
           </legend>
-          <div
-            className={
-              question.mode === "multiple"
-                ? "space-y-2"
-                : "flex flex-wrap gap-2"
-            }
-          >
+          <div className={question.mode === "multiple" ? "space-y-2" : "flex flex-wrap gap-2"}>
             {question.choices.map((choice, choiceIndex) => {
-              const checked = (selected[question.id] ?? []).includes(
-                choice.value,
-              );
+              const checked = (selected[question.id] ?? []).includes(choice.value);
               const checkboxId = `${formId}-${questionIndex}-${choiceIndex}`;
               return question.mode === "multiple" ? (
                 <div
                   key={choice.value}
                   className="flex w-full items-center gap-2 rounded-md border bg-background px-3 py-2 text-left text-sm"
                 >
-                  <Checkbox
-                    id={checkboxId}
-                    checked={checked}
-                    onCheckedChange={() => select(question, choice.value)}
-                  />
+                  <Checkbox id={checkboxId} checked={checked} onCheckedChange={() => select(question, choice.value)} />
                   <label className="flex-1 cursor-pointer" htmlFor={checkboxId}>
                     {choice.label}
                   </label>

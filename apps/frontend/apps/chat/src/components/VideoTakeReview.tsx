@@ -1,9 +1,4 @@
-import {
-  fetchVideoTakePreview,
-  type VideoProductionShotReviewsItem,
-  type VideoShot,
-  type VideoTake,
-} from "api";
+import { fetchVideoTakePreview, type VideoProductionShotReviewsItem, type VideoShot, type VideoTake } from "api";
 import { Badge, Button } from "components";
 import { CheckIcon, Loader2Icon, RotateCcwIcon } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -21,22 +16,30 @@ function TakePreview({
 }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
-    if (!take.stagedMediaId) return;
+    if (!take.stagedMediaId) {
+      return;
+    }
     let active = true;
     let objectUrl: string | null = null;
     void fetchVideoTakePreview(conversationId, productionId, shotId, take.id)
       .then((blob) => {
-        if (!active) return;
+        if (!active) {
+          return;
+        }
         objectUrl = URL.createObjectURL(blob);
         setUrl(objectUrl);
       })
       .catch(() => setUrl(null));
     return () => {
       active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
     };
   }, [conversationId, productionId, shotId, take.id, take.stagedMediaId]);
-  if (!url) return null;
+  if (!url) {
+    return null;
+  }
   return (
     // biome-ignore lint/a11y/useMediaCaption: generated take previews do not have VTT artifacts
     <video className="mt-2 w-full rounded border bg-black" controls src={url} />
@@ -58,9 +61,7 @@ export function VideoTakeReview({
   reviews: VideoProductionShotReviewsItem[];
   disabled: boolean;
   onRetry: (shotId: string) => Promise<void>;
-  onApprove: (
-    selections: Array<{ shotId: string; takeId: string }>,
-  ) => Promise<void>;
+  onApprove: (selections: Array<{ shotId: string; takeId: string }>) => Promise<void>;
 }) {
   const [selected, setSelected] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -68,18 +69,12 @@ export function VideoTakeReview({
       Object.fromEntries(
         reviews.flatMap((review) => {
           const currentTake = review.takes.find(
-            (candidate) =>
-              candidate.id === current[review.shotId] &&
-              candidate.status === "succeeded",
+            (candidate) => candidate.id === current[review.shotId] && candidate.status === "succeeded",
           );
           const take =
             currentTake ??
-            review.takes.find(
-              (candidate) => candidate.id === review.selectedTakeId,
-            ) ??
-            [...review.takes]
-              .reverse()
-              .find((candidate) => candidate.status === "succeeded");
+            review.takes.find((candidate) => candidate.id === review.selectedTakeId) ??
+            [...review.takes].reverse().find((candidate) => candidate.status === "succeeded");
           return take ? [[review.shotId, take.id]] : [];
         }),
       ),
@@ -90,9 +85,7 @@ export function VideoTakeReview({
     reviews.length > 0 &&
     reviews.every((review) => {
       const takeId = selected[review.shotId];
-      return review.takes.some(
-        (take) => take.id === takeId && take.status === "succeeded",
-      );
+      return review.takes.some((take) => take.id === takeId && take.status === "succeeded");
     });
 
   return (
@@ -101,18 +94,10 @@ export function VideoTakeReview({
       {reviews.map((review) => {
         const shot = shots.find((candidate) => candidate.id === review.shotId);
         return (
-          <article
-            key={review.shotId}
-            className="space-y-2 rounded-lg border p-3"
-          >
+          <article key={review.shotId} className="space-y-2 rounded-lg border p-3">
             <div className="flex items-center justify-between text-xs">
               <span>镜头 {(shot?.order ?? 0) + 1}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={disabled}
-                onClick={() => void onRetry(review.shotId)}
-              >
+              <Button variant="outline" size="sm" disabled={disabled} onClick={() => void onRetry(review.shotId)}>
                 <RotateCcwIcon className="mr-1 size-3" />
                 重拍
               </Button>
@@ -131,23 +116,11 @@ export function VideoTakeReview({
                   }
                 >
                   <span>Take {take.number}</span>
-                  <Badge
-                    variant={
-                      selected[review.shotId] === take.id
-                        ? "default"
-                        : "secondary"
-                    }
-                  >
-                    {take.status === "succeeded"
-                      ? selected[review.shotId] === take.id
-                        ? "已选择"
-                        : "可选择"
-                      : "失败"}
+                  <Badge variant={selected[review.shotId] === take.id ? "default" : "secondary"}>
+                    {take.status === "succeeded" ? (selected[review.shotId] === take.id ? "已选择" : "可选择") : "失败"}
                   </Badge>
                 </button>
-                {take.error ? (
-                  <p className="mt-1 text-xs text-destructive">{take.error}</p>
-                ) : null}
+                {take.error ? <p className="mt-1 text-xs text-destructive">{take.error}</p> : null}
                 <TakePreview
                   conversationId={conversationId}
                   productionId={productionId}
@@ -171,11 +144,7 @@ export function VideoTakeReview({
           )
         }
       >
-        {disabled ? (
-          <Loader2Icon className="mr-2 size-4 animate-spin" />
-        ) : (
-          <CheckIcon className="mr-2 size-4" />
-        )}
+        {disabled ? <Loader2Icon className="mr-2 size-4 animate-spin" /> : <CheckIcon className="mr-2 size-4" />}
         批准所选 Take 并合成
       </Button>
     </section>

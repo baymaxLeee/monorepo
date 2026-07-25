@@ -1,13 +1,9 @@
-import {
-  Annotation,
-  Compartment,
-  EditorState,
-  type Extension,
-} from "@codemirror/state";
+import { Annotation, Compartment, EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import type React from "react";
 import { useEffect, useRef } from "react";
 import { cn } from "shared";
+
 import { basicSetup } from "./constants";
 import type { CodeEditorProps } from "./interface";
 import { getLanguageExtension } from "./utils";
@@ -50,7 +46,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         key: "Mod-s",
         run: (view) => {
           const handler = onSaveRef.current;
-          if (typeof handler !== "function") return false;
+          if (typeof handler !== "function") {
+            return false;
+          }
 
           handler(view.state.doc.toString(), view);
           return true;
@@ -62,11 +60,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
 
-  const createEditorState = (
-    doc: string,
-    name: string,
-    nextReadOnly: boolean,
-  ) => {
+  const createEditorState = (doc: string, name: string, nextReadOnly: boolean) => {
     const language = getLanguageExtension(name, langMapExtensions) ?? [];
 
     return EditorState.create({
@@ -78,9 +72,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         EditorView.updateListener.of((update) => {
           if (
             update.docChanged &&
-            !update.transactions.some((transaction) =>
-              transaction.annotation(externalSyncAnnotation),
-            )
+            !update.transactions.some((transaction) => transaction.annotation(externalSyncAnnotation))
           ) {
             onChangeRef.current?.(update.state.doc.toString());
           }
@@ -88,16 +80,16 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         saveKeymapRef.current,
         langCompartmentRef.current.of(language),
         pluginCompartmentRef.current.of(extensions),
-        readOnlyCompartmentRef.current.of(
-          nextReadOnly ? EditorState.readOnly.of(true) : [],
-        ),
+        readOnlyCompartmentRef.current.of(nextReadOnly ? EditorState.readOnly.of(true) : []),
       ],
     });
   };
 
   useEffect(() => {
     const element = containerRef.current;
-    if (!element) return;
+    if (!element) {
+      return;
+    }
 
     const view = new EditorView({ parent: element });
     viewRef.current = view;
@@ -114,7 +106,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   useEffect(() => {
     const view = viewRef.current;
-    if (!view) return;
+    if (!view) {
+      return;
+    }
 
     const previousKey = activeFileIdRef.current;
     if (previousKey) {
@@ -131,7 +125,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       return;
     }
 
-    if (previousKey === cacheKey) return;
+    if (previousKey === cacheKey) {
+      return;
+    }
 
     activeFileIdRef.current = cacheKey;
 
@@ -150,10 +146,14 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   useEffect(() => {
     const view = viewRef.current;
-    if (!view || cacheKey === null) return;
+    if (!view || cacheKey === null) {
+      return;
+    }
 
     const currentValue = view.state.doc.toString();
-    if (currentValue === value) return;
+    if (currentValue === value) {
+      return;
+    }
 
     view.dispatch({
       changes: { from: 0, to: currentValue.length, insert: value },
@@ -163,7 +163,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   useEffect(() => {
     const view = viewRef.current;
-    if (!view || cacheKey === null) return;
+    if (!view || cacheKey === null) {
+      return;
+    }
 
     const language = getLanguageExtension(fileName, langMapExtensions) ?? [];
     view.dispatch({
@@ -173,7 +175,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   useEffect(() => {
     const view = viewRef.current;
-    if (!view || cacheKey === null) return;
+    if (!view || cacheKey === null) {
+      return;
+    }
 
     view.dispatch({
       effects: pluginCompartmentRef.current.reconfigure(extensions),
@@ -182,22 +186,16 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   useEffect(() => {
     const view = viewRef.current;
-    if (!view || cacheKey === null) return;
+    if (!view || cacheKey === null) {
+      return;
+    }
 
     view.dispatch({
-      effects: readOnlyCompartmentRef.current.reconfigure(
-        readOnly ? EditorState.readOnly.of(true) : [],
-      ),
+      effects: readOnlyCompartmentRef.current.reconfigure(readOnly ? EditorState.readOnly.of(true) : []),
     });
   }, [cacheKey, readOnly]);
 
-  return (
-    <div
-      ref={containerRef}
-      style={style}
-      className={cn("code-editor", className)}
-    />
-  );
+  return <div ref={containerRef} style={style} className={cn("code-editor", className)} />;
 };
 
 CodeEditor.displayName = "CodeEditor";

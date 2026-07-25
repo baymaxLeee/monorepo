@@ -9,15 +9,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "components";
+
 import { DemoCard } from "../DemoCard";
 
 export function BasicTab() {
   return (
-    <DemoCard
-      title="基础组件"
-      description="Button、Badge、Avatar、Tooltip 的常用状态"
-      contentClassName="overflow-auto"
-    >
+    <DemoCard title="基础组件" description="Button、Badge、Avatar、Tooltip 的常用状态" contentClassName="overflow-auto">
       <div className="grid gap-8">
         <section className="grid gap-3">
           <h3 className="text-sm font-medium">Button & Badge</h3>
@@ -40,10 +37,7 @@ export function BasicTab() {
           <h3 className="text-sm font-medium">Avatar & Tooltip</h3>
           <div className="flex items-center gap-6">
             <Avatar>
-              <AvatarImage
-                src="https://api.dicebear.com/7.x/shapes/svg?seed=admin"
-                alt="demo"
-              />
+              <AvatarImage src="https://api.dicebear.com/7.x/shapes/svg?seed=admin" alt="demo" />
               <AvatarFallback>AD</AvatarFallback>
             </Avatar>
             <Tooltip>

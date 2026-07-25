@@ -8,7 +8,7 @@
     "dev:watch": "nitro dev",
     "build": "nitro build && node scripts/fix-oidc-trace.mjs",
     "start": "node --env-file=.env .output/server/index.mjs",
-    "lint": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",
+    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/backend/services/executor && pnpm --dir ../../../.. exec oxfmt --check 'apps/backend/services/executor/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}' && node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",
     "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",
     "gen-openapi": "tsx src/gen-openapi.ts"
   },

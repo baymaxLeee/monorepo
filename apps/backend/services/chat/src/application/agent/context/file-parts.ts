@@ -29,9 +29,13 @@ export function referencedDocumentIdsFromParts(parts: ChatPart[]): string[] {
 
 export function planExecutionPathFromParts(parts: ChatPart[]): string | null {
   for (const part of parts) {
-    if (part.type !== "data-plan-execution") continue;
+    if (part.type !== "data-plan-execution") {
+      continue;
+    }
     const path = (part.data as { path?: unknown } | undefined)?.path;
-    if (typeof path === "string" && path) return path;
+    if (typeof path === "string" && path) {
+      return path;
+    }
   }
   return null;
 }
@@ -46,9 +50,13 @@ export function hasUntrustedFilePart(parts: ChatPart[]): boolean {
 export function activatedSkillNameFromParts(parts: ChatPart[]): string | null {
   let name: string | null = null;
   for (const part of parts) {
-    if (part.type !== "data-skill-activation") continue;
+    if (part.type !== "data-skill-activation") {
+      continue;
+    }
     const value = (part.data as { name?: unknown } | undefined)?.name;
-    if (typeof value === "string" && value.trim()) name = value;
+    if (typeof value === "string" && value.trim()) {
+      name = value;
+    }
   }
   return name;
 }
@@ -59,9 +67,13 @@ export function isImageMediaType(mediaType: string): boolean {
 
 export function attachedImageDocumentIdsFromParts(parts: ChatPart[]): string[] {
   return parts.flatMap((part) => {
-    if (!isFileUIPart(part)) return [];
+    if (!isFileUIPart(part)) {
+      return [];
+    }
     const id = documentIdFromFilePart(part);
-    if (!id || !isImageMediaType(String(part.mediaType ?? ""))) return [];
+    if (!id || !isImageMediaType(String(part.mediaType ?? ""))) {
+      return [];
+    }
     return [id];
   });
 }

@@ -17,6 +17,7 @@ import {
   UsersIcon,
 } from "lucide-react";
 import { Link, Outlet, useLocation } from "react-router-dom";
+
 import { useAdminIdentity } from "../../identity";
 
 type AdminMenuItem = {
@@ -70,9 +71,7 @@ function MenuList({ items }: { items: AdminMenuItem[] }) {
     <nav className="grid gap-0.5" aria-label="后台管理菜单">
       {items.map((item) => {
         const Icon = item.icon;
-        const active =
-          location.pathname === item.href ||
-          location.pathname.startsWith(`${item.href}/`);
+        const active = location.pathname === item.href || location.pathname.startsWith(`${item.href}/`);
 
         return (
           <Button
@@ -138,29 +137,21 @@ export function AdminLayout() {
           </Link>
         </Button>
         <Section>
-          <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
-            个人
-          </div>
+          <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">个人</div>
           <MenuList items={personalMenus} />
         </Section>
         <Section>
-          <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
-            管理配置
-          </div>
+          <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">管理配置</div>
           <MenuList items={adminMenus} />
         </Section>
         {governanceMenus.length > 0 && (
           <Section>
-            <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
-              组织与权限
-            </div>
+            <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">组织与权限</div>
             <MenuList items={governanceMenus} />
           </Section>
         )}
         <Section>
-          <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
-            开发
-          </div>
+          <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">开发</div>
           <MenuList items={utilityMenus} />
         </Section>
       </Aside>

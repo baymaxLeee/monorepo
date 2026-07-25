@@ -25,11 +25,7 @@ export interface KnowledgeDocumentDialogProps {
  * View + edit a knowledge document. The body is rendered/edited as Markdown via
  * the shared MarkdownEditor; saving re-indexes the RAG store server-side.
  */
-export function KnowledgeDocumentDialog({
-  documentId,
-  onOpenChange,
-  onSaved,
-}: KnowledgeDocumentDialogProps) {
+export function KnowledgeDocumentDialog({ documentId, onOpenChange, onSaved }: KnowledgeDocumentDialogProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState("");
@@ -37,19 +33,25 @@ export function KnowledgeDocumentDialog({
   const [content, setContent] = useState("");
 
   useEffect(() => {
-    if (!documentId) return;
+    if (!documentId) {
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     fetchKnowledgeDocument(documentId)
       .then((doc) => {
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         setTitle(doc.title);
         setFilename(doc.filename);
         setContent(doc.content_md ?? "");
       })
       .catch(() => {})
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -57,7 +59,9 @@ export function KnowledgeDocumentDialog({
   }, [documentId]);
 
   async function save() {
-    if (!documentId) return;
+    if (!documentId) {
+      return;
+    }
     setSaving(true);
     try {
       await updateKnowledgeDocument(documentId, {
@@ -78,10 +82,7 @@ export function KnowledgeDocumentDialog({
       <DialogContent className="flex h-[85vh] max-w-4xl flex-col">
         <DialogHeader>
           <DialogTitle>阅览 / 编辑文档</DialogTitle>
-          <DialogDescription>
-            正文以 Markdown
-            呈现与编辑；保存后知识库会自动重建检索索引（时效性）。
-          </DialogDescription>
+          <DialogDescription>正文以 Markdown 呈现与编辑；保存后知识库会自动重建检索索引（时效性）。</DialogDescription>
         </DialogHeader>
         {loading ? (
           <div className="flex-1 space-y-3">
@@ -90,11 +91,7 @@ export function KnowledgeDocumentDialog({
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-3">
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="文档标题"
-            />
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="文档标题" />
             <div className="flex min-h-0 flex-1 overflow-hidden rounded-md border">
               <MarkdownEditor
                 value={content}

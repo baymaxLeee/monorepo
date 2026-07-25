@@ -1,19 +1,9 @@
 import type { FileUIPart } from "ai";
-import {
-  Attachment,
-  AttachmentInfo,
-  getMediaCategory,
-} from "components/ai-chat";
-import {
-  FileIcon,
-  ImageIcon,
-  Loader2Icon,
-  type LucideIcon,
-  MusicIcon,
-  PlaySquareIcon,
-} from "lucide-react";
+import { Attachment, AttachmentInfo, getMediaCategory } from "components/ai-chat";
+import { FileIcon, ImageIcon, Loader2Icon, type LucideIcon, MusicIcon, PlaySquareIcon } from "lucide-react";
 import { useRef } from "react";
 import { cn } from "shared";
+
 import { useDocumentBlobUrl } from "../hooks/useDocumentSource";
 import { useInView } from "../hooks/useInView";
 import { documentIdFromFilePart } from "../lib/file-parts";
@@ -53,11 +43,7 @@ export function ChatMessageFilePart({
   );
 
   if (!documentId) {
-    return (
-      <span className="rounded-full border border-dashed px-2 py-0.5 text-[11px] opacity-70">
-        附件无效
-      </span>
-    );
+    return <span className="rounded-full border border-dashed px-2 py-0.5 text-[11px] opacity-70">附件无效</span>;
   }
 
   const item = { ...part, id: documentId };
@@ -82,11 +68,7 @@ export function ChatMessageFilePart({
           )}
         >
           {isImage && blobUrl ? (
-            <img
-              src={blobUrl}
-              alt={part.filename || part.mediaType}
-              className="size-full object-cover"
-            />
+            <img src={blobUrl} alt={part.filename || part.mediaType} className="size-full object-cover" />
           ) : isImage && loading ? (
             <Loader2Icon className="size-4 animate-spin" />
           ) : (

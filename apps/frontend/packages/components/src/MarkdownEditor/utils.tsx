@@ -1,6 +1,7 @@
 import type { Editor } from "@tiptap/core";
 import type { Mark, ResolvedPos } from "@tiptap/pm/model";
 import type { Selection } from "@tiptap/pm/state";
+
 import { isAllowedImageFile } from "./constants";
 
 /**
@@ -29,12 +30,9 @@ export interface SelectionSnapshot {
 }
 
 export const isEditorViewUnavailableError = (error: unknown) =>
-  error instanceof Error &&
-  error.message.includes("The editor view is not available");
+  error instanceof Error && error.message.includes("The editor view is not available");
 
-export const getMountedEditorDom = (
-  editor: Editor | null | undefined,
-): HTMLElement | null => {
+export const getMountedEditorDom = (editor: Editor | null | undefined): HTMLElement | null => {
   if (!editor || editor.isDestroyed) {
     return null;
   }
@@ -55,7 +53,9 @@ export const getMountedEditorDom = (
  */
 export const extractSelectionToBlocks = (editor: Editor): SelectionSnapshot => {
   const { from, to } = editor.state.selection;
-  if (from === to) return { blocks: [], range: { from, to } };
+  if (from === to) {
+    return { blocks: [], range: { from, to } };
+  }
 
   const blocks: StyledTextBlock[] = [];
 
@@ -91,23 +91,9 @@ export const extractSelectionToBlocks = (editor: Editor): SelectionSnapshot => {
 
         if (blocks.length > 0) {
           const lastBlock = blocks[blocks.length - 1];
-          const mergeableTypes = new Set([
-            "paragraph",
-            "link",
-            "comment",
-            "h1",
-            "h2",
-            "h3",
-            "h4",
-            "h5",
-            "h6",
-          ]);
+          const mergeableTypes = new Set(["paragraph", "link", "comment", "h1", "h2", "h3", "h4", "h5", "h6"]);
           const isContiguous = lastBlock.to === currentBlock.from;
-          if (
-            lastBlock.type === currentBlock.type &&
-            mergeableTypes.has(currentBlock.type) &&
-            isContiguous
-          ) {
+          if (lastBlock.type === currentBlock.type && mergeableTypes.has(currentBlock.type) && isContiguous) {
             lastBlock.text += currentBlock.text;
             lastBlock.to = currentBlock.to;
             lastBlock.id = `block_${lastBlock.from}_${currentBlock.to}`;
@@ -128,11 +114,7 @@ export const extractSelectionToBlocks = (editor: Editor): SelectionSnapshot => {
  * 应用润色后的文本块
  * 根据快照信息，将新文本数组回填到编辑器中，并保留原有的格式标记
  */
-export const applyBlocksToSelection = (
-  editor: Editor,
-  snapshot: SelectionSnapshot,
-  newTexts: string[],
-): boolean => {
+export const applyBlocksToSelection = (editor: Editor, snapshot: SelectionSnapshot, newTexts: string[]): boolean => {
   if (!Array.isArray(newTexts) || snapshot.blocks.length !== newTexts.length) {
     console.error("Mismatch between snapshot blocks and new texts");
     return false;
@@ -192,9 +174,7 @@ export function isSelectionInsideTableCell(selection: Selection): boolean {
  * 从 SSE ReadableStream 中逐条解析 event，yield 每个 event 的 content 字段。
  * SSE event 格式：data: {"event":"message","content":"..."}
  */
-export async function* parseSSEStream(
-  stream: ReadableStream<Uint8Array>,
-): AsyncGenerator<string> {
+export async function* parseSSEStream(stream: ReadableStream<Uint8Array>): AsyncGenerator<string> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -202,17 +182,19 @@ export async function* parseSSEStream(
   try {
     for (;;) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
 
       buffer += decoder.decode(value, { stream: true });
       const events = buffer.split("\n\n");
       buffer = events.pop() || "";
 
       for (const event of events) {
-        const dataLine = event
-          .split("\n")
-          .find((line) => line.startsWith("data:"));
-        if (!dataLine) continue;
+        const dataLine = event.split("\n").find((line) => line.startsWith("data:"));
+        if (!dataLine) {
+          continue;
+        }
 
         const jsonStr = dataLine.slice(5).trim();
         try {
@@ -258,10 +240,7 @@ function unescapeJsonString(raw: string): string {
   try {
     return JSON.parse(`"${raw}"`);
   } catch {
-    return raw
-      .replace(/\\n/g, "\n")
-      .replace(/\\"/g, '"')
-      .replace(/\\\\/g, "\\");
+    return raw.replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
   }
 }
 
@@ -274,19 +253,22 @@ function unescapeJsonString(raw: string): string {
  * items 和 files，两次 getAsFile() 可能给出 lastModified 不同的 File，
  * 合并就会出现重复。
  */
-export function getClipboardImageFiles(
-  event: ClipboardEvent | DragEvent,
-): File[] {
-  const data =
-    "clipboardData" in event ? event.clipboardData : event.dataTransfer;
-  if (!data?.items) return [];
+export function getClipboardImageFiles(event: ClipboardEvent | DragEvent): File[] {
+  const data = "clipboardData" in event ? event.clipboardData : event.dataTransfer;
+  if (!data?.items) {
+    return [];
+  }
 
   const files: File[] = [];
   for (let i = 0; i < data.items.length; i += 1) {
     const item = data.items[i];
-    if (item.kind !== "file") continue;
+    if (item.kind !== "file") {
+      continue;
+    }
     const file = item.getAsFile();
-    if (file && isAllowedImageFile(file)) files.push(file);
+    if (file && isAllowedImageFile(file)) {
+      files.push(file);
+    }
   }
   return files;
 }

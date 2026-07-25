@@ -1,10 +1,7 @@
 import { PluginKey } from "@tiptap/pm/state";
 import { FileText, ImageIcon } from "lucide-react";
-import type {
-  PromptInputToken,
-  PromptMentionItem,
-  PromptMentionSource,
-} from "../interface";
+
+import type { PromptInputToken, PromptMentionItem, PromptMentionSource } from "../interface";
 import { createSuggestionExtension } from "./Suggestion";
 
 export const mentionPluginKey = new PluginKey("promptMention");
@@ -27,19 +24,11 @@ export function buildMentionExtension(source: PromptMentionSource) {
     renderItem: (item) => (
       <>
         <span className="prompt-input-suggestion-icon">
-          {item.kind === "image" ? (
-            <ImageIcon className="size-4" />
-          ) : (
-            <FileText className="size-4" />
-          )}
+          {item.kind === "image" ? <ImageIcon className="size-4" /> : <FileText className="size-4" />}
         </span>
         <span className="prompt-input-suggestion-text">
           <span className="prompt-input-suggestion-label">{item.label}</span>
-          {item.description ? (
-            <span className="prompt-input-suggestion-desc">
-              {item.description}
-            </span>
-          ) : null}
+          {item.description ? <span className="prompt-input-suggestion-desc">{item.description}</span> : null}
         </span>
       </>
     ),

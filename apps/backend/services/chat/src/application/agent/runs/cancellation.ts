@@ -1,28 +1,31 @@
 import type { UIMessage } from "ai";
+
 import { isToolOutcome, toolOutcomeData } from "../tools/outcome.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
-const NON_TERMINAL_OUTPUT_STATUSES = new Set([
-  "generating",
-  "pending",
-  "queued",
-  "running",
-  "submitted",
-]);
+const NON_TERMINAL_OUTPUT_STATUSES = new Set(["generating", "pending", "queued", "running", "submitted"]);
 
 export function cancelTodoOutput(output: unknown): unknown {
-  if (!isToolOutcome(output) || output.status !== "completed") return output;
+  if (!isToolOutcome(output) || output.status !== "completed") {
+    return output;
+  }
   const data = toolOutcomeData(output);
-  if (!data || typeof data !== "object") return output;
+  if (!data || typeof data !== "object") {
+    return output;
+  }
   const row = data as Record<string, unknown>;
-  if (!Array.isArray(row.todos)) return output;
+  if (!Array.isArray(row.todos)) {
+    return output;
+  }
   return {
     ...output,
     data: {
       ...row,
       todos: row.todos.map((item) => {
-        if (!item || typeof item !== "object") return item;
+        if (!item || typeof item !== "object") {
+          return item;
+        }
         const todo = item as Record<string, unknown>;
         return todo.status === "completed" ? todo : { ...todo, status: "cancelled" };
       }),
@@ -30,11 +33,11 @@ export function cancelTodoOutput(output: unknown): unknown {
   };
 }
 
-export function finalizeCancelledParts(
-  parts: AnyUIMessage["parts"],
-): AnyUIMessage["parts"] {
+export function finalizeCancelledParts(parts: AnyUIMessage["parts"]): AnyUIMessage["parts"] {
   return parts.map((part) => {
-    if (!part || typeof part !== "object" || !("toolCallId" in part)) return part;
+    if (!part || typeof part !== "object" || !("toolCallId" in part)) {
+      return part;
+    }
 
     let next = part as unknown as Record<string, unknown>;
     if (part.type === "tool-update_todos" && "output" in part) {
@@ -44,11 +47,7 @@ export function finalizeCancelledParts(
     if (next.state === "output-error" || next.state === "output-denied") {
       return next as AnyUIMessage["parts"][number];
     }
-    if (
-      next.state === "output-available" &&
-      next.preliminary !== true &&
-      !hasNonTerminalOutput(next.output)
-    ) {
+    if (next.state === "output-available" && next.preliminary !== true && !hasNonTerminalOutput(next.output)) {
       return next as AnyUIMessage["parts"][number];
     }
 
@@ -58,12 +57,16 @@ export function finalizeCancelledParts(
       state: "output-error",
       errorText: "已取消。",
     } as AnyUIMessage["parts"][number];
-  }) as AnyUIMessage["parts"];
+  });
 }
 
 function hasNonTerminalOutput(output: unknown): boolean {
-  if (isToolOutcome(output)) return output.status === "running";
-  if (!output || typeof output !== "object") return false;
+  if (isToolOutcome(output)) {
+    return output.status === "running";
+  }
+  if (!output || typeof output !== "object") {
+    return false;
+  }
   const status = (output as { status?: unknown }).status;
   return typeof status === "string" && NON_TERMINAL_OUTPUT_STATUSES.has(status);
 }

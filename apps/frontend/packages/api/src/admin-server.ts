@@ -179,10 +179,7 @@ export function createSkill(input: CreateSkillInput): Promise<Skill> {
   return request<Skill>({ url: skillPath(), method: "POST", data: input });
 }
 
-export function updateSkill(
-  id: string,
-  input: UpdateSkillInput,
-): Promise<Skill> {
+export function updateSkill(id: string, input: UpdateSkillInput): Promise<Skill> {
   return request<Skill>({ url: skillPath(id), method: "PATCH", data: input });
 }
 
@@ -197,10 +194,7 @@ export function fetchSkillWorkspace(id: string): Promise<SkillWorkspace> {
   });
 }
 
-export function fetchSkillFile(
-  id: string,
-  nodeId: string,
-): Promise<SkillFileContent> {
+export function fetchSkillFile(id: string, nodeId: string): Promise<SkillFileContent> {
   return request<SkillFileContent>({
     url: `${skillPath(id)}/workspace/files/${nodeId}`,
     method: "GET",
@@ -263,11 +257,7 @@ export function moveSkillNode(
   });
 }
 
-export function deleteSkillNode(
-  id: string,
-  nodeId: string,
-  baseEtag: string,
-): Promise<SkillNodeMutationResult> {
+export function deleteSkillNode(id: string, nodeId: string, baseEtag: string): Promise<SkillNodeMutationResult> {
   return request<SkillNodeMutationResult>({
     url: `${skillPath(id)}/workspace/nodes/${nodeId}`,
     method: "DELETE",
@@ -293,10 +283,7 @@ export function publishSkill(
   });
 }
 
-export function fetchBotSkills(
-  botId: string,
-  options?: RequestOptions,
-): Promise<SkillSummary[]> {
+export function fetchBotSkills(botId: string, options?: RequestOptions): Promise<SkillSummary[]> {
   return request<SkillSummary[]>({
     url: `/api/admin-server/bot/${botId}/skills`,
     method: "GET",
@@ -304,10 +291,7 @@ export function fetchBotSkills(
   });
 }
 
-export function attachBotSkill(
-  botId: string,
-  skillId: string,
-): Promise<SkillSummary[]> {
+export function attachBotSkill(botId: string, skillId: string): Promise<SkillSummary[]> {
   return request<SkillSummary[]>({
     url: `/api/admin-server/bot/${botId}/skills`,
     method: "POST",
@@ -315,10 +299,7 @@ export function attachBotSkill(
   });
 }
 
-export function detachBotSkill(
-  botId: string,
-  skillId: string,
-): Promise<SkillSummary[]> {
+export function detachBotSkill(botId: string, skillId: string): Promise<SkillSummary[]> {
   return request<SkillSummary[]>({
     url: `/api/admin-server/bot/${botId}/skills/${skillId}`,
     method: "DELETE",
@@ -396,14 +377,10 @@ export interface TestModelProviderResult {
 }
 
 function providerPath(id?: string) {
-  return id
-    ? `/api/admin-server/providers/${id}`
-    : "/api/admin-server/providers";
+  return id ? `/api/admin-server/providers/${id}` : "/api/admin-server/providers";
 }
 
-export function fetchModelProviders(
-  options?: RequestOptions,
-): Promise<ModelProvider[]> {
+export function fetchModelProviders(options?: RequestOptions): Promise<ModelProvider[]> {
   return request<ModelProvider[]>({
     url: providerPath(),
     method: "GET",
@@ -415,9 +392,7 @@ export function fetchModelProvider(id: string): Promise<ModelProvider> {
   return request<ModelProvider>({ url: providerPath(id), method: "GET" });
 }
 
-export function createModelProvider(
-  input: CreateModelProviderInput,
-): Promise<ModelProvider> {
+export function createModelProvider(input: CreateModelProviderInput): Promise<ModelProvider> {
   return request<ModelProvider>({
     url: providerPath(),
     method: "POST",
@@ -425,10 +400,7 @@ export function createModelProvider(
   });
 }
 
-export function updateModelProvider(
-  id: string,
-  input: UpdateModelProviderInput,
-): Promise<ModelProvider> {
+export function updateModelProvider(id: string, input: UpdateModelProviderInput): Promise<ModelProvider> {
   return request<ModelProvider>({
     url: providerPath(id),
     method: "PATCH",
@@ -447,10 +419,7 @@ export function setDefaultModelProvider(id: string): Promise<ModelProvider> {
   });
 }
 
-export function testModelProvider(
-  id: string,
-  input: TestModelProviderInput = {},
-): Promise<TestModelProviderResult> {
+export function testModelProvider(id: string, input: TestModelProviderInput = {}): Promise<TestModelProviderResult> {
   return request<TestModelProviderResult>({
     url: `${providerPath(id)}/test`,
     method: "POST",
@@ -504,10 +473,7 @@ export function createApp(input: CreateAppInput): Promise<AppEntry> {
   return request<AppEntry>({ url: appPath(), method: "POST", data: input });
 }
 
-export function updateApp(
-  id: string,
-  input: UpdateAppInput,
-): Promise<AppEntry> {
+export function updateApp(id: string, input: UpdateAppInput): Promise<AppEntry> {
   return request<AppEntry>({ url: appPath(id), method: "PATCH", data: input });
 }
 

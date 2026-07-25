@@ -46,7 +46,9 @@ function parseRatio(ratio: string): [number, number] {
   const [rawW, rawH] = ratio.split(":");
   const w = Number(rawW);
   const h = Number(rawH);
-  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return [9, 16];
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+    return [9, 16];
+  }
   return [w, h];
 }
 
@@ -56,13 +58,17 @@ function even(n: number): number {
 }
 
 export function normalizeVideoRatio(value: unknown): string {
-  if (typeof value !== "string") return DEFAULT_VIDEO_RATIO;
+  if (typeof value !== "string") {
+    return DEFAULT_VIDEO_RATIO;
+  }
   const trimmed = value.trim();
   return SUPPORTED_RATIOS.has(trimmed) ? trimmed : DEFAULT_VIDEO_RATIO;
 }
 
 export function normalizeVideoResolution(value: unknown): string {
-  if (typeof value !== "string") return DEFAULT_VIDEO_RESOLUTION;
+  if (typeof value !== "string") {
+    return DEFAULT_VIDEO_RESOLUTION;
+  }
   const normalized = value.trim().toLowerCase();
   return normalized in RESOLUTION_SHORT_SIDE ? normalized : DEFAULT_VIDEO_RESOLUTION;
 }
@@ -82,8 +88,12 @@ export function resolveVideoDimensions(ratio: string, resolution: string): { wid
 
 function aspectLabel(ratio: string): string {
   const [w, h] = parseRatio(ratio);
-  if (w < h) return `Vertical ${ratio}`;
-  if (w > h) return `Horizontal ${ratio}`;
+  if (w < h) {
+    return `Vertical ${ratio}`;
+  }
+  if (w > h) {
+    return `Horizontal ${ratio}`;
+  }
   return `Square ${ratio}`;
 }
 
@@ -95,7 +105,9 @@ function readFps(extraBody: Record<string, unknown>): number {
 }
 
 function readBoolean(value: unknown, fallback: boolean): boolean {
-  if (typeof value === "boolean") return value;
+  if (typeof value === "boolean") {
+    return value;
+  }
   return fallback;
 }
 
@@ -121,7 +133,9 @@ export function pickArkVideoBody(extraBody: Record<string, unknown>): Record<str
   const coreKeys = new Set(["ratio", "resolution", "generate_audio", "watermark", "framespersecond", "fps"]);
   for (const [rawKey, rawValue] of Object.entries(extraBody)) {
     const key = ARK_VIDEO_BODY_ALIASES[rawKey] ?? rawKey;
-    if (!ARK_VIDEO_BODY_KEYS.has(key) || coreKeys.has(key)) continue;
+    if (!ARK_VIDEO_BODY_KEYS.has(key) || coreKeys.has(key)) {
+      continue;
+    }
     passthrough[key] = rawValue;
   }
   return {

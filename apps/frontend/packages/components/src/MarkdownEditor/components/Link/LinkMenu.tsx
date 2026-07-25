@@ -6,21 +6,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+
 import { Button } from "../../../shadcn/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "../../../shadcn/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "../../../shadcn/form";
 import { Input } from "../../../shadcn/input";
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-} from "../../../shadcn/popover";
+import { Popover, PopoverAnchor, PopoverContent } from "../../../shadcn/popover";
 import { Tooltip, TooltipTrigger } from "../../../shadcn/tooltip";
 import { URL_REGEX } from "../../constants";
 import { getFullUrl, getMountedEditorDom } from "../../utils";
@@ -64,12 +54,12 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
   const updateLinkData = useCallback(
     (linkEl: HTMLElement) => {
       const pos = editor.view.posAtDOM(linkEl, 0);
-      if (pos < 0) return;
+      if (pos < 0) {
+        return;
+      }
 
       const $pos = editor.state.doc.resolve(pos);
-      const linkMark = $pos.nodeAfter?.marks.find(
-        (m) => m.type.name === "link",
-      );
+      const linkMark = $pos.nodeAfter?.marks.find((m) => m.type.name === "link");
 
       if (linkMark) {
         const href = linkMark.attrs.href || "";
@@ -93,16 +83,22 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
 
   useEffect(() => {
     const dom = getMountedEditorDom(editor);
-    if (!dom) return;
+    if (!dom) {
+      return;
+    }
 
     const handleMouseOver = (event: MouseEvent) => {
-      if (mode === "edit") return;
+      if (mode === "edit") {
+        return;
+      }
 
       const target = event.target as HTMLElement;
       const linkEl = target.closest("a");
 
       if (linkEl && dom.contains(linkEl)) {
-        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+        if (hoverTimerRef.current) {
+          clearTimeout(hoverTimerRef.current);
+        }
 
         hoverTimerRef.current = setTimeout(() => {
           updateLinkData(linkEl);
@@ -111,9 +107,13 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
     };
 
     const handleMouseOut = (_event: MouseEvent) => {
-      if (mode === "edit") return;
+      if (mode === "edit") {
+        return;
+      }
 
-      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+      }
 
       hoverTimerRef.current = setTimeout(() => setVisible(false), 300);
     };
@@ -128,11 +128,15 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
   }, [editor, mode, updateLinkData]);
 
   const handleMenuMouseEnter = () => {
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+    }
   };
 
   const handleMenuMouseLeave = () => {
-    if (mode === "edit") return;
+    if (mode === "edit") {
+      return;
+    }
     hoverTimerRef.current = setTimeout(() => setVisible(false), 300);
   };
 
@@ -146,7 +150,9 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
   }, [mode, currentLink.href, currentLink.text, form]);
 
   useEffect(() => {
-    if (mode !== "edit" || !visible) return;
+    if (mode !== "edit" || !visible) {
+      return;
+    }
 
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -188,7 +194,8 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
   };
 
   const handleSubmit = (values: LinkFormValues) => {
-    let { text, href: url } = values;
+    const { text } = values;
+    let { href: url } = values;
     url = getFullUrl(url);
 
     if (anchorEl) {
@@ -207,25 +214,23 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
         }
       }
     } else {
-      editor
-        .chain()
-        .focus()
-        .extendMarkRange("link")
-        .setLink({ href: url })
-        .insertContent(text)
-        .run();
+      editor.chain().focus().extendMarkRange("link").setLink({ href: url }).insertContent(text).run();
     }
 
     setVisible(false);
   };
 
-  if (!anchorEl) return null;
+  if (!anchorEl) {
+    return null;
+  }
 
   return (
     <Popover
       open={visible}
       onOpenChange={(open) => {
-        if (!open) setVisible(false);
+        if (!open) {
+          setVisible(false);
+        }
       }}
     >
       <PopoverAnchor virtualRef={{ current: anchorEl }} />
@@ -238,21 +243,17 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
         onMouseEnter={handleMenuMouseEnter}
         onMouseLeave={handleMenuMouseLeave}
         onOpenAutoFocus={(e) => {
-          if (mode === "preview") e.preventDefault();
+          if (mode === "preview") {
+            e.preventDefault();
+          }
         }}
       >
         {mode === "preview" ? (
           <div className="flex items-center justify-center gap-1 px-2 py-1">
-            <span className="inline-block w-[150px] truncate text-sm">
-              {currentLink.href}
-            </span>
+            <span className="inline-block w-[150px] truncate text-sm">{currentLink.href}</span>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className={ICON_BTN_CLS}
-                  onClick={() => setMode("edit")}
-                >
+                <button type="button" className={ICON_BTN_CLS} onClick={() => setMode("edit")}>
                   <Pencil className="size-4" />
                 </button>
               </TooltipTrigger>
@@ -260,11 +261,7 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className={ICON_BTN_CLS}
-                  onClick={handleUnlink}
-                >
+                <button type="button" className={ICON_BTN_CLS} onClick={handleUnlink}>
                   <Unlink className="size-4" />
                 </button>
               </TooltipTrigger>
@@ -272,11 +269,7 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className={ICON_BTN_CLS}
-                  onClick={handleCopy}
-                >
+                <button type="button" className={ICON_BTN_CLS} onClick={handleCopy}>
                   <Copy className="size-4" />
                 </button>
               </TooltipTrigger>
@@ -316,22 +309,14 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
                     <FormItem className="grid grid-cols-[3rem_1fr] items-center gap-x-2">
                       <FormLabel className="text-right text-xs">链接</FormLabel>
                       <FormControl>
-                        <Input
-                          className="h-8"
-                          placeholder="粘贴或输入链接"
-                          {...field}
-                        />
+                        <Input className="h-8" placeholder="粘贴或输入链接" {...field} />
                       </FormControl>
                       <FormMessage className="col-start-2" />
                     </FormItem>
                   )}
                 />
                 <div className="flex justify-end">
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={!form.formState.isValid}
-                  >
+                  <Button type="submit" size="sm" disabled={!form.formState.isValid}>
                     确认
                   </Button>
                 </div>

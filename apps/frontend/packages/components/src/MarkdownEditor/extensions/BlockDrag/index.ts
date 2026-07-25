@@ -1,11 +1,6 @@
 import { Extension } from "@tiptap/core";
 import { DOMSerializer, Fragment, Slice } from "@tiptap/pm/model";
-import {
-  NodeSelection,
-  Plugin,
-  PluginKey,
-  type Transaction,
-} from "@tiptap/pm/state";
+import { NodeSelection, Plugin, PluginKey, type Transaction } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import type { Editor } from "@tiptap/react";
 
@@ -44,16 +39,19 @@ function getBlockDragMeta(tr: Transaction) {
   return tr.getMeta(BLOCK_DRAG_STORAGE_KEY) as BlockDragMeta | undefined;
 }
 
-function isTopLevelDraggable(
-  view: EditorView,
-  pos: number,
-): TopLevelBlockInfo | null {
+function isTopLevelDraggable(view: EditorView, pos: number): TopLevelBlockInfo | null {
   const node = view.state.doc.nodeAt(pos);
-  if (!node?.isBlock) return null;
+  if (!node?.isBlock) {
+    return null;
+  }
 
   let dom = view.nodeDOM(pos);
-  if (dom instanceof Text) dom = dom.parentElement;
-  if (!isHTMLElement(dom)) return null;
+  if (dom instanceof Text) {
+    dom = dom.parentElement;
+  }
+  if (!isHTMLElement(dom)) {
+    return null;
+  }
 
   return {
     pos,
@@ -62,15 +60,14 @@ function isTopLevelDraggable(
   };
 }
 
-function resolveTopLevelBlockByRect(
-  view: EditorView,
-  y: number,
-): TopLevelBlockInfo | null {
+function resolveTopLevelBlockByRect(view: EditorView, y: number): TopLevelBlockInfo | null {
   let offset = 0;
   for (let i = 0; i < view.state.doc.childCount; i++) {
     const child = view.state.doc.child(i);
     let dom = view.nodeDOM(offset);
-    if (dom instanceof Text) dom = dom.parentElement;
+    if (dom instanceof Text) {
+      dom = dom.parentElement;
+    }
     if (isHTMLElement(dom)) {
       const rect = dom.getBoundingClientRect();
       if (y >= rect.top && y <= rect.bottom) {
@@ -120,19 +117,28 @@ function resolveDropTarget(
   mouseY: number,
   view: EditorView,
 ): BlockDragTarget | null {
-  if (!target) return null;
+  if (!target) {
+    return null;
+  }
 
   const sourceIndex = getTopLevelBlockIndex(view.state.doc, sourcePos);
   const targetIndex = getTopLevelBlockIndex(view.state.doc, target.pos);
-  if (sourceIndex < 0 || targetIndex < 0) return null;
+  if (sourceIndex < 0 || targetIndex < 0) {
+    return null;
+  }
 
   const rect = target.dom.getBoundingClientRect();
-  const placement: BlockDragTarget["placement"] =
-    mouseY <= rect.top + rect.height / 2 ? "before" : "after";
+  const placement: BlockDragTarget["placement"] = mouseY <= rect.top + rect.height / 2 ? "before" : "after";
 
-  if (sourceIndex === targetIndex) return null;
-  if (placement === "before" && sourceIndex + 1 === targetIndex) return null;
-  if (placement === "after" && targetIndex + 1 === sourceIndex) return null;
+  if (sourceIndex === targetIndex) {
+    return null;
+  }
+  if (placement === "before" && sourceIndex + 1 === targetIndex) {
+    return null;
+  }
+  if (placement === "after" && targetIndex + 1 === sourceIndex) {
+    return null;
+  }
 
   return {
     pos: target.pos,
@@ -140,21 +146,11 @@ function resolveDropTarget(
   };
 }
 
-function createMeta(
-  next: BlockDragMeta,
-  current: BlockDragState,
-): BlockDragMeta | null {
+function createMeta(next: BlockDragMeta, current: BlockDragState): BlockDragMeta | null {
   const merged: BlockDragState = {
-    activeBlockPos:
-      next.activeBlockPos !== undefined
-        ? next.activeBlockPos
-        : current.activeBlockPos,
-    draggingBlockPos:
-      next.draggingBlockPos !== undefined
-        ? next.draggingBlockPos
-        : current.draggingBlockPos,
-    dropTarget:
-      next.dropTarget !== undefined ? next.dropTarget : current.dropTarget,
+    activeBlockPos: next.activeBlockPos !== undefined ? next.activeBlockPos : current.activeBlockPos,
+    draggingBlockPos: next.draggingBlockPos !== undefined ? next.draggingBlockPos : current.draggingBlockPos,
+    dropTarget: next.dropTarget !== undefined ? next.dropTarget : current.dropTarget,
   };
 
   if (
@@ -171,9 +167,7 @@ function createMeta(
 
 function clearDragState(view: EditorView) {
   const current =
-    (
-      view as EditorView & { __blockDragReadState?: () => BlockDragState }
-    ).__blockDragReadState?.() ?? INITIAL_STATE;
+    (view as EditorView & { __blockDragReadState?: () => BlockDragState }).__blockDragReadState?.() ?? INITIAL_STATE;
   const meta = createMeta(
     {
       activeBlockPos: null,
@@ -182,32 +176,33 @@ function clearDragState(view: EditorView) {
     },
     current,
   );
-  if (!meta) return;
+  if (!meta) {
+    return;
+  }
   view.dispatch(view.state.tr.setMeta(BLOCK_DRAG_STORAGE_KEY, meta));
 }
 
-function moveBlock(
-  view: EditorView,
-  sourcePos: number,
-  target: BlockDragTarget,
-): boolean {
+function moveBlock(view: EditorView, sourcePos: number, target: BlockDragTarget): boolean {
   const { state } = view;
   const sourceNode = state.doc.nodeAt(sourcePos);
-  if (!sourceNode) return false;
+  if (!sourceNode) {
+    return false;
+  }
 
   const targetNode = state.doc.nodeAt(target.pos);
-  if (!targetNode) return false;
+  if (!targetNode) {
+    return false;
+  }
 
   const sourceSlice = new Slice(Fragment.from(sourceNode), 0, 0);
   let tr = state.tr.delete(sourcePos, sourcePos + sourceNode.nodeSize);
   const mappedTargetPos = tr.mapping.map(target.pos, -1);
   const mappedTargetNode = tr.doc.nodeAt(mappedTargetPos);
-  if (!mappedTargetNode) return false;
+  if (!mappedTargetNode) {
+    return false;
+  }
 
-  const insertPos =
-    target.placement === "before"
-      ? mappedTargetPos
-      : mappedTargetPos + mappedTargetNode.nodeSize;
+  const insertPos = target.placement === "before" ? mappedTargetPos : mappedTargetPos + mappedTargetNode.nodeSize;
 
   tr = tr.insert(insertPos, sourceSlice.content);
   tr = tr.setMeta(BLOCK_DRAG_STORAGE_KEY, {
@@ -229,10 +224,7 @@ declare module "@tiptap/core" {
 
   interface Commands<ReturnType> {
     blockDrag: {
-      startBlockDrag: (
-        pos: number,
-        dataTransfer?: DataTransfer | null,
-      ) => ReturnType;
+      startBlockDrag: (pos: number, dataTransfer?: DataTransfer | null) => ReturnType;
       clearBlockDrag: () => ReturnType;
       /** 用 dragover 阶段追踪到的 dropTarget 完成移动，绕过 drop 事件 */
       finishBlockDrag: () => ReturnType;
@@ -263,10 +255,14 @@ export const createBlockDragExtension = () => {
           (pos, dataTransfer) =>
           ({ editor }) => {
             const block = isTopLevelDraggable(editor.view, pos);
-            if (!block) return false;
+            if (!block) {
+              return false;
+            }
 
             const node = editor.state.doc.nodeAt(pos);
-            if (!node) return false;
+            if (!node) {
+              return false;
+            }
 
             editor.view.dispatch(
               editor.state.tr
@@ -314,11 +310,7 @@ export const createBlockDragExtension = () => {
               clearDragState(editor.view);
               return false;
             }
-            const moved = moveBlock(
-              editor.view,
-              state.draggingBlockPos,
-              state.dropTarget,
-            );
+            const moved = moveBlock(editor.view, state.draggingBlockPos, state.dropTarget);
             if (!moved) {
               clearDragState(editor.view);
             }
@@ -341,18 +333,10 @@ export const createBlockDragExtension = () => {
               }
 
               const nextState = {
-                activeBlockPos:
-                  meta.activeBlockPos !== undefined
-                    ? meta.activeBlockPos
-                    : pluginState.activeBlockPos,
+                activeBlockPos: meta.activeBlockPos !== undefined ? meta.activeBlockPos : pluginState.activeBlockPos,
                 draggingBlockPos:
-                  meta.draggingBlockPos !== undefined
-                    ? meta.draggingBlockPos
-                    : pluginState.draggingBlockPos,
-                dropTarget:
-                  meta.dropTarget !== undefined
-                    ? meta.dropTarget
-                    : pluginState.dropTarget,
+                  meta.draggingBlockPos !== undefined ? meta.draggingBlockPos : pluginState.draggingBlockPos,
+                dropTarget: meta.dropTarget !== undefined ? meta.dropTarget : pluginState.dropTarget,
               };
               currentState = nextState;
               return nextState;
@@ -361,7 +345,9 @@ export const createBlockDragExtension = () => {
           props: {
             handleDrop(view, event) {
               const dragState = currentState;
-              if (dragState.draggingBlockPos == null) return false;
+              if (dragState.draggingBlockPos == null) {
+                return false;
+              }
 
               event.preventDefault();
               const editorRect = view.dom.getBoundingClientRect();
@@ -371,13 +357,7 @@ export const createBlockDragExtension = () => {
                   top: event.clientY,
                 }) ?? null;
               const target =
-                dragState.dropTarget ??
-                resolveDropTarget(
-                  dragState.draggingBlockPos,
-                  block,
-                  event.clientY,
-                  view,
-                );
+                dragState.dropTarget ?? resolveDropTarget(dragState.draggingBlockPos, block, event.clientY, view);
 
               if (!target) {
                 clearDragState(view);
@@ -402,7 +382,9 @@ export const createBlockDragExtension = () => {
               },
               dragover(view, event) {
                 const dragState = currentState;
-                if (dragState.draggingBlockPos == null) return false;
+                if (dragState.draggingBlockPos == null) {
+                  return false;
+                }
 
                 event.preventDefault();
                 if (event.dataTransfer) {
@@ -414,17 +396,12 @@ export const createBlockDragExtension = () => {
                   left: editorRect.left + 24,
                   top: event.clientY,
                 });
-                const nextTarget = resolveDropTarget(
-                  dragState.draggingBlockPos,
-                  block,
-                  event.clientY,
-                  view,
-                );
+                const nextTarget = resolveDropTarget(dragState.draggingBlockPos, block, event.clientY, view);
                 const meta = createMeta({ dropTarget: nextTarget }, dragState);
-                if (!meta) return false;
-                view.dispatch(
-                  view.state.tr.setMeta(BLOCK_DRAG_STORAGE_KEY, meta),
-                );
+                if (!meta) {
+                  return false;
+                }
+                view.dispatch(view.state.tr.setMeta(BLOCK_DRAG_STORAGE_KEY, meta));
                 return false;
               },
             },
@@ -439,7 +416,9 @@ export const createBlockDragExtension = () => {
 
             const updateActiveBlock = (event: MouseEvent) => {
               const dragState = currentState;
-              if (dragState.draggingBlockPos != null) return;
+              if (dragState.draggingBlockPos != null) {
+                return;
+              }
 
               const editorRect = view.dom.getBoundingClientRect();
               const inBounds =
@@ -455,10 +434,10 @@ export const createBlockDragExtension = () => {
                   })?.pos ?? null)
                 : null;
               const meta = createMeta({ activeBlockPos: nextPos }, dragState);
-              if (!meta) return;
-              view.dispatch(
-                view.state.tr.setMeta(BLOCK_DRAG_STORAGE_KEY, meta),
-              );
+              if (!meta) {
+                return;
+              }
+              view.dispatch(view.state.tr.setMeta(BLOCK_DRAG_STORAGE_KEY, meta));
             };
 
             const handleMouseMove = (event: MouseEvent) => {
@@ -469,29 +448,26 @@ export const createBlockDragExtension = () => {
             let clearFrame = 0;
             const clearActiveBlock = (e: FocusEvent) => {
               const related = e.relatedTarget as HTMLElement | null;
-              if (related?.closest?.("[data-drag-handle]")) return;
+              if (related?.closest?.("[data-drag-handle]")) {
+                return;
+              }
 
               cancelAnimationFrame(clearFrame);
               clearFrame = requestAnimationFrame(() => {
                 const dragState = currentState;
-                if (dragState.draggingBlockPos != null) return;
-                const meta = createMeta(
-                  { activeBlockPos: null, dropTarget: null },
-                  dragState,
-                );
-                if (!meta) return;
-                view.dispatch(
-                  view.state.tr.setMeta(BLOCK_DRAG_STORAGE_KEY, meta),
-                );
+                if (dragState.draggingBlockPos != null) {
+                  return;
+                }
+                const meta = createMeta({ activeBlockPos: null, dropTarget: null }, dragState);
+                if (!meta) {
+                  return;
+                }
+                view.dispatch(view.state.tr.setMeta(BLOCK_DRAG_STORAGE_KEY, meta));
               });
             };
 
             document.addEventListener("mousemove", handleMouseMove);
-            view.dom.addEventListener(
-              "blur",
-              clearActiveBlock as EventListener,
-              true,
-            );
+            view.dom.addEventListener("blur", clearActiveBlock as EventListener, true);
 
             return {
               destroy() {
@@ -503,11 +479,7 @@ export const createBlockDragExtension = () => {
                 cancelAnimationFrame(frame);
                 cancelAnimationFrame(clearFrame);
                 document.removeEventListener("mousemove", handleMouseMove);
-                view.dom.removeEventListener(
-                  "blur",
-                  clearActiveBlock as EventListener,
-                  true,
-                );
+                view.dom.removeEventListener("blur", clearActiveBlock as EventListener, true);
               },
             };
           },

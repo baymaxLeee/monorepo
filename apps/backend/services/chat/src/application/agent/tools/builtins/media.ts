@@ -1,33 +1,18 @@
+import { createProviderImageModel } from "@backend/transport-ts/provider-model";
 import { generateImage, NoImageGeneratedError, tool, type JSONValue } from "ai";
 import { z } from "zod";
 
-import { createProviderImageModel } from "@backend/transport-ts/provider-model";
-import { logger } from "../../../../infrastructure/observability/logger.js";
 import type { ProviderSnapshot } from "../../../../infrastructure/clients/admin.js";
-import {
-  getVideoProduction,
-  type Task,
-} from "../../../../infrastructure/clients/executor.js";
+import { getVideoProduction, type Task } from "../../../../infrastructure/clients/executor.js";
 import { createMediaDocument, getDocument } from "../../../../infrastructure/clients/knowledge.js";
-import {
-  pollTaskSnapshots,
-  startExecutorTask,
-  TaskWaitTimeoutError,
-} from "../../tasks/executor-task.js";
+import { logger } from "../../../../infrastructure/observability/logger.js";
+import { pollTaskSnapshots, startExecutorTask, TaskWaitTimeoutError } from "../../tasks/executor-task.js";
 import { mediaToolContextSchema, type MediaToolContext } from "../context.js";
 import { defineAgentTool, defineUnavailableCapability } from "../manifest.js";
-import {
-  toolCompleted,
-  toolFailed,
-  toolPartial,
-  toolRunning,
-  type ToolEmission,
-} from "../outcome.js";
+import { toolCompleted, toolFailed, toolPartial, toolRunning, type ToolEmission } from "../outcome.js";
 
 const imageOutputSchema = z.object({
-  images: z.array(
-    z.object({ document_id: z.string(), filename: z.string(), media_type: z.string() }),
-  ),
+  images: z.array(z.object({ document_id: z.string(), filename: z.string(), media_type: z.string() })),
   count: z.number(),
   failed: z.number(),
   failed_items: z.array(z.object({ index: z.number(), message: z.string() })).optional(),
@@ -85,11 +70,22 @@ const videoCharacterInputSchema = z.object({
 });
 
 const videoShotInputSchema = z.object({
-  purpose: z.string().min(1).max(80), plot: z.string().min(1).max(500), emotion: z.string().min(1).max(120),
-  character_names: z.array(z.string().min(1).max(40)).max(3), seconds: z.number().int().min(4).max(15), action: z.string().min(1).max(1_000),
-  camera: z.object({ shot_size: z.string().min(1).max(80), movement: z.string().min(1).max(160), focus: z.string().max(160).optional() }),
-  environment: z.string().min(1).max(500), lighting_palette: z.string().min(1).max(300), audio_direction: z.string().max(500),
-  continuity_contract: z.array(z.string().min(1).max(300)).max(20), acceptance_criteria: z.array(z.string().min(1).max(1_200)).min(1).max(20),
+  purpose: z.string().min(1).max(80),
+  plot: z.string().min(1).max(500),
+  emotion: z.string().min(1).max(120),
+  character_names: z.array(z.string().min(1).max(40)).max(3),
+  seconds: z.number().int().min(4).max(15),
+  action: z.string().min(1).max(1_000),
+  camera: z.object({
+    shot_size: z.string().min(1).max(80),
+    movement: z.string().min(1).max(160),
+    focus: z.string().max(160).optional(),
+  }),
+  environment: z.string().min(1).max(500),
+  lighting_palette: z.string().min(1).max(300),
+  audio_direction: z.string().max(500),
+  continuity_contract: z.array(z.string().min(1).max(300)).max(20),
+  acceptance_criteria: z.array(z.string().min(1).max(1_200)).min(1).max(20),
 });
 
 const createVideoProductionInputSchema = z.object({
@@ -99,31 +95,48 @@ const createVideoProductionInputSchema = z.object({
     .min(1)
     .max(4_000)
     .describe("Complete creative intent, audience, narrative, visual direction, and constraints."),
-  plan: z.object({
-    target_duration_seconds: z
-      .number()
-      .int()
-      .min(VIDEO_TARGET_MIN_S)
-      .max(VIDEO_TARGET_MAX_S)
-      .describe("Exact total duration; it must equal the sum of every shot.seconds."),
-    logline: z.string().min(1).max(240), motif: z.string().min(1).max(160), style_bible: z.string().min(1).max(240), setting_bible: z.string().min(1).max(240),
-    characters: z
-      .array(videoCharacterInputSchema)
-      .max(3)
-      .describe("Characters used by shots; use an empty array when no recurring character exists."),
-    shots: z
-      .array(videoShotInputSchema)
-      .min(1)
-      .max(12)
-      .describe("Complete ordered generation-shot list. Each shot is one provider generation call."),
-  }).superRefine((plan, ctx) => {
-    const names = new Set(plan.characters.map((character) => character.name));
-    if (names.size !== plan.characters.length) ctx.addIssue({ code: "custom", path: ["characters"], message: "character names must be unique" });
-    if (plan.shots.reduce((sum, shot) => sum + shot.seconds, 0) !== plan.target_duration_seconds) ctx.addIssue({ code: "custom", path: ["shots"], message: "shot seconds must equal target_duration_seconds" });
-    plan.shots.forEach((shot, shotIndex) => shot.character_names.forEach((name, characterIndex) => {
-      if (!names.has(name)) ctx.addIssue({ code: "custom", path: ["shots", shotIndex, "character_names", characterIndex], message: `unknown character ${name}` });
-    }));
-  }),
+  plan: z
+    .object({
+      target_duration_seconds: z
+        .number()
+        .int()
+        .min(VIDEO_TARGET_MIN_S)
+        .max(VIDEO_TARGET_MAX_S)
+        .describe("Exact total duration; it must equal the sum of every shot.seconds."),
+      logline: z.string().min(1).max(240),
+      motif: z.string().min(1).max(160),
+      style_bible: z.string().min(1).max(240),
+      setting_bible: z.string().min(1).max(240),
+      characters: z
+        .array(videoCharacterInputSchema)
+        .max(3)
+        .describe("Characters used by shots; use an empty array when no recurring character exists."),
+      shots: z
+        .array(videoShotInputSchema)
+        .min(1)
+        .max(12)
+        .describe("Complete ordered generation-shot list. Each shot is one provider generation call."),
+    })
+    .superRefine((plan, ctx) => {
+      const names = new Set(plan.characters.map((character) => character.name));
+      if (names.size !== plan.characters.length) {
+        ctx.addIssue({ code: "custom", path: ["characters"], message: "character names must be unique" });
+      }
+      if (plan.shots.reduce((sum, shot) => sum + shot.seconds, 0) !== plan.target_duration_seconds) {
+        ctx.addIssue({ code: "custom", path: ["shots"], message: "shot seconds must equal target_duration_seconds" });
+      }
+      plan.shots.forEach((shot, shotIndex) =>
+        shot.character_names.forEach((name, characterIndex) => {
+          if (!names.has(name)) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["shots", shotIndex, "character_names", characterIndex],
+              message: `unknown character ${name}`,
+            });
+          }
+        }),
+      );
+    }),
 });
 
 type CreateVideoProductionInput = z.infer<typeof createVideoProductionInputSchema>;
@@ -135,10 +148,18 @@ export interface MediaToolProviders {
 }
 
 function isJsonValue(value: unknown): value is JSONValue {
-  if (value == null) return true;
-  if (["string", "boolean"].includes(typeof value)) return true;
-  if (typeof value === "number") return Number.isFinite(value);
-  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (value == null) {
+    return true;
+  }
+  if (["string", "boolean"].includes(typeof value)) {
+    return true;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value);
+  }
+  if (Array.isArray(value)) {
+    return value.every(isJsonValue);
+  }
   return typeof value === "object" && Object.values(value as Record<string, unknown>).every(isJsonValue);
 }
 
@@ -149,10 +170,18 @@ function imageProviderOptions(extraBody: Record<string, unknown>): Record<string
 }
 
 function imageMediaType(mediaType: string | undefined, bytes: Uint8Array): string {
-  if (mediaType?.startsWith("image/")) return mediaType;
-  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
-  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
-  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) return "image/gif";
+  if (mediaType?.startsWith("image/")) {
+    return mediaType;
+  }
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    return "image/png";
+  }
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) {
+    return "image/gif";
+  }
   if (
     bytes.length >= 12 &&
     bytes[0] === 0x52 &&
@@ -196,11 +225,7 @@ type GeneratedImage = { document_id: string; filename: string; media_type: strin
 
 async function* generateImages(
   input: { prompts: string[] },
-  {
-    context,
-    toolCallId,
-    abortSignal,
-  }: { context: MediaToolContext; toolCallId: string; abortSignal?: AbortSignal },
+  { context, toolCallId, abortSignal }: { context: MediaToolContext; toolCallId: string; abortSignal?: AbortSignal },
   imageProvider: ProviderSnapshot,
 ): AsyncGenerator<z.infer<typeof imageOutputSchema> | ToolEmission> {
   yield toolRunning({ count: input.prompts.length });
@@ -236,12 +261,12 @@ async function* generateImages(
       return { document_id: document.id, filename: document.filename, media_type: mediaType };
     };
     const settled = await Promise.allSettled(input.prompts.map(generateOne));
-    if (abortSignal?.aborted) throw new DOMException("aborted", "AbortError");
+    if (abortSignal?.aborted) {
+      throw new DOMException("aborted", "AbortError");
+    }
     const images = settled.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
     const failedItems = settled.flatMap((result, index) =>
-      result.status === "rejected"
-        ? [{ index, message: imageError(result.reason).message }]
-        : [],
+      result.status === "rejected" ? [{ index, message: imageError(result.reason).message }] : [],
     );
     if (images.length === 0) {
       const message = failedItems[0]?.message ?? "图片生成失败";
@@ -284,14 +309,18 @@ async function* generateImages(
       document_id: images[0]?.document_id,
     });
   } catch (error) {
-    if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
+    if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) {
+      throw error;
+    }
     logger.error({ toolCallId, err: error }, "generate_image failed");
     throw imageError(error);
   }
 }
 
 function videoDocumentId(result: unknown): string | undefined {
-  if (!result || typeof result !== "object") return undefined;
+  if (!result || typeof result !== "object") {
+    return undefined;
+  }
   const documentId = (result as { documentId?: unknown }).documentId;
   return typeof documentId === "string" ? documentId : undefined;
 }
@@ -312,23 +341,23 @@ async function resolveVideoCharacters(
     return document;
   }
 
-  return Promise.all(characters.map(async (character) => {
-    if (character.reference_document_id) await validateDocument(character.reference_document_id);
-    return {
-      name: character.name,
-      appearance: character.appearance,
-      ...(character.reference_document_id ? { documentId: character.reference_document_id } : {}),
-    };
-  }));
+  return Promise.all(
+    characters.map(async (character) => {
+      if (character.reference_document_id) {
+        await validateDocument(character.reference_document_id);
+      }
+      return {
+        name: character.name,
+        appearance: character.appearance,
+        ...(character.reference_document_id ? { documentId: character.reference_document_id } : {}),
+      };
+    }),
+  );
 }
 
 async function* createVideoProduction(
   input: CreateVideoProductionInput,
-  {
-    context,
-    toolCallId,
-    abortSignal,
-  }: { context: MediaToolContext; toolCallId: string; abortSignal?: AbortSignal },
+  { context, toolCallId, abortSignal }: { context: MediaToolContext; toolCallId: string; abortSignal?: AbortSignal },
   providers: MediaToolProviders & { videoProviderId: string },
 ): AsyncGenerator<z.infer<typeof videoProductionOutputSchema> | ToolEmission> {
   const title = input.title;
@@ -357,18 +386,32 @@ async function* createVideoProduction(
             settingBible: input.plan.setting_bible,
             characters: characterRefs,
             shots: input.plan.shots.map((shot) => ({
-              purpose: shot.purpose, plot: shot.plot, emotion: shot.emotion, characterNames: shot.character_names,
-              seconds: shot.seconds, action: shot.action,
+              purpose: shot.purpose,
+              plot: shot.plot,
+              emotion: shot.emotion,
+              characterNames: shot.character_names,
+              seconds: shot.seconds,
+              action: shot.action,
               camera: { shotSize: shot.camera.shot_size, movement: shot.camera.movement, focus: shot.camera.focus },
-              environment: shot.environment, lightingPalette: shot.lighting_palette, audioDirection: shot.audio_direction,
-              continuityContract: shot.continuity_contract, acceptanceCriteria: shot.acceptance_criteria,
+              environment: shot.environment,
+              lightingPalette: shot.lighting_palette,
+              audioDirection: shot.audio_direction,
+              continuityContract: shot.continuity_contract,
+              acceptanceCriteria: shot.acceptance_criteria,
             })),
           },
         },
       },
       abortSignal,
     );
-    const base = { kind: "video" as const, title, filename, prompt: input.creative_brief, duration: input.plan.target_duration_seconds, task_id: task.id };
+    const base = {
+      kind: "video" as const,
+      title,
+      filename,
+      prompt: input.creative_brief,
+      duration: input.plan.target_duration_seconds,
+      task_id: task.id,
+    };
     yield toolRunning(base);
     let terminal: Task | null = null;
     try {
@@ -386,14 +429,14 @@ async function* createVideoProduction(
               production_id: production.id,
               production_version: production.version,
               production_stage: production.stage,
-              ...(production.awaitingAction
-                ? { awaiting_action: production.awaitingAction }
-                : {}),
+              ...(production.awaitingAction ? { awaiting_action: production.awaitingAction } : {}),
             });
             return;
           }
         } catch (error) {
-          if (!(error instanceof Error && error.message.includes("not found"))) throw error;
+          if (!(error instanceof Error && error.message.includes("not found"))) {
+            throw error;
+          }
         }
         if (snapshot.status === "completed" || snapshot.status === "failed" || snapshot.status === "cancelled") {
           terminal = snapshot;
@@ -420,15 +463,11 @@ async function* createVideoProduction(
     }
     if (terminal?.status === "failed" || terminal?.status === "cancelled") {
       const message =
-        terminal.error ??
-        (terminal.status === "cancelled"
-          ? "视频制片任务创建已取消"
-          : "视频制片任务创建失败");
+        terminal.error ?? (terminal.status === "cancelled" ? "视频制片任务创建已取消" : "视频制片任务创建失败");
       yield toolFailed({
         code: terminal.status === "cancelled" ? "VIDEO_TASK_CANCELLED" : "VIDEO_TASK_FAILED",
         message,
-        retryable:
-          terminal.status === "cancelled" ? false : isRetryableMediaFailure(message),
+        retryable: terminal.status === "cancelled" ? false : isRetryableMediaFailure(message),
         source: "executor",
         details: {
           ...base,
@@ -454,7 +493,9 @@ async function* createVideoProduction(
       ...base,
     });
   } catch (error) {
-    if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
+    if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) {
+      throw error;
+    }
     logger.error({ toolCallId, err: error }, "create_video_production failed");
     throw error;
   }
@@ -483,7 +524,8 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
     parallelizable: true,
   };
   const videoPlanning = {
-    summary: "Create a durable video production task and complete after its initial storyboard and cost plan are handed to Executor Workflow.",
+    summary:
+      "Create a durable video production task and complete after its initial storyboard and cost plan are handed to Executor Workflow.",
     constraints: [
       "Treat this tool as creating a video production task, not as synchronously generating the final video.",
       "The tool is completed once the initial storyboard and cost plan are durable in Executor Workflow, even if approval races ahead before Chat observes the approval state.",
@@ -507,11 +549,15 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
               .max(6)
               .describe("One complete visual prompt per requested image; all prompts run as one batch."),
           }),
-          inputExamples: [{
-            input: {
-              prompts: ["Editorial isometric illustration of an AI agent tool loop, dark navy background, cyan accents, no text"],
+          inputExamples: [
+            {
+              input: {
+                prompts: [
+                  "Editorial isometric illustration of an AI agent tool loop, dark navy background, cyan accents, no text",
+                ],
+              },
             },
-          }],
+          ],
           outputSchema: imageOutputSchema,
           contextSchema: mediaToolContextSchema,
           execute: (input, options) => generateImages(input, options, providers.imageProvider!),

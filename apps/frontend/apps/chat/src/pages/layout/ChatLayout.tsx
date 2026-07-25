@@ -1,17 +1,12 @@
 import type { UIMessage } from "ai";
-import {
-  type Conversation,
-  createConversation,
-  deleteConversation,
-  fetchConversation,
-  fetchConversations,
-} from "api";
+import { type Conversation, createConversation, deleteConversation, fetchConversation, fetchConversations } from "api";
 import { Layout, toast } from "components";
 import { downloadConversationMarkdown } from "components/ai-chat";
 import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "shared";
 import { useShallow } from "zustand/react/shallow";
+
 import { ChatArtifactPanel } from "../../components/ChatArtifactPanel";
 import { ChatAuxiliaryPanels } from "../../components/ChatAuxiliaryPanels";
 import { ChatConversationSidebar } from "../../components/ChatConversationSidebar";
@@ -23,9 +18,7 @@ import { useChatStore } from "../../store/useChatStore";
 export function ChatLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [conversations, setConversations] = useState<Conversation[] | null>(
-    null,
-  );
+  const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [creating, setCreating] = useState(false);
   const {
     memoryPanelOpen,
@@ -59,43 +52,39 @@ export function ChatLayout() {
 
   const artifactOpen = artifactPreview.open;
   const closeArtifactPreview = useChatStore((s) => s.closeArtifactPreview);
-  const closeVideoProductionWorkspace = useChatStore(
-    (s) => s.closeVideoProductionWorkspace,
-  );
+  const closeVideoProductionWorkspace = useChatStore((s) => s.closeVideoProductionWorkspace);
   const workspaceOpen = artifactOpen || videoProductionWorkspace.open;
-  const closeWorkspace = artifactOpen
-    ? closeArtifactPreview
-    : closeVideoProductionWorkspace;
+  const closeWorkspace = artifactOpen ? closeArtifactPreview : closeVideoProductionWorkspace;
   const shell = useChatShellLayout(workspaceOpen, closeWorkspace);
   const sidebarOpen = shell.leftOpen && !(shell.compact && workspaceOpen);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    if (params.get("panel") !== "memory") return;
+    if (params.get("panel") !== "memory") {
+      return;
+    }
     setMemoryPanelOpen(true);
     params.delete("panel");
-    navigate(
-      { pathname: location.pathname, search: params.toString() },
-      { replace: true },
-    );
+    navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
   }, [location.pathname, location.search, navigate, setMemoryPanelOpen]);
 
   useEffect(() => {
-    if (!shell.compact) return;
+    if (!shell.compact) {
+      return;
+    }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      if (workspaceOpen) closeWorkspace();
-      else if (shell.leftOpen) shell.toggleLeft();
+      if (event.key !== "Escape") {
+        return;
+      }
+      if (workspaceOpen) {
+        closeWorkspace();
+      } else if (shell.leftOpen) {
+        shell.toggleLeft();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [
-    workspaceOpen,
-    closeWorkspace,
-    shell.compact,
-    shell.leftOpen,
-    shell.toggleLeft,
-  ]);
+  }, [workspaceOpen, closeWorkspace, shell.compact, shell.leftOpen, shell.toggleLeft]);
 
   const load = useCallback(async () => {
     try {
@@ -118,19 +107,19 @@ export function ChatLayout() {
   }, [load]);
 
   useEffect(() => {
-    if (!conversationTitleUpdate) return;
+    if (!conversationTitleUpdate) {
+      return;
+    }
     const { id, title } = conversationTitleUpdate;
     setConversations((prev) =>
-      prev
-        ? prev.map((conv) =>
-            conv.id === id && conv.title !== title ? { ...conv, title } : conv,
-          )
-        : prev,
+      prev ? prev.map((conv) => (conv.id === id && conv.title !== title ? { ...conv, title } : conv)) : prev,
     );
   }, [conversationTitleUpdate]);
 
   async function handleCreate() {
-    if (creating) return;
+    if (creating) {
+      return;
+    }
     setCreating(true);
     try {
       const conv = await createConversation({});
@@ -149,12 +138,7 @@ export function ChatLayout() {
       const list = await load();
       if (location.pathname.includes(id)) {
         const next = list[0];
-        navigate(
-          next
-            ? `/platform/chat/conversations/${next.id}`
-            : "/platform/chat/conversations",
-          { replace: true },
-        );
+        navigate(next ? `/platform/chat/conversations/${next.id}` : "/platform/chat/conversations", { replace: true });
       }
     } catch (error) {
       toast.error(`删除会话失败：${String(error)}`);
@@ -168,17 +152,10 @@ export function ChatLayout() {
       const messages: UIMessage[] = detail.messages.map((message) => ({
         id: message.id,
         role: message.role,
-        parts: Array.isArray(message.content.parts)
-          ? (message.content.parts as UIMessage["parts"])
-          : [],
+        parts: Array.isArray(message.content.parts) ? (message.content.parts as UIMessage["parts"]) : [],
       }));
-      const safeTitle = (conversation?.title ?? detail.title)
-        .replace(/[\\/:*?"<>|]/g, "-")
-        .trim();
-      downloadConversationMarkdown(
-        messages,
-        `${safeTitle || "conversation"}.md`,
-      );
+      const safeTitle = (conversation?.title ?? detail.title).replace(/[\\/:*?"<>|]/g, "-").trim();
+      downloadConversationMarkdown(messages, `${safeTitle || "conversation"}.md`);
     } catch (error) {
       toast.error(`导出会话失败：${String(error)}`);
     }
@@ -244,8 +221,7 @@ export function ChatLayout() {
           className={cn(
             "relative z-10 col-start-3 flex min-h-0 min-w-0 flex-col bg-background",
             workspaceOpen ? "opacity-100" : "pointer-events-none opacity-0",
-            shell.compact &&
-              "absolute inset-y-0 right-0 z-30 shadow-xl max-[639px]:w-full",
+            shell.compact && "absolute inset-y-0 right-0 z-30 shadow-xl max-[639px]:w-full",
           )}
           style={
             shell.compact && workspaceOpen

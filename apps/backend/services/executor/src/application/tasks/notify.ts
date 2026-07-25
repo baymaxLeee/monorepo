@@ -7,32 +7,24 @@ import type { TaskProgress } from "./types.js";
 // The owning service (chat) reads progress/terminal state by polling
 // `GET /tasks/:id`; there is no outbound push (ADR-0035). Progress is written
 // to `tasks.progress` here purely so that poll can surface it.
-export async function reportTaskProgress(
-  workflowRunId: string,
-  progress: TaskProgress,
-): Promise<void> {
+export async function reportTaskProgress(workflowRunId: string, progress: TaskProgress): Promise<void> {
   const db = getDb();
   await db.transaction(async (tx) => {
-    const [row] = await tx
-      .select()
-      .from(tasks)
-      .where(eq(tasks.workflowRunId, workflowRunId))
-      .for("update");
-    if (!row) return;
+    const [row] = await tx.select().from(tasks).where(eq(tasks.workflowRunId, workflowRunId)).for("update");
+    if (!row) {
+      return;
+    }
     await tx
       .update(tasks)
       .set({
-        progress: { ...(row.progress ?? {}), ...progress },
+        progress: { ...row.progress, ...progress },
         updatedAt: new Date(),
       })
       .where(eq(tasks.id, row.id));
   });
 }
 
-export async function recordExternalTask(
-  workflowRunId: string,
-  externalTaskId: string,
-): Promise<void> {
+export async function recordExternalTask(workflowRunId: string, externalTaskId: string): Promise<void> {
   await updateRuntimeProgress(workflowRunId, (progress) => ({
     ...progress,
     externalTaskIds: [...new Set([...(progress.externalTaskIds ?? []), externalTaskId])],
@@ -53,12 +45,10 @@ async function updateRuntimeProgress(
 ): Promise<void> {
   const db = getDb();
   await db.transaction(async (tx) => {
-    const [row] = await tx
-      .select()
-      .from(tasks)
-      .where(eq(tasks.workflowRunId, workflowRunId))
-      .for("update");
-    if (!row) return;
+    const [row] = await tx.select().from(tasks).where(eq(tasks.workflowRunId, workflowRunId)).for("update");
+    if (!row) {
+      return;
+    }
     await tx
       .update(tasks)
       .set({

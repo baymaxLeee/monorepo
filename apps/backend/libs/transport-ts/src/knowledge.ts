@@ -7,10 +7,7 @@ import {
 import type { components, paths } from "./schema/knowledge.js";
 
 type KnowledgeDocumentSchema = components["schemas"]["Document"];
-export type KnowledgeDocument = Omit<
-  KnowledgeDocumentSchema,
-  "conversation_id" | "source_mime_type"
-> & {
+export type KnowledgeDocument = Omit<KnowledgeDocumentSchema, "conversation_id" | "source_mime_type"> & {
   conversation_id: string | null;
   source_mime_type: string | null;
 };
@@ -22,8 +19,7 @@ export type VirtualFileEntry = components["schemas"]["FileEntry"];
 export type VirtualFileRead = components["schemas"]["FileRead"];
 export type FileChangeSet = components["schemas"]["ChangeSet"];
 export type FileSearchMatch = components["schemas"]["FileSearchMatch"];
-export type CleanupConversationArtifactsResult =
-  components["schemas"]["CleanupConversationArtifactsResult"];
+export type CleanupConversationArtifactsResult = components["schemas"]["CleanupConversationArtifactsResult"];
 
 export interface KnowledgeClientOptions {
   baseUrl: string;
@@ -40,10 +36,7 @@ export class KnowledgeInternalClient {
     this.client = createInternalOpenApiClient<paths>({ ...options, service: "knowledge" });
   }
 
-  listDocuments(input: {
-    userId: string;
-    conversationId?: string;
-  }): Promise<KnowledgeDocument[]> {
+  listDocuments(input: { userId: string; conversationId?: string }): Promise<KnowledgeDocument[]> {
     return this.unwrap(
       this.client.GET("/internal/documents", {
         params: { query: { user_id: input.userId, conversation_id: input.conversationId } },
@@ -62,44 +55,141 @@ export class KnowledgeInternalClient {
   }
 
   listVirtualFiles(input: { userId: string; conversationId: string; path?: string }): Promise<VirtualFileEntry[]> {
-    return this.unwrap(this.client.GET("/internal/files", { params: { query: { user_id: input.userId, conversation_id: input.conversationId, path: input.path } } }));
+    return this.unwrap(
+      this.client.GET("/internal/files", {
+        params: { query: { user_id: input.userId, conversation_id: input.conversationId, path: input.path } },
+      }),
+    );
   }
 
-  readVirtualFile(input: { userId: string; conversationId: string; path: string; offset?: number; limit?: number }): Promise<VirtualFileRead> {
-    return this.unwrap(this.client.GET("/internal/files/read", { params: { query: { user_id: input.userId, conversation_id: input.conversationId, path: input.path, offset: input.offset ?? 1, limit: input.limit ?? 200 } } }));
+  readVirtualFile(input: {
+    userId: string;
+    conversationId: string;
+    path: string;
+    offset?: number;
+    limit?: number;
+  }): Promise<VirtualFileRead> {
+    return this.unwrap(
+      this.client.GET("/internal/files/read", {
+        params: {
+          query: {
+            user_id: input.userId,
+            conversation_id: input.conversationId,
+            path: input.path,
+            offset: input.offset ?? 1,
+            limit: input.limit ?? 200,
+          },
+        },
+      }),
+    );
   }
 
-  createFileChangeSet(input: { userId: string; orgId: string; conversationId: string; metadata?: Record<string, string> }): Promise<FileChangeSet> {
-    return this.unwrap(this.client.POST("/internal/files/change-sets", { body: { user_id: input.userId, org_id: input.orgId, conversation_id: input.conversationId, metadata: input.metadata } }));
+  createFileChangeSet(input: {
+    userId: string;
+    orgId: string;
+    conversationId: string;
+    metadata?: Record<string, string>;
+  }): Promise<FileChangeSet> {
+    return this.unwrap(
+      this.client.POST("/internal/files/change-sets", {
+        body: {
+          user_id: input.userId,
+          org_id: input.orgId,
+          conversation_id: input.conversationId,
+          metadata: input.metadata,
+        },
+      }),
+    );
   }
 
-  writeChangeSetFile(input: { userId: string; changeSetId: string; path: string; content: string; mimeType: string; writable?: boolean; derived?: boolean }): Promise<VirtualFileEntry> {
-    return this.unwrap(this.client.PUT("/internal/files/change-sets/{change_set_id}/files", { params: { path: { change_set_id: input.changeSetId } }, body: { user_id: input.userId, path: input.path, content: input.content, mime_type: input.mimeType, writable: input.writable ?? true, derived: input.derived ?? false } }));
+  writeChangeSetFile(input: {
+    userId: string;
+    changeSetId: string;
+    path: string;
+    content: string;
+    mimeType: string;
+    writable?: boolean;
+    derived?: boolean;
+  }): Promise<VirtualFileEntry> {
+    return this.unwrap(
+      this.client.PUT("/internal/files/change-sets/{change_set_id}/files", {
+        params: { path: { change_set_id: input.changeSetId } },
+        body: {
+          user_id: input.userId,
+          path: input.path,
+          content: input.content,
+          mime_type: input.mimeType,
+          writable: input.writable ?? true,
+          derived: input.derived ?? false,
+        },
+      }),
+    );
   }
 
   listChangeSetFiles(input: { userId: string; changeSetId: string }): Promise<VirtualFileEntry[]> {
-    return this.unwrap(this.client.GET("/internal/files/change-sets/{change_set_id}/files", {
-      params: {
-        path: { change_set_id: input.changeSetId },
-        query: { user_id: input.userId },
-      },
-    }));
+    return this.unwrap(
+      this.client.GET("/internal/files/change-sets/{change_set_id}/files", {
+        params: {
+          path: { change_set_id: input.changeSetId },
+          query: { user_id: input.userId },
+        },
+      }),
+    );
   }
 
-  readChangeSetFile(input: { userId: string; changeSetId: string; path: string; offset?: number; limit?: number }): Promise<VirtualFileRead> {
-    return this.unwrap(this.client.GET("/internal/files/change-sets/{change_set_id}/read", { params: { path: { change_set_id: input.changeSetId }, query: { user_id: input.userId, path: input.path, offset: input.offset ?? 1, limit: input.limit ?? 400 } } }));
+  readChangeSetFile(input: {
+    userId: string;
+    changeSetId: string;
+    path: string;
+    offset?: number;
+    limit?: number;
+  }): Promise<VirtualFileRead> {
+    return this.unwrap(
+      this.client.GET("/internal/files/change-sets/{change_set_id}/read", {
+        params: {
+          path: { change_set_id: input.changeSetId },
+          query: { user_id: input.userId, path: input.path, offset: input.offset ?? 1, limit: input.limit ?? 400 },
+        },
+      }),
+    );
   }
 
   promoteFileChangeSet(input: { userId: string; changeSetId: string }): Promise<VirtualFileEntry[]> {
-    return this.unwrap(this.client.POST("/internal/files/change-sets/{change_set_id}/promote", { params: { path: { change_set_id: input.changeSetId } }, body: { user_id: input.userId } }));
+    return this.unwrap(
+      this.client.POST("/internal/files/change-sets/{change_set_id}/promote", {
+        params: { path: { change_set_id: input.changeSetId } },
+        body: { user_id: input.userId },
+      }),
+    );
   }
 
   discardFileChangeSet(input: { userId: string; changeSetId: string }): Promise<FileChangeSet> {
-    return this.unwrap(this.client.POST("/internal/files/change-sets/{change_set_id}/discard", { params: { path: { change_set_id: input.changeSetId } }, body: { user_id: input.userId } }));
+    return this.unwrap(
+      this.client.POST("/internal/files/change-sets/{change_set_id}/discard", {
+        params: { path: { change_set_id: input.changeSetId } },
+        body: { user_id: input.userId },
+      }),
+    );
   }
 
-  searchVirtualFiles(input: { userId: string; conversationId: string; pattern: string; path?: string; glob?: string }): Promise<FileSearchMatch[]> {
-    return this.unwrap(this.client.POST("/internal/files/search", { body: { user_id: input.userId, conversation_id: input.conversationId, pattern: input.pattern, path: input.path, glob: input.glob } }));
+  searchVirtualFiles(input: {
+    userId: string;
+    conversationId: string;
+    pattern: string;
+    path?: string;
+    glob?: string;
+  }): Promise<FileSearchMatch[]> {
+    return this.unwrap(
+      this.client.POST("/internal/files/search", {
+        body: {
+          user_id: input.userId,
+          conversation_id: input.conversationId,
+          pattern: input.pattern,
+          path: input.path,
+          glob: input.glob,
+        },
+      }),
+    );
   }
 
   getDocumentSlice(input: {
@@ -124,21 +214,14 @@ export class KnowledgeInternalClient {
     );
   }
 
-  async getDocumentSource(input: {
-    userId: string;
-    documentId: string;
-    maxDim?: number;
-  }): Promise<BinaryResponse> {
-    const { data, error, response } = await this.client.GET(
-      "/internal/documents/{document_id}/source",
-      {
-        params: {
-          path: { document_id: input.documentId },
-          query: { user_id: input.userId, max_dim: input.maxDim },
-        },
-        parseAs: "arrayBuffer",
+  async getDocumentSource(input: { userId: string; documentId: string; maxDim?: number }): Promise<BinaryResponse> {
+    const { data, error, response } = await this.client.GET("/internal/documents/{document_id}/source", {
+      params: {
+        path: { document_id: input.documentId },
+        query: { user_id: input.userId, max_dim: input.maxDim },
       },
-    );
+      parseAs: "arrayBuffer",
+    });
     if (data) {
       const rawMime = response.headers.get("content-type") ?? "application/octet-stream";
       return {
@@ -243,17 +326,11 @@ export class KnowledgeInternalClient {
     );
   }
 
-  async getStagedMediaSource(input: {
-    userId: string;
-    stagedId: string;
-  }): Promise<BinaryResponse> {
-    const { data, error, response } = await this.client.GET(
-      "/internal/staged-media/{staged_id}/source",
-      {
-        params: { path: { staged_id: input.stagedId }, query: { user_id: input.userId } },
-        parseAs: "arrayBuffer",
-      },
-    );
+  async getStagedMediaSource(input: { userId: string; stagedId: string }): Promise<BinaryResponse> {
+    const { data, error, response } = await this.client.GET("/internal/staged-media/{staged_id}/source", {
+      params: { path: { staged_id: input.stagedId }, query: { user_id: input.userId } },
+      parseAs: "arrayBuffer",
+    });
     if (data) {
       return {
         bytes: new Uint8Array(data),
@@ -263,11 +340,7 @@ export class KnowledgeInternalClient {
     throw toTransportError(response, error);
   }
 
-  publishStagedMedia(input: {
-    userId: string;
-    orgId: string;
-    stagedId: string;
-  }): Promise<KnowledgeDocument> {
+  publishStagedMedia(input: { userId: string; orgId: string; stagedId: string }): Promise<KnowledgeDocument> {
     return this.unwrap(
       this.client.POST("/internal/staged-media/{staged_id}/publish", {
         params: { path: { staged_id: input.stagedId } },
@@ -277,11 +350,7 @@ export class KnowledgeInternalClient {
     );
   }
 
-  discardStagedMedia(input: {
-    userId: string;
-    orgId: string;
-    stagedId: string;
-  }): Promise<StagedMedia> {
+  discardStagedMedia(input: { userId: string; orgId: string; stagedId: string }): Promise<StagedMedia> {
     return this.unwrap(
       this.client.POST("/internal/staged-media/{staged_id}/discard", {
         params: { path: { staged_id: input.stagedId } },
@@ -357,7 +426,9 @@ export class KnowledgeInternalClient {
     map?: (data: T) => R,
   ): Promise<R> {
     const { data, error, response } = await promise;
-    if (data) return map ? map(data) : (data as unknown as R);
+    if (data) {
+      return map ? map(data) : (data as unknown as R);
+    }
     throw toTransportError(response, error);
   }
 }
@@ -375,10 +446,5 @@ function normalizeDocument(document: KnowledgeDocumentSchema): KnowledgeDocument
 }
 
 function toTransportError(response: Response, error: unknown): TransportError {
-  return new TransportError(
-    "knowledge",
-    response.status,
-    `knowledge request failed: ${response.status}`,
-    error,
-  );
+  return new TransportError("knowledge", response.status, `knowledge request failed: ${response.status}`, error);
 }

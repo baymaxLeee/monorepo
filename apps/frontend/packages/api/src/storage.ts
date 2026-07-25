@@ -43,7 +43,9 @@ let currentUser = parseJSON<AuthUser>(currentUserStorage);
 export function syncSessionFromStorage(): void {
   purgeLegacyTokenKeys();
   const storedUser = readStorage(USER_KEY);
-  if (storedUser === currentUserStorage) return;
+  if (storedUser === currentUserStorage) {
+    return;
+  }
   currentUserStorage = storedUser;
   currentUser = parseJSON<AuthUser>(storedUser);
 }
@@ -57,7 +59,9 @@ export function getCurrentUser(): AuthUser | null {
 }
 
 export function isAccessTokenValid(): boolean {
-  if (!accessToken || !expiresAt) return false;
+  if (!accessToken || !expiresAt) {
+    return false;
+  }
   return new Date(expiresAt).getTime() > Date.now() + 30_000;
 }
 
@@ -65,18 +69,13 @@ const SESSION_EVENT = "api:session";
 
 function notifySessionChange(user: AuthUser | null): void {
   try {
-    globalThis.dispatchEvent(
-      new CustomEvent(SESSION_EVENT, { detail: { user } }),
-    );
+    globalThis.dispatchEvent(new CustomEvent(SESSION_EVENT, { detail: { user } }));
   } catch {}
 }
 
-export function onSessionChange(
-  handler: (user: AuthUser | null) => void,
-): () => void {
+export function onSessionChange(handler: (user: AuthUser | null) => void): () => void {
   const listener = (event: Event) => {
-    const user =
-      (event as CustomEvent<{ user: AuthUser | null }>).detail?.user ?? null;
+    const user = (event as CustomEvent<{ user: AuthUser | null }>).detail?.user ?? null;
     handler(user);
   };
   globalThis.addEventListener(SESSION_EVENT, listener);
@@ -127,7 +126,9 @@ function writeStorage(key: string, value: string | null): void {
 }
 
 function parseJSON<T>(raw: string | null): T | null {
-  if (!raw) return null;
+  if (!raw) {
+    return null;
+  }
   try {
     return JSON.parse(raw) as T;
   } catch {

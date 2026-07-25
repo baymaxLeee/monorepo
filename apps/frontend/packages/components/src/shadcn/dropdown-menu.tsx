@@ -3,17 +3,12 @@ import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { createContext, forwardRef, useContext } from "react";
 import { cn } from "shared";
 
-import {
-  type HoverTriggerHandlers,
-  type TriggerKind,
-  useHoverTrigger,
-} from "../utils/useHoverTrigger";
+import { type HoverTriggerHandlers, type TriggerKind, useHoverTrigger } from "../utils/useHoverTrigger";
 
 const DropdownHoverContext = createContext<HoverTriggerHandlers | null>(null);
 const useDropdownHoverHandlers = () => useContext(DropdownHoverContext);
 
-export interface DropdownMenuProps
-  extends React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Root> {
+export interface DropdownMenuProps extends React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Root> {
   /** 触发方式，参考 arco `Trigger.trigger`，默认 `"click"`。 */
   trigger?: TriggerKind;
   /** 鼠标进入后延时打开（毫秒），仅 `trigger="hover"` 生效，默认 80。 */
@@ -60,12 +55,7 @@ export function DropdownMenu({
 
   return (
     <DropdownHoverContext.Provider value={hover.handlers}>
-      <DropdownMenuPrimitive.Root
-        modal={effectiveModal}
-        open={hover.open}
-        onOpenChange={hover.setOpen}
-        {...rootProps}
-      >
+      <DropdownMenuPrimitive.Root modal={effectiveModal} open={hover.open} onOpenChange={hover.setOpen} {...rootProps}>
         {children}
       </DropdownMenuPrimitive.Root>
     </DropdownHoverContext.Provider>
@@ -207,11 +197,7 @@ export function DropdownMenuLabel({
 }) {
   return (
     <DropdownMenuPrimitive.Label
-      className={cn(
-        "px-2 py-1.5 text-sm font-semibold",
-        inset && "pl-8",
-        className,
-      )}
+      className={cn("px-2 py-1.5 text-sm font-semibold", inset && "pl-8", className)}
       {...props}
     />
   );
@@ -221,24 +207,11 @@ export function DropdownMenuSeparator({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>) {
-  return (
-    <DropdownMenuPrimitive.Separator
-      className={cn("-mx-1 my-1 h-px bg-muted", className)}
-      {...props}
-    />
-  );
+  return <DropdownMenuPrimitive.Separator className={cn("-mx-1 my-1 h-px bg-muted", className)} {...props} />;
 }
 
-export function DropdownMenuShortcut({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLSpanElement>) {
-  return (
-    <span
-      className={cn("ml-auto text-xs tracking-widest opacity-60", className)}
-      {...props}
-    />
-  );
+export function DropdownMenuShortcut({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("ml-auto text-xs tracking-widest opacity-60", className)} {...props} />;
 }
 
 export function DropdownMenuSubTrigger({

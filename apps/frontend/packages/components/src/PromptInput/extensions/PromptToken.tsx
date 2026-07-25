@@ -1,26 +1,13 @@
 import { mergeAttributes, Node } from "@tiptap/core";
-import {
-  type NodeViewProps,
-  NodeViewWrapper,
-  ReactNodeViewRenderer,
-} from "@tiptap/react";
-import {
-  AlertCircle,
-  Check,
-  FileText,
-  ImageIcon,
-  RotateCcw,
-  X,
-} from "lucide-react";
+import { type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
+import { AlertCircle, Check, FileText, ImageIcon, RotateCcw, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "shared";
+
 import type { PromptInputRenderContext, PromptInputToken } from "../interface";
 
 export interface PromptTokenOptions {
-  renderToken?: (
-    token: PromptInputToken,
-    context: PromptInputRenderContext,
-  ) => ReactNode;
+  renderToken?: (token: PromptInputToken, context: PromptInputRenderContext) => ReactNode;
   retryToken?: (token: PromptInputToken) => void;
 }
 
@@ -40,12 +27,16 @@ type IngestMeta = {
 };
 
 const parseMeta = (value: unknown): IngestMeta => {
-  if (!value || typeof value !== "object") return {};
-  return value as IngestMeta;
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+  return value;
 };
 
 const getTokenIcon = (kind: string) => {
-  if (kind === "image") return <ImageIcon className="size-3.5" />;
+  if (kind === "image") {
+    return <ImageIcon className="size-3.5" />;
+  }
   return <FileText className="size-3.5" />;
 };
 
@@ -57,7 +48,9 @@ const PromptTokenView = (props: NodeViewProps) => {
 
   const deleteToken = () => {
     const pos = typeof getPos === "function" ? getPos() : null;
-    if (typeof pos !== "number" || editor.isDestroyed) return;
+    if (typeof pos !== "number" || editor.isDestroyed) {
+      return;
+    }
     editor
       .chain()
       .focus()
@@ -107,12 +100,7 @@ const PromptTokenView = (props: NodeViewProps) => {
               <RotateCcw className="size-3" />
             </button>
           ) : null}
-          <button
-            type="button"
-            className="prompt-input-token-remove"
-            onClick={deleteToken}
-            aria-label="Remove token"
-          >
+          <button type="button" className="prompt-input-token-remove" onClick={deleteToken} aria-label="Remove token">
             <X className="size-3" />
           </button>
         </span>
@@ -145,7 +133,9 @@ export const createPromptTokenExtension = (options: PromptTokenOptions = {}) =>
           default: {},
           parseHTML: (element) => {
             const raw = element.getAttribute("data-meta");
-            if (!raw) return {};
+            if (!raw) {
+              return {};
+            }
             try {
               return JSON.parse(raw) as Record<string, unknown>;
             } catch {

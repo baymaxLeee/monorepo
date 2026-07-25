@@ -107,9 +107,7 @@ const FILE_ICON_MAP: Record<string, LucideIcon> = {
 
 function getFileExt(filename: string): string {
   const normalized = filename.trim().toLowerCase();
-  const cleanName = normalized.startsWith(".")
-    ? normalized.slice(1)
-    : normalized;
+  const cleanName = normalized.startsWith(".") ? normalized.slice(1) : normalized;
   const index = cleanName.lastIndexOf(".");
   return index >= 0 ? cleanName.slice(index + 1) : cleanName;
 }

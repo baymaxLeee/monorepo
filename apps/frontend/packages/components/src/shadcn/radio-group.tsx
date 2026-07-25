@@ -1,7 +1,6 @@
 import { CircleIcon } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 import * as React from "react";
-
 import { cn } from "shared";
 
 const RadioGroup = React.forwardRef<
@@ -9,12 +8,7 @@ const RadioGroup = React.forwardRef<
   React.ComponentProps<typeof RadioGroupPrimitive.Root>
 >(function RadioGroup({ className, ...props }, ref) {
   return (
-    <RadioGroupPrimitive.Root
-      ref={ref}
-      data-slot="radio-group"
-      className={cn("grid gap-3", className)}
-      {...props}
-    />
+    <RadioGroupPrimitive.Root ref={ref} data-slot="radio-group" className={cn("grid gap-3", className)} {...props} />
   );
 });
 

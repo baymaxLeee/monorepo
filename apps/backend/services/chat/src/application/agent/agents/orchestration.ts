@@ -48,9 +48,7 @@ type TerminalToolEvent = {
 };
 
 function recordValue(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
 function terminalToolEvents(steps: AgentStepHistory): TerminalToolEvent[] {
@@ -64,16 +62,16 @@ function terminalToolEvents(steps: AgentStepHistory): TerminalToolEvent[] {
       }
     });
     step.content.forEach((part, order) => {
-      if (
-        typeof part.toolCallId !== "string" ||
-        typeof part.toolName !== "string" ||
-        seen.has(part.toolCallId)
-      ) {
+      if (typeof part.toolCallId !== "string" || typeof part.toolName !== "string" || seen.has(part.toolCallId)) {
         return;
       }
       if (part.type === "tool-result") {
-        if (part.preliminary === true) return;
-        if (isToolOutcome(part.output) && part.output.status === "running") return;
+        if (part.preliminary === true) {
+          return;
+        }
+        if (isToolOutcome(part.output) && part.output.status === "running") {
+          return;
+        }
         seen.add(part.toolCallId);
         if (isToolOutcome(part.output) && part.output.status === "completed") {
           events.push({
@@ -112,18 +110,13 @@ function terminalToolEvents(steps: AgentStepHistory): TerminalToolEvent[] {
           input: part.input,
           outcome: {
             kind: "failed",
-            message:
-              part.error instanceof Error
-                ? part.error.message
-                : `${part.toolName} failed during orchestration`,
+            message: part.error instanceof Error ? part.error.message : `${part.toolName} failed during orchestration`,
           },
         });
       }
     });
   }
-  return events.sort(
-    (left, right) => left.stepNumber - right.stepNumber || left.order - right.order,
-  );
+  return events.sort((left, right) => left.stepNumber - right.stepNumber || left.order - right.order);
 }
 
 function executionPlanReadState(
@@ -141,9 +134,13 @@ function executionPlanReadState(
   let coveredThrough = 0;
   let totalLines = 0;
   for (const event of events) {
-    if (event.toolName !== "read_file") continue;
+    if (event.toolName !== "read_file") {
+      continue;
+    }
     const input = recordValue(event.input);
-    if (input?.path !== documentId) continue;
+    if (input?.path !== documentId) {
+      continue;
+    }
     if (event.outcome.kind === "failed") {
       return {
         documentId,
@@ -153,10 +150,16 @@ function executionPlanReadState(
       };
     }
     const data = recordValue(event.outcome.data);
-    if (!data || data.path !== documentId) continue;
+    if (!data || data.path !== documentId) {
+      continue;
+    }
     const offset = typeof input.offset === "number" ? input.offset : 1;
-    if (offset > coveredThrough + 1) continue;
-    if (typeof data.total_lines === "number") totalLines = data.total_lines;
+    if (offset > coveredThrough + 1) {
+      continue;
+    }
+    if (typeof data.total_lines === "number") {
+      totalLines = data.total_lines;
+    }
     if (typeof data.next_offset === "number") {
       coveredThrough = Math.max(coveredThrough, data.next_offset - 1);
     } else if (data.next_offset === null && totalLines > 0) {
@@ -172,15 +175,10 @@ function executionPlanReadState(
   };
 }
 
-export function deriveOrchestrationState(
-  seed: OrchestrationSeed,
-  steps: AgentStepHistory,
-): OrchestrationState {
+export function deriveOrchestrationState(seed: OrchestrationSeed, steps: AgentStepHistory): OrchestrationState {
   const events = terminalToolEvents(steps);
   return {
-    skillLoadedThisRun: events.some(
-      (event) => event.toolName === "load_skill" && event.outcome.kind === "completed",
-    ),
+    skillLoadedThisRun: events.some((event) => event.toolName === "load_skill" && event.outcome.kind === "completed"),
     executionPlan: executionPlanReadState(seed.executionPlanDocumentId, events),
   };
 }
@@ -190,22 +188,18 @@ export function resolveOrchestrationDirective(
   completedStepCount: number,
 ): OrchestrationDirective {
   if (completedStepCount >= FINAL_RESPONSE_STEP_INDEX) {
-    const hasIncompleteWork =
-      state.executionPlan.status === "pending" ||
-      state.executionPlan.status === "failed";
+    const hasIncompleteWork = state.executionPlan.status === "pending" || state.executionPlan.status === "failed";
     return {
       kind: "final",
-      instruction:
-        (hasIncompleteWork
-          ? "本轮已保留已生成的产物，但选定的 Plan 尚未完整读取。请根据上方工具卡片中的结果继续处理。"
-          : "本轮处理已完成。"),
+      instruction: hasIncompleteWork
+        ? "本轮已保留已生成的产物，但选定的 Plan 尚未完整读取。请根据上方工具卡片中的结果继续处理。"
+        : "本轮处理已完成。",
     };
   }
   if (state.executionPlan.status === "failed") {
     return {
       kind: "final",
-      instruction:
-        "无法完整读取选定的 Plan，因此本轮没有开始执行。请检查 Plan 后重试。",
+      instruction: "无法完整读取选定的 Plan，因此本轮没有开始执行。请检查 Plan 后重试。",
     };
   }
   if (state.executionPlan.status === "pending") {

@@ -1,9 +1,9 @@
 import { Badge } from "components";
 import { PdfPreviewer } from "components/pdf-previewer";
+
 import { DemoCard } from "../DemoCard";
 
-const demoPdfUrl =
-  "https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf";
+const demoPdfUrl = "https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf";
 
 export function PdfPreviewerTab() {
   return (
@@ -23,9 +23,7 @@ export function PdfPreviewerTab() {
               keyword: "TraceMonkey",
             },
           ]}
-          toolbarExtraRender={() => (
-            <Badge variant="secondary">mozilla.github.io</Badge>
-          )}
+          toolbarExtraRender={() => <Badge variant="secondary">mozilla.github.io</Badge>}
         />
       </div>
     </DemoCard>

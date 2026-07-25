@@ -80,14 +80,12 @@ const providerSchema = z
       .refine(
         (raw) => {
           const trimmed = raw.trim();
-          if (!trimmed) return true;
+          if (!trimmed) {
+            return true;
+          }
           try {
             const parsed = JSON.parse(trimmed);
-            return (
-              parsed !== null &&
-              typeof parsed === "object" &&
-              !Array.isArray(parsed)
-            );
+            return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed);
           } catch {
             return false;
           }
@@ -110,33 +108,25 @@ const providerSchema = z
     message: "仅对话类型可设为 chat 默认模型",
     path: ["is_default"],
   })
-  .refine(
-    (value) => value.provider_kind !== "video" || value.unit_price_micros > 0,
-    {
-      message: "视频 Provider 必须配置大于 0 的每秒单价",
-      path: ["unit_price_micros"],
-    },
-  );
+  .refine((value) => value.provider_kind !== "video" || value.unit_price_micros > 0, {
+    message: "视频 Provider 必须配置大于 0 的每秒单价",
+    path: ["unit_price_micros"],
+  });
 
 type ProviderValues = z.infer<typeof providerSchema>;
 
 const ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
 
-const kindPresets: Record<
-  ProviderKind,
-  Pick<ProviderValues, "base_url" | "model" | "extra_body">
-> = {
+const kindPresets: Record<ProviderKind, Pick<ProviderValues, "base_url" | "model" | "extra_body">> = {
   chat: {
     base_url: ARK_BASE_URL,
     model: "deepseek-v4-pro-260425",
-    extra_body:
-      '{\n  "thinking": {"type": "enabled"},\n  "reasoning_effort": "high"\n}',
+    extra_body: '{\n  "thinking": {"type": "enabled"},\n  "reasoning_effort": "high"\n}',
   },
   image: {
     base_url: ARK_BASE_URL,
     model: "doubao-seedream-5-0-260128",
-    extra_body:
-      '{\n  "size": "2K",\n  "response_format": "url",\n  "watermark": true\n}',
+    extra_body: '{\n  "size": "2K",\n  "response_format": "url",\n  "watermark": true\n}',
   },
   video: {
     base_url: ARK_BASE_URL,
@@ -184,7 +174,9 @@ const defaults: ProviderValues = {
 
 function parseExtraBody(raw: string): Record<string, unknown> {
   const trimmed = raw.trim();
-  if (!trimmed) return {};
+  if (!trimmed) {
+    return {};
+  }
   try {
     return JSON.parse(trimmed) as Record<string, unknown>;
   } catch {
@@ -193,20 +185,23 @@ function parseExtraBody(raw: string): Record<string, unknown> {
 }
 
 function stringifyExtraBody(value: Record<string, unknown>): string {
-  if (!value || Object.keys(value).length === 0) return "";
+  if (!value || Object.keys(value).length === 0) {
+    return "";
+  }
   return JSON.stringify(value, null, 2);
 }
 
-function resolveIsDefault(
-  providerKind: ProviderKind,
-  isDefault: boolean,
-): boolean {
+function resolveIsDefault(providerKind: ProviderKind, isDefault: boolean): boolean {
   return providerKind === "chat" && isDefault;
 }
 
 function statusBadge(item: ModelProvider) {
-  if (!item.is_enabled) return <Badge variant="secondary">停用</Badge>;
-  if (item.is_default) return <Badge>默认</Badge>;
+  if (!item.is_enabled) {
+    return <Badge variant="secondary">停用</Badge>;
+  }
+  if (item.is_default) {
+    return <Badge>默认</Badge>;
+  }
   return <Badge variant="outline">启用</Badge>;
 }
 
@@ -291,7 +286,9 @@ export function ProvidersPage() {
           is_default: resolveIsDefault(values.provider_kind, values.is_default),
           is_enabled: values.is_enabled,
         };
-        if (values.api_key.trim()) patch.api_key = values.api_key.trim();
+        if (values.api_key.trim()) {
+          patch.api_key = values.api_key.trim();
+        }
         await updateModelProvider(editing.id, patch);
         toast.success("模型已更新");
         setEditing(null);
@@ -324,7 +321,9 @@ export function ProvidersPage() {
   }
 
   async function remove(provider: ModelProvider) {
-    if (!window.confirm(`确认删除「${provider.name}」？`)) return;
+    if (!window.confirm(`确认删除「${provider.name}」？`)) {
+      return;
+    }
     await deleteModelProvider(provider.id);
     toast.success("已删除");
     load();
@@ -361,9 +360,8 @@ export function ProvidersPage() {
         <PageHeaderContent>
           <PageTitle>模型管理</PageTitle>
           <PageDescription>
-            配置 OpenAI 兼容 Provider：对话（DeepSeek / OpenAI）、图片（火山
-            Seedream）、视频（火山 Seedance）。API Key 在 admin 内加密存储；
-            仅「对话」类型可作 chat 默认模型。
+            配置 OpenAI 兼容 Provider：对话（DeepSeek / OpenAI）、图片（火山 Seedream）、视频（火山 Seedance）。API Key
+            在 admin 内加密存储； 仅「对话」类型可作 chat 默认模型。
           </PageDescription>
         </PageHeaderContent>
         <PageActions>
@@ -385,11 +383,7 @@ export function ProvidersPage() {
         <CardHeader>
           <CardTitle>全部 Provider</CardTitle>
           <CardDescription>
-            {loading
-              ? "加载中…"
-              : providers
-                ? `共 ${providers.length} 条`
-                : "暂无数据"}
+            {loading ? "加载中…" : providers ? `共 ${providers.length} 条` : "暂无数据"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -415,23 +409,13 @@ export function ProvidersPage() {
               <TableBody>
                 {providers.map((provider) => (
                   <TableRow key={provider.id}>
-                    <TableCell className="font-medium">
-                      {provider.name}
-                    </TableCell>
+                    <TableCell className="font-medium">{provider.name}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">
-                        {kindLabels[provider.provider_kind ?? "chat"]}
-                      </Badge>
+                      <Badge variant="outline">{kindLabels[provider.provider_kind ?? "chat"]}</Badge>
                     </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {provider.model}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {provider.base_url}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {provider.api_key_masked}
-                    </TableCell>
+                    <TableCell className="font-mono text-xs">{provider.model}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{provider.base_url}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{provider.api_key_masked}</TableCell>
                     <TableCell>{statusBadge(provider)}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(provider.updated_at).toLocaleString()}
@@ -445,29 +429,15 @@ export function ProvidersPage() {
                       >
                         {testingId === provider.id ? "测试中…" : "测试"}
                       </Button>
-                      {!provider.is_default &&
-                        provider.is_enabled &&
-                        (provider.provider_kind ?? "chat") === "chat" && (
-                          <Button
-                            variant="link"
-                            size="sm"
-                            onClick={() => markDefault(provider)}
-                          >
-                            设默认
-                          </Button>
-                        )}
-                      <Button
-                        variant="link"
-                        size="sm"
-                        onClick={() => openEdit(provider)}
-                      >
+                      {!provider.is_default && provider.is_enabled && (provider.provider_kind ?? "chat") === "chat" && (
+                        <Button variant="link" size="sm" onClick={() => markDefault(provider)}>
+                          设默认
+                        </Button>
+                      )}
+                      <Button variant="link" size="sm" onClick={() => openEdit(provider)}>
                         编辑
                       </Button>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        onClick={() => remove(provider)}
-                      >
+                      <Button variant="link" size="sm" onClick={() => remove(provider)}>
                         删除
                       </Button>
                     </TableCell>
@@ -476,10 +446,7 @@ export function ProvidersPage() {
               </TableBody>
             </Table>
           ) : (
-            <Muted>
-              还没有任何模型 Provider。点击「新增模型」配置你的第一个 OpenAI
-              兼容端点。
-            </Muted>
+            <Muted>还没有任何模型 Provider。点击「新增模型」配置你的第一个 OpenAI 兼容端点。</Muted>
           )}
         </CardContent>
       </Card>
@@ -499,10 +466,7 @@ export function ProvidersPage() {
         onSubmit={save}
       />
 
-      <Dialog
-        open={Boolean(testResult)}
-        onOpenChange={(open) => !open && setTestResult(null)}
-      >
+      <Dialog open={Boolean(testResult)} onOpenChange={(open) => !open && setTestResult(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -524,21 +488,16 @@ export function ProvidersPage() {
                   <>
                     <p>
                       延迟：
-                      <span className="font-mono">
-                        {testResult.result.latency_ms ?? "?"} ms
-                      </span>
+                      <span className="font-mono">{testResult.result.latency_ms ?? "?"} ms</span>
                     </p>
                     {testResult.result.sample && (
                       <p>
-                        {(testResult.provider.provider_kind ?? "chat") ===
-                        "chat"
+                        {(testResult.provider.provider_kind ?? "chat") === "chat"
                           ? "首条回复："
-                          : (testResult.provider.provider_kind ?? "chat") ===
-                              "image"
+                          : (testResult.provider.provider_kind ?? "chat") === "image"
                             ? "结果 URL："
                             : "验证结果："}
-                        {(testResult.provider.provider_kind ?? "chat") !==
-                          "chat" &&
+                        {(testResult.provider.provider_kind ?? "chat") !== "chat" &&
                         /^https?:\/\//.test(testResult.result.sample) ? (
                           <a
                             href={testResult.result.sample}
@@ -549,17 +508,13 @@ export function ProvidersPage() {
                             {testResult.result.sample}
                           </a>
                         ) : (
-                          <code className="rounded bg-muted px-1 py-0.5">
-                            {testResult.result.sample}
-                          </code>
+                          <code className="rounded bg-muted px-1 py-0.5">{testResult.result.sample}</code>
                         )}
                       </p>
                     )}
                   </>
                 ) : (
-                  <pre className="whitespace-pre-wrap rounded bg-muted p-2 text-xs">
-                    {testResult.result.error}
-                  </pre>
+                  <pre className="whitespace-pre-wrap rounded bg-muted p-2 text-xs">{testResult.result.error}</pre>
                 )}
               </div>
             )}
@@ -605,7 +560,9 @@ function ProviderFormDialog({
   }
 
   function applyChatTokenBudgetForModel(model: string) {
-    if (providerKind !== "chat") return;
+    if (providerKind !== "chat") {
+      return;
+    }
     const budget = resolveChatTokenBudget(model);
     form.setValue("context_window_k", budget.context_window_k);
     form.setValue("max_output_tokens_k", budget.max_output_tokens_k);
@@ -618,8 +575,8 @@ function ProviderFormDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             base_url 为 API 前缀（火山 Ark：
-            https://ark.cn-beijing.volces.com/api/v3）。图片测试会实际生成图片并可能计费；
-            视频测试只验证 Ark API 鉴权，不创建生成任务。
+            https://ark.cn-beijing.volces.com/api/v3）。图片测试会实际生成图片并可能计费； 视频测试只验证 Ark API
+            鉴权，不创建生成任务。
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -639,7 +596,9 @@ function ProviderFormDialog({
                           if (value !== "chat") {
                             form.setValue("is_default", false);
                           }
-                          if (!isEditing) applyKindPreset(value);
+                          if (!isEditing) {
+                            applyKindPreset(value);
+                          }
                         }}
                       >
                         <FormControl>
@@ -649,23 +608,13 @@ function ProviderFormDialog({
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="chat">对话 (chat)</SelectItem>
-                          <SelectItem value="image">
-                            图片生成 (Seedream)
-                          </SelectItem>
-                          <SelectItem value="video">
-                            视频生成 (Seedance)
-                          </SelectItem>
-                          <SelectItem value="embedding">
-                            向量嵌入 (Embedding · RAG)
-                          </SelectItem>
-                          <SelectItem value="rerank">
-                            重排 (Rerank · RAG)
-                          </SelectItem>
+                          <SelectItem value="image">图片生成 (Seedream)</SelectItem>
+                          <SelectItem value="video">视频生成 (Seedance)</SelectItem>
+                          <SelectItem value="embedding">向量嵌入 (Embedding · RAG)</SelectItem>
+                          <SelectItem value="rerank">重排 (Rerank · RAG)</SelectItem>
                         </SelectContent>
                       </Select>
-                      <FieldError
-                        errors={[form.formState.errors.provider_kind]}
-                      />
+                      <FieldError errors={[form.formState.errors.provider_kind]} />
                     </Field>
                   )}
                 />
@@ -676,10 +625,7 @@ function ProviderFormDialog({
                     <Field>
                       <FieldLabel>名称</FieldLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="例如：DeepSeek V4（个人）"
-                        />
+                        <Input {...field} placeholder="例如：DeepSeek V4（个人）" />
                       </FormControl>
                       <FieldError errors={[form.formState.errors.name]} />
                     </Field>
@@ -696,8 +642,9 @@ function ProviderFormDialog({
                           {...field}
                           onBlur={(event) => {
                             field.onBlur();
-                            if (!isEditing)
+                            if (!isEditing) {
                               applyChatTokenBudgetForModel(event.target.value);
+                            }
                           }}
                           placeholder={
                             providerKind === "image"
@@ -721,11 +668,7 @@ function ProviderFormDialog({
                       <FormControl>
                         <Input
                           {...field}
-                          placeholder={
-                            providerKind === "chat"
-                              ? "https://api.deepseek.com"
-                              : ARK_BASE_URL
-                          }
+                          placeholder={providerKind === "chat" ? "https://api.deepseek.com" : ARK_BASE_URL}
                         />
                       </FormControl>
                       <FieldError errors={[form.formState.errors.base_url]} />
@@ -740,9 +683,7 @@ function ProviderFormDialog({
                       <FieldLabel>
                         API Key{" "}
                         {isEditing && (
-                          <span className="text-xs font-normal text-muted-foreground">
-                            （留空 = 保留原 key）
-                          </span>
+                          <span className="text-xs font-normal text-muted-foreground">（留空 = 保留原 key）</span>
                         )}
                       </FieldLabel>
                       <FormControl>
@@ -773,10 +714,9 @@ function ProviderFormDialog({
                       </FormControl>
                       {providerKind === "video" ? (
                         <Muted className="text-xs">
-                          视频输出：ratio（16:9 / 9:16 / 1:1
-                          等）、resolution（480p / 720p /
-                          1080p）、generate_audio、watermark、framespersecond（24
-                          / 25 / 30 / 60）；同时影响 Ark 生成与拼接规格。
+                          视频输出：ratio（16:9 / 9:16 / 1:1 等）、resolution（480p / 720p /
+                          1080p）、generate_audio、watermark、framespersecond（24 / 25 / 30 / 60）；同时影响 Ark
+                          生成与拼接规格。
                         </Muted>
                       ) : null}
                       <FieldError errors={[form.formState.errors.extra_body]} />
@@ -794,9 +734,7 @@ function ProviderFormDialog({
                           <FormControl>
                             <Input {...field} maxLength={3} placeholder="CNY" />
                           </FormControl>
-                          <FieldError
-                            errors={[form.formState.errors.pricing_currency]}
-                          />
+                          <FieldError errors={[form.formState.errors.pricing_currency]} />
                         </Field>
                       )}
                     />
@@ -811,19 +749,11 @@ function ProviderFormDialog({
                               {...field}
                               type="number"
                               min={1}
-                              onChange={(event) =>
-                                field.onChange(
-                                  event.currentTarget.valueAsNumber,
-                                )
-                              }
+                              onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
                             />
                           </FormControl>
-                          <Muted className="text-xs">
-                            1,000,000 微单位 = 1.00 币种单位
-                          </Muted>
-                          <FieldError
-                            errors={[form.formState.errors.unit_price_micros]}
-                          />
+                          <Muted className="text-xs">1,000,000 微单位 = 1.00 币种单位</Muted>
+                          <FieldError errors={[form.formState.errors.unit_price_micros]} />
                         </Field>
                       )}
                     />
@@ -843,14 +773,10 @@ function ProviderFormDialog({
                             min={1}
                             max={2048}
                             step={0.25}
-                            onChange={(event) =>
-                              field.onChange(event.currentTarget.valueAsNumber)
-                            }
+                            onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
                           />
                         </FormControl>
-                        <FieldError
-                          errors={[form.formState.errors.context_window_k]}
-                        />
+                        <FieldError errors={[form.formState.errors.context_window_k]} />
                       </Field>
                     )}
                   />
@@ -867,21 +793,15 @@ function ProviderFormDialog({
                             min={0.25}
                             max={1024}
                             step={0.25}
-                            onChange={(event) =>
-                              field.onChange(event.currentTarget.valueAsNumber)
-                            }
+                            onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
                           />
                         </FormControl>
-                        <FieldError
-                          errors={[form.formState.errors.max_output_tokens_k]}
-                        />
+                        <FieldError errors={[form.formState.errors.max_output_tokens_k]} />
                       </Field>
                     )}
                   />
                 </div>
-                <Muted className="text-xs">
-                  统一按 1K = 1024 tokens 配置，支持 0.25K 步进。
-                </Muted>
+                <Muted className="text-xs">统一按 1K = 1024 tokens 配置，支持 0.25K 步进。</Muted>
                 {providerKind === "chat" && (
                   <FormField
                     control={form.control}
@@ -889,10 +809,7 @@ function ProviderFormDialog({
                     render={({ field }) => (
                       <Field>
                         <FieldLabel className="flex items-center gap-2">
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
                           支持图片输入（多模态视觉）
                           <span className="text-xs font-normal text-muted-foreground">
                             关闭时上传图片自动降级为文本引用
@@ -909,15 +826,10 @@ function ProviderFormDialog({
                     render={({ field }) => (
                       <Field>
                         <FieldLabel className="flex items-center gap-2">
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
                           设为默认对话模型
                         </FieldLabel>
-                        <FieldError
-                          errors={[form.formState.errors.is_default]}
-                        />
+                        <FieldError errors={[form.formState.errors.is_default]} />
                       </Field>
                     )}
                   />
@@ -928,10 +840,7 @@ function ProviderFormDialog({
                   render={({ field }) => (
                     <Field>
                       <FieldLabel className="flex items-center gap-2">
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
                         启用
                       </FieldLabel>
                     </Field>
@@ -942,18 +851,10 @@ function ProviderFormDialog({
           </Form>
         </DialogBody>
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button
-            type="submit"
-            form="provider-form"
-            disabled={form.formState.isSubmitting}
-          >
+          <Button type="submit" form="provider-form" disabled={form.formState.isSubmitting}>
             保存
           </Button>
         </DialogFooter>

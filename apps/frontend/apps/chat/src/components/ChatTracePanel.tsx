@@ -1,9 +1,4 @@
-import {
-  type AgentRunTrace,
-  type AgentTraceStep,
-  type AgentTraceToolCall,
-  fetchConversationAgentTrace,
-} from "api";
+import { type AgentRunTrace, type AgentTraceStep, type AgentTraceToolCall, fetchConversationAgentTrace } from "api";
 import {
   Plan,
   PlanContent,
@@ -39,11 +34,7 @@ function toWorkflowStatus(status: string): WorkflowStatus {
   }
 }
 
-export function ChatTracePanel({
-  conversationId,
-  runId,
-  refreshKey,
-}: ChatTracePanelProps) {
+export function ChatTracePanel({ conversationId, runId, refreshKey }: ChatTracePanelProps) {
   const [trace, setTrace] = useState<AgentRunTrace | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -52,11 +43,15 @@ export function ChatTracePanel({
     setLoading(true);
     fetchConversationAgentTrace(conversationId, runId)
       .then((next) => {
-        if (active) setTrace(next);
+        if (active) {
+          setTrace(next);
+        }
       })
       .catch(() => {})
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       });
     return () => {
       active = false;
@@ -81,15 +76,11 @@ export function ChatTracePanel({
   );
 
   if (loading && !trace) {
-    return (
-      <div className="p-4 text-xs text-muted-foreground">加载执行轨迹...</div>
-    );
+    return <div className="p-4 text-xs text-muted-foreground">加载执行轨迹...</div>;
   }
 
   if (!trace) {
-    return (
-      <div className="p-4 text-xs text-muted-foreground">暂无执行轨迹。</div>
-    );
+    return <div className="p-4 text-xs text-muted-foreground">暂无执行轨迹。</div>;
   }
 
   return (
@@ -109,9 +100,7 @@ export function ChatTracePanel({
           )}
         </PlanContent>
       </Plan>
-      {trace.toolCalls.length > 0 ? (
-        <Queue>{trace.toolCalls.map(renderToolCall)}</Queue>
-      ) : null}
+      {trace.toolCalls.length > 0 ? <Queue>{trace.toolCalls.map(renderToolCall)}</Queue> : null}
     </div>
   );
 }

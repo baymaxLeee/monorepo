@@ -1,9 +1,7 @@
 import { Extension } from "@tiptap/core";
 import { Plugin, TextSelection } from "@tiptap/pm/state";
-import {
-  getClipboardImageFiles,
-  isSelectionInsideTableCell,
-} from "../../utils";
+
+import { getClipboardImageFiles, isSelectionInsideTableCell } from "../../utils";
 
 export const createPasteFlattenExtension = () =>
   Extension.create({
@@ -26,13 +24,15 @@ export const createPasteFlattenExtension = () =>
                 return true;
               }
 
-              if (isSelectionInsideTableCell(selection)) return false;
+              if (isSelectionInsideTableCell(selection)) {
+                return false;
+              }
 
               if ($from.depth <= 1) {
-                if (slice.content.size === 0) return true;
-                view.dispatch(
-                  state.tr.replaceSelection(slice).scrollIntoView(),
-                );
+                if (slice.content.size === 0) {
+                  return true;
+                }
+                view.dispatch(state.tr.replaceSelection(slice).scrollIntoView());
                 return true;
               }
 

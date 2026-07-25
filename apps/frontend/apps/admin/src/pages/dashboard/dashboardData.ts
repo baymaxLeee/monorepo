@@ -47,9 +47,7 @@ export function shortId(value: string | null) {
   return value ? value.slice(0, 10) : "-";
 }
 
-export function buildDashboardData(
-  items: TelemetryErrorEvent[],
-): DashboardData {
+export function buildDashboardData(items: TelemetryErrorEvent[]): DashboardData {
   const sessions = new Set(items.map((item) => item.session_id));
   const traces = new Set(items.map((item) => item.trace_id).filter(Boolean));
   return {
@@ -79,9 +77,7 @@ export function buildDashboardData(
   };
 }
 
-export function buildVitalSummaries(
-  items: TelemetryPerformanceEvent[],
-): VitalSummary[] {
+export function buildVitalSummaries(items: TelemetryPerformanceEvent[]): VitalSummary[] {
   const metrics: VitalMetric[] = ["fcp", "lcp", "inp", "cls", "ttfb"];
   return metrics.map((metric) => {
     const values = items
@@ -100,8 +96,12 @@ export function buildVitalSummaries(
 }
 
 export function formatVitalValue(metric: VitalMetric, value: number): string {
-  if (metric === "cls") return value.toFixed(3);
-  if (value >= 1000) return `${(value / 1000).toFixed(2)}s`;
+  if (metric === "cls") {
+    return value.toFixed(3);
+  }
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(2)}s`;
+  }
   return `${Math.round(value)}ms`;
 }
 
@@ -178,7 +178,9 @@ export function scatterOption(points: [number, number][]): EChartsOption {
 }
 
 function percentile(values: number[], ratio: number): number | null {
-  if (values.length === 0) return null;
+  if (values.length === 0) {
+    return null;
+  }
   const index = Math.ceil(values.length * ratio) - 1;
   return values[Math.max(0, Math.min(index, values.length - 1))];
 }
@@ -192,8 +194,12 @@ function rateVital(metric: VitalMetric, value: number): string {
     ttfb: [800, 1800],
   };
   const [good, poor] = thresholds[metric];
-  if (value <= good) return "good";
-  if (value <= poor) return "needs improvement";
+  if (value <= good) {
+    return "good";
+  }
+  if (value <= poor) {
+    return "needs improvement";
+  }
   return "poor";
 }
 
@@ -219,17 +225,14 @@ function countsByHour(items: TelemetryErrorEvent[]): CountItem[] {
     const key = formatter.format(new Date(item.ts_server));
     counts.set(key, (counts.get(key) ?? 0) + 1);
   });
-  return [...counts.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([name, value]) => ({ name, value }));
+  return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([name, value]) => ({ name, value }));
 }
 
 function baseOption(option: EChartsOption): EChartsOption {
   return {
     color: ["#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#7c3aed"],
     textStyle: {
-      fontFamily:
-        'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     },
     ...option,
   };

@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { getRun, start } from "workflow/api";
 import { WorkflowRunCancelledError } from "workflow/errors";
@@ -28,7 +29,9 @@ function newTaskId(): string {
 }
 
 function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) {
+    return error.message;
+  }
   try {
     return JSON.stringify(error) ?? "workflow start failed";
   } catch {
@@ -44,9 +47,7 @@ function toSnapshot(row: TaskRow): TaskSnapshot {
     ownerService: row.ownerService,
     ownerRef: row.ownerRef,
     result: row.result ?? null,
-    progress: row.progress
-      ? { done: row.progress.done, total: row.progress.total }
-      : null,
+    progress: row.progress ? { done: row.progress.done, total: row.progress.total } : null,
     error: row.error,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -98,14 +99,18 @@ function watchCompletion(taskId: string, workflowRunId: string): void {
 
 export async function createTask(input: CreateTaskInput): Promise<TaskSnapshot> {
   const taskType = getTaskType(input.type);
-  if (!taskType) throw new RequestError(`unknown task type: ${input.type}`);
+  if (!taskType) {
+    throw new RequestError(`unknown task type: ${input.type}`);
+  }
   const parsed = taskType.inputSchema.safeParse(input.payload);
   if (!parsed.success) {
     throw new RequestError("invalid task payload", { issues: parsed.error.issues });
   }
 
   const existing = await findByOwner(input.ownerService, input.ownerRef);
-  if (existing) return toSnapshot(existing);
+  if (existing) {
+    return toSnapshot(existing);
+  }
 
   const db = getDb();
   const id = newTaskId();
@@ -123,7 +128,9 @@ export async function createTask(input: CreateTaskInput): Promise<TaskSnapshot> 
     });
   } catch {
     const row = await findByOwner(input.ownerService, input.ownerRef);
-    if (row) return toSnapshot(row);
+    if (row) {
+      return toSnapshot(row);
+    }
     throw new ConflictError("failed to create task");
   }
 
@@ -164,20 +171,26 @@ export async function createTask(input: CreateTaskInput): Promise<TaskSnapshot> 
   watchCompletion(id, run.runId);
 
   const row = await findById(id);
-  if (!row) throw new NotFoundError(`task ${id} not found after creation`);
+  if (!row) {
+    throw new NotFoundError(`task ${id} not found after creation`);
+  }
   return toSnapshot(row);
 }
 
 export async function getTask(id: string, owner: TaskOwner): Promise<TaskSnapshot> {
   const row = await findById(id);
-  if (!row) throw new NotFoundError(`task ${id} not found`);
+  if (!row) {
+    throw new NotFoundError(`task ${id} not found`);
+  }
   assertTaskOwner(row, owner);
   return toSnapshot(row);
 }
 
 export async function cancelTask(id: string, owner: TaskOwner): Promise<TaskSnapshot> {
   const row = await findById(id);
-  if (!row) throw new NotFoundError(`task ${id} not found`);
+  if (!row) {
+    throw new NotFoundError(`task ${id} not found`);
+  }
   assertTaskOwner(row, owner);
   if (row.status === "completed" || row.status === "failed" || row.status === "cancelled") {
     return toSnapshot(row);
@@ -192,7 +205,9 @@ export async function cancelTask(id: string, owner: TaskOwner): Promise<TaskSnap
   const taskType = getTaskType(row.type);
   const parsed = taskType?.inputSchema.safeParse(row.payload);
   const operations: Array<Promise<void>> = [];
-  if (row.workflowRunId) operations.push(getRun(row.workflowRunId).cancel());
+  if (row.workflowRunId) {
+    operations.push(getRun(row.workflowRunId).cancel());
+  }
   if (taskType?.cancel && parsed?.success) {
     operations.push(taskType.cancel(parsed.data, row.progress ?? null, { taskId: row.id }));
   }
@@ -207,7 +222,9 @@ export async function cancelTask(id: string, owner: TaskOwner): Promise<TaskSnap
   }
 
   const cancelled = await findById(id);
-  if (!cancelled) throw new NotFoundError(`task ${id} not found after cancellation`);
+  if (!cancelled) {
+    throw new NotFoundError(`task ${id} not found after cancellation`);
+  }
   return toSnapshot(cancelled);
 }
 

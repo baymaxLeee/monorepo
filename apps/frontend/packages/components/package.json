@@ -23,6 +23,13 @@
     "./shadcn": "./src/shadcn/index.ts",
     "./shadcn/*": "./src/shadcn/*.tsx"
   },
+  "scripts": {
+    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/packages/components/src && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/components/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/components/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit",
+    "ui:add": "shadcn add",
+    "ui:diff": "shadcn diff"
+  },
   "dependencies": {
     "@codemirror/autocomplete": "^6.0.0",
     "@codemirror/commands": "^6.2.4",
@@ -84,22 +91,15 @@
     "xml-js": "^1.6.11",
     "zod": "catalog:"
   },
-  "scripts": {
-    "lint": "biome check src",
-    "format": "biome check --write src",
-    "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit",
-    "ui:add": "shadcn add",
-    "ui:diff": "shadcn diff"
+  "devDependencies": {
+    "@project/typescript-config": "workspace:*",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@typescript/native": "catalog:",
+    "shadcn": "^4.12.0"
   },
   "peerDependencies": {
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
-  },
-  "devDependencies": {
-    "@project/typescript-config": "workspace:*",
-    "@typescript/native": "catalog:",
-    "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
-    "shadcn": "^4.12.0"
   }
 }

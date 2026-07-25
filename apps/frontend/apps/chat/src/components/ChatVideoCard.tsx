@@ -1,4 +1,5 @@
 import { Loader2Icon, PlaySquareIcon } from "lucide-react";
+
 import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
 import { useChatStore } from "../store/useChatStore";
 import { ChatMediaCard } from "./ChatMediaCard";
@@ -14,36 +15,24 @@ export type CreateVideoProductionOutput = {
   error?: string;
 };
 
-export function parseCreateVideoProductionOutput(
-  output: unknown,
-): CreateVideoProductionOutput | null {
-  if (!output || typeof output !== "object") return null;
+export function parseCreateVideoProductionOutput(output: unknown): CreateVideoProductionOutput | null {
+  if (!output || typeof output !== "object") {
+    return null;
+  }
   const outcome = parseToolOutcome(output);
-  if (!outcome) return null;
+  if (!outcome) {
+    return null;
+  }
   const payload = toolOutcomePayload(outcome);
-  const raw =
-    payload && typeof payload === "object"
-      ? (payload as Record<string, unknown>)
-      : {};
+  const raw = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
   return {
     ok: outcome.ok,
-    status:
-      outcome.status === "partial"
-        ? "partial"
-        : typeof raw.status === "string"
-          ? raw.status
-          : outcome.status,
+    status: outcome.status === "partial" ? "partial" : typeof raw.status === "string" ? raw.status : outcome.status,
     prompt: typeof raw.prompt === "string" ? raw.prompt : undefined,
-    documentId:
-      typeof raw.document_id === "string" ? raw.document_id : undefined,
-    productionId:
-      typeof raw.production_id === "string" ? raw.production_id : undefined,
-    productionStage:
-      typeof raw.production_stage === "string"
-        ? raw.production_stage
-        : undefined,
-    awaitingAction:
-      typeof raw.awaiting_action === "string" ? raw.awaiting_action : undefined,
+    documentId: typeof raw.document_id === "string" ? raw.document_id : undefined,
+    productionId: typeof raw.production_id === "string" ? raw.production_id : undefined,
+    productionStage: typeof raw.production_stage === "string" ? raw.production_stage : undefined,
+    awaitingAction: typeof raw.awaiting_action === "string" ? raw.awaiting_action : undefined,
     error: outcome.ok === false ? outcome.error.message : undefined,
   };
 }
@@ -65,9 +54,7 @@ export function ChatVideoCard({
   const failed = state === "output-error" || parsed?.ok === false;
   const documentId = parsed?.documentId ?? null;
   const completed = parsed?.status === "completed" && Boolean(documentId);
-  const openVideoProductionWorkspace = useChatStore(
-    (store) => store.openVideoProductionWorkspace,
-  );
+  const openVideoProductionWorkspace = useChatStore((store) => store.openVideoProductionWorkspace);
 
   if (failed) {
     return (
@@ -94,13 +81,9 @@ export function ChatVideoCard({
         icon={PlaySquareIcon}
         title="视频制片任务"
         description={
-          parsed.awaitingAction
-            ? "制片任务已创建，打开导演工作台完成审批"
-            : "制片任务已创建，后台工作流正在持续推进"
+          parsed.awaitingAction ? "制片任务已创建，打开导演工作台完成审批" : "制片任务已创建，后台工作流正在持续推进"
         }
-        onOpen={() =>
-          openVideoProductionWorkspace(conversationId, parsed.productionId!)
-        }
+        onOpen={() => openVideoProductionWorkspace(conversationId, parsed.productionId!)}
       />
     );
   }

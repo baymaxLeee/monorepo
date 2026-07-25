@@ -1,11 +1,5 @@
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "components";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "components";
+
 import { DemoCard } from "../DemoCard";
 import { StatusBadge } from "../StatusBadge";
 
@@ -17,11 +11,7 @@ const rows = [
 
 export function DataTab() {
   return (
-    <DemoCard
-      title="Table"
-      description="静态示例数据"
-      contentClassName="overflow-auto"
-    >
+    <DemoCard title="Table" description="静态示例数据" contentClassName="overflow-auto">
       <div className="max-w-3xl">
         <Table>
           <TableHeader>
@@ -38,9 +28,7 @@ export function DataTab() {
                 <TableCell>
                   <StatusBadge status={row.status} />
                 </TableCell>
-                <TableCell className="text-right text-muted-foreground">
-                  {row.version}
-                </TableCell>
+                <TableCell className="text-right text-muted-foreground">{row.version}</TableCell>
               </TableRow>
             ))}
           </TableBody>

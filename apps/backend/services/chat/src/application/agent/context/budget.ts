@@ -7,10 +7,5 @@ export interface ModelContextLimits {
 }
 
 export function effectiveModelInputWindow(limits: ModelContextLimits): number {
-  return Math.max(
-    512,
-    limits.contextWindow -
-      limits.maxOutputTokens -
-      MODEL_CONTEXT_OVERHEAD_TOKENS,
-  );
+  return Math.max(512, limits.contextWindow - limits.maxOutputTokens - MODEL_CONTEXT_OVERHEAD_TOKENS);
 }

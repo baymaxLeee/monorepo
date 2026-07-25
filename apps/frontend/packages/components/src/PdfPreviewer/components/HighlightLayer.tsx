@@ -1,11 +1,7 @@
 import { forwardRef, useImperativeHandle, useMemo } from "react";
-
 import { cn } from "shared";
-import type {
-  PdfHighlight,
-  PdfHighlightRegions,
-  PdfSelectionRegion,
-} from "../interface";
+
+import type { PdfHighlight, PdfHighlightRegions, PdfSelectionRegion } from "../interface";
 
 export interface HighlightLayerProps {
   /** 当前正在展示的页码（1-based） */
@@ -13,11 +9,7 @@ export interface HighlightLayerProps {
   /** highlights 全集（含其他形态），由 layer 内部按 regions + pageIndex 过滤 */
   highlights: PdfHighlight[];
   /** 点击高亮块回调，会回传原始 highlight 对象与其在 props.highlights 中的下标 */
-  onHighlightClick?: (payload: {
-    highlight: PdfHighlight;
-    index: number;
-    event: MouseEvent;
-  }) => void;
+  onHighlightClick?: (payload: { highlight: PdfHighlight; index: number; event: MouseEvent }) => void;
 }
 
 export interface HighlightLayerRef {
@@ -25,9 +17,7 @@ export interface HighlightLayerRef {
   getHighlightElement: (id: string) => HTMLElement | null;
 }
 
-const isRegionsHighlight = (
-  highlight: PdfHighlight,
-): highlight is PdfHighlightRegions =>
+const isRegionsHighlight = (highlight: PdfHighlight): highlight is PdfHighlightRegions =>
   Array.isArray((highlight as PdfHighlightRegions).regions);
 
 interface RenderItem {
@@ -48,10 +38,16 @@ const HighlightLayer = forwardRef<HighlightLayerRef, HighlightLayerProps>(
     const renderItems = useMemo<RenderItem[]>(() => {
       const items: RenderItem[] = [];
       highlights.forEach((highlight, index) => {
-        if (!isRegionsHighlight(highlight)) return;
+        if (!isRegionsHighlight(highlight)) {
+          return;
+        }
         highlight.regions.forEach((region, subIndex) => {
-          if (region.pageIndex + 1 !== pageNumber) return;
-          if (region.width <= 0 || region.height <= 0) return;
+          if (region.pageIndex + 1 !== pageNumber) {
+            return;
+          }
+          if (region.width <= 0 || region.height <= 0) {
+            return;
+          }
           items.push({
             key: `${highlight.id ?? `h-${index}`}-${subIndex}`,
             id: highlight.id,
@@ -70,10 +66,10 @@ const HighlightLayer = forwardRef<HighlightLayerRef, HighlightLayerProps>(
       ref,
       () => ({
         getHighlightElement: (id: string) => {
-          if (typeof document === "undefined" || !id) return null;
-          return document.querySelector<HTMLElement>(
-            `[data-pdf-highlight="region"][data-highlight-id="${id}"]`,
-          );
+          if (typeof document === "undefined" || !id) {
+            return null;
+          }
+          return document.querySelector<HTMLElement>(`[data-pdf-highlight="region"][data-highlight-id="${id}"]`);
         },
       }),
       [],
@@ -84,10 +80,7 @@ const HighlightLayer = forwardRef<HighlightLayerRef, HighlightLayerProps>(
     }
 
     return (
-      <div
-        className="pointer-events-none absolute inset-0 z-[2]"
-        data-testid="pdf-highlight-layer"
-      >
+      <div className="pointer-events-none absolute inset-0 z-[2]" data-testid="pdf-highlight-layer">
         {renderItems.map((item) => (
           <div
             key={item.key}

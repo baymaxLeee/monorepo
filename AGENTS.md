@@ -277,6 +277,14 @@ couldn't recover from the code itself in seconds, it must not exist. Comment
 the surprise, never the routine — this mirrors the core agents (Claude Code /
 Codex / Cursor).
 
+### TypeScript style: Oxc + Ultracite
+
+- Root `oxlint.config.ts` and `oxfmt.config.ts` are the only TypeScript/JavaScript style configuration.
+- Oxfmt uses 120 columns by default, two spaces, double quotes, semicolons, trailing commas, sorted imports, and LF endings. Narrow file-specific overrides are allowed only to preserve an explicit repository hard limit.
+- Oxlint uses type-aware TS7 analysis and `agent` diagnostics. Errors are high-confidence correctness failures; migration findings stay advisory and are hidden from routine CLI output with `--quiet`.
+- Do not add nested Biome, ESLint, or Prettier configurations. Use `just fmt` to rewrite and `just lint` to verify.
+- Generated code and migrations stay excluded. Do not format them manually.
+
 ### Forbidden zones for unprompted edits
 - `**/generated/**` — codegen output
 - `apps/backend/services/*/migrations/versions/**` — DB migrations

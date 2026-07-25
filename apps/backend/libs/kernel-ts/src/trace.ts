@@ -46,11 +46,15 @@ export function getTraceId(): string | undefined {
  */
 export function propagationHeaders(): Record<string, string> {
   const context = storage.getStore();
-  if (!context) return {};
+  if (!context) {
+    return {};
+  }
   const headers: Record<string, string> = {};
   for (const field of PROPAGATED_FIELDS) {
     const value = context[field.ctxKey];
-    if (value) headers[field.header] = value;
+    if (value) {
+      headers[field.header] = value;
+    }
   }
   return headers;
 }

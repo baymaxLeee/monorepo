@@ -1,7 +1,7 @@
 import type { Context, Next } from "hono";
 
-import { getSettings } from "../../../bootstrap/config.js";
 import { UnauthorizedError } from "../../../application/errors.js";
+import { getSettings } from "../../../bootstrap/config.js";
 
 const ALLOWED_CALLERS = new Set(["chat"]);
 

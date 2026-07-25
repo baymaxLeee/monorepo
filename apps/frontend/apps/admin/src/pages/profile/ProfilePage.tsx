@@ -26,7 +26,9 @@ function getUserInitials(name: string) {
 export function ProfilePage() {
   const user = usePlatformStore((state) => state.user);
 
-  if (!user) return null;
+  if (!user) {
+    return null;
+  }
 
   return (
     <Page>

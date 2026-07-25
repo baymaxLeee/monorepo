@@ -1,8 +1,8 @@
 import { reconcileOrphanedRuns, startOrphanRunReconciler } from "../application/agent/index.js";
 import { startConversationArtifactCleanupRelay } from "../application/conversation-artifact-cleanup.js";
-import { getSql } from "../infrastructure/persistence/index.js";
-import { logger } from "../infrastructure/observability/logger.js";
 import { markBootFailed, markBootReady } from "../infrastructure/health/readiness.js";
+import { logger } from "../infrastructure/observability/logger.js";
+import { getSql } from "../infrastructure/persistence/index.js";
 
 export async function bootstrapChat(): Promise<void> {
   try {

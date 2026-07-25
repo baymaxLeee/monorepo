@@ -16,7 +16,9 @@ export const createSelectionPersistenceExtension = () => {
             init: () => false,
             apply(tr, prev) {
               const focused = tr.getMeta(focusKey);
-              if (typeof focused === "boolean") return focused;
+              if (typeof focused === "boolean") {
+                return focused;
+              }
               return prev;
             },
           },
@@ -33,10 +35,14 @@ export const createSelectionPersistenceExtension = () => {
             },
             decorations(state) {
               const isFocused = focusKey.getState(state);
-              if (isFocused) return DecorationSet.empty;
+              if (isFocused) {
+                return DecorationSet.empty;
+              }
 
               const { selection } = state;
-              if (selection.empty) return DecorationSet.empty;
+              if (selection.empty) {
+                return DecorationSet.empty;
+              }
 
               return DecorationSet.create(state.doc, [
                 Decoration.inline(selection.from, selection.to, {

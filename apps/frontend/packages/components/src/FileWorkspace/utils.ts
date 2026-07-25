@@ -7,9 +7,7 @@ export function isFileContentPending(node: FileNode): boolean {
   return node.type === "file" && node.content === null;
 }
 
-function hasLoadedFileContent(
-  content: string | null | undefined,
-): content is string {
+function hasLoadedFileContent(content: string | null | undefined): content is string {
   return typeof content === "string";
 }
 
@@ -20,7 +18,9 @@ export function buildNodeMap(tree: FileNode[]): Map<string, FileNode> {
     for (const n of nodes) {
       n.parent_id = pid;
       map.set(n.id, n);
-      if (n.children) walk(n.children, n.id);
+      if (n.children) {
+        walk(n.children, n.id);
+      }
     }
   };
   walk(tree, null);
@@ -45,7 +45,9 @@ export function updateTree(
   op: (node: FileNode, siblings: FileNode[], idx: number) => FileNode[],
 ): FileNode[] | null {
   for (let i = 0; i < tree.length; i++) {
-    if (tree[i].id === id) return op(tree[i], tree, i);
+    if (tree[i].id === id) {
+      return op(tree[i], tree, i);
+    }
     if (tree[i].children) {
       const result = updateTree(tree[i].children!, id, op);
       if (result) {
@@ -60,22 +62,26 @@ export function updateTree(
 
 /** 判断 targetId 是否是 node 的后代 */
 export function isDescendant(node: FileNode, targetId: string): boolean {
-  if (!node.children) return false;
+  if (!node.children) {
+    return false;
+  }
   for (const child of node.children) {
-    if (child.id === targetId || isDescendant(child, targetId)) return true;
+    if (child.id === targetId || isDescendant(child, targetId)) {
+      return true;
+    }
   }
   return false;
 }
 
 /** 不可变地更新树中某个节点的字段 */
-export function patchNode(
-  tree: FileNode[],
-  id: string,
-  patch: Partial<FileNode>,
-): FileNode[] {
+export function patchNode(tree: FileNode[], id: string, patch: Partial<FileNode>): FileNode[] {
   return tree.map((n) => {
-    if (n.id === id) return { ...n, ...patch };
-    if (n.children) return { ...n, children: patchNode(n.children, id, patch) };
+    if (n.id === id) {
+      return { ...n, ...patch };
+    }
+    if (n.children) {
+      return { ...n, children: patchNode(n.children, id, patch) };
+    }
     return n;
   });
 }
@@ -84,17 +90,16 @@ export function patchNode(
  * 对比基线树与当前树，生成最小 FileChange 变更集。
  * DELETE 只报告被删除子树的根节点；CREATE 按父→子排序确保可顺序重放。
  */
-export function diffTree(
-  oldTree: FileNode[],
-  newTree: FileNode[],
-): FileChange[] {
+export function diffTree(oldTree: FileNode[], newTree: FileNode[]): FileChange[] {
   const changes: FileChange[] = [];
   const oldMap = buildNodeMap(oldTree);
   const newMap = buildNodeMap(newTree);
 
   const deletedIds = new Set<string>();
   for (const [id] of oldMap) {
-    if (!newMap.has(id)) deletedIds.add(id);
+    if (!newMap.has(id)) {
+      deletedIds.add(id);
+    }
   }
   for (const id of deletedIds) {
     let pid = oldMap.get(id)!.parent_id;
@@ -113,7 +118,9 @@ export function diffTree(
 
   const created: FileNode[] = [];
   for (const [id, node] of newMap) {
-    if (!oldMap.has(id)) created.push(node);
+    if (!oldMap.has(id)) {
+      created.push(node);
+    }
   }
   const depth = (n: FileNode): number => {
     let d = 0;
@@ -132,15 +139,15 @@ export function diffTree(
       parent_id: n.parent_id ?? null,
       name: n.name,
       type: n.type,
-      ...(n.type === "file" && hasLoadedFileContent(n.content)
-        ? { content: n.content }
-        : {}),
+      ...(n.type === "file" && hasLoadedFileContent(n.content) ? { content: n.content } : {}),
     });
   }
 
   for (const [id, newNode] of newMap) {
     const oldNode = oldMap.get(id);
-    if (!oldNode) continue;
+    if (!oldNode) {
+      continue;
+    }
 
     if (oldNode.name !== newNode.name) {
       changes.push({ action: ChangeAction.RENAME, id, name: newNode.name });

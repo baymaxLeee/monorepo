@@ -1,5 +1,5 @@
-import type { GenericToolApprovalFunction, ToolSet } from "ai";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
+import type { GenericToolApprovalFunction, ToolSet } from "ai";
 
 import type { AgentRuntimeContext } from "../agents/types.js";
 import { toolPolicyFromMetadata } from "./manifest.js";
@@ -13,7 +13,9 @@ export function createToolApprovalPolicy(
     if (mode === "plan" && (!policy || !policy.modes.includes("plan"))) {
       return { type: "denied", reason: "This capability is unavailable in plan mode." };
     }
-    if (!policy) return "user-approval";
+    if (!policy) {
+      return "user-approval";
+    }
     if (policy.source === "mcp" || policy.effect === "destructive" || policy.effect === "unknown") {
       return "user-approval";
     }

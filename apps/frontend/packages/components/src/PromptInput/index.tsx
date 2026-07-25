@@ -1,26 +1,24 @@
 import { forwardRef } from "react";
 import { cn } from "shared";
+
 import { Lazy } from "../Lazy";
 import type { PromptInputProps, PromptInputRef } from "./interface";
+
 import "./styles.css";
 
 const loadPromptInput = () => import("./components/Editor");
 
-const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(
-  function PromptInput(props, ref) {
-    const { style, className } = props;
-    return (
-      <Lazy<PromptInputProps>
-        {...props}
-        loader={loadPromptInput}
-        ref={ref}
-        fallback={
-          <div style={style} className={cn("prompt-input", className)} />
-        }
-      />
-    );
-  },
-);
+const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(function PromptInput(props, ref) {
+  const { style, className } = props;
+  return (
+    <Lazy<PromptInputProps>
+      {...props}
+      loader={loadPromptInput}
+      ref={ref}
+      fallback={<div style={style} className={cn("prompt-input", className)} />}
+    />
+  );
+});
 
 export { PromptInput };
 export default PromptInput;

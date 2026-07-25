@@ -1,9 +1,9 @@
 import { AdminInternalClient, TransportError, type AdminProviderSnapshot } from "@backend/transport-ts";
-
-import { getSettings } from "../../bootstrap/config.js";
-import { RequestError } from "../../application/errors.js";
-import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
 import type { ChatProvider } from "@backend/transport-ts/provider-model";
+import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
+
+import { RequestError } from "../../application/errors.js";
+import { getSettings } from "../../bootstrap/config.js";
 
 function adminClient(): AdminInternalClient {
   const settings = getSettings();

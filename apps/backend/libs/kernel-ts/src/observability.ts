@@ -1,11 +1,4 @@
-import {
-  context,
-  SpanStatusCode,
-  trace,
-  type Attributes,
-  type Context,
-  type Span,
-} from "@opentelemetry/api";
+import { context, SpanStatusCode, trace, type Attributes, type Context, type Span } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
@@ -14,10 +7,14 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 let shutdownTracerProvider: (() => Promise<void>) | null = null;
 
 export function configureOpenTelemetry(serviceName: string): void {
-  if (shutdownTracerProvider) return;
+  if (shutdownTracerProvider) {
+    return;
+  }
 
   const tracesEndpoint = tracesEndpointFromEnv();
-  if (!tracesEndpoint) return;
+  if (!tracesEndpoint) {
+    return;
+  }
 
   const exporter = new OTLPTraceExporter({ url: tracesEndpoint });
   const provider = new NodeTracerProvider({
@@ -42,7 +39,9 @@ export function configureOpenTelemetry(serviceName: string): void {
 export async function shutdownOpenTelemetry(): Promise<void> {
   const shutdown = shutdownTracerProvider;
   shutdownTracerProvider = null;
-  if (shutdown) await shutdown();
+  if (shutdown) {
+    await shutdown();
+  }
 }
 
 export function getTracer(serviceName: string) {
@@ -60,11 +59,7 @@ export function runWithActiveSpan<T>(span: Span, fn: () => T): T {
   return context.with(spanContext, () => bindResultToContext(fn(), spanContext));
 }
 
-export function finishSpan(
-  span: Span,
-  attributes?: Record<string, unknown>,
-  error?: unknown,
-): void {
+export function finishSpan(span: Span, attributes?: Record<string, unknown>, error?: unknown): void {
   if (attributes) {
     span.setAttributes(spanAttributes(attributes));
   }
@@ -82,12 +77,7 @@ export function finishSpan(
 export function spanAttributes(input: Record<string, unknown>): Attributes {
   const attributes: Attributes = {};
   for (const [key, value] of Object.entries(input)) {
-    if (
-      typeof value === "string" ||
-      typeof value === "number" ||
-      typeof value === "boolean" ||
-      Array.isArray(value)
-    ) {
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean" || Array.isArray(value)) {
       attributes[key] = value;
     }
   }
@@ -96,7 +86,9 @@ export function spanAttributes(input: Record<string, unknown>): Attributes {
 
 export function markSpanError(error: unknown): void {
   const span = trace.getActiveSpan();
-  if (!span) return;
+  if (!span) {
+    return;
+  }
   span.setStatus({ code: SpanStatusCode.ERROR });
   if (error instanceof Error) {
     span.recordException(error);
@@ -106,12 +98,16 @@ export function markSpanError(error: unknown): void {
 }
 
 function bindResultToContext<T>(result: T, spanContext: Context): T {
-  if (!isAsyncIterable(result)) return result;
+  if (!isAsyncIterable(result)) {
+    return result;
+  }
   return (async function* () {
     const iterator = result[Symbol.asyncIterator]();
     while (true) {
       const next = await context.with(spanContext, () => iterator.next());
-      if (next.done) return next.value;
+      if (next.done) {
+        return next.value;
+      }
       yield next.value;
     }
   })() as T;
@@ -120,9 +116,9 @@ function bindResultToContext<T>(result: T, spanContext: Context): T {
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
   return Boolean(
     value &&
-      typeof value === "object" &&
-      Symbol.asyncIterator in value &&
-      typeof (value as AsyncIterable<unknown>)[Symbol.asyncIterator] === "function",
+    typeof value === "object" &&
+    Symbol.asyncIterator in value &&
+    typeof (value as AsyncIterable<unknown>)[Symbol.asyncIterator] === "function",
   );
 }
 
@@ -131,6 +127,8 @@ function tracesEndpointFromEnv(): string {
     return process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
   }
   const base = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
-  if (!base) return "";
+  if (!base) {
+    return "";
+  }
   return `${base.replace(/\/$/, "")}/v1/traces`;
 }

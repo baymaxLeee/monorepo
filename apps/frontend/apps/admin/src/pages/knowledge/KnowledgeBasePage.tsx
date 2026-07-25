@@ -38,28 +38,44 @@ import {
 import { DownloadIcon, PencilIcon, Trash2Icon, UploadIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getErrorMessage, randomId } from "shared";
+
 import { KnowledgeDocumentDialog } from "./KnowledgeDocumentDialog";
 
 function formatBytes(size: number): string {
-  if (!size) return "—";
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  if (!size) {
+    return "—";
+  }
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function statusBadge(doc: KnowledgeDocument) {
   const status = doc.ingest_status ?? "ready";
-  if (status === "failed") return <Badge variant="destructive">失败</Badge>;
-  if (status === "ready") return <Badge variant="outline">就绪</Badge>;
+  if (status === "failed") {
+    return <Badge variant="destructive">失败</Badge>;
+  }
+  if (status === "ready") {
+    return <Badge variant="outline">就绪</Badge>;
+  }
   return <Badge variant="secondary">处理中</Badge>;
 }
 
 function indexBadge(doc: KnowledgeDocument) {
   const status = doc.index_status ?? "skipped";
-  if (status === "pending" || status === "indexing")
+  if (status === "pending" || status === "indexing") {
     return <Badge variant="secondary">索引中</Badge>;
-  if (status === "failed") return <Badge variant="destructive">索引失败</Badge>;
-  if (status === "indexed") return <Badge variant="outline">可检索</Badge>;
+  }
+  if (status === "failed") {
+    return <Badge variant="destructive">索引失败</Badge>;
+  }
+  if (status === "indexed") {
+    return <Badge variant="outline">可检索</Badge>;
+  }
   return null;
 }
 
@@ -96,13 +112,17 @@ export function KnowledgeBasePage() {
   // Indexing runs in the background after import; silently poll while any row is
   // still pending/indexing so the badge flips to "可检索" without a manual refresh.
   useEffect(() => {
-    if (!docs?.some(isIndexInFlight)) return;
+    if (!docs?.some(isIndexInFlight)) {
+      return;
+    }
     const timer = setInterval(load, 3000);
     return () => clearInterval(timer);
   }, [docs, load]);
 
   async function handleFiles(fileList: FileList | null) {
-    if (!fileList || fileList.length === 0) return;
+    if (!fileList || fileList.length === 0) {
+      return;
+    }
     const files = Array.from(fileList).map((file) => ({
       clientRef: randomId(),
       file,
@@ -114,9 +134,7 @@ export function KnowledgeBasePage() {
         toast.error(`导入失败：${failure.error}`);
       }
       if (result.documents.length > 0) {
-        toast.success(
-          `已接收 ${result.documents.length} 个文档，正在后台解析与索引`,
-        );
+        toast.success(`已接收 ${result.documents.length} 个文档，正在后台解析与索引`);
       }
     } catch (e) {
       toast.error(getErrorMessage(e));
@@ -151,7 +169,9 @@ export function KnowledgeBasePage() {
   }
 
   async function remove(doc: KnowledgeDocument) {
-    if (!window.confirm(`确认删除「${doc.title}」？`)) return;
+    if (!window.confirm(`确认删除「${doc.title}」？`)) {
+      return;
+    }
     try {
       await deleteKnowledgeDocument(doc.id);
       toast.success("已删除");
@@ -161,10 +181,10 @@ export function KnowledgeBasePage() {
 
   async function removeSelected() {
     const ids = [...selected];
-    if (ids.length === 0) return;
-    if (
-      !window.confirm(`确认删除选中的 ${ids.length} 个文档？此操作不可恢复。`)
-    ) {
+    if (ids.length === 0) {
+      return;
+    }
+    if (!window.confirm(`确认删除选中的 ${ids.length} 个文档？此操作不可恢复。`)) {
       return;
     }
     try {
@@ -174,19 +194,23 @@ export function KnowledgeBasePage() {
     } catch {}
   }
 
-  const allSelected =
-    docs !== null && docs.length > 0 && selected.size === docs.length;
+  const allSelected = docs !== null && docs.length > 0 && selected.size === docs.length;
 
   function toggleAll() {
-    if (!docs) return;
+    if (!docs) {
+      return;
+    }
     setSelected(allSelected ? new Set() : new Set(docs.map((d) => d.id)));
   }
 
   function toggle(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   }
@@ -205,18 +229,11 @@ export function KnowledgeBasePage() {
           <Button variant="outline" onClick={load} disabled={loading}>
             刷新
           </Button>
-          <Button
-            variant="outline"
-            onClick={removeSelected}
-            disabled={selected.size === 0}
-          >
+          <Button variant="outline" onClick={removeSelected} disabled={selected.size === 0}>
             <Trash2Icon className="size-4" />
             批量删除{selected.size > 0 ? `（${selected.size}）` : ""}
           </Button>
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-          >
+          <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
             <UploadIcon className="size-4" />
             {uploading ? "导入中…" : "本地导入"}
           </Button>
@@ -243,9 +260,7 @@ export function KnowledgeBasePage() {
       <Card>
         <CardHeader>
           <CardTitle>企业文档</CardTitle>
-          <CardDescription>
-            {loading ? "加载中…" : docs ? `共 ${docs.length} 篇` : "暂无数据"}
-          </CardDescription>
+          <CardDescription>{loading ? "加载中…" : docs ? `共 ${docs.length} 篇` : "暂无数据"}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -258,11 +273,7 @@ export function KnowledgeBasePage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">
-                    <Checkbox
-                      checked={allSelected}
-                      onCheckedChange={toggleAll}
-                      aria-label="全选"
-                    />
+                    <Checkbox checked={allSelected} onCheckedChange={toggleAll} aria-label="全选" />
                   </TableHead>
                   <TableHead>标题</TableHead>
                   <TableHead>文件名</TableHead>
@@ -283,53 +294,30 @@ export function KnowledgeBasePage() {
                       />
                     </TableCell>
                     <TableCell className="font-medium">{doc.title}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {doc.filename}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatBytes(doc.source_size)}
-                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{doc.filename}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatBytes(doc.source_size)}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1">
                         {statusBadge(doc)}
                         {indexBadge(doc)}
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(doc.updated_at).toLocaleString()}
-                    </TableCell>
+                    <TableCell className="text-muted-foreground">{new Date(doc.updated_at).toLocaleString()}</TableCell>
                     <TableCell className="space-x-1 text-right">
-                      {(doc.index_status === "failed" ||
-                        doc.index_status === "skipped") && (
-                        <Button
-                          variant="link"
-                          size="sm"
-                          onClick={() => retryIndex(doc)}
-                        >
+                      {(doc.index_status === "failed" || doc.index_status === "skipped") && (
+                        <Button variant="link" size="sm" onClick={() => retryIndex(doc)}>
                           重试索引
                         </Button>
                       )}
-                      <Button
-                        variant="link"
-                        size="sm"
-                        onClick={() => setEditingId(doc.id)}
-                      >
+                      <Button variant="link" size="sm" onClick={() => setEditingId(doc.id)}>
                         <PencilIcon className="size-3.5" />
                         阅览/编辑
                       </Button>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        onClick={() => download(doc)}
-                      >
+                      <Button variant="link" size="sm" onClick={() => download(doc)}>
                         <DownloadIcon className="size-3.5" />
                         下载
                       </Button>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        onClick={() => remove(doc)}
-                      >
+                      <Button variant="link" size="sm" onClick={() => remove(doc)}>
                         删除
                       </Button>
                     </TableCell>
@@ -338,9 +326,7 @@ export function KnowledgeBasePage() {
               </TableBody>
             </Table>
           ) : (
-            <Muted>
-              还没有任何文档。点击「本地导入」上传企业文档，构建你的知识库。
-            </Muted>
+            <Muted>还没有任何文档。点击「本地导入」上传企业文档，构建你的知识库。</Muted>
           )}
         </CardContent>
       </Card>

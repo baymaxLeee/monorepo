@@ -15,7 +15,5 @@ export type DemoTab = (typeof demoTabs)[number];
 export const defaultDemoTab: DemoTab = "basic";
 
 export function resolveDemoTab(value: string | null): DemoTab {
-  return demoTabs.includes(value as DemoTab)
-    ? (value as DemoTab)
-    : defaultDemoTab;
+  return demoTabs.includes(value as DemoTab) ? (value as DemoTab) : defaultDemoTab;
 }

@@ -1,13 +1,7 @@
-import {
-  CheckCircleIcon,
-  ChevronRightIcon,
-  CircleIcon,
-  ClockIcon,
-  WrenchIcon,
-  XCircleIcon,
-} from "lucide-react";
+import { CheckCircleIcon, ChevronRightIcon, CircleIcon, ClockIcon, WrenchIcon, XCircleIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import { cn } from "shared";
+
 import { Badge } from "../shadcn/badge";
 
 export type ToolState =
@@ -63,15 +57,7 @@ export function getToolStatusBadge(status: ToolState) {
 export type ToolProps = ComponentProps<"details">;
 
 export function Tool({ className, ...props }: ToolProps) {
-  return (
-    <details
-      className={cn(
-        "group not-prose w-full rounded-md border bg-background/80",
-        className,
-      )}
-      {...props}
-    />
-  );
+  return <details className={cn("group not-prose w-full rounded-md border bg-background/80", className)} {...props} />;
 }
 
 export type ToolHeaderProps = ComponentProps<"summary"> & {
@@ -79,13 +65,7 @@ export type ToolHeaderProps = ComponentProps<"summary"> & {
   state: ToolState;
 };
 
-export function ToolHeader({
-  className,
-  title,
-  state,
-  children,
-  ...props
-}: ToolHeaderProps) {
+export function ToolHeader({ className, title, state, children, ...props }: ToolHeaderProps) {
   return (
     <summary
       className={cn(
@@ -112,26 +92,14 @@ export function ToolHeader({
 export type ToolContentProps = ComponentProps<"div">;
 
 export function ToolContent({ className, ...props }: ToolContentProps) {
-  return (
-    <div
-      className={cn(
-        "max-h-[min(24rem,60vh)] space-y-4 overflow-y-auto p-4 pt-0",
-        className,
-      )}
-      {...props}
-    />
-  );
+  return <div className={cn("max-h-[min(24rem,60vh)] space-y-4 overflow-y-auto p-4 pt-0", className)} {...props} />;
 }
 
 export type ToolJsonBlockProps = ComponentProps<"pre"> & {
   value: unknown;
 };
 
-export function ToolJsonBlock({
-  className,
-  value,
-  ...props
-}: ToolJsonBlockProps) {
+export function ToolJsonBlock({ className, value, ...props }: ToolJsonBlockProps) {
   return (
     <pre
       className={cn(

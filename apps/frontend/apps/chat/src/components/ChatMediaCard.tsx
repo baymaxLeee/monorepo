@@ -32,15 +32,11 @@ export function ChatMediaCard({
           <Icon className="size-4" />
         </span>
         <span className="min-w-0">
-          <span className="block truncate text-sm font-medium text-foreground">
-            {title}
-          </span>
+          <span className="block truncate text-sm font-medium text-foreground">{title}</span>
           {description || note ? (
             <span className="block truncate text-sm text-muted-foreground">
               {description}
-              {note ? (
-                <span className="ml-1 text-destructive">· {note}</span>
-              ) : null}
+              {note ? <span className="ml-1 text-destructive">· {note}</span> : null}
             </span>
           ) : null}
         </span>

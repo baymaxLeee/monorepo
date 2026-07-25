@@ -14,6 +14,7 @@ import {
 import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { getErrorMessage } from "shared";
+
 import { BotSkillsPanel } from "../BotSkillsPanel";
 
 export function BotDetailPage() {
@@ -23,7 +24,9 @@ export function BotDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      return;
+    }
     let alive = true;
     setLoading(true);
     fetchBot(id, { skipErrorNotify: true })
@@ -35,7 +38,9 @@ export function BotDetailPage() {
     };
   }, [id]);
 
-  if (error) return <Navigate to="/404" replace />;
+  if (error) {
+    return <Navigate to="/404" replace />;
+  }
 
   return (
     <Page>
@@ -68,11 +73,7 @@ export function BotDetailPage() {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">状态</span>
-                <Badge
-                  variant={bot.status === "published" ? "default" : "secondary"}
-                >
-                  {bot.status}
-                </Badge>
+                <Badge variant={bot.status === "published" ? "default" : "secondary"}>{bot.status}</Badge>
               </div>
               <Separator />
               <dl className="grid gap-2 text-sm">
@@ -87,10 +88,7 @@ export function BotDetailPage() {
           <Card className="max-w-lg">
             <CardHeader>
               <CardTitle>技能</CardTitle>
-              <CardDescription>
-                该智能体对话时可通过 / 唤起的技能。仅 启用+激活
-                的技能会进入模型。
-              </CardDescription>
+              <CardDescription>该智能体对话时可通过 / 唤起的技能。仅 启用+激活 的技能会进入模型。</CardDescription>
             </CardHeader>
             <CardContent>
               <BotSkillsPanel botId={bot.id} />

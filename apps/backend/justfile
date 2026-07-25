@@ -99,6 +99,7 @@ build-images registry="local" tag="latest":
 
 # ─── quality ────────────────────────────────────────────
 fmt:
+    pnpm --dir ../.. format:ts:backend
     uv run ruff check --fix .
     uv run ruff format .
     @for s in {{ GO_SERVICES }}; do cd services/$s && gofmt -w .; cd ../..; done
@@ -116,6 +117,7 @@ lint scope="":
     fi
 
 lint-node:
+    @pnpm --dir ../.. lint:ts:backend
     @for p in libs/kernel-ts libs/transport-ts; do echo "=== $p ===" && (cd $p && pnpm run typecheck) || exit 1; done
     @for s in {{ NODE_SERVICES }}; do echo "=== $s ===" && (cd services/$s && pnpm run lint) || exit 1; done
 

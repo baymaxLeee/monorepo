@@ -1,11 +1,10 @@
 import * as React from "react";
-
 import { cn } from "shared";
 
-const Textarea = React.forwardRef<
-  HTMLTextAreaElement,
-  React.ComponentProps<"textarea">
->(function Textarea({ className, ...props }, ref) {
+const Textarea = React.forwardRef<HTMLTextAreaElement, React.ComponentProps<"textarea">>(function Textarea(
+  { className, ...props },
+  ref,
+) {
   return (
     <textarea
       ref={ref}

@@ -3,6 +3,7 @@ import { GripVertical } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "shared";
+
 import { getBlockDragState } from "../../extensions/BlockDrag";
 import { getMountedEditorDom } from "../../utils";
 
@@ -17,8 +18,7 @@ const HANDLE_BASE_CLS =
 
 const HANDLE_DRAGGING_CLS = "cursor-grabbing bg-accent text-foreground";
 
-const INDICATOR_CLS =
-  "pointer-events-none absolute z-[19] h-0.5 rounded-full bg-primary";
+const INDICATOR_CLS = "pointer-events-none absolute z-[19] h-0.5 rounded-full bg-primary";
 
 function isHTMLElement(value: unknown): value is HTMLElement {
   return value instanceof HTMLElement;
@@ -28,12 +28,7 @@ function isFloatingMenuActive(editor: Editor, blockPos: number): boolean {
   const { selection } = editor.state;
   const { empty, $anchor } = selection;
 
-  if (
-    !empty ||
-    !$anchor.parent.isTextblock ||
-    $anchor.parent.type.spec.code ||
-    $anchor.parent.textContent
-  ) {
+  if (!empty || !$anchor.parent.isTextblock || $anchor.parent.type.spec.code || $anchor.parent.textContent) {
     return false;
   }
 
@@ -60,22 +55,25 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
     const container = portalContainerRef.current;
     const view = editor.view;
     const editorDom = getMountedEditorDom(editor);
-    if (!container || !editorDom) return;
+    if (!container || !editorDom) {
+      return;
+    }
 
     const dragState = getBlockDragState(editor);
-    const activePos =
-      dragState.draggingBlockPos ?? dragState.activeBlockPos ?? null;
+    const activePos = dragState.draggingBlockPos ?? dragState.activeBlockPos ?? null;
 
     if (activePos == null || isFloatingMenuActive(editor, activePos)) {
-      setPosition((prev) =>
-        prev.top === 0 && prev.left === 0 ? prev : { top: 0, left: 0 },
-      );
+      setPosition((prev) => (prev.top === 0 && prev.left === 0 ? prev : { top: 0, left: 0 }));
       return;
     }
 
     let dom = view.nodeDOM(activePos);
-    if (dom instanceof Text) dom = dom.parentElement;
-    if (!isHTMLElement(dom)) return;
+    if (dom instanceof Text) {
+      dom = dom.parentElement;
+    }
+    if (!isHTMLElement(dom)) {
+      return;
+    }
 
     const containerRect = container.getBoundingClientRect();
     const editorRect = editorDom.getBoundingClientRect();
@@ -90,7 +88,9 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
   const syncDropIndicator = useCallback(() => {
     const container = portalContainerRef.current;
     const view = editor.view;
-    if (!container || !getMountedEditorDom(editor)) return;
+    if (!container || !getMountedEditorDom(editor)) {
+      return;
+    }
 
     const dragState = getBlockDragState(editor);
     if (dragState.draggingBlockPos == null || !dragState.dropTarget) {
@@ -99,7 +99,9 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
     }
 
     let dom = view.nodeDOM(dragState.dropTarget.pos);
-    if (dom instanceof Text) dom = dom.parentElement;
+    if (dom instanceof Text) {
+      dom = dom.parentElement;
+    }
     if (!isHTMLElement(dom)) {
       setLinePosition(null);
       return;
@@ -108,9 +110,7 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
     const containerRect = container.getBoundingClientRect();
     const blockRect = dom.getBoundingClientRect();
     const top =
-      (dragState.dropTarget.placement === "before"
-        ? blockRect.top
-        : blockRect.bottom) -
+      (dragState.dropTarget.placement === "before" ? blockRect.top : blockRect.bottom) -
       containerRect.top +
       container.scrollTop;
 
@@ -131,11 +131,11 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
 
   useEffect(() => {
     const editorDom = getMountedEditorDom(editor);
-    if (!editorDom) return;
+    if (!editorDom) {
+      return;
+    }
 
-    const wrapper =
-      editorDom.closest<HTMLElement>(`.${editorRootClassName}`) ||
-      editorDom.parentElement;
+    const wrapper = editorDom.closest<HTMLElement>(`.${editorRootClassName}`) || editorDom.parentElement;
 
     if (wrapper) {
       portalContainerRef.current = wrapper;
@@ -144,7 +144,9 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
 
   useEffect(() => {
     const wrapper = portalContainerRef.current;
-    if (!wrapper) return;
+    if (!wrapper) {
+      return;
+    }
 
     const dragState = getBlockDragState(editor);
     if (dragState.draggingBlockPos != null) {
@@ -198,7 +200,9 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
 
   useEffect(() => {
     const scrollContainer = getMountedEditorDom(editor)?.parentElement;
-    if (!scrollContainer) return;
+    if (!scrollContainer) {
+      return;
+    }
 
     const onScroll = () => {
       syncPosition();
@@ -233,18 +237,13 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
   );
 
   const dragState = getBlockDragState(editor);
-  const visible =
-    dragState.activeBlockPos != null &&
-    !isFloatingMenuActive(editor, dragState.activeBlockPos);
+  const visible = dragState.activeBlockPos != null && !isFloatingMenuActive(editor, dragState.activeBlockPos);
 
   return createPortal(
     <>
       {visible && (
         <div
-          className={cn(
-            HANDLE_BASE_CLS,
-            dragState.draggingBlockPos != null && HANDLE_DRAGGING_CLS,
-          )}
+          className={cn(HANDLE_BASE_CLS, dragState.draggingBlockPos != null && HANDLE_DRAGGING_CLS)}
           style={{ top: position.top, left: position.left }}
           data-drag-handle=""
           tabIndex={-1}

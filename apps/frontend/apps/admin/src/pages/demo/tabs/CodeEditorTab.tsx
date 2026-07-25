@@ -1,5 +1,6 @@
 import { CodeEditor } from "components/code-editor";
 import { useState } from "react";
+
 import { DemoCard } from "../DemoCard";
 
 const demoCode = `import { apiHttp } from "api";
@@ -19,11 +20,7 @@ export function CodeEditorTab() {
   const [value, setValue] = useState(demoCode);
 
   return (
-    <DemoCard
-      title="CodeEditor"
-      description="CodeMirror 封装，示例数据为智能体指标加载函数"
-      fill
-    >
+    <DemoCard title="CodeEditor" description="CodeMirror 封装，示例数据为智能体指标加载函数" fill>
       <CodeEditor
         fileId="demo-bot-metrics"
         fileName="bot-metrics.ts"
@@ -31,9 +28,7 @@ export function CodeEditorTab() {
         onChange={setValue}
         className="min-h-0 flex-1 overflow-hidden rounded-md border"
       />
-      <p className="shrink-0 text-xs text-muted-foreground">
-        当前字符数：{value.length}
-      </p>
+      <p className="shrink-0 text-xs text-muted-foreground">当前字符数：{value.length}</p>
     </DemoCard>
   );
 }

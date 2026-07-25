@@ -1,22 +1,13 @@
 import { Slider as SliderPrimitive } from "radix-ui";
 import * as React from "react";
-
 import { cn } from "shared";
 
 const Slider = React.forwardRef<
   React.ComponentRef<typeof SliderPrimitive.Root>,
   React.ComponentProps<typeof SliderPrimitive.Root>
->(function Slider(
-  { className, defaultValue, value, min = 0, max = 100, ...props },
-  ref,
-) {
+>(function Slider({ className, defaultValue, value, min = 0, max = 100, ...props }, ref) {
   const _values = React.useMemo(
-    () =>
-      Array.isArray(value)
-        ? value
-        : Array.isArray(defaultValue)
-          ? defaultValue
-          : [min, max],
+    () => (Array.isArray(value) ? value : Array.isArray(defaultValue) ? defaultValue : [min, max]),
     [value, defaultValue, min, max],
   );
 
@@ -42,9 +33,7 @@ const Slider = React.forwardRef<
       >
         <SliderPrimitive.Range
           data-slot="slider-range"
-          className={cn(
-            "absolute bg-primary data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full",
-          )}
+          className={cn("absolute bg-primary data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full")}
         />
       </SliderPrimitive.Track>
       {Array.from({ length: _values.length }, (_, index) => (

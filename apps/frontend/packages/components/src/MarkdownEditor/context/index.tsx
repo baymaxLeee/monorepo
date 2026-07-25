@@ -1,12 +1,6 @@
 import type { Editor } from "@tiptap/core";
-import {
-  createContext,
-  type FC,
-  type PropsWithChildren,
-  type ReactNode,
-  useContext,
-  useMemo,
-} from "react";
+import { createContext, type FC, type PropsWithChildren, type ReactNode, useContext, useMemo } from "react";
+
 import type { AiPolishCallback, ContentType, ToolbarMode } from "../interface";
 
 type Props = {
@@ -56,21 +50,8 @@ export const EditorProvider: FC<PropsWithChildren<Props>> = (props) => {
       toolbarMode,
       toolbarRender,
     }),
-    [
-      editable,
-      maskVisible,
-      setMaskVisible,
-      onUpload,
-      onAiPolish,
-      contentType,
-      toolbarMode,
-      toolbarRender,
-    ],
+    [editable, maskVisible, setMaskVisible, onUpload, onAiPolish, contentType, toolbarMode, toolbarRender],
   );
 
-  return (
-    <EditorContext.Provider value={contextValue}>
-      {children}
-    </EditorContext.Provider>
-  );
+  return <EditorContext.Provider value={contextValue}>{children}</EditorContext.Provider>;
 };

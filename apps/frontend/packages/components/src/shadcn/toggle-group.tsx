@@ -20,10 +20,7 @@ const ToggleGroup = React.forwardRef<
     VariantProps<typeof toggleVariants> & {
       spacing?: number;
     }
->(function ToggleGroup(
-  { className, variant, size, spacing = 0, children, ...props },
-  ref,
-) {
+>(function ToggleGroup({ className, variant, size, spacing = 0, children, ...props }, ref) {
   return (
     <ToggleGroupPrimitive.Root
       ref={ref}
@@ -38,21 +35,15 @@ const ToggleGroup = React.forwardRef<
       )}
       {...props}
     >
-      <ToggleGroupContext.Provider value={{ variant, size, spacing }}>
-        {children}
-      </ToggleGroupContext.Provider>
+      <ToggleGroupContext.Provider value={{ variant, size, spacing }}>{children}</ToggleGroupContext.Provider>
     </ToggleGroupPrimitive.Root>
   );
 });
 
 const ToggleGroupItem = React.forwardRef<
   React.ComponentRef<typeof ToggleGroupPrimitive.Item>,
-  React.ComponentProps<typeof ToggleGroupPrimitive.Item> &
-    VariantProps<typeof toggleVariants>
->(function ToggleGroupItem(
-  { className, children, variant, size, ...props },
-  ref,
-) {
+  React.ComponentProps<typeof ToggleGroupPrimitive.Item> & VariantProps<typeof toggleVariants>
+>(function ToggleGroupItem({ className, children, variant, size, ...props }, ref) {
   const context = React.useContext(ToggleGroupContext);
 
   return (

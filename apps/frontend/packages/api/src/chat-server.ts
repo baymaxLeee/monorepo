@@ -119,12 +119,7 @@ export type IngestStatus =
   | "ready"
   | "failed";
 
-export type IndexStatus =
-  | "pending"
-  | "indexing"
-  | "indexed"
-  | "skipped"
-  | "failed";
+export type IndexStatus = "pending" | "indexing" | "indexed" | "skipped" | "failed";
 
 export interface ConversationDocumentDetail extends ConversationDocument {
   content_md: string;
@@ -175,9 +170,7 @@ export function fetchConversationContext(
   });
 }
 
-export function createConversation(
-  input: CreateConversationInput = {},
-): Promise<Conversation> {
+export function createConversation(input: CreateConversationInput = {}): Promise<Conversation> {
   return request<Conversation>({
     url: BASE,
     method: "POST",
@@ -188,10 +181,7 @@ export function createConversation(
   });
 }
 
-export function updateConversation(
-  id: string,
-  input: UpdateConversationInput,
-): Promise<Conversation> {
+export function updateConversation(id: string, input: UpdateConversationInput): Promise<Conversation> {
   return request<Conversation>({
     url: `${BASE}/${encodeURIComponent(id)}`,
     method: "PATCH",
@@ -206,10 +196,7 @@ export function deleteConversation(id: string): Promise<void> {
   });
 }
 
-export function uploadConversationDocument(
-  conversationId: string,
-  file: File,
-): Promise<ConversationDocumentDetail> {
+export function uploadConversationDocument(conversationId: string, file: File): Promise<ConversationDocumentDetail> {
   const form = new FormData();
   form.append("file", file);
   return request<ConversationDocumentDetail>({
@@ -229,10 +216,7 @@ export function fetchConversationDocument(
   });
 }
 
-export function fetchConversationFile(
-  conversationId: string,
-  path: string,
-): Promise<ConversationFileDetail> {
+export function fetchConversationFile(conversationId: string, path: string): Promise<ConversationFileDetail> {
   const params = new URLSearchParams({ path });
   return request<ConversationFileDetail>({
     url: `${BASE}/${encodeURIComponent(conversationId)}/files/detail?${params.toString()}`,
@@ -240,22 +224,16 @@ export function fetchConversationFile(
   });
 }
 
-export function conversationFileSourceUrl(
-  conversationId: string,
-  path: string,
-): string {
+export function conversationFileSourceUrl(conversationId: string, path: string): string {
   const params = new URLSearchParams({ path });
   return `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/files/source?${params.toString()}`;
 }
 
-export async function fetchConversationFileSource(
-  conversationId: string,
-  path: string,
-): Promise<Blob> {
-  const response = await authFetch(
-    conversationFileSourceUrl(conversationId, path),
-  );
-  if (!response.ok) throw new Error(`file source failed: ${response.status}`);
+export async function fetchConversationFileSource(conversationId: string, path: string): Promise<Blob> {
+  const response = await authFetch(conversationFileSourceUrl(conversationId, path));
+  if (!response.ok) {
+    throw new Error(`file source failed: ${response.status}`);
+  }
   return response.blob();
 }
 
@@ -265,7 +243,9 @@ export function conversationDocumentSourceUrl(
   options?: { maxDim?: number },
 ): string {
   const path = `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/documents/${encodeURIComponent(documentId)}/source`;
-  if (!options?.maxDim) return path;
+  if (!options?.maxDim) {
+    return path;
+  }
   const params = new URLSearchParams({ max_dim: String(options.maxDim) });
   return `${path}?${params.toString()}`;
 }
@@ -275,19 +255,14 @@ export async function fetchConversationDocumentSource(
   documentId: string,
   options?: { maxDim?: number },
 ): Promise<Blob> {
-  const response = await authFetch(
-    conversationDocumentSourceUrl(conversationId, documentId, options),
-  );
+  const response = await authFetch(conversationDocumentSourceUrl(conversationId, documentId, options));
   if (!response.ok) {
     throw new Error(`document source failed: ${response.status}`);
   }
   return response.blob();
 }
 
-export function fetchVideoProduction(
-  conversationId: string,
-  productionId: string,
-): Promise<VideoProductionDetail> {
+export function fetchVideoProduction(conversationId: string, productionId: string): Promise<VideoProductionDetail> {
   return request<VideoProductionDetail>({
     url: `${BASE}/${encodeURIComponent(conversationId)}/video-productions/${encodeURIComponent(productionId)}`,
     method: "GET",
@@ -306,14 +281,13 @@ export function decideVideoProduction(
   });
 }
 
-export async function fetchVideoProductionPreview(
-  conversationId: string,
-  productionId: string,
-): Promise<Blob> {
+export async function fetchVideoProductionPreview(conversationId: string, productionId: string): Promise<Blob> {
   const response = await authFetch(
     `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/video-productions/${encodeURIComponent(productionId)}/preview`,
   );
-  if (!response.ok) throw new Error(`video preview failed: ${response.status}`);
+  if (!response.ok) {
+    throw new Error(`video preview failed: ${response.status}`);
+  }
   return response.blob();
 }
 
@@ -326,8 +300,9 @@ export async function fetchVideoTakePreview(
   const response = await authFetch(
     `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/video-productions/${encodeURIComponent(productionId)}/shots/${encodeURIComponent(shotId)}/takes/${encodeURIComponent(takeId)}/preview`,
   );
-  if (!response.ok)
+  if (!response.ok) {
     throw new Error(`video take preview failed: ${response.status}`);
+  }
   return response.blob();
 }
 
@@ -357,14 +332,7 @@ export interface AgentTraceStep {
   contextSnapshot: ConversationContextSnapshot | null;
 }
 
-export type ContextCategoryId =
-  | "system"
-  | "tools"
-  | "rules"
-  | "skills"
-  | "mcp"
-  | "memory"
-  | "conversation";
+export type ContextCategoryId = "system" | "tools" | "rules" | "skills" | "mcp" | "memory" | "conversation";
 
 export interface ConversationContextSnapshot {
   version: 1;
@@ -386,12 +354,7 @@ export interface AgentTraceToolCall {
 
 export interface AgentRunTrace {
   runId: string;
-  status:
-    | "running"
-    | "awaiting_approval"
-    | "completed"
-    | "failed"
-    | "cancelled";
+  status: "running" | "awaiting_approval" | "completed" | "failed" | "cancelled";
   model: string;
   inputTokens: number | null;
   outputTokens: number | null;
@@ -425,12 +388,7 @@ export function cancelConversationAgentRun(
   });
 }
 
-export type TaskStatus =
-  | "queued"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled";
+export type TaskStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 
 export type UpdateMemoryCandidateInput = UpdateMemoryCandidate;
 
@@ -455,15 +413,11 @@ export function fetchMemoryCandidates(): Promise<{
   });
 }
 
-export function approveMemoryCandidate(
-  id: string,
-): Promise<{ memory: UserMemory }> {
+export function approveMemoryCandidate(id: string): Promise<{ memory: UserMemory }> {
   return memoryClient.postMemoriesCandidatesIdApprove(id, memoryClientOptions);
 }
 
-export function rejectMemoryCandidate(
-  id: string,
-): Promise<{ rejected: boolean }> {
+export function rejectMemoryCandidate(id: string): Promise<{ rejected: boolean }> {
   return memoryClient.postMemoriesCandidatesIdReject(id, memoryClientOptions);
 }
 

@@ -258,10 +258,7 @@ export type ManagedPageKeys = keyof ManagedPageKeyHints;
  * @title PdfPreviewerDocumentEscapeProps
  * @zh `documentProps` 逃生通道实际接受的 `react-pdf` Document props 类型
  */
-export type PdfPreviewerDocumentEscapeProps = Omit<
-  DocumentProps,
-  ManagedDocumentKeys
->;
+export type PdfPreviewerDocumentEscapeProps = Omit<DocumentProps, ManagedDocumentKeys>;
 
 /**
  * @title PdfPreviewerPageEscapeProps

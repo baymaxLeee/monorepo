@@ -1,20 +1,12 @@
 import { randomBytes } from "node:crypto";
+
 import { and, eq, lt } from "drizzle-orm";
 
-import { ConflictError, NotFoundError } from "../errors.js";
 import {
   productionDecisionSchema,
   type ProductionDecision,
   type VideoProductionProjection,
 } from "../../domain/video-production/contracts.js";
-import {
-  publishApprovalHook,
-  publishHookToken,
-  shotReviewHook,
-  shotReviewHookToken,
-  storyboardApprovalHook,
-  storyboardHookToken,
-} from "./hooks.js";
 import { logger } from "../../infrastructure/observability/logger.js";
 import { getDb } from "../../infrastructure/persistence/index.js";
 import {
@@ -23,11 +15,17 @@ import {
   videoProductionEvents,
   videoProductions,
 } from "../../infrastructure/persistence/schema.js";
+import { ConflictError, NotFoundError } from "../errors.js";
 import { sha256Json } from "./compiler.js";
 import {
-  getVideoProduction,
-  nextSequence,
-} from "./service.js";
+  publishApprovalHook,
+  publishHookToken,
+  shotReviewHook,
+  shotReviewHookToken,
+  storyboardApprovalHook,
+  storyboardHookToken,
+} from "./hooks.js";
+import { getVideoProduction, nextSequence } from "./service.js";
 
 function newId(): string {
   return randomBytes(16).toString("hex");
@@ -68,9 +66,7 @@ export async function decideVideoProduction(
     if (existing) {
       const persisted = productionDecisionSchema.parse(existing.payload);
       if (sha256Json(persisted) !== sha256Json(decision)) {
-        throw new ConflictError(
-          "video production action id was already used for another decision",
-        );
+        throw new ConflictError("video production action id was already used for another decision");
       }
       if (existing.status === "delivered") {
         return {
@@ -94,10 +90,7 @@ export async function decideVideoProduction(
           projection: row.production.projection,
         };
       }
-      if (
-        existing.createdAt.getTime() >
-        Date.now() - PENDING_DECISION_LEASE_MS
-      ) {
+      if (existing.createdAt.getTime() > Date.now() - PENDING_DECISION_LEASE_MS) {
         return {
           duplicate: true as const,
           projection: row.production.projection,
@@ -114,34 +107,22 @@ export async function decideVideoProduction(
       };
     }
     if (row.production.version !== decision.expectedVersion) {
-      throw new ConflictError(
-        "video production version changed",
-        "version_conflict",
-        {
-          expected: decision.expectedVersion,
-          actual: row.production.version,
-        },
-      );
+      throw new ConflictError("video production version changed", "version_conflict", {
+        expected: decision.expectedVersion,
+        actual: row.production.version,
+      });
     }
     validateDecision(row.production.projection, decision);
     const [pending] = await tx
       .select()
       .from(videoProductionDecisions)
       .where(
-        and(
-          eq(videoProductionDecisions.productionId, productionId),
-          eq(videoProductionDecisions.status, "pending"),
-        ),
+        and(eq(videoProductionDecisions.productionId, productionId), eq(videoProductionDecisions.status, "pending")),
       )
       .limit(1);
     if (pending) {
-      if (
-        pending.createdAt.getTime() >
-        Date.now() - PENDING_DECISION_LEASE_MS
-      ) {
-        throw new ConflictError(
-          "another video production decision is being delivered",
-        );
+      if (pending.createdAt.getTime() > Date.now() - PENDING_DECISION_LEASE_MS) {
+        throw new ConflictError("another video production decision is being delivered");
       }
       const persisted = productionDecisionSchema.parse(pending.payload);
       if (
@@ -173,7 +154,7 @@ export async function decideVideoProduction(
       actorId: decision.actorId,
       reason: "reason" in decision ? decision.reason : undefined,
       status: "pending",
-      payload: decision as unknown as Record<string, unknown>,
+      payload: decision,
       createdAt: now,
     });
     await tx.insert(videoProductionEvents).values({
@@ -185,9 +166,7 @@ export async function decideVideoProduction(
       payload: {
         ...("reason" in decision ? { reason: decision.reason } : {}),
         ...("shotId" in decision ? { shotId: decision.shotId } : {}),
-        ...(decision.action === "revise_storyboard"
-          ? { requestedShotPlanVersion: decision.shotPlan.version }
-          : {}),
+        ...(decision.action === "revise_storyboard" ? { requestedShotPlanVersion: decision.shotPlan.version } : {}),
         ...(decision.action === "approve_publish" && decision.waiverReason
           ? { waiverReason: decision.waiverReason }
           : {}),
@@ -200,7 +179,9 @@ export async function decideVideoProduction(
       projection: row.production.projection,
     };
   });
-  if (prepared.duplicate) return prepared.projection;
+  if (prepared.duplicate) {
+    return prepared.projection;
+  }
   await deliverDecision(productionId, prepared.decision, prepared.projection);
   return (await getVideoProduction(productionId, ownerService)).production;
 }
@@ -210,42 +191,31 @@ export async function recoverStaleVideoProductionDecisions(): Promise<void> {
   const stale = await getDb()
     .select({ productionId: videoProductionDecisions.productionId })
     .from(videoProductionDecisions)
-    .where(
-      and(
-        eq(videoProductionDecisions.status, "pending"),
-        lt(videoProductionDecisions.createdAt, cutoff),
-      ),
-    )
+    .where(and(eq(videoProductionDecisions.status, "pending"), lt(videoProductionDecisions.createdAt, cutoff)))
     .limit(100);
 
   for (const row of stale) {
     try {
       const claimed = await claimStalePendingDecision(row.productionId);
-      if (!claimed) continue;
-      await deliverDecision(
-        row.productionId,
-        claimed.decision,
-        claimed.projection,
-      );
+      if (!claimed) {
+        continue;
+      }
+      await deliverDecision(row.productionId, claimed.decision, claimed.projection);
       logger.info(
         { productionId: row.productionId, actionId: claimed.decision.actionId },
         "recovered stale video production decision",
       );
     } catch (error) {
-      logger.error(
-        { err: error, productionId: row.productionId },
-        "failed to recover stale video production decision",
-      );
+      logger.error({ err: error, productionId: row.productionId }, "failed to recover stale video production decision");
     }
   }
 }
 
 export function startStaleVideoProductionDecisionRecovery(): void {
-  if (decisionRecoveryTimer) return;
-  decisionRecoveryTimer = setInterval(
-    () => void recoverStaleVideoProductionDecisions(),
-    PENDING_DECISION_LEASE_MS,
-  );
+  if (decisionRecoveryTimer) {
+    return;
+  }
+  decisionRecoveryTimer = setInterval(() => void recoverStaleVideoProductionDecisions(), PENDING_DECISION_LEASE_MS);
   decisionRecoveryTimer.unref();
 }
 
@@ -259,28 +229,21 @@ async function claimStalePendingDecision(productionId: string): Promise<{
       .from(videoProductions)
       .where(eq(videoProductions.id, productionId))
       .for("update");
-    if (!production) return null;
+    if (!production) {
+      return null;
+    }
     const [pending] = await tx
       .select()
       .from(videoProductionDecisions)
       .where(
-        and(
-          eq(videoProductionDecisions.productionId, productionId),
-          eq(videoProductionDecisions.status, "pending"),
-        ),
+        and(eq(videoProductionDecisions.productionId, productionId), eq(videoProductionDecisions.status, "pending")),
       )
       .limit(1);
-    if (
-      !pending ||
-      pending.createdAt.getTime() > Date.now() - PENDING_DECISION_LEASE_MS
-    ) {
+    if (!pending || pending.createdAt.getTime() > Date.now() - PENDING_DECISION_LEASE_MS) {
       return null;
     }
     const decision = productionDecisionSchema.parse(pending.payload);
-    if (
-      production.version !== decision.expectedVersion ||
-      !isAwaitingDecision(production.projection, decision)
-    ) {
+    if (production.version !== decision.expectedVersion || !isAwaitingDecision(production.projection, decision)) {
       await tx
         .update(videoProductionDecisions)
         .set({ status: "delivered", deliveredAt: new Date() })
@@ -295,20 +258,11 @@ async function claimStalePendingDecision(productionId: string): Promise<{
   });
 }
 
-function isAwaitingDecision(
-  projection: VideoProductionProjection,
-  decision: ProductionDecision,
-): boolean {
-  if (
-    decision.action === "approve_publish" ||
-    decision.action === "reject_publish"
-  ) {
+function isAwaitingDecision(projection: VideoProductionProjection, decision: ProductionDecision): boolean {
+  if (decision.action === "approve_publish" || decision.action === "reject_publish") {
     return projection.stage === "awaiting_publish_approval";
   }
-  if (
-    decision.action === "request_take" ||
-    decision.action === "approve_takes"
-  ) {
+  if (decision.action === "request_take" || decision.action === "approve_takes") {
     return projection.stage === "shot_review";
   }
   return projection.stage === "awaiting_storyboard_approval";
@@ -320,10 +274,7 @@ async function deliverDecision(
   projection: VideoProductionProjection,
 ): Promise<void> {
   validateDecision(projection, decision);
-  if (
-    decision.action === "approve_publish" ||
-    decision.action === "reject_publish"
-  ) {
+  if (decision.action === "approve_publish" || decision.action === "reject_publish") {
     await publishApprovalHook.resume(
       publishHookToken(productionId),
       decision.action === "approve_publish"
@@ -343,10 +294,7 @@ async function deliverDecision(
     await recordDeliveredDecision(productionId, decision);
     return;
   }
-  if (
-    decision.action === "request_take" ||
-    decision.action === "approve_takes"
-  ) {
+  if (decision.action === "request_take" || decision.action === "approve_takes") {
     await shotReviewHook.resume(
       shotReviewHookToken(productionId),
       decision.action === "request_take"
@@ -367,8 +315,9 @@ async function deliverDecision(
     return;
   }
   const shotPlan = projection.shotPlan;
-  if (!shotPlan)
+  if (!shotPlan) {
     throw new ConflictError("video production has no approved shot plan");
+  }
   const token = storyboardHookToken(productionId);
   if (decision.action === "revise_storyboard") {
     await storyboardApprovalHook.resume(token, {
@@ -400,18 +349,10 @@ async function deliverDecision(
   await recordDeliveredDecision(productionId, decision);
 }
 
-function validateDecision(
-  projection: VideoProductionProjection,
-  decision: ProductionDecision,
-): void {
-  if (
-    decision.action === "approve_publish" ||
-    decision.action === "reject_publish"
-  ) {
+function validateDecision(projection: VideoProductionProjection, decision: ProductionDecision): void {
+  if (decision.action === "approve_publish" || decision.action === "reject_publish") {
     if (projection.stage !== "awaiting_publish_approval") {
-      throw new ConflictError(
-        "video production is not awaiting publish approval",
-      );
+      throw new ConflictError("video production is not awaiting publish approval");
     }
     if (
       decision.action === "approve_publish" &&
@@ -422,88 +363,50 @@ function validateDecision(
     }
     return;
   }
-  if (
-    decision.action === "request_take" ||
-    decision.action === "approve_takes"
-  ) {
-    if (
-      projection.stage !== "shot_review" ||
-      projection.shotReviews.length === 0
-    ) {
+  if (decision.action === "request_take" || decision.action === "approve_takes") {
+    if (projection.stage !== "shot_review" || projection.shotReviews.length === 0) {
       throw new ConflictError("video production is not awaiting shot review");
     }
     if (decision.action === "request_take") {
-      if (
-        !projection.shotReviews.some(
-          (review) => review.shotId === decision.shotId,
-        )
-      ) {
-        throw new ConflictError(
-          `shot ${decision.shotId} is not part of this production`,
-        );
+      if (!projection.shotReviews.some((review) => review.shotId === decision.shotId)) {
+        throw new ConflictError(`shot ${decision.shotId} is not part of this production`);
       }
       return;
     }
     if (decision.selections.length !== projection.shotReviews.length) {
-      throw new ConflictError(
-        "one successful take must be selected for every shot",
-      );
+      throw new ConflictError("one successful take must be selected for every shot");
     }
-    const selections = new Map(
-      decision.selections.map((selection) => [
-        selection.shotId,
-        selection.takeId,
-      ]),
-    );
+    const selections = new Map(decision.selections.map((selection) => [selection.shotId, selection.takeId]));
     if (selections.size !== projection.shotReviews.length) {
-      throw new ConflictError(
-        "take selections contain duplicate or missing shots",
-      );
+      throw new ConflictError("take selections contain duplicate or missing shots");
     }
     for (const review of projection.shotReviews) {
       const takeId = selections.get(review.shotId);
       const take = review.takes.find((candidate) => candidate.id === takeId);
       if (!take || take.status !== "succeeded") {
-        throw new ConflictError(
-          `shot ${review.shotId} requires a successful take`,
-        );
+        throw new ConflictError(`shot ${review.shotId} requires a successful take`);
       }
     }
     return;
   }
-  if (
-    projection.stage !== "awaiting_storyboard_approval" ||
-    !projection.shotPlan
-  ) {
-    throw new ConflictError(
-      "video production is not awaiting storyboard approval",
-    );
+  if (projection.stage !== "awaiting_storyboard_approval" || !projection.shotPlan) {
+    throw new ConflictError("video production is not awaiting storyboard approval");
   }
-  if (decision.action !== "approve_storyboard") return;
+  if (decision.action !== "approve_storyboard") {
+    return;
+  }
   if (projection.cost.currency !== decision.currency) {
-    throw new ConflictError(
-      "approved currency does not match the production estimate",
-    );
+    throw new ConflictError("approved currency does not match the production estimate");
   }
-  if (
-    projection.cost.estimatedMicros == null ||
-    decision.budgetLimitMicros < projection.cost.estimatedMicros
-  ) {
-    throw new ConflictError(
-      "approved budget is below the storyboard estimate",
-      "budget_too_low",
-      {
-        estimatedMicros: projection.cost.estimatedMicros,
-        budgetLimitMicros: decision.budgetLimitMicros,
-      },
-    );
+  if (projection.cost.estimatedMicros == null || decision.budgetLimitMicros < projection.cost.estimatedMicros) {
+    throw new ConflictError("approved budget is below the storyboard estimate", "budget_too_low", {
+      estimatedMicros: projection.cost.estimatedMicros,
+      budgetLimitMicros: decision.budgetLimitMicros,
+    });
   }
 }
 
-async function recordDeliveredDecision(
-  productionId: string,
-  decision: ProductionDecision,
-): Promise<void> {
+async function recordDeliveredDecision(productionId: string, decision: ProductionDecision): Promise<void> {
   await getDb()
     .update(videoProductionDecisions)
     .set({

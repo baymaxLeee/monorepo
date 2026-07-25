@@ -1,10 +1,11 @@
 import { randomBytes } from "node:crypto";
+
 import { and, eq } from "drizzle-orm";
 
-import { ConflictError, NotFoundError } from "../errors.js";
 import type { CostEntryPayload, VideoProductionProjection } from "../../domain/video-production/contracts.js";
 import { getDb } from "../../infrastructure/persistence/index.js";
 import { videoCostEntries, videoProductions } from "../../infrastructure/persistence/schema.js";
+import { ConflictError, NotFoundError } from "../errors.js";
 
 function newId(): string {
   return randomBytes(16).toString("hex");
@@ -20,17 +21,26 @@ async function applyCostEntry(input: {
 }): Promise<VideoProductionProjection> {
   const db = getDb();
   return db.transaction(async (tx) => {
-    const [existing] = await tx.select().from(videoCostEntries).where(and(
-      eq(videoCostEntries.productionId, input.productionId),
-      eq(videoCostEntries.idempotencyKey, input.idempotencyKey),
-    ));
+    const [existing] = await tx
+      .select()
+      .from(videoCostEntries)
+      .where(
+        and(
+          eq(videoCostEntries.productionId, input.productionId),
+          eq(videoCostEntries.idempotencyKey, input.idempotencyKey),
+        ),
+      );
     const [row] = await tx
       .select()
       .from(videoProductions)
       .where(eq(videoProductions.id, input.productionId))
       .for("update");
-    if (!row) throw new NotFoundError(`video production ${input.productionId} not found`);
-    if (existing) return row.projection;
+    if (!row) {
+      throw new NotFoundError(`video production ${input.productionId} not found`);
+    }
+    if (existing) {
+      return row.projection;
+    }
     const current = row.projection.cost;
     if (!current.currency || current.currency !== input.currency) {
       throw new ConflictError("video production currency does not match provider pricing");
@@ -48,15 +58,13 @@ async function applyCostEntry(input: {
     }
     const nextCost = {
       ...current,
-      reservedMicros: input.kind === "reserve"
-        ? current.reservedMicros + input.amountMicros
-        : current.reservedMicros - input.amountMicros,
-      reconciledMicros: input.kind === "reconcile"
-        ? current.reconciledMicros + input.amountMicros
-        : current.reconciledMicros,
-      releasedMicros: input.kind === "release"
-        ? current.releasedMicros + input.amountMicros
-        : current.releasedMicros,
+      reservedMicros:
+        input.kind === "reserve"
+          ? current.reservedMicros + input.amountMicros
+          : current.reservedMicros - input.amountMicros,
+      reconciledMicros:
+        input.kind === "reconcile" ? current.reconciledMicros + input.amountMicros : current.reconciledMicros,
+      releasedMicros: input.kind === "release" ? current.releasedMicros + input.amountMicros : current.releasedMicros,
     };
     const projection = {
       ...row.projection,
@@ -74,11 +82,14 @@ async function applyCostEntry(input: {
       payload: input.payload,
       createdAt: new Date(),
     });
-    await tx.update(videoProductions).set({
-      version: projection.version,
-      projection,
-      updatedAt: new Date(),
-    }).where(eq(videoProductions.id, input.productionId));
+    await tx
+      .update(videoProductions)
+      .set({
+        version: projection.version,
+        projection,
+        updatedAt: new Date(),
+      })
+      .where(eq(videoProductions.id, input.productionId));
     return projection;
   });
 }

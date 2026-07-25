@@ -1,15 +1,13 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { ModuleFederationPlugin } from "@module-federation/enhanced/rspack";
 import { defineConfig } from "@rspack/cli";
 import rspack from "@rspack/core";
 import HtmlWebpackPlugin from "html-webpack-plugin";
+
 import { buildShared } from "../../mf-shared.mjs";
-import {
-  createAppResolveAlias,
-  createHostCssRule,
-  createSwcRule,
-} from "../../rspack.shared.mjs";
+import { createAppResolveAlias, createHostCssRule, createSwcRule } from "../../rspack.shared.mjs";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const API_TARGET = process.env.API_TARGET ?? "http://localhost:8000";
@@ -60,9 +58,7 @@ export default defineConfig({
     rules: [
       createSwcRule({ reactCompiler: { target: "18" } }),
       createHostCssRule({
-        loader: isProduction
-          ? rspack.CssExtractRspackPlugin.loader
-          : "style-loader",
+        loader: isProduction ? rspack.CssExtractRspackPlugin.loader : "style-loader",
       }),
     ],
   },
@@ -71,10 +67,7 @@ export default defineConfig({
     new rspack.CopyRspackPlugin({
       patterns: [
         {
-          from: path.resolve(
-            appDir,
-            "node_modules/echarts/dist/echarts.min.js",
-          ),
+          from: path.resolve(appDir, "node_modules/echarts/dist/echarts.min.js"),
           to: `runtime/echarts/${ECHARTS_RUNTIME_VERSION}/echarts.min.js`,
           // The executor pins this package file's SRI hash.
           info: { minimized: true },
@@ -86,9 +79,7 @@ export default defineConfig({
       "process.env.TELEMETRY_ENDPOINT": JSON.stringify(
         process.env.TELEMETRY_ENDPOINT ?? "/api/telemetry-server/rum/batch",
       ),
-      "process.env.APP_RELEASE": JSON.stringify(
-        process.env.APP_RELEASE ?? (isProduction ? "unknown" : "dev"),
-      ),
+      "process.env.APP_RELEASE": JSON.stringify(process.env.APP_RELEASE ?? (isProduction ? "unknown" : "dev")),
     }),
     ...(isProduction
       ? [
@@ -115,10 +106,7 @@ export default defineConfig({
     compress: false,
     proxy: [
       {
-        context: (pathname) =>
-          /^\/api\/chat-server\/conversations\/[^/]+\/agents\/run\/stream$/.test(
-            pathname,
-          ),
+        context: (pathname) => /^\/api\/chat-server\/conversations\/[^/]+\/agents\/run\/stream$/.test(pathname),
         target: API_TARGET,
         changeOrigin: true,
         secure: false,

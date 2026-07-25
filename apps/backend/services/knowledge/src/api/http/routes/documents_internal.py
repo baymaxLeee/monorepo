@@ -329,9 +329,7 @@ async def create_staged_media(payload: CreateStagedMediaInput, session: DbSessio
             await assert_conversation_accepts_artifacts(
                 session, user_id=payload.user_id, conversation_id=payload.conversation_id
             )
-            existing = await staged_media_crud.get_by_idempotency_key(
-                session, payload.idempotency_key, payload.user_id
-            )
+            existing = await staged_media_crud.get_by_idempotency_key(session, payload.idempotency_key, payload.user_id)
         if existing is not None:
             return staged_media_to_schema(existing)
     try:
@@ -382,9 +380,7 @@ async def create_staged_media(payload: CreateStagedMediaInput, session: DbSessio
     except IntegrityError:
         if not payload.idempotency_key:
             raise
-        existing = await staged_media_crud.get_by_idempotency_key(
-            session, payload.idempotency_key, payload.user_id
-        )
+        existing = await staged_media_crud.get_by_idempotency_key(session, payload.idempotency_key, payload.user_id)
         if existing is None:
             raise
         return staged_media_to_schema(existing)
@@ -392,9 +388,7 @@ async def create_staged_media(payload: CreateStagedMediaInput, session: DbSessio
 
 
 @router.get("/staged-media/{staged_id}", response_model=StagedMedia)
-async def get_staged_media(
-    staged_id: str, session: DbSession, user_id: str = Query(...)
-) -> StagedMedia:
+async def get_staged_media(staged_id: str, session: DbSession, user_id: str = Query(...)) -> StagedMedia:
     row = await staged_media_crud.get_staged_media(session, staged_id, user_id)
     if row is None:
         raise NotFoundError(f"staged media {staged_id} not found")
@@ -402,9 +396,7 @@ async def get_staged_media(
 
 
 @router.get("/staged-media/{staged_id}/source")
-async def get_staged_media_source(
-    staged_id: str, session: DbSession, user_id: str = Query(...)
-) -> Response:
+async def get_staged_media_source(staged_id: str, session: DbSession, user_id: str = Query(...)) -> Response:
     row = await staged_media_crud.get_staged_media(session, staged_id, user_id)
     if row is None or row.status == "discarded":
         raise NotFoundError(f"staged media {staged_id} not found")
@@ -413,9 +405,7 @@ async def get_staged_media_source(
 
 
 @router.post("/staged-media/{staged_id}/publish", response_model=Document)
-async def publish_staged_media(
-    staged_id: str, payload: StagedMediaActionInput, session: DbSession
-) -> Document:
+async def publish_staged_media(staged_id: str, payload: StagedMediaActionInput, session: DbSession) -> Document:
     async with write_tx(session):
         row = await staged_media_crud.get_staged_media(session, staged_id, payload.user_id)
         if row is None or row.org_id != payload.org_id or row.status == "discarded":
@@ -425,9 +415,7 @@ async def publish_staged_media(
             if existing is None:
                 raise ConflictError("published staged media has no document")
             return document_to_schema(existing, include_content=True)
-        await assert_conversation_accepts_artifacts(
-            session, user_id=row.user_id, conversation_id=row.conversation_id
-        )
+        await assert_conversation_accepts_artifacts(session, user_id=row.user_id, conversation_id=row.conversation_id)
         document = await document_crud.create_document(
             session,
             user_id=row.user_id,
@@ -453,9 +441,7 @@ async def publish_staged_media(
 
 
 @router.post("/staged-media/{staged_id}/discard", response_model=StagedMedia)
-async def discard_staged_media(
-    staged_id: str, payload: StagedMediaActionInput, session: DbSession
-) -> StagedMedia:
+async def discard_staged_media(staged_id: str, payload: StagedMediaActionInput, session: DbSession) -> StagedMedia:
     object_location: tuple[str, str] | None = None
     async with write_tx(session):
         row = await staged_media_crud.get_staged_media(session, staged_id, payload.user_id)

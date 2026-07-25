@@ -203,9 +203,7 @@ class ModelProviderService:
             if not values:
                 return to_public_schema(row)
             context_window = (
-                _from_k_tokens(payload.context_window_k)
-                if payload.context_window_k is not None
-                else row.context_window
+                _from_k_tokens(payload.context_window_k) if payload.context_window_k is not None else row.context_window
             )
             max_output_tokens = (
                 _from_k_tokens(payload.max_output_tokens_k)

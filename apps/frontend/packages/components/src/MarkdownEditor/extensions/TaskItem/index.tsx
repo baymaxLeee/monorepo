@@ -7,12 +7,11 @@ export const createTaskItemExtension = (): Node =>
   }).extend({
     addNodeView() {
       const parentNodeView = this.parent?.();
-      if (!parentNodeView) return undefined as never;
+      if (!parentNodeView) {
+        return undefined as never;
+      }
 
-      const syncTaskItemStyle = (
-        element: HTMLElement,
-        attrs: Record<string, any>,
-      ) => {
+      const syncTaskItemStyle = (element: HTMLElement, attrs: Record<string, any>) => {
         const indent = attrs.indent || 0;
         if (indent > 0) {
           element.style.marginLeft = `${indent * 2}em`;

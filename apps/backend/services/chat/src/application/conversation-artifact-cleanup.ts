@@ -10,7 +10,9 @@ interface CleanupClaim {
 }
 
 function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) {
+    return error.message;
+  }
   try {
     return JSON.stringify(error) ?? String(error);
   } catch {
@@ -73,12 +75,16 @@ async function deliverCleanup(claim: CleanupClaim): Promise<void> {
 let draining = false;
 
 export async function drainConversationArtifactCleanups(): Promise<void> {
-  if (draining) return;
+  if (draining) {
+    return;
+  }
   draining = true;
   try {
     while (true) {
       const claim = await claimNextCleanup();
-      if (!claim) return;
+      if (!claim) {
+        return;
+      }
       await deliverCleanup(claim);
     }
   } finally {
@@ -89,7 +95,9 @@ export async function drainConversationArtifactCleanups(): Promise<void> {
 let cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
 export function startConversationArtifactCleanupRelay(): void {
-  if (cleanupTimer) return;
+  if (cleanupTimer) {
+    return;
+  }
   void drainConversationArtifactCleanups().catch((error) =>
     logger.error({ err: error }, "initial conversation artifact cleanup drain failed"),
   );
@@ -100,4 +108,3 @@ export function startConversationArtifactCleanupRelay(): void {
   }, 5000);
   cleanupTimer.unref();
 }
-

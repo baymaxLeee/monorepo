@@ -1,10 +1,4 @@
-import {
-  type RefObject,
-  useCallback,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from "react";
 
 const LEFT_DEFAULT_FRACTION = 0.15;
 const LEFT_MAX_FRACTION = 0.2;
@@ -56,10 +50,14 @@ function panelLimits(containerWidth: number) {
 }
 
 function readStoredWidth(key: string): number | null {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined") {
+    return null;
+  }
   try {
     const raw = window.localStorage.getItem(key);
-    if (raw === null || raw === "") return null;
+    if (raw === null || raw === "") {
+      return null;
+    }
     const value = Number(raw);
     return Number.isFinite(value) && value > 0 ? value : null;
   } catch {
@@ -73,20 +71,12 @@ function persistWidth(key: string, value: number) {
   } catch {}
 }
 
-function resolvePanelWidth(
-  stored: number | null,
-  fallback: number,
-  collapse: number,
-  max: number,
-) {
+function resolvePanelWidth(stored: number | null, fallback: number, collapse: number, max: number) {
   const preferred = stored ?? fallback;
   return clamp(preferred, collapse, Math.max(collapse, max));
 }
 
-export function useChatShellLayout(
-  artifactOpen: boolean,
-  onCloseArtifact: () => void,
-): ChatShellLayout {
+export function useChatShellLayout(artifactOpen: boolean, onCloseArtifact: () => void): ChatShellLayout {
   const containerRef = useRef<HTMLDivElement>(null);
   const containerWidthRef = useRef(0);
   const leftWidthRef = useRef(0);
@@ -106,24 +96,22 @@ export function useChatShellLayout(
 
   const maxLeftWidth = useCallback(() => {
     const w = containerWidthRef.current;
-    if (w <= 0) return 0;
+    if (w <= 0) {
+      return 0;
+    }
     const limits = panelLimits(w);
     const occupiedRight = artifactOpenRef.current ? rightWidthRef.current : 0;
-    return Math.max(
-      limits.leftCollapse,
-      Math.min(limits.leftMax, w - limits.minMain - occupiedRight),
-    );
+    return Math.max(limits.leftCollapse, Math.min(limits.leftMax, w - limits.minMain - occupiedRight));
   }, []);
 
   const maxRightWidth = useCallback(() => {
     const w = containerWidthRef.current;
-    if (w <= 0) return 0;
+    if (w <= 0) {
+      return 0;
+    }
     const limits = panelLimits(w);
     const occupiedLeft = leftOpenRef.current ? leftWidthRef.current : 0;
-    return Math.max(
-      limits.rightCollapse,
-      Math.min(limits.rightMax, w - limits.minMain - occupiedLeft),
-    );
+    return Math.max(limits.rightCollapse, Math.min(limits.rightMax, w - limits.minMain - occupiedLeft));
   }, []);
 
   const collapseLeft = useCallback(() => {
@@ -146,7 +134,9 @@ export function useChatShellLayout(
 
   useLayoutEffect(() => {
     const w = containerWidth;
-    if (w <= 0) return;
+    if (w <= 0) {
+      return;
+    }
 
     const limits = panelLimits(w);
 
@@ -176,9 +166,7 @@ export function useChatShellLayout(
     if (artifactOpen && !prevArtifactOpenRef.current) {
       const preferred = resolvePanelWidth(
         readStoredWidth("chat:right-width"),
-        rightWidthRef.current > limits.rightCollapse
-          ? rightWidthRef.current
-          : limits.rightDefault,
+        rightWidthRef.current > limits.rightCollapse ? rightWidthRef.current : limits.rightDefault,
         limits.rightCollapse,
         maxRightWidth(),
       );
@@ -209,25 +197,21 @@ export function useChatShellLayout(
         setRightWidth(nextRight);
       }
     }
-  }, [
-    artifactOpen,
-    collapseLeft,
-    collapseRight,
-    containerWidth,
-    leftOpen,
-    maxLeftWidth,
-    maxRightWidth,
-  ]);
+  }, [artifactOpen, collapseLeft, collapseRight, containerWidth, leftOpen, maxLeftWidth, maxRightWidth]);
 
   useLayoutEffect(() => {
     const node = containerRef.current;
-    if (!node) return;
+    if (!node) {
+      return;
+    }
     const update = (width: number) => {
       containerWidthRef.current = width;
       setContainerWidth(Math.round(width));
     };
     const observer = new ResizeObserver(([entry]) => {
-      if (entry) update(entry.contentRect.width);
+      if (entry) {
+        update(entry.contentRect.width);
+      }
     });
     observer.observe(node);
     update(node.getBoundingClientRect().width);
@@ -237,7 +221,9 @@ export function useChatShellLayout(
   const resizeLeft = useCallback(
     (deltaX: number) => {
       const w = containerWidthRef.current;
-      if (w <= 0) return;
+      if (w <= 0) {
+        return;
+      }
       const limits = panelLimits(w);
       const raw = leftDragWidthRef.current + deltaX;
       leftDragWidthRef.current = raw;
@@ -260,7 +246,9 @@ export function useChatShellLayout(
   const resizeRight = useCallback(
     (deltaX: number) => {
       const w = containerWidthRef.current;
-      if (w <= 0) return;
+      if (w <= 0) {
+        return;
+      }
       const limits = panelLimits(w);
       const raw = rightDragWidthRef.current - deltaX;
       rightDragWidthRef.current = raw;
@@ -303,8 +291,11 @@ export function useChatShellLayout(
       setIsDragging(false);
 
       if (pendingCollapseRef.current === edge) {
-        if (edge === "left-panel") collapseLeft();
-        else collapseRight();
+        if (edge === "left-panel") {
+          collapseLeft();
+        } else {
+          collapseRight();
+        }
         return;
       }
 
@@ -329,9 +320,7 @@ export function useChatShellLayout(
       if (next) {
         const width = resolvePanelWidth(
           readStoredWidth("chat:left-width"),
-          leftWidthRef.current >= limits.leftCollapse
-            ? leftWidthRef.current
-            : limits.leftDefault,
+          leftWidthRef.current >= limits.leftCollapse ? leftWidthRef.current : limits.leftDefault,
           limits.leftCollapse,
           maxLeftWidth(),
         );

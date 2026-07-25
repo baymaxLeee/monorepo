@@ -1,21 +1,21 @@
 {
   "name": "frontend-workspace",
   "private": true,
-  "engines": {
-    "node": "24.18.0"
-  },
-  "packageManager": "pnpm@11.9.0",
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
-    "lint": "turbo run lint",
+    "lint": "pnpm --dir ../.. lint:ts:frontend",
+    "format": "pnpm --dir ../.. format:ts:frontend",
     "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.16",
     "@project/typescript-config": "workspace:*",
     "@types/node": "^24.0.0",
     "tailwindcss": "catalog:",
     "turbo": "^2.0.0"
-  }
+  },
+  "engines": {
+    "node": "24.18.0"
+  },
+  "packageManager": "pnpm@11.9.0"
 }

@@ -115,12 +115,7 @@ export {
   Sources,
   type SourcesProps,
 } from "./sources";
-export {
-  Suggestion,
-  type SuggestionProps,
-  Suggestions,
-  type SuggestionsProps,
-} from "./suggestion";
+export { Suggestion, type SuggestionProps, Suggestions, type SuggestionsProps } from "./suggestion";
 export {
   getToolStatusBadge,
   Tool,

@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/react";
 import type React from "react";
+
 import { Toolbar } from "../Toolbar";
 
 interface IProps {

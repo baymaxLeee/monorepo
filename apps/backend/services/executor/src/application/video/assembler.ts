@@ -28,25 +28,33 @@ function runFfmpeg(args: string[], signal?: AbortSignal): Promise<void> {
     let stderr = "";
     child.stderr?.on("data", (chunk) => {
       stderr += String(chunk);
-      if (stderr.length > 4000) stderr = stderr.slice(-4000);
+      if (stderr.length > 4000) {
+        stderr = stderr.slice(-4000);
+      }
     });
-    child.on("error", (error) =>
-      reject(new Error(`ffmpeg spawn failed (${bin}): ${String(error).slice(0, 300)}`)),
-    );
+    child.on("error", (error) => reject(new Error(`ffmpeg spawn failed (${bin}): ${String(error).slice(0, 300)}`)));
     child.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`ffmpeg exited ${code}: ${stderr.trim().slice(-500)}`));
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`ffmpeg exited ${code}: ${stderr.trim().slice(-500)}`));
+      }
     });
   });
 }
 
 function ffprobePath(): string {
   const ffmpeg = getSettings().ffmpegPath;
-  if (ffmpeg === "ffmpeg") return "ffprobe";
+  if (ffmpeg === "ffmpeg") {
+    return "ffprobe";
+  }
   return ffmpeg.replace(/ffmpeg(\.exe)?$/i, "ffprobe$1");
 }
 
-function probeVideo(path: string, signal?: AbortSignal): Promise<{
+function probeVideo(
+  path: string,
+  signal?: AbortSignal,
+): Promise<{
   duration: number;
   width: number;
   height: number;
@@ -61,11 +69,17 @@ function probeVideo(path: string, signal?: AbortSignal): Promise<{
     );
     let stdout = "";
     let stderr = "";
-    child.stdout?.on("data", (chunk) => { stdout += String(chunk); });
-    child.stderr?.on("data", (chunk) => { stderr += String(chunk); });
+    child.stdout?.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
     child.on("error", reject);
     child.on("close", (code) => {
-      if (code !== 0) return reject(new Error(`ffprobe exited ${code}: ${stderr.slice(-500)}`));
+      if (code !== 0) {
+        return reject(new Error(`ffprobe exited ${code}: ${stderr.slice(-500)}`));
+      }
       const parsed = JSON.parse(stdout) as {
         format?: { duration?: string };
         streams?: Array<{ codec_type?: string; width?: number; height?: number }>;
@@ -105,7 +119,9 @@ function detectVisualAnomalies(
     let stderr = "";
     child.stderr?.on("data", (chunk) => {
       stderr += String(chunk);
-      if (stderr.length > 100_000) stderr = stderr.slice(-100_000);
+      if (stderr.length > 100_000) {
+        stderr = stderr.slice(-100_000);
+      }
     });
     child.on("error", reject);
     child.on("close", (code) => {
@@ -144,12 +160,7 @@ function hasAudioStream(path: string, signal?: AbortSignal): Promise<boolean> {
   });
 }
 
-async function normalizeClip(
-  src: string,
-  norm: string,
-  normalizeVf: string,
-  signal?: AbortSignal,
-): Promise<void> {
+async function normalizeClip(src: string, norm: string, normalizeVf: string, signal?: AbortSignal): Promise<void> {
   const withAudio = await hasAudioStream(src, signal);
   const args = withAudio
     ? ["-i", src, "-map", "0:v:0", "-map", "0:a:0"]
@@ -169,10 +180,22 @@ async function normalizeClip(
   await runFfmpeg(
     [
       ...args,
-      "-vf", normalizeVf,
-      "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-      "-c:a", "aac", "-ar", "44100", "-ac", "2",
-      "-movflags", "+faststart",
+      "-vf",
+      normalizeVf,
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-crf",
+      "23",
+      "-c:a",
+      "aac",
+      "-ar",
+      "44100",
+      "-ac",
+      "2",
+      "-movflags",
+      "+faststart",
       norm,
     ],
     signal,
@@ -186,9 +209,13 @@ async function downloadTo(url: string, path: string, signal?: AbortSignal): Prom
 
 export async function downloadVideoBytes(url: string, signal?: AbortSignal): Promise<Uint8Array> {
   const response = await secureProviderFetch(url, { signal });
-  if (!response.ok) throw new Error(`clip download failed: ${response.status}`);
+  if (!response.ok) {
+    throw new Error(`clip download failed: ${response.status}`);
+  }
   const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.length === 0) throw new Error("clip download returned no bytes");
+  if (bytes.length === 0) {
+    throw new Error("clip download returned no bytes");
+  }
   return bytes;
 }
 
@@ -197,7 +224,9 @@ export async function assembleClips(input: {
   outputConfig: Pick<VideoOutputConfig, "width" | "height" | "fps">;
   signal?: AbortSignal;
 }): Promise<Uint8Array> {
-  if (input.urls.length === 0) throw new Error("no clips to assemble");
+  if (input.urls.length === 0) {
+    throw new Error("no clips to assemble");
+  }
   const normalizeVf = buildNormalizeVf(input.outputConfig);
   const dir = await mkdtemp(join(tmpdir(), "video-assemble-"));
   try {
@@ -212,7 +241,7 @@ export async function assembleClips(input: {
 
     const output = join(dir, "output.mp4");
     if (normalized.length === 1) {
-      await runFfmpeg(["-i", normalized[0]!, "-c", "copy", output], input.signal);
+      await runFfmpeg(["-i", normalized[0], "-c", "copy", output], input.signal);
     } else {
       const listPath = join(dir, "concat.txt");
       await writeFile(listPath, normalized.map((p) => `file '${p}'`).join("\n"));
@@ -222,10 +251,26 @@ export async function assembleClips(input: {
         console.warn("[executor] concat -c copy failed, re-encoding", { error: String(copyError).slice(0, 200) });
         await runFfmpeg(
           [
-            "-f", "concat", "-safe", "0", "-i", listPath,
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-            "-c:a", "aac", "-ar", "44100", "-ac", "2",
-            "-movflags", "+faststart",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            listPath,
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "23",
+            "-c:a",
+            "aac",
+            "-ar",
+            "44100",
+            "-ac",
+            "2",
+            "-movflags",
+            "+faststart",
             output,
           ],
           input.signal,
@@ -234,7 +279,9 @@ export async function assembleClips(input: {
     }
 
     const bytes = await readFile(output);
-    if (bytes.length === 0) throw new Error("assembled video is empty");
+    if (bytes.length === 0) {
+      throw new Error("assembled video is empty");
+    }
     return new Uint8Array(bytes);
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);

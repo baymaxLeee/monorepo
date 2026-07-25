@@ -1,13 +1,7 @@
-import {
-  type MutableRefObject,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
 import { Thumbnail } from "react-pdf";
-
 import { cn } from "shared";
+
 import type { PdfSidebarType } from "../interface";
 
 interface OnItemClickPayload {
@@ -47,17 +41,15 @@ function isRawOutlineItem(value: unknown): value is RawOutlineItem {
   return Boolean(value && typeof value === "object");
 }
 
-async function resolveOutlinePage(
-  pdf: PdfDocumentLike,
-  dest: unknown,
-): Promise<number | null> {
-  if (!pdf.getPageIndex) return null;
-  const destination =
-    typeof dest === "string" && pdf.getDestination
-      ? await pdf.getDestination(dest)
-      : dest;
+async function resolveOutlinePage(pdf: PdfDocumentLike, dest: unknown): Promise<number | null> {
+  if (!pdf.getPageIndex) {
+    return null;
+  }
+  const destination = typeof dest === "string" && pdf.getDestination ? await pdf.getDestination(dest) : dest;
 
-  if (!Array.isArray(destination) || !destination.length) return null;
+  if (!Array.isArray(destination) || !destination.length) {
+    return null;
+  }
 
   try {
     const pageIndex = await pdf.getPageIndex(destination[0]);
@@ -67,17 +59,11 @@ async function resolveOutlinePage(
   }
 }
 
-async function resolveOutlineItems(
-  pdf: PdfDocumentLike,
-  items: unknown[],
-  parentKey = "",
-): Promise<OutlineItem[]> {
+async function resolveOutlineItems(pdf: PdfDocumentLike, items: unknown[], parentKey = ""): Promise<OutlineItem[]> {
   return Promise.all(
     items.filter(isRawOutlineItem).map(async (item, index) => {
       const key = parentKey ? `${parentKey}-${index}` : String(index);
-      const children = Array.isArray(item.items)
-        ? await resolveOutlineItems(pdf, item.items, key)
-        : [];
+      const children = Array.isArray(item.items) ? await resolveOutlineItems(pdf, item.items, key) : [];
 
       return {
         key,
@@ -93,13 +79,12 @@ function flattenOutline(items: OutlineItem[]): OutlineItem[] {
   return items.flatMap((item) => [item, ...flattenOutline(item.children)]);
 }
 
-function getActiveOutlineKey(
-  items: OutlineItem[],
-  currentPage: number,
-): string | null {
+function getActiveOutlineKey(items: OutlineItem[], currentPage: number): string | null {
   let active: OutlineItem | null = null;
   for (const item of flattenOutline(items)) {
-    if (!item.pageNumber || item.pageNumber > currentPage) continue;
+    if (!item.pageNumber || item.pageNumber > currentPage) {
+      continue;
+    }
     if (!active || item.pageNumber >= (active.pageNumber ?? 0)) {
       active = item;
     }
@@ -112,13 +97,14 @@ function scrollItemIntoView(
   itemEl: HTMLElement | null,
   behavior: ScrollBehavior = "smooth",
 ) {
-  if (!scrollEl || !itemEl) return;
+  if (!scrollEl || !itemEl) {
+    return;
+  }
 
   const scrollRect = scrollEl.getBoundingClientRect();
   const itemRect = itemEl.getBoundingClientRect();
   const itemTop = itemRect.top - scrollRect.top + scrollEl.scrollTop;
-  const nextTop =
-    itemTop - Math.max(0, (scrollEl.clientHeight - itemRect.height) / 2);
+  const nextTop = itemTop - Math.max(0, (scrollEl.clientHeight - itemRect.height) / 2);
 
   scrollEl.scrollTo({
     top: Math.max(0, nextTop),
@@ -143,16 +129,9 @@ const Sidebar = ({
   const [outlineItems, setOutlineItems] = useState<OutlineItem[]>([]);
   const [outlineEmpty, setOutlineEmpty] = useState(false);
 
-  const pageNumbers = useMemo(
-    () =>
-      Array.from({ length: Math.max(0, numPages) }, (_, index) => index + 1),
-    [numPages],
-  );
+  const pageNumbers = useMemo(() => Array.from({ length: Math.max(0, numPages) }, (_, index) => index + 1), [numPages]);
 
-  const activeOutlineKey = useMemo(
-    () => getActiveOutlineKey(outlineItems, currentPage),
-    [outlineItems, currentPage],
-  );
+  const activeOutlineKey = useMemo(() => getActiveOutlineKey(outlineItems, currentPage), [outlineItems, currentPage]);
 
   const currentPageRef = useRef(currentPage);
   currentPageRef.current = currentPage;
@@ -183,19 +162,25 @@ const Sidebar = ({
     void pdf
       .getOutline()
       .then(async (outline) => {
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         if (!outline?.length) {
           setOutlineItems([]);
           setOutlineEmpty(true);
           return;
         }
         const resolvedItems = await resolveOutlineItems(pdf, outline);
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         setOutlineItems(resolvedItems);
         setOutlineEmpty(resolvedItems.length === 0);
       })
       .catch(() => {
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         setOutlineItems([]);
         setOutlineEmpty(true);
       });
@@ -206,19 +191,17 @@ const Sidebar = ({
   }, [sidebarType, pdf]);
 
   useEffect(() => {
-    if (sidebarType !== "thumbnail" || !numPages) return;
-    requestSidebarScroll(
-      thumbnailListRef.current,
-      thumbnailItemRefs.current[currentPage],
-    );
+    if (sidebarType !== "thumbnail" || !numPages) {
+      return;
+    }
+    requestSidebarScroll(thumbnailListRef.current, thumbnailItemRefs.current[currentPage]);
   }, [sidebarType, numPages, currentPage]);
 
   useEffect(() => {
-    if (sidebarType !== "outline" || !activeOutlineKey) return;
-    requestSidebarScroll(
-      outlineListRef.current,
-      outlineItemRefs.current[activeOutlineKey],
-    );
+    if (sidebarType !== "outline" || !activeOutlineKey) {
+      return;
+    }
+    requestSidebarScroll(outlineListRef.current, outlineItemRefs.current[activeOutlineKey]);
   }, [sidebarType, activeOutlineKey]);
 
   useEffect(() => {
@@ -235,7 +218,9 @@ const Sidebar = ({
     }
   };
 
-  if (sidebarType === null) return null;
+  if (sidebarType === null) {
+    return null;
+  }
 
   return (
     <aside
@@ -251,9 +236,7 @@ const Sidebar = ({
           data-testid="pdf-sidebar-outline"
         >
           {outlineEmpty ? (
-            <div className="px-2 py-4 text-center text-xs text-muted-foreground">
-              暂无大纲
-            </div>
+            <div className="px-2 py-4 text-center text-xs text-muted-foreground">暂无大纲</div>
           ) : (
             <OutlineTree
               items={outlineItems}
@@ -300,20 +283,12 @@ const Sidebar = ({
                     onItemClick={handleItemClick}
                     onRenderSuccess={() => {
                       if (pageNumber === currentPageRef.current) {
-                        requestSidebarScroll(
-                          thumbnailListRef.current,
-                          thumbnailItemRefs.current[pageNumber],
-                        );
+                        requestSidebarScroll(thumbnailListRef.current, thumbnailItemRefs.current[pageNumber]);
                       }
                     }}
                   />
                 </div>
-                <div
-                  className={cn(
-                    "text-xs text-muted-foreground",
-                    isActive && "font-medium text-foreground",
-                  )}
-                >
+                <div className={cn("text-xs text-muted-foreground", isActive && "font-medium text-foreground")}>
                   {pageNumber}
                 </div>
               </div>
@@ -332,13 +307,10 @@ interface OutlineTreeProps {
   onJumpPage: (pageNumber: number) => void;
 }
 
-function OutlineTree({
-  items,
-  activeKey,
-  itemRefs,
-  onJumpPage,
-}: OutlineTreeProps) {
-  if (!items.length) return null;
+function OutlineTree({ items, activeKey, itemRefs, onJumpPage }: OutlineTreeProps) {
+  if (!items.length) {
+    return null;
+  }
 
   return (
     <ul className="m-0 list-none space-y-0.5 p-0">
@@ -357,19 +329,16 @@ function OutlineTree({
                 isActive && "bg-accent font-medium text-accent-foreground",
               )}
               onClick={() => {
-                if (item.pageNumber) onJumpPage(item.pageNumber);
+                if (item.pageNumber) {
+                  onJumpPage(item.pageNumber);
+                }
               }}
             >
               {item.title}
             </button>
             {item.children.length ? (
               <div className="pl-3">
-                <OutlineTree
-                  items={item.children}
-                  activeKey={activeKey}
-                  itemRefs={itemRefs}
-                  onJumpPage={onJumpPage}
-                />
+                <OutlineTree items={item.children} activeKey={activeKey} itemRefs={itemRefs} onJumpPage={onJumpPage} />
               </div>
             ) : null}
           </li>

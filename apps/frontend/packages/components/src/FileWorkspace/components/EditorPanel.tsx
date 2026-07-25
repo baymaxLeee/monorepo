@@ -1,6 +1,7 @@
 import type React from "react";
 import { useCallback, useLayoutEffect, useRef } from "react";
 import { cn } from "shared";
+
 import CodeEditor from "../../CodeEditor";
 import type { CodeEditorProps } from "../../CodeEditor/interface";
 import type { FileNode, FileTab } from "../interface";
@@ -14,10 +15,7 @@ interface EditorPanelProps {
   onTabClose: (id: string) => void;
   onContentChange: (id: string, content: string) => void;
   readOnly?: boolean;
-  codeEditorProps?: Omit<
-    CodeEditorProps,
-    "fileId" | "value" | "fileName" | "onChange" | "readOnly"
-  >;
+  codeEditorProps?: Omit<CodeEditorProps, "fileId" | "value" | "fileName" | "onChange" | "readOnly">;
 }
 
 export const EditorPanel: React.FC<EditorPanelProps> = ({
@@ -34,10 +32,10 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   const tabBarRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    if (!activeFileId || !tabBarRef.current) return;
-    const el = tabBarRef.current.querySelector(
-      `[data-tab-id="${activeFileId}"]`,
-    ) as HTMLElement | null;
+    if (!activeFileId || !tabBarRef.current) {
+      return;
+    }
+    const el = tabBarRef.current.querySelector(`[data-tab-id="${activeFileId}"]`) as HTMLElement | null;
     el?.scrollIntoView?.({
       block: "nearest",
       inline: "nearest",
@@ -47,7 +45,9 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
 
   const handleChange = useCallback(
     (value: string) => {
-      if (file) onContentChange(file.id, value);
+      if (file) {
+        onContentChange(file.id, value);
+      }
     },
     [file, onContentChange],
   );
@@ -97,9 +97,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
                 }
               }}
             >
-              <span className="min-w-0 max-w-36 overflow-hidden text-ellipsis whitespace-nowrap">
-                {tab.name}
-              </span>
+              <span className="min-w-0 max-w-36 overflow-hidden text-ellipsis whitespace-nowrap">{tab.name}</span>
               <button
                 type="button"
                 aria-label="关闭"

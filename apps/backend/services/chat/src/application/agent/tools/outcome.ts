@@ -38,7 +38,9 @@ export type ToolEmission<TData = unknown, TProgress = unknown> =
   | { readonly [emissionMarker]: true; status: "partial"; data: TData; error: ToolIssue }
   | { readonly [emissionMarker]: true; status: "blocked" | "failed"; error: ToolIssue };
 
-function emission<T extends Omit<ToolEmission, typeof emissionMarker>>(value: T): T & {
+function emission<T extends Omit<ToolEmission, typeof emissionMarker>>(
+  value: T,
+): T & {
   readonly [emissionMarker]: true;
 } {
   return Object.assign(value, { [emissionMarker]: true as const });
@@ -69,7 +71,9 @@ export function isToolEmission(value: unknown): value is ToolEmission {
 }
 
 export function isToolOutcome(value: unknown): value is ToolOutcome {
-  if (!value || typeof value !== "object") return false;
+  if (!value || typeof value !== "object") {
+    return false;
+  }
   const candidate = value as Record<string, unknown>;
   if (candidate.status === "running") {
     return candidate.ok === true && "progress" in candidate;
@@ -87,7 +91,9 @@ export function isToolOutcome(value: unknown): value is ToolOutcome {
 }
 
 export function toolOutcomeData(value: unknown): unknown {
-  if (!isToolOutcome(value)) return undefined;
+  if (!isToolOutcome(value)) {
+    return undefined;
+  }
   return value.status === "completed" || value.status === "partial" ? value.data : undefined;
 }
 
@@ -115,11 +121,21 @@ export function toolOutcomeSchema<TData, TProgress>(
 }
 
 function safeDetail(value: unknown, depth = 0): unknown {
-  if (depth > 4) return "[truncated]";
-  if (value == null || typeof value === "boolean") return value;
-  if (typeof value === "number") return Number.isFinite(value) ? value : String(value);
-  if (typeof value === "string") return value.slice(0, MAX_DETAIL_STRING_LENGTH);
-  if (Array.isArray(value)) return value.slice(0, 50).map((item) => safeDetail(item, depth + 1));
+  if (depth > 4) {
+    return "[truncated]";
+  }
+  if (value == null || typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : String(value);
+  }
+  if (typeof value === "string") {
+    return value.slice(0, MAX_DETAIL_STRING_LENGTH);
+  }
+  if (Array.isArray(value)) {
+    return value.slice(0, 50).map((item) => safeDetail(item, depth + 1));
+  }
   if (typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
@@ -132,27 +148,47 @@ function safeDetail(value: unknown, depth = 0): unknown {
 }
 
 function detailMessage(body: unknown): string | undefined {
-  if (!body || typeof body !== "object") return undefined;
+  if (!body || typeof body !== "object") {
+    return undefined;
+  }
   const value = body as Record<string, unknown>;
   const detail = value.detail;
   if (detail && typeof detail === "object") {
     const message = (detail as Record<string, unknown>).message;
-    if (typeof message === "string") return message;
+    if (typeof message === "string") {
+      return message;
+    }
   }
-  if (typeof detail === "string") return detail;
+  if (typeof detail === "string") {
+    return detail;
+  }
   for (const key of ["message", "error", "title"]) {
-    if (typeof value[key] === "string") return value[key] as string;
+    if (typeof value[key] === "string") {
+      return value[key];
+    }
   }
   return undefined;
 }
 
 function codeFromStatus(status: number): string {
-  if (status === 429) return "PROVIDER_RATE_LIMITED";
-  if (status === 401 || status === 403) return "SERVICE_PERMISSION_DENIED";
-  if (status === 404) return "RESOURCE_NOT_FOUND";
-  if (status === 409) return "SERVICE_CONFLICT";
-  if (status === 422 || status === 400) return "SERVICE_VALIDATION_FAILED";
-  if (status >= 500) return "SERVICE_UNAVAILABLE";
+  if (status === 429) {
+    return "PROVIDER_RATE_LIMITED";
+  }
+  if (status === 401 || status === 403) {
+    return "SERVICE_PERMISSION_DENIED";
+  }
+  if (status === 404) {
+    return "RESOURCE_NOT_FOUND";
+  }
+  if (status === 409) {
+    return "SERVICE_CONFLICT";
+  }
+  if (status === 422 || status === 400) {
+    return "SERVICE_VALIDATION_FAILED";
+  }
+  if (status >= 500) {
+    return "SERVICE_UNAVAILABLE";
+  }
   return "SERVICE_REQUEST_FAILED";
 }
 
@@ -178,19 +214,20 @@ export function normalizeToolIssue(
     };
   }
   if (error instanceof Error) {
-    const statusCode = "statusCode" in error && typeof error.statusCode === "number"
-      ? error.statusCode
-      : undefined;
-    const code = "code" in error && typeof error.code === "string"
-      ? error.code.toUpperCase()
-      : undefined;
+    const statusCode = "statusCode" in error && typeof error.statusCode === "number" ? error.statusCode : undefined;
+    const code = "code" in error && typeof error.code === "string" ? error.code.toUpperCase() : undefined;
     return {
       code: context.code ?? code ?? "TOOL_EXECUTION_FAILED",
       message: (context.message ?? error.message ?? error.name).slice(0, MAX_MESSAGE_LENGTH),
       retryable: statusCode === 429 || (statusCode != null && statusCode >= 500),
       ...(context.source ? { source: context.source } : {}),
-      ...((context.details || ("details" in error && error.details))
-        ? { details: safeDetail({ ...(("details" in error && typeof error.details === "object" ? error.details : {}) as object), ...context.details }) as Record<string, unknown> }
+      ...(context.details || ("details" in error && error.details)
+        ? {
+            details: safeDetail({
+              ...(("details" in error && typeof error.details === "object" ? error.details : {}) as object),
+              ...context.details,
+            }) as Record<string, unknown>,
+          }
         : {}),
     };
   }
@@ -220,9 +257,16 @@ export function shouldRethrowToolError(error: unknown, abortSignal?: AbortSignal
 export function outcomeFromEmission<TData, TProgress>(
   value: ToolEmission<TData, TProgress>,
 ): ToolOutcome<TData, TProgress> {
-  if (value.status === "running") return { ok: true, status: "running", progress: value.progress };
+  if (value.status === "running") {
+    return { ok: true, status: "running", progress: value.progress };
+  }
   if (value.status === "completed") {
-    return { ok: true, status: "completed", data: value.data, ...(value.warnings?.length ? { warnings: value.warnings } : {}) };
+    return {
+      ok: true,
+      status: "completed",
+      data: value.data,
+      ...(value.warnings?.length ? { warnings: value.warnings } : {}),
+    };
   }
   if (value.status === "partial") {
     return { ok: false, status: "partial", data: value.data, error: value.error };

@@ -112,9 +112,7 @@ export function fetchTelemetryPerformance(
   });
 }
 
-export function fetchObservabilityStatus(
-  options?: RequestOptions,
-): Promise<ObservabilityStatus> {
+export function fetchObservabilityStatus(options?: RequestOptions): Promise<ObservabilityStatus> {
   return request({
     url: "/api/telemetry-server/ops/observability",
     method: "GET",

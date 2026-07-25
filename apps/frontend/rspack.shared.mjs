@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import path from "node:path";
+
 import { frontendRoot, workspaceAliases } from "./workspace-aliases.mjs";
 
 export { frontendRoot };

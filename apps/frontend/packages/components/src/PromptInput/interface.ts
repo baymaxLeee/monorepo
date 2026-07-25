@@ -13,9 +13,7 @@ export interface PromptInputToken {
   meta?: Record<string, unknown>;
 }
 
-export type PromptInputSegment =
-  | { type: "text"; text: string }
-  | { type: "token"; token: PromptInputToken };
+export type PromptInputSegment = { type: "text"; text: string } | { type: "token"; token: PromptInputToken };
 
 export interface PromptInputValue {
   text: string;
@@ -58,14 +56,10 @@ export interface PromptSlashCommand {
   run?: (api: PromptInputApi) => void;
 }
 
-export type PromptSlashSource =
-  | PromptSlashCommand[]
-  | ((query: string) => PromptSlashCommand[]);
+export type PromptSlashSource = PromptSlashCommand[] | ((query: string) => PromptSlashCommand[]);
 
 /** Async skill list for the `/` menu — invoked when the slash popup opens. */
-export type PromptSkillsLoad = (
-  signal: AbortSignal,
-) => PromptSlashCommand[] | Promise<PromptSlashCommand[]>;
+export type PromptSkillsLoad = (signal: AbortSignal) => PromptSlashCommand[] | Promise<PromptSlashCommand[]>;
 
 export interface PromptInputProps {
   defaultValue?: string;
@@ -81,18 +75,10 @@ export interface PromptInputProps {
   maxFileSize?: number;
   onError?: (message: string) => void;
   onChange?: (value: PromptInputValue) => void;
-  onFilesAdded?: (
-    items: Array<{ token: PromptInputToken; file: File }>,
-  ) => void;
-  onSubmit?: (
-    value: PromptInputValue,
-    event: FormEvent<HTMLFormElement>,
-  ) => void;
+  onFilesAdded?: (items: Array<{ token: PromptInputToken; file: File }>) => void;
+  onSubmit?: (value: PromptInputValue, event: FormEvent<HTMLFormElement>) => void;
   onStop?: () => void;
-  renderToken?: (
-    token: PromptInputToken,
-    context: PromptInputRenderContext,
-  ) => ReactNode;
+  renderToken?: (token: PromptInputToken, context: PromptInputRenderContext) => ReactNode;
   toolbarRender?: (api: PromptInputApi) => ReactNode;
   footerRender?: (api: PromptInputApi) => ReactNode;
   /** Enables the `@` mention popup. Resolve mentionable entities for a query. */

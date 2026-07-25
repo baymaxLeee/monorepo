@@ -1,12 +1,4 @@
-import {
-  Button,
-  Page,
-  PageActions,
-  PageDescription,
-  PageHeader,
-  PageHeaderContent,
-  PageTitle,
-} from "components";
+import { Button, Page, PageActions, PageDescription, PageHeader, PageHeaderContent, PageTitle } from "components";
 import { Link } from "react-router-dom";
 import { usePlatformStore } from "runtime";
 

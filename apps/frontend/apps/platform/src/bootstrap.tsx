@@ -1,7 +1,7 @@
 import "components/styles.css";
-
 import { initObservability, installWebVitals } from "observability";
 import { createRoot } from "react-dom/client";
+
 import { App } from "./App";
 
 declare const process: {
@@ -12,13 +12,10 @@ declare const process: {
   };
 };
 
-const telemetryPath =
-  process.env.TELEMETRY_ENDPOINT ?? "/api/telemetry-server/rum/batch";
+const telemetryPath = process.env.TELEMETRY_ENDPOINT ?? "/api/telemetry-server/rum/batch";
 const apiBase = process.env.API_BASE_URL ?? "";
 const telemetryEndpoint =
-  apiBase && telemetryPath.startsWith("/")
-    ? `${apiBase.replace(/\/$/, "")}${telemetryPath}`
-    : telemetryPath;
+  apiBase && telemetryPath.startsWith("/") ? `${apiBase.replace(/\/$/, "")}${telemetryPath}` : telemetryPath;
 
 initObservability({
   app: "platform",
@@ -28,5 +25,7 @@ initObservability({
 installWebVitals();
 
 const container = document.getElementById("root");
-if (!container) throw new Error("#root not found");
+if (!container) {
+  throw new Error("#root not found");
+}
 createRoot(container).render(<App />);

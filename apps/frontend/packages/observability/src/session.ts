@@ -21,7 +21,9 @@ export function getSessionId(): string {
 
 function getOrCreateStorageId(storage: Storage, key: string): string {
   const existing = storage.getItem(key);
-  if (existing) return existing;
+  if (existing) {
+    return existing;
+  }
   const next = createId();
   storage.setItem(key, next);
   return next;

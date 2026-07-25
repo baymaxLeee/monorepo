@@ -61,11 +61,7 @@ export async function checkReadiness(): Promise<ReadinessReport> {
     postgres = "down";
   }
 
-  const workflowWorld = process.env.WORKFLOW_TARGET_WORLD
-    ? workflowWorldStarted
-      ? "up"
-      : "down"
-    : "skipped";
+  const workflowWorld = process.env.WORKFLOW_TARGET_WORLD ? (workflowWorldStarted ? "up" : "down") : "skipped";
 
   return {
     ok: postgres === "up" && (workflowWorld === "up" || workflowWorld === "skipped"),

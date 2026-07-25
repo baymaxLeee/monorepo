@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "rspack serve",
     "build": "rspack build",
-    "lint": "biome check src",
-    "format": "biome check --write src",
+    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/apps/chat/src && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/apps/chat/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/apps/chat/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
     "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit"
   },
   "dependencies": {

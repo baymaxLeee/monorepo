@@ -26,10 +26,7 @@ function withAuth(init: RequestInit | undefined): RequestInit {
  * string built by the SDK, or a `FormData`) and a URL string — never an already
  * consumed `Request`/stream body. Do not pass a `Request` with a one-shot body.
  */
-export async function authFetch(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<Response> {
+export async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   if (!isAccessTokenValid()) {
     await refreshSession();
   }

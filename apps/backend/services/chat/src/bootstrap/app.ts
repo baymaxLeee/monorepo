@@ -1,13 +1,13 @@
-import { Hono } from "hono";
 import { requestLogger, traceMiddleware } from "@backend/kernel-ts";
+import { Hono } from "hono";
 
-import { problemJson } from "../api/http/problem.js";
-import { logger } from "../infrastructure/observability/logger.js";
-import { checkReadiness, currentBootState, isBootReady } from "../infrastructure/health/readiness.js";
 import { authMiddleware } from "../api/http/middleware/auth.js";
+import { problemJson } from "../api/http/problem.js";
 import { agentsRoutes } from "../api/http/routes/agents.js";
 import { conversationsRoutes } from "../api/http/routes/conversations.js";
 import { memoriesRoutes } from "../api/http/routes/memories.js";
+import { checkReadiness, currentBootState, isBootReady } from "../infrastructure/health/readiness.js";
+import { logger } from "../infrastructure/observability/logger.js";
 
 export function createApp() {
   const app = new Hono();
@@ -17,10 +17,8 @@ export function createApp() {
 
   app.get("/healthz", (c) => c.json({ status: "ok" }));
   app.get("/livez", (c) =>
-    c.json(
-      { status: currentBootState() === "failed" ? "failed" : "ok" },
-      currentBootState() === "failed" ? 503 : 200,
-    ));
+    c.json({ status: currentBootState() === "failed" ? "failed" : "ok" }, currentBootState() === "failed" ? 503 : 200),
+  );
   app.get("/readyz", async (c) => {
     const report = await checkReadiness();
     return c.json(

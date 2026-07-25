@@ -12,8 +12,7 @@ platform (host @ :3000)
   └── …                     — new remotes: /platform/<slug>/*
 ```
 
-**platform owns**: auth, top-level routing, layout, global error boundary, MFE registry.
-**Each `mfe-*` owns**: its sub-routes, state, API calls, deploy artifact.
+**platform owns**: auth, top-level routing, layout, global error boundary, MFE registry. **Each `mfe-*` owns**: its sub-routes, state, API calls, deploy artifact.
 
 ## Internal package imports
 
@@ -25,16 +24,11 @@ Use the real pnpm workspace package names as the single module identity:
 - `api` → `packages/api`
 - `observability` → `packages/observability`
 
-Apps and packages both import internal packages by these names. Every consumer
-must declare the workspace dependency in its own `package.json` using
-`"workspace:*"`.
+Apps and packages both import internal packages by these names. Every consumer must declare the workspace dependency in its own `package.json` using `"workspace:*"`.
 
-包内模块必须从该包公开入口 re-export 出去；禁止业务代码导入
-`<包名>/<内部模块>` 或 `<包名>/src/...`。如果一个包需要新增对外 API，先在该包入口导出，再从包名使用。
+包内模块必须从该包公开入口 re-export 出去；禁止业务代码导入 `<包名>/<内部模块>` 或 `<包名>/src/...`。如果一个包需要新增对外 API，先在该包入口导出，再从包名使用。
 
-重型组件走 `components` 的子路径入口（不进主 barrel，避免拖慢 tree-shaking / dev 冷启动）：
-`components/markdown-editor`、`code-editor`、`pdf-previewer`、`xmind-previewer`、`file-workspace`。
-新增此类组件：在 `components/package.json` 的 `exports` 加子路径，并从 `src/index.ts` 移除其 re-export。
+重型组件走 `components` 的子路径入口（不进主 barrel，避免拖慢 tree-shaking / dev 冷启动）： `components/markdown-editor`、`code-editor`、`pdf-previewer`、`xmind-previewer`、`file-workspace`。新增此类组件：在 `components/package.json` 的 `exports` 加子路径，并从 `src/index.ts` 移除其 re-export。
 
 ## Layout
 
@@ -42,8 +36,7 @@ must declare the workspace dependency in its own `package.json` using
 - `packages/components` — sole UI kit (shadcn/ui) + Tailwind v4 theme (`styles.css`)
 - `packages/shared` — utils, types, constants
 - `packages/runtime` — MFE registry, event bus, auth context
-- `packages/api` — unified axios runtime, auth/session, typed API clients
-  generated from OpenAPI
+- `packages/api` — unified axios runtime, auth/session, typed API clients generated from OpenAPI
 
 ## Hard rules
 
@@ -64,27 +57,14 @@ Host provides only runtime-critical shared packages:
 - `zustand`, `@tanstack/react-query`, `sonner`
 - `runtime`, `shared`, `observability`
 
-Remotes consume these from the host with `import: false`; they must not bundle
-fallback copies of React, router, or platform runtime infra. UI kits and API
-clients (`components`, `api`) remain normal workspace dependencies so each app
-can tree-shake the imports it actually uses. MFE remotes are independently
-deployed asset bundles, but platform is the only user-facing entry.
+Remotes consume these from the host with `import: false`; they must not bundle fallback copies of React, router, or platform runtime infra. UI kits and API clients (`components`, `api`) remain normal workspace dependencies so each app can tree-shake the imports it actually uses. MFE remotes are independently deployed asset bundles, but platform is the only user-facing entry.
 
 ### API calls
 
-- ALWAYS via `api` (typed wrappers / generated clients re-exported
-  from package entry)
-- 所有非流式请求走**唯一 axios 单例** `apiHttp`（`packages/api/src/http.ts`）：
-  request 拦截器注入 `Bearer` token，response 拦截器统一做 401 refresh-retry +
-  通用错误处理，并把后端 RFC7807 错误信息（`detail`/`message`/`title`）`toast.error`
-  出来。业务层 `catch` **不要再手动 toast**——那会重复提示。
-- 唯一例外是 **SSE / 流式 / raw-fetch**（AI SDK `DefaultChatTransport`、
-  blob 源、少量 multipart/raw fetch）：它们无法过 axios，改用 `authFetch`
-  （同样镜像 401 refresh 策略），错误在调用点自行
-  `toast.error(getErrorMessage(err))`。
-- 需要**抑制**拦截器全局 toast（后台探针、或页面自渲染内联错误 UI）时，给该请求传
-  `skipErrorNotify: true`（`ApiRequestConfig`）；内联错误文案统一用 `shared` 的
-  `getErrorMessage(err, fallback)` 提取。
+- ALWAYS via `api` (typed wrappers / generated clients re-exported from package entry)
+- 所有非流式请求走**唯一 axios 单例** `apiHttp`（`packages/api/src/http.ts`）：request 拦截器注入 `Bearer` token，response 拦截器统一做 401 refresh-retry + 通用错误处理，并把后端 RFC7807 错误信息（`detail`/`message`/`title`）`toast.error` 出来。业务层 `catch` **不要再手动 toast**——那会重复提示。
+- 唯一例外是 **SSE / 流式 / raw-fetch**（AI SDK `DefaultChatTransport`、blob 源、少量 multipart/raw fetch）：它们无法过 axios，改用 `authFetch` （同样镜像 401 refresh 策略），错误在调用点自行 `toast.error(getErrorMessage(err))`。
+- 需要**抑制**拦截器全局 toast（后台探针、或页面自渲染内联错误 UI）时，给该请求传 `skipErrorNotify: true`（`ApiRequestConfig`）；内联错误文案统一用 `shared` 的 `getErrorMessage(err, fallback)` 提取。
 
 ### shadcn / Tailwind v4
 
@@ -121,23 +101,16 @@ deployed asset bundles, but platform is the only user-facing entry.
 
 ### TypeScript 7（原生检查器双轨过渡）
 
-- `@typescript/native` 固定原生 TypeScript 7，负责所有 `typecheck`；各包脚本显式调用
-  `node_modules/@typescript/native/bin/tsc`，不得改回不确定来源的裸 `tsc`。
-- `typescript` 5.x 暂时只服务仍依赖旧编程 API / peer range 的 Module Federation、
-  Orval / TypeDoc、shadcn 等工具，不负责仓库类型检查；上游兼容稳定 API 后直接删除旧版本。
-- 普通 TS package 不得直接声明旧 `typescript`；每个含 TS 源码的 workspace package
-  必须提供独立 TS7 `typecheck`。只有承载明确旧 API / peer 消费者的 package 可保留 TS5。
-- 共享编译选项只维护在 `packages/typescript-config/base.json`。所有 app/package 必须声明
-  `"@project/typescript-config": "workspace:*"` 并从包名继承；禁止用跨目录相对路径继承根
-  `tsconfig.base.json`，否则从 pnpm `node_modules` 符号链接进入时会解析到错误目录。
-- TS7 不支持 `baseUrl`；`paths` replacement 必须以 `./` 开头，并相对声明它的项目 `tsconfig.json`。
-  浏览器代码不要依赖默认注入的 Node 全局类型，计时器使用
-  `ReturnType<typeof setTimeout>`。
-- VS Code / Cursor 使用微软 `TypeScriptTeam.native-preview` 扩展，并在编辑器设置中启用
-  `js/ts.experimental.useTsgo`。
+- `@typescript/native` 固定原生 TypeScript 7，负责所有 `typecheck`；各包脚本显式调用 `node_modules/@typescript/native/bin/tsc`，不得改回不确定来源的裸 `tsc`。
+- `typescript` 5.x 暂时只服务仍依赖旧编程 API / peer range 的 Module Federation、Orval / TypeDoc、shadcn 等工具，不负责仓库类型检查；上游兼容稳定 API 后直接删除旧版本。
+- 普通 TS package 不得直接声明旧 `typescript`；每个含 TS 源码的 workspace package 必须提供独立 TS7 `typecheck`。只有承载明确旧 API / peer 消费者的 package 可保留 TS5。
+- 共享编译选项只维护在 `packages/typescript-config/base.json`。所有 app/package 必须声明 `"@project/typescript-config": "workspace:*"` 并从包名继承；禁止用跨目录相对路径继承根 `tsconfig.base.json`，否则从 pnpm `node_modules` 符号链接进入时会解析到错误目录。
+- TS7 不支持 `baseUrl`；`paths` replacement 必须以 `./` 开头，并相对声明它的项目 `tsconfig.json`。浏览器代码不要依赖默认注入的 Node 全局类型，计时器使用 `ReturnType<typeof setTimeout>`。
+- VS Code / Cursor 使用微软 `TypeScriptTeam.native-preview` 扩展，并在编辑器设置中启用 `js/ts.experimental.useTsgo`。
 
 ### Code style
 
+- Oxfmt + Oxlint use the repository root configs; the default line width is 120.
 - Components: PascalCase, ≤ 250 LoC, no default exports in libs
 - ESM exports: named exports only for app and package code. React Router lazy entries export `Component`; Module Federation route entries export `routes`.
 - Hooks: `use*`, named exports only
@@ -146,14 +119,14 @@ deployed asset bundles, but platform is the only user-facing entry.
 
 ## Commands (from `apps/frontend/`)
 
-| Command             | Purpose                                            |
-| ------------------- | -------------------------------------------------- |
-| `just dev platform` | Start platform only (port 3000)                    |
-| `just dev <mfe>`    | Start a single MFE (port from PORTS map)           |
-| `just dev-all`      | Start shell + all MFEs (heavy)                     |
-| `just lint`         | ESLint + tsc                                       |
-| `just fmt`          | Prettier + eslint --fix (auto-run, no need to ask) |
-| `just gen-client`   | Regen `packages/api` from `schemas/openapi/`       |
+| Command             | Purpose                                      |
+| ------------------- | -------------------------------------------- |
+| `just dev platform` | Start platform only (port 3000)              |
+| `just dev <mfe>`    | Start a single MFE (port from PORTS map)     |
+| `just dev-all`      | Start shell + all MFEs (heavy)               |
+| `just lint`         | Oxlint + Oxfmt check + TS7 typecheck         |
+| `just fmt`          | Oxfmt rewrite (auto-run, no need to ask)     |
+| `just gen-client`   | Regen `packages/api` from `schemas/openapi/` |
 
 ## Size limits
 

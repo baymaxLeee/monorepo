@@ -2,13 +2,7 @@ import type { ConversationFileDetail } from "api";
 import { fetchConversationFile, fetchConversationFileSource } from "api";
 import { Button, toast } from "components";
 import { ArtifactAction, ArtifactPreview } from "components/ai-chat";
-import {
-  DownloadIcon,
-  Loader2Icon,
-  Maximize2Icon,
-  Minimize2Icon,
-  XIcon,
-} from "lucide-react";
+import { DownloadIcon, Loader2Icon, Maximize2Icon, Minimize2Icon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getErrorMessage } from "shared";
 import { useShallow } from "zustand/react/shallow";
@@ -42,13 +36,19 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
     setFile(null);
     void fetchConversationFile(conversationId, path)
       .then((result) => {
-        if (active) setFile(result);
+        if (active) {
+          setFile(result);
+        }
       })
       .catch(() => {
-        if (active) setFile(null);
+        if (active) {
+          setFile(null);
+        }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       });
     return () => {
       active = false;
@@ -67,19 +67,27 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
     setSourceLoading(true);
     void fetchConversationFileSource(conversationId, path)
       .then((blob) => {
-        if (!active) return;
+        if (!active) {
+          return;
+        }
         objectUrl = URL.createObjectURL(blob);
         setPreviewUrl(objectUrl);
       })
       .catch(() => {
-        if (active) setPreviewUrl(undefined);
+        if (active) {
+          setPreviewUrl(undefined);
+        }
       })
       .finally(() => {
-        if (active) setSourceLoading(false);
+        if (active) {
+          setSourceLoading(false);
+        }
       });
     return () => {
       active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
     };
   }, [conversationId, file?.mime_type, path]);
 
@@ -87,11 +95,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
     const sync = () => {
       const root = panelRef.current;
       const element = document.fullscreenElement;
-      setIsFullscreen(
-        Boolean(
-          root && element && (element === root || root.contains(element)),
-        ),
-      );
+      setIsFullscreen(Boolean(root && element && (element === root || root.contains(element))));
     };
     document.addEventListener("fullscreenchange", sync);
     return () => document.removeEventListener("fullscreenchange", sync);
@@ -99,18 +103,23 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
 
   const toggleFullscreen = useCallback(async () => {
     const root = panelRef.current;
-    if (!root) return;
-    if (document.fullscreenElement) await document.exitFullscreen();
-    else await root.requestFullscreen();
+    if (!root) {
+      return;
+    }
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else {
+      await root.requestFullscreen();
+    }
   }, []);
 
   const downloadFile = useCallback(() => {
-    if (!file) return;
+    if (!file) {
+      return;
+    }
     setDownloading(true);
     try {
-      const url = URL.createObjectURL(
-        new Blob([file.content], { type: file.mime_type }),
-      );
+      const url = URL.createObjectURL(new Blob([file.content], { type: file.mime_type }));
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = file.filename.split("/").at(-1) ?? "artifact";
@@ -124,15 +133,10 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
   }, [file]);
 
   return (
-    <div
-      ref={panelRef}
-      className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background"
-    >
+    <div ref={panelRef} className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
       <div className="flex h-11 shrink-0 items-center gap-2 px-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">
-            {file?.title ?? (loading ? "加载中…" : "预览")}
-          </p>
+          <p className="truncate text-sm font-medium">{file?.title ?? (loading ? "加载中…" : "预览")}</p>
           {file ? (
             <p className="truncate text-xs text-muted-foreground">
               {file.path} · {file.mime_type}
@@ -146,11 +150,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
             disabled={downloading}
             onClick={downloadFile}
           >
-            {downloading ? (
-              <Loader2Icon className="size-4 animate-spin" />
-            ) : (
-              <DownloadIcon className="size-4" />
-            )}
+            {downloading ? <Loader2Icon className="size-4 animate-spin" /> : <DownloadIcon className="size-4" />}
           </ArtifactAction>
         ) : null}
         {file?.mime_type === "text/html" ? (
@@ -162,11 +162,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
             aria-label={isFullscreen ? "退出全屏" : "全屏"}
             onClick={() => void toggleFullscreen()}
           >
-            {isFullscreen ? (
-              <Minimize2Icon className="size-4" />
-            ) : (
-              <Maximize2Icon className="size-4" />
-            )}
+            {isFullscreen ? <Minimize2Icon className="size-4" /> : <Maximize2Icon className="size-4" />}
           </Button>
         ) : null}
         <Button
@@ -182,9 +178,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {loading || sourceLoading ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            加载中…
-          </div>
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">加载中…</div>
         ) : file ? (
           <ArtifactPreview
             title={file.title}

@@ -100,9 +100,7 @@ export function OperationsObservabilityPage() {
       <PageHeader>
         <PageHeaderContent>
           <PageTitle>可观测运维</PageTitle>
-          <PageDescription>
-            面向运维与技术人员的全量错误、用户、release 与 Trace 基座状态
-          </PageDescription>
+          <PageDescription>面向运维与技术人员的全量错误、用户、release 与 Trace 基座状态</PageDescription>
         </PageHeaderContent>
         <PageActions>
           <Button
@@ -132,10 +130,7 @@ export function OperationsObservabilityPage() {
         <MetricCard label="版本数" value={summary.releases} />
       </div>
 
-      <ObservabilityStatusPanel
-        status={statusQuery.data}
-        loading={statusQuery.isLoading}
-      />
+      <ObservabilityStatusPanel status={statusQuery.data} loading={statusQuery.isLoading} />
 
       <Card>
         <CardHeader>
@@ -161,21 +156,13 @@ export function OperationsObservabilityPage() {
   );
 }
 
-function ObservabilityStatusPanel({
-  status,
-  loading,
-}: {
-  status?: ObservabilityStatus;
-  loading: boolean;
-}) {
+function ObservabilityStatusPanel({ status, loading }: { status?: ObservabilityStatus; loading: boolean }) {
   if (loading && !status) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Trace 基座</CardTitle>
-          <CardDescription>
-            ClickHouse + OpenTelemetry Collector
-          </CardDescription>
+          <CardDescription>ClickHouse + OpenTelemetry Collector</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           <Skeleton className="h-8 w-full" />
@@ -185,40 +172,28 @@ function ObservabilityStatusPanel({
     );
   }
 
-  if (!status) return null;
+  if (!status) {
+    return null;
+  }
   const clickhouseState = status.clickhouse.healthy ? "正常" : "异常";
   return (
     <Card>
       <CardHeader>
         <CardTitle>Trace 基座</CardTitle>
-        <CardDescription>
-          ClickHouse + OTel Collector，明细保留 {status.trace_retention_days} 天
-        </CardDescription>
+        <CardDescription>ClickHouse + OTel Collector，明细保留 {status.trace_retention_days} 天</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 lg:grid-cols-[280px_1fr]">
         <div className="space-y-3 rounded-lg border p-4">
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">ClickHouse</span>
-            <Badge
-              variant={status.clickhouse.healthy ? "default" : "destructive"}
-            >
-              {clickhouseState}
-            </Badge>
+            <Badge variant={status.clickhouse.healthy ? "default" : "destructive"}>{clickhouseState}</Badge>
           </div>
           <div>
-            <div className="text-2xl font-semibold">
-              {status.clickhouse.spans_last_hour}
-            </div>
+            <div className="text-2xl font-semibold">{status.clickhouse.spans_last_hour}</div>
             <div className="text-xs text-muted-foreground">近一小时 spans</div>
           </div>
-          <div className="text-xs text-muted-foreground">
-            OTLP: {status.otlp_endpoint ?? "未配置"}
-          </div>
-          {status.clickhouse.error ? (
-            <div className="text-xs text-destructive">
-              {status.clickhouse.error}
-            </div>
-          ) : null}
+          <div className="text-xs text-muted-foreground">OTLP: {status.otlp_endpoint ?? "未配置"}</div>
+          {status.clickhouse.error ? <div className="text-xs text-destructive">{status.clickhouse.error}</div> : null}
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           {status.capabilities.map((item) => (
@@ -249,11 +224,7 @@ function MetricCard({ label, value }: { label: string; value: number }) {
 
 function OpsTable({ items }: { items: TelemetryErrorEvent[] }) {
   if (items.length === 0) {
-    return (
-      <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
-        暂无错误数据
-      </div>
-    );
+    return <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">暂无错误数据</div>;
   }
 
   return (
@@ -271,21 +242,15 @@ function OpsTable({ items }: { items: TelemetryErrorEvent[] }) {
       <TableBody>
         {items.map((item) => (
           <TableRow key={`${item.fingerprint}-${item.ts_server}`}>
-            <TableCell className="whitespace-nowrap">
-              {formatTime(item.ts_server)}
-            </TableCell>
+            <TableCell className="whitespace-nowrap">{formatTime(item.ts_server)}</TableCell>
             <TableCell>
               <Badge variant="outline">{item.app}</Badge>
             </TableCell>
-            <TableCell className="max-w-40 truncate">
-              {item.username ?? item.user_id ?? "anonymous"}
-            </TableCell>
+            <TableCell className="max-w-40 truncate">{item.username ?? item.user_id ?? "anonymous"}</TableCell>
             <TableCell>
               <div className="max-w-96">
                 <div className="truncate font-medium">{item.message}</div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {item.route}
-                </div>
+                <div className="truncate text-xs text-muted-foreground">{item.route}</div>
               </div>
             </TableCell>
             <TableCell>

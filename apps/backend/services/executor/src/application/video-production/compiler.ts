@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+
 import type { ShotSpec } from "../../domain/video-production/contracts.js";
 import type { ArkImageRef } from "../../infrastructure/clients/ark.js";
 
@@ -11,7 +12,9 @@ export interface CompiledSeedanceRequest {
 }
 
 function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (Array.isArray(value)) {
+    return `[${value.map(stableJson).join(",")}]`;
+  }
   if (value && typeof value === "object") {
     return `{${Object.entries(value as Record<string, unknown>)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -26,9 +29,7 @@ export function sha256Json(value: unknown): string {
 }
 
 export function compileSeedancePrompt(shot: ShotSpec): CompiledSeedanceRequest {
-  const imageReferences = shot.references.filter(
-    (reference) => reference.mediaType === "image" && reference.url,
-  );
+  const imageReferences = shot.references.filter((reference) => reference.mediaType === "image" && reference.url);
   const images = imageReferences.map((reference) => ({
     url: reference.url!,
     role: "reference_image" as const,
@@ -48,7 +49,9 @@ export function compileSeedancePrompt(shot: ShotSpec): CompiledSeedanceRequest {
     `Continuity: ${shot.continuityContract.join("; ") || "preserve established continuity"}`,
     `Acceptance: ${shot.acceptanceCriteria.join("; ")}`,
     "Render one continuous single-take action. The action must progress without looping or replaying the same beat.",
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
   return {
     prompt,
     images,

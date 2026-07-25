@@ -1,12 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  type Bot,
-  createBot,
-  deleteBot,
-  fetchBots,
-  fetchModelProviders,
-  type ModelProvider,
-} from "api";
+import { type Bot, createBot, deleteBot, fetchBots, fetchModelProviders, type ModelProvider } from "api";
 import {
   Alert,
   AlertDescription,
@@ -64,6 +57,7 @@ import { useForm } from "react-hook-form";
 import { getErrorMessage } from "shared";
 import { z } from "zod";
 import { useShallow } from "zustand/react/shallow";
+
 import { useAdminStore } from "../../store/useAdminStore";
 import { AgentModelDialog } from "./AgentModelDialog";
 
@@ -109,10 +103,7 @@ export function BotListPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    Promise.all([
-      fetchBots({ skipErrorNotify: true }),
-      fetchModelProviders({ skipErrorNotify: true }).catch(() => []),
-    ])
+    Promise.all([fetchBots({ skipErrorNotify: true }), fetchModelProviders({ skipErrorNotify: true }).catch(() => [])])
       .then(([botList, providerList]) => {
         setBots(botList);
         setProviders(providerList);
@@ -127,14 +118,18 @@ export function BotListPage() {
 
   const providerLabel = useCallback(
     (id: string | null) => {
-      if (!id) return "—";
+      if (!id) {
+        return "—";
+      }
       return providers.find((p) => p.id === id)?.name ?? id;
     },
     [providers],
   );
 
   async function onDelete() {
-    if (!deleting) return;
+    if (!deleting) {
+      return;
+    }
     try {
       await deleteBot(deleting.id);
       toast.success("智能体已删除");
@@ -160,9 +155,7 @@ export function BotListPage() {
       <PageHeader>
         <PageHeaderContent>
           <PageTitle>智能体</PageTitle>
-          <PageDescription>
-            配置每个智能体的文本 / 图片 / 视频模型；对话时按智能体消费。
-          </PageDescription>
+          <PageDescription>配置每个智能体的文本 / 图片 / 视频模型；对话时按智能体消费。</PageDescription>
         </PageHeaderContent>
         <PageActions>
           <Button variant="outline" onClick={load} disabled={loading}>
@@ -172,7 +165,9 @@ export function BotListPage() {
             open={createOpen}
             onOpenChange={(open) => {
               setCreateOpen(open);
-              if (!open) form.reset();
+              if (!open) {
+                form.reset();
+              }
             }}
           >
             <DialogTrigger asChild>
@@ -181,16 +176,11 @@ export function BotListPage() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>新建智能体</DialogTitle>
-                <DialogDescription>
-                  先创建智能体，再在「配置」中选择其使用的模型。
-                </DialogDescription>
+                <DialogDescription>先创建智能体，再在「配置」中选择其使用的模型。</DialogDescription>
               </DialogHeader>
               <DialogBody>
                 <Form {...form}>
-                  <form
-                    id="bot-create-form"
-                    onSubmit={form.handleSubmit(onCreate)}
-                  >
+                  <form id="bot-create-form" onSubmit={form.handleSubmit(onCreate)}>
                     <FieldGroup>
                       <FormField
                         control={form.control}
@@ -199,11 +189,7 @@ export function BotListPage() {
                           <Field>
                             <FieldLabel htmlFor="bot-name">名称</FieldLabel>
                             <FormControl>
-                              <Input
-                                id="bot-name"
-                                placeholder="例如：客服助手"
-                                {...field}
-                              />
+                              <Input id="bot-name" placeholder="例如：客服助手" {...field} />
                             </FormControl>
                             <FieldError errors={[form.formState.errors.name]} />
                           </Field>
@@ -214,18 +200,10 @@ export function BotListPage() {
                 </Form>
               </DialogBody>
               <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setCreateOpen(false)}
-                >
+                <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
                   取消
                 </Button>
-                <Button
-                  type="submit"
-                  form="bot-create-form"
-                  disabled={form.formState.isSubmitting}
-                >
+                <Button type="submit" form="bot-create-form" disabled={form.formState.isSubmitting}>
                   {form.formState.isSubmitting ? "创建中…" : "创建"}
                 </Button>
               </DialogFooter>
@@ -241,8 +219,7 @@ export function BotListPage() {
             {error}
             <br />
             <span className="text-xs">
-              请确认 <InlineCode>just up</InlineCode> 与{" "}
-              <InlineCode>just dev</InlineCode> 已启动 gateway / admin。
+              请确认 <InlineCode>just up</InlineCode> 与 <InlineCode>just dev</InlineCode> 已启动 gateway / admin。
             </span>
           </AlertDescription>
         </Alert>
@@ -251,9 +228,7 @@ export function BotListPage() {
       <Card>
         <CardHeader>
           <CardTitle>全部智能体</CardTitle>
-          <CardDescription>
-            {loading ? "加载中…" : bots ? `共 ${bots.length} 条` : "暂无数据"}
-          </CardDescription>
+          <CardDescription>{loading ? "加载中…" : bots ? `共 ${bots.length} 条` : "暂无数据"}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -278,22 +253,12 @@ export function BotListPage() {
                 {bots.map((b) => (
                   <TableRow key={b.id}>
                     <TableCell className="font-medium">{b.name}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {providerLabel(b.text_provider_id)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {providerLabel(b.image_provider_id)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {providerLabel(b.video_provider_id)}
-                    </TableCell>
+                    <TableCell className="text-muted-foreground">{providerLabel(b.text_provider_id)}</TableCell>
+                    <TableCell className="text-muted-foreground">{providerLabel(b.image_provider_id)}</TableCell>
+                    <TableCell className="text-muted-foreground">{providerLabel(b.video_provider_id)}</TableCell>
                     <TableCell>{statusBadge(b.status)}</TableCell>
                     <TableCell className="space-x-2 text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditing(b)}
-                      >
+                      <Button variant="outline" size="sm" onClick={() => setEditing(b)}>
                         配置
                       </Button>
                       <Button
@@ -319,7 +284,9 @@ export function BotListPage() {
         bot={editing}
         open={editing !== null}
         onOpenChange={(open) => {
-          if (!open) setEditing(null);
+          if (!open) {
+            setEditing(null);
+          }
         }}
         providers={providers}
         onSaved={load}
@@ -328,15 +295,15 @@ export function BotListPage() {
       <AlertDialog
         open={deleting !== null}
         onOpenChange={(open) => {
-          if (!open) setDeleting(null);
+          if (!open) {
+            setDeleting(null);
+          }
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>删除智能体</AlertDialogTitle>
-            <AlertDialogDescription>
-              确定删除「{deleting?.name}」？此操作不可恢复。
-            </AlertDialogDescription>
+            <AlertDialogDescription>确定删除「{deleting?.name}」？此操作不可恢复。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>

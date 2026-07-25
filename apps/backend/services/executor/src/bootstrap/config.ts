@@ -24,7 +24,9 @@ function envOr(key: string, fallback: string): string {
 
 function envInt(key: string, fallback: number): number {
   const raw = process.env[key];
-  if (!raw) return fallback;
+  if (!raw) {
+    return fallback;
+  }
   const n = Number(raw);
   return Number.isFinite(n) ? n : fallback;
 }

@@ -1,14 +1,13 @@
 try {
   process.loadEnvFile();
-} catch {
-}
+} catch {}
 
-import { serve } from "@hono/node-server";
 import { configureOpenTelemetry, shutdownOpenTelemetry } from "@backend/kernel-ts";
+import { serve } from "@hono/node-server";
 
 import { createApp } from "./bootstrap/app.js";
-import { bootstrapChat } from "./bootstrap/runtime.js";
 import { getSettings } from "./bootstrap/config.js";
+import { bootstrapChat } from "./bootstrap/runtime.js";
 import { logger } from "./infrastructure/observability/logger.js";
 import { closeRedisClient } from "./infrastructure/redis/index.js";
 
@@ -25,8 +24,6 @@ void bootstrapChat().catch(() => undefined);
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {
-    void Promise.allSettled([closeRedisClient(), shutdownOpenTelemetry()]).finally(
-      () => process.exit(0),
-    );
+    void Promise.allSettled([closeRedisClient(), shutdownOpenTelemetry()]).finally(() => process.exit(0));
   });
 }

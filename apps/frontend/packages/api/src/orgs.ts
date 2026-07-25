@@ -48,9 +48,7 @@ const base = "/api/iam-server";
 // --- Public directory + self-service ------------------------------------
 
 /** Public, applyable org list ({id,name} only). No auth required. */
-export async function fetchPublicOrgs(
-  options?: RequestOptions,
-): Promise<OrgSummary[]> {
+export async function fetchPublicOrgs(options?: RequestOptions): Promise<OrgSummary[]> {
   return request<OrgSummary[]>({
     url: `${base}/orgs`,
     method: "GET",
@@ -78,9 +76,7 @@ export type CreateOrgInput = {
   ownerDisplayName?: string;
 };
 
-export async function listOrgsForAdmin(
-  options?: RequestOptions,
-): Promise<OrgAdminView[]> {
+export async function listOrgsForAdmin(options?: RequestOptions): Promise<OrgAdminView[]> {
   return request<OrgAdminView[]>({
     url: `${base}/orgs/admin`,
     method: "GET",
@@ -103,10 +99,7 @@ export type CreateOrgAdminInput = {
   displayName?: string;
 };
 
-export async function createOrgAdmin(
-  orgId: string,
-  input: CreateOrgAdminInput,
-): Promise<OrgMemberView> {
+export async function createOrgAdmin(orgId: string, input: CreateOrgAdminInput): Promise<OrgMemberView> {
   return request<OrgMemberView>({
     url: `${base}/orgs/${encodeURIComponent(orgId)}/admins`,
     method: "POST",
@@ -114,10 +107,7 @@ export async function createOrgAdmin(
   });
 }
 
-export async function transferOrgOwner(
-  orgId: string,
-  newOwnerUserId: string,
-): Promise<void> {
+export async function transferOrgOwner(orgId: string, newOwnerUserId: string): Promise<void> {
   await request<void>({
     url: `${base}/orgs/${encodeURIComponent(orgId)}/owner`,
     method: "PUT",
@@ -140,21 +130,14 @@ export async function listOrgMembers(
   });
 }
 
-export async function approveMember(
-  orgId: string,
-  userId: string,
-): Promise<void> {
+export async function approveMember(orgId: string, userId: string): Promise<void> {
   await request<void>({
     url: `${base}/orgs/${encodeURIComponent(orgId)}/members/${encodeURIComponent(userId)}/approve`,
     method: "POST",
   });
 }
 
-export async function rejectMember(
-  orgId: string,
-  userId: string,
-  reason?: string,
-): Promise<void> {
+export async function rejectMember(orgId: string, userId: string, reason?: string): Promise<void> {
   await request<void>({
     url: `${base}/orgs/${encodeURIComponent(orgId)}/members/${encodeURIComponent(userId)}/reject`,
     method: "POST",
@@ -162,11 +145,7 @@ export async function rejectMember(
   });
 }
 
-export async function setMemberRole(
-  orgId: string,
-  userId: string,
-  role: "org_admin" | "member",
-): Promise<void> {
+export async function setMemberRole(orgId: string, userId: string, role: "org_admin" | "member"): Promise<void> {
   await request<void>({
     url: `${base}/orgs/${encodeURIComponent(orgId)}/members/${encodeURIComponent(userId)}/role`,
     method: "PUT",
@@ -180,19 +159,14 @@ export async function listPlatformRoles(): Promise<PlatformRole[]> {
   return request<PlatformRole[]>({ url: `${base}/roles`, method: "GET" });
 }
 
-export async function listUserPlatformRoles(
-  userId: string,
-): Promise<PlatformRole[]> {
+export async function listUserPlatformRoles(userId: string): Promise<PlatformRole[]> {
   return request<PlatformRole[]>({
     url: `${base}/users/${encodeURIComponent(userId)}/roles`,
     method: "GET",
   });
 }
 
-export async function assignUserRole(
-  userId: string,
-  roleId: string,
-): Promise<void> {
+export async function assignUserRole(userId: string, roleId: string): Promise<void> {
   await request<void>({
     url: `${base}/users/${encodeURIComponent(userId)}/roles`,
     method: "POST",
@@ -200,10 +174,7 @@ export async function assignUserRole(
   });
 }
 
-export async function removeUserRole(
-  userId: string,
-  roleId: string,
-): Promise<void> {
+export async function removeUserRole(userId: string, roleId: string): Promise<void> {
   await request<void>({
     url: `${base}/users/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`,
     method: "DELETE",

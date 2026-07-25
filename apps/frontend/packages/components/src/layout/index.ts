@@ -9,9 +9,4 @@ export {
   PageHeaderContent,
   PageTitle,
 } from "./Page";
-export {
-  SiteHeader,
-  SiteHeaderActions,
-  SiteHeaderBrand,
-  SiteHeaderNav,
-} from "./SiteHeader";
+export { SiteHeader, SiteHeaderActions, SiteHeaderBrand, SiteHeaderNav } from "./SiteHeader";

@@ -16,8 +16,7 @@ export function ChatContextUsage({
     context: ConversationContextView | null;
   }>({ conversationId, context: null });
   const [loading, setLoading] = useState(false);
-  const context =
-    state.conversationId === conversationId ? state.context : null;
+  const context = state.conversationId === conversationId ? state.context : null;
 
   useEffect(() => {
     if (!conversationId) {
@@ -38,7 +37,9 @@ export function ChatContextUsage({
       })
       .catch(() => {})
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       });
     return () => controller.abort();
   }, [conversationId, refreshKey]);

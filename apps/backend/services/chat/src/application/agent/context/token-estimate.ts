@@ -13,7 +13,9 @@ export function estimateTextTokens(value: string): number {
 }
 
 export function truncateToTokenBudget(value: string, tokenBudget: number): string {
-  if (estimateTextTokens(value) <= tokenBudget) return value;
+  if (estimateTextTokens(value) <= tokenBudget) {
+    return value;
+  }
   let low = 0;
   let high = value.length;
   while (low < high) {

@@ -32,7 +32,9 @@ export function getLanguageExtension(
   langMapExtensions: Record<string, () => Extension> = {},
 ): Extension | null {
   const ext = fileName.split(".").pop()?.toLowerCase();
-  if (!ext) return null;
+  if (!ext) {
+    return null;
+  }
 
   if (ext in langMapExtensions) {
     return langMapExtensions[ext]() || null;

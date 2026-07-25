@@ -13,9 +13,7 @@ type MemoryInput = {
 };
 
 const memoryInputSchema = z.object({
-  category: z
-    .enum(["preference", "profile", "project", "instruction"])
-    .describe("The durable memory category."),
+  category: z.enum(["preference", "profile", "project", "instruction"]).describe("The durable memory category."),
   content: z
     .string()
     .min(5)
@@ -42,13 +40,8 @@ async function createMemory(input: MemoryInput, { context }: { context: MemoryTo
   return { status: "proposed" as const, candidate_id: candidate.id };
 }
 
-async function updateMemory(
-  input: MemoryInput & { memory_id: string },
-  { context }: { context: MemoryToolContext },
-) {
-  const active = (await listActiveMemories(context.userId)).find(
-    (memory) => memory.id === input.memory_id,
-  );
+async function updateMemory(input: MemoryInput & { memory_id: string }, { context }: { context: MemoryToolContext }) {
+  const active = (await listActiveMemories(context.userId)).find((memory) => memory.id === input.memory_id);
   if (!active) {
     throw new ToolBlockedError({
       code: "MEMORY_NOT_FOUND",
@@ -99,11 +92,7 @@ export function createMemoryToolManifests() {
       tool({
         description: "Propose a replacement for an active memory. The current memory remains active until approval.",
         inputSchema: memoryInputSchema.extend({
-          memory_id: z
-            .string()
-            .min(1)
-            .max(32)
-            .describe("Exact active memory id being replaced."),
+          memory_id: z.string().min(1).max(32).describe("Exact active memory id being replaced."),
         }),
         outputSchema: memoryProposalOutputSchema,
         contextSchema: memoryToolContextSchema,

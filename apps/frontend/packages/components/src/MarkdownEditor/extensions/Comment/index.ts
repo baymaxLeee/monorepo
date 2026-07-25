@@ -1,8 +1,5 @@
 import { Mark, mergeAttributes } from "@tiptap/core";
-import type {
-  Mark as ProseMirrorMark,
-  Node as ProseMirrorNode,
-} from "@tiptap/pm/model";
+import type { Mark as ProseMirrorMark, Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
@@ -16,23 +13,12 @@ type CommentEventMap = {
   commentRemoved: [commentId: string];
 };
 
-type CommentEventListener<K extends keyof CommentEventMap> = (
-  ...args: CommentEventMap[K]
-) => void;
+type CommentEventListener<K extends keyof CommentEventMap> = (...args: CommentEventMap[K]) => void;
 
 export interface CommentStorage {
-  on: <K extends keyof CommentEventMap>(
-    event: K,
-    callback: CommentEventListener<K>,
-  ) => void;
-  off: <K extends keyof CommentEventMap>(
-    event: K,
-    callback: CommentEventListener<K>,
-  ) => void;
-  emit: <K extends keyof CommentEventMap>(
-    event: K,
-    ...args: CommentEventMap[K]
-  ) => void;
+  on: <K extends keyof CommentEventMap>(event: K, callback: CommentEventListener<K>) => void;
+  off: <K extends keyof CommentEventMap>(event: K, callback: CommentEventListener<K>) => void;
+  emit: <K extends keyof CommentEventMap>(event: K, ...args: CommentEventMap[K]) => void;
 }
 
 interface CommentPluginState {
@@ -99,11 +85,7 @@ export function createDecorations(
       }
 
       const mark = node.marks.find(
-        (m: ProseMirrorMark) =>
-          m?.type &&
-          m.type.name === markName &&
-          m.attrs &&
-          m.attrs.commentId === activeCommentId,
+        (m: ProseMirrorMark) => m?.type && m.type.name === markName && m.attrs && m.attrs.commentId === activeCommentId,
       );
 
       if (mark) {
@@ -160,12 +142,7 @@ export function createDecorations(
                   decorations.push(decoration);
                 }
               } catch (error) {
-                console.warn(
-                  "Failed to create decoration at",
-                  start,
-                  end,
-                  error,
-                );
+                console.warn("Failed to create decoration at", start, end, error);
               }
             }
           }
@@ -196,9 +173,7 @@ export function createDecorations(
 }
 
 export const createCommentExtension = () => {
-  const commentDecorationKey = new PluginKey<CommentPluginState>(
-    "comment-decoration",
-  );
+  const commentDecorationKey = new PluginKey<CommentPluginState>("comment-decoration");
 
   return Mark.create<CommentOptions, CommentStorage>({
     name: "comment",
@@ -212,25 +187,16 @@ export const createCommentExtension = () => {
     },
 
     addStorage() {
-      const eventBus = new Map<
-        keyof CommentEventMap,
-        Set<(...args: any[]) => void>
-      >();
+      const eventBus = new Map<keyof CommentEventMap, Set<(...args: any[]) => void>>();
 
       return {
-        on: <K extends keyof CommentEventMap>(
-          event: K,
-          callback: CommentEventListener<K>,
-        ) => {
+        on: <K extends keyof CommentEventMap>(event: K, callback: CommentEventListener<K>) => {
           if (!eventBus.has(event)) {
             eventBus.set(event, new Set());
           }
           eventBus.get(event)!.add(callback as (...args: any[]) => void);
         },
-        off: <K extends keyof CommentEventMap>(
-          event: K,
-          callback: CommentEventListener<K>,
-        ) => {
+        off: <K extends keyof CommentEventMap>(event: K, callback: CommentEventListener<K>) => {
           const callbacks = eventBus.get(event);
           if (callbacks) {
             callbacks.delete(callback as (...args: any[]) => void);
@@ -239,22 +205,14 @@ export const createCommentExtension = () => {
             }
           }
         },
-        emit: <K extends keyof CommentEventMap>(
-          event: K,
-          ...args: CommentEventMap[K]
-        ) => {
-          const callbacks = eventBus.get(event) as
-            | Set<CommentEventListener<K>>
-            | undefined;
+        emit: <K extends keyof CommentEventMap>(event: K, ...args: CommentEventMap[K]) => {
+          const callbacks = eventBus.get(event) as Set<CommentEventListener<K>> | undefined;
           if (callbacks) {
             Array.from(callbacks).forEach((callback) => {
               try {
                 callback(...args);
               } catch (error) {
-                console.error(
-                  `CommentExtension 事件 "${event}" 监听器错误:`,
-                  error,
-                );
+                console.error(`CommentExtension 事件 "${event}" 监听器错误:`, error);
               }
             });
           }
@@ -288,11 +246,7 @@ export const createCommentExtension = () => {
     },
 
     renderHTML({ HTMLAttributes }) {
-      return [
-        "span",
-        mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
-        0,
-      ];
+      return ["span", mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0];
     },
 
     addCommands() {
@@ -334,8 +288,7 @@ export const createCommentExtension = () => {
 
             state.doc.descendants((node: ProseMirrorNode, pos: number) => {
               const mark = node.marks.find(
-                (m: ProseMirrorMark) =>
-                  m.type.name === this.name && m.attrs.commentId === commentId,
+                (m: ProseMirrorMark) => m.type.name === this.name && m.attrs.commentId === commentId,
               );
               if (mark) {
                 ranges.push({ from: pos, to: pos + node.nodeSize });
@@ -374,8 +327,7 @@ export const createCommentExtension = () => {
 
             state.doc.descendants((node: ProseMirrorNode, pos: number) => {
               const mark = node.marks.find(
-                (m: ProseMirrorMark) =>
-                  m.type.name === this.name && m.attrs.commentId === commentId,
+                (m: ProseMirrorMark) => m.type.name === this.name && m.attrs.commentId === commentId,
               );
               if (mark) {
                 if (foundFrom === -1) {
@@ -423,50 +375,31 @@ export const createCommentExtension = () => {
               };
             },
             apply(tr, oldPluginState, _oldState, newState) {
-              const meta = tr.getMeta(commentDecorationKey) as
-                | { activeCommentId: string | null }
-                | undefined;
+              const meta = tr.getMeta(commentDecorationKey) as { activeCommentId: string | null } | undefined;
 
               const nextActiveCommentId =
-                meta && "activeCommentId" in meta
-                  ? meta.activeCommentId
-                  : oldPluginState.activeCommentId;
+                meta && "activeCommentId" in meta ? meta.activeCommentId : oldPluginState.activeCommentId;
 
-              if (
-                !tr.docChanged &&
-                nextActiveCommentId === oldPluginState.activeCommentId
-              ) {
+              if (!tr.docChanged && nextActiveCommentId === oldPluginState.activeCommentId) {
                 return oldPluginState;
               }
 
               return {
                 activeCommentId: nextActiveCommentId,
-                decorations: createDecorations(
-                  newState.doc,
-                  nextActiveCommentId,
-                  extension.name,
-                ),
+                decorations: createDecorations(newState.doc, nextActiveCommentId, extension.name),
               };
             },
           },
           view() {
             return {
               update(nextView, prevState) {
-                const prevPluginState =
-                  commentDecorationKey.getState(prevState);
-                const nextPluginState = commentDecorationKey.getState(
-                  nextView.state,
-                );
-                const prevActiveCommentId =
-                  prevPluginState?.activeCommentId ?? null;
-                const nextActiveCommentId =
-                  nextPluginState?.activeCommentId ?? null;
+                const prevPluginState = commentDecorationKey.getState(prevState);
+                const nextPluginState = commentDecorationKey.getState(nextView.state);
+                const prevActiveCommentId = prevPluginState?.activeCommentId ?? null;
+                const nextActiveCommentId = nextPluginState?.activeCommentId ?? null;
 
                 if (prevActiveCommentId !== nextActiveCommentId) {
-                  extension.storage.emit(
-                    "activeCommentChange",
-                    nextActiveCommentId,
-                  );
+                  extension.storage.emit("activeCommentChange", nextActiveCommentId);
                 }
               },
             };
@@ -475,10 +408,7 @@ export const createCommentExtension = () => {
             decorations(state) {
               const pluginState = commentDecorationKey.getState(state);
 
-              if (
-                !pluginState ||
-                pluginState.decorations === DecorationSet.empty
-              ) {
+              if (!pluginState || pluginState.decorations === DecorationSet.empty) {
                 return DecorationSet.empty;
               }
 
@@ -489,9 +419,7 @@ export const createCommentExtension = () => {
               const $pos = doc.resolve(pos);
 
               const marks = $pos.marks();
-              const commentMark = marks.find(
-                (mark) => mark.type.name === extension.name,
-              );
+              const commentMark = marks.find((mark) => mark.type.name === extension.name);
 
               const nextCommentId = commentMark?.attrs.commentId || null;
               const pluginState = commentDecorationKey.getState(view.state);

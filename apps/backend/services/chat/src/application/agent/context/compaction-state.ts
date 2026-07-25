@@ -20,11 +20,17 @@ export interface CompactionState extends z.infer<typeof compactionModelOutputSch
 }
 
 export function parseCompactionState(value: unknown): CompactionState | null {
-  if (!value || typeof value !== "object") return null;
+  if (!value || typeof value !== "object") {
+    return null;
+  }
   const candidate = value as Record<string, unknown>;
-  if (candidate.version !== COMPACTION_STATE_VERSION) return null;
+  if (candidate.version !== COMPACTION_STATE_VERSION) {
+    return null;
+  }
   const parsed = compactionModelOutputSchema.safeParse(candidate);
-  if (!parsed.success || !Array.isArray(candidate.documentReferences)) return null;
+  if (!parsed.success || !Array.isArray(candidate.documentReferences)) {
+    return null;
+  }
   const documentReferences = candidate.documentReferences.filter(
     (item): item is string =>
       typeof item === "string" && item.length > 0 && item.length <= MAX_DOCUMENT_REFERENCE_CHARS,

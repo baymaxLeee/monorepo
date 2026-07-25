@@ -3,14 +3,6 @@ import { randomBytes } from "node:crypto";
 import { and, asc, desc, eq } from "drizzle-orm";
 
 import type { AuthContext } from "../api/http/middleware/auth.js";
-import { getDb } from "../infrastructure/persistence/index.js";
-import {
-  agentRuns,
-  conversationArtifactCleanupOutbox,
-  conversations,
-  messages,
-  type PersistedMessageContent,
-} from "../infrastructure/persistence/schema.js";
 import {
   getDocument,
   getDocumentSource,
@@ -19,6 +11,14 @@ import {
   updateArtifact,
   type KnowledgeDocument,
 } from "../infrastructure/clients/knowledge.js";
+import { getDb } from "../infrastructure/persistence/index.js";
+import {
+  agentRuns,
+  conversationArtifactCleanupOutbox,
+  conversations,
+  messages,
+  type PersistedMessageContent,
+} from "../infrastructure/persistence/schema.js";
 import { NotFoundError } from "./errors.js";
 
 export interface Conversation {
@@ -141,17 +141,12 @@ export async function listConversations(auth: AuthContext): Promise<Conversation
   const rows = await db
     .select()
     .from(conversations)
-    .where(
-      and(eq(conversations.userId, auth.userId), eq(conversations.orgId, auth.orgId)),
-    )
+    .where(and(eq(conversations.userId, auth.userId), eq(conversations.orgId, auth.orgId)))
     .orderBy(desc(conversations.updatedAt));
   return rows.map(toConversation);
 }
 
-export async function getConversation(
-  auth: AuthContext,
-  conversationId: string,
-): Promise<ConversationDetail> {
+export async function getConversation(auth: AuthContext, conversationId: string): Promise<ConversationDetail> {
   const row = await getConversationRow(auth, conversationId);
   const db = getDb();
   const messageRows = await db
@@ -198,7 +193,7 @@ export async function createConversation(
     updatedAt: now,
   });
   const [row] = await db.select().from(conversations).where(eq(conversations.id, id));
-  return toConversation(row!);
+  return toConversation(row);
 }
 
 export async function updateConversation(
@@ -209,16 +204,15 @@ export async function updateConversation(
   const row = await getConversationRow(auth, conversationId);
   const db = getDb();
   const values: Partial<typeof conversations.$inferInsert> = { updatedAt: new Date() };
-  if (input.title !== undefined) values.title = input.title;
+  if (input.title !== undefined) {
+    values.title = input.title;
+  }
   await db.update(conversations).set(values).where(eq(conversations.id, row.id));
   const [updated] = await db.select().from(conversations).where(eq(conversations.id, row.id));
-  return toConversation(updated!);
+  return toConversation(updated);
 }
 
-export async function setActivePlanPath(
-  conversationId: string,
-  path: string,
-): Promise<void> {
+export async function setActivePlanPath(conversationId: string, path: string): Promise<void> {
   await getDb()
     .update(conversations)
     .set({ activePlanPath: path, updatedAt: new Date() })
@@ -244,10 +238,7 @@ export async function deleteConversation(auth: AuthContext, conversationId: stri
   });
 }
 
-function assertConversationDocument(
-  doc: KnowledgeDocument,
-  conversationId: string,
-): KnowledgeDocument {
+function assertConversationDocument(doc: KnowledgeDocument, conversationId: string): KnowledgeDocument {
   if (doc.conversation_id !== conversationId) {
     throw new NotFoundError(`document ${doc.id} not found in conversation ${conversationId}`);
   }
@@ -260,10 +251,7 @@ export async function getConversationDocument(
   documentId: string,
 ): Promise<ConversationDocumentDetail> {
   const conversation = await getConversationRow(auth, conversationId);
-  const doc = assertConversationDocument(
-    await getDocument(conversation.userId, documentId),
-    conversationId,
-  );
+  const doc = assertConversationDocument(await getDocument(conversation.userId, documentId), conversationId);
   return {
     ...mapKnowledgeDocument(doc, conversationId),
     content_md: doc.content_md ?? "",
@@ -289,10 +277,14 @@ export async function getConversationFile(
     });
     first ??= slice;
     chunks.push(slice.content);
-    if (slice.next_offset === null) break;
+    if (slice.next_offset === null) {
+      break;
+    }
     offset = slice.next_offset;
   }
-  if (!first) throw new NotFoundError(`file ${path} not found in conversation ${conversationId}`);
+  if (!first) {
+    throw new NotFoundError(`file ${path} not found in conversation ${conversationId}`);
+  }
   return {
     path: first.path,
     title: first.path.split("/").at(-1) ?? first.path,
@@ -313,10 +305,7 @@ export async function getConversationDocumentSource(
   options?: { maxDim?: number },
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
   const conversation = await getConversationRow(auth, conversationId);
-  const doc = assertConversationDocument(
-    await getDocument(conversation.userId, documentId),
-    conversationId,
-  );
+  const doc = assertConversationDocument(await getDocument(conversation.userId, documentId), conversationId);
   return getDocumentSource(conversation.userId, doc.id, options);
 }
 
@@ -327,10 +316,7 @@ export async function updateConversationDocument(
   input: { title?: string; content_md?: string },
 ): Promise<ConversationDocumentDetail> {
   const conversation = await getConversationRow(auth, conversationId);
-  const current = assertConversationDocument(
-    await getDocument(conversation.userId, documentId),
-    conversationId,
-  );
+  const current = assertConversationDocument(await getDocument(conversation.userId, documentId), conversationId);
   const updated = await updateArtifact({
     userId: conversation.userId,
     documentId: current.id,
@@ -345,18 +331,14 @@ export async function updateConversationDocument(
 
 export async function touchConversation(conversationId: string): Promise<void> {
   const db = getDb();
-  await db
-    .update(conversations)
-    .set({ updatedAt: new Date() })
-    .where(eq(conversations.id, conversationId));
+  await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, conversationId));
 }
 
-export async function setConversationTitle(
-  conversationId: string,
-  title: string,
-): Promise<void> {
+export async function setConversationTitle(conversationId: string, title: string): Promise<void> {
   const trimmed = title.trim();
-  if (!trimmed) return;
+  if (!trimmed) {
+    return;
+  }
   await getDb()
     .update(conversations)
     .set({ title: trimmed, updatedAt: new Date() })
@@ -374,7 +356,9 @@ export async function getConversationRow(
     eq(conversations.orgId, auth.orgId),
   );
   const [row] = await db.select().from(conversations).where(condition);
-  if (!row) throw new NotFoundError(`conversation ${conversationId} not found`);
+  if (!row) {
+    throw new NotFoundError(`conversation ${conversationId} not found`);
+  }
   return row;
 }
 
@@ -398,19 +382,22 @@ export async function createMessage(input: {
   const db = getDb();
   const id = input.id ?? randomBytes(8).toString("hex");
   const now = new Date();
-  await db.insert(messages).values({
-    id,
-    conversationId: input.conversationId,
-    role: input.role,
-    content: input.content,
-    status: input.status ?? "ok",
-    createdAt: now,
-  }).onConflictDoNothing();
+  await db
+    .insert(messages)
+    .values({
+      id,
+      conversationId: input.conversationId,
+      role: input.role,
+      content: input.content,
+      status: input.status ?? "ok",
+      createdAt: now,
+    })
+    .onConflictDoNothing();
   const [row] = await db.select().from(messages).where(eq(messages.id, id));
   if (!row || row.conversationId !== input.conversationId || row.role !== input.role) {
     throw new Error(`message id ${id} already belongs to a different message`);
   }
-  return toMessage(row!);
+  return toMessage(row);
 }
 
 export async function updateMessageContent(input: {

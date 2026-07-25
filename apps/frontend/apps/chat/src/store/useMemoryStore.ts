@@ -22,10 +22,7 @@ export interface MemoryState {
   refreshCandidates: () => Promise<void>;
   approve: (id: string) => Promise<void>;
   reject: (id: string) => Promise<void>;
-  edit: (
-    id: string,
-    patch: { category?: MemoryCategory; content?: string },
-  ) => Promise<void>;
+  edit: (id: string, patch: { category?: MemoryCategory; content?: string }) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -39,10 +36,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
   async refresh() {
     set({ loading: true, error: null });
     try {
-      const [candidatesRes, memoriesRes] = await Promise.all([
-        fetchMemoryCandidates(),
-        fetchActiveMemories(),
-      ]);
+      const [candidatesRes, memoriesRes] = await Promise.all([fetchMemoryCandidates(), fetchActiveMemories()]);
       set({
         candidates: candidatesRes.candidates,
         memories: memoriesRes.memories,
@@ -79,9 +73,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
   async edit(id, patch) {
     const { candidate } = await updateMemoryCandidate(id, patch);
     set((state) => ({
-      candidates: state.candidates.map((current) =>
-        current.id === id ? candidate : current,
-      ),
+      candidates: state.candidates.map((current) => (current.id === id ? candidate : current)),
     }));
   },
 

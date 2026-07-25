@@ -76,12 +76,7 @@ export async function listMemoryDedupEntries(
       status: userMemories.status,
     })
     .from(userMemories)
-    .where(
-      and(
-        eq(userMemories.userId, userId),
-        inArray(userMemories.status, ["active", "pending", "rejected"]),
-      ),
-    );
+    .where(and(eq(userMemories.userId, userId), inArray(userMemories.status, ["active", "pending", "rejected"])));
   return rows.map((row) => ({
     category: row.category as MemoryCategory,
     content: row.content,
@@ -136,15 +131,14 @@ export async function createMemoryCandidate(input: {
     createdAt: now,
     updatedAt: now,
   };
-  await getDb()
-    .insert(userMemories)
-    .values(row)
-    .onConflictDoNothing();
+  await getDb().insert(userMemories).values(row).onConflictDoNothing();
   const [stored] = await getDb()
     .select()
     .from(userMemories)
     .where(and(eq(userMemories.id, row.id), eq(userMemories.userId, input.userId)));
-  if (!stored) throw new Error("memory candidate insert did not persist");
+  if (!stored) {
+    throw new Error("memory candidate insert did not persist");
+  }
   return {
     id: stored.id,
     category: stored.category as MemoryCategory,
@@ -170,15 +164,11 @@ export async function approveCandidate(userId: string, candidateId: string): Pro
     const [candidate] = await tx
       .select()
       .from(userMemories)
-      .where(
-        and(
-          eq(userMemories.id, candidateId),
-          eq(userMemories.userId, userId),
-          eq(userMemories.status, "pending"),
-        ),
-      )
+      .where(and(eq(userMemories.id, candidateId), eq(userMemories.userId, userId), eq(userMemories.status, "pending")))
       .for("update");
-    if (!candidate) return null;
+    if (!candidate) {
+      return null;
+    }
 
     const now = new Date();
     if (candidate.supersedesId) {
@@ -197,11 +187,7 @@ export async function approveCandidate(userId: string, candidateId: string): Pro
       .update(userMemories)
       .set({ status: "active", source: "user-approved", confidence: 100, updatedAt: now })
       .where(
-        and(
-          eq(userMemories.id, candidateId),
-          eq(userMemories.userId, userId),
-          eq(userMemories.status, "pending"),
-        ),
+        and(eq(userMemories.id, candidateId), eq(userMemories.userId, userId), eq(userMemories.status, "pending")),
       );
     return {
       id: candidate.id,
@@ -214,7 +200,9 @@ export async function approveCandidate(userId: string, candidateId: string): Pro
 
 export async function rejectCandidate(userId: string, candidateId: string): Promise<boolean> {
   const candidate = await getOwnedMemory(userId, candidateId);
-  if (!candidate || candidate.status !== "pending") return false;
+  if (!candidate || candidate.status !== "pending") {
+    return false;
+  }
   await getDb()
     .update(userMemories)
     .set({ status: "rejected", updatedAt: new Date() })
@@ -228,7 +216,9 @@ export async function updateCandidate(
   patch: { category?: MemoryCategory; content?: string },
 ): Promise<MemoryCandidate | null> {
   const candidate = await getOwnedMemory(userId, candidateId);
-  if (!candidate || candidate.status !== "pending") return null;
+  if (!candidate || candidate.status !== "pending") {
+    return null;
+  }
   const content = patch.content?.trim().replace(/\s+/g, " ");
   await getDb()
     .update(userMemories)
@@ -250,7 +240,9 @@ export async function updateCandidate(
 
 export async function deleteMemory(userId: string, memoryId: string): Promise<boolean> {
   const memory = await getOwnedMemory(userId, memoryId);
-  if (!memory) return false;
+  if (!memory) {
+    return false;
+  }
   await getDb()
     .delete(userMemories)
     .where(and(eq(userMemories.id, memoryId), eq(userMemories.userId, userId)));

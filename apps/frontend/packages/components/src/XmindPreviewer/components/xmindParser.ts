@@ -58,10 +58,7 @@ const getXmindTopicChildren = (children?: AnyRecord) => {
   ];
 };
 
-const getFirstItemByName = (
-  items: any,
-  name: string,
-): AnyRecord | undefined => {
+const getFirstItemByName = (items: any, name: string): AnyRecord | undefined => {
   if (!Array.isArray(items)) {
     return undefined;
   }
@@ -83,9 +80,7 @@ const getOldTopicTitle = (node: AnyRecord) => {
 };
 
 const getOldTopicImage = (node: AnyRecord) => {
-  return (node.elements || []).find(
-    (item: AnyRecord) => item.name === "xhtml:img",
-  );
+  return (node.elements || []).find((item: AnyRecord) => item.name === "xhtml:img");
 };
 
 const getImageTypeFromPath = (path: string) => {
@@ -100,7 +95,7 @@ const handleOldNodeImageFromXmind = async (
 ) => {
   const image = getOldTopicImage(node);
   const imageSrc = image?.attributes?.["xhtml:src"];
-  if (!imageSrc || !/^xap:attachments\//.test(imageSrc)) {
+  if (!imageSrc || !imageSrc.startsWith("xap:attachments/")) {
     return;
   }
 
@@ -112,9 +107,7 @@ const handleOldNodeImageFromXmind = async (
         return;
       }
       const imageType = getImageTypeFromPath(imagePath);
-      newNode.data.image = `data:image/${imageType};base64,${await imageFile.async(
-        "base64",
-      )}`;
+      newNode.data.image = `data:image/${imageType};base64,${await imageFile.async("base64")}`;
       newNode.data.imageSize = {
         width: Number(image.attributes?.["svg:width"]) || 0,
         height: Number(image.attributes?.["svg:height"]) || 0,
@@ -170,11 +163,7 @@ const parseXmindFile = (file: Blob, handleMultiCanvas?: any): Promise<any> => {
   });
 };
 
-const transformXmind = async (
-  content: string,
-  files: AnyRecord,
-  handleMultiCanvas?: any,
-): Promise<AnyRecord> => {
+const transformXmind = async (content: string, files: AnyRecord, handleMultiCanvas?: any): Promise<AnyRecord> => {
   const xmindContent = JSON.parse(content);
   let data: any = null;
   if (xmindContent.length > 1 && typeof handleMultiCanvas === "function") {
@@ -237,10 +226,7 @@ const transformXmind = async (
   return newTree;
 };
 
-const transformOldXmind = async (
-  content: string,
-  files: AnyRecord,
-): Promise<AnyRecord> => {
+const transformOldXmind = async (content: string, files: AnyRecord): Promise<AnyRecord> => {
   const data = JSON.parse(content);
   const elements = data.elements;
   const root = getRoot(elements);
@@ -257,17 +243,13 @@ const transformOldXmind = async (
     try {
       const notesElement = getItemByName(nodeElements, "notes");
       if (notesElement) {
-        newNode.data.note =
-          notesElement.elements[0].elements[0].elements[0].text;
+        newNode.data.note = notesElement.elements[0].elements[0].elements[0].text;
       }
     } catch (error) {
       console.error(error);
     }
     try {
-      if (
-        node.attributes?.["xlink:href"] &&
-        /^https?:\/\//.test(node.attributes["xlink:href"])
-      ) {
+      if (node.attributes?.["xlink:href"] && /^https?:\/\//.test(node.attributes["xlink:href"])) {
         newNode.data.hyperlink = node.attributes["xlink:href"];
       }
     } catch (error) {
@@ -292,20 +274,13 @@ const transformOldXmind = async (
         selfSummary.push(newNode._summary);
       }
       const summariesItem = getItemByName(nodeElements, "summaries");
-      if (
-        summariesItem &&
-        Array.isArray(summariesItem.elements) &&
-        summariesItem.elements.length > 0
-      ) {
+      if (summariesItem && Array.isArray(summariesItem.elements) && summariesItem.elements.length > 0) {
         summariesItem.elements.forEach((item: AnyRecord) => {
           addSummaryData(
             selfSummary,
             childrenSummary,
             () => {
-              return getSafeSummaryText2(
-                childrenItem,
-                item.attributes["topic-id"],
-              );
+              return getSafeSummaryText2(childrenItem, item.attributes["topic-id"]);
             },
             item.attributes.range,
           );
@@ -334,19 +309,12 @@ const transformOldXmind = async (
   return newTree;
 };
 
-const transformToXmind = async (
-  data: AnyRecord,
-  name: string,
-): Promise<Blob> => {
+const transformToXmind = async (data: AnyRecord, name: string): Promise<Blob> => {
   const id = `simpleMindMap_${Date.now()}`;
   const imageList: AnyRecord[] = [];
   const newTree: AnyRecord = {};
   const waitLoadImageList: Promise<any>[] = [];
-  const walk = async (
-    node: AnyRecord,
-    newNode: AnyRecord,
-    isRoot?: boolean,
-  ) => {
+  const walk = async (node: AnyRecord, newNode: AnyRecord, isRoot?: boolean) => {
     const newData: AnyRecord = {
       id: node.data.uid,
       structureClass: "org.xmind.ui.logic.right",

@@ -1,20 +1,13 @@
 import { Popover as PopoverPrimitive } from "radix-ui";
 import * as React from "react";
-
 import { cn } from "shared";
-import {
-  type HoverTriggerHandlers,
-  type TriggerKind,
-  useHoverTrigger,
-} from "../utils/useHoverTrigger";
 
-const PopoverHoverContext = React.createContext<HoverTriggerHandlers | null>(
-  null,
-);
+import { type HoverTriggerHandlers, type TriggerKind, useHoverTrigger } from "../utils/useHoverTrigger";
+
+const PopoverHoverContext = React.createContext<HoverTriggerHandlers | null>(null);
 const usePopoverHoverHandlers = () => React.useContext(PopoverHoverContext);
 
-export interface PopoverProps
-  extends React.ComponentProps<typeof PopoverPrimitive.Root> {
+export interface PopoverProps extends React.ComponentProps<typeof PopoverPrimitive.Root> {
   /** 触发方式，参考 arco `Trigger.trigger`，默认 `"click"`。 */
   trigger?: TriggerKind;
   /** 鼠标进入后延时打开（毫秒），仅 `trigger="hover"` 生效，默认 80。 */
@@ -58,12 +51,7 @@ function Popover({
 
   return (
     <PopoverHoverContext.Provider value={hover.handlers}>
-      <PopoverPrimitive.Root
-        data-slot="popover"
-        open={hover.open}
-        onOpenChange={hover.setOpen}
-        {...rootProps}
-      >
+      <PopoverPrimitive.Root data-slot="popover" open={hover.open} onOpenChange={hover.setOpen} {...rootProps}>
         {children}
       </PopoverPrimitive.Root>
     </PopoverHoverContext.Provider>
@@ -92,9 +80,7 @@ const PopoverTrigger = React.forwardRef<
   );
 });
 
-function PopoverAnchor({
-  ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Anchor>) {
+function PopoverAnchor({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Anchor>) {
   return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />;
 }
 

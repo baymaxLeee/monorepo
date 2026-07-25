@@ -10,7 +10,9 @@ export function observeTaskCancellation(workflowRunId: string): {
   let disposed = false;
   let checking = false;
   const check = async () => {
-    if (disposed || checking || controller.signal.aborted) return;
+    if (disposed || checking || controller.signal.aborted) {
+      return;
+    }
     checking = true;
     try {
       if (await isTaskCancelled(workflowRunId)) {

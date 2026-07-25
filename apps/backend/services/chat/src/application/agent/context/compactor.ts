@@ -1,28 +1,13 @@
-import {
-  extractJsonMiddleware,
-  generateText,
-  Output,
-  wrapLanguageModel,
-  type UIMessage,
-} from "ai";
 import { finishSpan, startSpan } from "@backend/kernel-ts";
 import {
   createProviderModel,
   JSON_OBJECT_MODE_INSTRUCTION,
   type ChatProvider,
 } from "@backend/transport-ts/provider-model";
+import { extractJsonMiddleware, generateText, Output, wrapLanguageModel, type UIMessage } from "ai";
 
-import {
-  addUsage,
-  EMPTY_USAGE,
-  extractUsageTokens,
-  type UsageTokens,
-} from "../observability/lifecycle.js";
-import {
-  COMPACTION_STATE_VERSION,
-  compactionModelOutputSchema,
-  type CompactionState,
-} from "./compaction-state.js";
+import { addUsage, EMPTY_USAGE, extractUsageTokens, type UsageTokens } from "../observability/lifecycle.js";
+import { COMPACTION_STATE_VERSION, compactionModelOutputSchema, type CompactionState } from "./compaction-state.js";
 import { documentIdFromFilePart } from "./file-parts.js";
 import { estimateTextTokens, truncateToTokenBudget } from "./token-estimate.js";
 
@@ -43,7 +28,9 @@ const COMPACTION_INSTRUCTIONS = [
 ].join("\n");
 
 function compactPart(part: AnyUIMessage["parts"][number]): unknown | null {
-  if (part.type === "text") return { type: "text", text: part.text.slice(0, 4_000) };
+  if (part.type === "text") {
+    return { type: "text", text: part.text.slice(0, 4_000) };
+  }
   if (part.type === "file") {
     return {
       type: "file",
@@ -52,7 +39,9 @@ function compactPart(part: AnyUIMessage["parts"][number]): unknown | null {
       media_type: part.mediaType,
     };
   }
-  if (part.type === "source-url") return { type: "source", title: part.title, url: part.url };
+  if (part.type === "source-url") {
+    return { type: "source", title: part.title, url: part.url };
+  }
   if (part.type.startsWith("tool-") && "state" in part) {
     const record = part as unknown as Record<string, unknown>;
     return {
@@ -63,7 +52,9 @@ function compactPart(part: AnyUIMessage["parts"][number]): unknown | null {
       error: typeof record.errorText === "string" ? record.errorText.slice(0, 1_000) : undefined,
     };
   }
-  if (part.type === "data-plan-execution") return { type: part.type, data: part.data };
+  if (part.type === "data-plan-execution") {
+    return { type: part.type, data: part.data };
+  }
   return null;
 }
 
@@ -80,8 +71,12 @@ function escapePromptData(value: string): string {
 }
 
 function isAbortError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  if (error.name === "AbortError") return true;
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  if (error.name === "AbortError") {
+    return true;
+  }
   return "cause" in error && isAbortError(error.cause);
 }
 
@@ -106,11 +101,13 @@ function takeMessageBatch(
   let serialized = "";
   let next = start;
   while (next < messages.length) {
-    const message = messages[next]!;
+    const message = messages[next];
     const candidate = escapePromptData(serializeMessage(message));
     const candidateBatch = serialized ? `${serialized}\n${candidate}` : candidate;
     if (estimateTextTokens(renderPrompt(previous, candidateBatch)) > inputTokenBudget) {
-      if (batch.length > 0) break;
+      if (batch.length > 0) {
+        break;
+      }
       const emptyPromptTokens = estimateTextTokens(renderPrompt(previous, ""));
       const availableTokens = Math.max(1, inputTokenBudget - emptyPromptTokens);
       serialized = truncateToTokenBudget(candidate, availableTokens);
@@ -182,12 +179,7 @@ export async function compactConversationPrefix(input: {
       const rawPrevious = state ? escapePromptData(JSON.stringify(state)) : "(none)";
       const previousBudget = Math.max(BATCH_TOKEN_RESERVE, inputTokenBudget - BATCH_TOKEN_RESERVE);
       const previous = truncateToTokenBudget(rawPrevious, previousBudget);
-      const { batch, serialized, next } = takeMessageBatch(
-        input.messages,
-        cursor,
-        previous,
-        inputTokenBudget,
-      );
+      const { batch, serialized, next } = takeMessageBatch(input.messages, cursor, previous, inputTokenBudget);
       const result = await generateText({
         model,
         output: Output.object({ schema: compactionModelOutputSchema }),
@@ -197,19 +189,22 @@ export async function compactConversationPrefix(input: {
         abortSignal: input.abortSignal,
       });
       usage = addUsage(usage, extractUsageTokens(result.usage));
-      if (!result.output) throw new Error("context compaction returned no structured output");
+      if (!result.output) {
+        throw new Error("context compaction returned no structured output");
+      }
       state = {
         version: COMPACTION_STATE_VERSION,
         ...result.output,
-        documentReferences: [...new Set([
-          ...(state?.documentReferences ?? []),
-          ...documentReferences(batch),
-        ])].slice(-32),
+        documentReferences: [...new Set([...(state?.documentReferences ?? []), ...documentReferences(batch)])].slice(
+          -32,
+        ),
       };
       batchCount += 1;
       cursor = next;
     }
-    if (!state) throw new Error("context compaction received no messages");
+    if (!state) {
+      throw new Error("context compaction received no messages");
+    }
     finishSpan(span, {
       "agent.context_compaction.batch_count": batchCount,
       "agent.context_compaction.covered_message_count": cursor,
@@ -244,19 +239,22 @@ export async function compactConversationPrefix(input: {
       summary: state
         ? `${state.summary.slice(0, 12_000 - FALLBACK_SUMMARY.length - 2)}\n\n${FALLBACK_SUMMARY}`
         : FALLBACK_SUMMARY,
-      documentReferences: [...new Set([
-        ...(state?.documentReferences ?? []),
-        ...documentReferences(input.messages),
-      ])].slice(-32),
+      documentReferences: [
+        ...new Set([...(state?.documentReferences ?? []), ...documentReferences(input.messages)]),
+      ].slice(-32),
     };
-    finishSpan(span, {
-      "agent.context_compaction.batch_count": batchCount,
-      "agent.context_compaction.covered_message_count": cursor,
-      "agent.context_compaction.complete": false,
-      "gen_ai.usage.input_tokens": usage.inputTokens,
-      "gen_ai.usage.output_tokens": usage.outputTokens,
-      "gen_ai.usage.total_tokens": usage.totalTokens,
-    }, error);
+    finishSpan(
+      span,
+      {
+        "agent.context_compaction.batch_count": batchCount,
+        "agent.context_compaction.covered_message_count": cursor,
+        "agent.context_compaction.complete": false,
+        "gen_ai.usage.input_tokens": usage.inputTokens,
+        "gen_ai.usage.output_tokens": usage.outputTokens,
+        "gen_ai.usage.total_tokens": usage.totalTokens,
+      },
+      error,
+    );
     return {
       state: fallbackState,
       successfulState: state,

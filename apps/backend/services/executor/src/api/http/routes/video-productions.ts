@@ -13,16 +13,8 @@ videoProductionRoutes.get("/:id", async (c) => {
   return c.json(await getVideoProduction(c.req.param("id"), caller));
 });
 
-videoProductionRoutes.post(
-  "/:id/decisions",
-  zValidator("json", productionDecisionSchema),
-  async (c) => {
-    const caller = requireCallerService(c);
-    const production = await decideVideoProduction(
-      c.req.param("id"),
-      caller,
-      c.req.valid("json"),
-    );
-    return c.json(production);
-  },
-);
+videoProductionRoutes.post("/:id/decisions", zValidator("json", productionDecisionSchema), async (c) => {
+  const caller = requireCallerService(c);
+  const production = await decideVideoProduction(c.req.param("id"), caller, c.req.valid("json"));
+  return c.json(production);
+});

@@ -13,9 +13,5 @@ const labelMap: Record<string, string> = {
 };
 
 export function StatusBadge({ status }: { status: string }) {
-  return (
-    <Badge variant={variantMap[status] ?? "outline"}>
-      {labelMap[status] ?? status}
-    </Badge>
-  );
+  return <Badge variant={variantMap[status] ?? "outline"}>{labelMap[status] ?? status}</Badge>;
 }

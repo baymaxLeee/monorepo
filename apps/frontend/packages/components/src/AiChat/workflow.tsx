@@ -1,20 +1,10 @@
-import {
-  CheckCircleIcon,
-  CircleIcon,
-  ClockIcon,
-  Loader2Icon,
-  XCircleIcon,
-} from "lucide-react";
+import { CheckCircleIcon, CircleIcon, ClockIcon, Loader2Icon, XCircleIcon } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "shared";
+
 import { Badge } from "../shadcn/badge";
 
-export type WorkflowStatus =
-  | "pending"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled";
+export type WorkflowStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 
 function statusIcon(status: WorkflowStatus) {
   switch (status) {
@@ -33,12 +23,7 @@ function statusIcon(status: WorkflowStatus) {
 export type PlanProps = HTMLAttributes<HTMLDivElement>;
 
 export function Plan({ className, ...props }: PlanProps) {
-  return (
-    <div
-      className={cn("space-y-2 rounded-md border bg-background p-3", className)}
-      {...props}
-    />
-  );
+  return <div className={cn("space-y-2 rounded-md border bg-background p-3", className)} {...props} />;
 }
 
 export type PlanHeaderProps = HTMLAttributes<HTMLDivElement> & {
@@ -46,18 +31,9 @@ export type PlanHeaderProps = HTMLAttributes<HTMLDivElement> & {
   status?: WorkflowStatus;
 };
 
-export function PlanHeader({
-  className,
-  title = "Plan",
-  status,
-  children,
-  ...props
-}: PlanHeaderProps) {
+export function PlanHeader({ className, title = "Plan", status, children, ...props }: PlanHeaderProps) {
   return (
-    <div
-      className={cn("flex items-center justify-between gap-3", className)}
-      {...props}
-    >
+    <div className={cn("flex items-center justify-between gap-3", className)} {...props}>
       <div className="min-w-0 text-sm font-medium">{children ?? title}</div>
       {status ? (
         <Badge variant="outline" className="h-5 text-[10px]">
@@ -78,17 +54,9 @@ export type TaskProps = HTMLAttributes<HTMLDivElement> & {
   status?: WorkflowStatus;
 };
 
-export function Task({
-  className,
-  status = "pending",
-  children,
-  ...props
-}: TaskProps) {
+export function Task({ className, status = "pending", children, ...props }: TaskProps) {
   return (
-    <div
-      className={cn("flex min-w-0 items-start gap-2 text-sm", className)}
-      {...props}
-    >
+    <div className={cn("flex min-w-0 items-start gap-2 text-sm", className)} {...props}>
       <span className="mt-0.5 shrink-0">{statusIcon(status)}</span>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
@@ -104,23 +72,13 @@ export function TaskTitle({ className, ...props }: TaskTitleProps) {
 export type TaskDescriptionProps = HTMLAttributes<HTMLDivElement>;
 
 export function TaskDescription({ className, ...props }: TaskDescriptionProps) {
-  return (
-    <div
-      className={cn("text-xs text-muted-foreground", className)}
-      {...props}
-    />
-  );
+  return <div className={cn("text-xs text-muted-foreground", className)} {...props} />;
 }
 
 export type QueueProps = HTMLAttributes<HTMLDivElement>;
 
 export function Queue({ className, ...props }: QueueProps) {
-  return (
-    <div
-      className={cn("space-y-1 rounded-md border bg-background p-2", className)}
-      {...props}
-    />
-  );
+  return <div className={cn("space-y-1 rounded-md border bg-background p-2", className)} {...props} />;
 }
 
 export type QueueItemProps = HTMLAttributes<HTMLDivElement> & {
@@ -137,11 +95,7 @@ export function QueueItem({ active, className, ...props }: QueueItemProps) {
       )}
       {...props}
     >
-      {active ? (
-        <Loader2Icon className="size-3 animate-spin" />
-      ) : (
-        <CircleIcon className="size-3" />
-      )}
+      {active ? <Loader2Icon className="size-3 animate-spin" /> : <CircleIcon className="size-3" />}
       <span className="min-w-0 flex-1 truncate">{props.children}</span>
     </div>
   );

@@ -1,13 +1,8 @@
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  DownloadIcon,
-  Loader2Icon,
-  XIcon,
-} from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, Loader2Icon, XIcon } from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { useCallback, useEffect } from "react";
 import { cn } from "shared";
+
 import type { ImagePreviewProps } from "./interface";
 
 const ICON_BUTTON =
@@ -29,18 +24,20 @@ export function ImagePreview({
 
   const go = useCallback(
     (delta: number) => {
-      if (count === 0) return;
+      if (count === 0) {
+        return;
+      }
       const raw = safeIndex + delta;
-      const next = loop
-        ? (raw + count) % count
-        : Math.min(Math.max(raw, 0), count - 1);
+      const next = loop ? (raw + count) % count : Math.min(Math.max(raw, 0), count - 1);
       onIndexChange(next);
     },
     [count, loop, onIndexChange, safeIndex],
   );
 
   useEffect(() => {
-    if (!open || !multiple) return;
+    if (!open || !multiple) {
+      return;
+    }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "ArrowLeft") {
         event.preventDefault();
@@ -68,9 +65,7 @@ export function ImagePreview({
             className,
           )}
         >
-          <DialogPrimitive.Title className="sr-only">
-            图片预览
-          </DialogPrimitive.Title>
+          <DialogPrimitive.Title className="sr-only">图片预览</DialogPrimitive.Title>
 
           <div className="flex items-center justify-between gap-2 px-4 py-3">
             <span className="pointer-events-auto text-sm text-white/90 tabular-nums">
@@ -87,10 +82,7 @@ export function ImagePreview({
                   <DownloadIcon className="size-5" />
                 </a>
               ) : null}
-              <DialogPrimitive.Close
-                aria-label="关闭"
-                className={cn(ICON_BUTTON, "size-9")}
-              >
+              <DialogPrimitive.Close aria-label="关闭" className={cn(ICON_BUTTON, "size-9")}>
                 <XIcon className="size-5" />
               </DialogPrimitive.Close>
             </div>
@@ -127,10 +119,7 @@ export function ImagePreview({
                 aria-label="下一张"
                 disabled={!canNext}
                 onClick={() => go(1)}
-                className={cn(
-                  ICON_BUTTON,
-                  "absolute right-2 size-10 sm:right-4",
-                )}
+                className={cn(ICON_BUTTON, "absolute right-2 size-10 sm:right-4")}
               >
                 <ChevronRightIcon className="size-6" />
               </button>
@@ -138,9 +127,7 @@ export function ImagePreview({
           </div>
 
           {current?.caption ? (
-            <div className="pointer-events-auto px-4 pb-5 text-center text-sm text-white/80">
-              {current.caption}
-            </div>
+            <div className="pointer-events-auto px-4 pb-5 text-center text-sm text-white/80">{current.caption}</div>
           ) : null}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

@@ -12,9 +12,7 @@ export type MergedReasoningPart = {
   isStreaming: boolean;
 };
 
-function isReasoningPart(
-  part: UIMessagePart,
-): part is Extract<UIMessagePart, { type: "reasoning" }> {
+function isReasoningPart(part: UIMessagePart): part is Extract<UIMessagePart, { type: "reasoning" }> {
   return part.type === "reasoning";
 }
 
@@ -28,20 +26,16 @@ export function mergeReasoningParts(
     .filter((text) => text.trim().length > 0)
     .join("\n\n");
 
-  if (!text) return null;
+  if (!text) {
+    return null;
+  }
 
   return {
     text,
-    isStreaming: Boolean(
-      options.isMessageStreaming && parts.at(-1)?.type === "reasoning",
-    ),
+    isStreaming: Boolean(options.isMessageStreaming && parts.at(-1)?.type === "reasoning"),
   };
 }
 
-export function withoutReasoningParts(
-  parts: UIMessagePart[],
-): IndexedUIMessagePart[] {
-  return parts
-    .map((part, index) => ({ part, index }))
-    .filter(({ part }) => !isReasoningPart(part));
+export function withoutReasoningParts(parts: UIMessagePart[]): IndexedUIMessagePart[] {
+  return parts.map((part, index) => ({ part, index })).filter(({ part }) => !isReasoningPart(part));
 }

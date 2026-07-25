@@ -82,10 +82,12 @@ sync:
     @echo "OK Schema synced"
 
 fmt:
+    pnpm format:ts
     cd apps/backend && just fmt
     cd apps/frontend && just fmt
 
 lint:
+    pnpm lint:ts
     cd apps/backend && just lint
     cd apps/frontend && just lint
 

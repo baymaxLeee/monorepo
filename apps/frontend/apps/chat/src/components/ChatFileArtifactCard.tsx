@@ -1,11 +1,5 @@
 import { Button } from "components";
-import {
-  Artifact,
-  ArtifactContent,
-  ArtifactDescription,
-  ArtifactHeader,
-  ArtifactTitle,
-} from "components/ai-chat";
+import { Artifact, ArtifactContent, ArtifactDescription, ArtifactHeader, ArtifactTitle } from "components/ai-chat";
 import { FileTextIcon } from "lucide-react";
 
 import type { ArtifactOutput } from "./ChatArtifactCard";
@@ -37,12 +31,7 @@ export function ArtifactFileCard({
           {isPlan ? "查看" : "预览"}
         </Button>
         {isPlan ? (
-          <Button
-            type="button"
-            size="sm"
-            disabled={planBusy}
-            onClick={onExecutePlan}
-          >
+          <Button type="button" size="sm" disabled={planBusy} onClick={onExecutePlan}>
             {planExecuted ? "再次执行" : "立即执行"}
           </Button>
         ) : null}

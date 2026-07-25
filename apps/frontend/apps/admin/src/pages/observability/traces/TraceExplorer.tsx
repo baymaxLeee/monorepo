@@ -1,9 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-  fetchObservabilityTrace,
-  fetchObservabilityTraces,
-  type TraceSummary,
-} from "api";
+import { fetchObservabilityTrace, fetchObservabilityTraces, type TraceSummary } from "api";
 import {
   Badge,
   Button,
@@ -22,30 +18,21 @@ import {
   TableRow,
 } from "components";
 import { useState } from "react";
+
+import { formatTraceDuration, formatTraceTime, shortTraceId } from "./trace-utils";
 import { TraceTimeline } from "./TraceTimeline";
-import {
-  formatTraceDuration,
-  formatTraceTime,
-  shortTraceId,
-} from "./trace-utils";
 
 export function TraceExplorer() {
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const tracesQuery = useQuery({
     queryKey: ["telemetry", "traces", 50, 60],
-    queryFn: () =>
-      fetchObservabilityTraces(
-        { limit: 50, minutes: 60 },
-        { skipErrorNotify: true },
-      ),
+    queryFn: () => fetchObservabilityTraces({ limit: 50, minutes: 60 }, { skipErrorNotify: true }),
     refetchInterval: 30_000,
   });
-  const selected =
-    selectedTraceId ?? tracesQuery.data?.items[0]?.trace_id ?? null;
+  const selected = selectedTraceId ?? tracesQuery.data?.items[0]?.trace_id ?? null;
   const detailQuery = useQuery({
     queryKey: ["telemetry", "trace", selected],
-    queryFn: () =>
-      fetchObservabilityTrace(selected ?? "", { skipErrorNotify: true }),
+    queryFn: () => fetchObservabilityTrace(selected ?? "", { skipErrorNotify: true }),
     enabled: Boolean(selected),
   });
 
@@ -56,8 +43,7 @@ export function TraceExplorer() {
           <div>
             <CardTitle>最近 traces</CardTitle>
             <CardDescription>
-              最近 1 小时的后端 trace, 点击后查看 gateway / chat / agent /
-              下游服务 timeline
+              最近 1 小时的后端 trace, 点击后查看 gateway / chat / agent / 下游服务 timeline
             </CardDescription>
           </div>
           <Button
@@ -79,11 +65,7 @@ export function TraceExplorer() {
           selectedTraceId={selected}
           onSelect={setSelectedTraceId}
         />
-        <TraceTimeline
-          spans={detailQuery.data?.spans ?? []}
-          loading={detailQuery.isLoading}
-          traceId={selected}
-        />
+        <TraceTimeline spans={detailQuery.data?.spans ?? []} loading={detailQuery.isLoading} traceId={selected} />
       </CardContent>
     </Card>
   );
@@ -132,14 +114,10 @@ function TraceList({
           {items.map((trace) => (
             <TableRow
               key={trace.trace_id}
-              className={
-                selectedTraceId === trace.trace_id ? "bg-muted/60" : ""
-              }
+              className={selectedTraceId === trace.trace_id ? "bg-muted/60" : ""}
               onClick={() => onSelect(trace.trace_id)}
             >
-              <TableCell className="whitespace-nowrap">
-                {formatTraceTime(trace.started_at)}
-              </TableCell>
+              <TableCell className="whitespace-nowrap">{formatTraceTime(trace.started_at)}</TableCell>
               <TableCell>
                 <div className="space-y-1">
                   <InlineCode>{shortTraceId(trace.trace_id)}</InlineCode>
@@ -159,9 +137,7 @@ function TraceList({
               </TableCell>
               <TableCell>{formatTraceDuration(trace.duration_ms)}</TableCell>
               <TableCell>
-                <Badge
-                  variant={trace.error_count > 0 ? "destructive" : "secondary"}
-                >
+                <Badge variant={trace.error_count > 0 ? "destructive" : "secondary"}>
                   {trace.span_count}
                   {trace.error_count > 0 ? ` / ${trace.error_count} err` : ""}
                 </Badge>

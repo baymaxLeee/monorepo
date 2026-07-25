@@ -1,5 +1,6 @@
 import { Extension } from "@tiptap/core";
 import { toast } from "sonner";
+
 import type { ContentType } from "../../interface";
 
 export interface IndentOptions {
@@ -44,10 +45,14 @@ export const createIndentExtension = () =>
               default: this.options.defaultIndent,
               parseHTML: (element) => {
                 const dataIndent = element.getAttribute("data-indent");
-                if (dataIndent) return Number(dataIndent);
+                if (dataIndent) {
+                  return Number(dataIndent);
+                }
 
                 const marginLeft = element.style.marginLeft;
-                if (marginLeft) return Math.round(parseFloat(marginLeft) / 2);
+                if (marginLeft) {
+                  return Math.round(parseFloat(marginLeft) / 2);
+                }
 
                 return this.options.defaultIndent;
               },
@@ -137,11 +142,15 @@ export const createIndentExtension = () =>
           if (this.editor.isActive("taskItem")) {
             return this.editor.commands.sinkListItem("taskItem");
           }
-          if (this.options.contentType === "markdown") return false;
+          if (this.options.contentType === "markdown") {
+            return false;
+          }
           return this.editor.commands.indent();
         },
         Backspace: () => {
-          if (this.options.contentType === "markdown") return false;
+          if (this.options.contentType === "markdown") {
+            return false;
+          }
           const { selection } = this.editor.state;
           if (selection.empty && selection.$from.parentOffset === 0) {
             return this.editor.commands.outdent({ silent: true });

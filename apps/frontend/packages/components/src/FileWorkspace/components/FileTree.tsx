@@ -1,51 +1,37 @@
-import {
-  FilePlus,
-  FolderClosed,
-  FolderOpen,
-  FolderPlus,
-  Search,
-  X,
-} from "lucide-react";
+import { FilePlus, FolderClosed, FolderOpen, FolderPlus, Search, X } from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "shared";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
+
 import { FileIcon } from "../../FileIcon";
 import { Input } from "../../shadcn/input";
 import { ChangeAction, type FileChange, type FileNode } from "../interface";
 import { isDescendant, updateTree } from "../utils";
 
 const NODE_BASE = "flex cursor-default items-center text-sm transition-colors";
-const TREE_NODE_CLS =
-  "h-8 gap-2 whitespace-nowrap pr-2 text-foreground hover:bg-muted";
+const TREE_NODE_CLS = "h-8 gap-2 whitespace-nowrap pr-2 text-foreground hover:bg-muted";
 const TREE_NODE_ACTIVE = "bg-[#e8f3ff] text-[#1677ff] hover:bg-[#e8f3ff]";
 const TREE_NODE_DRAGOVER = "bg-[#d4e8ff]";
 const NODE_ICON_CLS =
   "mr-1 flex shrink-0 items-center justify-center [&_svg]:size-5 [&_svg]:stroke-2 [&:has(svg.lucide-folder)]:text-[#f3c623] [&:has(svg.lucide-folder-open)]:text-[#f3c623] [&:has(svg.lucide-file-text)]:text-[#1677ff]";
-const SEARCH_ITEM_CLS =
-  "h-7 gap-1 whitespace-nowrap px-3 text-foreground hover:bg-muted";
+const SEARCH_ITEM_CLS = "h-7 gap-1 whitespace-nowrap px-3 text-foreground hover:bg-muted";
 const SEARCH_ITEM_ACTIVE = "bg-[#e8f3ff]";
 const MENU_ITEM_CLS =
   "cursor-default px-4 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground";
 
-function activateTreeNode(
-  event: React.KeyboardEvent,
-  action: () => void,
-): void {
+function activateTreeNode(event: React.KeyboardEvent, action: () => void): void {
   if (event.key === "Enter" || event.key === " ") {
     event.preventDefault();
     action();
   }
 }
-const MENU_ITEM_DANGER =
-  "text-[#e5484d] hover:bg-[#fff0ed] hover:text-[#e5484d]";
+const MENU_ITEM_DANGER = "text-[#e5484d] hover:bg-[#fff0ed] hover:text-[#e5484d]";
 
 function buildDirPath(nodeMap: Map<string, FileNode>, node: FileNode): string {
   const parts: string[] = [];
-  let cur: FileNode | undefined = node.parent_id
-    ? nodeMap.get(node.parent_id)
-    : undefined;
+  let cur: FileNode | undefined = node.parent_id ? nodeMap.get(node.parent_id) : undefined;
   while (cur) {
     parts.unshift(cur.name);
     cur = cur.parent_id ? nodeMap.get(cur.parent_id) : undefined;
@@ -57,13 +43,13 @@ function highlightMatch(text: string, keyword: string): React.ReactNode {
   const lower = text.toLowerCase();
   const kw = keyword.toLowerCase();
   const idx = lower.indexOf(kw);
-  if (idx === -1) return text;
+  if (idx === -1) {
+    return text;
+  }
   return (
     <>
       {text.slice(0, idx)}
-      <span className="font-semibold text-[#1677ff]">
-        {text.slice(idx, idx + kw.length)}
-      </span>
+      <span className="font-semibold text-[#1677ff]">{text.slice(idx, idx + kw.length)}</span>
       {text.slice(idx + kw.length)}
     </>
   );
@@ -101,9 +87,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
   onTreeChange,
   readOnly,
 }) => {
-  const [expanded, setExpanded] = useState<Set<string>>(
-    () => defaultExpandedIds ?? new Set(),
-  );
+  const [expanded, setExpanded] = useState<Set<string>>(() => defaultExpandedIds ?? new Set());
   const [menu, setMenu] = useState<ContextMenu | null>(null);
   const [input, setInput] = useState<InlineInput | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -112,10 +96,14 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
   const searchResults = useMemo(() => {
     const kw = searchKeyword.trim().toLowerCase();
-    if (!kw) return null;
+    if (!kw) {
+      return null;
+    }
     const results: { node: FileNode; dirPath: string }[] = [];
     for (const [, node] of nodeMap) {
-      if (node.type !== "file") continue;
+      if (node.type !== "file") {
+        continue;
+      }
       if (node.name.toLowerCase().includes(kw)) {
         results.push({ node, dirPath: buildDirPath(nodeMap, node) });
       }
@@ -123,7 +111,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
     results.sort((a, b) => {
       const aIdx = a.node.name.toLowerCase().indexOf(kw);
       const bIdx = b.node.name.toLowerCase().indexOf(kw);
-      if (aIdx !== bIdx) return aIdx - bIdx;
+      if (aIdx !== bIdx) {
+        return aIdx - bIdx;
+      }
       return a.node.name.localeCompare(b.node.name);
     });
     return results;
@@ -135,9 +125,13 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
   const menuRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
-    if (!menu) return;
+    if (!menu) {
+      return;
+    }
     const handler = (e: MouseEvent) => {
-      if (menuRef.current?.contains(e.target as Node)) return;
+      if (menuRef.current?.contains(e.target as Node)) {
+        return;
+      }
       setMenu(null);
     };
     document.addEventListener("mousedown", handler);
@@ -154,7 +148,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
   const onCtxMenu = useCallback(
     (e: React.MouseEvent, node?: FileNode) => {
-      if (readOnly) return;
+      if (readOnly) {
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       setMenu({
@@ -174,7 +170,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
         next.splice(idx, 1);
         return next;
       });
-      if (result) onTreeChange(result, { action: ChangeAction.DELETE, id });
+      if (result) {
+        onTreeChange(result, { action: ChangeAction.DELETE, id });
+      }
       closeMenu();
     },
     [tree, onTreeChange, closeMenu],
@@ -182,7 +180,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
   const startCreate = useCallback(
     (parent_id: string | null, type: "file" | "directory") => {
-      if (parent_id) setExpanded((s) => new Set(s).add(parent_id));
+      if (parent_id) {
+        setExpanded((s) => new Set(s).add(parent_id));
+      }
       setInput({ parent_id, type, renameId: null });
       closeMenu();
       setTimeout(() => inputRef.current?.focus(), 0);
@@ -204,9 +204,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
   const hasDuplicateName = useCallback(
     (parent_id: string | null, name: string, excludeId?: string): boolean => {
-      const siblings = parent_id
-        ? (nodeMap.get(parent_id)?.children ?? [])
-        : tree;
+      const siblings = parent_id ? (nodeMap.get(parent_id)?.children ?? []) : tree;
       return siblings.some((n) => n.name === name && n.id !== excludeId);
     },
     [tree, nodeMap],
@@ -218,9 +216,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
         setNameError(null);
         return;
       }
-      const parent_id = input.renameId
-        ? (nodeMap.get(input.renameId)?.parent_id ?? null)
-        : input.parent_id;
+      const parent_id = input.renameId ? (nodeMap.get(input.renameId)?.parent_id ?? null) : input.parent_id;
       const excludeId = input.renameId ?? undefined;
       if (hasDuplicateName(parent_id, name, excludeId)) {
         setNameError(`文件或文件夹 ${name} 在此位置已存在，请选择其他名称。`);
@@ -242,22 +238,26 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
       if (input.renameId) {
         const node = nodeMap.get(input.renameId);
-        if (hasDuplicateName(node?.parent_id ?? null, name, input.renameId))
+        if (hasDuplicateName(node?.parent_id ?? null, name, input.renameId)) {
           return;
+        }
 
         const result = updateTree(tree, input.renameId, (n, siblings, idx) => {
           const copy = [...siblings];
           copy[idx] = { ...n, name };
           return copy;
         });
-        if (result)
+        if (result) {
           onTreeChange(result, {
             action: ChangeAction.RENAME,
             id: input.renameId,
             name,
           });
+        }
       } else {
-        if (hasDuplicateName(input.parent_id, name)) return;
+        if (hasDuplicateName(input.parent_id, name)) {
+          return;
+        }
 
         const newNode: FileNode = {
           id: uuidv4().replace(/-/g, ""),
@@ -277,21 +277,21 @@ export const FileTree: React.FC<FileTreeProps> = ({
         if (!input.parent_id) {
           onTreeChange([...tree, newNode], change);
         } else {
-          const result = updateTree(
-            tree,
-            input.parent_id,
-            (node, siblings, idx) => {
-              const copy = [...siblings];
-              copy[idx] = {
-                ...node,
-                children: [...(node.children ?? []), newNode],
-              };
-              return copy;
-            },
-          );
-          if (result) onTreeChange(result, change);
+          const result = updateTree(tree, input.parent_id, (node, siblings, idx) => {
+            const copy = [...siblings];
+            copy[idx] = {
+              ...node,
+              children: [...(node.children ?? []), newNode],
+            };
+            return copy;
+          });
+          if (result) {
+            onTreeChange(result, change);
+          }
         }
-        if (newNode.type === "file") onSelectFile(newNode.id);
+        if (newNode.type === "file") {
+          onSelectFile(newNode.id);
+        }
       }
       setInput(null);
       setNameError(null);
@@ -305,7 +305,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
   }, []);
 
   const onDragOver = useCallback((e: React.DragEvent, node: FileNode) => {
-    if (node.type !== "directory") return;
+    if (node.type !== "directory") {
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = "move";
@@ -318,25 +320,31 @@ export const FileTree: React.FC<FileTreeProps> = ({
       e.stopPropagation();
       setDragOverId(null);
       const srcId = dragSrcRef.current;
-      if (!srcId || srcId === targetId) return;
+      if (!srcId || srcId === targetId) {
+        return;
+      }
 
       if (targetId !== null) {
         const target = nodeMap.get(targetId);
-        if (target?.type !== "directory") return;
+        if (target?.type !== "directory") {
+          return;
+        }
       }
 
       const srcParentId = nodeMap.get(srcId)?.parent_id ?? null;
-      if (srcParentId === targetId) return;
+      if (srcParentId === targetId) {
+        return;
+      }
 
       const src = nodeMap.get(srcId);
       if (src?.type === "directory" && targetId !== null) {
-        if (isDescendant(src, targetId)) return;
+        if (isDescendant(src, targetId)) {
+          return;
+        }
       }
 
       if (src && hasDuplicateName(targetId, src.name, srcId)) {
-        toast.warning(
-          `目标位置已存在同名文件或文件夹「${src.name}」，无法移动`,
-        );
+        toast.warning(`目标位置已存在同名文件或文件夹「${src.name}」，无法移动`);
         return;
       }
 
@@ -347,7 +355,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
         next.splice(idx, 1);
         return next;
       });
-      if (!afterRemove || !movedNode) return;
+      if (!afterRemove || !movedNode) {
+        return;
+      }
 
       const change: FileChange = {
         action: ChangeAction.MOVE,
@@ -360,18 +370,14 @@ export const FileTree: React.FC<FileTreeProps> = ({
         return;
       }
 
-      const result = updateTree(
-        afterRemove,
-        targetId,
-        (node, siblings, idx) => {
-          const copy = [...siblings];
-          copy[idx] = {
-            ...node,
-            children: [...(node.children ?? []), movedNode!],
-          };
-          return copy;
-        },
-      );
+      const result = updateTree(afterRemove, targetId, (node, siblings, idx) => {
+        const copy = [...siblings];
+        copy[idx] = {
+          ...node,
+          children: [...(node.children ?? []), movedNode!],
+        };
+        return copy;
+      });
       if (result) {
         setExpanded((s) => new Set(s).add(targetId));
         onTreeChange(result, change);
@@ -399,8 +405,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
           }
         }}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && !nameError)
+          if (e.key === "Enter" && !nameError) {
             commit((e.target as HTMLInputElement).value);
+          }
           if (e.key === "Escape") {
             setInput(null);
             setNameError(null);
@@ -435,11 +442,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
           aria-selected={node.id === activeFileId}
           aria-expanded={isDir ? isOpen : undefined}
           onClick={() => (isDir ? toggle(node.id) : onSelectFile(node.id))}
-          onKeyDown={(event) =>
-            activateTreeNode(event, () =>
-              isDir ? toggle(node.id) : onSelectFile(node.id),
-            )
-          }
+          onKeyDown={(event) => activateTreeNode(event, () => (isDir ? toggle(node.id) : onSelectFile(node.id)))}
           onContextMenu={(e) => onCtxMenu(e, node)}
           draggable={!readOnly}
           onDragStart={(e) => onDragStart(e, node.id)}
@@ -461,9 +464,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
           {isRenaming ? (
             renderInput(node.name)
           ) : (
-            <span className="min-w-0 overflow-hidden text-ellipsis">
-              {node.name}
-            </span>
+            <span className="min-w-0 overflow-hidden text-ellipsis">{node.name}</span>
           )}
         </div>
         {isDir && isOpen && (
@@ -477,16 +478,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
             >
               {node.children?.map((c) => renderNode(c, depth + 1))}
               {input && !input.renameId && input.parent_id === node.id && (
-                <div
-                  className={cn(NODE_BASE, TREE_NODE_CLS)}
-                  style={{ paddingLeft: (depth + 1) * 16 + 8 }}
-                >
+                <div className={cn(NODE_BASE, TREE_NODE_CLS)} style={{ paddingLeft: (depth + 1) * 16 + 8 }}>
                   <span className={NODE_ICON_CLS}>
-                    {input.type === "directory" ? (
-                      <FolderClosed className="size-4" />
-                    ) : (
-                      <FileIcon filename="" />
-                    )}
+                    {input.type === "directory" ? <FolderClosed className="size-4" /> : <FileIcon filename="" />}
                   </span>
                   {renderInput()}
                 </div>
@@ -501,9 +495,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
   return (
     <>
       <div className="flex h-8 shrink-0 items-center justify-between border-b bg-muted/40 px-3">
-        <span className="text-sm font-medium leading-5 text-foreground">
-          目录
-        </span>
+        <span className="text-sm font-medium leading-5 text-foreground">目录</span>
         {!readOnly && (
           <div className="flex items-center gap-1">
             <button
@@ -567,9 +559,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
             )}
           >
             {searchResults.length === 0 ? (
-              <div className="px-3 py-8 text-center text-xs text-muted-foreground">
-                未找到匹配的文件
-              </div>
+              <div className="px-3 py-8 text-center text-xs text-muted-foreground">未找到匹配的文件</div>
             ) : (
               searchResults.map(({ node, dirPath }) => (
                 <button
@@ -586,13 +576,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
                   <span className={NODE_ICON_CLS}>
                     <FileIcon filename={node.name} />
                   </span>
-                  <span className="shrink-0 text-sm">
-                    {highlightMatch(node.name, searchKeyword.trim())}
-                  </span>
+                  <span className="shrink-0 text-sm">{highlightMatch(node.name, searchKeyword.trim())}</span>
                   {dirPath && (
-                    <span className="ml-1 overflow-hidden text-ellipsis text-xs text-muted-foreground">
-                      {dirPath}
-                    </span>
+                    <span className="ml-1 overflow-hidden text-ellipsis text-xs text-muted-foreground">{dirPath}</span>
                   )}
                 </button>
               ))
@@ -608,16 +594,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
           >
             {tree.map((n) => renderNode(n, 0))}
             {input && !input.renameId && !input.parent_id && (
-              <div
-                className={cn(NODE_BASE, TREE_NODE_CLS)}
-                style={{ paddingLeft: 8 }}
-              >
+              <div className={cn(NODE_BASE, TREE_NODE_CLS)} style={{ paddingLeft: 8 }}>
                 <span className={NODE_ICON_CLS}>
-                  {input.type === "directory" ? (
-                    <FolderClosed className="size-4" />
-                  ) : (
-                    <FileIcon filename="" />
-                  )}
+                  {input.type === "directory" ? <FolderClosed className="size-4" /> : <FileIcon filename="" />}
                 </span>
                 {renderInput()}
               </div>
@@ -667,11 +646,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
                 <button
                   type="button"
                   role="menuitem"
-                  className={cn(
-                    MENU_ITEM_CLS,
-                    MENU_ITEM_DANGER,
-                    "block w-full text-left",
-                  )}
+                  className={cn(MENU_ITEM_CLS, MENU_ITEM_DANGER, "block w-full text-left")}
                   onClick={() => handleDelete(menu.targetId!)}
                 >
                   删除

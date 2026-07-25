@@ -10,10 +10,7 @@ import { API_BASE_URL, type ApiRequestConfig, apiHttp, request } from "./http";
 const BASE = "/api/knowledge-server";
 type RequestOptions = Pick<ApiRequestConfig, "skipErrorNotify">;
 
-export type KnowledgeDocument = Omit<
-  ConversationDocument,
-  "conversation_id"
-> & {
+export type KnowledgeDocument = Omit<ConversationDocument, "conversation_id"> & {
   user_id?: string;
   conversation_id?: string | null;
 };
@@ -36,10 +33,7 @@ export interface IngestResult {
 }
 
 /** Map knowledge document payload to chat ConversationDocument shape for UI reuse. */
-export function toConversationDocument(
-  doc: Record<string, unknown>,
-  conversationId: string,
-): ConversationDocument {
+export function toConversationDocument(doc: Record<string, unknown>, conversationId: string): ConversationDocument {
   return {
     id: String(doc.id),
     conversation_id: String(doc.conversation_id ?? conversationId),
@@ -53,12 +47,10 @@ export function toConversationDocument(
     source_object_key: (doc.object_key as string | null) ?? null,
     source_sha256: (doc.object_sha256 as string | null) ?? null,
     source_filename: (doc.source_filename as string | null) ?? null,
-    ingest_status:
-      (doc.ingest_status as ConversationDocument["ingest_status"]) ?? "ready",
+    ingest_status: (doc.ingest_status as ConversationDocument["ingest_status"]) ?? "ready",
     ingest_progress: Number(doc.ingest_progress ?? 100),
     ingest_error: (doc.ingest_error as string | null) ?? null,
-    index_status:
-      (doc.index_status as ConversationDocument["index_status"]) ?? "skipped",
+    index_status: (doc.index_status as ConversationDocument["index_status"]) ?? "skipped",
     index_error: (doc.index_error as string | null) ?? null,
     created_at: String(doc.created_at),
     updated_at: String(doc.updated_at),
@@ -85,10 +77,7 @@ function buildIngestForm(
   return form;
 }
 
-async function postIngest(
-  form: FormData,
-  conversationId: string,
-): Promise<IngestResult> {
+async function postIngest(form: FormData, conversationId: string): Promise<IngestResult> {
   const response = await authFetch(`${API_BASE_URL}${BASE}/ingest`, {
     method: "POST",
     body: form,
@@ -109,10 +98,7 @@ async function postIngest(
       index: receipt.index,
       client_ref: receipt.client_ref,
       document: {
-        ...toConversationDocument(
-          receipt.document,
-          String(receipt.document.conversation_id ?? conversationId),
-        ),
+        ...toConversationDocument(receipt.document, String(receipt.document.conversation_id ?? conversationId)),
         content_md: String(receipt.document.content_md ?? ""),
       },
     })),
@@ -134,9 +120,7 @@ export async function ingestConversationDocuments(
   );
 }
 
-export async function fetchKnowledgeDocument(
-  documentId: string,
-): Promise<ConversationDocumentDetail> {
+export async function fetchKnowledgeDocument(documentId: string): Promise<ConversationDocumentDetail> {
   const doc = await request<Record<string, unknown>>({
     url: `${BASE}/documents/${encodeURIComponent(documentId)}`,
     method: "GET",
@@ -187,9 +171,7 @@ export async function listKnowledgeDocuments(
 }
 
 /** Re-queue a document for background RAG indexing (retry skipped/failed). */
-export async function reindexKnowledgeDocument(
-  documentId: string,
-): Promise<KnowledgeDocument> {
+export async function reindexKnowledgeDocument(documentId: string): Promise<KnowledgeDocument> {
   const doc = await request<Record<string, unknown>>({
     url: `${BASE}/documents/${encodeURIComponent(documentId)}/reindex`,
     method: "POST",
@@ -201,9 +183,7 @@ export async function reindexKnowledgeDocument(
   };
 }
 
-export async function deleteKnowledgeDocument(
-  documentId: string,
-): Promise<void> {
+export async function deleteKnowledgeDocument(documentId: string): Promise<void> {
   await request<void>({
     url: `${BASE}/documents/${encodeURIComponent(documentId)}`,
     method: "DELETE",
@@ -215,9 +195,7 @@ export interface BatchDeleteKnowledgeResult {
   deleted: number;
 }
 
-export async function batchDeleteKnowledgeDocuments(
-  ids: string[],
-): Promise<BatchDeleteKnowledgeResult> {
+export async function batchDeleteKnowledgeDocuments(ids: string[]): Promise<BatchDeleteKnowledgeResult> {
   return request<BatchDeleteKnowledgeResult>({
     url: `${BASE}/documents/batch-delete`,
     method: "POST",
@@ -236,44 +214,26 @@ export interface KnowledgeDocumentResourceURL {
   filename: string;
 }
 
-export async function createKnowledgeDocumentResourceUrl(
-  documentId: string,
-): Promise<KnowledgeDocumentResourceURL> {
+export async function createKnowledgeDocumentResourceUrl(documentId: string): Promise<KnowledgeDocumentResourceURL> {
   const resource = await request<KnowledgeDocumentResourceURL>({
     url: `${BASE}/documents/${encodeURIComponent(documentId)}/resource-url`,
     method: "POST",
   });
   return {
     ...resource,
-    url: new URL(
-      resource.url,
-      API_BASE_URL || window.location.origin,
-    ).toString(),
+    url: new URL(resource.url, API_BASE_URL || window.location.origin).toString(),
   };
 }
 
-export function isMediaConversationDocument(
-  document: ConversationDocument,
-): boolean {
-  const mime = (
-    document.source_mime_type ||
-    document.mime_type ||
-    ""
-  ).toLowerCase();
-  return (
-    mime.startsWith("image/") ||
-    mime.startsWith("video/") ||
-    mime.startsWith("audio/")
-  );
+export function isMediaConversationDocument(document: ConversationDocument): boolean {
+  const mime = (document.source_mime_type || document.mime_type || "").toLowerCase();
+  return mime.startsWith("image/") || mime.startsWith("video/") || mime.startsWith("audio/");
 }
 
-export async function fetchKnowledgeDocumentSource(
-  documentId: string,
-): Promise<Blob> {
-  const response = await apiHttp.get<Blob>(
-    `${BASE}/documents/${encodeURIComponent(documentId)}/source`,
-    { responseType: "blob" },
-  );
+export async function fetchKnowledgeDocumentSource(documentId: string): Promise<Blob> {
+  const response = await apiHttp.get<Blob>(`${BASE}/documents/${encodeURIComponent(documentId)}/source`, {
+    responseType: "blob",
+  });
   return response.data;
 }
 
@@ -287,10 +247,7 @@ export async function ingestKnowledgeDocuments(
   files: Array<{ clientRef: string; file: File }>,
   ingestOptions?: { providerId?: string | null },
 ): Promise<IngestResult> {
-  return postIngest(
-    buildIngestForm(files, { providerId: ingestOptions?.providerId }),
-    "",
-  );
+  return postIngest(buildIngestForm(files, { providerId: ingestOptions?.providerId }), "");
 }
 
 export type { ConversationDocumentDetail };

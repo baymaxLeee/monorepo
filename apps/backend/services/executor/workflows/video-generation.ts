@@ -1,52 +1,11 @@
 import { getWorkflowMetadata } from "workflow";
 import { z } from "zod";
 
-import {
-  isTaskCancelled,
-  recordExternalTask,
-  reportTaskProgress,
-} from "../src/application/tasks/notify.js";
-import { rethrowTerminalArtifactError } from "../src/application/tasks/errors.js";
-import { getSettings } from "../src/bootstrap/config.js";
-import { getProvider } from "../src/infrastructure/clients/admin.js";
-import {
-  createStagedMedia,
-  discardStagedMedia,
-  publishStagedMedia,
-} from "../src/infrastructure/clients/knowledge.js";
-import {
-  ArkRequestError,
-  createArkVideoTask,
-  deleteArkVideoTask,
-  getArkVideoTask,
-  type ArkVideoSnapshot,
-} from "../src/infrastructure/clients/ark.js";
-import {
-  type Character,
-  type Script,
-} from "../src/application/video/contracts.js";
-import {
-  generateCharacterSheet,
-  type CharacterRef,
-} from "../src/application/video/storyboard.js";
-import {
-  MAX_MAIN_CHARACTERS,
-  MAX_SEGMENTS,
-  MAX_TARGET_DURATION_S,
-  MIN_TARGET_DURATION_S,
-  deriveSegmentSeed,
-  randomBaseSeed,
-} from "../src/application/video/limits.js";
-import {
-  assembleClips,
-  downloadVideoBytes,
-  inspectVideoBytes,
-} from "../src/application/video/assembler.js";
-import {
-  parseVideoOutputConfig,
-  type VideoOutputConfig,
-} from "../src/application/video/output-config.js";
 import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
+import { rethrowTerminalArtifactError } from "../src/application/tasks/errors.js";
+import { isTaskCancelled, recordExternalTask, reportTaskProgress } from "../src/application/tasks/notify.js";
+import { compileSeedancePrompt } from "../src/application/video-production/compiler.js";
+import { reconcileVideoCost, releaseVideoCost, reserveVideoCost } from "../src/application/video-production/cost.js";
 import {
   publishApprovalHook,
   publishHookToken,
@@ -71,19 +30,30 @@ import {
   recordVideoTake,
   reviseStoryboard,
 } from "../src/application/video-production/service.js";
+import { assembleClips, downloadVideoBytes, inspectVideoBytes } from "../src/application/video/assembler.js";
+import { type Character, type Script } from "../src/application/video/contracts.js";
 import {
-  reconcileVideoCost,
-  releaseVideoCost,
-  reserveVideoCost,
-} from "../src/application/video-production/cost.js";
-import { compileSeedancePrompt } from "../src/application/video-production/compiler.js";
-import type {
-  ShotSpec,
-  ShotPlan,
-  ShotTakeReview,
-  VideoTake,
-} from "../src/domain/video-production/contracts.js";
+  MAX_MAIN_CHARACTERS,
+  MAX_SEGMENTS,
+  MAX_TARGET_DURATION_S,
+  MIN_TARGET_DURATION_S,
+  deriveSegmentSeed,
+  randomBaseSeed,
+} from "../src/application/video/limits.js";
+import { parseVideoOutputConfig, type VideoOutputConfig } from "../src/application/video/output-config.js";
+import { generateCharacterSheet, type CharacterRef } from "../src/application/video/storyboard.js";
+import { getSettings } from "../src/bootstrap/config.js";
+import type { ShotSpec, ShotPlan, ShotTakeReview, VideoTake } from "../src/domain/video-production/contracts.js";
 import { shotPlanSchema } from "../src/domain/video-production/contracts.js";
+import { getProvider } from "../src/infrastructure/clients/admin.js";
+import {
+  ArkRequestError,
+  createArkVideoTask,
+  deleteArkVideoTask,
+  getArkVideoTask,
+  type ArkVideoSnapshot,
+} from "../src/infrastructure/clients/ark.js";
+import { createStagedMedia, discardStagedMedia, publishStagedMedia } from "../src/infrastructure/clients/knowledge.js";
 
 export const videoCharacterInputSchema = z.object({
   name: z.string().min(1).max(40),
@@ -110,31 +80,41 @@ export const videoShotInputSchema = z.object({
   acceptanceCriteria: z.array(z.string().min(1).max(1_200)).min(1).max(20),
 });
 
-export const videoGenerationPlanSchema = z.object({
-  targetDurationSec: z.number().int().min(MIN_TARGET_DURATION_S).max(MAX_TARGET_DURATION_S),
-  logline: z.string().min(1).max(240),
-  motif: z.string().min(1).max(160),
-  styleBible: z.string().min(1).max(240),
-  settingBible: z.string().min(1).max(240),
-  characters: z.array(videoCharacterInputSchema).max(MAX_MAIN_CHARACTERS),
-  shots: z.array(videoShotInputSchema).min(1).max(MAX_SEGMENTS),
-}).superRefine((plan, ctx) => {
-  const names = new Set(plan.characters.map((character) => character.name));
-  if (names.size !== plan.characters.length) {
-    ctx.addIssue({ code: "custom", path: ["characters"], message: "character names must be unique" });
-  }
-  const total = plan.shots.reduce((sum, shot) => sum + shot.seconds, 0);
-  if (total !== plan.targetDurationSec) {
-    ctx.addIssue({ code: "custom", path: ["shots"], message: `shot seconds total ${total} must equal targetDurationSec ${plan.targetDurationSec}` });
-  }
-  plan.shots.forEach((shot, index) => {
-    shot.characterNames.forEach((name, characterIndex) => {
-      if (!names.has(name)) {
-        ctx.addIssue({ code: "custom", path: ["shots", index, "characterNames", characterIndex], message: `unknown character ${name}` });
-      }
+export const videoGenerationPlanSchema = z
+  .object({
+    targetDurationSec: z.number().int().min(MIN_TARGET_DURATION_S).max(MAX_TARGET_DURATION_S),
+    logline: z.string().min(1).max(240),
+    motif: z.string().min(1).max(160),
+    styleBible: z.string().min(1).max(240),
+    settingBible: z.string().min(1).max(240),
+    characters: z.array(videoCharacterInputSchema).max(MAX_MAIN_CHARACTERS),
+    shots: z.array(videoShotInputSchema).min(1).max(MAX_SEGMENTS),
+  })
+  .superRefine((plan, ctx) => {
+    const names = new Set(plan.characters.map((character) => character.name));
+    if (names.size !== plan.characters.length) {
+      ctx.addIssue({ code: "custom", path: ["characters"], message: "character names must be unique" });
+    }
+    const total = plan.shots.reduce((sum, shot) => sum + shot.seconds, 0);
+    if (total !== plan.targetDurationSec) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["shots"],
+        message: `shot seconds total ${total} must equal targetDurationSec ${plan.targetDurationSec}`,
+      });
+    }
+    plan.shots.forEach((shot, index) => {
+      shot.characterNames.forEach((name, characterIndex) => {
+        if (!names.has(name)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["shots", index, "characterNames", characterIndex],
+            message: `unknown character ${name}`,
+          });
+        }
+      });
     });
   });
-});
 
 export const videoGenerationInputSchema = z.object({
   orgId: z.string().min(1),
@@ -158,7 +138,9 @@ const ANCHOR_PER_IMAGE_TIMEOUT_MS = 2 * 60_000;
 const ASSEMBLE_TIMEOUT_MS = 10 * 60_000;
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 type SegmentResult = {
@@ -173,10 +155,7 @@ type SegmentResult = {
   stagedMediaId?: string;
 };
 
-async function loadVideoOutputConfigStep(input: {
-  orgId: string;
-  providerId: string;
-}): Promise<VideoOutputConfig> {
+async function loadVideoOutputConfigStep(input: { orgId: string; providerId: string }): Promise<VideoOutputConfig> {
   "use step";
   const provider = await getProvider(input.providerId, input.orgId);
   return parseVideoOutputConfig(provider.extraBody);
@@ -188,7 +167,9 @@ async function characterSheetStep(input: {
   imageProviderId?: string;
 }): Promise<CharacterRef[]> {
   "use step";
-  if (!input.imageProviderId) return [];
+  if (!input.imageProviderId) {
+    return [];
+  }
   const { workflowRunId } = getWorkflowMetadata();
   const cancellation = observeTaskCancellation(workflowRunId);
   try {
@@ -200,7 +181,9 @@ async function characterSheetStep(input: {
       abortSignal: cancellation.signal,
     });
   } catch (error) {
-    if (cancellation.signal.aborted) throw error;
+    if (cancellation.signal.aborted) {
+      throw error;
+    }
     console.warn("[executor] character sheet failed, degrading to text-only shots", {
       error: String(error).slice(0, 200),
     });
@@ -210,13 +193,24 @@ async function characterSheetStep(input: {
   }
 }
 
-function materializeChatVideoPlan(input: VideoGenerationInput, characterRefs: CharacterRef[]): {
+function materializeChatVideoPlan(
+  input: VideoGenerationInput,
+  characterRefs: CharacterRef[],
+): {
   script: Script;
   shotPlan: ShotPlan;
 } {
-  const characters = input.plan.characters.map((character, index) => ({ id: `character-${index + 1}`, name: character.name, appearance: character.appearance }));
+  const characters = input.plan.characters.map((character, index) => ({
+    id: `character-${index + 1}`,
+    name: character.name,
+    appearance: character.appearance,
+  }));
   const generated = new Map(characterRefs.map((reference) => [reference.name, reference]));
-  const documents = new Map(input.plan.characters.filter((character) => character.documentId).map((character) => [character.name, character.documentId!]));
+  const documents = new Map(
+    input.plan.characters
+      .filter((character) => character.documentId)
+      .map((character) => [character.name, character.documentId!]),
+  );
   return {
     script: {
       logline: input.plan.logline,
@@ -224,7 +218,13 @@ function materializeChatVideoPlan(input: VideoGenerationInput, characterRefs: Ch
       styleBible: input.plan.styleBible,
       settingBible: input.plan.settingBible,
       characters,
-      beats: input.plan.shots.map((shot, order) => ({ order, purpose: shot.purpose, plot: shot.plot, emotion: shot.emotion, characters: shot.characterNames })),
+      beats: input.plan.shots.map((shot, order) => ({
+        order,
+        purpose: shot.purpose,
+        plot: shot.plot,
+        emotion: shot.emotion,
+        characters: shot.characterNames,
+      })),
     },
     shotPlan: shotPlanSchema.parse({
       version: 1,
@@ -245,9 +245,27 @@ function materializeChatVideoPlan(input: VideoGenerationInput, characterRefs: Ch
         references: shot.characterNames.flatMap((name) => {
           const refs: Array<Record<string, unknown>> = [];
           const reference = generated.get(name);
-          if (reference) refs.push({ id: reference.id, mediaType: "image", purpose: `identity anchor for ${name}`, url: reference.url, licenseStatus: "user_attested", consentStatus: "user_attested" });
+          if (reference) {
+            refs.push({
+              id: reference.id,
+              mediaType: "image",
+              purpose: `identity anchor for ${name}`,
+              url: reference.url,
+              licenseStatus: "user_attested",
+              consentStatus: "user_attested",
+            });
+          }
           const documentId = documents.get(name);
-          if (documentId) refs.push({ id: `source-${documentId}`, mediaType: "image", purpose: `user-provided identity source for ${name}`, documentId, licenseStatus: "user_attested", consentStatus: "user_attested" });
+          if (documentId) {
+            refs.push({
+              id: `source-${documentId}`,
+              mediaType: "image",
+              purpose: `user-provided identity source for ${name}`,
+              documentId,
+              licenseStatus: "user_attested",
+              consentStatus: "user_attested",
+            });
+          }
           return refs;
         }),
         continuityContract: shot.continuityContract,
@@ -279,17 +297,11 @@ async function initializeProductionStep(input: {
 }
 initializeProductionStep.maxRetries = 0;
 
-async function configureProductionCostStep(
-  productionId: string,
-  orgId: string,
-  providerId: string,
-) {
+async function configureProductionCostStep(productionId: string, orgId: string, providerId: string) {
   "use step";
   const provider = await getProvider(providerId, orgId);
   if (!provider.pricing || provider.pricing.unit !== "generated_second") {
-    throw new Error(
-      "video provider pricing is required before storyboard approval",
-    );
+    throw new Error("video provider pricing is required before storyboard approval");
   }
   return configureVideoProductionCost(productionId, {
     currency: provider.pricing.currency,
@@ -311,26 +323,17 @@ async function reviseStoryboardStep(
   return reviseStoryboard(productionId, shotPlan, actorId);
 }
 
-async function generatingProductionStep(
-  productionId: string,
-  budget: { budgetLimitMicros: number; currency: string },
-) {
+async function generatingProductionStep(productionId: string, budget: { budgetLimitMicros: number; currency: string }) {
   "use step";
   return markVideoProductionGenerating(productionId, budget);
 }
 
-async function completedProductionStep(
-  productionId: string,
-  documentId: string,
-) {
+async function completedProductionStep(productionId: string, documentId: string) {
   "use step";
   return completeVideoProduction(productionId, documentId);
 }
 
-async function renderReportStep(
-  productionId: string,
-  results: SegmentResult[],
-) {
+async function renderReportStep(productionId: string, results: SegmentResult[]) {
   "use step";
   return recordVideoRenderReport(productionId, {
     shots: results.map((result) => ({
@@ -356,10 +359,7 @@ async function stageTakeStep(input: {
   videoUrl: string;
 }): Promise<string> {
   "use step";
-  const bytes = await downloadVideoBytes(
-    input.videoUrl,
-    AbortSignal.timeout(ASSEMBLE_TIMEOUT_MS),
-  );
+  const bytes = await downloadVideoBytes(input.videoUrl, AbortSignal.timeout(ASSEMBLE_TIMEOUT_MS));
   try {
     const staged = await createStagedMedia({
       userId: input.userId,
@@ -377,27 +377,17 @@ async function stageTakeStep(input: {
   }
 }
 
-async function awaitingShotReviewStep(
-  productionId: string,
-  shotReviews: ShotTakeReview[],
-) {
+async function awaitingShotReviewStep(productionId: string, shotReviews: ShotTakeReview[]) {
   "use step";
   return markAwaitingShotReview(productionId, shotReviews);
 }
 
-async function recordTakeStep(
-  productionId: string,
-  shotId: string,
-  take: VideoTake,
-) {
+async function recordTakeStep(productionId: string, shotId: string, take: VideoTake) {
   "use step";
   return recordVideoTake(productionId, shotId, take);
 }
 
-async function selectedTakesStep(
-  productionId: string,
-  selections: Array<{ shotId: string; takeId: string }>,
-) {
+async function selectedTakesStep(productionId: string, selections: Array<{ shotId: string; takeId: string }>) {
   "use step";
   return markVideoTakesSelected(productionId, selections);
 }
@@ -422,11 +412,7 @@ async function awaitingPublishStep(
   return markAwaitingPublishApproval(productionId, stagedMediaId, qaReport);
 }
 
-async function publishingProductionStep(
-  productionId: string,
-  actorId: string,
-  waiverReason?: string,
-) {
+async function publishingProductionStep(productionId: string, actorId: string, waiverReason?: string) {
   "use step";
   return markVideoProductionPublishing(productionId, actorId, waiverReason);
 }
@@ -457,8 +443,9 @@ async function createSegmentStep(input: {
   let providerTaskId: string | undefined;
   try {
     const provider = await getProvider(input.providerId, input.orgId);
-    if (!provider.pricing)
+    if (!provider.pricing) {
       throw new Error("video provider pricing is not configured");
+    }
     reservedAmount = provider.pricing.unitPriceMicros * input.shot.seconds;
     reservedCurrency = provider.pricing.currency;
     const costKey = `shot:${input.shot.id}:take:${input.takeNumber}`;
@@ -483,10 +470,7 @@ async function createSegmentStep(input: {
       seconds: input.shot.seconds,
       seed: input.seed,
       extraBody: provider.extraBody,
-      signal: AbortSignal.any([
-        cancellation.signal,
-        AbortSignal.timeout(CREATE_REQUEST_TIMEOUT_MS),
-      ]),
+      signal: AbortSignal.any([cancellation.signal, AbortSignal.timeout(CREATE_REQUEST_TIMEOUT_MS)]),
     });
     providerTaskId = taskId;
     await recordExternalTask(workflowRunId, taskId);
@@ -509,13 +493,10 @@ async function createSegmentStep(input: {
         taskId,
         signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS),
       }).catch((error) =>
-        console.error(
-          "[executor] failed to cancel newly created Ark video task",
-          {
-            taskId,
-            error,
-          },
-        ),
+        console.error("[executor] failed to cancel newly created Ark video task", {
+          taskId,
+          error,
+        }),
       );
       return { error: "cancelled" };
     }
@@ -535,16 +516,15 @@ async function createSegmentStep(input: {
         }),
       );
     }
-    if (cancellation.signal.aborted) throw error;
+    if (cancellation.signal.aborted) {
+      throw error;
+    }
     console.warn("[executor] segment create failed without automatic retry", {
       status: error instanceof ArkRequestError ? error.status : undefined,
       error: String(error).slice(0, 300),
     });
     return {
-      error:
-        error instanceof Error
-          ? error.message.slice(0, 500)
-          : String(error).slice(0, 500),
+      error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
     };
   } finally {
     cancellation.dispose();
@@ -584,16 +564,20 @@ async function waitSegmentStep(input: {
         taskId: input.taskId,
         signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS),
       });
-      if (snapshot.status === "succeeded") return snapshot;
-      if (snapshot.status === "failed" || snapshot.status === "cancelled")
+      if (snapshot.status === "succeeded") {
         return snapshot;
+      }
+      if (snapshot.status === "failed" || snapshot.status === "cancelled") {
+        return snapshot;
+      }
     } catch (error) {
       console.warn("[executor] segment poll transient error", {
         error: String(error).slice(0, 200),
       });
     }
-    if (Date.now() >= deadline)
+    if (Date.now() >= deadline) {
       return { status: "failed", error: "segment generation timed out" };
+    }
     await sleep(POLL_INTERVAL_MS);
   }
 }
@@ -627,10 +611,7 @@ async function assembleStep(input: {
     bytes = await assembleClips({
       urls: input.urls,
       outputConfig: input.outputConfig,
-      signal: AbortSignal.any([
-        cancellation.signal,
-        AbortSignal.timeout(ASSEMBLE_TIMEOUT_MS),
-      ]),
+      signal: AbortSignal.any([cancellation.signal, AbortSignal.timeout(ASSEMBLE_TIMEOUT_MS)]),
     });
   } finally {
     cancellation.dispose();
@@ -641,9 +622,7 @@ async function assembleStep(input: {
     minimumDuration: input.minimumDuration,
   });
   if (!deterministic.passed) {
-    const failures = deterministic.checks
-      .filter((check) => !check.passed)
-      .map((check) => check.name);
+    const failures = deterministic.checks.filter((check) => !check.passed).map((check) => check.name);
     throw new Error(`final deterministic QA failed: ${failures.join(", ")}`);
   }
   try {
@@ -685,11 +664,7 @@ async function publishStep(input: {
   }
 }
 
-async function discardStep(input: {
-  stagedMediaId: string;
-  userId: string;
-  orgId: string;
-}): Promise<void> {
+async function discardStep(input: { stagedMediaId: string; userId: string; orgId: string }): Promise<void> {
   "use step";
   await discardStagedMedia({
     userId: input.userId,
@@ -698,11 +673,7 @@ async function discardStep(input: {
   });
 }
 
-async function discardAfterFailureStep(input: {
-  stagedMediaId: string;
-  userId: string;
-  orgId: string;
-}): Promise<void> {
+async function discardAfterFailureStep(input: { stagedMediaId: string; userId: string; orgId: string }): Promise<void> {
   "use step";
   try {
     await discardStagedMedia({
@@ -711,13 +682,10 @@ async function discardAfterFailureStep(input: {
       stagedId: input.stagedMediaId,
     });
   } catch (error) {
-    console.error(
-      "[executor] failed to discard staged video after production failure",
-      {
-        stagedMediaId: input.stagedMediaId,
-        error,
-      },
-    );
+    console.error("[executor] failed to discard staged video after production failure", {
+      stagedMediaId: input.stagedMediaId,
+      error,
+    });
   }
 }
 
@@ -750,12 +718,10 @@ async function mapConcurrent<T, R>(
   async function run(): Promise<void> {
     while (cursor < values.length) {
       const index = cursor++;
-      results[index] = await worker(values[index]!, index);
+      results[index] = await worker(values[index], index);
     }
   }
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, values.length) }, run),
-  );
+  await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, run));
   return results;
 }
 
@@ -856,19 +822,18 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
     shotPlan,
     characterRefs,
   });
-  await configureProductionCostStep(
-    production.id,
-    input.orgId,
-    input.providerId,
-  );
+  await configureProductionCostStep(production.id, input.orgId, input.providerId);
   let approvedShotPlan = production.shotPlan;
-  if (!approvedShotPlan) throw new Error("video production has no storyboard");
+  if (!approvedShotPlan) {
+    throw new Error("video production has no storyboard");
+  }
   using storyboardHook = storyboardApprovalHook.create({
     token: storyboardHookToken(production.id),
   });
   const conflict = await storyboardHook.getConflict();
-  if (conflict)
+  if (conflict) {
     throw new Error(`storyboard approval hook is owned by ${conflict.runId}`);
+  }
   await awaitingStoryboardStep(production.id);
   let storyboardApproval: {
     budgetLimitMicros: number;
@@ -876,7 +841,9 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
   } | null = null;
   const seenStoryboardDecisionIds = new Set<string>();
   for await (const storyboardDecision of storyboardHook) {
-    if (seenStoryboardDecisionIds.has(storyboardDecision.actionId)) continue;
+    if (seenStoryboardDecisionIds.has(storyboardDecision.actionId)) {
+      continue;
+    }
     seenStoryboardDecisionIds.add(storyboardDecision.actionId);
     if (storyboardDecision.action === "revise") {
       approvedShotPlan = await reviseStoryboardStep(
@@ -899,8 +866,9 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
     };
     break;
   }
-  if (!storyboardApproval)
+  if (!storyboardApproval) {
     throw new Error("storyboard approval hook closed without approval");
+  }
   await generatingProductionStep(production.id, {
     budgetLimitMicros: storyboardApproval.budgetLimitMicros,
     currency: storyboardApproval.currency,
@@ -914,59 +882,52 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
     let done = 0;
     await reportProgressStep(done, total);
 
-    const initialResults = await mapConcurrent(
-      approvedShots,
-      segmentConcurrency,
-      async (shot: ShotSpec) => {
-        const result = await generateTake({
-          productionId: production.id,
-          request: input,
-          shot,
-          takeNumber: 1,
-          seed: deriveSegmentSeed(baseSeed, shot.order),
-        });
-        done += 1;
-        await reportProgressStep(done, total);
-        return result;
-      },
-    );
+    const initialResults = await mapConcurrent(approvedShots, segmentConcurrency, async (shot: ShotSpec) => {
+      const result = await generateTake({
+        productionId: production.id,
+        request: input,
+        shot,
+        takeNumber: 1,
+        seed: deriveSegmentSeed(baseSeed, shot.order),
+      });
+      done += 1;
+      await reportProgressStep(done, total);
+      return result;
+    });
 
     const allResults = [...initialResults];
     takeStagedMediaIds.push(
-      ...initialResults.flatMap((result) =>
-        result.stagedMediaId ? [result.stagedMediaId] : [],
-      ),
+      ...initialResults.flatMap((result) => (result.stagedMediaId ? [result.stagedMediaId] : [])),
     );
     let shotReviews: ShotTakeReview[] = approvedShots.map((shot) => ({
       shotId: shot.id,
       selectedTakeId: null,
-      takes: initialResults
-        .filter((result) => result.shotId === shot.id)
-        .map(toVideoTake),
+      takes: initialResults.filter((result) => result.shotId === shot.id).map(toVideoTake),
     }));
     using reviewHook = shotReviewHook.create({
       token: shotReviewHookToken(production.id),
     });
     const reviewConflict = await reviewHook.getConflict();
-    if (reviewConflict)
+    if (reviewConflict) {
       throw new Error(`shot review hook is owned by ${reviewConflict.runId}`);
+    }
     await awaitingShotReviewStep(production.id, shotReviews);
     const seenReviewDecisionIds = new Set<string>();
     let selections: Array<{ shotId: string; takeId: string }> | null = null;
     for await (const reviewDecision of reviewHook) {
-      if (seenReviewDecisionIds.has(reviewDecision.actionId)) continue;
+      if (seenReviewDecisionIds.has(reviewDecision.actionId)) {
+        continue;
+      }
       seenReviewDecisionIds.add(reviewDecision.actionId);
       if (reviewDecision.action === "approve_takes") {
         selections = reviewDecision.selections;
         break;
       }
-      const shot = approvedShots.find(
-        (candidate) => candidate.id === reviewDecision.shotId,
-      );
-      if (!shot) throw new Error(`shot ${reviewDecision.shotId} is missing`);
-      const review = shotReviews.find(
-        (candidate) => candidate.shotId === shot.id,
-      );
+      const shot = approvedShots.find((candidate) => candidate.id === reviewDecision.shotId);
+      if (!shot) {
+        throw new Error(`shot ${reviewDecision.shotId} is missing`);
+      }
+      const review = shotReviews.find((candidate) => candidate.shotId === shot.id);
       const takeNumber = (review?.takes.length ?? 0) + 1;
       const result = await generateTake({
         productionId: production.id,
@@ -976,29 +937,26 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
         seed: deriveSegmentSeed(baseSeed, shot.order + takeNumber * 101),
       });
       allResults.push(result);
-      if (result.stagedMediaId) takeStagedMediaIds.push(result.stagedMediaId);
+      if (result.stagedMediaId) {
+        takeStagedMediaIds.push(result.stagedMediaId);
+      }
       const take = toVideoTake(result);
       await recordTakeStep(production.id, shot.id, take);
       shotReviews = shotReviews.map((candidate) =>
-        candidate.shotId === shot.id
-          ? { ...candidate, takes: [...candidate.takes, take] }
-          : candidate,
+        candidate.shotId === shot.id ? { ...candidate, takes: [...candidate.takes, take] } : candidate,
       );
     }
-    if (!selections)
+    if (!selections) {
       throw new Error("shot review hook closed without take approval");
+    }
     await selectedTakesStep(production.id, selections);
     const selectedResults = selections
       .map((selection) => {
         const result = allResults.find(
-          (candidate) =>
-            candidate.shotId === selection.shotId &&
-            `take-${candidate.takeNumber}` === selection.takeId,
+          (candidate) => candidate.shotId === selection.shotId && `take-${candidate.takeNumber}` === selection.takeId,
         );
         if (!result?.ok || !result.videoUrl) {
-          throw new Error(
-            `selected take ${selection.takeId} for ${selection.shotId} is unavailable`,
-          );
+          throw new Error(`selected take ${selection.takeId} for ${selection.shotId} is unavailable`);
         }
         return result;
       })
@@ -1016,11 +974,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
       idempotencyKey: input.idempotencyKey,
       urls,
       outputConfig,
-      minimumDuration: Math.max(
-        1,
-        approvedShots.reduce((sum, shot) => sum + shot.seconds, 0) -
-          urls.length,
-      ),
+      minimumDuration: Math.max(1, approvedShots.reduce((sum, shot) => sum + shot.seconds, 0) - urls.length),
     });
     stagedMediaId = assembled.stagedMediaId;
     await finalQaStep(production.id);
@@ -1028,15 +982,10 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
       token: publishHookToken(production.id),
     });
     const publishConflict = await publishHook.getConflict();
-    if (publishConflict)
-      throw new Error(
-        `publish approval hook is owned by ${publishConflict.runId}`,
-      );
-    await awaitingPublishStep(
-      production.id,
-      assembled.stagedMediaId,
-      assembled.qaReport,
-    );
+    if (publishConflict) {
+      throw new Error(`publish approval hook is owned by ${publishConflict.runId}`);
+    }
+    await awaitingPublishStep(production.id, assembled.stagedMediaId, assembled.qaReport);
     const publishDecision = await publishHook;
     if (!publishDecision.approved) {
       await discardStep({
@@ -1046,11 +995,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
       });
       throw new Error(`publish rejected: ${publishDecision.reason}`);
     }
-    await publishingProductionStep(
-      production.id,
-      publishDecision.actorId,
-      publishDecision.waiverReason,
-    );
+    await publishingProductionStep(production.id, publishDecision.actorId, publishDecision.waiverReason);
     const published = await publishStep({
       stagedMediaId: assembled.stagedMediaId,
       userId: input.userId,
@@ -1092,10 +1037,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
         orgId: input.orgId,
       });
     }
-    await failedProductionStep(
-      production.id,
-      error instanceof Error ? error.message : String(error),
-    );
+    await failedProductionStep(production.id, error instanceof Error ? error.message : String(error));
     throw error;
   }
 }

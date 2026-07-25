@@ -15,39 +15,28 @@ import {
   writeChangeSetFile,
 } from "../../../../infrastructure/clients/knowledge.js";
 import { setActivePlanPath } from "../../../conversations.js";
-import {
-  pollTaskSnapshots,
-  startExecutorTask,
-} from "../../tasks/executor-task.js";
 import type { AgentMode } from "../../agents/types.js";
-import {
-  artifactToolContextSchema,
-  fileToolContextSchema,
-  type ArtifactToolContext,
-  type FileToolContext,
-} from "../context.js";
+import { pollTaskSnapshots, startExecutorTask } from "../../tasks/executor-task.js";
+import { artifactToolContextSchema, fileToolContextSchema, type ArtifactToolContext, type FileToolContext } from "../context.js";
 import { defineAgentTool } from "../manifest.js";
-import {
-  toolCompleted,
-  toolFailed,
-  toolRunning,
-  ToolBlockedError,
-  type ToolEmission,
-} from "../outcome.js";
+import { toolCompleted, toolFailed, toolRunning, ToolBlockedError, type ToolEmission } from "../outcome.js";
+import type { AgentToolPolicy } from "../types.js";
 
 const listFilesOutputSchema = z.object({
-  files: z.array(z.object({
-    path: z.string(),
-    title: z.string(),
-    filename: z.string(),
-    kind: z.string(),
-    mime_type: z.string(),
-    size: z.number().nullable(),
-    status: z.string(),
-    updated_at: z.string(),
-    writable: z.boolean(),
-    derived: z.boolean(),
-  })),
+  files: z.array(
+    z.object({
+      path: z.string(),
+      title: z.string(),
+      filename: z.string(),
+      kind: z.string(),
+      mime_type: z.string(),
+      size: z.number().nullable(),
+      status: z.string(),
+      updated_at: z.string(),
+      writable: z.boolean(),
+      derived: z.boolean(),
+    }),
+  ),
 });
 const readFileOutputSchema = z.object({
   path: z.string(),
@@ -62,36 +51,44 @@ const readFileOutputSchema = z.object({
   untrusted: z.boolean(),
 });
 const searchFilesOutputSchema = z.object({
-  matches: z.array(z.object({
-    path: z.string(),
-    line: z.number(),
-    column: z.number(),
-    text: z.string(),
-  })),
+  matches: z.array(
+    z.object({
+      path: z.string(),
+      line: z.number(),
+      column: z.number(),
+      text: z.string(),
+    }),
+  ),
   truncated: z.boolean(),
 });
-const textPath = z.string().min(1).max(512)
+const textPath = z
+  .string()
+  .min(1)
+  .max(512)
   .regex(/^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\\:*?"<>|]+$/)
   .describe("Relative virtual file path. Never use an absolute path or '..'.");
-const sha = z.string().regex(/^[0-9a-f]{64}$/)
+const sha = z
+  .string()
+  .regex(/^[0-9a-f]{64}$/)
   .describe("Optional SHA-256 returned by a previous read or write; use it to reject stale mutations.");
 
 const writeInput = z.object({
   path: textPath,
-  content: z.string().max(500_000)
-    .describe("The complete exact UTF-8 file content. This is not a brief or generation plan."),
+  content: z.string().max(500_000).describe("The complete exact UTF-8 file content. This is not a brief or generation plan."),
   expected_sha256: sha.optional(),
 });
 const editInput = z.object({
   path: textPath,
-  edits: z.array(z.object({
-      old_text: z.string().min(1).max(80_000)
-        .describe("Exact text currently present in the file."),
-      new_text: z.string().max(80_000)
-        .describe("Exact replacement text; use an empty string to delete old_text."),
-      replace_all: z.boolean().optional()
-        .describe("Set true only when every occurrence should be replaced; otherwise old_text must be unique."),
-    })).min(1).max(100)
+  edits: z
+    .array(
+      z.object({
+        old_text: z.string().min(1).max(80_000).describe("Exact text currently present in the file."),
+        new_text: z.string().max(80_000).describe("Exact replacement text; use an empty string to delete old_text."),
+        replace_all: z.boolean().optional().describe("Set true only when every occurrence should be replaced; otherwise old_text must be unique."),
+      }),
+    )
+    .min(1)
+    .max(100)
     .describe("Atomic replacement list. Even one replacement must be wrapped in this edits array."),
   expected_sha256: sha.optional(),
 });
@@ -106,49 +103,52 @@ const editOutput = fileOutput.extend({
   diff: z.string(),
 });
 const delegatedTask = z.object({
-  id: z.string().min(1).max(80).regex(/^[a-z][a-z0-9-]*$/)
+  id: z
+    .string()
+    .min(1)
+    .max(80)
+    .regex(/^[a-z][a-z0-9-]*$/)
     .describe("Unique lowercase task id using letters, digits, and hyphens."),
-  instruction: z.string().min(1).max(12_000)
-    .describe("Self-contained instructions for generating exactly one complete file."),
+  instruction: z.string().min(1).max(12_000).describe("Self-contained instructions for generating exactly one complete file."),
   output_path: textPath.describe("Unique output path inside root, including the root prefix."),
 });
-const delegateInput = z.object({
-  root: textPath.describe("Relative directory that contains every task output_path."),
-  shared_context: z.string().min(1).max(40_000)
-    .describe("Immutable facts and conventions shared by every independent task."),
-  tasks: z.array(delegatedTask).min(1).max(100)
-    .describe("Independent complete-file tasks. Outputs must not depend on one another."),
-}).superRefine((input, context) => {
-  const root = input.root.replace(/\/+$/, "");
-  const prefix = `${root}/`;
-  const ids = new Set<string>();
-  const paths = new Set<string>();
-  for (const [index, task] of input.tasks.entries()) {
-    if (!task.output_path.startsWith(prefix)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["tasks", index, "output_path"],
-        message: "output_path must be inside root",
-      });
+const delegateInput = z
+  .object({
+    root: textPath.describe("Relative directory that contains every task output_path."),
+    shared_context: z.string().min(1).max(40_000).describe("Immutable facts and conventions shared by every independent task."),
+    tasks: z.array(delegatedTask).min(1).max(100).describe("Independent complete-file tasks. Outputs must not depend on one another."),
+  })
+  .superRefine((input, context) => {
+    const root = input.root.replace(/\/+$/, "");
+    const prefix = `${root}/`;
+    const ids = new Set<string>();
+    const paths = new Set<string>();
+    for (const [index, task] of input.tasks.entries()) {
+      if (!task.output_path.startsWith(prefix)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["tasks", index, "output_path"],
+          message: "output_path must be inside root",
+        });
+      }
+      if (ids.has(task.id)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["tasks", index, "id"],
+          message: "task ids must be unique",
+        });
+      }
+      if (paths.has(task.output_path)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["tasks", index, "output_path"],
+          message: "output paths must be unique",
+        });
+      }
+      ids.add(task.id);
+      paths.add(task.output_path);
     }
-    if (ids.has(task.id)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["tasks", index, "id"],
-        message: "task ids must be unique",
-      });
-    }
-    if (paths.has(task.output_path)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["tasks", index, "output_path"],
-        message: "output paths must be unique",
-      });
-    }
-    ids.add(task.id);
-    paths.add(task.output_path);
-  }
-});
+  });
 const delegateOutput = z.object({
   path: z.string(),
   task_id: z.string(),
@@ -157,10 +157,7 @@ const delegateOutput = z.object({
   paths: z.array(z.string()),
 });
 
-async function listFiles(
-  input: { path?: string },
-  { context }: { context: FileToolContext },
-) {
+async function listFiles(input: { path?: string }, { context }: { context: FileToolContext }) {
   const requestedPath = input.path || undefined;
   const rows = await listVirtualFiles(context.userId, context.conversationId, requestedPath);
   return {
@@ -232,7 +229,9 @@ async function acquireMutation(key: string): Promise<() => void> {
   await previous;
   return () => {
     release();
-    if (mutationTails.get(key) === current) mutationTails.delete(key);
+    if (mutationTails.get(key) === current) {
+      mutationTails.delete(key);
+    }
   };
 }
 
@@ -247,13 +246,27 @@ async function withMutation<T>(key: string, operation: () => Promise<T>): Promis
 
 function mimeFor(target: string): string {
   const extension = path.extname(target).toLowerCase();
-  if (extension === ".html" || extension === ".htm") return "text/html";
-  if (extension === ".css") return "text/css";
-  if (extension === ".js" || extension === ".mjs" || extension === ".ts") return "text/javascript";
-  if (extension === ".json") return "application/json";
-  if (extension === ".md" || extension === ".markdown") return "text/markdown";
-  if (extension === ".svg") return "image/svg+xml";
-  if (extension === ".xml") return "application/xml";
+  if (extension === ".html" || extension === ".htm") {
+    return "text/html";
+  }
+  if (extension === ".css") {
+    return "text/css";
+  }
+  if (extension === ".js" || extension === ".mjs" || extension === ".ts") {
+    return "text/javascript";
+  }
+  if (extension === ".json") {
+    return "application/json";
+  }
+  if (extension === ".md" || extension === ".markdown") {
+    return "text/markdown";
+  }
+  if (extension === ".svg") {
+    return "image/svg+xml";
+  }
+  if (extension === ".xml") {
+    return "application/xml";
+  }
   return "text/plain";
 }
 
@@ -272,9 +285,7 @@ function assertPlan(content: string): void {
   }
 }
 
-async function readAll(
-  reader: (offset: number) => Promise<Awaited<ReturnType<typeof readVirtualFile>>>,
-) {
+async function readAll(reader: (offset: number) => Promise<Awaited<ReturnType<typeof readVirtualFile>>>) {
   let offset = 1;
   let first: Awaited<ReturnType<typeof readVirtualFile>> | null = null;
   const chunks: string[] = [];
@@ -290,30 +301,29 @@ async function readAll(
 }
 
 function readCurrent(context: ArtifactToolContext, target: string) {
-  return readAll((offset) => readVirtualFile({
-    userId: context.userId,
-    conversationId: context.conversationId,
-    path: target,
-    offset,
-    limit: 400,
-  }));
+  return readAll((offset) =>
+    readVirtualFile({
+      userId: context.userId,
+      conversationId: context.conversationId,
+      path: target,
+      offset,
+      limit: 400,
+    }),
+  );
 }
 
 async function optionalCurrent(context: ArtifactToolContext, target: string) {
   try {
     return await readCurrent(context, target);
   } catch (error) {
-    if (error instanceof TransportError && error.status === 404) return null;
+    if (error instanceof TransportError && error.status === 404) {
+      return null;
+    }
     throw error;
   }
 }
 
-async function createTextChangeSet(input: {
-  target: string;
-  content: string;
-  expectedSha?: string;
-  context: ArtifactToolContext;
-}) {
+async function createTextChangeSet(input: { target: string; content: string; expectedSha?: string; context: ArtifactToolContext }) {
   const existing = await optionalCurrent(input.context, input.target);
   if (existing && !existing.writable) {
     throw new ToolBlockedError({
@@ -352,11 +362,10 @@ async function createTextChangeSet(input: {
   return { entry, changeSetId: changeSet.id };
 }
 
-async function writeFileUnlocked(
-  input: z.infer<typeof writeInput>,
-  { context }: { context: ArtifactToolContext },
-) {
-  if (planPath(input.path)) assertPlan(input.content);
+async function writeFileUnlocked(input: z.infer<typeof writeInput>, { context }: { context: ArtifactToolContext }) {
+  if (planPath(input.path)) {
+    assertPlan(input.content);
+  }
   const change = await createTextChangeSet({
     target: input.path,
     content: input.content,
@@ -364,7 +373,9 @@ async function writeFileUnlocked(
     context,
   });
   await promoteFileChangeSet({ userId: context.userId, changeSetId: change.changeSetId });
-  if (planPath(input.path)) await setActivePlanPath(context.conversationId, input.path);
+  if (planPath(input.path)) {
+    await setActivePlanPath(context.conversationId, input.path);
+  }
   return {
     path: change.entry.path,
     sha256: change.entry.sha256,
@@ -372,14 +383,8 @@ async function writeFileUnlocked(
   };
 }
 
-function writeFile(
-  input: z.infer<typeof writeInput>,
-  options: { context: ArtifactToolContext },
-) {
-  return withMutation(
-    `${options.context.userId}:${options.context.conversationId}:${input.path}`,
-    () => writeFileUnlocked(input, options),
-  );
+function writeFile(input: z.infer<typeof writeInput>, options: { context: ArtifactToolContext }) {
+  return withMutation(`${options.context.userId}:${options.context.conversationId}:${input.path}`, () => writeFileUnlocked(input, options));
 }
 
 function applyEdits(
@@ -389,18 +394,13 @@ function applyEdits(
   const ranges: Array<{ start: number; end: number; newText: string }> = [];
   for (const edit of edits) {
     const starts: number[] = [];
-    for (
-      let start = original.indexOf(edit.old_text);
-      start >= 0;
-      start = original.indexOf(edit.old_text, start + edit.old_text.length)
-    ) {
+    for (let start = original.indexOf(edit.old_text); start >= 0; start = original.indexOf(edit.old_text, start + edit.old_text.length)) {
       starts.push(start);
-      if (!edit.replace_all) break;
+      if (!edit.replace_all) {
+        break;
+      }
     }
-    if (
-      starts.length === 0
-      || (!edit.replace_all && starts[0] !== original.lastIndexOf(edit.old_text))
-    ) {
+    if (starts.length === 0 || (!edit.replace_all && starts[0] !== original.lastIndexOf(edit.old_text))) {
       throw new ToolBlockedError({
         code: "EDIT_TARGET_NOT_UNIQUE",
         message: "old_text must occur exactly once unless replace_all is true",
@@ -428,10 +428,7 @@ function applyEdits(
   return { content, ranges };
 }
 
-async function editFileUnlocked(
-  input: z.infer<typeof editInput>,
-  { context }: { context: ArtifactToolContext },
-): Promise<z.infer<typeof editOutput>> {
+async function editFileUnlocked(input: z.infer<typeof editInput>, { context }: { context: ArtifactToolContext }): Promise<z.infer<typeof editOutput>> {
   const current = await readCurrent(context, input.path);
   if (!current.writable) {
     throw new ToolBlockedError({
@@ -470,14 +467,8 @@ async function editFileUnlocked(
   };
 }
 
-function editFile(
-  input: z.infer<typeof editInput>,
-  options: { context: ArtifactToolContext },
-) {
-  return withMutation(
-    `${options.context.userId}:${options.context.conversationId}:${input.path}`,
-    () => editFileUnlocked(input, options),
-  );
+function editFile(input: z.infer<typeof editInput>, options: { context: ArtifactToolContext }) {
+  return withMutation(`${options.context.userId}:${options.context.conversationId}:${input.path}`, () => editFileUnlocked(input, options));
 }
 
 async function* delegateTasks(
@@ -495,7 +486,7 @@ async function* delegateTasks(
 ) {
   const root = `${input.root.replace(/\/+$/, "")}/`;
   const expectedPaths = input.tasks.map((item) => item.output_path);
-  const displayPath = expectedPaths[0]!;
+  const displayPath = expectedPaths[0];
   const changeSet = await createFileChangeSet({
     userId: context.userId,
     orgId: context.orgId,
@@ -532,11 +523,7 @@ async function* delegateTasks(
       done: 0,
       total: input.tasks.length,
     });
-    for await (const snapshot of pollTaskSnapshots(
-      task.id,
-      task.ownerRef,
-      abortSignal,
-    )) {
+    for await (const snapshot of pollTaskSnapshots(task.id, task.ownerRef, abortSignal)) {
       if (snapshot.status === "failed" || snapshot.status === "cancelled") {
         settled = true;
         await discardFileChangeSet({
@@ -544,10 +531,7 @@ async function* delegateTasks(
           changeSetId: changeSet.id,
         });
         yield toolFailed({
-          code:
-            snapshot.status === "cancelled"
-              ? "TASK_CANCELLED"
-              : "TASK_FAILED",
+          code: snapshot.status === "cancelled" ? "TASK_CANCELLED" : "TASK_FAILED",
           message: snapshot.error ?? `delegated file batch ${snapshot.status}`,
           retryable: snapshot.status === "failed",
           source: "executor",
@@ -567,14 +551,13 @@ async function* delegateTasks(
       const result = snapshot.result as { files?: unknown } | null;
       const resultFiles = Array.isArray(result?.files) ? result.files : [];
       const paths = resultFiles.flatMap((candidate) => {
-        if (!candidate || typeof candidate !== "object") return [];
+        if (!candidate || typeof candidate !== "object") {
+          return [];
+        }
         const outputPath = (candidate as { path?: unknown }).path;
         return typeof outputPath === "string" ? [outputPath] : [];
       });
-      if (
-        paths.length !== expectedPaths.length ||
-        expectedPaths.some((candidate) => !paths.includes(candidate))
-      ) {
+      if (paths.length !== expectedPaths.length || expectedPaths.some((candidate) => !paths.includes(candidate))) {
         settled = true;
         await discardFileChangeSet({
           userId: context.userId,
@@ -589,9 +572,8 @@ async function* delegateTasks(
         });
         return;
       }
-      await withMutation(
-        `${context.userId}:${context.conversationId}:${root}`,
-        () => promoteFileChangeSet({
+      await withMutation(`${context.userId}:${context.conversationId}:${root}`, () =>
+        promoteFileChangeSet({
           userId: context.userId,
           changeSetId: changeSet.id,
         }),
@@ -616,31 +598,39 @@ async function* delegateTasks(
   }
 }
 
-export function createFileToolManifests(
-  _mode: AgentMode,
-  textProvider: ChatProvider,
-) {
+const fileReadPolicy: Omit<AgentToolPolicy, "source"> = {
+  capability: "files",
+  effect: "read",
+  trust: "private-untrusted",
+  execution: "inline",
+  modes: ["normal", "plan"],
+};
+
+function artifactFilePolicy(effect: "write" | "update", modes: AgentMode[]) {
+  return {
+    capability: "files" as const,
+    effect,
+    trust: "closed" as const,
+    execution: "inline" as const,
+    modes,
+    uiKind: "artifact" as const,
+  };
+}
+
+export function createFileToolManifests(_mode: AgentMode, textProvider: ChatProvider) {
   return [
     defineAgentTool(
       "list_files",
       tool({
         description: "List files attached to the current conversation, including generated artifacts.",
         inputSchema: z.object({
-          path: z.string().max(512).optional().describe(
-            "Optional relative directory prefix. Omit or use an empty string to list all files.",
-          ),
+          path: z.string().max(512).optional().describe("Optional relative directory prefix. Omit or use an empty string to list all files."),
         }),
         outputSchema: listFilesOutputSchema,
         contextSchema: fileToolContextSchema,
         execute: listFiles,
       }),
-      {
-        capability: "files",
-        effect: "read",
-        trust: "private-untrusted",
-        execution: "inline",
-        modes: ["normal", "plan"],
-      },
+      fileReadPolicy,
       { summary: "List source files and generated artifacts attached to the conversation." },
     ),
     defineAgentTool(
@@ -648,27 +638,15 @@ export function createFileToolManifests(
       tool({
         description: "Read a bounded slice of a conversation file. Continue from next_offset when present.",
         inputSchema: z.object({
-          path: z.string().min(1).max(512).describe(
-            "Exact path returned by list_files or another file tool.",
-          ),
-          offset: z.number().int().min(1).default(1).describe(
-            "One-based starting line. Use next_offset from the previous result to continue.",
-          ),
-          limit: z.number().int().min(1).max(400).default(200).describe(
-            "Maximum number of lines to return.",
-          ),
+          path: z.string().min(1).max(512).describe("Exact path returned by list_files or another file tool."),
+          offset: z.number().int().min(1).default(1).describe("One-based starting line. Use next_offset from the previous result to continue."),
+          limit: z.number().int().min(1).max(400).default(200).describe("Maximum number of lines to return."),
         }),
         outputSchema: readFileOutputSchema,
         contextSchema: fileToolContextSchema,
         execute: readFile,
       }),
-      {
-        capability: "files",
-        effect: "read",
-        trust: "private-untrusted",
-        execution: "inline",
-        modes: ["normal", "plan"],
-      },
+      fileReadPolicy,
       { summary: "Read bounded slices of a conversation file." },
     ),
     defineAgentTool(
@@ -677,25 +655,15 @@ export function createFileToolManifests(
         description: "Search attached text files with a bounded regular expression scan.",
         inputSchema: z.object({
           pattern: z.string().min(1).max(500).describe("Regular expression to search for."),
-          path: z.string().max(512).optional().describe(
-            "Optional file or directory path. Omit or use an empty string to search all attached text files.",
-          ),
-          glob: z.string().max(120).optional().describe(
-            "Optional file glob such as '**/*.html'. Omit when no filename filter is needed.",
-          ),
+          path: z.string().max(512).optional().describe("Optional file or directory path. Omit or use an empty string to search all attached text files."),
+          glob: z.string().max(120).optional().describe("Optional file glob such as '**/*.html'. Omit when no filename filter is needed."),
         }),
         inputExamples: [{ input: { pattern: "pointerdown|touchstart", glob: "**/*.html" } }],
         outputSchema: searchFilesOutputSchema,
         contextSchema: fileToolContextSchema,
         execute: searchFiles,
       }),
-      {
-        capability: "files",
-        effect: "read",
-        trust: "private-untrusted",
-        execution: "inline",
-        modes: ["normal", "plan"],
-      },
+      fileReadPolicy,
       { summary: "Search attached text files by regular expression." },
     ),
     defineAgentTool(
@@ -703,49 +671,40 @@ export function createFileToolManifests(
       tool({
         description: "Write exact complete UTF-8 text to a relative virtual path and publish the new version immediately.",
         inputSchema: writeInput,
-        inputExamples: [{
-          input: {
-            path: "report.html",
-            content: "<!doctype html><html><body><main>Report</main></body></html>",
+        inputExamples: [
+          {
+            input: {
+              path: "report.html",
+              content: "<!doctype html><html><body><main>Report</main></body></html>",
+            },
           },
-        }],
+        ],
         outputSchema: fileOutput,
         contextSchema: artifactToolContextSchema,
         execute: writeFile,
       }),
-      {
-        capability: "files",
-        effect: "write",
-        trust: "closed",
-        execution: "inline",
-        modes: ["normal", "plan"],
-        uiKind: "artifact",
-      },
+      artifactFilePolicy("write", ["normal", "plan"]),
       { summary: "Write a complete text file." },
     ),
     defineAgentTool(
       "edit_file",
       tool({
-        description: "Atomically apply exact old_text/new_text replacements and publish immediately. Each old_text must be unique unless its optional replace_all flag is true.",
+        description:
+          "Atomically apply exact old_text/new_text replacements and publish immediately. Each old_text must be unique unless its optional replace_all flag is true.",
         inputSchema: editInput,
-        inputExamples: [{
-          input: {
-            path: "report.html",
-            edits: [{ old_text: "<main>Old</main>", new_text: "<main>New</main>" }],
+        inputExamples: [
+          {
+            input: {
+              path: "report.html",
+              edits: [{ old_text: "<main>Old</main>", new_text: "<main>New</main>" }],
+            },
           },
-        }],
+        ],
         outputSchema: editOutput,
         contextSchema: artifactToolContextSchema,
         execute: editFile,
       }),
-      {
-        capability: "files",
-        effect: "update",
-        trust: "closed",
-        execution: "inline",
-        modes: ["normal"],
-        uiKind: "artifact",
-      },
+      artifactFilePolicy("update", ["normal"]),
       { summary: "Precisely edit a text file." },
     ),
     defineAgentTool(
@@ -756,23 +715,24 @@ export function createFileToolManifests(
           "Use only when genuinely independent complete outputs exceed the primary model's practical output or context budget. " +
           "This tool does not compose files or understand HTML structure.",
         inputSchema: delegateInput,
-        inputExamples: [{
-          input: {
-            root: "course",
-            shared_context: "Use the same terminology and navigation labels in every page.",
-            tasks: [{
-              id: "chapter-one",
-              instruction: "Create the complete first chapter page.",
-              output_path: "course/chapter-one.html",
-            }],
+        inputExamples: [
+          {
+            input: {
+              root: "course",
+              shared_context: "Use the same terminology and navigation labels in every page.",
+              tasks: [
+                {
+                  id: "chapter-one",
+                  instruction: "Create the complete first chapter page.",
+                  output_path: "course/chapter-one.html",
+                },
+              ],
+            },
           },
-        }],
+        ],
         outputSchema: delegateOutput,
         contextSchema: artifactToolContextSchema,
-        execute: ((
-          input: z.infer<typeof delegateInput>,
-          options: Parameters<typeof delegateTasks>[1],
-        ) => delegateTasks(input, options, textProvider)) as never,
+        execute: ((input: z.infer<typeof delegateInput>, options: Parameters<typeof delegateTasks>[1]) => delegateTasks(input, options, textProvider)) as never,
       }),
       {
         capability: "files",
@@ -785,10 +745,7 @@ export function createFileToolManifests(
       {
         summary: "Materialize independent file tasks with durable bounded fan-out.",
         parallelizable: true,
-        constraints: [
-          "Use direct write_file/edit_file for simple or sequential work.",
-          "Every task must own a unique output path.",
-        ],
+        constraints: ["Use direct write_file/edit_file for simple or sequential work.", "Every task must own a unique output path."],
       },
     ),
   ];

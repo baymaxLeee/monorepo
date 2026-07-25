@@ -158,7 +158,9 @@ export function AppsRegistryPage() {
   }
 
   async function remove(app: AppEntry) {
-    if (!window.confirm(`确认删除应用「${app.title}」？`)) return;
+    if (!window.confirm(`确认删除应用「${app.title}」？`)) {
+      return;
+    }
     await deleteApp(app.id);
     toast.success("应用已删除");
     load();
@@ -191,9 +193,7 @@ export function AppsRegistryPage() {
       <Card>
         <CardHeader>
           <CardTitle>全部应用</CardTitle>
-          <CardDescription>
-            {loading ? "加载中…" : apps ? `共 ${apps.length} 个` : "暂无数据"}
-          </CardDescription>
+          <CardDescription>{loading ? "加载中…" : apps ? `共 ${apps.length} 个` : "暂无数据"}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -227,30 +227,17 @@ export function AppsRegistryPage() {
                     <TableCell className="text-center">
                       <Switch
                         checked={!app.requires_admin}
-                        onCheckedChange={(open) =>
-                          patch(app, { requires_admin: !open })
-                        }
+                        onCheckedChange={(open) => patch(app, { requires_admin: !open })}
                       />
                     </TableCell>
                     <TableCell className="text-center">
-                      <Switch
-                        checked={app.is_enabled}
-                        onCheckedChange={(v) => patch(app, { is_enabled: v })}
-                      />
+                      <Switch checked={app.is_enabled} onCheckedChange={(v) => patch(app, { is_enabled: v })} />
                     </TableCell>
                     <TableCell className="space-x-1 text-right">
-                      <Button
-                        variant="link"
-                        size="sm"
-                        onClick={() => openEdit(app)}
-                      >
+                      <Button variant="link" size="sm" onClick={() => openEdit(app)}>
                         编辑
                       </Button>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        onClick={() => remove(app)}
-                      >
+                      <Button variant="link" size="sm" onClick={() => remove(app)}>
                         删除
                       </Button>
                     </TableCell>
@@ -297,11 +284,7 @@ function AppFormDialog({
   open: boolean;
   title: string;
 }) {
-  const textField = (
-    name: keyof AppValues,
-    label: string,
-    opts: { disabled?: boolean; placeholder?: string } = {},
-  ) => (
+  const textField = (name: keyof AppValues, label: string, opts: { disabled?: boolean; placeholder?: string } = {}) => (
     <FormField
       control={form.control}
       name={name}
@@ -327,9 +310,7 @@ function AppFormDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            维护微前端入口的挂载信息与可见性。
-          </DialogDescription>
+          <DialogDescription>维护微前端入口的挂载信息与可见性。</DialogDescription>
         </DialogHeader>
         <DialogBody>
           <Form {...form}>
@@ -359,10 +340,7 @@ function AppFormDialog({
                   render={({ field }) => (
                     <Field>
                       <FieldLabel className="flex items-center gap-2">
-                        <Switch
-                          checked={!field.value}
-                          onCheckedChange={(open) => field.onChange(!open)}
-                        />
+                        <Switch checked={!field.value} onCheckedChange={(open) => field.onChange(!open)} />
                         对普通用户开放
                       </FieldLabel>
                     </Field>
@@ -374,10 +352,7 @@ function AppFormDialog({
                   render={({ field }) => (
                     <Field>
                       <FieldLabel className="flex items-center gap-2">
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
                         启用
                       </FieldLabel>
                     </Field>
@@ -388,18 +363,10 @@ function AppFormDialog({
           </Form>
         </DialogBody>
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button
-            type="submit"
-            form="app-registry-form"
-            disabled={form.formState.isSubmitting}
-          >
+          <Button type="submit" form="app-registry-form" disabled={form.formState.isSubmitting}>
             保存
           </Button>
         </DialogFooter>
