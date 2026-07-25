@@ -55,8 +55,8 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   artifact shell 或维护 verification 状态机，成功批次直接原子发布。
 - HTML 类型与生成规模正交。报告、动态 Dashboard、H5 游戏、模拟器和互动课件均可
   使用完整 JavaScript/DOM/Canvas/SVG/WebGL/媒体能力；direct 与 delegated 的差异
-  只是谁 materialize 文件，不改变浏览器能力。安全边界由前端 opaque-origin iframe
-  sandbox 提供，不由 Executor sanitizer 或格式白名单提供。
+  只是谁 materialize 文件，不改变浏览器能力。前端使用普通 iframe 预览，不通过
+  sandbox allow-list、Executor sanitizer 或格式白名单裁剪能力。
 - change set baseline、同路径 mutation queue 与发布 advisory lock 均以 deliverable
   root 为粒度；并行 Markdown、HTML、图片和视频互不等待。
 - `create_video_production` 的产品语义是“创建视频制片任务”，不是同步生成最终视频。初步分镜与

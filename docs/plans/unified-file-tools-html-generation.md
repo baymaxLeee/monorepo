@@ -158,8 +158,7 @@ primary proves independent outputs exceed its practical budget
 
 - [x] 删除 delegated HTML 的静态 sanitizer；模型输出保留完整 HTML/CSS/JS。
 - [x] 删除无法覆盖真实浏览器行为且会产生错误置信度的静态 HTML validator。
-- [x] File Artifact iframe 开放脚本、表单、modal、pointer lock、下载与 sandbox 内
-  popup，同时保持 opaque origin，不开放 `allow-same-origin` 或顶层导航。
+- [x] File Artifact 使用普通 iframe，不以 sandbox allow-list 裁剪浏览器能力。
 - [x] 更新生成指令和当前服务文档，明确报告、Dashboard、H5 游戏和互动课件共用
   同一套 direct/delegated file tools。
 - [x] 重新运行 affected lint/build、根级 lint 和 `git diff --check`。

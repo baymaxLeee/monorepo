@@ -192,7 +192,6 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
             mimeType={file.mime_type}
             content={file.content}
             src={previewUrl}
-            enableHtmlRuntime
             showHeader={false}
             className="h-full min-h-0 overflow-hidden rounded-none border-0 bg-transparent shadow-none [&>div]:min-h-0 [&>div]:flex-1 [&>div]:overflow-y-auto [&_iframe]:h-full [&_iframe]:min-h-0"
           />

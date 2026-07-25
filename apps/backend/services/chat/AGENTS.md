@@ -108,8 +108,8 @@ observability in PostgreSQL and consumes admin (providers), knowledge
 - HTML remains a complete browser artifact in both paths. Direct and delegated
   output may use scripts, modules, dynamic DOM, Canvas/SVG/WebGL, forms, media,
   workers, and external runtimes. Capability is never inferred from page count.
-  Preview isolation comes from an opaque-origin iframe sandbox with scripts
-  enabled, not from stripping browser features out of generated content.
+  Preview uses an ordinary iframe without a sandbox capability allow-list; the
+  host must not rewrite, sanitize, or selectively disable browser features.
 - Every successful `write_file`/`edit_file` is promoted immediately and can be
   previewed without a verification state. The harness does not run a dedicated
   HTML validation or repair workflow.

@@ -31,10 +31,9 @@
 - `write_file`/`edit_file`/`delegate_tasks` 的官方 tool output 直接携带 path 和
   task progress。Markdown/Plan 渲染 path 卡片；委派任务在同一 tool part 上增量更新
   `done`/`total`。写入或编辑成功的 HTML 立即显示可预览入口，不等待额外校验状态。
-- HTML artifact 使用独立右侧 sandbox iframe，开放脚本、表单、modal、pointer lock、
-  下载和 sandbox 内 popup，以支持动态 Dashboard、H5 游戏和互动课件；不开放
-  `allow-same-origin` 或顶层导航，因此生成代码运行在 opaque origin，不能接触宿主
-  应用凭据和 DOM。完整正文经 chat 的鉴权 file facade 按需加载，不进入聊天消息。
+- HTML artifact 使用独立右侧普通 iframe，按浏览器原生语义开放脚本、模块、表单、
+  存储、导航、Canvas/WebGL、Worker、媒体和交互能力，不维护 sandbox allow-list。
+  完整正文经 chat 的鉴权 file facade 按需加载，不进入聊天消息。
   Markdown path 在同一面板只读渲染。
 - 视频工具在进入耐久审批点后返回普通完成态并结束 SSE。右侧导演工作台按
   production id 读取 Executor 投影，展示并结构化编辑分镜，预览/重拍/选择每镜头

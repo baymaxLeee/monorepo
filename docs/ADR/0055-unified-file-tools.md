@@ -80,10 +80,9 @@ baseline at promotion time.
     Direct and delegated output may use JavaScript, modules, dynamic DOM,
     Canvas, SVG, WebGL, forms, media, external runtimes, and browser events.
     The generation harness must not strip those capabilities or reject them as
-    validation errors. Untrusted execution is isolated by an iframe sandbox
-    that grants scripts and interaction capabilities but deliberately omits
-    `allow-same-origin` and top-level navigation. The opaque origin, rather than
-    content rewriting, is the security boundary.
+    validation errors. Preview uses an ordinary iframe without a sandbox
+    capability allow-list; the demo-phase host does not rewrite or selectively
+    disable generated browser behavior.
 
 ## Consequences
 
@@ -118,5 +117,3 @@ retained as a dual runtime.
 - [Claude Code tools](https://code.claude.com/docs/en/tools-reference)
 - [Claude Agent SDK loop](https://code.claude.com/docs/en/agent-sdk/agent-loop)
 - [Cursor agent best practices](https://cursor.com/blog/agent-best-practices)
-- [WHATWG HTML iframe sandbox](https://html.spec.whatwg.org/multipage/iframe-embed-object.html)
-- [MDN iframe sandbox tokens](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe)

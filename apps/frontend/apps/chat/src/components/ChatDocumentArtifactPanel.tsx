@@ -353,7 +353,6 @@ export function ChatDocumentArtifactPanel({
             mimeType={artifact.mime_type}
             content={artifact.content_md}
             src={previewSrc ?? undefined}
-            enableHtmlRuntime={artifact.mime_type === "text/html"}
             showHeader={false}
             className="h-full min-h-0 overflow-hidden rounded-none border-0 bg-transparent shadow-none [&>div]:min-h-0 [&>div]:flex-1 [&>div]:overflow-y-auto [&>div]:overscroll-contain [&>div]:[scrollbar-width:none] [&>div]:[-ms-overflow-style:none] [&>div::-webkit-scrollbar]:hidden [&_iframe]:h-full [&_iframe]:min-h-0 [&_pre]:min-h-0 [&_pre]:overflow-visible"
           />

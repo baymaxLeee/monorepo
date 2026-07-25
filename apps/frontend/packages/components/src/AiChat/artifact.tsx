@@ -172,7 +172,6 @@ export type ArtifactPreviewProps = HTMLAttributes<HTMLDivElement> & {
   mimeType?: string;
   actions?: ReactNode;
   showHeader?: boolean;
-  enableHtmlRuntime?: boolean;
 };
 
 function resolveArtifactPreviewKind(
@@ -206,7 +205,6 @@ export function ArtifactPreview({
   mimeType,
   actions,
   showHeader = true,
-  enableHtmlRuntime = false,
   ...props
 }: ArtifactPreviewProps) {
   const resolvedKind = resolveArtifactPreviewKind(kind, mimeType, filename);
@@ -256,14 +254,7 @@ export function ArtifactPreview({
         ) : resolvedKind === "html" && safeSrc ? (
           <iframe
             title={title}
-            sandbox={
-              enableHtmlRuntime
-                ? "allow-scripts allow-forms allow-modals allow-pointer-lock allow-orientation-lock allow-downloads allow-popups allow-presentation"
-                : ""
-            }
-            allow="autoplay; fullscreen; gamepad; picture-in-picture"
             allowFullScreen
-            referrerPolicy="no-referrer"
             src={safeSrc}
             className="h-full min-h-[60svh] w-full bg-white"
           />

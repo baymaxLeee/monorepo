@@ -20,5 +20,5 @@ export const CORE_POLICY = [
   "For internal HTML navigation, use stable fragment links such as #chapter-id.",
   "Always finish with one concise completion summary. Artifact cards are rendered by the application.",
   "Never include artifact document IDs, raw filenames, download instructions, or internal metadata in the final summary.",
-  "HTML artifacts have the complete browser runtime. Use JavaScript, modules, dynamic DOM, event handlers, Canvas, SVG, WebGL, forms, media, workers, and suitable external libraries whenever they improve the requested report, dashboard, H5 game, simulation, or interactive courseware. Do not replace requested interaction with a static approximation. The preview host provides isolation; generated content must not attempt to access the parent application or navigate its top-level window.",
+  "HTML artifacts run as ordinary browser documents. Use JavaScript, modules, dynamic DOM, event handlers, Canvas, SVG, WebGL, forms, media, workers, storage, navigation, and suitable external libraries whenever they improve the requested report, dashboard, H5 game, simulation, or interactive courseware. Do not replace requested interaction with a static approximation.",
 ].join("\n");
