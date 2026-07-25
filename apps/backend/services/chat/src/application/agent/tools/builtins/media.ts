@@ -75,9 +75,13 @@ const VIDEO_POST_PLANNING_STAGES = new Set([
 ]);
 
 const videoCharacterInputSchema = z.object({
-  name: z.string().min(1).max(40),
-  appearance: z.string().min(1).max(400),
-  reference_document_id: z.string().max(32).optional(),
+  name: z.string().min(1).max(40).describe("Stable character name referenced by shot.character_names."),
+  appearance: z.string().min(1).max(400).describe("Persistent visual identity and wardrobe description."),
+  reference_document_id: z
+    .string()
+    .max(32)
+    .optional()
+    .describe("Optional conversation image document id used as the visual reference."),
 });
 
 const videoShotInputSchema = z.object({
@@ -89,12 +93,29 @@ const videoShotInputSchema = z.object({
 });
 
 const createVideoProductionInputSchema = z.object({
-  title: z.string().min(1).max(120),
-  creative_brief: z.string().min(1).max(4_000),
+  title: z.string().min(1).max(120).describe("User-visible production title."),
+  creative_brief: z
+    .string()
+    .min(1)
+    .max(4_000)
+    .describe("Complete creative intent, audience, narrative, visual direction, and constraints."),
   plan: z.object({
-    target_duration_seconds: z.number().int().min(VIDEO_TARGET_MIN_S).max(VIDEO_TARGET_MAX_S),
+    target_duration_seconds: z
+      .number()
+      .int()
+      .min(VIDEO_TARGET_MIN_S)
+      .max(VIDEO_TARGET_MAX_S)
+      .describe("Exact total duration; it must equal the sum of every shot.seconds."),
     logline: z.string().min(1).max(240), motif: z.string().min(1).max(160), style_bible: z.string().min(1).max(240), setting_bible: z.string().min(1).max(240),
-    characters: z.array(videoCharacterInputSchema).max(3), shots: z.array(videoShotInputSchema).min(1).max(12),
+    characters: z
+      .array(videoCharacterInputSchema)
+      .max(3)
+      .describe("Characters used by shots; use an empty array when no recurring character exists."),
+    shots: z
+      .array(videoShotInputSchema)
+      .min(1)
+      .max(12)
+      .describe("Complete ordered generation-shot list. Each shot is one provider generation call."),
   }).superRefine((plan, ctx) => {
     const names = new Set(plan.characters.map((character) => character.name));
     if (names.size !== plan.characters.length) ctx.addIssue({ code: "custom", path: ["characters"], message: "character names must be unique" });
@@ -480,8 +501,17 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
         tool({
           description: "Generate and persist one or more images from detailed visual prompts as one gallery batch.",
           inputSchema: z.object({
-            prompts: z.array(z.string().min(1).max(4_000)).min(1).max(6),
+            prompts: z
+              .array(z.string().min(1).max(4_000))
+              .min(1)
+              .max(6)
+              .describe("One complete visual prompt per requested image; all prompts run as one batch."),
           }),
+          inputExamples: [{
+            input: {
+              prompts: ["Editorial isometric illustration of an AI agent tool loop, dark navy background, cyan accents, no text"],
+            },
+          }],
           outputSchema: imageOutputSchema,
           contextSchema: mediaToolContextSchema,
           execute: (input, options) => generateImages(input, options, providers.imageProvider!),

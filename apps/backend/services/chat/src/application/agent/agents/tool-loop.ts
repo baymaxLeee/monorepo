@@ -1,4 +1,10 @@
-import { isStepCount, ToolLoopAgent, wrapLanguageModel } from "ai";
+import {
+  addToolInputExamplesMiddleware,
+  InvalidToolInputError,
+  isStepCount,
+  ToolLoopAgent,
+  wrapLanguageModel,
+} from "ai";
 import type { ToolSet } from "ai";
 import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
@@ -10,6 +16,7 @@ import {
   captureModelStepContext,
   finishModelStep,
   extractUsageTokens,
+  recordRejectedToolCall,
   recordToolEnd,
   recordToolStart,
   startModelStep,
@@ -176,7 +183,11 @@ export async function createToolLoopAgent(
   };
   const defaultModel = wrapLanguageModel({
     model: providerModel,
-    middleware: [contextCaptureMiddleware, createToolBatchPolicyMiddleware(input.mode)],
+    middleware: [
+      addToolInputExamplesMiddleware(),
+      contextCaptureMiddleware,
+      createToolBatchPolicyMiddleware(input.mode),
+    ],
   });
   const toolApprovalSecret = getSettings().toolApprovalSecret;
   const loadSkillActiveTools = resolvedTools.activeTools.filter((name) => name !== "load_skill");
@@ -191,6 +202,23 @@ export async function createToolLoopAgent(
     toolOrder: [...resolvedTools.activeTools].sort(),
     toolApproval: createToolApprovalPolicy(input.mode),
     stopWhen: isStepCount(20),
+    repairToolCall: async ({ toolCall, error }) => {
+      await observe(
+        "record rejected tool call",
+        recordRejectedToolCall({
+          runId: input.runId,
+          toolCallId: toolCall.toolCallId,
+          stepNumber: currentStepNumber,
+          toolName: toolCall.toolName,
+          toolInput: toolCall.input,
+          code: InvalidToolInputError.isInstance(error)
+            ? "INVALID_TOOL_INPUT"
+            : "NO_SUCH_TOOL",
+          error,
+        }),
+      );
+      return null;
+    },
     prepareCall: (settings) => Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
     prepareStep: ({ runtimeContext: stepContext, steps, initialInstructions }) => {
       const orchestration = deriveOrchestrationState(orchestrationSeed, steps);
@@ -300,22 +328,28 @@ export async function createToolLoopAgent(
       );
     },
     onToolExecutionEnd: (event) => {
-      const success = event.toolOutput.type === "tool-result";
-      const outcome = success && isToolOutcome(event.toolOutput.output) ? event.toolOutput.output : null;
+      const executionSucceeded = event.toolOutput.type === "tool-result";
+      const outcome = executionSucceeded && isToolOutcome(event.toolOutput.output)
+        ? event.toolOutput.output
+        : null;
+      const semanticSuccess = executionSucceeded && outcome?.ok !== false;
+      const failure = executionSucceeded
+        ? (outcome?.ok === false ? outcome.error : undefined)
+        : event.toolOutput.error;
       const span = toolSpans.get(event.toolCall.toolCallId);
       if (span) {
         toolSpans.delete(event.toolCall.toolCallId);
         finishSpan(
           span,
           {
-            "agent.tool_success": success,
+            "agent.tool_success": semanticSuccess,
             "agent.tool_duration_ms": event.toolExecutionMs,
             ...(outcome ? { "agent.tool_outcome_status": outcome.status } : {}),
             ...(outcome && outcome.ok === false
               ? { "agent.tool_retryable": outcome.error.retryable }
               : {}),
           },
-          success ? undefined : event.toolOutput.error,
+          failure,
         );
       }
       return observe(
@@ -323,9 +357,9 @@ export async function createToolLoopAgent(
         recordToolEnd({
           toolCallId: event.toolCall.toolCallId,
           toolName: event.toolCall.toolName,
-          success,
-          output: success ? event.toolOutput.output : undefined,
-          error: success ? undefined : event.toolOutput.error,
+          success: executionSucceeded,
+          output: executionSucceeded ? event.toolOutput.output : undefined,
+          error: executionSucceeded ? undefined : event.toolOutput.error,
           durationMs: event.toolExecutionMs,
         }),
       );

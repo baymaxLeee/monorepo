@@ -76,7 +76,10 @@ async function* wrapAsyncToolResult(
   }
 }
 
-function wrapToolDefinition(definition: ToolSet[string]): ToolSet[string] {
+function wrapToolDefinition(
+  definition: ToolSet[string],
+  options: { strictByDefault: boolean },
+): ToolSet[string] {
   const candidate = definition as ToolSet[string] & {
     outputSchema?: z.ZodType<unknown>;
     execute?: (
@@ -108,6 +111,9 @@ function wrapToolDefinition(definition: ToolSet[string]): ToolSet[string] {
 
   return {
     ...candidate,
+    ...(options.strictByDefault && "inputSchema" in candidate
+      ? { strict: candidate.strict ?? true }
+      : {}),
     outputSchema: toolOutcomeSchema(dataSchema),
     ...(execute
       ? {
@@ -161,7 +167,9 @@ export function defineAgentTool(
   return {
     name,
     tool: {
-      ...wrapToolDefinition(definition),
+      ...wrapToolDefinition(definition, {
+        strictByDefault: resolvedPolicy.source === "builtin",
+      }),
       metadata: {
         ...(definition.metadata ?? {}),
         agent: agentMetadata,

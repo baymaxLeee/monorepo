@@ -81,6 +81,16 @@ messages; tool contracts belong in tools.
    explicit refresh/re-search or an explicit latest/current request unsupported
    by the existing evidence.
 
+8. **Historical file mutations retain outcomes, not payload contracts.**
+   Persisted UIMessage remains unchanged for UI and audit. On projection into a
+   new run, completed `write_file`, `edit_file`, and `delegate_tasks` parts are
+   reduced to path, SHA, task id, replacement count, and failure facts. Their
+   raw content and edit arguments are source data already available through
+   `read_file`, are often very large, and may represent a superseded tool
+   schema. Invalid tool-name and tool-input failures are omitted from later
+   runs. The current ToolLoopAgent run still receives native tool calls and
+   failures unchanged between steps.
+
 ## Consequences
 
 - The system prefix is smaller and more stable, with clearer trust boundaries.

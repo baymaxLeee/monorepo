@@ -16,13 +16,71 @@ import {
 } from "./file-parts.js";
 import { escapeXmlText } from "./instructions/xml.js";
 import { estimateTextTokens } from "./token-estimate.js";
-import { toolOutcomeData } from "../tools/outcome.js";
+import { isToolOutcome, toolOutcomeData } from "../tools/outcome.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
 const COMPACTION_MESSAGE_RESERVE_TOKENS = 6_000;
 // The original stays in Knowledge; only model-bound bytes are normalized.
 const VISION_MAX_DIM = 1536;
+
+const HISTORICAL_FILE_MUTATIONS = new Set([
+  "tool-write_file",
+  "tool-edit_file",
+  "tool-delegate_tasks",
+]);
+
+function compactHistoricalToolInputs(messages: AnyUIMessage[]): AnyUIMessage[] {
+  return messages.map((message) => ({
+    ...message,
+    parts: message.parts.flatMap((part): AnyUIMessage["parts"] => {
+      if (part.type.startsWith("tool-") && "state" in part && part.state === "output-error") {
+        const errorText = "errorText" in part ? part.errorText : undefined;
+        if (
+          typeof errorText === "string"
+          && (
+            errorText.includes("AI_InvalidToolInputError")
+            || errorText.includes("AI_NoSuchToolError")
+          )
+        ) {
+          return [];
+        }
+      }
+      if (!HISTORICAL_FILE_MUTATIONS.has(part.type) || !("state" in part)) return [part];
+      const name = part.type.slice(5);
+      if (part.state === "output-available" && "output" in part) {
+        const outcome = isToolOutcome(part.output) ? part.output : null;
+        const data = toolOutcomeData(part.output);
+        const value = data && typeof data === "object"
+          ? data as Record<string, unknown>
+          : {};
+        const summary = {
+          status: outcome?.status ?? "completed",
+          path: value.path,
+          paths: value.paths,
+          sha256: value.sha256,
+          task_id: value.task_id,
+          replacements: value.replacements,
+          error: outcome?.ok === false ? outcome.error : undefined,
+        };
+        return [{
+          type: "text",
+          text: `<historical_tool_result name="${name}">${escapeXmlText(JSON.stringify(summary))}</historical_tool_result>`,
+        }];
+      }
+      if (part.state === "output-error") {
+        const errorText = "errorText" in part && typeof part.errorText === "string"
+          ? part.errorText.slice(0, 500)
+          : "tool call failed";
+        return [{
+          type: "text",
+          text: `<historical_tool_result name="${name}" status="failed">${escapeXmlText(errorText)}</historical_tool_result>`,
+        }];
+      }
+      return [part];
+    }),
+  })) as AnyUIMessage[];
+}
 
 function textParts(message: AnyUIMessage): string {
   return message.parts
@@ -197,6 +255,7 @@ export async function projectModelContext(input: {
   abortSignal: AbortSignal;
   messages: AnyUIMessage[];
 }): Promise<{ messages: ModelMessage[]; compactionUsage: UsageTokens }> {
+  const projectedMessages = compactHistoricalToolInputs(input.messages);
   const inputTokenBudget = effectiveModelInputWindow(input.provider);
   const [stored] = await getDb()
     .select()
@@ -207,15 +266,15 @@ export async function projectModelContext(input: {
     inputTokenBudget - COMPACTION_MESSAGE_RESERVE_TOKENS,
   );
   let recentTokens = 0;
-  let splitAt = input.messages.length;
+  let splitAt = projectedMessages.length;
   while (splitAt > 0) {
-    const next = estimatedMessageTokens(input.messages[splitAt - 1]!);
-    if (recentTokens + next > recentTokenBudget && splitAt < input.messages.length) break;
+    const next = estimatedMessageTokens(projectedMessages[splitAt - 1]!);
+    if (recentTokens + next > recentTokenBudget && splitAt < projectedMessages.length) break;
     recentTokens += next;
     splitAt -= 1;
   }
-  const older = input.messages.slice(0, splitAt);
-  const recent = input.messages.slice(splitAt);
+  const older = projectedMessages.slice(0, splitAt);
+  const recent = projectedMessages.slice(splitAt);
 
   let compactionState: CompactionState | null = null;
   let compactionCoveredThroughMessageId: string | null = null;

@@ -294,13 +294,34 @@ export function createSearchToolManifests() {
         description:
           "Search current or public web information and return titled sources with URLs. Set category to 'news' for current events/trends or 'research_paper' for academic and technical papers; use time_range or start_date/end_date to bound recency.",
         inputSchema: z.object({
-          query: z.string().min(1).max(2_000),
-          max_results: z.number().int().min(1).max(8).default(5),
-          category: z.enum(["news", "research_paper"]).optional(),
-          time_range: z.enum(["day", "week", "month", "year"]).optional(),
-          start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-          end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          query: z.string().min(1).max(2_000).describe("Focused natural-language search query."),
+          max_results: z.number().int().min(1).max(8).default(5).describe("Maximum sources to return."),
+          category: z
+            .enum(["news", "research_paper"])
+            .optional()
+            .describe("Optional source category; omit for general web search."),
+          time_range: z
+            .enum(["day", "week", "month", "year"])
+            .optional()
+            .describe("Relative freshness window. Do not combine with explicit start_date/end_date."),
+          start_date: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .optional()
+            .describe("Optional inclusive publication start date in YYYY-MM-DD format."),
+          end_date: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .optional()
+            .describe("Optional inclusive publication end date in YYYY-MM-DD format."),
         }),
+        inputExamples: [{
+          input: {
+            query: "Vercel AI SDK tool calling reliability",
+            category: "research_paper",
+            max_results: 5,
+          },
+        }],
         outputSchema: webSearchOutputSchema,
         execute: webSearch,
       }),
@@ -319,8 +340,8 @@ export function createSearchToolManifests() {
         description:
           "Search the team's shared knowledge base for uploaded documents, past incident write-ups, runbooks, internal policies, and organization-specific facts.",
         inputSchema: z.object({
-          query: z.string().min(1).max(2_000),
-          top_k: z.number().int().min(1).max(20).optional(),
+          query: z.string().min(1).max(2_000).describe("Focused semantic query for private knowledge."),
+          top_k: z.number().int().min(1).max(20).optional().describe("Optional maximum passage count."),
         }),
         outputSchema: knowledgeSearchOutputSchema,
         contextSchema: knowledgeSearchToolContextSchema,

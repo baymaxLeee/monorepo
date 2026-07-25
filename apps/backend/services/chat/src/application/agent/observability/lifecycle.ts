@@ -102,12 +102,31 @@ export async function finishModelStep(input: { runId: string; stepNumber: number
 }
 
 function sanitizeToolInput(toolName: string, input: unknown): unknown {
+  const truncate = (value: string) =>
+    value.length <= 400
+      ? value
+      : `${value.slice(0, 400).trimEnd()}\n...[truncated ${value.length} chars]`;
+  if (typeof input === "string") return truncate(input);
   if (typeof input !== "object" || input == null) return input;
-  const field = toolName === "write_file" ? "content" : toolName === "edit_file" ? "edits" : null;
-  if (!field) return input;
-  const value = (input as Record<string, unknown>)[field];
-  if (typeof value !== "string" || value.length <= 400) return input;
-  return { ...(input as Record<string, unknown>), [field]: `${value.slice(0, 400).trimEnd()}\n...[truncated ${value.length} chars]` };
+  const source = input as Record<string, unknown>;
+  if (toolName === "write_file" && typeof source.content === "string") {
+    return { ...source, content: truncate(source.content) };
+  }
+  if (toolName === "edit_file" && Array.isArray(source.edits)) {
+    return {
+      ...source,
+      edits: source.edits.slice(0, 100).map((edit) => {
+        if (!edit || typeof edit !== "object") return edit;
+        const item = edit as Record<string, unknown>;
+        return {
+          ...item,
+          ...(typeof item.old_text === "string" ? { old_text: truncate(item.old_text) } : {}),
+          ...(typeof item.new_text === "string" ? { new_text: truncate(item.new_text) } : {}),
+        };
+      }),
+    };
+  }
+  return input;
 }
 
 export async function recordToolStart(input: { runId: string; toolCallId: string; stepNumber: number; toolName: string; toolInput: unknown }): Promise<void> {
@@ -127,6 +146,31 @@ export async function recordToolEnd(input: { toolCallId: string; toolName: strin
         ? undefined
         : input.error ?? (outcome && outcome.ok === false ? outcome.error.message : input.output),
     durationMs: Math.max(0, Math.round(input.durationMs)),
+  });
+}
+
+export async function recordRejectedToolCall(input: {
+  runId: string;
+  toolCallId: string;
+  stepNumber: number;
+  toolName: string;
+  toolInput: unknown;
+  code: "INVALID_TOOL_INPUT" | "NO_SUCH_TOOL";
+  error: unknown;
+}): Promise<void> {
+  await recordToolStart({
+    runId: input.runId,
+    toolCallId: input.toolCallId,
+    stepNumber: input.stepNumber,
+    toolName: input.toolName,
+    toolInput: input.toolInput,
+  });
+  const message = input.error instanceof Error ? input.error.message : String(input.error);
+  await recordToolCallFinish({
+    toolCallId: input.toolCallId,
+    status: "failed",
+    error: `${input.code}: ${message}`.slice(0, 2_000),
+    durationMs: 0,
   });
 }
 

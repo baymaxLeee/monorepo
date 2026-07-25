@@ -28,6 +28,11 @@ observability in PostgreSQL and consumes admin (providers), knowledge
   input, and protocol failures retain native control flow. Full failed outcomes
   persist in `output_json` with a readable error summary. Do not add automatic
   retry to the wrapper.
+- Built-in function tools use schema field descriptions, strict calling, and
+  compact input examples instead of duplicating payload contracts in the system
+  prompt. `repairToolCall` records invalid names/inputs and returns `null`; it
+  must not invoke a hidden repair model or rewrite arguments. The primary agent
+  receives the native rejection and may correct the call in its next step.
 - Tool data and progress schemas contain domain payload only. Use
   `toolCompleted`, `toolRunning`, `toolPartial`, `toolBlocked`, or `toolFailed`;
   never repeat protocol-level `ok/status` inside `data` or `progress`.

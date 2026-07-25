@@ -53,6 +53,13 @@ tool call. The runtime must not make that product decision through hidden retrie
 10. Executor Workflow start failures mark the inserted task failed immediately.
     Chat performs one dispatch attempt; a later attempt is a new visible tool
     call with a new owner reference chosen by the primary agent.
+11. Invalid tool names and inputs remain AI SDK native control-flow failures
+    because they occur before `execute` and therefore before the ToolOutcome
+    boundary. The runtime uses `repairToolCall` only as a rejection-observation
+    hook and returns `null`: it records the bounded raw input and validation
+    error, but does not call another model, rewrite arguments, or execute a
+    hidden retry. The primary ToolLoopAgent observes the native failure and
+    decides whether to issue a corrected call in the next step.
 
 ## Consequences
 

@@ -92,8 +92,15 @@ surface small.
     `{ answers: [{ id, values[] }] }`. The browser submits one `addToolOutput`
     only after every question has an answer. Questions whose content depends on
     an earlier response remain separate client-tool continuations. The previous
-    singular-question/plain-string contract is removed rather than retained as
-    a compatibility branch.
+   The singular-question/plain-string contract is removed rather than retained
+   as a compatibility branch.
+12. Built-in function tools request provider-native strict tool calling and put
+    field semantics in their Zod input schemas. Commonly confused inputs carry
+    one compact `inputExamples` value; AI SDK's
+    `addToolInputExamplesMiddleware` projects it through the tool description
+    for providers without native example support. Extension and MCP definitions
+    retain the strictness chosen by their owners. Tool input contracts are not
+    duplicated in the system prompt.
 
 ## Consequences
 

@@ -13,9 +13,15 @@ type MemoryInput = {
 };
 
 const memoryInputSchema = z.object({
-  category: z.enum(["preference", "profile", "project", "instruction"]),
-  content: z.string().min(5).max(500),
-  reason: z.string().min(1).max(200),
+  category: z
+    .enum(["preference", "profile", "project", "instruction"])
+    .describe("The durable memory category."),
+  content: z
+    .string()
+    .min(5)
+    .max(500)
+    .describe("Self-contained fact or preference to remember; exclude transient task state."),
+  reason: z.string().min(1).max(200).describe("Why this information will help future conversations."),
 });
 
 const memoryProposalOutputSchema = z.object({
@@ -92,7 +98,13 @@ export function createMemoryToolManifests() {
       "update_memory",
       tool({
         description: "Propose a replacement for an active memory. The current memory remains active until approval.",
-        inputSchema: memoryInputSchema.extend({ memory_id: z.string().min(1).max(32) }),
+        inputSchema: memoryInputSchema.extend({
+          memory_id: z
+            .string()
+            .min(1)
+            .max(32)
+            .describe("Exact active memory id being replaced."),
+        }),
         outputSchema: memoryProposalOutputSchema,
         contextSchema: memoryToolContextSchema,
         execute: updateMemory,
