@@ -281,43 +281,6 @@
         }
       }
     },
-    "/conversations/{conversation_id}/files/source": {
-      "get": {
-        "parameters": [
-          {
-            "name": "conversation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "path",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "conversation virtual file content",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "file not found"
-          }
-        }
-      }
-    },
     "/conversations/{conversation_id}/agents/runs/{run_id}/trace": {
       "get": {
         "parameters": [
@@ -806,7 +769,8 @@
             "type": "boolean"
           },
           "content": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           }
         }
       },

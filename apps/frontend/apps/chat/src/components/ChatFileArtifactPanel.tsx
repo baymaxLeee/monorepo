@@ -1,5 +1,5 @@
 import type { ConversationFileDetail } from "api";
-import { fetchConversationFile, fetchConversationFileSource } from "api";
+import { createKnowledgeFileResourceUrl, fetchConversationFile } from "api";
 import { Button, toast } from "components";
 import { ArtifactAction, ArtifactPreview } from "components/ai-chat";
 import { DownloadIcon, Loader2Icon, Maximize2Icon, Minimize2Icon, XIcon } from "lucide-react";
@@ -23,8 +23,10 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
   const [downloading, setDownloading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | undefined>();
   const [sourceLoading, setSourceLoading] = useState(false);
+  const [sourceError, setSourceError] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const isHtmlFile = file?.mime_type.toLowerCase() === "text/html";
 
   useEffect(() => {
     if (!open || !conversationId || !path) {
@@ -56,26 +58,27 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
   }, [conversationId, open, path, token]);
 
   useEffect(() => {
-    if (!conversationId || !path || file?.mime_type !== "text/html") {
+    if (!conversationId || !path || !isHtmlFile) {
       setPreviewUrl(undefined);
       setSourceLoading(false);
+      setSourceError(false);
       return;
     }
     let active = true;
-    let objectUrl: string | undefined;
     setPreviewUrl(undefined);
     setSourceLoading(true);
-    void fetchConversationFileSource(conversationId, path)
-      .then((blob) => {
+    setSourceError(false);
+    void createKnowledgeFileResourceUrl(conversationId, path)
+      .then((resource) => {
         if (!active) {
           return;
         }
-        objectUrl = URL.createObjectURL(blob);
-        setPreviewUrl(objectUrl);
+        setPreviewUrl(resource.url);
       })
       .catch(() => {
         if (active) {
           setPreviewUrl(undefined);
+          setSourceError(true);
         }
       })
       .finally(() => {
@@ -85,11 +88,8 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
       });
     return () => {
       active = false;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
     };
-  }, [conversationId, file?.mime_type, path]);
+  }, [conversationId, file?.sha256, isHtmlFile, path]);
 
   useEffect(() => {
     const sync = () => {
@@ -113,13 +113,26 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
     }
   }, []);
 
-  const downloadFile = useCallback(() => {
+  const downloadFile = useCallback(async () => {
     if (!file) {
       return;
     }
     setDownloading(true);
     try {
-      const url = URL.createObjectURL(new Blob([file.content], { type: file.mime_type }));
+      let blob: Blob;
+      if (isHtmlFile) {
+        if (!previewUrl) {
+          return;
+        }
+        const response = await fetch(previewUrl);
+        if (!response.ok) {
+          throw new Error(`file download failed: ${response.status}`);
+        }
+        blob = await response.blob();
+      } else {
+        blob = new Blob([file.content ?? ""], { type: file.mime_type });
+      }
+      const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = file.filename.split("/").at(-1) ?? "artifact";
@@ -130,7 +143,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
     } finally {
       setDownloading(false);
     }
-  }, [file]);
+  }, [file, isHtmlFile, previewUrl]);
 
   return (
     <div ref={panelRef} className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden bg-background">
@@ -147,13 +160,13 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
           <ArtifactAction
             tooltip={downloading ? "下载中…" : "下载"}
             label="下载产物"
-            disabled={downloading}
-            onClick={downloadFile}
+            disabled={downloading || (isHtmlFile && !previewUrl)}
+            onClick={() => void downloadFile()}
           >
             {downloading ? <Loader2Icon className="size-4 animate-spin" /> : <DownloadIcon className="size-4" />}
           </ArtifactAction>
         ) : null}
-        {file?.mime_type === "text/html" ? (
+        {isHtmlFile && previewUrl ? (
           <Button
             type="button"
             variant="ghost"
@@ -179,12 +192,16 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {loading || sourceLoading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">加载中…</div>
+        ) : sourceError ? (
+          <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
+            无法加载预览
+          </div>
         ) : file ? (
           <ArtifactPreview
             title={file.title}
             filename={file.filename}
             mimeType={file.mime_type}
-            content={file.content}
+            content={file.content ?? ""}
             src={previewUrl}
             showHeader={false}
             className="h-full min-h-0 min-w-0 overflow-hidden rounded-none border-0 bg-transparent shadow-none [&>div]:min-h-0 [&>div]:min-w-0 [&>div]:flex-1 [&>div]:overflow-y-auto [&_iframe]:h-full [&_iframe]:min-h-0 [&_iframe]:min-w-0"

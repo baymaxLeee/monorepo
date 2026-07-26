@@ -196,20 +196,6 @@ conversationsRoutes.get("/:conversationId/files/detail", async (c) => {
   return c.json(await getConversationFile(getAuth(c), c.req.param("conversationId"), path));
 });
 
-conversationsRoutes.get("/:conversationId/files/source", async (c) => {
-  const path = c.req.query("path");
-  if (!path) {
-    throw new NotFoundError("file path is required");
-  }
-  const file = await getConversationFile(getAuth(c), c.req.param("conversationId"), path);
-  return new Response(file.content, {
-    headers: {
-      "Content-Type": `${file.mime_type}; charset=utf-8`,
-      "Content-Security-Policy": "frame-ancestors 'self'",
-    },
-  });
-});
-
 conversationsRoutes.get("/:conversationId/video-productions/:productionId", async (c) => {
   const auth = getAuth(c);
   return c.json(await authorizedProduction(auth, c.req.param("conversationId"), c.req.param("productionId")));

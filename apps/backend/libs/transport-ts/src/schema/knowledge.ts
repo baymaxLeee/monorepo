@@ -398,6 +398,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/files/resource-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create File Url */
+        post: operations["create_file_url_files_resource_url_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/resources/{document_id}": {
         parameters: {
             query?: never;
@@ -407,6 +424,23 @@ export interface paths {
         };
         /** Get Signed Resource */
         get: operations["get_signed_resource_resources__document_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/resources/files/{file_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Signed File Resource */
+        get: operations["get_signed_file_resource_resources_files__file_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -883,6 +917,13 @@ export interface components {
             next_offset: number | null;
             /** Content */
             content: string;
+        };
+        /** FileResourceURLInput */
+        FileResourceURLInput: {
+            /** Conversation Id */
+            conversation_id: string;
+            /** Path */
+            path: string;
         };
         /** FileSearchInput */
         FileSearchInput: {
@@ -1966,6 +2007,45 @@ export interface operations {
             };
         };
     };
+    create_file_url_files_resource_url_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileResourceURLInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentResourceURL"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_signed_resource_resources__document_id__get: {
         parameters: {
             query: {
@@ -1976,6 +2056,39 @@ export interface operations {
             header?: never;
             path: {
                 document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_signed_file_resource_resources_files__file_id__get: {
+        parameters: {
+            query: {
+                expires: number;
+                version: string;
+                signature: string;
+            };
+            header?: never;
+            path: {
+                file_id: string;
             };
             cookie?: never;
         };

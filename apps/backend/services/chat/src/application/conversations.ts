@@ -7,6 +7,7 @@ import {
   getDocument,
   getDocumentSource,
   listDocuments,
+  listVirtualFiles,
   readVirtualFile,
   updateArtifact,
   type KnowledgeDocument,
@@ -97,7 +98,7 @@ export interface ConversationFileDetail {
   sha256: string;
   writable: boolean;
   derived: boolean;
-  content: string;
+  content: string | null;
 }
 
 export interface ConversationDetail extends Conversation {
@@ -264,8 +265,26 @@ export async function getConversationFile(
   path: string,
 ): Promise<ConversationFileDetail> {
   const conversation = await getConversationRow(auth, conversationId);
+  const entry = (await listVirtualFiles(conversation.userId, conversationId)).find(
+    (candidate) => candidate.path === path,
+  );
+  if (!entry) {
+    throw new NotFoundError(`file ${path} not found in conversation ${conversationId}`);
+  }
+  const detail = {
+    path: entry.path,
+    title: entry.path.split("/").at(-1) ?? entry.path,
+    filename: entry.path,
+    mime_type: entry.mime_type,
+    size: entry.size,
+    sha256: entry.sha256,
+    writable: entry.writable,
+    derived: entry.derived,
+  };
+  if (entry.mime_type.toLowerCase() === "text/html") {
+    return { ...detail, content: null };
+  }
   let offset = 1;
-  let first: Awaited<ReturnType<typeof readVirtualFile>> | null = null;
   const chunks: string[] = [];
   while (true) {
     const slice = await readVirtualFile({
@@ -275,27 +294,13 @@ export async function getConversationFile(
       offset,
       limit: 400,
     });
-    first ??= slice;
     chunks.push(slice.content);
     if (slice.next_offset === null) {
       break;
     }
     offset = slice.next_offset;
   }
-  if (!first) {
-    throw new NotFoundError(`file ${path} not found in conversation ${conversationId}`);
-  }
-  return {
-    path: first.path,
-    title: first.path.split("/").at(-1) ?? first.path,
-    filename: first.path,
-    mime_type: first.mime_type,
-    size: first.size,
-    sha256: first.sha256,
-    writable: first.writable,
-    derived: first.derived,
-    content: chunks.join("\n"),
-  };
+  return { ...detail, content: chunks.join("\n") };
 }
 
 export async function getConversationDocumentSource(

@@ -225,6 +225,24 @@ export async function createKnowledgeDocumentResourceUrl(documentId: string): Pr
   };
 }
 
+export async function createKnowledgeFileResourceUrl(
+  conversationId: string,
+  path: string,
+): Promise<KnowledgeDocumentResourceURL> {
+  const resource = await request<KnowledgeDocumentResourceURL>({
+    url: `${BASE}/files/resource-url`,
+    method: "POST",
+    data: {
+      conversation_id: conversationId,
+      path,
+    },
+  });
+  return {
+    ...resource,
+    url: new URL(resource.url, API_BASE_URL || window.location.origin).toString(),
+  };
+}
+
 export function isMediaConversationDocument(document: ConversationDocument): boolean {
   const mime = (document.source_mime_type || document.mime_type || "").toLowerCase();
   return mime.startsWith("image/") || mime.startsWith("video/") || mime.startsWith("audio/");

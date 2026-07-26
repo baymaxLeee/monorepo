@@ -154,18 +154,6 @@ const openapi = {
         },
       },
     },
-    "/conversations/{conversation_id}/files/source": {
-      get: {
-        parameters: [pathParam, filePathQuery],
-        responses: {
-          "200": {
-            description: "conversation virtual file content",
-            content: { "text/plain": { schema: { type: "string" } } },
-          },
-          "404": { description: "file not found" },
-        },
-      },
-    },
     "/conversations/{conversation_id}/agents/runs/{run_id}/trace": {
       get: {
         parameters: [pathParam, runPathParam],
@@ -310,7 +298,7 @@ const openapi = {
           sha256: { type: "string" },
           writable: { type: "boolean" },
           derived: { type: "boolean" },
-          content: { type: "string" },
+          content: { type: "string", nullable: true },
         },
       },
       AgentRunTrace: {

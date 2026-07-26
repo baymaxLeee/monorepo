@@ -134,7 +134,7 @@ export interface ConversationFileDetail {
   sha256: string;
   writable: boolean;
   derived: boolean;
-  content: string;
+  content: string | null;
 }
 
 export interface UpdateConversationDocumentInput {
@@ -222,19 +222,6 @@ export function fetchConversationFile(conversationId: string, path: string): Pro
     url: `${BASE}/${encodeURIComponent(conversationId)}/files/detail?${params.toString()}`,
     method: "GET",
   });
-}
-
-export function conversationFileSourceUrl(conversationId: string, path: string): string {
-  const params = new URLSearchParams({ path });
-  return `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/files/source?${params.toString()}`;
-}
-
-export async function fetchConversationFileSource(conversationId: string, path: string): Promise<Blob> {
-  const response = await authFetch(conversationFileSourceUrl(conversationId, path));
-  if (!response.ok) {
-    throw new Error(`file source failed: ${response.status}`);
-  }
-  return response.blob();
 }
 
 export function conversationDocumentSourceUrl(
