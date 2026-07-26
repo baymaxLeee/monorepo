@@ -669,7 +669,10 @@ export function createFileToolManifests(_mode: AgentMode, textProvider: ChatProv
     defineAgentTool(
       "write_file",
       tool({
-        description: "Write exact complete UTF-8 text to a relative virtual path and publish the new version immediately.",
+        description:
+          "Write exact complete UTF-8 text to a relative virtual path and publish the new version immediately. " +
+          "Use for new files and coherent rewrites when an existing file is too broadly or structurally changed for reliable exact edits. " +
+          "Chart-bearing HTML must follow core_policy's platform-first ECharts Promise-loader contract.",
         inputSchema: writeInput,
         inputExamples: [
           {
@@ -690,7 +693,9 @@ export function createFileToolManifests(_mode: AgentMode, textProvider: ChatProv
       "edit_file",
       tool({
         description:
-          "Atomically apply exact old_text/new_text replacements and publish immediately. Each old_text must be unique unless its optional replace_all flag is true.",
+          "Atomically apply exact old_text/new_text replacements and publish immediately. Each old_text must be unique unless its optional replace_all flag is true. " +
+          "Prefer this for modifications to an existing file when targeted replacements can preserve the surrounding work; batch independent replacements when practical. " +
+          "When editing chart-bearing HTML, preserve or repair core_policy's platform-first ECharts Promise-loader contract.",
         inputSchema: editInput,
         inputExamples: [
           {
@@ -713,7 +718,8 @@ export function createFileToolManifests(_mode: AgentMode, textProvider: ChatProv
         description:
           "Durably materialize independent files with bounded parallel model calls. " +
           "Use only when genuinely independent complete outputs exceed the primary model's practical output or context budget. " +
-          "This tool does not compose files or understand HTML structure.",
+          "This tool does not compose files or understand HTML structure. Delegated chart-bearing HTML receives the same " +
+          "platform-first ECharts Promise-loader requirement as direct HTML.",
         inputSchema: delegateInput,
         inputExamples: [
           {

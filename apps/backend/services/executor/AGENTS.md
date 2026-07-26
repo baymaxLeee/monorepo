@@ -62,6 +62,14 @@ for the full rationale.
   HTML sections, themes, narratives, or repairs.
   File content is exact model output. Executor does not sanitize HTML or remove
   JavaScript/browser capabilities; the rendering host owns isolation.
+  Chart-bearing HTML follows the same authoring contract as Chat: the generated
+  file owns complete ECharts options and one cached Promise loader that tries the
+  pinned platform ECharts 6.1.0 runtime before the pinned jsDelivr SRI fallback.
+  Chart panels use elastic Grid/Flex layouts without collapsing long grids into
+  one viewport: parent tracks establish usable minimum heights, each logical
+  chart owns one DOM container, instances are registered at creation, and each
+  observes its own container with `ResizeObserver` plus a first-frame resize.
+  Executor does not compile chart DSL, inject scripts, or hydrate chart markup.
 - `video-generation` is a durable **Chat-owned plan -> per-shot
   create/poll -> ffmpeg-assemble** workflow for vertical short-drama (see
   ADR-0018 and ADR-0049). Chat passes a complete typed creative plan; Executor

@@ -83,6 +83,21 @@ baseline at promotion time.
     validation errors. Preview uses an ordinary iframe without a sandbox
     capability allow-list; the demo-phase host does not rewrite or selectively
     disable generated browser behavior.
+13. Chart-bearing HTML defaults to LLM-authored Apache ECharts options and
+    initialization. The document owns a single cached Promise loader that tries
+    the pinned, versioned platform runtime first and a pinned CDN URL with SRI
+    as a sequential fallback. The authoring prompt requires elastic Grid/Flex
+    layouts without collapsing long grids, usable minimum track heights, one
+    DOM container per logical chart, creation-time instance registration,
+    container-level `ResizeObserver`, and a first-layout-frame resize. The host
+    does not compile a chart DSL, rewrite option objects, inject scripts, or
+    hydrate chart markup.
+14. Revisions to existing artifacts are edit-first. The primary agent reads the
+    current source and prefers batched exact replacements when they can preserve
+    the surrounding work. It may choose `write_file` for a coherent rewrite when
+    changes are too broad or interconnected for reliable edits, or the existing
+    structure should not be retained. A rewrite may intentionally retain another
+    complete persisted snapshot.
 
 ## Consequences
 
@@ -92,6 +107,13 @@ compilation or routine-validation latency and later changes remain precise edits
 against one coherent document. Large artifacts remain in the primary context
 across multiple tool-loop steps; generic context-free fan-out is available but
 is no longer the recommended HTML path.
+
+Promotion keeps one current `file_entries` row per user, conversation, and path,
+updating that row when the same path is published again. Both `write_file` and
+`edit_file` currently materialize a complete staged snapshot in
+`file_change_set_entries`; edit-first therefore reduces duplicated full-file
+tool input in persisted messages and preserves focused diffs, but it is not a
+differential-storage mechanism for Knowledge change sets.
 
 Reports, dashboards, H5 games, simulations, and long interactive teaching
 courseware share the same file tools. Artifact type and generation scale are
