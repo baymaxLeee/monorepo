@@ -133,7 +133,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
   }, [file]);
 
   return (
-    <div ref={panelRef} className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
+    <div ref={panelRef} className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden bg-background">
       <div className="flex h-11 shrink-0 items-center gap-2 px-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{file?.title ?? (loading ? "加载中…" : "预览")}</p>
@@ -176,7 +176,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
           <XIcon className="size-4" />
         </Button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {loading || sourceLoading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">加载中…</div>
         ) : file ? (
@@ -187,7 +187,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
             content={file.content}
             src={previewUrl}
             showHeader={false}
-            className="h-full min-h-0 overflow-hidden rounded-none border-0 bg-transparent shadow-none [&>div]:min-h-0 [&>div]:flex-1 [&>div]:overflow-y-auto [&_iframe]:h-full [&_iframe]:min-h-0"
+            className="h-full min-h-0 min-w-0 overflow-hidden rounded-none border-0 bg-transparent shadow-none [&>div]:min-h-0 [&>div]:min-w-0 [&>div]:flex-1 [&>div]:overflow-y-auto [&_iframe]:h-full [&_iframe]:min-h-0 [&_iframe]:min-w-0"
           />
         ) : (
           <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">

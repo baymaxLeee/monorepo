@@ -12,7 +12,7 @@ export type ArtifactProps = HTMLAttributes<HTMLDivElement>;
 export function Artifact({ className, ...props }: ArtifactProps) {
   return (
     <div
-      className={cn("flex flex-col overflow-hidden rounded-lg border bg-background shadow-sm", className)}
+      className={cn("flex min-w-0 flex-col overflow-hidden rounded-lg border bg-background shadow-sm", className)}
       {...props}
     />
   );
@@ -112,7 +112,7 @@ export function ArtifactAction({
 export type ArtifactContentProps = HTMLAttributes<HTMLDivElement>;
 
 export function ArtifactContent({ className, ...props }: ArtifactContentProps) {
-  return <div className={cn("flex-1 overflow-auto p-4", className)} {...props} />;
+  return <div className={cn("min-w-0 flex-1 overflow-auto p-4", className)} {...props} />;
 }
 
 export type ArtifactPreviewKind = "html" | "markdown" | "text" | "image" | "video" | "audio" | "pdf";
@@ -179,7 +179,7 @@ export function ArtifactPreview({
   const resolvedKind = resolveArtifactPreviewKind(kind, mimeType, filename);
   const safeSrc = src && isAllowedArtifactSrc(src) ? src : undefined;
   return (
-    <Artifact className={cn("h-full min-h-0", className)} {...props}>
+    <Artifact className={cn("h-full min-h-0 min-w-0", className)} {...props}>
       {showHeader ? (
         <ArtifactHeader className="shrink-0">
           <div className="min-w-0">
@@ -207,9 +207,14 @@ export function ArtifactPreview({
             <audio src={safeSrc} controls className="w-full max-w-xl" />
           </div>
         ) : resolvedKind === "pdf" && safeSrc ? (
-          <iframe title={title} src={safeSrc} className="h-full min-h-[60svh] w-full bg-white" />
+          <iframe title={title} src={safeSrc} className="h-full min-h-[60svh] min-w-0 w-full bg-white" />
         ) : resolvedKind === "html" && safeSrc ? (
-          <iframe title={title} allowFullScreen src={safeSrc} className="h-full min-h-[60svh] w-full bg-white" />
+          <iframe
+            title={title}
+            allowFullScreen
+            src={safeSrc}
+            className="h-full min-h-[60svh] min-w-0 w-full bg-white"
+          />
         ) : resolvedKind === "markdown" ? (
           <div className="p-4">
             <MessageResponse>{content}</MessageResponse>

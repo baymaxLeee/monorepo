@@ -175,7 +175,7 @@ export function ChatLayout() {
         className={cn(
           "relative grid min-h-0 flex-1",
           "transition-[grid-template-columns] duration-300 ease-out motion-reduce:transition-none",
-          shell.isDragging && "transition-none",
+          shell.isDragging && "transition-none [&_iframe]:pointer-events-none",
         )}
         style={{
           gridTemplateColumns: shell.compact
@@ -242,7 +242,7 @@ export function ChatLayout() {
             onDragStart={() => shell.startResize("right-panel")}
             onDragEnd={() => shell.endResize("right-panel")}
           />
-          <div className="min-h-0 flex-1 overflow-hidden">
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
             {videoProductionWorkspace.open &&
             videoProductionWorkspace.conversationId &&
             videoProductionWorkspace.productionId ? (

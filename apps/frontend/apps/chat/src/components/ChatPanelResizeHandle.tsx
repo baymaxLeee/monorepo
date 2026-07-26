@@ -91,6 +91,7 @@ export function ChatPanelResizeHandle({
         }
         event.preventDefault();
         event.stopPropagation();
+        event.currentTarget.setPointerCapture(event.pointerId);
         draggingRef.current = true;
         pointerIdRef.current = event.pointerId;
         lastClientXRef.current = event.clientX;
