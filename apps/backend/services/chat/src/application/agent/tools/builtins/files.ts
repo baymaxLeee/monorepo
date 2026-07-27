@@ -116,7 +116,7 @@ const delegateInput = z
   .object({
     root: textPath.describe("Relative directory that contains every task output_path."),
     shared_context: z.string().min(1).max(40_000).describe("Immutable facts and conventions shared by every independent task."),
-    tasks: z.array(delegatedTask).min(1).max(100).describe("Independent complete-file tasks. Outputs must not depend on one another."),
+    tasks: z.array(delegatedTask).min(2).max(100).describe("Independent complete-file tasks. Outputs must not depend on one another."),
   })
   .superRefine((input, context) => {
     const root = input.root.replace(/\/+$/, "");
@@ -694,15 +694,18 @@ export function createFileToolManifests(_mode: AgentMode, textProvider: ChatProv
       "edit_file",
       tool({
         description:
-          "Atomically apply exact old_text/new_text replacements and publish immediately. Each old_text must be unique unless its optional replace_all flag is true. " +
-          "Prefer this for modifications to an existing file when targeted replacements can preserve the surrounding work; batch independent replacements when practical. " +
+          "Atomically apply up to 100 exact old_text/new_text replacements to one file and publish once. Each old_text must be unique unless its optional replace_all flag is true. " +
+          "Prefer this for modifications to an existing file when targeted replacements can preserve the surrounding work; batch all independent replacements into one edits array when practical. " +
           "When editing chart-bearing HTML, preserve or repair core_policy's platform-first ECharts Promise-loader contract.",
         inputSchema: editInput,
         inputExamples: [
           {
             input: {
               path: "report.html",
-              edits: [{ old_text: "<main>Old</main>", new_text: "<main>New</main>" }],
+              edits: [
+                { old_text: "<title>Old report</title>", new_text: "<title>New report</title>" },
+                { old_text: "<main>Old</main>", new_text: "<main>New</main>" },
+              ],
             },
           },
         ],
@@ -732,6 +735,11 @@ export function createFileToolManifests(_mode: AgentMode, textProvider: ChatProv
                   id: "chapter-one",
                   instruction: "Create the complete first chapter page.",
                   output_path: "course/chapter-one.html",
+                },
+                {
+                  id: "chapter-two",
+                  instruction: "Create the complete second chapter page.",
+                  output_path: "course/chapter-two.html",
                 },
               ],
             },

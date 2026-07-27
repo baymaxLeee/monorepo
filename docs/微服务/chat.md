@@ -28,7 +28,9 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   客户端一次性回填结构化 `answers` 后由 `addToolOutput` 发起下一次 run；依赖前序答案的
   问题才使用后续 continuation。Plan mode 保留 provider 并行 tool calls，但模型
   middleware 会过滤与 `ask_user` 同 step 的 plan-mode `write_file`，使计划只能在
-  用户回答后的 continuation 落库；搜索、读取等其他独立工具仍可同 step 并发。
+  用户回答后的 continuation 落库；搜索、读取等独立只读工具仍可同 step 并发。正常模式
+  的 Markdown、HTML、图片和视频生成调用按计划顺序串行，只有 `delegate_tasks`
+  会在一次调用内部并发生成多个独立完整文件。
 - assistant UIMessage 在 stream end（包括 abort 的部分输出）持久化；run trace 写入
   失败不能影响用户流。
 - 主动 Stop 会在落库前把所有未终态/preliminary tool part 收口为官方
@@ -58,11 +60,11 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   只是谁 materialize 文件，不改变浏览器能力。前端使用普通 iframe 预览，不通过
   sandbox allow-list、Executor sanitizer 或格式白名单裁剪能力。
 - change set baseline、同路径 mutation queue 与发布 advisory lock 均以 deliverable
-  root 为粒度；并行 Markdown、HTML、图片和视频互不等待。
+  root 为粒度；主 Agent 仍按顺序逐个启动 Markdown、HTML、图片和视频交付物。
 - `create_video_production` 的产品语义是“创建视频制片任务”，不是同步生成最终视频。初步分镜与
   成本投影持久化并派发给 Executor Workflow 后，工具携带 `production_id` 完成，对应
   video todo 也立即完成。此后由同一个 Workflow 独立等待审批并推进生成、Take 审核、
-  合成与发布；与它并行的 HTML/图片不等待完整视频生命周期。返回边界依据持久化 stage，
+  合成与发布；后续串行的 HTML/图片无需等待完整视频生命周期。返回边界依据持久化 stage，
   而不是可能在两次轮询间被快速审批跨过的瞬时 `awaiting_approval` 状态。
 - 用户取消 chat run 会通过 tool AbortSignal 取消当前前台等待的 executor task；进程
   故障不会取消 durable task。委派批次取消或失败时 Chat discard 未发布 change set，

@@ -24,6 +24,12 @@ for the full rationale.
   snapshots. Chat reconnects the SSE after transport interruption and emits
   progress as preliminary tool-results on the main useChat stream. It is
   best-effort UI sugar, never a correctness signal.
+- Workflow progress chunks are wakeups, not completion truth. The task SSE
+  route races the durable readable stream with the same run's `returnValue`;
+  completion settles the task row and immediately emits the authoritative
+  completed/failed/cancelled snapshot. Never wait for readable-stream EOF to
+  infer Workflow completion: Postgres World runs can complete without an EOF
+  chunk.
 - `owner_service` + `owner_ref` is the task-row idempotency key. It does not make
   Workflow `start()` itself idempotent. A Workflow start failure marks the
   inserted row failed immediately; callers must not automatically start a

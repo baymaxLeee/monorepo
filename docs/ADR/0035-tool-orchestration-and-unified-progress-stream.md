@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted. Refined by ADR 0050 for the unified plan-mode `write_markdown` tool.
+Accepted. Refined by ADR 0050 for the unified plan-mode `write_markdown` tool
+and amended by ADR 0059 for serial content-generation orchestration.
 Refines ADR 0011 (ToolLoopAgent core), ADR 0022 (parallel deliverable
 execution), ADR 0024 (deliverable-tagged live todos). Supersedes the "task
 progress rides a separate task-scoped SSE stream" design of ADR 0015 (agent task
@@ -77,9 +78,9 @@ Verified constraints (against installed `ai@7.0.26`):
   barrier is useful, the model calls `update_todos` in its own step — enforced by
   the `renderRuntimeContract` "barrier step" rule
   (`agent/context/instructions/runtime.ts`, aligned with Claude Code / Codex
-  TodoWrite usage): `update_todos` is called alone, then deliverables dispatch
-  together in the NEXT step. The SDK runs steps sequentially, so those
-  deliverables start strictly after.   `update_todos` is selective visible tracking
+  TodoWrite usage): `update_todos` is called alone, then one content-generation
+  deliverable starts in the NEXT step. The SDK runs steps sequentially, so that
+  deliverable starts strictly after. `update_todos` is selective visible tracking
   for substantial multi-item execution, skipped for Q&A / single deliverables /
   one-item lists (multi-page single artifacts still skip). Duration alone is
   not a reason — the deliverable tool card shows progress.
@@ -113,12 +114,11 @@ Verified constraints (against installed `ai@7.0.26`):
   `instructions`, and the next immutable `runtimeContext`.
 - **No run-scoped general scheduler or concurrency lock.** The batch middleware
   edits incompatible model output before SDK execution, while the history fold
-  enforces only bounded correctness gates. Normal-mode todo ordering remains
-  prompt-enforced and rare co-emission with a deliverable remains an accepted
-  cosmetic glitch.
-- Deliverables in one step run concurrently via the SDK's per-step
-  `Promise.all` + Node's non-blocking IO (#3); tools stay non-blocking so the
-  event loop overlaps their IO. Nothing serializes independent deliverables.
+  enforces only bounded correctness gates. Normal-mode content-generation and
+  todo ordering remain prompt-enforced.
+- Independent read-only research/context tools may retain SDK same-step
+  concurrency. Content-generation deliverables run serially; `delegate_tasks`
+  alone may fan out internally across independent complete files (ADR 0059).
 
 ### 2. Unified progress: one stream, preliminary tool-results
 
@@ -139,7 +139,7 @@ Verified constraints (against installed `ai@7.0.26`):
 - **Progress source matrix:** HTML/video → watch Executor's authenticated
   Workflow-backed task-status SSE and reconnect that stream after interruption;
   images →
-  chat-internal `Promise.allSettled` two-phase output; Knowledge stores only
+  chat-internal serial prompt processing with two-phase output; Knowledge stores only
   terminal document content and is never a progress source.
 - Deleted: chat `agent/streams/task-progress.ts`, the task-stream Redis helpers,
   `GET .../tasks/:taskId/stream`, `POST /internal/tasks/notify` (+ chat internal
@@ -153,13 +153,11 @@ Verified constraints (against installed `ai@7.0.26`):
 ### 3. Orchestration spec (event-loop discipline)
 
 Tool authors must keep `execute` non-blocking (all IO `await`ed; no CPU-heavy
-sync work on the event loop); rely on the SDK's per-step `Promise.all` for
-deliverable concurrency and never serialize independent deliverables; fan out
-internally (`Promise.allSettled`/`mapConcurrent`); stream long-running progress
-via async generators (terminal state as the last `yield`, never `return`); order
-plan/todos via the prompt barrier step, not a runtime lock; reconnect interrupted
-Executor status streams with an abortable delay; propagate the run `AbortSignal`; and add no
-artificial concurrency caps (provider limits + executor bound it).
+sync work on the event loop). Content-generation calls are ordered by the prompt,
+not a runtime lock; only `delegate_tasks` fans out generation internally. Stream
+long-running progress via async generators (terminal state as the last `yield`,
+never `return`); reconnect interrupted Executor status streams with an abortable
+delay; and propagate the run `AbortSignal`.
 
 ## Consequences
 

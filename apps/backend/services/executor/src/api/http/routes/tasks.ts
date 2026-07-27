@@ -90,11 +90,25 @@ tasksRoutes.get("/:id/stream", async (c) => {
       }
 
       const workflowRunId = current.source.workflowRunId;
-      const reader = getRun(workflowRunId).getReadable({ startIndex: -1 }).getReader();
+      const run = getRun(workflowRunId);
+      const reader = run.getReadable({ startIndex: -1 }).getReader();
+      const completion = settleTaskCompletion(id, workflowRunId).then(() => ({ type: "completion" }) as const);
+      let pendingRead: Promise<{ type: "stream"; item: ReadableStreamReadResult<unknown> }> | null = null;
       stream.onAbort(() => reader.cancel());
       while (!stream.aborted) {
-        const item = await reader.read();
-        if (item.done) {
+        pendingRead ??= reader.read().then((item) => ({ type: "stream" as const, item }));
+        const event = await Promise.race([pendingRead, completion]);
+        if (event.type === "completion") {
+          await reader.cancel();
+          if (stream.aborted) {
+            return;
+          }
+          current = await taskWatchFrame(id, owner);
+          await stream.writeSSE({ event: "snapshot", data: JSON.stringify(current.frame) });
+          return;
+        }
+        pendingRead = null;
+        if (event.item.done) {
           break;
         }
         const next = await taskWatchFrame(id, owner);
@@ -112,7 +126,7 @@ tasksRoutes.get("/:id/stream", async (c) => {
       if (stream.aborted) {
         return;
       }
-      await settleTaskCompletion(id, workflowRunId);
+      await completion;
       current = await taskWatchFrame(id, owner);
       await stream.writeSSE({ event: "snapshot", data: JSON.stringify(current.frame) });
     },

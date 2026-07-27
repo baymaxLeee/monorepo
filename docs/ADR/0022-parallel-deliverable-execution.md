@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Builds on ADR 0011 (ToolLoopAgent core), ADR 0015 (executor
+Superseded by ADR 0059. Builds on ADR 0011 (ToolLoopAgent core), ADR 0015 (executor
 foreground-blocking tools), ADR 0017 (agent todo list), and ADR 0018 (video
 workflow). Complements ADR 0021 (lightweight media cards), which owns how the
 concurrently-produced deliverables are *rendered*.

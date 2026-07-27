@@ -156,11 +156,9 @@ const DELIVERABLE_BY_UI_KIND: Record<string, DeliverableKind> = {
   artifact: "artifact",
 };
 
-// The todo snapshot is a model-authored list that can only be rewritten between
-// agent steps, but a parallel html/image/video step blocks (Promise.all) until
-// the slowest deliverable finishes. To let each todo advance the instant its own
-// deliverable card completes, we read the live tool parts emitted after the
-// latest update_todos and map them to todos by `deliverable` type + order.
+// The todo snapshot is rewritten only between agent steps. Read later official
+// tool parts so the active serial deliverable can update immediately while its
+// terminal snapshot is still being produced.
 export function collectDeliverableCompletion(
   messages: UIMessage[],
   latestTodoCallId: string | null,
@@ -192,10 +190,8 @@ export function collectDeliverableCompletion(
   return result;
 }
 
-// A whole image request is ONE batched generate_images call (a single gallery
-// part), so every image todo reflects that one batch: running while any part is
-// still generating, completed once the batch lands. This also keeps the UI
-// correct if the model over-splits posters into several image todos.
+// A whole image request is ONE generate_images call and one gallery part even
+// though its prompts are processed serially.
 function aggregateStatus(parts: DeliverablePartStatus[]): DeliverablePartStatus | undefined {
   if (parts.length === 0) {
     return undefined;

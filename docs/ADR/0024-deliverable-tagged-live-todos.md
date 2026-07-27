@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted. Supersedes, in part, the "the model reconciles the todo snapshot only
+Amended by ADR 0059. The deliverable tag and live UI derivation remain accepted,
+but generation tools now run serially with at most one todo `in_progress`.
+Supersedes, in part, the "the model reconciles the todo snapshot only
 after the parallel tool step returns" position of ADR 0017 (todo list), ADR 0022
 (parallel deliverable execution), and ADR 0023 (tool contracts, decision point
 8). Builds on ADR 0011 (ToolLoopAgent core) and ADR 0021 (lightweight media

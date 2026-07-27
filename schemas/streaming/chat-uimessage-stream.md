@@ -136,9 +136,9 @@ no `data-artifact-progress`.
     Business failures use a structured ToolOutcome on the official
     `output-available` state and AI SDK `toModelOutput` maps blocked/failed to
     model-side `error-json`; Abort and protocol failures use `output-error`. A multi-image request is ONE call with a
-    `prompts[]` array (one image per prompt, generated concurrently); `count` is
+    `prompts[]` array (one image per prompt, processed serially); `count` is
     the requested total and `failed` how many prompts dropped (partial gallery).
-    See ADR-0022 for the parallel-deliverable execution model. The frontend
+    See ADR-0059 for the serial generation-orchestration model. The frontend
     `ChatImageCard` renders a
     **lightweight reference card** (icon + count, zero bytes fetched at render);
     clicking it opens the image lightbox, which fetches the group from those
@@ -164,13 +164,11 @@ no `data-artifact-progress`.
     existing `tool-update_todos` output. The frontend
     (`ChatTodoListCard.collectDeliverableCompletion`) reads the live
     `image-gallery`/`video`/`artifact` tool parts emitted after the latest
-    `update_todos` and advances each tagged todo to completed the instant its own
-    deliverable card finishes — because a parallel html/image/video step
-    `Promise.all`-blocks until the slowest one returns, the model cannot restate
-    the snapshot in-step. This is display-layer derivation from official tool
-    parts (the completion fact already on the wire), so no `data-*` part is
-    added; the model's next-step `update_todos` remains the canonical snapshot.
-    See ADR 0024.
+    `update_todos` and advances the active tagged todo from its serial
+    deliverable card while the model is between snapshots. This is display-layer
+    derivation from official tool parts (the completion fact already on the
+    wire), so no `data-*` part is added; the model's next-step `update_todos`
+    remains the canonical snapshot. See ADR 0024 and ADR 0059.
   - Persisted `tool-update_todos` UIMessage output is also the model-side truth
     source while it remains in retained history. The context projector never
     reconstructs or dynamically injects Todo business state (ADR 0041).

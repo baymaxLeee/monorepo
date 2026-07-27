@@ -31,6 +31,11 @@ Workflow stream does not create a second browser protocol.
   run's persistent readable stream.
 - The route treats change signals as wakeups, re-reads Executor's task and
   optional video-production projection, and sends authoritative snapshots.
+- Progress wakeups and Workflow completion are independent inputs. While the
+  route reads the durable progress stream, it also awaits the same run's
+  `returnValue`. Resolution or rejection settles the authoritative task row,
+  cancels the progress reader, and immediately emits the resulting
+  completed/failed/cancelled snapshot. Stream EOF is not a completion signal.
 - The task and production tables remain the only business truth. Essential
   video milestone signals run as separate retryable Workflow steps, so a
   stream retry never repeats the committed business mutation.
@@ -50,6 +55,9 @@ Workflow stream does not create a second browser protocol.
   authoritative snapshot; persisted Workflow chunks wake active consumers.
 - Duplicate or replayed notifications are harmless because snapshots are
   monotonic by task `updatedAt` and production `version`.
+- Workflow failure details are persisted on the terminal task snapshot and flow
+  through Chat's existing ToolOutcome result, leaving retry or failure-summary
+  policy with the primary LLM.
 - Executor owns access to its Workflow World and business database; Chat never
   connects to either database directly.
 - If future requirements add several independent consumers, cross-domain event
@@ -61,6 +69,9 @@ Workflow stream does not create a second browser protocol.
 
 - Installed `workflow@4.5.0`:
   `node_modules/workflow/docs/foundations/streaming.mdx`
+- Empirical Postgres World behavior: completed `file-task-batch` runs can have
+  progress chunks without an EOF chunk; relying on `reader.read().done` delayed
+  terminal delivery until the transport reconnected.
 - Installed `@workflow/world-postgres@4.2.0`:
   `node_modules/@workflow/world-postgres/README.md`
 - ADR-0013: resumable UIMessage stream transport

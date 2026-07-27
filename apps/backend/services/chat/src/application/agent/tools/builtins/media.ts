@@ -260,7 +260,17 @@ async function* generateImages(
       });
       return { document_id: document.id, filename: document.filename, media_type: mediaType };
     };
-    const settled = await Promise.allSettled(input.prompts.map(generateOne));
+    const settled: PromiseSettledResult<GeneratedImage>[] = [];
+    for (const [index, prompt] of input.prompts.entries()) {
+      try {
+        settled.push({ status: "fulfilled", value: await generateOne(prompt, index) });
+      } catch (error) {
+        if (abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) {
+          throw error;
+        }
+        settled.push({ status: "rejected", reason: error });
+      }
+    }
     if (abortSignal?.aborted) {
       throw new DOMException("aborted", "AbortError");
     }
@@ -515,9 +525,9 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
     uiKind: "video" as const,
   };
   const imagePlanning = {
-    summary: "Generate one or more images as a single concurrent gallery batch.",
+    summary: "Generate one or more images serially as a single gallery batch.",
     prerequisites: providers.imageProvider ? undefined : ["Configure an image provider."],
-    parallelizable: true,
+    parallelizable: false,
   };
   const videoPlanning = {
     summary:
@@ -530,7 +540,7 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
       "Every adjacent generation shot must advance a distinct information or action beat and vary the framing, subject action, or on-screen content. Never pad, loop, or restage the same moment to fill time.",
     ],
     prerequisites: providers.videoProviderId ? undefined : ["Configure a video provider."],
-    parallelizable: true,
+    parallelizable: false,
   };
 
   const imageManifest = providers.imageProvider

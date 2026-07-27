@@ -19,11 +19,22 @@ export const updateTodosInputSchema = z
   })
   .superRefine((input, context) => {
     const ids = new Set<string>();
+    let hasInProgress = false;
     for (const [index, item] of input.todos.entries()) {
       if (ids.has(item.id)) {
         context.addIssue({ code: "custom", path: ["todos", index, "id"], message: `duplicate todo id: ${item.id}` });
       }
       ids.add(item.id);
+      if (item.status === "in_progress") {
+        if (hasInProgress) {
+          context.addIssue({
+            code: "custom",
+            path: ["todos", index, "status"],
+            message: "only one todo may be in_progress",
+          });
+        }
+        hasInProgress = true;
+      }
     }
   });
 
@@ -41,7 +52,7 @@ export function createPlanningToolManifests() {
       "update_todos",
       tool({
         description:
-          "Create or replace the full todo list for a multi-step task. Prefer this as the first normal-mode action when executing an approved or referenced plan that has multiple checklist items, parallel deliverables, or real dependencies. Never call it for a single deliverable, a single actionable item, or a one-item list — multi-page HTML and other long single artifacts still skip todos and go straight to the generation tool. Duration alone is not a reason. Reflect real parallel work with multiple in-progress items. Use exactly ONE todo per deliverable and tag it with `deliverable` ('artifact' for write_file/edit_file/delegate_tasks, 'image' for generate_images, 'video' for create_video_production); the whole image batch (a single generate_images call with multiple prompts) is ONE 'image' todo, never one per image. A video todo must describe creating a video production task, never generating or completing the final video; it completes when create_video_production returns the production task id. Call this alone to lay out the complete list before you dispatch any deliverable.",
+          "Create or replace the full todo list for a substantial multi-step task. Prefer this as the first normal-mode action when executing an approved or referenced plan with multiple checklist items or real dependencies. Never call it for a single deliverable, a single actionable item, or a one-item list — multi-page HTML and other long single artifacts still skip todos and go straight to the generation tool. Duration alone is not a reason. Keep at most ONE todo in_progress and list the remaining work as pending in exact serial execution order. Use exactly ONE todo per deliverable and tag it with `deliverable` ('artifact' for write_file/edit_file/delegate_tasks, 'image' for generate_images, 'video' for create_video_production); the whole image batch is ONE 'image' todo and one delegate_tasks file batch is ONE 'artifact' todo. A video todo describes creating a video production task and completes when create_video_production returns its id. Call update_todos alone before the active deliverable, then replace the snapshot again after observing that tool result to mark it terminal and advance at most one next item.",
         inputSchema: updateTodosInputSchema,
         inputExamples: [
           {
