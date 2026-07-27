@@ -74,27 +74,34 @@ function assertTaskOwner(row: TaskRow, owner: TaskOwner): void {
   }
 }
 
-function watchCompletion(taskId: string, workflowRunId: string): void {
+export async function settleTaskCompletion(taskId: string, workflowRunId: string): Promise<void> {
   const run = getRun(workflowRunId);
-  void run.returnValue
-    .then(async (result) => {
-      await getDb()
-        .update(tasks)
-        .set({ status: "completed", result, updatedAt: new Date(), finishedAt: new Date() })
-        .where(and(eq(tasks.id, taskId), inArray(tasks.status, ["queued", "running"])));
-    })
-    .catch(async (error: unknown) => {
-      const cancelled = WorkflowRunCancelledError.is(error);
-      await getDb()
-        .update(tasks)
-        .set({
-          status: cancelled ? "cancelled" : "failed",
-          error: cancelled ? null : errorMessage(error).slice(0, 2000),
-          updatedAt: new Date(),
-          finishedAt: new Date(),
-        })
-        .where(and(eq(tasks.id, taskId), inArray(tasks.status, ["queued", "running"])));
-    });
+  let result: unknown;
+  try {
+    result = await run.returnValue;
+  } catch (error) {
+    const cancelled = WorkflowRunCancelledError.is(error);
+    await getDb()
+      .update(tasks)
+      .set({
+        status: cancelled ? "cancelled" : "failed",
+        error: cancelled ? null : errorMessage(error).slice(0, 2000),
+        updatedAt: new Date(),
+        finishedAt: new Date(),
+      })
+      .where(and(eq(tasks.id, taskId), inArray(tasks.status, ["queued", "running"])));
+    return;
+  }
+  await getDb()
+    .update(tasks)
+    .set({ status: "completed", result, updatedAt: new Date(), finishedAt: new Date() })
+    .where(and(eq(tasks.id, taskId), inArray(tasks.status, ["queued", "running"])));
+}
+
+function watchCompletion(taskId: string, workflowRunId: string): void {
+  void settleTaskCompletion(taskId, workflowRunId).catch((error: unknown) => {
+    console.error("[executor] task completion watcher failed", { taskId, workflowRunId, error });
+  });
 }
 
 export async function createTask(input: CreateTaskInput): Promise<TaskSnapshot> {
@@ -184,6 +191,21 @@ export async function getTask(id: string, owner: TaskOwner): Promise<TaskSnapsho
   }
   assertTaskOwner(row, owner);
   return toSnapshot(row);
+}
+
+export async function getTaskWatchSource(
+  id: string,
+  owner: TaskOwner,
+): Promise<{ task: TaskSnapshot; workflowRunId: string | null }> {
+  const row = await findById(id);
+  if (!row) {
+    throw new NotFoundError(`task ${id} not found`);
+  }
+  assertTaskOwner(row, owner);
+  return {
+    task: toSnapshot(row),
+    workflowRunId: row.workflowRunId,
+  };
 }
 
 export async function cancelTask(id: string, owner: TaskOwner): Promise<TaskSnapshot> {

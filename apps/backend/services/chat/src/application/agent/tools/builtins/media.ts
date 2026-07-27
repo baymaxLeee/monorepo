@@ -3,10 +3,10 @@ import { generateImage, NoImageGeneratedError, tool, type JSONValue } from "ai";
 import { z } from "zod";
 
 import type { ProviderSnapshot } from "../../../../infrastructure/clients/admin.js";
-import { getVideoProduction, type Task } from "../../../../infrastructure/clients/executor.js";
+import type { Task } from "../../../../infrastructure/clients/executor.js";
 import { createMediaDocument, getDocument } from "../../../../infrastructure/clients/knowledge.js";
 import { logger } from "../../../../infrastructure/observability/logger.js";
-import { pollTaskSnapshots, startExecutorTask, TaskWaitTimeoutError } from "../../tasks/executor-task.js";
+import { startExecutorTask, TaskWaitTimeoutError, watchTaskSnapshots } from "../../tasks/executor-task.js";
 import { mediaToolContextSchema, type MediaToolContext } from "../context.js";
 import { defineAgentTool, defineUnavailableCapability } from "../manifest.js";
 import { toolCompleted, toolFailed, toolPartial, toolRunning, type ToolEmission } from "../outcome.js";
@@ -415,10 +415,10 @@ async function* createVideoProduction(
     yield toolRunning(base);
     let terminal: Task | null = null;
     try {
-      for await (const snapshot of pollTaskSnapshots(task.id, task.ownerRef, abortSignal)) {
-        try {
-          const detail = await getVideoProduction(task.id);
-          const production = detail.production;
+      for await (const frame of watchTaskSnapshots(task.id, task.ownerRef, abortSignal)) {
+        const snapshot = frame.task;
+        const production = frame.production;
+        if (production) {
           if (
             VIDEO_POST_PLANNING_STAGES.has(production.stage) &&
             production.shotPlan != null &&
@@ -432,10 +432,6 @@ async function* createVideoProduction(
               ...(production.awaitingAction ? { awaiting_action: production.awaitingAction } : {}),
             });
             return;
-          }
-        } catch (error) {
-          if (!(error instanceof Error && error.message.includes("not found"))) {
-            throw error;
           }
         }
         if (snapshot.status === "completed" || snapshot.status === "failed" || snapshot.status === "cancelled") {

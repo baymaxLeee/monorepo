@@ -26,13 +26,6 @@ const memoryIdPathParam = {
   schema: { type: "string" },
 };
 
-const taskPathParam = {
-  name: "task_id",
-  in: "path",
-  required: true,
-  schema: { type: "string" },
-};
-
 const productionPathParam = {
   name: "production_id",
   in: "path",
@@ -166,16 +159,6 @@ const openapi = {
       post: {
         parameters: [pathParam, runPathParam],
         responses: { "200": jsonResponse("request agent run cancellation", ref("RunCancellation")) },
-      },
-    },
-    "/conversations/{conversation_id}/tasks/{task_id}": {
-      get: {
-        summary: "Proxy to the executor service's task status (see delegate_tasks tool output task_id).",
-        parameters: [pathParam, taskPathParam],
-        responses: {
-          "200": jsonResponse("task snapshot", ref("Task")),
-          "404": { description: "task not found" },
-        },
       },
     },
     "/conversations/{conversation_id}/video-productions/{production_id}": {
@@ -430,33 +413,6 @@ const openapi = {
             allOf: [ref("ConversationContextView")],
             nullable: true,
           },
-        },
-      },
-      Task: {
-        type: "object",
-        required: [
-          "id",
-          "type",
-          "status",
-          "ownerService",
-          "ownerRef",
-          "result",
-          "error",
-          "createdAt",
-          "updatedAt",
-          "finishedAt",
-        ],
-        properties: {
-          id: { type: "string" },
-          type: { type: "string" },
-          status: { type: "string", enum: ["queued", "running", "completed", "failed", "cancelled"] },
-          ownerService: { type: "string" },
-          ownerRef: { type: "string" },
-          result: { type: "object", nullable: true, additionalProperties: true },
-          error: { type: "string", nullable: true },
-          createdAt: { type: "string" },
-          updatedAt: { type: "string" },
-          finishedAt: { type: "string", nullable: true },
         },
       },
       VideoShot: {

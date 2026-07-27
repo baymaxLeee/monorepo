@@ -613,3 +613,24 @@ export async function getVideoProduction(
     })),
   };
 }
+
+export async function getVideoProductionProjection(
+  productionId: string,
+  ownerService: string,
+): Promise<VideoProductionProjection | null> {
+  const [row] = await getDb()
+    .select({
+      projection: videoProductions.projection,
+      ownerService: tasks.ownerService,
+    })
+    .from(videoProductions)
+    .innerJoin(tasks, eq(videoProductions.taskId, tasks.id))
+    .where(eq(videoProductions.id, productionId));
+  if (!row) {
+    return null;
+  }
+  if (row.ownerService !== ownerService) {
+    throw new NotFoundError(`video production ${productionId} not found`);
+  }
+  return row.projection;
+}

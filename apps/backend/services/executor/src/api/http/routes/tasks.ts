@@ -1,11 +1,21 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
+import { getRun } from "workflow/api";
 import { z } from "zod";
 
 import { fileTaskBatchInputSchema } from "../../../../workflows/file-task-batch.js";
 import { videoGenerationInputSchema } from "../../../../workflows/video-generation.js";
 import { RequestError } from "../../../application/errors.js";
-import { cancelTask, createTask, getTask, type TaskOwner } from "../../../application/tasks/service.js";
+import {
+  cancelTask,
+  createTask,
+  getTask,
+  getTaskWatchSource,
+  settleTaskCompletion,
+  type TaskOwner,
+} from "../../../application/tasks/service.js";
+import { getVideoProductionProjection } from "../../../application/video-production/service.js";
 import { requireCallerService } from "../middleware/auth.js";
 
 export const tasksRoutes = new Hono();
@@ -33,6 +43,24 @@ const createTaskSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("video-generation"), payload: videoGenerationInputSchema, ...createTaskEnvelope }),
 ]);
 
+function terminal(status: string): boolean {
+  return status === "completed" || status === "failed" || status === "cancelled";
+}
+
+async function taskWatchFrame(id: string, owner: TaskOwner) {
+  const source = await getTaskWatchSource(id, owner);
+  return {
+    source,
+    frame: {
+      task: source.task,
+      production:
+        source.task.type === "video-generation"
+          ? await getVideoProductionProjection(source.task.id, owner.service)
+          : null,
+    },
+  };
+}
+
 tasksRoutes.post("/", zValidator("json", createTaskSchema), async (c) => {
   const caller = requireCallerService(c);
   const body = c.req.valid("json");
@@ -46,6 +74,52 @@ tasksRoutes.post("/", zValidator("json", createTaskSchema), async (c) => {
     payload: body.payload,
   });
   return c.json(task, 201);
+});
+
+tasksRoutes.get("/:id/stream", async (c) => {
+  const id = c.req.param("id");
+  const owner = parseOwner(c);
+  const initial = await taskWatchFrame(id, owner);
+  return streamSSE(
+    c,
+    async (stream) => {
+      let current = initial;
+      await stream.writeSSE({ event: "snapshot", data: JSON.stringify(current.frame) });
+      if (terminal(current.frame.task.status) || !current.source.workflowRunId) {
+        return;
+      }
+
+      const workflowRunId = current.source.workflowRunId;
+      const reader = getRun(workflowRunId).getReadable({ startIndex: -1 }).getReader();
+      stream.onAbort(() => reader.cancel());
+      while (!stream.aborted) {
+        const item = await reader.read();
+        if (item.done) {
+          break;
+        }
+        const next = await taskWatchFrame(id, owner);
+        if (
+          next.frame.task.updatedAt !== current.frame.task.updatedAt ||
+          next.frame.production?.version !== current.frame.production?.version
+        ) {
+          current = next;
+          await stream.writeSSE({ event: "snapshot", data: JSON.stringify(current.frame) });
+        }
+        if (terminal(current.frame.task.status)) {
+          return;
+        }
+      }
+      if (stream.aborted) {
+        return;
+      }
+      await settleTaskCompletion(id, workflowRunId);
+      current = await taskWatchFrame(id, owner);
+      await stream.writeSSE({ event: "snapshot", data: JSON.stringify(current.frame) });
+    },
+    async (error) => {
+      console.error("[executor] task status stream failed", { taskId: id, error });
+    },
+  );
 });
 
 tasksRoutes.get("/:id", async (c) => {

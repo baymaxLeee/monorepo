@@ -118,9 +118,22 @@ export class InternalHttpClient {
     };
   }
 
-  private async request(options: RequestOptions): Promise<Response> {
+  async requestStream(options: RequestOptions): Promise<Response> {
+    const response = await this.request(options, false);
+    if (!response.ok) {
+      throw new TransportError(
+        this.options.service,
+        response.status,
+        `${this.options.service} request failed: ${response.status}`,
+        await readJson(response),
+      );
+    }
+    return response;
+  }
+
+  private async request(options: RequestOptions, timeout = true): Promise<Response> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timer = timeout ? setTimeout(() => controller.abort(), this.timeoutMs) : undefined;
     const url = new URL(`${this.baseUrl}${options.path}`);
     for (const [key, value] of Object.entries(options.query ?? {})) {
       if (value !== undefined && value !== null) {
@@ -143,7 +156,9 @@ export class InternalHttpClient {
         signal: anySignal([controller.signal, options.signal]),
       });
     } finally {
-      clearTimeout(timer);
+      if (timer) {
+        clearTimeout(timer);
+      }
     }
   }
 }

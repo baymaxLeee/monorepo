@@ -1,12 +1,23 @@
 import { eq } from "drizzle-orm";
+import { getWritable } from "workflow";
 
 import { getDb } from "../../infrastructure/persistence/index.js";
 import { tasks } from "../../infrastructure/persistence/schema.js";
 import type { TaskProgress } from "./types.js";
 
-// The owning service (chat) reads progress/terminal state by polling
-// `GET /tasks/:id`; there is no outbound push (ADR-0035). Progress is written
-// to `tasks.progress` here purely so that poll can surface it.
+export type TaskStatusSignal = {
+  type: "task-changed" | "video-production-changed";
+};
+
+export async function reportTaskStatusSignal(type: TaskStatusSignal["type"]): Promise<void> {
+  const writer = getWritable<TaskStatusSignal>().getWriter();
+  try {
+    await writer.write({ type });
+  } finally {
+    writer.releaseLock();
+  }
+}
+
 export async function reportTaskProgress(workflowRunId: string, progress: TaskProgress): Promise<void> {
   const db = getDb();
   await db.transaction(async (tx) => {
@@ -22,6 +33,7 @@ export async function reportTaskProgress(workflowRunId: string, progress: TaskPr
       })
       .where(eq(tasks.id, row.id));
   });
+  await reportTaskStatusSignal("task-changed");
 }
 
 export async function recordExternalTask(workflowRunId: string, externalTaskId: string): Promise<void> {

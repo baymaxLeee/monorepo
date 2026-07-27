@@ -16,7 +16,7 @@ import {
 } from "../../../../infrastructure/clients/knowledge.js";
 import { setActivePlanPath } from "../../../conversations.js";
 import type { AgentMode } from "../../agents/types.js";
-import { pollTaskSnapshots, startExecutorTask } from "../../tasks/executor-task.js";
+import { startExecutorTask, watchTaskSnapshots } from "../../tasks/executor-task.js";
 import { artifactToolContextSchema, fileToolContextSchema, type ArtifactToolContext, type FileToolContext } from "../context.js";
 import { defineAgentTool } from "../manifest.js";
 import { toolCompleted, toolFailed, toolRunning, ToolBlockedError, type ToolEmission } from "../outcome.js";
@@ -523,7 +523,8 @@ async function* delegateTasks(
       done: 0,
       total: input.tasks.length,
     });
-    for await (const snapshot of pollTaskSnapshots(task.id, task.ownerRef, abortSignal)) {
+    for await (const frame of watchTaskSnapshots(task.id, task.ownerRef, abortSignal)) {
+      const snapshot = frame.task;
       if (snapshot.status === "failed" || snapshot.status === "cancelled") {
         settled = true;
         await discardFileChangeSet({

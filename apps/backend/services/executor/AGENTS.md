@@ -12,16 +12,17 @@ for the full rationale.
 - One `POST /tasks` starts exactly one durable `workflow` run and returns
   immediately (`status: "queued"` or `"running"`). Callers never block an
   HTTP request on task completion. `GET /tasks/:id` is the durable read
-  (snapshot incl. `progress`). There is deliberately **no** streaming endpoint
-  and **no** outbound push on executor (ADR-0035 removed the old
-  executor→chat notify): the owner polls `GET /tasks/:id` and decides how to
-  surface progress to a browser. Keep it that way: a task's business shape stays
-  a plain snapshot here, streaming/replay stays the owner's concern.
+  (snapshot incl. `progress`). `GET /tasks/:id/stream` is an authenticated
+  service-to-service SSE view over the run's Workflow durable stream
+  (ADR-0058). Workflow chunks are wakeups only; the route reloads the
+  authoritative task and video projection before emitting a snapshot. It is
+  not a browser stream and must not duplicate Chat's UIMessage SSE.
 - Progress: a task's `progress` column is a `{ done, total }` counter the
   workflow reports per completed unit of work (see `reportTaskProgress` in
   `src/application/tasks/notify.ts`, called from `reportProgressStep` in the workflow). It
-  is written to the DB and read by the owner's `GET /tasks/:id` poll (chat
-  surfaces it as preliminary tool-results on the main useChat stream). It is
+  is written to the DB and surfaced through authoritative status-stream
+  snapshots. Chat reconnects the SSE after transport interruption and emits
+  progress as preliminary tool-results on the main useChat stream. It is
   best-effort UI sugar, never a correctness signal.
 - `owner_service` + `owner_ref` is the task-row idempotency key. It does not make
   Workflow `start()` itself idempotent. A Workflow start failure marks the
@@ -129,15 +130,15 @@ for the full rationale.
   `getDb().transaction(async (tx) => ...)` (as `tasks/notify.ts` already does);
   Workflow starts / HTTP calls are external side effects and stay OUTSIDE the tx.
 
-## Outbound task notifications
+## Task status notifications
 
-- **Removed (ADR-0035).** Executor no longer pushes task events to any owner.
-  There is no `POST /internal/tasks/notify` call, no `ChatInternalClient`, and
-  no `src/infrastructure/clients/chat.ts`. The owner (chat) polls `GET /tasks/:id` and reads the
-  `progress`/`status`/`result` columns; `reportTaskProgress` still writes
-  `tasks.progress` for that poll to read. Do not reintroduce an outbound push —
-  progress belongs on the owner's own stream (chat surfaces it as preliminary
-  tool-results on the main useChat stream).
+- Executor does not callback into Chat and owns no browser stream.
+  Workflow steps write lightweight durable change signals; the authenticated
+  task SSE route consumes them and reloads `tasks` / `video_productions`.
+  Consumers treat events as at-least-once snapshots and reconnect the stream
+  for a fresh authoritative snapshot. The JSON task read is an ordinary query
+  and debugging endpoint, not a task-wait fallback. Do not put business truth
+  in Workflow chunks or introduce a second UIMessage stream.
 
 ## Entry points
 
@@ -145,9 +146,9 @@ for the full rationale.
   `src/index.ts`.
 - `src/index.ts` — Nitro-mounted Hono app entry + boot-time task reconciler.
 - `src/bootstrap/app.ts` — route wiring, auth, error mapping.
-- `src/api/http/routes/tasks.ts` — Task API (start/get/cancel).
+- `src/api/http/routes/tasks.ts` — Task API (start/get/watch/cancel).
 - `src/application/tasks/service.ts` — task lifecycle, idempotency, completion watching.
-- `src/application/tasks/notify.ts` — progress recording into `tasks.progress` (no push).
+- `src/application/tasks/notify.ts` — progress recording plus Workflow change signals.
 - `src/application/tasks/registry.ts` — TaskType registry.
 - `workflows/*.ts` — one file per TaskType's actual `"use workflow"`/`"use step"`
   implementation.
@@ -211,9 +212,11 @@ All fixed, all re-check-worthy whenever `nitro`/`workflow`/`ai` are bumped:
    is expensive and, more importantly, returns HTTP **503/500** from its dev
    proxy for the seconds it takes to rebuild on every save — which surfaced as
    a `TransportError: executor request failed: 503` in chat once
-   `write_file`/`edit_file` began foreground-polling `GET /tasks/:id` across a
-   whole generation (chat now tolerates transient 5xx there, but the churn was
-   still pointless). Edit executor code → restart the process to pick it up.
+   `write_file`/`edit_file` originally began foreground-polling
+   `GET /tasks/:id` across a whole generation (Chat now watches the
+   Workflow-backed status stream and falls back on transient transport
+   failures, but the rebuild churn is still pointless). Edit executor code →
+   restart the process to pick it up.
    Use `pnpm dev:watch` only if you specifically want the watcher back.
 
 6. **`video-generation` needs ffmpeg, and the `"use workflow"` orchestrator

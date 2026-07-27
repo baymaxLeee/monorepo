@@ -1,12 +1,18 @@
 import { TransportError } from "@backend/transport-ts";
 
-import { cancelTask, getTask, startTask, type Task } from "../../../infrastructure/clients/executor.js";
+import {
+  cancelTask,
+  startTask,
+  type Task,
+  type TaskWatchFrame,
+  watchTask,
+} from "../../../infrastructure/clients/executor.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { NotFoundError } from "../../errors.js";
 
-export const TASK_POLL_MS = 1_500;
+export const TASK_STREAM_RECONNECT_MS = 1_500;
 
-export const MAX_CONSECUTIVE_POLL_FAILURES = 20;
+export const MAX_CONSECUTIVE_STREAM_FAILURES = 20;
 
 export const MAX_TASK_WAIT_MS = 30 * 60_000;
 
@@ -17,7 +23,7 @@ export class TaskWaitTimeoutError extends Error {
   }
 }
 
-export function isTransientPollError(error: unknown): boolean {
+export function isTransientTaskWatchError(error: unknown): boolean {
   if (error instanceof NotFoundError) {
     return false;
   }
@@ -27,21 +33,21 @@ export function isTransientPollError(error: unknown): boolean {
   return true;
 }
 
-export function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
+export function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     if (signal?.aborted) {
       resolve();
       return;
     }
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer);
-        resolve();
-      },
-      { once: true },
-    );
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
 }
 
@@ -49,51 +55,75 @@ function isTerminalStatus(status: Task["status"]): boolean {
   return status === "completed" || status === "failed" || status === "cancelled";
 }
 
-/**
- * Poll a durable executor task, yielding every fresh snapshot (including the
- * live `progress` counter) and returning once terminal. The final terminal
- * snapshot is BOTH the last `yield` and the return value, so a generator tool
- * wrapper can surface progress as preliminary tool-results and still expose the
- * terminal state. This is the single progress source for executor-backed
- * deliverables (HTML artifact / video) — there is no separate SSE channel.
- */
-export async function* pollTaskSnapshots(
+export async function* watchTaskSnapshots(
   taskId: string,
   ownerRef: string,
   signal?: AbortSignal,
-): AsyncGenerator<Task, Task> {
-  const deadline = Date.now() + MAX_TASK_WAIT_MS;
+): AsyncGenerator<TaskWatchFrame, TaskWatchFrame> {
+  const timeoutController = new AbortController();
+  const timeout = setTimeout(() => timeoutController.abort(), MAX_TASK_WAIT_MS);
+  const watchSignal = signal ? AbortSignal.any([signal, timeoutController.signal]) : timeoutController.signal;
   let consecutiveFailures = 0;
-  while (true) {
-    if (signal?.aborted) {
-      await cancelTask(taskId, ownerRef);
-      throw new DOMException("aborted", "AbortError");
+  let lastKey: string | null = null;
+
+  const emitFresh = (frame: TaskWatchFrame): boolean => {
+    const key = `${frame.task.updatedAt}:${frame.production?.version ?? ""}`;
+    if (key === lastKey) {
+      return false;
     }
-    if (Date.now() >= deadline) {
-      await cancelTask(taskId, ownerRef);
-      throw new TaskWaitTimeoutError(taskId);
-    }
-    try {
-      const task = await getTask(taskId, ownerRef);
-      consecutiveFailures = 0;
-      yield task;
-      if (isTerminalStatus(task.status)) {
-        return task;
+    lastKey = key;
+    return true;
+  };
+
+  try {
+    while (true) {
+      if (signal?.aborted) {
+        await cancelTask(taskId, ownerRef);
+        throw new DOMException("aborted", "AbortError");
       }
-    } catch (error) {
-      if (!isTransientPollError(error)) {
-        throw error;
+      if (timeoutController.signal.aborted) {
+        await cancelTask(taskId, ownerRef);
+        throw new TaskWaitTimeoutError(taskId);
+      }
+
+      let failure: unknown = new Error(`task ${taskId} status stream ended before a terminal snapshot`);
+      try {
+        for await (const frame of watchTask(taskId, ownerRef, watchSignal)) {
+          if (emitFresh(frame)) {
+            consecutiveFailures = 0;
+            yield frame;
+          }
+          if (isTerminalStatus(frame.task.status)) {
+            return frame;
+          }
+        }
+      } catch (error) {
+        failure = error;
+      }
+
+      if (signal?.aborted) {
+        await cancelTask(taskId, ownerRef);
+        throw new DOMException("aborted", "AbortError");
+      }
+      if (timeoutController.signal.aborted) {
+        await cancelTask(taskId, ownerRef);
+        throw new TaskWaitTimeoutError(taskId);
+      }
+      if (!isTransientTaskWatchError(failure)) {
+        throw failure;
       }
       consecutiveFailures += 1;
-      if (consecutiveFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
-        throw error;
+      if (consecutiveFailures >= MAX_CONSECUTIVE_STREAM_FAILURES) {
+        throw failure;
       }
       logger.warn(
-        { taskId, consecutiveFailures, err: String(error).slice(0, 200) },
-        "task poll transient failure, retrying",
+        { taskId, consecutiveFailures, err: String(failure).slice(0, 200) },
+        "task status stream interrupted, reconnecting",
       );
+      await abortableDelay(TASK_STREAM_RECONNECT_MS, watchSignal);
     }
-    await abortableSleep(TASK_POLL_MS, signal);
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

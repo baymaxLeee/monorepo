@@ -123,7 +123,7 @@ Verified constraints (against installed `ai@7.0.26`):
 ### 2. Unified progress: one stream, preliminary tool-results
 
 - HTML-artifact and video progress ride the **main** `useChat` UIMessage stream.
-  `write_html`/`edit_file` and `create_video_production` consume `pollTaskSnapshots`
+  `write_html`/`edit_file` and `create_video_production` consume `watchTaskSnapshots`
   (`agent/tasks/executor-task.js`), `yield`ing running snapshots
   (`blocks_done`/`blocks_total`, `progress_done`/`progress_total`) that the SDK
   emits as preliminary `tool-*` results, then a terminal `yield` with
@@ -136,8 +136,9 @@ Verified constraints (against installed `ai@7.0.26`):
   failure through AI SDK's model-side `error-json` result and decides the next
   step; see ADR 0042. Abort and protocol failures remain native `output-error`
   parts.
-- **Progress source matrix:** HTML/video → poll executor `tasks.progress`
-  (executor keeps writing it via `reportTaskProgress`, minus the push); images →
+- **Progress source matrix:** HTML/video → watch Executor's authenticated
+  Workflow-backed task-status SSE and reconnect that stream after interruption;
+  images →
   chat-internal `Promise.allSettled` two-phase output; Knowledge stores only
   terminal document content and is never a progress source.
 - Deleted: chat `agent/streams/task-progress.ts`, the task-stream Redis helpers,
@@ -145,7 +146,9 @@ Verified constraints (against installed `ai@7.0.26`):
   auth middleware), the executor→chat push (`notifyOwner*`,
   `executor/src/infrastructure/clients/chat.ts`, `transport-ts` `ChatInternalClient` /
   `notifyTaskEvent`), and the frontend `openConversationTaskStream`. The
-  read-only `GET .../tasks/:taskId` JSON snapshot stays for cold-start/debug.
+  read-only `GET .../tasks/:taskId` JSON snapshot stays for ordinary queries and
+  debugging. ADR-0058 adds a distinct service-to-service
+  status stream; it does not restore an Executor-owned browser stream.
 
 ### 3. Orchestration spec (event-loop discipline)
 
@@ -154,8 +157,8 @@ sync work on the event loop); rely on the SDK's per-step `Promise.all` for
 deliverable concurrency and never serialize independent deliverables; fan out
 internally (`Promise.allSettled`/`mapConcurrent`); stream long-running progress
 via async generators (terminal state as the last `yield`, never `return`); order
-plan/todos via the prompt barrier step, not a runtime lock; use timer-based
-`abortableSleep` for polling; propagate the run `AbortSignal`; and add no
+plan/todos via the prompt barrier step, not a runtime lock; reconnect interrupted
+Executor status streams with an abortable delay; propagate the run `AbortSignal`; and add no
 artificial concurrency caps (provider limits + executor bound it).
 
 ## Consequences
@@ -164,8 +167,10 @@ artificial concurrency caps (provider limits + executor bound it).
   progress; refresh/reconnect replays it. Mid-flight progress need not be
   perfectly restored, but terminal `completed`/`failed`/`cancelled` always lands
   on the tool card.
-- Executor is simpler: no outbound notifications, progress is a plain column the
-  owner polls. `reportTaskProgress` keeps writing `tasks.progress`.
+- Executor owns an authenticated service-to-service status stream backed by the
+  Workflow durable stream. Change signals wake the route, while
+  `tasks.progress` and business projections remain the authoritative payload
+  source (ADR-0058).
 - Plan-mode clarification and plan writes are mutually exclusive before SDK
   tool execution without delaying the selected tool's stream or disabling
   unrelated parallel calls. Normal-mode

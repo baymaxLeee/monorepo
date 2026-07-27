@@ -5,6 +5,7 @@ import {
   type ProductionDecision,
   type CreateTaskInput,
   type Task,
+  type TaskWatchFrame,
   type VideoProductionDetail,
   type VideoProductionProjection,
 } from "@backend/transport-ts";
@@ -12,7 +13,7 @@ import {
 import { NotFoundError } from "../../application/errors.js";
 import { getSettings } from "../../bootstrap/config.js";
 
-export type { Task } from "@backend/transport-ts";
+export type { Task, TaskWatchFrame } from "@backend/transport-ts";
 export type { ProductionDecision, VideoProductionDetail, VideoProductionProjection } from "@backend/transport-ts";
 
 function executorClient(): ExecutorInternalClient {
@@ -56,20 +57,6 @@ export async function startTask(input: StartTaskInput): Promise<Task> {
 
 const CHAT_TASK_OWNER = { owner_service: "chat" } as const;
 
-export async function getTask(id: string, ownerRef: string): Promise<Task> {
-  try {
-    return await executorClient().getTask(id, {
-      ...CHAT_TASK_OWNER,
-      owner_ref: ownerRef,
-    });
-  } catch (err) {
-    if (err instanceof TransportError && err.status === 404) {
-      throw new NotFoundError(`task ${id} not found`);
-    }
-    throw err;
-  }
-}
-
 export async function cancelTask(id: string, ownerRef: string): Promise<void> {
   try {
     await executorClient().cancelTask(id, {
@@ -79,6 +66,24 @@ export async function cancelTask(id: string, ownerRef: string): Promise<void> {
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       return;
+    }
+    throw err;
+  }
+}
+
+export async function* watchTask(id: string, ownerRef: string, signal?: AbortSignal): AsyncGenerator<TaskWatchFrame> {
+  try {
+    yield* executorClient().watchTask(
+      id,
+      {
+        ...CHAT_TASK_OWNER,
+        owner_ref: ownerRef,
+      },
+      signal,
+    );
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      throw new NotFoundError(`task ${id} not found`);
     }
     throw err;
   }

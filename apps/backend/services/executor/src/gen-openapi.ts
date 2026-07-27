@@ -299,6 +299,17 @@ const videoProductionProjectionSchema = {
   ],
 };
 
+const taskWatchFrameSchema = {
+  type: "object",
+  properties: {
+    task: ref("Task"),
+    production: {
+      oneOf: [ref("VideoProductionProjection"), { type: "null" }],
+    },
+  },
+  required: ["task", "production"],
+};
+
 const productionDecisionSchema = {
   oneOf: [
     {
@@ -435,6 +446,33 @@ const openapi = {
         },
       },
     },
+    "/tasks/{id}/stream": {
+      get: {
+        summary: "Watch authoritative task snapshots over a Workflow-backed internal SSE stream.",
+        parameters: [
+          idPathParam,
+          {
+            name: "owner_service",
+            in: "query",
+            required: true,
+            schema: { type: "string" },
+          },
+          {
+            name: "owner_ref",
+            in: "query",
+            required: true,
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "snapshot events containing TaskWatchFrame JSON",
+            content: { "text/event-stream": { schema: { type: "string" } } },
+          },
+          "404": { description: "task not found" },
+        },
+      },
+    },
     "/tasks/{id}/cancel": {
       post: {
         parameters: [
@@ -491,6 +529,7 @@ const openapi = {
   components: {
     schemas: {
       Task: taskSchema,
+      TaskWatchFrame: taskWatchFrameSchema,
       CreateTaskInput: createTaskInputSchema,
       FileTaskBatchPayload: fileTaskBatchPayloadSchema,
       VideoGenerationTaskPayload: videoGenerationTaskPayloadSchema,

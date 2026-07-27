@@ -3,7 +3,12 @@ import { z } from "zod";
 
 import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
 import { rethrowTerminalArtifactError } from "../src/application/tasks/errors.js";
-import { isTaskCancelled, recordExternalTask, reportTaskProgress } from "../src/application/tasks/notify.js";
+import {
+  isTaskCancelled,
+  recordExternalTask,
+  reportTaskProgress,
+  reportTaskStatusSignal,
+} from "../src/application/tasks/notify.js";
 import { compileSeedancePrompt } from "../src/application/video-production/compiler.js";
 import { reconcileVideoCost, releaseVideoCost, reserveVideoCost } from "../src/application/video-production/cost.js";
 import {
@@ -283,7 +288,7 @@ async function initializeProductionStep(input: {
   characterRefs: CharacterRef[];
 }) {
   "use step";
-  return initializeVideoProduction({
+  const production = await initializeVideoProduction({
     workflowRunId: input.workflowRunId,
     orgId: input.request.orgId,
     userId: input.request.userId,
@@ -294,6 +299,7 @@ async function initializeProductionStep(input: {
     shotPlan: input.shotPlan,
     sourceCharacterRefs: input.request.plan.characters,
   });
+  return production;
 }
 initializeProductionStep.maxRetries = 0;
 
@@ -303,15 +309,21 @@ async function configureProductionCostStep(productionId: string, orgId: string, 
   if (!provider.pricing || provider.pricing.unit !== "generated_second") {
     throw new Error("video provider pricing is required before storyboard approval");
   }
-  return configureVideoProductionCost(productionId, {
+  const production = await configureVideoProductionCost(productionId, {
     currency: provider.pricing.currency,
     unitPriceMicros: provider.pricing.unitPriceMicros,
   });
+  return production;
 }
 
 async function awaitingStoryboardStep(productionId: string) {
   "use step";
   return markAwaitingStoryboardApproval(productionId);
+}
+
+async function reportVideoProductionChangedStep() {
+  "use step";
+  await reportTaskStatusSignal("video-production-changed");
 }
 
 async function reviseStoryboardStep(
@@ -822,7 +834,9 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
     shotPlan,
     characterRefs,
   });
+  await reportVideoProductionChangedStep();
   await configureProductionCostStep(production.id, input.orgId, input.providerId);
+  await reportVideoProductionChangedStep();
   let approvedShotPlan = production.shotPlan;
   if (!approvedShotPlan) {
     throw new Error("video production has no storyboard");
@@ -835,6 +849,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
     throw new Error(`storyboard approval hook is owned by ${conflict.runId}`);
   }
   await awaitingStoryboardStep(production.id);
+  await reportVideoProductionChangedStep();
   let storyboardApproval: {
     budgetLimitMicros: number;
     currency: string;

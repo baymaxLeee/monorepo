@@ -185,6 +185,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tasks/{id}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Watch authoritative task snapshots over a Workflow-backed internal SSE stream. */
+        get: {
+            parameters: {
+                query: {
+                    owner_service: string;
+                    owner_ref: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description snapshot events containing TaskWatchFrame JSON */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                /** @description task not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tasks/{id}/cancel": {
         parameters: {
             query?: never;
@@ -424,6 +472,10 @@ export interface components {
             updatedAt: string;
             /** Format: date-time */
             finishedAt: string | null;
+        };
+        TaskWatchFrame: {
+            task: components["schemas"]["Task"];
+            production: components["schemas"]["VideoProductionProjection"] | null;
         };
         CreateTaskInput: {
             /** @constant */

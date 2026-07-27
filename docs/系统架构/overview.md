@@ -36,7 +36,8 @@
 ## 数据流
 
 - **同步**: REST(对外)/ gRPC(服务间内部)
-- **异步**: CloudEvents,经消息总线(Kafka,生产环境)
+- **异步**: 长任务使用 Workflow DevKit + PostgreSQL 持久执行；Executor 任务状态通过
+  Workflow 持久流向内部消费者通知。当前未部署通用 Kafka/RabbitMQ 事件总线。
 
 ## 契约
 
