@@ -26,7 +26,9 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
   const [sourceError, setSourceError] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const isHtmlFile = file?.mime_type.toLowerCase() === "text/html";
+  const previewFile = file?.path === path ? file : null;
+  const isChangingFile = Boolean(file && path && file.path !== path);
+  const isHtmlFile = previewFile?.mime_type.toLowerCase() === "text/html";
 
   useEffect(() => {
     if (!open || !conversationId || !path) {
@@ -89,7 +91,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
     return () => {
       active = false;
     };
-  }, [conversationId, file?.sha256, isHtmlFile, path]);
+  }, [conversationId, isHtmlFile, path, previewFile?.sha256]);
 
   useEffect(() => {
     const sync = () => {
@@ -114,7 +116,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
   }, []);
 
   const downloadFile = useCallback(async () => {
-    if (!file) {
+    if (!previewFile) {
       return;
     }
     setDownloading(true);
@@ -130,12 +132,12 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
         }
         blob = await response.blob();
       } else {
-        blob = new Blob([file.content ?? ""], { type: file.mime_type });
+        blob = new Blob([previewFile.content ?? ""], { type: previewFile.mime_type });
       }
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = file.filename.split("/").at(-1) ?? "artifact";
+      anchor.download = previewFile.filename.split("/").at(-1) ?? "artifact";
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
@@ -143,20 +145,20 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
     } finally {
       setDownloading(false);
     }
-  }, [file, isHtmlFile, previewUrl]);
+  }, [isHtmlFile, previewFile, previewUrl]);
 
   return (
     <div ref={panelRef} className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden bg-background">
       <div className="flex h-11 shrink-0 items-center gap-2 px-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{file?.title ?? (loading ? "加载中…" : "预览")}</p>
-          {file ? (
+          <p className="truncate text-sm font-medium">{previewFile?.title ?? (loading ? "加载中…" : "预览")}</p>
+          {previewFile ? (
             <p className="truncate text-xs text-muted-foreground">
-              {file.path} · {file.mime_type}
+              {previewFile.path} · {previewFile.mime_type}
             </p>
           ) : null}
         </div>
-        {file ? (
+        {previewFile ? (
           <ArtifactAction
             tooltip={downloading ? "下载中…" : "下载"}
             label="下载产物"
@@ -190,19 +192,19 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
         </Button>
       </div>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {loading || sourceLoading ? (
+        {loading || isChangingFile || sourceLoading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">加载中…</div>
         ) : sourceError ? (
           <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
             无法加载预览
           </div>
-        ) : file ? (
+        ) : previewFile ? (
           <ArtifactPreview
-            title={file.title}
-            filename={file.filename}
-            mimeType={file.mime_type}
-            content={file.content ?? ""}
-            src={previewUrl}
+            title={previewFile.title}
+            filename={previewFile.filename}
+            mimeType={previewFile.mime_type}
+            content={previewFile.content ?? ""}
+            src={isHtmlFile ? previewUrl : undefined}
             showHeader={false}
             className="h-full min-h-0 min-w-0 overflow-hidden rounded-none border-0 bg-transparent shadow-none [&>div]:min-h-0 [&>div]:min-w-0 [&>div]:flex-1 [&>div]:overflow-y-auto [&_iframe]:h-full [&_iframe]:min-h-0 [&_iframe]:min-w-0"
           />
