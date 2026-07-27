@@ -74,7 +74,7 @@ const sha = z
 
 const writeInput = z.object({
   path: textPath,
-  content: z.string().max(500_000).describe("The complete exact UTF-8 file content. This is not a brief or generation plan."),
+  content: z.string().describe("The complete exact UTF-8 file content. This is not a brief or generation plan."),
   expected_sha256: sha.optional(),
 });
 const editInput = z.object({
@@ -82,8 +82,8 @@ const editInput = z.object({
   edits: z
     .array(
       z.object({
-        old_text: z.string().min(1).max(80_000).describe("Exact text currently present in the file."),
-        new_text: z.string().max(80_000).describe("Exact replacement text; use an empty string to delete old_text."),
+        old_text: z.string().min(1).describe("Exact text currently present in the file."),
+        new_text: z.string().describe("Exact replacement text; use an empty string to delete old_text."),
         replace_all: z.boolean().optional().describe("Set true only when every occurrence should be replaced; otherwise old_text must be unique."),
       }),
     )
@@ -307,7 +307,7 @@ function readCurrent(context: ArtifactToolContext, target: string) {
       conversationId: context.conversationId,
       path: target,
       offset,
-      limit: 400,
+      limit: 2_000,
     }),
   );
 }
@@ -641,7 +641,7 @@ export function createFileToolManifests(_mode: AgentMode, textProvider: ChatProv
         inputSchema: z.object({
           path: z.string().min(1).max(512).describe("Exact path returned by list_files or another file tool."),
           offset: z.number().int().min(1).default(1).describe("One-based starting line. Use next_offset from the previous result to continue."),
-          limit: z.number().int().min(1).max(400).default(200).describe("Maximum number of lines to return."),
+          limit: z.number().int().min(1).max(2_000).default(2_000).describe("Maximum number of lines to return."),
         }),
         outputSchema: readFileOutputSchema,
         contextSchema: fileToolContextSchema,
@@ -672,6 +672,8 @@ export function createFileToolManifests(_mode: AgentMode, textProvider: ChatProv
       tool({
         description:
           "Write exact complete UTF-8 text to a relative virtual path and publish the new version immediately. " +
+          "Text and HTML have no artifact-specific character limit, but the tool call must still be complete valid JSON; " +
+          "when one model response would be too large, write a valid initial file and continue with sequential edit_file calls. " +
           "Use for new files and coherent rewrites when an existing file is too broadly or structurally changed for reliable exact edits. " +
           "Chart-bearing HTML must follow core_policy's platform-first ECharts Promise-loader contract.",
         inputSchema: writeInput,

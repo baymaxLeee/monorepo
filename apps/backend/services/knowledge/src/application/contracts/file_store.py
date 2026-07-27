@@ -36,7 +36,7 @@ class ChangeSet(BaseModel):
 class WriteChangeSetFileInput(BaseModel):
     user_id: str = Field(min_length=1, max_length=26)
     path: str = Field(min_length=1, max_length=512)
-    content: str = Field(max_length=500_000)
+    content: str
     mime_type: str = Field(min_length=1, max_length=120)
     writable: bool = True
     derived: bool = False

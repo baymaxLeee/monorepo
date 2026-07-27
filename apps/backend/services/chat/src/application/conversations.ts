@@ -292,7 +292,7 @@ export async function getConversationFile(
       conversationId,
       path,
       offset,
-      limit: 400,
+      limit: 2_000,
     });
     chunks.push(slice.content);
     if (slice.next_offset === null) {

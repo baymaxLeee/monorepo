@@ -98,6 +98,14 @@ baseline at promotion time.
     changes are too broad or interconnected for reliable edits, or the existing
     structure should not be retained. A rewrite may intentionally retain another
     complete persisted snapshot.
+15. Virtual text writes and exact edit replacement payloads have no
+    artifact-specific character ceiling in the tool schema or Knowledge store.
+    This does not make model output infinite: every function call must still
+    finish as valid JSON within the provider's output budget. A large coherent
+    file therefore starts as a valid complete document and grows through
+    sequential batched `edit_file` calls when necessary. `read_file` follows
+    Codex's 2,000-line slice size and returns `next_offset` for continuation
+    rather than forcing 200/400-line round trips.
 
 ## Consequences
 
@@ -134,6 +142,9 @@ retained as a dual runtime.
 - [ADR-0050: unified file tools](0050-unified-file-tools.md)
 - [ADR-0054: content-addressed artifact revisions](0054-content-addressed-artifact-revisions.md)
 - [Pi edit operations](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/tools/edit.ts)
+- [Pi write operation](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/tools/write.ts)
+- [Pi read operation](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/tools/read.ts)
+- [Codex read-file handler](https://github.com/openai/codex/blob/main/codex-rs/core/src/tools/handlers/read_file.rs)
 - [Vercel AI SDK agents](https://ai-sdk.dev/docs/agents)
 - [Vercel AI SDK subagents](https://ai-sdk.dev/docs/agents/subagents)
 - [Claude Code tools](https://code.claude.com/docs/en/tools-reference)

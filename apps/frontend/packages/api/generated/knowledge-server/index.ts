@@ -470,7 +470,6 @@ export interface WriteChangeSetFileInput {
      * @maxLength 512
      */
   path: string;
-  /** @maxLength 500000 */
   content: string;
   /**
      * @minLength 1
@@ -586,7 +585,7 @@ path: string;
 offset?: number;
 /**
  * @minimum 1
- * @maximum 400
+ * @maximum 2000
  */
 limit?: number;
 };
@@ -604,7 +603,7 @@ path: string;
 offset?: number;
 /**
  * @minimum 1
- * @maximum 400
+ * @maximum 2000
  */
 limit?: number;
 };

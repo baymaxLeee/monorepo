@@ -44,6 +44,8 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
   The target file tree uses stable relative paths and per-path SHA values;
   deliverable change sets compare their baseline at promotion time and replace
   the current tree atomically.
+- Virtual text files have no artifact-specific character ceiling. Model-facing
+  reads use bounded 2,000-line slices and continue with the returned offset.
 - Deleting a chat conversation asynchronously removes generated `artifact`
   documents, artifact-generation blocks, and staged media through Chat's
   transactional outbox. User-uploaded `source` documents remain independently

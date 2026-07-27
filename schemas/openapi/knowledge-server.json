@@ -2729,9 +2729,9 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "maximum": 400,
+              "maximum": 2000,
               "minimum": 1,
-              "default": 200,
+              "default": 2000,
               "title": "Limit"
             }
           },
@@ -3088,9 +3088,9 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "maximum": 400,
+              "maximum": 2000,
               "minimum": 1,
-              "default": 400,
+              "default": 2000,
               "title": "Limit"
             }
           },
@@ -5016,7 +5016,6 @@
           },
           "content": {
             "type": "string",
-            "maxLength": 500000,
             "title": "Content"
           },
           "mime_type": {

@@ -77,7 +77,7 @@ export class KnowledgeInternalClient {
             conversation_id: input.conversationId,
             path: input.path,
             offset: input.offset ?? 1,
-            limit: input.limit ?? 200,
+            limit: input.limit ?? 2_000,
           },
         },
       }),
@@ -148,7 +148,7 @@ export class KnowledgeInternalClient {
       this.client.GET("/internal/files/change-sets/{change_set_id}/read", {
         params: {
           path: { change_set_id: input.changeSetId },
-          query: { user_id: input.userId, path: input.path, offset: input.offset ?? 1, limit: input.limit ?? 400 },
+          query: { user_id: input.userId, path: input.path, offset: input.offset ?? 1, limit: input.limit ?? 2_000 },
         },
       }),
     );

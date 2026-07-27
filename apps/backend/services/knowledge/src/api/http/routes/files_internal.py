@@ -126,7 +126,7 @@ async def read_file(
     conversation_id: str = Query(...),
     path: str = Query(...),
     offset: int = Query(default=1, ge=1),
-    limit: int = Query(default=200, ge=1, le=400),
+    limit: int = Query(default=2000, ge=1, le=2000),
 ) -> FileRead:
     target = _path(path)
     row = await session.scalar(
@@ -292,7 +292,7 @@ async def read_change_set_file(
     user_id: str = Query(...),
     path: str = Query(...),
     offset: int = Query(default=1, ge=1),
-    limit: int = Query(default=400, ge=1, le=400),
+    limit: int = Query(default=2000, ge=1, le=2000),
 ) -> FileRead:
     target = _path(path)
     change_set = await _change_set(session, change_set_id, user_id)
