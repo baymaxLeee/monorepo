@@ -1,5 +1,5 @@
 {
-  "$schema": "https://turbo.build/schema.json",
+  "$schema": "https://turborepo.com/schema.json",
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -12,6 +12,26 @@
     "lint": {},
     "typecheck": {
       "dependsOn": ["^build"]
+    }
+  },
+  "boundaries": {
+    "tags": {
+      "app": {
+        "dependencies": { "allow": ["ui", "data", "runtime", "util"] },
+        "dependents": { "allow": [] }
+      },
+      "ui": {
+        "dependencies": { "allow": ["ui", "util"] }
+      },
+      "data": {
+        "dependencies": { "allow": ["runtime", "util"] }
+      },
+      "runtime": {
+        "dependencies": { "allow": ["util"] }
+      },
+      "util": {
+        "dependencies": { "allow": ["util"] }
+      }
     }
   }
 }

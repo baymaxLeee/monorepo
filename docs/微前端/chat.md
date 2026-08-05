@@ -42,4 +42,4 @@
   `create_video_production`；模型不得在聊天正文中模拟分镜、预算、Take 或发布审批，也不得让
   用户通过回复文字完成这些审批。
 
-普通 CRUD 使用 `api` package；禁止跨 MFE import，跨域通信使用 `runtime` 事件总线。
+普通 CRUD 使用 `@repo/api`；禁止跨 MFE import，跨域通信使用 `@repo/runtime` 事件总线。

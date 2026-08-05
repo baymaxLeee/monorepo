@@ -18,7 +18,7 @@ pnpm_install() {
 
 echo "── 1. Script permissions ──"
 chmod +x scripts/*.sh 2>/dev/null || true
-chmod +x apps/frontend/packages/api-client/scripts/*.sh 2>/dev/null || true
+chmod +x apps/frontend/packages/api/scripts/*.sh 2>/dev/null || true
 
 echo ""
 echo "── 2. Tool versions (mise) ──"

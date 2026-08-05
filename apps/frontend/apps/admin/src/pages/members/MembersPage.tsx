@@ -6,7 +6,7 @@ import {
   type OrgMemberView,
   rejectMember,
   setMemberRole,
-} from "api";
+} from "@repo/api";
 import {
   Alert,
   AlertDescription,
@@ -38,9 +38,9 @@ import {
   TableHeader,
   TableRow,
   toast,
-} from "components";
+} from "@repo/design-system";
+import { getErrorMessage } from "@repo/shared";
 import { useCallback, useEffect, useState } from "react";
-import { getErrorMessage } from "shared";
 
 import { useAdminIdentity } from "../../identity";
 

@@ -1,6 +1,14 @@
-import { Button, Page, PageActions, PageDescription, PageHeader, PageHeaderContent, PageTitle } from "components";
+import {
+  Button,
+  Page,
+  PageActions,
+  PageDescription,
+  PageHeader,
+  PageHeaderContent,
+  PageTitle,
+} from "@repo/design-system";
+import { usePlatformStore } from "@repo/runtime";
 import { Link } from "react-router-dom";
-import { usePlatformStore } from "runtime";
 
 function NotFoundPage() {
   const user = usePlatformStore((state) => state.user);

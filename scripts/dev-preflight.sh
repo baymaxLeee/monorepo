@@ -2,7 +2,7 @@
 # Checks infra + frontend deps before `just dev`. Does not start Docker.
 set -euo pipefail
 
-DEV_PORTS=(8000 8001 8002 8008 8009 8010 3000 3001 3005)
+DEV_PORTS=(8000 8001 8002 8008 8009 8010 8011 3000 3001 3005)
 
 if ! docker ps >/dev/null 2>&1; then
   echo "✗ Docker is not reachable. Start Docker Desktop and retry." >&2

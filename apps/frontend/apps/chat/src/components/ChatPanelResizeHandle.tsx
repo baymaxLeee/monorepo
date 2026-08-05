@@ -1,5 +1,5 @@
+import { cn } from "@repo/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cn } from "shared";
 
 export interface ChatPanelResizeHandleProps {
   edge: "left-panel" | "right-panel";

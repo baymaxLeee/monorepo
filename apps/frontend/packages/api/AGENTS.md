@@ -25,8 +25,8 @@ humans; local OpenAPI files are for reproducible code generation.
 
 ## Rules
 
-- All app/MFE API calls go through `api`.
-- `api` is the finest-grained public import path. Re-export every
+- All app/MFE API calls go through `@repo/api`.
+- `@repo/api` is the finest-grained public import path. Re-export every
   public API from `index.ts`; do not add `api/<module>` imports.
 - Use gateway-facing paths (`/api/<service-name>/*`), not internal service
   paths.

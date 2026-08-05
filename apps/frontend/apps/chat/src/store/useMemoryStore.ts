@@ -8,8 +8,8 @@ import {
   rejectMemoryCandidate,
   type UserMemory,
   updateMemoryCandidate,
-} from "api";
-import { getErrorMessage } from "shared";
+} from "@repo/api";
+import { getErrorMessage } from "@repo/shared";
 import { create } from "zustand";
 
 export interface MemoryState {

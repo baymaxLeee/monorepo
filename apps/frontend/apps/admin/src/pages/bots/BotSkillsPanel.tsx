@@ -1,5 +1,5 @@
-import { attachBotSkill, detachBotSkill, fetchBotSkills, fetchSkills, type SkillSummary } from "api";
-import { Badge, Button, Skeleton, Switch, toast } from "components";
+import { attachBotSkill, detachBotSkill, fetchBotSkills, fetchSkills, type SkillSummary } from "@repo/api";
+import { Badge, Button, Skeleton, Switch, toast } from "@repo/design-system";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 

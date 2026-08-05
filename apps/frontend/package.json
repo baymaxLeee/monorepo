@@ -9,7 +9,7 @@
     "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
-    "@project/typescript-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
     "@types/node": "^24.0.0",
     "tailwindcss": "catalog:",
     "turbo": "^2.0.0"

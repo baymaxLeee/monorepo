@@ -1,4 +1,4 @@
-import { ToolJsonBlock } from "components/ai-chat";
+import { ToolJsonBlock } from "@repo/ai-elements";
 
 import { type AskUserInput, answerLabels, parseAskUserOutput } from "../lib/ask-user";
 

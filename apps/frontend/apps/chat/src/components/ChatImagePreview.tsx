@@ -1,4 +1,4 @@
-import { ImagePreview } from "components";
+import { ImagePreview } from "@repo/design-system";
 import { useShallow } from "zustand/react/shallow";
 
 import { useDocumentBlobUrls } from "../hooks/useDocumentSource";

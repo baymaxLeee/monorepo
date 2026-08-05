@@ -24,20 +24,23 @@ proceeding. Prefer N small per-service PRs over one mega-PR.
        Use compact report to plan
 
 [ ] 4. Order matters:
-       a) Update libs/ if needed (backward-compatible first)
-       b) Update each service consumer
-       c) Once all services updated, remove deprecated paths
+       a) Build the ADR-0061 consumer matrix and decide whether code should be shared
+       b) Update the shared contract or capability only when justified
+       c) Update every consumer and delete the old path in the same migration; demo phase has no compatibility shims
 
 [ ] 5. Per service:
        cd apps/backend/services/<svc>
        Make minimal change
-       just test <svc>
+       Run the service's scoped lint/build checks; demo phase skips tests
        Commit with: `refactor(<svc>): adopt new libs.X API`
 
 [ ] 6. (Optional) Dispatch `reviewer` sub-agent after full diff
 
 [ ] 7. Sync schemas if any OpenAPI/proto changed:
        just sync
+
+[ ] 8. Run root `just lint` and `just build`, then exercise the affected calls
+       against the running stack
 ```
 
 ## Strict rules

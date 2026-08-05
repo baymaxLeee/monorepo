@@ -1,6 +1,6 @@
-import type { Bot } from "api";
-import { Badge, Button } from "components";
-import { ModelSelector } from "components/ai-chat";
+import { ModelSelector } from "@repo/ai-elements";
+import type { Bot } from "@repo/api";
+import { Badge, Button } from "@repo/design-system";
 import { BotIcon, ListChecksIcon, SparklesIcon, XIcon } from "lucide-react";
 
 export interface ChatComposerControlsProps {

@@ -1,4 +1,4 @@
-import { TooltipProvider } from "components";
+import { TooltipProvider } from "@repo/design-system";
 import { Navigate, Outlet, type RouteObject } from "react-router-dom";
 
 function AdminRoot() {

@@ -1,4 +1,4 @@
-import { assignUserRole, listPlatformRoles, listUserPlatformRoles, type PlatformRole, removeUserRole } from "api";
+import { assignUserRole, listPlatformRoles, listUserPlatformRoles, type PlatformRole, removeUserRole } from "@repo/api";
 import {
   Alert,
   AlertDescription,
@@ -20,7 +20,7 @@ import {
   PageHeaderContent,
   PageTitle,
   toast,
-} from "components";
+} from "@repo/design-system";
 import { useEffect, useState } from "react";
 
 import { useAdminIdentity } from "../../identity";

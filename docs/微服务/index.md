@@ -1,23 +1,29 @@
 # 微服务
 
+服务组合与 binding 的架构决策见 [ADR-0060](../ADR/0060-service-composition-and-bindings.md)。
+机器可读真源：仓库根目录 `services.yaml`（`just lint` 会跑 drift check）。
+
 ## 现有服务
 
-| 服务 | 语言 | 端口 | 说明 |
-|---|---|---|---|
-| gateway | Go | 8000 | BFF / 边缘网关 |
-| admin | Python | 8001 | 智能体管理 |
-| iam | Go | 8002 | 身份认证 / 会话 |
-| telemetry | Python | 8008 | 可观测 / RUM 上报 |
-| chat | TypeScript | 8009 | 对话 / Agent runtime（SSE 流式） |
-| knowledge | Python | 8010 | 知识库 / 文件 ingest / artifact 持久化 |
-| executor | TypeScript | 8011 | 长任务 durable executor（Workflow DevKit） |
+| 服务 | 语言 | 端口 | 公开面 | 数据所有权 | 出站 binding | 说明 |
+|---|---|---|---|---|---|---|
+| gateway | Go | 8000 | `/*`（唯一后端公网入口） | 无业务库 | iam, admin, chat, knowledge, telemetry | 边缘反向代理 BFF |
+| iam | Go | 8002 | `/api/iam-server/*` | PostgreSQL `iam` | — | 身份 / 会话 |
+| admin | Python | 8001 | `/api/admin-server/*` | PostgreSQL `admin` | — | 管理与配置平面 |
+| chat | TypeScript | 8009 | `/api/chat-server/*` | PostgreSQL `chat` | admin, knowledge, executor | 对话 / Agent runtime |
+| knowledge | Python | 8010 | `/api/knowledge-server/*` | PostgreSQL `knowledge` | admin | 知识库 / ingest / artifact |
+| telemetry | Python | 8008 | `/api/telemetry-server/*` | PostgreSQL `telemetry` | — | 可观测 / RUM |
+| executor | TypeScript | 8011 | **internal-only**（无公网 route） | PostgreSQL `executor` (+ `workflow`) | admin, knowledge | 长任务 durable executor |
+
+Failure 责任（摘要）：同步 HTTP binding 的 timeout / 错误映射由 **caller 的 transport client** 负责；gateway 不对 proxied/SSE 请求做 body 重试。长任务重试与跨请求状态在 executor / Workflow，不藏在普通 HTTP handler。
 
 ## 通用规则
 
 参见 `apps/backend/AGENTS.md`。核心约束:
 - 服务自治: 各自的 DB、各自的部署、不互相 import
-- 跨服务调用: 走 `libs/transport/` 客户端,不走直接 import
-- 共享内核(`libs/`): 只放基础设施,**禁止**放领域模型
+- 跨服务调用: 显式 binding + `libs/transport-*` 或服务内 client，不走直接 import
+- 共享内核(`libs/`): 只放有 consumer matrix 依据的基础设施,**禁止**放领域模型（见 ADR-0061）
+- 参照边界: next-forge → 前端 package；Vercel Services → 组合/routing/binding；Eve **仅** agent runtime，不是微服务注册模板
 
 ## 服务内统一分层
 

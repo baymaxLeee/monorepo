@@ -1,0 +1,19 @@
+{
+  "name": "@repo/build-config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./mf-shared": "./mf-shared.mjs",
+    "./rspack": "./rspack.mjs"
+  },
+  "scripts": {
+    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/packages/build-config && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/build-config/**/*.{js,mjs,cjs,json,jsonc}'",
+    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/build-config/**/*.{js,mjs,cjs,json,jsonc}'"
+  },
+  "dependencies": {
+    "@tailwindcss/webpack": "catalog:",
+    "css-loader": "^7.1.2",
+    "style-loader": "^4.0.0"
+  }
+}

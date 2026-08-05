@@ -46,12 +46,16 @@ cat > "$MFE_DIR/package.json" <<EOF
   "scripts": {
     "dev": "rspack serve",
     "build": "rspack build",
-    "lint": "biome check src",
-    "format": "biome check --write src",
+    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/apps/$NAME/src",
+    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/apps/$NAME/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
     "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit"
   },
   "dependencies": {
-    "components": "workspace:*",
+    "@repo/api": "workspace:*",
+    "@repo/design-system": "workspace:*",
+    "@repo/observability": "workspace:*",
+    "@repo/runtime": "workspace:*",
+    "@repo/shared": "workspace:*",
     "react": "catalog:",
     "react-compiler-runtime": "catalog:",
     "react-dom": "catalog:",
@@ -59,6 +63,8 @@ cat > "$MFE_DIR/package.json" <<EOF
   },
   "devDependencies": {
     "@module-federation/enhanced": "catalog:",
+    "@repo/build-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
     "@rspack/cli": "catalog:",
     "@rspack/core": "catalog:",
     "@rspack/dev-server": "catalog:",
@@ -73,7 +79,7 @@ EOF
 
 cat > "$MFE_DIR/tsconfig.json" <<EOF
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@repo/typescript-config",
   "compilerOptions": {
     "outDir": "dist",
     "paths": {
@@ -84,17 +90,25 @@ cat > "$MFE_DIR/tsconfig.json" <<EOF
 }
 EOF
 
+cat > "$MFE_DIR/turbo.json" <<EOF
+{
+  "\$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tags": ["app"]
+}
+EOF
+
 cat > "$MFE_DIR/rspack.config.mjs" <<'EOF'
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ModuleFederationPlugin } from "@module-federation/enhanced/rspack";
 import { defineConfig } from "@rspack/cli";
-import { buildShared } from "../../mf-shared.mjs";
+import { buildShared } from "@repo/build-config/mf-shared";
 import {
   createAppResolveAlias,
   createRemoteCssRule,
   createSwcRule,
-} from "../../rspack.shared.mjs";
+} from "@repo/build-config/rspack";
 
 const PORT = Number(process.env.PORT ?? 3099);
 const appDir = path.dirname(fileURLToPath(import.meta.url));
@@ -147,7 +161,7 @@ sed -i.bak "s/__REMOTE_NAME__/$REMOTE_NAME/g" "$MFE_DIR/rspack.config.mjs"
 rm -f "$MFE_DIR/rspack.config.mjs.bak"
 
 cat > "$MFE_DIR/src/router/index.tsx" <<EOF
-import { TooltipProvider } from "components";
+import { TooltipProvider } from "@repo/design-system";
 import { Navigate, Outlet, type RouteObject } from "react-router-dom";
 
 function RemoteRoot() {

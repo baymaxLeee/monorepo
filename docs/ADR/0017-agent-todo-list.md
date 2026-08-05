@@ -53,7 +53,7 @@ tracker for the *current* execution, not a versioned document.
   for any 3+ step task, plan-derived or not.
 - The frontend renders `tool-update_todos` output with the existing
   `Plan`/`PlanHeader`/`PlanContent`/`Task`/`TaskTitle` primitives
-  (`apps/frontend/packages/components/src/AiChat/workflow.tsx`) inside the
+  (`apps/frontend/packages/ai-elements/src/AiChat/workflow.tsx`) inside the
   same collapsible `Tool` shell every other tool call uses — no new
   collapse/dedup logic, no cross-message state.
 

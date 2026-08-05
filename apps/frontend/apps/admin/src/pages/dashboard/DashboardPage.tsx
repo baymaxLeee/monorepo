@@ -3,7 +3,7 @@ import {
   fetchTelemetryPerformance,
   type TelemetryErrorEvent,
   type TelemetryPerformanceEvent,
-} from "api";
+} from "@repo/api";
 import {
   Alert,
   AlertDescription,
@@ -15,10 +15,10 @@ import {
   PageHeader,
   PageHeaderContent,
   PageTitle,
-} from "components";
+} from "@repo/design-system";
+import { usePlatformStore } from "@repo/runtime";
+import { getErrorMessage } from "@repo/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePlatformStore } from "runtime";
-import { getErrorMessage } from "shared";
 
 import { DashboardContent } from "./DashboardContent";
 import { buildDashboardData, buildVitalSummaries } from "./dashboardData";

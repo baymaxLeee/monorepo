@@ -1,6 +1,6 @@
-import { type AuthUser, bootstrapSession } from "api";
+import { type AuthUser, bootstrapSession } from "@repo/api";
+import { usePlatformStore } from "@repo/runtime";
 import { createContext, type MiddlewareFunction, redirect } from "react-router-dom";
-import { usePlatformStore } from "runtime";
 
 import { activeMemberships, canEnterPlatform, isSuperAdmin, landingPath } from "../onboarding";
 import type { AppEntry } from "./app-registry";

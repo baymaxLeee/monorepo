@@ -1,4 +1,4 @@
-import { Page, Tabs, TabsContent, TabsList, TabsTrigger } from "components";
+import { Page, Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/design-system";
 import { useState } from "react";
 
 import { type DemoTab, defaultDemoTab, resolveDemoTab } from "./data";

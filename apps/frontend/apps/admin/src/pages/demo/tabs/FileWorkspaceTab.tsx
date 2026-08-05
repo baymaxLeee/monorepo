@@ -1,4 +1,4 @@
-import { type FileChange, type FileNode, FileWorkspace } from "components/file-workspace";
+import { type FileChange, type FileNode, FileWorkspace } from "@repo/editors/file-workspace";
 import { useState } from "react";
 
 import { DemoCard } from "../DemoCard";

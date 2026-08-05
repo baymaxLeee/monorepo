@@ -6,7 +6,7 @@ import {
   type KnowledgeDocument,
   listKnowledgeDocuments,
   reindexKnowledgeDocument,
-} from "api";
+} from "@repo/api";
 import {
   Alert,
   AlertDescription,
@@ -34,10 +34,10 @@ import {
   TableHeader,
   TableRow,
   toast,
-} from "components";
+} from "@repo/design-system";
+import { getErrorMessage, randomId } from "@repo/shared";
 import { DownloadIcon, PencilIcon, Trash2Icon, UploadIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getErrorMessage, randomId } from "shared";
 
 import { KnowledgeDocumentDialog } from "./KnowledgeDocumentDialog";
 

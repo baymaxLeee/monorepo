@@ -1,5 +1,5 @@
-import type { TraceSpan } from "api";
-import { Badge, InlineCode, Skeleton } from "components";
+import type { TraceSpan } from "@repo/api";
+import { Badge, InlineCode, Skeleton } from "@repo/design-system";
 import { useMemo } from "react";
 
 import { formatTraceDuration, formatTraceTime } from "./trace-utils";

@@ -1,5 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
-import { fetchObservabilityTrace, fetchObservabilityTraces, type TraceSummary } from "api";
+import { fetchObservabilityTrace, fetchObservabilityTraces, type TraceSummary } from "@repo/api";
 import {
   Badge,
   Button,
@@ -16,7 +15,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "components";
+} from "@repo/design-system";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { formatTraceDuration, formatTraceTime, shortTraceId } from "./trace-utils";

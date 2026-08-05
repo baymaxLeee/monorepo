@@ -13,7 +13,7 @@ import {
   type SkillValidationResult,
   updateSkillFileContent,
   validateSkill,
-} from "api";
+} from "@repo/api";
 import {
   Alert,
   AlertDescription,
@@ -28,17 +28,17 @@ import {
   PageTitle,
   Skeleton,
   toast,
-} from "components";
+} from "@repo/design-system";
 import {
   ChangeAction,
   type FileChange,
   type FileNode,
   FileWorkspace,
   type FileWorkspaceRef,
-} from "components/file-workspace";
+} from "@repo/editors/file-workspace";
+import { getErrorMessage } from "@repo/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getErrorMessage } from "shared";
 
 function notifyValidationResult(result: SkillValidationResult) {
   if (result.ok) {

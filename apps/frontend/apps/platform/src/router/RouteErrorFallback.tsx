@@ -1,4 +1,4 @@
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "components";
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@repo/design-system";
 import { isRouteErrorResponse, Navigate, useRouteError } from "react-router-dom";
 
 export function RouteErrorFallback() {

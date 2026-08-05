@@ -91,8 +91,8 @@ just down    # 收工,关 docker
 
 ## 🧰 技术栈速览
 
-- **前端**:React 18 + TypeScript + Rspack + **Module Federation 2.0**(`platform` host + `mfe-*` remote)
-- **后端**:Python 3.12 + FastAPI(微服务) + Go 1.23 + chi(API Gateway)
+- **前端**:React 18 + TypeScript + Rspack + **Module Federation 2.0**(`platform` host + `admin` / `chat` remotes)
+- **后端**:Python 3.14 + FastAPI(微服务) + Go 1.26 + chi(API Gateway)
 - **包管理**:pnpm(FE) · uv(Py) · go.work
 - **任务编排**:[just](https://just.systems) + [mise](https://mise.jdx.dev)
 - **跨栈契约**:OpenAPI(自动导出)+ Protobuf(Buf)+ CloudEvents
@@ -115,9 +115,9 @@ just down    # 收工,关 docker
 | `just build <target>` | 单目标构建:`platform` / `admin` / `chat` / `gateway` / `frontend` / `backend` |
 | `just build-images [registry] [tag]` | 后端所有服务打 docker 镜像 |
 | `just sync` | 后端导出 OpenAPI → 前端重新生成 TS 客户端 ⭐ |
-| `just fmt` | 一把梭格式化(ruff + prettier + gofmt) |
+| `just fmt` | 全栈格式化(ruff + Oxfmt + gofmt,仅在确有格式漂移时运行) |
 | `just lint` | 全栈 lint |
-| `just test` | 全栈测试 |
+| `just check` | lint + 契约生成一致性检查 |
 | `just status` | git + PR 状态总览 |
 | `just doctor` | 体检:工具 + docker 服务 |
 
@@ -129,24 +129,24 @@ cd apps/frontend
 just dev platform              # 单起 platform
 just dev admin                 # 单起 mfe-admin
 just dev chat                  # 单起 mfe-chat
-just build                  # build 全部(turbo orchestrates)
-just build platform         # 只 build platform
-just build chat             # 只 build mfe-chat
-just test mfe-bot           # demo 阶段跳过（见根 AGENTS.md）
-just gen-client             # 重新生成 packages/api/generated
+just build                     # build 全部(turbo orchestrates)
+just build platform            # 只 build platform
+just build chat                # 只 build chat remote
+just lint                      # Oxlint/Oxfmt check + TS7 + boundaries
+just gen-client                # 重新生成 @repo/api/generated
 
 # 后端
 cd apps/backend
-just dev bot                # 单起 bot 服务
+just dev admin              # 单起 Python admin 服务
 just dev gateway            # 单起 gateway
 just build                  # Go 二进制 + 全部 docker 镜像
 just build gateway          # 只 build Go 二进制 → services/gateway/bin/server
-just build bot              # Python "build":lint + test + 导 OpenAPI 预检
-just build-image bot        # docker build 单个服务 → local/bot:latest
+just build admin            # Python "build":lint + 导 OpenAPI 预检
+just build-image admin      # docker build 单个服务 → local/admin:latest
 just build-images           # 全部服务的 docker 镜像
-just test bot               # demo 阶段跳过（见根 AGENTS.md）
-just gen-openapi bot        # 导出 OpenAPI 到 schemas/openapi/bot.json
-just migrate-new admin v1.1.0 "msg"  # 新建服务内 SQL migration
+just lint admin             # 单服务 ruff + mypy
+just gen-openapi admin      # 导出 OpenAPI 到 schemas/openapi/admin-server.json
+just migrate-new admin v1.1.0        # 新建服务内 SQL migration
 just migrate-up admin v1.1.0         # 应用 (current, target] 范围内的 migration
 ```
 
@@ -160,8 +160,8 @@ just migrate-up admin v1.1.0         # 应用 (current, target] 范围内的 mig
 
 ```bash
 just dev                       # 主终端
-overmind connect bot           # 另开终端,只看 bot 日志(可交互输入)
-overmind restart mfe-bot       # 单独重启某个服务
+overmind connect svc-admin     # 另开终端,只看 admin 日志(可交互输入)
+overmind restart mfe-admin     # 单独重启 admin remote
 overmind kill                  # 全部干掉
 ```
 
@@ -184,16 +184,16 @@ overmind kill                  # 全部干掉
 - ✅ **类型契约自动同步**:`just sync` 一条命令,后端 OpenAPI → 前端 TS 客户端;改后端 endpoint,前端 TS 编译期立刻报错或拿到新类型
 - ✅ **内部 RPC 契约**:`schemas/proto/` + Buf,跨服务调用走类型安全的 gRPC,Python/Go 各自 codegen
 - ✅ **异步事件契约**:`schemas/events/` 用 CloudEvents 1.0 标准,新事件加文件即生效
-- ✅ **端口冲突防护**:`justfile` 里固化端口表(前端 3000-3005、后端 8000-8007),多个 agent / dev server 并行不撞车
+- ✅ **端口与 binding 漂移检查**:根 `services.yaml` 描述七个后端 deployable,`just lint` 对齐本地、Single-VPS 与 K8s
 
 ### 微服务 / 微前端伸缩
 
-- ✅ **新建微服务一键到位**:`./scripts/new-service.sh <name>` 生成完整骨架(pyproject、main、routes、test、AGENTS.md)
-- ✅ **新建 MFE 一键到位**:`./scripts/new-mfe.sh mfe-<name>` 生成 Rspack + MF 配置 + 路由占位
+- ✅ **新建微服务先定边界**:`./scripts/new-service.sh <name>` 只生成最小骨架，再按 playbook 注册端口、binding、数据与部署面
+- ✅ **新建 MFE 一键到位**:`./scripts/new-mfe.sh <name>` 生成 Rspack + MF 配置 + 路由占位
 - ✅ **每个服务/MFE 独立 Dockerfile**:`apps/backend/services/<svc>/Dockerfile`,可独立部署
-- ✅ **K8s 部署骨架就位**:`infra/k8s/base/<name>` + `overlays/{dev,staging,prod}` Kustomize,加新服务复制目录即可
+- ✅ **K8s 部署骨架就位**:`infra/k8s/base/<name>` + `overlays/{dev,prod}` Kustomize
 - ✅ **服务自治边界已划清**:`services/<a>` 不能 import `services/<b>`、MFE 之间不能互相 import,跨边界只能走 `schemas/` 或 `libs/transport/`
-- ✅ **平台共享层(MF shared)集中管理**:`apps/frontend/mf-shared.mjs` 是唯一入口,host eager + remote lazy,新加 MFE 只装自己业务包(详见下文)
+- ✅ **平台共享层(MF shared)集中管理**:`@repo/build-config/mf-shared` 是唯一入口,host eager + remote lazy,新加 MFE 只装自己业务包(详见下文)
 
 ### CI / CD
 
@@ -204,7 +204,7 @@ overmind kill                  # 全部干掉
 ### Agent 协作能力
 
 - ✅ **统一规则源**:`AGENTS.md`(根 + 各子目录 ~10 份),Claude/Codex/Cursor 都认,无 CLAUDE.md / .cursorrules
-- ✅ **就近规则继承**:进 `apps/backend/services/bot/` 自动只读到该服务的局部规则
+- ✅ **就近规则继承**:进入具体 service/app 后继续遵守最近一层 `AGENTS.md`
 - ✅ **多 agent 协作基础设施**:`.agents/` 内置 playbooks(全栈需求 / 新服务 / 新 MFE / 跨服务重构)
 - ✅ **专才 sub-agent 角色**:`codegen-runner` / `reviewer` / `explorer` 三类,主 agent 按需派发,主上下文不被污染
 - ✅ **自我约束护栏**:`.agents/scopes/default.yaml` 主 agent 自带 forbidden / caution / free 三档清单
@@ -214,30 +214,34 @@ overmind kill                  # 全部干掉
 
 - ✅ **统一结构化日志**:Python `structlog` / Go `log/slog` / Node `pino`,全栈 stdout JSON 同一线格式;`trace_id` 经 `X-Trace-Id` 全链路串联(契约 `schemas/observability/logging.md`,ADR-0026)
 - ✅ **统一错误处理**:`libs/kernel/errors.py` 提供 `RequestError/NotFoundError/...`,服务禁止裸 HTTPException
-- ✅ **审计 SDK**:`libs/audit_sdk` 提供 `record(...)`,关键变更动作统一记录
-- ✅ **OTel 接入点**:`libs/observability/setup()`,后续接 Jaeger/Tempo/OTLP 改一处即可
+- ✅ **共享能力按消费者证据提取**:仅保留已有多消费者的 kernel / transport-ts；auth、审计、持久化不预建对称 SDK（ADR-0061）
+- ✅ **OTel 接入点**:Python kernel 提供最小观测能力，其他 runtime 保持本地实现，统一字段而非强行共享代码
 - ✅ **ADR 模板**:`docs/ADR/` 架构决策记录已就位,新决策走 PR 沉淀
 
 ---
 
 ## 🧩 平台共享层(Module Federation shared)
 
-主应用(`shell`)是**运行时容器**,启动时把 React 生态 + 项目通用包**预装一份**到 share scope。
-子应用(`mfe-*`)运行时**复用** host 已经装好的副本,自己只需要下载业务代码 + 业务专属库
-(`react-markdown`、`monaco-editor` 之类)。
+主应用(`platform`)是**运行时容器**,启动时把 React 生态 + 项目通用包**预装一份**到 share scope。
+子应用(`admin` / `chat`)运行时复用 host 已经装好的副本,自己只下载业务代码与业务专属库。
 
 ### 当前共享清单
 
-唯一入口:**`apps/frontend/mf-shared.mjs`**(用 `.mjs` 是因为 rspack-cli 用 Node 原生 ESM 加载 config,跨包导入 `.ts` 会报 `ERR_MODULE_NOT_FOUND`;`.mjs` 是唯一通吃的扩展名)。两层:
+唯一入口:**`@repo/build-config/mf-shared`**(`apps/frontend/packages/build-config/mf-shared.mjs`;
+用 `.mjs` 是因为 rspack-cli 用 Node 原生 ESM 加载 config,跨包导入 `.ts` 会报
+`ERR_MODULE_NOT_FOUND`)。五层,host 提供 Tier1-3,remote 按需提供 Tier4-5:
 
-| 层 | 包 | 用途 | 在 host(shell) | 在 remote(mfe-*) |
-|---|---|---|---|---|
-| Tier 1:框架级 | `react`、`react-dom`、`react-router-dom` | React 18 生态,**必须 singleton** | `eager: true` | `eager: false` |
-| Tier 2:平台基础设施 | `@packages/shared`、`@packages/runtime`、`@packages/auth-client` | 项目内通用 workspace 包 | `eager: true` | `eager: false` |
+| 层 | 包 | 用途 |
+|---|---|---|
+| Tier 1:框架级 | `react`、`react-dom`、`react-router` | React 18 生态,**必须 singleton** |
+| Tier 2:平台基础设施 | `@repo/shared`、`@repo/runtime`、`@repo/observability` | 跨 MFE 运行时身份 |
+| Tier 3:共享状态 | `zustand`、`@tanstack/react-query`、`sonner` | host 持有 context/全局发射器 |
+| Tier 4:编辑器运行时 | `@tiptap/*`、`@tiptap/pm/*` | 编辑器状态与插件带运行时对象身份 |
+| Tier 5:重型叶子库 | `@codemirror/*` | `singleton:false` 去重,由 remote 提供 |
 
-**不进 shared 的**(各 MFE 自带):
-- 服务粒度的 client（`packages/api` 统一导出各服务 typed client，按需 import）
-- MFE 业务专属 UX 库(`react-markdown`、`monaco-editor`、图表库...)
+**不进 shared 的**(各 app 按需装、各自 tree-shake):
+- UI 能力包:`@repo/design-system`、`@repo/ai-elements`、`@repo/editors`、`@repo/viewers`
+- 类型化 API client(`@repo/api` 统一导出,按需 import)
 
 ### 为什么 host 要 eager,remote 不要
 
@@ -251,48 +255,47 @@ overmind kill                  # 全部干掉
 ### 加一个新的共享包
 
 ```text
-1. apps/frontend/mf-shared.mjs:在 TIER1 / TIER2 加一行
-2. apps/frontend/apps/shell/src/mf-eager-anchors.ts:加 side-effect import
-3. apps/frontend/apps/shell/package.json:加 dep(若是 workspace 包用 "workspace:*")
-4. 重启 just dev、浏览器硬刷新
+1. packages/build-config/mf-shared.mjs:在对应 TIER 加一行
+2. apps/platform/package.json:加 dep(若是 workspace 包用 "workspace:*")
+3. 重启 just dev、浏览器硬刷新
 ```
 
-第 2 步是关键——shell 的 src 没静态引用的 dep,会被 rspack tree-shake 摇走,
-`eager: true` 就成了空头支票。anchor 文件用 `import * as _ from "..."` + `void _`
-让 tree-shaker 没办法证明它没用。
+只有真正需要**跨 MFE 共享同一份运行时身份**的包才进 shared——React context、
+全局发射器、编辑器插件状态这类。纯展示型 UI 包放进去只会让所有 app 都被迫下载
+它,反而丢掉 tree-shaking。
 
 ### 加一个新的 MFE
 
-`./scripts/new-mfe.sh mfe-<name>` 已经把 `buildShared("remote")` 自动接上,
-新 MFE 直接享受平台共享层,不用动 `shared` 配置。只在自己 package.json 里装业务专属库即可。
+`./scripts/new-mfe.sh <name>` 已经把 `buildShared("remote")` 自动接上,
+新 MFE 直接享受平台共享层,不用动 shared 配置。只在自己 package.json 里装业务专属库即可。
 
 ---
 
 ## 🛠️ 实操:加一个跨栈 demo 功能
 
-体验单 agent 跨栈干活的丝滑流程。假设要加"批量发布智能体":
+示例：为 admin 增加一个配置查询能力。
 
 ```bash
-# 1. 后端:在 bot 服务加新路由
-cd apps/backend/services/bot
-# (编辑 src/bot/routes/bots.py 加 POST /v1/bots:batch-publish)
+# 1. 后端：在 admin 服务增加 route/application 逻辑
+cd apps/backend/services/admin
 
-# 2. 测试 + 导 OpenAPI
+# 2. lint + 导 OpenAPI
 cd ../..
-just test bot
-just gen-openapi bot
+just lint admin
+just gen-openapi admin
 
 # 3. 同步契约(自动 codegen)
 cd ..
 just sync
 
-# 4. 前端:在 mfe-bot 加按钮
-cd apps/frontend/apps/mfe-bot
-# (编辑 src/App.tsx,从 @packages/api-client/bot import 新方法)
+# 4. 前端：在 admin remote 消费生成客户端
+cd ../frontend/apps/admin
+# 从 @repo/api 导入生成客户端或薄 wrapper
 
-# 5. 测试
-cd ../..
-just test mfe-bot
+# 5. 根级验收
+cd ../../../..
+just check
+just build
 ```
 
 整个过程:
@@ -319,14 +322,16 @@ monorepo/
 │
 ├── apps/
 │   ├── frontend/              ── 微前端 monorepo(pnpm)
-│   │   ├── apps/shell/        ←   Module Federation Host(主壳)
-│   │   ├── apps/mfe-bot/      ←   Module Federation Remote(智能体模块)
-│   │   └── packages/          ←   components / runtime / shared / api-client / ...
+│   │   ├── apps/platform/     ←   Module Federation Host
+│   │   ├── apps/admin/        ←   管理与配置 Remote
+│   │   ├── apps/chat/         ←   AI Chat Remote
+│   │   └── packages/          ←   design-system / ai-elements / editors / viewers / api / ...
 │   │
 │   └── backend/               ── 微服务 monorepo(uv + go.work)
-│       ├── services/bot/      ←   Python FastAPI(智能体服务)
-│       ├── services/gateway/ ← Go chi(BFF/网关)
-│       └── libs/              ←   薄共享内核(kernel/transport/auth_sdk/...)
+│       ├── services/admin/    ←   Python FastAPI 管理平面
+│       ├── services/chat/     ←   TypeScript Agent runtime
+│       ├── services/gateway/  ←   Go chi(BFF/网关)
+│       └── libs/              ←   有 consumer 依据的薄共享能力
 │
 ├── schemas/                   ← 跨栈契约(唯一允许的耦合点)
 │   ├── openapi/               ←   各服务自动导出
@@ -343,17 +348,19 @@ monorepo/
 
 ## 🐛 故障排查
 
-### `just dev` 启动后浏览器报 "Loading mfe_bot" 一直转
+### `just dev` 启动后 remote 一直加载
 
-**原因**:mfe-bot 还在编译。`just dev` 已经会让 shell 等 mfe-bot 的 manifest ready 再启,
-但如果你直接 `cd apps/frontend/apps/shell && pnpm dev` 单起 shell,就要自己保证 :3001 已就绪。
+**原因**:admin 或 chat remote 仍在编译。`just dev` 会等待两个 manifest 再启动 platform；
+如果手工单起 platform，需要自己保证 :3001 与 :3005 已就绪。
 
 ```bash
-# 检查 mfe-bot 是否就绪
+# 检查两个 remote 是否就绪
 curl -s http://localhost:3001/mf-manifest.json | head
+curl -s http://localhost:3005/mf-manifest.json | head
 
-# 用 overmind 单独看 mfe-bot 日志
-overmind connect mfe-bot
+# 用 overmind 查看 remote 日志
+overmind connect mfe-admin
+overmind connect mfe-chat
 ```
 
 ### 浏览器报 `factory is undefined (webpack/sharing/consume/default/react/...)`
@@ -365,32 +372,30 @@ tree-shaker 看到入口没有静态引用 react,把 react 推进异步 vendor c
 
 本仓库当前的 host-remote 策略(已生效,后续新增 MFE 沿用即可):
 
-- **shell(host)**:`shared` 三个全部 `eager: true`,`main.tsx` **直接同步** `import { createRoot } from "react-dom/client"` + 渲染,**不要**用 `import("./bootstrap")` 异步边界,否则 tree-shake 会把 React 摇走。
-- **mfe-bot(remote)**:`shared` **不加** `eager`(它在 federated 模式下消费 host 的 eager 副本;standalone 模式下靠自己 main.tsx 的 `import("./bootstrap")` 异步边界 init 自己的 scope)。
+- **platform(host)**:host 提供的共享项全部 `eager: true`,`main.tsx` **直接同步** `import { createRoot } from "react-dom/client"` + 渲染,**不要**用 `import("./bootstrap")` 异步边界,否则 tree-shake 会把 React 摇走。
+- **admin / chat(remote)**:共享项 **不加** `eager`(federated 模式下消费 host 的 eager 副本;standalone 模式下靠自己 main.tsx 的 `import("./bootstrap")` 异步边界 init 自己的 scope)。
 
-如果你看到这个报错,99% 是上面这两条规则被破坏了——检查 `shell/rspack.config.ts`、`shell/src/main.tsx`、`mfe-bot/rspack.config.ts`、`mfe-bot/src/main.tsx`。
+如果你看到这个报错,99% 是上面这两条规则被破坏了——检查 `platform/rspack.config.mjs`、`platform/src/main.tsx`、`admin|chat/rspack.config.mjs`、`admin|chat/src/main.tsx`。
 
 ### 启动后第一次访问 :3000 偶发报错 / 资源 404
 
-**原因**:并行启动时 shell 比 mfe-bot 先编译完,manifest 还没生成。
+**原因**:并行启动时 platform 比 remote MFE 先编译完,manifest 还没生成。
 
-`just dev` 已经在 Procfile / dev-shell 里加了 wait-for —— shell 进程会调
-`scripts/wait-for-url.sh http://localhost:3001/mf-manifest.json` 阻塞,
-直到 mfe-bot 的 dev server 起来再启动 shell。如果你改过 Procfile 顺序导致这个保护被破坏,恢复它。
+`just dev` 已在 Procfile / dev-shell 中加入 wait-for；platform 会等待 admin/chat
+manifest。修改启动编排时必须保留这两个检查。
 
 ### 前端列表显示"请求失败"
 
-**原因**:后端 bot 服务或 gateway 没起来。
+**原因**:目标后端服务或 gateway 没起来。
 
 ```bash
 # 应该都返回 200
-curl -s http://localhost:8001/healthz
-curl -s http://localhost:8000/healthz
-curl -s http://localhost:8000/v1/bots | jq
+curl -s http://localhost:8001/livez
+curl -s http://localhost:8000/livez
 
 # 用 overmind 看具体哪个服务出问题
 overmind connect gateway
-overmind connect bot
+overmind connect svc-admin
 ```
 
 ### `pnpm install` 报错说找不到 `@module-federation/enhanced`
@@ -419,13 +424,16 @@ uv sync --all-packages
 | 服务 | 端口 |
 |---|---|
 | gateway | 8000 |
-| bot | 8001 |
+| gateway | 8000 |
+| admin | 8001 |
 | iam | 8002 |
-| (预留) 其他后端服务 | 8003-8007 |
-| shell | 3000 |
-| mfe-bot | 3001 |
-| (预留) 其他微前端 | 3002-3004 |
-| mfe-chat | 3005 |
+| telemetry | 8008 |
+| chat service | 8009 |
+| knowledge | 8010 |
+| executor | 8011 |
+| platform | 3000 |
+| admin remote | 3001 |
+| chat remote | 3005 |
 
 ```bash
 # 端口被占就杀
@@ -471,10 +479,10 @@ docker ps            # 看是不是有别的项目占了 5432 / 6379
 
 ## ➕ 下一步可以扩展的点
 
-- 加新微服务:`./scripts/new-service.sh iam`
-- 加新微前端:`./scripts/new-mfe.sh mfe-reports`
+- 加新微服务:`./scripts/new-service.sh reports`
+- 加新微前端:`./scripts/new-mfe.sh reports`
 - 生产迁移:沿用服务内 SQL migration 与 `migration.version` 版本指针
-- 接入 OTel:扩 `libs/observability/`,在 `main.py` 调 `setup("bot")`
+- 扩展 OTel：先按 ADR-0061 建 consumer matrix，再决定共享契约还是共享实现
 - gRPC 服务间调用:补 `schemas/proto/<svc>/v1/*.proto`,`buf generate`
 - 部署到 K8s:`infra/k8s/base/<svc>/` 已就位,改镜像 tag 即可
 

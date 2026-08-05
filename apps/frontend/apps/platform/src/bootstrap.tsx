@@ -1,5 +1,5 @@
-import "components/styles.css";
-import { initObservability, installWebVitals } from "observability";
+import "@repo/design-system/styles.css";
+import { initObservability, installWebVitals } from "@repo/observability";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App";

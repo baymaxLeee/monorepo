@@ -55,6 +55,7 @@ dev-urls:
     @echo "  telemetry: http://localhost:8008/healthz"
     @echo "  iam:      http://localhost:8002/healthz"
     @echo "  knowledge: http://localhost:8010/healthz"
+    @echo "  executor:  http://localhost:8011/healthz"
     @echo "  svc-admin: http://localhost:8001/docs"
     @echo "  svc-chat:  http://localhost:8009/docs"
 
@@ -87,6 +88,7 @@ fmt:
     cd apps/frontend && just fmt
 
 lint:
+    @uv run --project apps/backend python scripts/check-services.py
     pnpm lint:ts
     cd apps/backend && just lint
     cd apps/frontend && just lint

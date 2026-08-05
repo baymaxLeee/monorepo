@@ -1,0 +1,69 @@
+{
+  "name": "@repo/editors",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./markdown-editor": "./src/MarkdownEditor/index.tsx",
+    "./code-editor": "./src/CodeEditor/index.tsx",
+    "./file-workspace": "./src/FileWorkspace/index.tsx"
+  },
+  "scripts": {
+    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/packages/editors/src && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/editors/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/editors/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.0.0",
+    "@codemirror/commands": "^6.2.4",
+    "@codemirror/lang-html": "^6.4.11",
+    "@codemirror/lang-javascript": "^6.2.4",
+    "@codemirror/lang-json": "^6.0.1",
+    "@codemirror/lang-markdown": "^6.2.3",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/lang-xml": "^6.1.0",
+    "@codemirror/lang-yaml": "^6.1.1",
+    "@codemirror/language": "^6.11.0",
+    "@codemirror/legacy-modes": "^6.5.2",
+    "@codemirror/search": "^6.0.0",
+    "@codemirror/state": "^6.4.0",
+    "@codemirror/view": "^6.23.0",
+    "@hookform/resolvers": "catalog:",
+    "@repo/design-system": "workspace:*",
+    "@repo/shared": "workspace:*",
+    "@tiptap/core": "^3.22.3",
+    "@tiptap/extension-code": "^3.22.3",
+    "@tiptap/extension-code-block-lowlight": "^3.22.3",
+    "@tiptap/extension-color": "^3.22.3",
+    "@tiptap/extension-highlight": "^3.22.3",
+    "@tiptap/extension-image": "^3.22.3",
+    "@tiptap/extension-table": "^3.22.3",
+    "@tiptap/extension-table-header": "^3.22.3",
+    "@tiptap/extension-table-row": "^3.22.3",
+    "@tiptap/extension-task-item": "^3.22.3",
+    "@tiptap/extension-task-list": "^3.22.3",
+    "@tiptap/extension-text-align": "^3.22.3",
+    "@tiptap/extension-text-style": "^3.22.3",
+    "@tiptap/markdown": "^3.22.3",
+    "@tiptap/pm": "^3.22.3",
+    "@tiptap/react": "^3.22.3",
+    "@tiptap/starter-kit": "^3.22.3",
+    "lowlight": "3.3.0",
+    "lucide-react": "catalog:",
+    "react-compiler-runtime": "catalog:",
+    "react-hook-form": "catalog:",
+    "sonner": "catalog:",
+    "uuid": "^14.0.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@typescript/native": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}

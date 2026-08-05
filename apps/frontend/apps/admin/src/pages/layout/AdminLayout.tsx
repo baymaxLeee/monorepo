@@ -1,4 +1,4 @@
-import { Aside, Button, Layout, Main, Section } from "components";
+import { Aside, Button, Layout, Main, Section } from "@repo/design-system";
 import {
   AppWindowIcon,
   ArrowLeftIcon,

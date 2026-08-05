@@ -1,9 +1,9 @@
-import { CodeEditor } from "components/code-editor";
+import { CodeEditor } from "@repo/editors/code-editor";
 import { useState } from "react";
 
 import { DemoCard } from "../DemoCard";
 
-const demoCode = `import { apiHttp } from "api";
+const demoCode = `import { apiHttp } from "@repo/api";
 
 export async function loadBotMetrics(botId: string) {
   const { data } = await apiHttp.get(\`/api/admin-server/bot/\${botId}/metrics\`);

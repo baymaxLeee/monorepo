@@ -1,0 +1,37 @@
+{
+  "name": "@repo/viewers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./pdf-previewer": "./src/PdfPreviewer/index.tsx",
+    "./xmind-previewer": "./src/XmindPreviewer/index.tsx"
+  },
+  "scripts": {
+    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/packages/viewers/src && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/viewers/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/viewers/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/design-system": "workspace:*",
+    "@repo/shared": "workspace:*",
+    "jszip": "3.10.1",
+    "lucide-react": "catalog:",
+    "pdfjs-dist": "5.4.296",
+    "react-compiler-runtime": "catalog:",
+    "react-pdf": "^10",
+    "simple-mind-map": "0.14.0-fix.2",
+    "sonner": "catalog:",
+    "xml-js": "^1.6.11"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@typescript/native": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}

@@ -1,4 +1,4 @@
-import { type Bot, fetchBot } from "api";
+import { type Bot, fetchBot } from "@repo/api";
 import {
   Badge,
   Button,
@@ -10,10 +10,10 @@ import {
   Page,
   Separator,
   Skeleton,
-} from "components";
+} from "@repo/design-system";
+import { getErrorMessage } from "@repo/shared";
 import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { getErrorMessage } from "shared";
 
 import { BotSkillsPanel } from "../BotSkillsPanel";
 

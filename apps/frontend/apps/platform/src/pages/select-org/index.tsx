@@ -1,10 +1,10 @@
-import { logout, switchActiveOrg } from "api";
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "components";
+import { logout, switchActiveOrg } from "@repo/api";
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@repo/design-system";
+import { clearUser as clearObservabilityUser } from "@repo/observability";
+import { usePlatformStore } from "@repo/runtime";
 import { UsersIcon } from "lucide-react";
-import { clearUser as clearObservabilityUser } from "observability";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
 
 import { activeMemberships } from "../../onboarding";

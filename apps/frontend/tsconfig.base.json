@@ -1,3 +1,3 @@
 {
-  "extends": "@project/typescript-config"
+  "extends": "@repo/typescript-config"
 }

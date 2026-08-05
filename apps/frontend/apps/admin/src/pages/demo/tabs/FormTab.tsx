@@ -10,7 +10,7 @@ import {
   SelectValue,
   Switch,
   Textarea,
-} from "components";
+} from "@repo/design-system";
 import { useState } from "react";
 
 import { DemoCard } from "../DemoCard";

@@ -1,4 +1,4 @@
-import { listOrgsForAdmin, type OrgAdminView } from "api";
+import { listOrgsForAdmin, type OrgAdminView } from "@repo/api";
 import {
   Alert,
   AlertDescription,
@@ -23,9 +23,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "components";
+} from "@repo/design-system";
+import { getErrorMessage } from "@repo/shared";
 import { useCallback, useEffect, useState } from "react";
-import { getErrorMessage } from "shared";
 
 import { useAdminIdentity } from "../../identity";
 import { CreateOrganizationDialog } from "./CreateOrganizationDialog";

@@ -1,9 +1,9 @@
+import { onSessionChange } from "@repo/api";
+import { ErrorBoundary, Toaster, TooltipProvider } from "@repo/design-system";
+import { usePlatformStore } from "@repo/runtime";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { onSessionChange } from "api";
-import { ErrorBoundary, Toaster, TooltipProvider } from "components";
 import { useEffect } from "react";
 import { RouterProvider } from "react-router-dom";
-import { usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
 
 import { queryClient } from "./query-client";

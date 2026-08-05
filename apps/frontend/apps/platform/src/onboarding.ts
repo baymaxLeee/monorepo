@@ -1,4 +1,4 @@
-import type { PlatformMembership, PlatformUser } from "runtime";
+import type { PlatformMembership, PlatformUser } from "@repo/runtime";
 
 export const SUPER_ADMIN = "super_admin";
 

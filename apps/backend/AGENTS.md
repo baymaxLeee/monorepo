@@ -1,113 +1,114 @@
 # Backend Monorepo — Microservices
 
-Python 3.14 + FastAPI + SQLAlchemy 2.0 (Alembic) + gRPC. Go for performance-critical services (gateway).
+Python 3.14 + FastAPI, Node.js + TypeScript, and Go services. Root `services.yaml`
+is the canonical backend composition graph; it declares runtime, port, public
+routes, outbound bindings, owned databases, and optional OpenAPI artifacts.
 
 ## Layout
 
 - `services/<name>/` — independently deployable microservice
-- `libs/<name>/` — shared kernel (KEEP THIN; see boundaries)
+- `libs/kernel/` — thin Python errors, logging, tracing, and observability
+- `libs/kernel-ts/` — thin TypeScript runtime primitives
+- `libs/transport-ts/` — generated-contract-based internal HTTP clients
+
+Do not create a shared package for language symmetry. Follow ADR-0061: build a
+consumer matrix, choose share implementation / share contract / keep local,
+and record high-risk extraction decisions before moving code.
 
 ## Hard rules
 
 ### Service autonomy
 
-- Each `services/<name>/` is independently deployable, dockerized, versioned
-- A service MUST own its own DB (or at least its own schema)
-- Service-owned SQL migrations live in `services/<name>/migrations/versions/vX.Y.Z.sql`
-- Services NEVER import from each other's `services/<other>/src/`
-- Cross-service calls go through `libs/transport/` clients (gRPC or HTTP)
-- Cross-service data flow is async via events (CloudEvents) when possible
+- Each service owns its runtime, dependency manifest, Dockerfile, and data.
+- Service-owned SQL migrations live in
+  `services/<name>/migrations/versions/vX.Y.Z.sql`.
+- Services never import another service's source.
+- Cross-service calls use explicit bindings from `services.yaml` and transport
+  clients; asynchronous flows use shared event contracts where appropriate.
+- A service must not read or mutate another service's database.
 
 ### Database migrations
 
-- Each service database MUST contain a single-row `migration` table: `id = 1`, `version = vX.Y.Z`, `update_time`.
-- Migration filenames MUST be exactly the semantic version including the `v` prefix, for example `v1.0.0.sql`. Do not add description suffixes.
-- `just up` discovers services with SQL migrations and applies pending migrations through `scripts/db-migrate.sh`.
-- Migration execution range is `(current_version, target_version]`.
-- If no target version is passed, target version defaults to the latest local migration version in that service directory.
-- After each SQL file succeeds, the migrator updates `migration.version` to that file's version.
-- Service processes MUST NOT create or mutate schema at startup. Startup may seed demo data only after migrations have prepared the schema.
+- Each service database contains a single-row `migration` table with `id = 1`,
+  `version`, and `update_time`.
+- Migration filenames are semantic versions including the `v` prefix, for
+  example `v1.0.0.sql`; do not add description suffixes.
+- `just up` discovers and applies service-owned migrations through
+  `scripts/db-migrate.sh`; processes do not create or mutate schemas at startup.
 
 ### Gateway responsibilities
 
-- The service is named `gateway`, not `api-gateway`.
-- Gateway owns edge concerns: routing, auth boundary, CORS, request logging, reverse proxying, and trace propagation.
-- The canonical trace header is `X-Trace-Id`. Do NOT introduce `X-Request-Id`.
-- Gateway normalizes or generates `X-Trace-Id`, writes it to the response, propagates it to upstream services, and includes `trace_id` in structured logs.
+- The service is `gateway`, not `api-gateway`.
+- Gateway owns the public edge: routing, auth boundary, CORS, rate limiting,
+  request logging, reverse proxying, and trace propagation.
+- `X-Trace-Id` is canonical; do not introduce `X-Request-Id`.
+- `executor` remains internal-only unless an ADR changes that decision.
 
-### Resource module boundaries
+### Resource boundaries
 
-- Keep business resources separated end-to-end inside every service.
-- Each table/resource gets its own resource-specific modules, for example `application/contracts/<resource>.py`, `api/http/routes/<resource>.py`, `application/<resource>.py`, optional `domain/<resource>.py`, `infrastructure/persistence/models/<resource>.py`, and `infrastructure/persistence/repositories/<resource>.py` for Python services.
-- Do NOT merge distinct business resources into a generic shared CRUD/model/schema/service layer just to reduce boilerplate. Prefer explicit, single-responsibility modules that can evolve independently.
-- `domain/` is reserved for framework-independent invariants, value objects, policies, and deterministic state transitions. It MUST NOT import `api`, `application`, `infrastructure`, ORM models, HTTP frameworks, or runtime SDKs.
-- Do not create placeholder domain modules for transport DTOs or CRUD-only resources.
-- Small shared helpers are acceptable only when they are behavior-free infrastructure glue; resource ownership, query rules, DTOs, and business orchestration stay in the resource-specific modules.
+- Keep business resources separate end-to-end: transport DTO, application
+  orchestration, optional domain policy, persistence model, and repository.
+- `domain/` contains framework-independent invariants and deterministic state
+  transitions. It must not import API, application, infrastructure, ORM, HTTP,
+  or runtime SDK modules.
+- Do not create placeholder domain modules for CRUD-only resources.
+- Do not merge unrelated resources into generic CRUD/model/schema modules merely
+  to reduce boilerplate.
 
-### Shared kernel discipline (CRITICAL)
+### Shared capability discipline
 
-The libs/ are the most dangerous abstraction. Strict rules:
+- `libs/` contains infrastructure capabilities only; never domain models.
+- A shared implementation needs at least two real consumers, or a
+  must-centralize security/protocol reason documented in an ADR.
+- Auth, persistence, and crypto are separate high-risk decisions. Do not bundle
+  them into a mega-kernel or create `auth_sdk`, `audit_sdk`, `transport-py`, or
+  a Go kernel speculatively.
+- Never add `libs/utils/` or share Pydantic domain DTOs across services.
 
-| Lib                  | Purpose                           | Soft cap   |
-| -------------------- | --------------------------------- | ---------- |
-| `libs/kernel`        | errors, context, config, logging  | < 1500 LoC |
-| `libs/transport`     | gRPC/HTTP clients, retry, breaker | < 1500 LoC |
-| `libs/observability` | OTel setup                        | < 800 LoC  |
-| `libs/auth_sdk`      | JWT verify, identity propagation  | < 1000 LoC |
-| `libs/audit_sdk`     | publish audit events              | < 800 LoC  |
+## Adding a service or route
 
-**NEVER** add domain logic to `libs/`. **NEVER** add a `libs/utils/`. **NEVER** share Pydantic models across services via libs — each service owns its own DTOs.
+For a service, follow `.agents/playbooks/new-microservice.md`. The change is not
+integrated until `services.yaml`, workspaces, justfile, Procfile, local env,
+gateway when public, K8s, Single-VPS, CI, contracts, and docs agree. Run
+`scripts/check-services.py` through root `just lint` to catch drift.
 
-### Adding a new service
-
-1. `./scripts/new-service.sh <name>` (run from repo root)
-2. Add to `apps/backend/justfile` SERVICES list
-3. Add `infra/k8s/base/<name>/` manifests
-4. Add `.github/workflows/deploy-<name>.yml`
-5. Document in `docs/微服务/<name>.md`
-
-### Adding a route
-
-- Routes go in `services/<name>/src/api/http/routes/<resource>.py`
-- Apply `@require_action(...)` for mutations
-- Use `libs.kernel.errors.*`, NEVER raise raw HTTPException
-- Audit successful mutations via `libs.audit_sdk.record(...)`
+Routes live in `services/<name>/src/api/http/routes/<resource>.py` for Python.
+Use `kernel.errors` rather than raw `HTTPException`. Authorization and audit
+behavior remain service-owned unless a focused ADR establishes a shared
+capability.
 
 ## Commands (from `apps/backend/`)
 
 | Command | Purpose |
-| --- | --- |
-| `just dev <service>` | Run one service locally |
-| `just lint <service>` | ruff + mypy scoped |
-| `just fmt` | ruff format + gofmt (auto-run, no need to ask) |
-| `just gen-openapi <service>` | Export to `schemas/openapi/<name>.json` |
-| `just gen-openapi-all` | Export all services |
-| `just migrate-new <svc> <version>` | New service-owned SQL migration, versioned as `vX.Y.Z` |
-| `just migrate-up <svc> [target-version]` | Apply SQL migrations in `(current, target]`; defaults to latest local version |
+|---|---|
+| `just dev <service>` | Run one registered service locally |
+| `just lint [service]` | Oxc/TS7 plus scoped or all Python/Node/Go checks |
+| `just fmt` | Rewrite supported source using root Oxfmt, Ruff, and gofmt; run only when requested or needed |
+| `just gen-openapi <service>` | Export one Python/Node OpenAPI contract |
+| `just gen-openapi-all` | Export all registered Python/Node contracts |
+| `just migrate-new <svc> <version>` | Create a service-owned migration |
+| `just migrate-up <svc> [target]` | Apply migrations in `(current, target]` |
 
 ### TypeScript 7
 
-- `@typescript/native` 固定原生 TypeScript 7，负责 Node 服务和 TypeScript kernel 的 `build` / `lint` / `typecheck`。脚本必须显式调用 `node_modules/@typescript/native/bin/tsc`，不得使用来源不确定的裸 `tsc`。
-- `typescript` 5.x 暂时保留给 Nitro、Workflow TypeScript plugin、OpenAPI 工具等旧编程 API 消费者，不负责仓库代码检查；这些工具支持 TS7 稳定 API 后直接删除旧版本。
-- 普通 Node package 不得直接声明旧 `typescript`；只有承载明确旧 API / peer 消费者的 package 可保留 TS5，其他包只声明 `@typescript/native`。
-- 所有 Node `tsconfig.json` 必须显式声明 `"types": ["node"]`；TS7 不再默认注入 `@types/*` 全局类型。
-- TypeScript/JavaScript 代码统一由根目录 Oxlint + Oxfmt 检查，默认 120 列；backend `just lint` 同时执行 Oxlint 与 TS7 typecheck，`just fmt` 调用根 Oxfmt 配置。
+- `@typescript/native` is the repository code checker. Scripts call
+  `node_modules/@typescript/native/bin/tsc` explicitly, never an ambiguous bare
+  `tsc`.
+- TypeScript 5 remains only for tools that consume its legacy API; ordinary
+  packages must not declare it without such a consumer.
+- Node tsconfig files explicitly declare `"types": ["node"]`.
+- Root Oxlint and Oxfmt are the only JS/TS style configuration.
 
-## Size limits
+## Forbidden zones for unprompted edits
 
-- ≤ 500 LoC per Python module (excl. tests)
-- ≤ 800 LoC hard ceiling — split into a new module if exceeded
-- ≤ 1500 LoC per `libs/*` package
-
-## Forbidden zones for agents
-
-- `services/*/migrations/versions/**` — DB migrations (require explicit ask)
+- `services/*/migrations/versions/**`
 - `**/.env*`
 
 ## Done checklist
 
-1. `just fmt`
-2. `just lint <service>`
-3. `just test <service>`
-4. If API changed: `just gen-openapi <service>`
-5. If shared kernel changed: list ALL consumer services in PR description
+1. Run root `just lint` (tests are intentionally skipped during demo phase).
+2. If API changed, run root `just sync` and verify both stacks build.
+3. Run `just fmt` only when explicitly requested or mechanical drift requires it.
+4. If a shared capability changed, list every consumer and verify each one.
+5. If composition changed, validate `just install`, `just up`, `just dev`,
+   affected builds, K8s, and Single-VPS according to the root migration rules.

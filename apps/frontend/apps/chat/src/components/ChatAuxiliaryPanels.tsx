@@ -1,4 +1,4 @@
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "components";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@repo/design-system";
 
 import { ChatTracePanel } from "./ChatTracePanel";
 import { MemoryPanel } from "./MemoryPanel";

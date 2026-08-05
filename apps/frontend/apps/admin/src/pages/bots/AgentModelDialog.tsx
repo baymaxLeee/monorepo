@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type Bot, type BotStatus, type BotTone, type ModelProvider, updateBot } from "api";
+import { type Bot, type BotStatus, type BotTone, type ModelProvider, updateBot } from "@repo/api";
 import {
   Button,
   Dialog,
@@ -29,7 +29,7 @@ import {
   TabsTrigger,
   Textarea,
   toast,
-} from "components";
+} from "@repo/design-system";
 import { useEffect } from "react";
 import { type Control, useForm } from "react-hook-form";
 import { z } from "zod";

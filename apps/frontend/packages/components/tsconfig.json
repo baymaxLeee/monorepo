@@ -1,7 +1,0 @@
-{
-  "extends": "@project/typescript-config",
-  "compilerOptions": {
-    "noEmit": true
-  },
-  "include": ["src/**/*"]
-}

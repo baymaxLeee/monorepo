@@ -1,4 +1,3 @@
-import { type AgentRunTrace, type AgentTraceStep, type AgentTraceToolCall, fetchConversationAgentTrace } from "api";
 import {
   Plan,
   PlanContent,
@@ -9,7 +8,13 @@ import {
   TaskDescription,
   TaskTitle,
   type WorkflowStatus,
-} from "components/ai-chat";
+} from "@repo/ai-elements";
+import {
+  type AgentRunTrace,
+  type AgentTraceStep,
+  type AgentTraceToolCall,
+  fetchConversationAgentTrace,
+} from "@repo/api";
 import { useEffect, useState } from "react";
 
 export interface ChatTracePanelProps {

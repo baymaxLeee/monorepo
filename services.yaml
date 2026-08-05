@@ -1,0 +1,90 @@
+# Canonical backend service graph — see docs/ADR/0060-service-composition-and-bindings.md
+# Validation only: scripts/check-services.py (no generators).
+
+services:
+  gateway:
+    root: apps/backend/services/gateway
+    runtime: go
+    port: 8000
+    publicRoutes:
+      - /*
+    bindings:
+      - iam
+      - admin
+      - chat
+      - knowledge
+      - telemetry
+    databases: []
+    openapi: null
+
+  iam:
+    root: apps/backend/services/iam
+    runtime: go
+    port: 8002
+    publicRoutes:
+      - /api/iam-server/*
+    bindings: []
+    databases:
+      - iam
+    openapi: null
+
+  admin:
+    root: apps/backend/services/admin
+    runtime: python
+    port: 8001
+    publicRoutes:
+      - /api/admin-server/*
+    bindings: []
+    databases:
+      - admin
+    openapi: schemas/openapi/admin-server.json
+
+  chat:
+    root: apps/backend/services/chat
+    runtime: node
+    port: 8009
+    publicRoutes:
+      - /api/chat-server/*
+    bindings:
+      - admin
+      - knowledge
+      - executor
+    databases:
+      - chat
+    openapi: schemas/openapi/chat-server.json
+
+  knowledge:
+    root: apps/backend/services/knowledge
+    runtime: python
+    port: 8010
+    publicRoutes:
+      - /api/knowledge-server/*
+    bindings:
+      - admin
+    databases:
+      - knowledge
+    openapi: schemas/openapi/knowledge-server.json
+
+  telemetry:
+    root: apps/backend/services/telemetry
+    runtime: python
+    port: 8008
+    publicRoutes:
+      - /api/telemetry-server/*
+    bindings: []
+    databases:
+      - telemetry
+    openapi: schemas/openapi/telemetry-server.json
+
+  executor:
+    root: apps/backend/services/executor
+    runtime: node
+    port: 8011
+    publicRoutes: []
+    bindings:
+      - admin
+      - knowledge
+    databases:
+      - executor
+      - workflow
+    openapi: schemas/openapi/executor-server.json

@@ -2,10 +2,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { ModuleFederationPlugin } from "@module-federation/enhanced/rspack";
+import { buildShared } from "@repo/build-config/mf-shared";
+import { createAppResolveAlias, createRemoteCssRule, createSwcRule } from "@repo/build-config/rspack";
 import { defineConfig } from "@rspack/cli";
-
-import { buildShared } from "../../mf-shared.mjs";
-import { createAppResolveAlias, createRemoteCssRule, createSwcRule } from "../../rspack.shared.mjs";
 
 const PORT = Number(process.env.PORT ?? 3005);
 const appDir = path.dirname(fileURLToPath(import.meta.url));

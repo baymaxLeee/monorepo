@@ -1,5 +1,5 @@
-import { Badge } from "components";
-import { PdfPreviewer } from "components/pdf-previewer";
+import { Badge } from "@repo/design-system";
+import { PdfPreviewer } from "@repo/viewers/pdf-previewer";
 
 import { DemoCard } from "../DemoCard";
 

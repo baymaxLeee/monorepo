@@ -1,10 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
 import {
   fetchObservabilityStatus,
   fetchTelemetryErrors,
   type ObservabilityStatus,
   type TelemetryErrorEvent,
-} from "api";
+} from "@repo/api";
 import {
   Alert,
   AlertDescription,
@@ -30,10 +29,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "components";
-import { telemetry } from "observability";
+} from "@repo/design-system";
+import { telemetry } from "@repo/observability";
+import { getErrorMessage } from "@repo/shared";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
-import { getErrorMessage } from "shared";
 
 const adminTelemetry = telemetry.scope({
   app: "mfe-admin",

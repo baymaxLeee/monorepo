@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { checkAccountAvailability, fetchPublicOrgs, type OrgSummary, register } from "api";
+import { checkAccountAvailability, fetchPublicOrgs, type OrgSummary, register } from "@repo/api";
 import {
   Button,
   Card,
@@ -21,13 +21,13 @@ import {
   SelectTrigger,
   SelectValue,
   toast,
-} from "components";
-import { setUser as setObservabilityUser } from "observability";
+} from "@repo/design-system";
+import { setUser as setObservabilityUser } from "@repo/observability";
+import { usePlatformStore } from "@repo/runtime";
+import { getErrorMessage } from "@repo/shared";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
-import { usePlatformStore } from "runtime";
-import { getErrorMessage } from "shared";
 import { z } from "zod";
 
 import { landingPath } from "../../onboarding";

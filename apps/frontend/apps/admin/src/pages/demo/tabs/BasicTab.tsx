@@ -8,7 +8,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "components";
+} from "@repo/design-system";
 
 import { DemoCard } from "../DemoCard";
 

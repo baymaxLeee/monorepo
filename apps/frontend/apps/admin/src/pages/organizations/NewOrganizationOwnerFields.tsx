@@ -1,4 +1,4 @@
-import { Field, FieldError, FieldLabel, FormControl, FormField, Input } from "components";
+import { Field, FieldError, FieldLabel, FormControl, FormField, Input } from "@repo/design-system";
 import type { UseFormReturn } from "react-hook-form";
 
 import type { CreateOrgValues } from "./CreateOrganizationDialog";

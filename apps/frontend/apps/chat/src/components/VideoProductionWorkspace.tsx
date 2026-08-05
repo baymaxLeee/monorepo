@@ -1,15 +1,15 @@
+import { MessageResponse } from "@repo/ai-elements";
 import {
   decideVideoProduction,
   fetchVideoProduction,
   fetchVideoProductionPreview,
   type VideoProductionDetail,
   type VideoShotPlan,
-} from "api";
-import { Badge, Button, ScrollArea, Separator, toast } from "components";
-import { MessageResponse } from "components/ai-chat";
+} from "@repo/api";
+import { Badge, Button, ScrollArea, Separator, toast } from "@repo/design-system";
+import { getErrorMessage } from "@repo/shared";
 import { Loader2Icon, RefreshCwIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { getErrorMessage } from "shared";
 
 import { VideoApprovalFooter } from "./VideoApprovalFooter";
 import { VideoStoryboardEditor } from "./VideoStoryboardEditor";

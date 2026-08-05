@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { login } from "api";
+import { login } from "@repo/api";
 import {
   Button,
   Card,
@@ -16,11 +16,11 @@ import {
   FormField,
   Input,
   toast,
-} from "components";
-import { setUser as setObservabilityUser } from "observability";
+} from "@repo/design-system";
+import { setUser as setObservabilityUser } from "@repo/observability";
+import { usePlatformStore } from "@repo/runtime";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
-import { usePlatformStore } from "runtime";
 import { z } from "zod";
 
 import { landingPath } from "../../onboarding";

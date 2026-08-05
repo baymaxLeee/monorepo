@@ -7,7 +7,7 @@ NODE_SERVICES := "chat executor"
 GO_SERVICES := "gateway iam"
 
 # Fixed port allocation so multiple agents/dev servers don't collide
-PORTS := '{"admin":8001,"iam":8002,"permission":8005,"audit":8006,"notification":8007,"telemetry":8008,"chat":8009,"knowledge":8010,"gateway":8000,"executor":8011}'
+PORTS := '{"gateway":8000,"admin":8001,"iam":8002,"telemetry":8008,"chat":8009,"knowledge":8010,"executor":8011}'
 
 default:
     @just --list
@@ -35,8 +35,8 @@ dev service:
 #
 #   just build                       # everything: Go binaries + every image
 #   just build gateway           # single Go service binary
-#   just build bot                   # Python "build": pre-flight (lint + test + OpenAPI export)
-#   just build-image bot             # docker build for a single service
+#   just build admin                 # Python "build": lint + OpenAPI export
+#   just build-image admin           # docker build for a single service
 #   just build-images                # docker build for ALL services
 #
 # Image tags default to local/<svc>:latest. Override with positional args.
@@ -75,7 +75,7 @@ build-node-svc service:
     @echo "✓ {{ service }} ready (run as image via: just build-image {{ service }})"
 
 # Build a single service's docker image. Usage:
-#   just build-image bot
+#   just build-image admin
 # just build-image gateway my-registry.io v1.2.3
 build-image service registry="local" tag="latest":
     @if [ ! -f "services/{{ service }}/Dockerfile" ]; then \
@@ -122,7 +122,7 @@ lint-node:
     @for s in {{ NODE_SERVICES }}; do echo "=== $s ===" && (cd services/$s && pnpm run lint) || exit 1; done
 
 lint-go:
-    @for s in {{ GO_SERVICES }}; do echo "=== $s ===" && (cd services/$s && go vet ./...); done
+    @for s in {{ GO_SERVICES }}; do echo "=== $s ===" && (cd services/$s && go vet ./...) || exit 1; done
 
 # ─── schema ─────────────────────────────────────────────
 gen-openapi service:

@@ -1,4 +1,4 @@
-import { XMindPreviewer, type XMindPreviewerProps } from "components/xmind-previewer";
+import { XMindPreviewer, type XMindPreviewerProps } from "@repo/viewers/xmind-previewer";
 
 import { DemoCard } from "../DemoCard";
 

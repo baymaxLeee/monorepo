@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type CreateOrgInput, createOrg } from "api";
+import { type CreateOrgInput, createOrg } from "@repo/api";
 import {
   Button,
   Dialog,
@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
   toast,
-} from "components";
+} from "@repo/design-system";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 

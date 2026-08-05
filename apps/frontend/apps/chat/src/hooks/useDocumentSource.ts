@@ -1,5 +1,5 @@
-import type { ConversationDocumentDetail } from "api";
-import { createKnowledgeDocumentResourceUrl, fetchConversationDocumentSource } from "api";
+import type { ConversationDocumentDetail } from "@repo/api";
+import { createKnowledgeDocumentResourceUrl, fetchConversationDocumentSource } from "@repo/api";
 import { useEffect, useState } from "react";
 
 const MAX_CACHED_DOCUMENTS = 8;

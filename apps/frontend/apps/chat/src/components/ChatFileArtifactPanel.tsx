@@ -1,10 +1,10 @@
-import type { ConversationFileDetail } from "api";
-import { createKnowledgeFileResourceUrl, fetchConversationFile } from "api";
-import { Button, toast } from "components";
-import { ArtifactAction, ArtifactPreview } from "components/ai-chat";
+import { ArtifactAction, ArtifactPreview } from "@repo/ai-elements";
+import type { ConversationFileDetail } from "@repo/api";
+import { createKnowledgeFileResourceUrl, fetchConversationFile } from "@repo/api";
+import { Button, toast } from "@repo/design-system";
+import { getErrorMessage } from "@repo/shared";
 import { DownloadIcon, Loader2Icon, Maximize2Icon, Minimize2Icon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getErrorMessage } from "shared";
 import { useShallow } from "zustand/react/shallow";
 
 import { useChatStore } from "../store/useChatStore";

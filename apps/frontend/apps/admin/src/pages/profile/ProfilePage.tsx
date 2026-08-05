@@ -16,8 +16,8 @@ import {
   PageHeader,
   PageHeaderContent,
   PageTitle,
-} from "components";
-import { usePlatformStore } from "runtime";
+} from "@repo/design-system";
+import { usePlatformStore } from "@repo/runtime";
 
 function getUserInitials(name: string) {
   return name.trim().slice(0, 1).toUpperCase() || "U";

@@ -1,4 +1,4 @@
-import { createOrgAdmin, type OrgAdminView, transferOrgOwner } from "api";
+import { createOrgAdmin, type OrgAdminView, transferOrgOwner } from "@repo/api";
 import {
   Button,
   Dialog,
@@ -13,7 +13,7 @@ import {
   FieldLabel,
   Input,
   toast,
-} from "components";
+} from "@repo/design-system";
 import { useEffect, useState } from "react";
 
 type DialogProps = {

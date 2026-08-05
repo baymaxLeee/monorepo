@@ -1,5 +1,5 @@
 {
-  "name": "runtime",
+  "name": "@repo/runtime",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,7 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
-    "@project/typescript-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
     "@typescript/native": "catalog:"
   }
 }

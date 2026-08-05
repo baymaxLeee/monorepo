@@ -1,11 +1,11 @@
-import type { ConversationDocumentDetail } from "api";
-import { fetchConversationDocument, updateConversationDocument } from "api";
-import { Button, toast } from "components";
-import { ArtifactAction, ArtifactPreview } from "components/ai-chat";
-import { MarkdownEditor } from "components/markdown-editor";
+import { ArtifactAction, ArtifactPreview } from "@repo/ai-elements";
+import type { ConversationDocumentDetail } from "@repo/api";
+import { fetchConversationDocument, updateConversationDocument } from "@repo/api";
+import { Button, toast } from "@repo/design-system";
+import { MarkdownEditor } from "@repo/editors/markdown-editor";
+import { getErrorMessage } from "@repo/shared";
 import { DownloadIcon, Loader2Icon, Maximize2Icon, Minimize2Icon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getErrorMessage } from "shared";
 import { useShallow } from "zustand/react/shallow";
 
 import { downloadConversationDocument, useDocumentBlobUrl, useDocumentResourceUrl } from "../hooks/useDocumentSource";

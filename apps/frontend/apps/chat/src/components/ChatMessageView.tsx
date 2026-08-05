@@ -1,6 +1,3 @@
-import { getToolName, isFileUIPart, isToolUIPart, type UIMessage } from "ai";
-import type { ConversationDocument } from "api";
-import { Badge } from "components";
 import {
   Message as AiMessage,
   Confirmation,
@@ -21,10 +18,13 @@ import {
   ToolHeader,
   ToolJsonBlock,
   withoutReasoningParts,
-} from "components/ai-chat";
+} from "@repo/ai-elements";
+import type { ConversationDocument } from "@repo/api";
+import { Badge } from "@repo/design-system";
+import { cn, isPublicHttpUrl } from "@repo/shared";
+import { getToolName, isFileUIPart, isToolUIPart, type UIMessage } from "ai";
 import { SparklesIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
-import { cn, isPublicHttpUrl } from "shared";
 
 import { parseAskUserInput } from "../lib/ask-user";
 import { documentIdFromFilePart } from "../lib/file-parts";

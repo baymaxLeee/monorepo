@@ -1,4 +1,4 @@
-import { Button, Checkbox, Input } from "components";
+import { Button, Checkbox, Input } from "@repo/design-system";
 import { useId, useState } from "react";
 
 import type { AskUserInput, AskUserOutput, AskUserQuestion } from "../lib/ask-user";

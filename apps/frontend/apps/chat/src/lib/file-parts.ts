@@ -1,5 +1,5 @@
+import { conversationDocumentSourceUrl } from "@repo/api";
 import type { FileUIPart } from "ai";
-import { conversationDocumentSourceUrl } from "api";
 
 export function buildUserFilePart(input: {
   conversationId: string;

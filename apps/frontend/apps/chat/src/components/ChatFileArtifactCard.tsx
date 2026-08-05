@@ -1,5 +1,5 @@
-import { Button } from "components";
-import { Artifact, ArtifactContent, ArtifactDescription, ArtifactHeader, ArtifactTitle } from "components/ai-chat";
+import { Artifact, ArtifactContent, ArtifactDescription, ArtifactHeader, ArtifactTitle } from "@repo/ai-elements";
+import { Button } from "@repo/design-system";
 import { FileTextIcon } from "lucide-react";
 
 import type { ArtifactOutput } from "./ChatArtifactCard";

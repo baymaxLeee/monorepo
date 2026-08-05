@@ -1,0 +1,682 @@
+/**
+ * Single theme + Tailwind v4 entry (shadcn/ui neutral).
+ * Built only by platform host via @tailwindcss/webpack.
+ * @source: MFE app sources + every UI package (not shared/runtime/api).
+ */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@source "../../../apps/*/src/**/*.{ts,tsx}";
+@source "./**/*.{ts,tsx}";
+@source "../../ai-elements/src/**/*.{ts,tsx}";
+@source "../../editors/src/**/*.{ts,tsx}";
+@source "../../viewers/src/**/*.{ts,tsx}";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --radius: 0.5rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  :where([data-streamdown="ordered-list"], [data-streamdown="unordered-list"]) {
+    list-style-position: outside;
+    padding-inline-start: 1.5em;
+  }
+  :where([data-streamdown="list-item"]) {
+    padding-inline-start: 0.25em;
+  }
+  :where([data-streamdown="list-item"]):has(> input[type="checkbox"]),
+  :where([data-streamdown="list-item"].task-list-item) {
+    list-style: none;
+    padding-inline-start: 0;
+  }
+
+  /* Streamdown draws table dividers with utility classes that only appear inside
+     node_modules, so Tailwind (which does not scan node_modules) purges them and
+     tables render frameless. Restore the look via the data-streamdown hooks
+     (same approach as the list rules above): keep the internal row/column
+     dividers only, and drop the outer container frame + panel background. */
+  :where([data-streamdown="table-wrapper"]) {
+    @apply border-0 bg-transparent p-0;
+  }
+  :where([data-streamdown="table-wrapper"]) > div {
+    @apply border-0;
+  }
+  :where([data-streamdown="table"]) {
+    @apply w-full border-collapse;
+  }
+  :where([data-streamdown="table-header"]) {
+    @apply border-b border-border bg-muted/60;
+  }
+  :where([data-streamdown="table-body"])
+    :where([data-streamdown="table-row"])
+    + :where([data-streamdown="table-row"]) {
+    @apply border-t border-border;
+  }
+  :where([data-streamdown="table-header-cell"])
+    + :where([data-streamdown="table-header-cell"]),
+  :where([data-streamdown="table-cell"]) + :where([data-streamdown="table-cell"]) {
+    @apply border-l border-border;
+  }
+  :where([data-streamdown="table-header-cell"]),
+  :where([data-streamdown="table-cell"]) {
+    @apply px-4 py-2 text-left;
+  }
+
+  .code-editor,
+  .markdown-editor,
+  .pdf-previewer,
+  .x-mind-previewer {
+    @apply min-h-0 text-sm text-foreground;
+  }
+
+  .code-editor {
+    @apply h-full w-full min-w-0;
+  }
+
+  .code-editor .cm-editor {
+    @apply h-full w-full min-w-0 outline-none;
+  }
+
+  .code-editor .cm-editor.cm-focused {
+    @apply outline-none;
+  }
+
+  .code-editor .cm-scroller {
+    @apply min-h-0 min-w-0 overflow-auto;
+  }
+
+  /* FileWorkspace 已迁移为 inline Tailwind utility，BEM 选择器全部移除。 */
+
+  .pdf-previewer-toolbar,
+  .x-mind-previewer-toolbar {
+    @apply flex items-center gap-2 border-b bg-background/95 px-3 py-2;
+  }
+
+  .pdf-previewer-body,
+  .x-mind-previewer-body {
+    @apply relative min-h-0 flex-1 overflow-auto;
+  }
+
+  /* MarkdownEditor 容器（基底，不含 toolbar/popup —— 后者由组件内联 utility 提供）
+     高保真还原自原 EAMarkdownEditor/components/Editor/index.less */
+  .markdown-editor {
+    height: 100%;
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .markdown-editor-mask {
+    height: 100%;
+    width: 100%;
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    background-color: rgb(255 255 255 / 0%);
+  }
+
+  .markdown-editor-editable .markdown-editor-content {
+    background-color: var(--background);
+    padding-left: 2em;
+    padding-right: 0.5em;
+  }
+
+  .markdown-editor-content {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    line-height: 1.6;
+    outline: none;
+    transition: background-color 0.2s ease;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .markdown-editor-content::-webkit-scrollbar {
+    display: none;
+  }
+  .markdown-editor-content:focus,
+  .markdown-editor-content:focus-visible {
+    outline: none;
+  }
+  .markdown-editor-content > :first-child {
+    margin-top: 0.5em;
+  }
+  .markdown-editor-content > :last-child {
+    margin-bottom: 0;
+  }
+  .markdown-editor-content .ProseMirror {
+    outline: none !important;
+  }
+  .markdown-editor-content .ProseMirror:focus,
+  .markdown-editor-content .ProseMirror:focus-visible {
+    outline: none !important;
+  }
+
+  .markdown-editor-content p {
+    margin: 0.5em 0;
+    word-wrap: break-word;
+    word-break: break-word;
+  }
+  .markdown-editor-content p:first-child {
+    margin-top: 0;
+  }
+  .markdown-editor-content p:last-child {
+    margin-bottom: 0;
+  }
+
+  .markdown-editor-content h1,
+  .markdown-editor-content h2,
+  .markdown-editor-content h3,
+  .markdown-editor-content h4,
+  .markdown-editor-content h5,
+  .markdown-editor-content h6 {
+    font-weight: 700;
+    line-height: 1.25;
+    margin: 0.5em 0;
+    color: var(--foreground);
+    text-wrap: pretty;
+  }
+  .markdown-editor-content :is(h1, h2, h3, h4, h5, h6):first-child {
+    margin-top: 0;
+  }
+  .markdown-editor-content :is(h1, h2, h3, h4, h5, h6):last-child {
+    margin-bottom: 0;
+  }
+  .markdown-editor-content h1 {
+    font-size: 1.375em;
+  }
+  .markdown-editor-content h2 {
+    font-size: 1.25em;
+  }
+  .markdown-editor-content h3 {
+    font-size: 1.125em;
+  }
+  .markdown-editor-content h4,
+  .markdown-editor-content h5,
+  .markdown-editor-content h6 {
+    font-size: 1em;
+  }
+
+  .markdown-editor-content ul,
+  .markdown-editor-content ol {
+    padding-left: 1em;
+    margin: 0.5em 0;
+    line-height: 1.8;
+  }
+  .markdown-editor-content li {
+    margin: 0.25em 0;
+    padding-left: 0.25em;
+  }
+  .markdown-editor-content li p {
+    margin: 0.25em 0;
+  }
+  .markdown-editor-content li::marker {
+    color: var(--primary);
+  }
+  .markdown-editor-content li[data-text-align="center"],
+  .markdown-editor-content li[data-text-align="right"] {
+    list-style-position: inside;
+    padding-left: 0;
+  }
+  .markdown-editor-content li[data-text-align="center"] > p,
+  .markdown-editor-content li[data-text-align="right"] > p {
+    display: inline;
+  }
+  .markdown-editor-content :is(ul, ol) :is(ul, ol) {
+    margin: 0.5em 0;
+  }
+  .markdown-editor-content ul {
+    list-style-type: disc;
+  }
+  .markdown-editor-content ul ul {
+    list-style-type: circle;
+  }
+  .markdown-editor-content ul ul ul {
+    list-style-type: square;
+  }
+  .markdown-editor-content ol {
+    list-style-type: decimal;
+  }
+
+  .markdown-editor-content ul[data-type="taskList"] {
+    list-style: none;
+    padding-left: 0;
+    margin: 0.5em 0;
+  }
+  .markdown-editor-content ul[data-type="taskList"] > li {
+    display: flex;
+    align-items: flex-start;
+    margin: 0.25em 0;
+    padding-left: 0;
+    line-height: 1.6;
+  }
+  .markdown-editor-content ul[data-type="taskList"] > li > label {
+    flex: 0 0 auto;
+    margin-right: 0.25em;
+    margin-top: 0.15em;
+    user-select: none;
+    cursor: pointer;
+  }
+  .markdown-editor-content ul[data-type="taskList"] > li > div {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .markdown-editor-content
+    ul[data-type="taskList"]
+    > li[data-text-align="center"] {
+    justify-content: center;
+  }
+  .markdown-editor-content
+    ul[data-type="taskList"]
+    > li[data-text-align="center"]
+    > div {
+    flex: 0 1 auto;
+  }
+  .markdown-editor-content
+    ul[data-type="taskList"]
+    > li[data-text-align="right"] {
+    justify-content: flex-end;
+  }
+  .markdown-editor-content
+    ul[data-type="taskList"]
+    > li[data-text-align="right"]
+    > div {
+    flex: 0 1 auto;
+  }
+  .markdown-editor-content
+    ul[data-type="taskList"]
+    > li
+    input[type="checkbox"] {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--primary);
+  }
+  .markdown-editor-content
+    ul[data-type="taskList"]
+    > li[data-checked="true"]
+    > div {
+    text-decoration: line-through;
+    color: var(--muted-foreground);
+    opacity: 0.7;
+  }
+
+  .markdown-editor-content a {
+    color: var(--primary);
+    text-decoration: none;
+    transition:
+      border-color 0.2s ease,
+      color 0.2s ease;
+    cursor: pointer;
+  }
+  .markdown-editor-content a:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.25em;
+  }
+
+  .markdown-editor-content mark {
+    background-color: var(--yellow-2, #fefebe);
+    color: var(--foreground);
+    border-radius: 3px;
+    padding: 0.1em 0.2em;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  .markdown-editor-content blockquote {
+    border-left: 2px solid #3491fa;
+    background-color: var(--muted);
+    margin: 1.25em 0;
+    padding: 0.75em 1.25em 0.75em 1.5em;
+    border-radius: 0 4px 4px 0;
+    color: color-mix(in oklch, var(--foreground) 80%, transparent);
+    position: relative;
+    transition: background-color 0.2s ease;
+  }
+  .markdown-editor-content blockquote:hover {
+    background-color: color-mix(in oklch, var(--muted) 60%, var(--accent));
+  }
+  .markdown-editor-content blockquote p {
+    margin: 0.25em 0;
+  }
+  .markdown-editor-content blockquote p:first-child {
+    margin-top: 0;
+  }
+  .markdown-editor-content blockquote p:last-child {
+    margin-bottom: 0;
+  }
+  .markdown-editor-content blockquote blockquote {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .markdown-editor-content hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 1em 0;
+    position: relative;
+  }
+
+  .markdown-editor-content img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 1.5em auto;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+  .markdown-editor-content img.ProseMirror-selectednode {
+    outline: 3px solid #3491fa;
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  .markdown-editor-content strong {
+    font-weight: 600;
+  }
+  .markdown-editor-content u {
+    text-underline-offset: 0.25em;
+  }
+
+  .markdown-editor-content code {
+    font-family:
+      "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 0.9em;
+    line-height: inherit;
+    color: inherit;
+    background-color: rgb(135 131 120 / 15%);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    word-break: break-word;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  /* 表格（D-1 兜底版本：保证 markdown 表格能可视化渲染）
+     完整版本（grip handles / column-resize / selectedCell）见 D-5：
+       原 EAMarkdownEditor/extensions/Table/index.less */
+  .markdown-editor-content table {
+    border-collapse: collapse;
+    margin: 1em 0 1.5em;
+    width: auto;
+    border-radius: 0.25rem;
+    box-sizing: border-box;
+    position: relative;
+  }
+  .markdown-editor-content :is(td, th) {
+    border: 1px solid rgb(0 0 0 / 10%);
+    min-width: 100px;
+    padding: 0.5rem;
+    font-weight: normal;
+    text-align: left;
+    vertical-align: top;
+    position: relative;
+  }
+  .markdown-editor-content th {
+    font-weight: 600;
+    background-color: var(--muted);
+  }
+  .markdown-editor-content :is(td, th) p {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .markdown-editor-content :is(td, th) p + p {
+    margin-top: 0.75rem !important;
+  }
+  .markdown-editor-content .selectedCell {
+    background-color: rgb(0 0 0 / 5%);
+    border: 1px double rgb(0 0 0 / 20%);
+  }
+
+  /* 代码块 pre（D-1 兜底版本，完整版见 D-4：
+       原 EAMarkdownEditor/extensions/CodeBlock/index.less） */
+  .markdown-editor-content pre {
+    margin: 0.5em 0;
+    padding: 1em;
+    font-family: monospace;
+    font-size: 14px;
+    line-height: 22px;
+    color: var(--foreground);
+    background-color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow-x: auto;
+    word-break: break-all;
+  }
+  .markdown-editor-content pre code {
+    font-family: monospace;
+    font-size: 14px;
+    line-height: 22px;
+    color: inherit;
+    display: block;
+    min-width: 100%;
+    background-color: transparent !important;
+    padding: 0 !important;
+    border: none;
+  }
+
+  @media print {
+    .markdown-editor-content {
+      padding: 0;
+      background: white;
+      color: black;
+    }
+    .markdown-editor-content pre {
+      background: #f5f5f5;
+      border: 1px solid #ddd;
+      page-break-inside: avoid;
+    }
+    .markdown-editor-content img {
+      page-break-inside: avoid;
+      max-width: 100% !important;
+    }
+  }
+
+  [data-block-dragging="true"] .ProseMirror-dropcursor {
+    display: none !important;
+  }
+
+  .pdf-previewer {
+    --pdf-previewer-highlight-color: rgb(250 204 21 / 35%);
+    @apply relative flex h-full flex-col overflow-hidden rounded-md border bg-muted/20;
+  }
+
+  .pdf-previewer-page-wrapper {
+    @apply relative mx-auto my-4 overflow-hidden shadow-sm;
+  }
+
+  .pdf-previewer-highlight-layer {
+    @apply pointer-events-none absolute inset-0;
+  }
+
+  .pdf-previewer-highlight-item {
+    background: var(--pdf-previewer-highlight-color);
+    @apply pointer-events-auto absolute rounded-sm;
+  }
+
+  .pdf-previewer-sidebar {
+    @apply w-64 shrink-0 overflow-auto border-r bg-background p-2;
+  }
+
+  .pdf-previewer .react-pdf__Page__canvas {
+    @apply mx-auto block;
+  }
+
+  .x-mind-previewer {
+    @apply relative flex h-full flex-col overflow-hidden rounded-md border bg-background;
+  }
+
+  .x-mind-previewer-canvas,
+  .x-mind-previewer-container {
+    @apply min-h-0 flex-1 overflow-hidden;
+  }
+}
+
+@layer utilities {
+  /**
+   * 隐藏视觉滚动条但保留滚动能力。
+   * Firefox 用 scrollbar-width，IE/旧 Edge 用 -ms-overflow-style，
+   * WebKit 系（Chrome/Safari/新 Edge）通过伪元素隐藏。
+   */
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /**
+   * 细滚动条：主题感知（thumb 用 border token），滚动时才明显。
+   * Firefox 用 scrollbar-width，WebKit 系通过伪元素控制宽度/圆角。
+   */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 9999px;
+  }
+  .scrollbar-thin:hover::-webkit-scrollbar-thumb {
+    background-color: var(--muted-foreground);
+  }
+}

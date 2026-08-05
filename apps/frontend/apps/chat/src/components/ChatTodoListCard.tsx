@@ -1,5 +1,5 @@
+import { Plan, PlanContent, PlanHeader, Task, TaskTitle } from "@repo/ai-elements";
 import { isToolUIPart, type UIMessage } from "ai";
-import { Plan, PlanContent, PlanHeader, Task, TaskTitle } from "components/ai-chat";
 
 import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
 import { parseArtifactOutput, parseArtifactTaskOutput } from "./ChatArtifactCard";

@@ -17,9 +17,9 @@ Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 - Do not add sessionStorage message/stream state; Redis is the replay buffer.
 - Client tools answer with `addToolOutput` and
   `lastAssistantMessageIsCompleteWithToolCalls`.
-- CRUD goes through `api`. The transport's custom fetch is only for the AI SDK
+- CRUD goes through `@repo/api`. The transport's custom fetch is only for the AI SDK
   streaming request and response metadata.
-- Never import another MFE; cross-MFE coordination uses `runtime`.
+- Never import another MFE (enforced by `turbo boundaries`); cross-MFE coordination uses `@repo/runtime`.
 - Runtime singletons come from platform's Module Federation shared scope.
 
 ## Layout

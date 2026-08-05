@@ -1,5 +1,5 @@
-import { type Bot, fetchBots } from "api";
-import { getErrorMessage } from "shared";
+import { type Bot, fetchBots } from "@repo/api";
+import { getErrorMessage } from "@repo/shared";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 

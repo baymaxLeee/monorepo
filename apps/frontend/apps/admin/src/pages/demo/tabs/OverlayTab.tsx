@@ -14,7 +14,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "components";
+} from "@repo/design-system";
 import { useState } from "react";
 
 import { DemoCard } from "../DemoCard";

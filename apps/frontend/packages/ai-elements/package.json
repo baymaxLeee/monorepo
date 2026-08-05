@@ -1,0 +1,43 @@
+{
+  "name": "@repo/ai-elements",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "./src/PromptInput/styles.css"
+  ],
+  "exports": {
+    ".": "./src/AiChat/index.tsx",
+    "./prompt-input": "./src/PromptInput/index.tsx"
+  },
+  "scripts": {
+    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/packages/ai-elements/src && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/ai-elements/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/ai-elements/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/design-system": "workspace:*",
+    "@repo/shared": "workspace:*",
+    "@tiptap/core": "^3.22.3",
+    "@tiptap/pm": "^3.22.3",
+    "@tiptap/react": "^3.22.3",
+    "@tiptap/starter-kit": "^3.22.3",
+    "@tiptap/suggestion": "^3.27.1",
+    "ai": "catalog:",
+    "lucide-react": "catalog:",
+    "radix-ui": "^1.4.3",
+    "react-compiler-runtime": "catalog:",
+    "streamdown": "catalog:",
+    "use-stick-to-bottom": "^1.1.6"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@typescript/native": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}

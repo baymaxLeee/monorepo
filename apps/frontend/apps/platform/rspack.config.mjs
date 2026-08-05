@@ -2,12 +2,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { ModuleFederationPlugin } from "@module-federation/enhanced/rspack";
+import { buildShared } from "@repo/build-config/mf-shared";
+import { createAppResolveAlias, createHostCssRule, createSwcRule } from "@repo/build-config/rspack";
 import { defineConfig } from "@rspack/cli";
 import rspack from "@rspack/core";
 import HtmlWebpackPlugin from "html-webpack-plugin";
-
-import { buildShared } from "../../mf-shared.mjs";
-import { createAppResolveAlias, createHostCssRule, createSwcRule } from "../../rspack.shared.mjs";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const API_TARGET = process.env.API_TARGET ?? "http://localhost:8000";

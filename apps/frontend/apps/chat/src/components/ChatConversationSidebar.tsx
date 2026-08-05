@@ -1,4 +1,4 @@
-import type { Conversation } from "api";
+import type { Conversation } from "@repo/api";
 import {
   Aside,
   Button,
@@ -9,7 +9,8 @@ import {
   DropdownMenuTrigger,
   Section,
   Skeleton,
-} from "components";
+} from "@repo/design-system";
+import { cn } from "@repo/shared";
 import {
   BoxesIcon,
   DownloadIcon,
@@ -21,7 +22,6 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { cn } from "shared";
 
 import { ChatPanelResizeHandle } from "./ChatPanelResizeHandle";
 import { ChatUserMenu } from "./ChatUserMenu";

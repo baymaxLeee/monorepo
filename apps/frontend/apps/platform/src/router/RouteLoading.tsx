@@ -1,4 +1,4 @@
-import { Skeleton } from "components";
+import { Skeleton } from "@repo/design-system";
 
 export function RouteLoading() {
   return (

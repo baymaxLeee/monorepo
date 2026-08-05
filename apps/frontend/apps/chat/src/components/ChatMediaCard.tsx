@@ -1,5 +1,5 @@
+import { cn } from "@repo/shared";
 import type { LucideIcon } from "lucide-react";
-import { cn } from "shared";
 
 export function ChatMediaCard({
   icon: Icon,

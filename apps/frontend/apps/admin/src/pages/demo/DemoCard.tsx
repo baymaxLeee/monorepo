@@ -1,6 +1,6 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "components";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@repo/design-system";
+import { cn } from "@repo/shared";
 import type { ReactNode } from "react";
-import { cn } from "shared";
 
 export interface DemoCardProps {
   title: ReactNode;

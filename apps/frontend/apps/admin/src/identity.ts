@@ -1,4 +1,4 @@
-import { usePlatformStore } from "runtime";
+import { usePlatformStore } from "@repo/runtime";
 import { useShallow } from "zustand/react/shallow";
 
 /**

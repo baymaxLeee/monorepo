@@ -1,4 +1,12 @@
-import { applyToOrg, fetchMe, fetchPublicOrgs, logout, type Membership, type OrgSummary, switchActiveOrg } from "api";
+import {
+  applyToOrg,
+  fetchMe,
+  fetchPublicOrgs,
+  logout,
+  type Membership,
+  type OrgSummary,
+  switchActiveOrg,
+} from "@repo/api";
 import {
   Badge,
   Button,
@@ -14,11 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
   toast,
-} from "components";
-import { clearUser as clearObservabilityUser } from "observability";
+} from "@repo/design-system";
+import { clearUser as clearObservabilityUser } from "@repo/observability";
+import { type PlatformUser, usePlatformStore } from "@repo/runtime";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { type PlatformUser, usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
 
 import { activeMemberships, isSuperAdmin } from "../../onboarding";

@@ -1,4 +1,4 @@
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "components";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@repo/design-system";
 
 import { DemoCard } from "../DemoCard";
 import { StatusBadge } from "../StatusBadge";

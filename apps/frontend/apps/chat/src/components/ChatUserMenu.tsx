@@ -1,4 +1,4 @@
-import { logout, switchActiveOrg } from "api";
+import { logout, switchActiveOrg } from "@repo/api";
 import {
   Avatar,
   AvatarFallback,
@@ -10,11 +10,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "components";
+} from "@repo/design-system";
+import { clearUser as clearObservabilityUser } from "@repo/observability";
+import { type PlatformMembership, usePlatformStore } from "@repo/runtime";
 import { BrainIcon, CheckIcon, ChevronsUpDownIcon, LogOutIcon, SettingsIcon, UserIcon } from "lucide-react";
-import { clearUser as clearObservabilityUser } from "observability";
 import { useNavigate } from "react-router-dom";
-import { type PlatformMembership, usePlatformStore } from "runtime";
 import { useShallow } from "zustand/react/shallow";
 
 import { useChatStore } from "../store/useChatStore";

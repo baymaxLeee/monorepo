@@ -1,5 +1,5 @@
-import { fetchVideoTakePreview, type VideoProductionShotReviewsItem, type VideoShot, type VideoTake } from "api";
-import { Badge, Button } from "components";
+import { fetchVideoTakePreview, type VideoProductionShotReviewsItem, type VideoShot, type VideoTake } from "@repo/api";
+import { Badge, Button } from "@repo/design-system";
 import { CheckIcon, Loader2Icon, RotateCcwIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 

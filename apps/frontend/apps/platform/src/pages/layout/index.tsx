@@ -1,8 +1,12 @@
-import { Layout as LayoutFrame, Main } from "components";
-import { clearUser as clearObservabilityUser, recordPageView, setUser as setObservabilityUser } from "observability";
+import { Layout as LayoutFrame, Main } from "@repo/design-system";
+import {
+  clearUser as clearObservabilityUser,
+  recordPageView,
+  setUser as setObservabilityUser,
+} from "@repo/observability";
+import { usePlatformStore } from "@repo/runtime";
 import { useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { usePlatformStore } from "runtime";
 
 function Layout() {
   return (

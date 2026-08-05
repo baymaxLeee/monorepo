@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type Bot, createBot, deleteBot, fetchBots, fetchModelProviders, type ModelProvider } from "api";
+import { type Bot, createBot, deleteBot, fetchBots, fetchModelProviders, type ModelProvider } from "@repo/api";
 import {
   Alert,
   AlertDescription,
@@ -51,10 +51,10 @@ import {
   TableHeader,
   TableRow,
   toast,
-} from "components";
+} from "@repo/design-system";
+import { getErrorMessage } from "@repo/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { getErrorMessage } from "shared";
 import { z } from "zod";
 import { useShallow } from "zustand/react/shallow";
 

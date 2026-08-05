@@ -1,5 +1,5 @@
 {
-  "name": "api",
+  "name": "@repo/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,12 +13,12 @@
     "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@repo/observability": "workspace:*",
     "axios": "^1.13.0",
-    "observability": "workspace:*",
     "sonner": "catalog:"
   },
   "devDependencies": {
-    "@project/typescript-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
     "@typescript/native": "catalog:",
     "orval": "8.13.0",
     "typescript": "catalog:"

@@ -1,0 +1,163 @@
+{
+  "date": "2026-08-05",
+  "note": "workspace dependency graph before and after components-to-capability split",
+  "before": [
+    {
+      "package": "components",
+      "consumers": ["admin", "chat", "platform"],
+      "purpose": "design system, AI chat, editors, viewers, and layout in one package"
+    },
+    {
+      "package": "admin",
+      "workspaceDeps": [
+        "api",
+        "components",
+        "observability",
+        "runtime",
+        "shared",
+        "@project/typescript-config"
+      ]
+    },
+    {
+      "package": "chat",
+      "workspaceDeps": [
+        "api",
+        "components",
+        "observability",
+        "runtime",
+        "shared",
+        "@project/typescript-config"
+      ]
+    },
+    {
+      "package": "platform",
+      "workspaceDeps": [
+        "api",
+        "components",
+        "observability",
+        "runtime",
+        "shared",
+        "@project/typescript-config"
+      ]
+    }
+  ],
+  "after": [
+    {
+      "package": "@repo/ai-elements",
+      "path": "packages/ai-elements",
+      "repoDeps": [
+        "@repo/design-system",
+        "@repo/shared",
+        "@repo/typescript-config"
+      ]
+    },
+    {
+      "package": "@repo/api",
+      "path": "packages/api",
+      "repoDeps": [
+        "@repo/observability",
+        "@repo/typescript-config"
+      ]
+    },
+    {
+      "package": "@repo/build-config",
+      "path": "packages/build-config",
+      "repoDeps": []
+    },
+    {
+      "package": "@repo/design-system",
+      "path": "packages/design-system",
+      "repoDeps": [
+        "@repo/shared",
+        "@repo/typescript-config"
+      ]
+    },
+    {
+      "package": "@repo/editors",
+      "path": "packages/editors",
+      "repoDeps": [
+        "@repo/design-system",
+        "@repo/shared",
+        "@repo/typescript-config"
+      ]
+    },
+    {
+      "package": "@repo/observability",
+      "path": "packages/observability",
+      "repoDeps": [
+        "@repo/typescript-config"
+      ]
+    },
+    {
+      "package": "@repo/runtime",
+      "path": "packages/runtime",
+      "repoDeps": [
+        "@repo/typescript-config"
+      ]
+    },
+    {
+      "package": "@repo/shared",
+      "path": "packages/shared",
+      "repoDeps": [
+        "@repo/typescript-config"
+      ]
+    },
+    {
+      "package": "@repo/typescript-config",
+      "path": "packages/typescript-config",
+      "repoDeps": []
+    },
+    {
+      "package": "@repo/viewers",
+      "path": "packages/viewers",
+      "repoDeps": [
+        "@repo/design-system",
+        "@repo/shared",
+        "@repo/typescript-config"
+      ]
+    },
+    {
+      "package": "admin",
+      "path": "apps/admin",
+      "repoDeps": [
+        "@repo/api",
+        "@repo/build-config",
+        "@repo/design-system",
+        "@repo/editors",
+        "@repo/observability",
+        "@repo/runtime",
+        "@repo/shared",
+        "@repo/typescript-config",
+        "@repo/viewers"
+      ]
+    },
+    {
+      "package": "chat",
+      "path": "apps/chat",
+      "repoDeps": [
+        "@repo/ai-elements",
+        "@repo/api",
+        "@repo/build-config",
+        "@repo/design-system",
+        "@repo/editors",
+        "@repo/observability",
+        "@repo/runtime",
+        "@repo/shared",
+        "@repo/typescript-config"
+      ]
+    },
+    {
+      "package": "platform",
+      "path": "apps/platform",
+      "repoDeps": [
+        "@repo/api",
+        "@repo/build-config",
+        "@repo/design-system",
+        "@repo/observability",
+        "@repo/runtime",
+        "@repo/shared",
+        "@repo/typescript-config"
+      ]
+    }
+  ]
+}

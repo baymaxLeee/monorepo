@@ -4,7 +4,7 @@
       "command": "sh",
       "args": [
         "-c",
-        "cd apps/frontend/packages/components && exec npx shadcn@latest mcp"
+        "cd apps/frontend/packages/design-system && exec npx shadcn@latest mcp"
       ]
     }
   }

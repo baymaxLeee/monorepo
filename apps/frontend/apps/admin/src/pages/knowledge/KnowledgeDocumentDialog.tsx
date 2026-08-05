@@ -1,4 +1,4 @@
-import { fetchKnowledgeDocument, updateKnowledgeDocument } from "api";
+import { fetchKnowledgeDocument, updateKnowledgeDocument } from "@repo/api";
 import {
   Button,
   Dialog,
@@ -10,8 +10,8 @@ import {
   Input,
   Skeleton,
   toast,
-} from "components";
-import { MarkdownEditor } from "components/markdown-editor";
+} from "@repo/design-system";
+import { MarkdownEditor } from "@repo/editors/markdown-editor";
 import { useEffect, useState } from "react";
 
 export interface KnowledgeDocumentDialogProps {

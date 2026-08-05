@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type AppEntry, createApp, deleteApp, fetchApps, updateApp } from "api";
+import { type AppEntry, createApp, deleteApp, fetchApps, updateApp } from "@repo/api";
 import {
   Alert,
   AlertDescription,
@@ -42,10 +42,10 @@ import {
   TableHeader,
   TableRow,
   toast,
-} from "components";
+} from "@repo/design-system";
+import { getErrorMessage } from "@repo/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { getErrorMessage } from "shared";
 import { z } from "zod";
 
 const appSchema = z.object({

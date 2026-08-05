@@ -1,7 +1,7 @@
 import { registerRemotes } from "@module-federation/enhanced/runtime";
-import { type AppEntry, fetchApps } from "api";
+import { type AppEntry, fetchApps } from "@repo/api";
 
-export type { AppEntry } from "api";
+export type { AppEntry } from "@repo/api";
 
 let loadPromise: Promise<AppEntry[]> | null = null;
 

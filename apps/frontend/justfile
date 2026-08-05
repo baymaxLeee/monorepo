@@ -2,7 +2,7 @@ set positional-arguments
 set shell := ["bash", "-cu"]
 
 # Fixed port allocation so multiple agents/dev servers don't collide
-PORTS := '{"platform":3000,"admin":3001,"mfe-portal":3004,"chat":3005}'
+PORTS := '{"platform":3000,"admin":3001,"chat":3005}'
 
 default:
     @just --list
@@ -18,7 +18,7 @@ dev-all:
     pnpm dev
 
 # ─── build/test ─────────────────────────────────────────
-# build [target]: no arg = all apps; or platform | admin | mfe-* | components | ...
+# build [target]: no arg = all apps; or platform | admin | chat | @repo/<package> | ...
 build target="":
     @if [ -z "{{ target }}" ]; then \
         echo "→ Building all (turbo)..." && pnpm build; \
@@ -39,6 +39,11 @@ test pkg="":
 lint:
     pnpm --dir ../.. lint:ts:frontend
     pnpm typecheck
+    pnpm exec turbo boundaries
+
+# Package dependency-tag rules only (see turbo.json#boundaries)
+boundaries:
+    pnpm exec turbo boundaries
 
 fmt:
     pnpm --dir ../.. format:ts:frontend

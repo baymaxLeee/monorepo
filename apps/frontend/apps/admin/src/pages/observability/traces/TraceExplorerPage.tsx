@@ -1,4 +1,4 @@
-import { Page, PageDescription, PageHeader, PageHeaderContent, PageTitle } from "components";
+import { Page, PageDescription, PageHeader, PageHeaderContent, PageTitle } from "@repo/design-system";
 
 import { TraceExplorer } from "./TraceExplorer";
 

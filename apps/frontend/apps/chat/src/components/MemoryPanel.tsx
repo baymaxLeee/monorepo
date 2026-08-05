@@ -1,6 +1,6 @@
-import type { MemoryCandidate, MemoryCategory, UserMemory } from "api";
-import { Badge, Button, Textarea } from "components";
-import { MessageResponse } from "components/ai-chat";
+import { MessageResponse } from "@repo/ai-elements";
+import type { MemoryCandidate, MemoryCategory, UserMemory } from "@repo/api";
+import { Badge, Button, Textarea } from "@repo/design-system";
 import { useEffect, useState } from "react";
 
 import { useMemoryStore } from "../store/useMemoryStore";

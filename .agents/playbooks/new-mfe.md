@@ -88,7 +88,7 @@ formatting is explicitly required; fix scoped formatter findings instead.
 ## Hard rules
 
 - Never import another MFE.
-- Use the `runtime` event bus for cross-MFE coordination.
-- Use `api` for backend calls.
+- Use the `@repo/runtime` event bus for cross-MFE coordination.
+- Use `@repo/api` for backend calls.
 - Keep page-only business components inside the page directory.
 - The admin app registry is the only source of remote entry metadata.

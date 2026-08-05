@@ -6,13 +6,13 @@ Manages the "智能体" domain on the frontend. Backed by `apps/backend/services
 
 - This MFE owns routes under `/platform/admin/*` when mounted by platform
 - `http://localhost:3001/` is not a supported page; this app only serves federation assets
-- API calls go through `api` ONLY (no raw fetch)
-- NEVER import from any other MFE
-- For cross-MFE coordination, use `runtime` event bus
+- API calls go through `@repo/api` ONLY (no raw fetch)
+- NEVER import from any other MFE (enforced by `turbo boundaries`)
+- For cross-MFE coordination, use the `@repo/runtime` event bus
 - Runtime-critical dependencies (`react`, `react-dom`, `react-router-dom`,
   `zustand`, platform infra packages) are provided by platform via
   Module Federation shared scope; admin must not bundle standalone fallbacks
-- `components` and `api` are normal workspace dependencies, not MF-shared
+- UI packages (`@repo/design-system`, `@repo/editors`, `@repo/viewers`) and `@repo/api` are normal workspace dependencies, not MF-shared
   singletons; keep tree-shaking intact
 
 ## Exposes (via Module Federation)
@@ -35,4 +35,5 @@ Manages the "智能体" domain on the frontend. Backed by `apps/backend/services
 
 - Single-page use → keep inside that page directory
 - Reused across unrelated admin pages → keep in `src/components/`
-- Used by 2+ MFEs → promote to `components`
+- Used by 2+ MFEs → promote to the matching `ui` package
+  (`@repo/design-system` for primitives, `@repo/editors` / `@repo/viewers` for heavy surfaces)

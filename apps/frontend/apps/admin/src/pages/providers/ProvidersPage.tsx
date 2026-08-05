@@ -10,7 +10,7 @@ import {
   type TestModelProviderResult,
   testModelProvider,
   updateModelProvider,
-} from "api";
+} from "@repo/api";
 import {
   Alert,
   AlertDescription,
@@ -59,10 +59,10 @@ import {
   TableRow,
   Textarea,
   toast,
-} from "components";
+} from "@repo/design-system";
+import { getErrorMessage } from "@repo/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
-import { getErrorMessage } from "shared";
 import { z } from "zod";
 
 import { resolveChatTokenBudget } from "./provider-token-budgets";

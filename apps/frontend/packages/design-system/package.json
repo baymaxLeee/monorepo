@@ -1,0 +1,59 @@
+{
+  "name": "@repo/design-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "./src/styles.css"
+  ],
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./shadcn": "./src/shadcn/index.ts",
+    "./shadcn/*": "./src/shadcn/*.tsx",
+    "./layout": "./src/layout/index.ts",
+    "./lazy": "./src/Lazy/index.ts",
+    "./file-icon": "./src/FileIcon/index.tsx",
+    "./image-preview": "./src/ImagePreview/index.ts",
+    "./error-boundary": "./src/ErrorBoundary/index.ts",
+    "./hooks/*": "./src/hooks/*.ts",
+    "./utils/*": "./src/utils/*.ts",
+    "./styles.css": "./src/styles.css"
+  },
+  "scripts": {
+    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/packages/design-system/src && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/design-system/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/design-system/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit",
+    "ui:add": "shadcn add",
+    "ui:diff": "shadcn diff"
+  },
+  "dependencies": {
+    "@repo/shared": "workspace:*",
+    "@tailwindcss/typography": "^0.5.19",
+    "class-variance-authority": "^0.7.1",
+    "cmdk": "^1.1.1",
+    "date-fns": "^4.4.0",
+    "input-otp": "^1.4.2",
+    "lucide-react": "catalog:",
+    "radix-ui": "^1.4.3",
+    "react-compiler-runtime": "catalog:",
+    "react-day-picker": "^10.0.1",
+    "react-hook-form": "catalog:",
+    "react-resizable-panels": "^4.12.0",
+    "sonner": "catalog:",
+    "tw-animate-css": "^1.2.0",
+    "vaul": "^1.1.2"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@typescript/native": "catalog:",
+    "shadcn": "^4.12.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}

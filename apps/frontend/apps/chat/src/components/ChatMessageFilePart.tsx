@@ -1,8 +1,8 @@
+import { Attachment, AttachmentInfo, getMediaCategory } from "@repo/ai-elements";
+import { cn } from "@repo/shared";
 import type { FileUIPart } from "ai";
-import { Attachment, AttachmentInfo, getMediaCategory } from "components/ai-chat";
 import { FileIcon, ImageIcon, Loader2Icon, type LucideIcon, MusicIcon, PlaySquareIcon } from "lucide-react";
 import { useRef } from "react";
-import { cn } from "shared";
 
 import { useDocumentBlobUrl } from "../hooks/useDocumentSource";
 import { useInView } from "../hooks/useInView";

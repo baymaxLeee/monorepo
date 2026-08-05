@@ -1,4 +1,4 @@
-import { Badge } from "components";
+import { Badge } from "@repo/design-system";
 
 const variantMap: Record<string, "default" | "secondary" | "outline"> = {
   published: "default",

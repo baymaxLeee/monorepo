@@ -1,4 +1,4 @@
-import type { TelemetryErrorEvent, TelemetryPerformanceEvent } from "api";
+import type { TelemetryErrorEvent, TelemetryPerformanceEvent } from "@repo/api";
 import type { EChartsOption } from "echarts";
 
 export type CountItem = {

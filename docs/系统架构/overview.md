@@ -4,7 +4,7 @@
 ┌─────────────────────────────────────────────────┐
 │                  Browser                        │
 │  ┌────────────────────────────────────────┐     │
-│  │  shell (host @ :3000)                  │     │
+│  │  platform (host @ :3000)               │     │
 │  │   ├─ loads admin @ :3001               │     │
 │  │   ├─ loads chat @ :3005                │     │
 │  │   └─ ...                               │     │
@@ -13,11 +13,11 @@
                    │ HTTP
                    ▼
 ┌──────────────────────────────────────────────────┐
-│  gateway (Go @ :8000)                        │
-│    - Authentication                              │
-│    - X-Trace-Id propagation                      │
-│    - Routing to internal services                │
-│    - Aggregation (BFF)                           │
+│  gateway (Go @ :8000) — sole public API edge     │
+│    - Authentication / X-Auth-*                   │
+│    - X-Trace-Id + W3C traceparent                │
+│    - Prefix reverse proxy (not business agg)     │
+│    - Does not expose executor (internal-only)    │
 └──────┬─────────────┬─────────────┬───────────────┘
        │             │             │
        ▼             ▼             ▼
@@ -33,6 +33,9 @@
   └──────┘      └──────┘
 ```
 
+服务图真源：`services.yaml`（[ADR-0060](../ADR/0060-service-composition-and-bindings.md)）。
+前端 package 边界：next-forge 风格 capability 拆分；Eve 不用于服务注册。
+
 ## 数据流
 
 - **同步**: REST(对外)/ gRPC(服务间内部)
@@ -42,7 +45,7 @@
 ## 契约
 
 唯一的跨栈/跨服务耦合点: `schemas/`
-- `openapi/<svc>.json` — 各 Python 服务自动导出
+- `openapi/<svc>.json` — 各 Python / Node 服务按声明自动导出
 - `proto/<svc>/v1/*.proto` — 手写,Buf 管理
 - `events/*.cloudevents.json` — JSON Schema
 
@@ -50,7 +53,7 @@
 
 - 每个 service / MFE 独立 Docker 镜像
 - K8s 部署清单在 `infra/k8s/base/<name>/`
-- 环境覆盖在 `infra/k8s/overlays/{dev,staging,prod}/`
+- 环境覆盖在 `infra/k8s/overlays/{dev,prod}/`
 - CI 路径过滤,只构建受影响的部分
 
 ## 可观测性

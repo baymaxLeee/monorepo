@@ -1,5 +1,5 @@
+import { attachAxios, type MinimalAxiosInstance } from "@repo/observability";
 import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig } from "axios";
-import { attachAxios, type MinimalAxiosInstance } from "observability";
 import { toast } from "sonner";
 
 import { getToken, isAccessTokenValid } from "./storage";

@@ -1,9 +1,17 @@
 import { useChat } from "@ai-sdk/react";
 import {
-  DefaultChatTransport,
-  lastAssistantMessageIsCompleteWithApprovalResponses,
-  lastAssistantMessageIsCompleteWithToolCalls,
-} from "ai";
+  Conversation,
+  ConversationContent,
+  ConversationEmptyState,
+  ConversationScrollButton,
+  type StickToBottomContext,
+} from "@repo/ai-elements";
+import {
+  type PromptInputRef,
+  type PromptInputValue,
+  type PromptSlashCommand,
+  PromptInput as RichPromptInput,
+} from "@repo/ai-elements/prompt-input";
 import {
   type Message as ApiMessage,
   authFetch,
@@ -14,24 +22,16 @@ import {
   fetchBotSkills,
   fetchConversation,
   ingestConversationDocuments,
-} from "api";
-import { toast } from "components";
+} from "@repo/api";
+import { toast } from "@repo/design-system";
+import { getErrorMessage } from "@repo/shared";
 import {
-  Conversation,
-  ConversationContent,
-  ConversationEmptyState,
-  ConversationScrollButton,
-  type StickToBottomContext,
-} from "components/ai-chat";
-import {
-  type PromptInputRef,
-  type PromptInputValue,
-  type PromptSlashCommand,
-  PromptInput as RichPromptInput,
-} from "components/prompt-input";
+  DefaultChatTransport,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
+  lastAssistantMessageIsCompleteWithToolCalls,
+} from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { getErrorMessage } from "shared";
 import { useShallow } from "zustand/react/shallow";
 
 import { ChatComposerControls } from "../../components/ChatComposerControls";

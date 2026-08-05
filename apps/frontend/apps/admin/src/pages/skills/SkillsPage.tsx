@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createSkill, deleteSkill, fetchSkills, type SkillSummary } from "api";
+import { createSkill, deleteSkill, fetchSkills, type SkillSummary } from "@repo/api";
 import {
   Alert,
   AlertDescription,
@@ -42,11 +42,11 @@ import {
   TableRow,
   Textarea,
   toast,
-} from "components";
+} from "@repo/design-system";
+import { getErrorMessage } from "@repo/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
-import { getErrorMessage } from "shared";
 import { z } from "zod";
 
 const schema = z.object({

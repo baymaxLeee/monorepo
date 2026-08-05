@@ -1,5 +1,14 @@
-import type { TelemetryErrorEvent } from "api";
-import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, InlineCode, Skeleton } from "components";
+import type { TelemetryErrorEvent } from "@repo/api";
+import {
+  Badge,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  InlineCode,
+  Skeleton,
+} from "@repo/design-system";
 import type { EChartsOption } from "echarts";
 import { BarChart, LineChart, PieChart, ScatterChart } from "echarts/charts";
 import { GridComponent, LegendComponent, TooltipComponent } from "echarts/components";

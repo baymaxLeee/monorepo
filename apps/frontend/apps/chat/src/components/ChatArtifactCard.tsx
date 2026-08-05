@@ -1,6 +1,6 @@
-import type { ConversationDocument, TaskStatus } from "api";
-import { Button } from "components";
-import { Artifact, ArtifactContent, ArtifactDescription, ArtifactHeader, ArtifactTitle } from "components/ai-chat";
+import { Artifact, ArtifactContent, ArtifactDescription, ArtifactHeader, ArtifactTitle } from "@repo/ai-elements";
+import type { ConversationDocument, TaskStatus } from "@repo/api";
+import { Button } from "@repo/design-system";
 import { FileTextIcon, Loader2Icon } from "lucide-react";
 
 import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";

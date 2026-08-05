@@ -1,5 +1,5 @@
-import type { TelemetryErrorEvent } from "api";
-import { Badge, InlineCode, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "components";
+import type { TelemetryErrorEvent } from "@repo/api";
+import { Badge, InlineCode, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@repo/design-system";
 
 import { formatTime, shortId } from "./dashboardData";
 
