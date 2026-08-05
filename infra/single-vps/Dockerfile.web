@@ -29,7 +29,6 @@ WORKDIR /app
 # npm registry. Local devs still use the .npmrc on their machines.
 COPY package.json ./package.json
 COPY apps/frontend/package.json apps/frontend/pnpm-lock.yaml apps/frontend/pnpm-workspace.yaml apps/frontend/tsconfig.base.json apps/frontend/turbo.json ./apps/frontend/
-COPY apps/frontend/mf-shared.mjs apps/frontend/mf-shared.d.mts apps/frontend/workspace-aliases.mjs apps/frontend/rspack.shared.mjs apps/frontend/components.json ./apps/frontend/
 COPY apps/frontend/apps ./apps/frontend/apps
 COPY apps/frontend/packages ./apps/frontend/packages
 
