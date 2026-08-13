@@ -26,6 +26,6 @@
     "@typescript/native": "catalog:"
   },
   "peerDependencies": {
-    "hono": "^4.7.0"
+    "hono": "catalog:"
   }
 }

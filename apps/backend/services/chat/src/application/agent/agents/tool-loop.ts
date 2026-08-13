@@ -87,6 +87,8 @@ function withActiveToolSpans(tools: ToolSet, toolSpans: Map<string, ReturnType<t
 
 export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: ToolCatalog = new ToolCatalog()) {
   const provider = input.provider;
+  let previousResponseId = input.previousResponseId ?? null;
+  let parentResponseId = input.previousResponseId ?? null;
   const botSkills = input.botSkills ?? [];
   const loadSkillBody = input.loadSkillBody;
   const loadSkillFile = input.loadSkillFile;
@@ -211,8 +213,15 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
       const activeTools = orchestration.skillLoadedThisRun ? loadSkillActiveTools : resolvedTools.activeTools;
       const nextContext = { ...stepContext, orchestration };
       const baseInstructions = String(initialInstructions ?? instructions);
+      const continuation = previousResponseId
+        ? {
+            providerOptions: { openai: { previousResponseId } },
+            ...(steps.length > 0 ? { messages: steps.at(-1)?.response.messages } : {}),
+          }
+        : {};
       if (directive.kind === "final") {
         return {
+          ...continuation,
           runtimeContext: nextContext,
           model: wrapLanguageModel({
             model: exactTextResponseModel(defaultModel, directive.instruction),
@@ -225,13 +234,14 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
       }
       if (directive.kind === "read-plan" && "read_file" in instrumentedTools) {
         return {
+          ...continuation,
           runtimeContext: nextContext,
           activeTools: ["read_file"],
           toolChoice: { type: "tool", toolName: "read_file" },
           instructions: `${baseInstructions}\n<${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>${directive.instruction}</${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>`,
         };
       }
-      return { runtimeContext: nextContext, activeTools, instructions: initialInstructions };
+      return { ...continuation, runtimeContext: nextContext, activeTools, instructions: initialInstructions };
     },
     toolsContext: toolsContext as never,
     runtimeContext,
@@ -276,6 +286,14 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
           "agent.model_step.duration_ms": performance.totalDurationMs,
         });
       }
+      parentResponseId = previousResponseId;
+      const providerResponseId = event.providerMetadata?.openai?.responseId;
+      previousResponseId =
+        typeof providerResponseId === "string"
+          ? providerResponseId
+          : typeof event.response.id === "string"
+            ? event.response.id
+            : null;
       return observe(
         "finish model step",
         finishModelStep({
@@ -285,6 +303,10 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
           usage: event.usage,
           toolCallCount: event.toolCalls.length,
           performance: event.performance,
+          response: event.response,
+          providerMetadata: event.providerMetadata,
+          responseId: previousResponseId,
+          parentResponseId,
           contextEstimate,
         }),
       );
@@ -342,5 +364,9 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
       );
     },
   });
-  return { agent, dispose: resolvedTools.dispose };
+  return {
+    agent,
+    dispose: resolvedTools.dispose,
+    responseLineage: () => ({ responseId: previousResponseId, parentResponseId }),
+  };
 }

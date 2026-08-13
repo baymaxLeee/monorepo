@@ -5,6 +5,7 @@ import {
   type AdminProviderSnapshot,
   type AdminResolvedAgent,
 } from "@backend/transport-ts";
+import type { LanguageApi, LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
 
 import type { BotProfileSnapshot } from "../../application/agent/context/instructions/index.js";
@@ -18,6 +19,7 @@ export interface ProviderSnapshot {
   name: string;
   model: string;
   providerKind: string;
+  api: LanguageApi | null;
   baseUrl: string;
   apiKey: string;
   extraBody: Record<string, unknown>;
@@ -71,7 +73,7 @@ export interface ResolvedAgentProviders {
   agentId: string;
   agentName: string;
   profile: BotProfileSnapshot;
-  text: ProviderSnapshot | null;
+  text: (ProviderSnapshot & LanguageProviderSnapshot) | null;
   image: ProviderSnapshot | null;
   video: ProviderSnapshot | null;
   skills: AgentSkillRef[];
@@ -94,6 +96,7 @@ function toSnapshot(data: AdminProviderSnapshot): ProviderSnapshot {
     name: data.name,
     model: data.model,
     providerKind: data.provider_kind ?? "chat",
+    api: (data.api as LanguageApi | null | undefined) ?? null,
     baseUrl: data.base_url,
     apiKey: data.api_key,
     extraBody: data.extra_body ?? {},
@@ -114,7 +117,10 @@ async function assertSnapshotUrl(snapshot: ProviderSnapshot): Promise<ProviderSn
   return snapshot;
 }
 
-export async function getProvider(orgId: string, providerId?: string | null): Promise<ProviderSnapshot> {
+export async function getProvider(
+  orgId: string,
+  providerId?: string | null,
+): Promise<ProviderSnapshot & LanguageProviderSnapshot> {
   let data: AdminProviderSnapshot;
   try {
     const client = adminClient();
@@ -125,7 +131,11 @@ export async function getProvider(orgId: string, providerId?: string | null): Pr
     }
     throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
   }
-  return assertSnapshotUrl(toSnapshot(data));
+  const provider = await assertSnapshotUrl(toSnapshot(data));
+  if (provider.providerKind !== "chat" || provider.api == null) {
+    throw new ProviderNotConfiguredError(`provider ${provider.id} is not a configured language provider`);
+  }
+  return provider as ProviderSnapshot & LanguageProviderSnapshot;
 }
 
 export async function getProviderLimits(orgId: string, providerId?: string | null): Promise<ProviderLimits> {
@@ -159,6 +169,10 @@ export async function getAgent(userId: string, agentId: string, orgId = ""): Pro
     throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
   }
   const resolve = async (p: AdminProviderSnapshot | null | undefined) => (p ? assertSnapshotUrl(toSnapshot(p)) : null);
+  const text = await resolve(data.text_provider);
+  if (text && (text.providerKind !== "chat" || text.api == null)) {
+    throw new ProviderNotConfiguredError(`provider ${text.id} is not a configured language provider`);
+  }
   return {
     agentId: data.id,
     agentName: data.name,
@@ -169,7 +183,7 @@ export async function getAgent(userId: string, agentId: string, orgId = ""): Pro
       audience: data.audience ?? null,
       tone: data.tone ?? null,
     },
-    text: await resolve(data.text_provider),
+    text: text as (ProviderSnapshot & LanguageProviderSnapshot) | null,
     image: await resolve(data.image_provider),
     video: await resolve(data.video_provider),
     skills: (data.skills ?? []).map((skill) => ({

@@ -1,5 +1,5 @@
 import { createProviderModel } from "@backend/transport-ts/provider-model";
-import type { ChatProvider } from "@backend/transport-ts/provider-model";
+import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { generateText } from "ai";
 
 import { logger } from "../../../infrastructure/observability/logger.js";
@@ -28,7 +28,7 @@ function sanitizeTitle(raw: string): string {
 }
 
 export async function generateConversationTitle(input: {
-  provider: ChatProvider;
+  provider: LanguageProviderSnapshot;
   userText: string;
 }): Promise<string | null> {
   const source = input.userText.trim().slice(0, 4_000);

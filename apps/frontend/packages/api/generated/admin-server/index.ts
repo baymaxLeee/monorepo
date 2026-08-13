@@ -150,6 +150,15 @@ export const CreateModelProviderInputProviderKind = {
   rerank: 'rerank',
 } as const;
 
+export type CreateModelProviderInputApi = typeof CreateModelProviderInputApi[keyof typeof CreateModelProviderInputApi] | null;
+
+
+export const CreateModelProviderInputApi = {
+  openai_responses: 'openai_responses',
+  ark_responses: 'ark_responses',
+  deepseek_responses: 'deepseek_responses',
+} as const;
+
 export type CreateModelProviderInputExtraBody = { [key: string]: unknown };
 
 export interface ProviderPricing {
@@ -175,6 +184,7 @@ export interface CreateModelProviderInput {
      */
   model: string;
   provider_kind?: CreateModelProviderInputProviderKind;
+  api?: CreateModelProviderInputApi;
   /**
      * @minLength 1
      * @maxLength 2083
@@ -266,6 +276,15 @@ export const InternalModelProviderProviderKind = {
   rerank: 'rerank',
 } as const;
 
+export type InternalModelProviderApi = typeof InternalModelProviderApi[keyof typeof InternalModelProviderApi] | null;
+
+
+export const InternalModelProviderApi = {
+  openai_responses: 'openai_responses',
+  ark_responses: 'ark_responses',
+  deepseek_responses: 'deepseek_responses',
+} as const;
+
 export type InternalModelProviderExtraBody = { [key: string]: unknown };
 
 /**
@@ -277,6 +296,7 @@ export interface InternalModelProvider {
   name: string;
   model: string;
   provider_kind: InternalModelProviderProviderKind;
+  api: InternalModelProviderApi;
   base_url: string;
   api_key: string;
   extra_body: InternalModelProviderExtraBody;
@@ -312,6 +332,15 @@ export const ModelProviderProviderKind = {
   rerank: 'rerank',
 } as const;
 
+export type ModelProviderApi = typeof ModelProviderApi[keyof typeof ModelProviderApi] | null;
+
+
+export const ModelProviderApi = {
+  openai_responses: 'openai_responses',
+  ark_responses: 'ark_responses',
+  deepseek_responses: 'deepseek_responses',
+} as const;
+
 export type ModelProviderExtraBody = { [key: string]: unknown };
 
 /**
@@ -324,6 +353,7 @@ export interface ModelProvider {
   name: string;
   model: string;
   provider_kind: ModelProviderProviderKind;
+  api: ModelProviderApi;
   base_url: string;
   api_key_masked: string;
   extra_body: ModelProviderExtraBody;
@@ -576,12 +606,22 @@ export const UpdateModelProviderInputProviderKind = {
   rerank: 'rerank',
 } as const;
 
+export type UpdateModelProviderInputApi = typeof UpdateModelProviderInputApi[keyof typeof UpdateModelProviderInputApi] | null;
+
+
+export const UpdateModelProviderInputApi = {
+  openai_responses: 'openai_responses',
+  ark_responses: 'ark_responses',
+  deepseek_responses: 'deepseek_responses',
+} as const;
+
 export type UpdateModelProviderInputExtraBody = { [key: string]: unknown } | null;
 
 export interface UpdateModelProviderInput {
   name?: string | null;
   model?: string | null;
   provider_kind?: UpdateModelProviderInputProviderKind;
+  api?: UpdateModelProviderInputApi;
   base_url?: string | null;
   api_key?: string | null;
   extra_body?: UpdateModelProviderInputExtraBody;

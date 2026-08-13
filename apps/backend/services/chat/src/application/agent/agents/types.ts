@@ -1,4 +1,4 @@
-import type { ChatProvider } from "@backend/transport-ts/provider-model";
+import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import type { ModelMessage } from "ai";
 
 import type { AgentSkillRef, ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
@@ -23,10 +23,11 @@ export interface ChatAgentInput {
   orgId: string;
   conversationId: string;
   mode: AgentMode;
-  provider: ChatProvider;
+  provider: LanguageProviderSnapshot;
   imageProvider?: ProviderSnapshot | null;
   videoProviderId?: string | null;
   modelMessages: ModelMessage[];
+  previousResponseId?: string | null;
   attachedImageDocumentIds?: string[];
   executionPlanDocumentId?: string | null;
   instructionInput: InstructionInput;

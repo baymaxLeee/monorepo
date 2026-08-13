@@ -54,7 +54,7 @@ export interface ArkImageRef {
 
 export function arkApiRoot(baseUrl: string): string {
   let root = baseUrl.trim().replace(/\/+$/, "");
-  for (const suffix of [VIDEO_TASKS_PATH, "/images/generations", "/chat/completions"]) {
+  for (const suffix of [VIDEO_TASKS_PATH, "/images/generations", "/responses"]) {
     if (root.endsWith(suffix)) {
       root = root.slice(0, -suffix.length).replace(/\/+$/, "");
       break;

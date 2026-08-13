@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import {
@@ -221,6 +221,48 @@ export interface LatestConversationContextRecord {
   totalEstimated: boolean;
   updatedAt: string;
   snapshot: ConversationContextSnapshot;
+}
+
+export async function getLatestResponseLineage(input: {
+  runId: string;
+  conversationId: string;
+  providerId: string;
+  model: string;
+}): Promise<{ responseId: string; outputMessageId: string } | null> {
+  const [latestRun] = await getDb()
+    .select({ id: agentRuns.id, status: agentRuns.status, outputMessageId: agentRuns.outputMessageId })
+    .from(agentRuns)
+    .where(
+      and(
+        ne(agentRuns.id, input.runId),
+        eq(agentRuns.conversationId, input.conversationId),
+        eq(agentRuns.providerId, input.providerId),
+        eq(agentRuns.model, input.model),
+      ),
+    )
+    .orderBy(desc(agentRuns.createdAt))
+    .limit(1);
+  if (latestRun?.status !== "completed" || !latestRun.outputMessageId) {
+    return null;
+  }
+  const [row] = await getDb()
+    .select({ metadata: agentSteps.metadata })
+    .from(agentSteps)
+    .where(
+      and(
+        eq(agentSteps.runId, latestRun.id),
+        eq(agentSteps.kind, "model"),
+        eq(agentSteps.status, "completed"),
+        sql`${agentSteps.metadata}->>'response_id' IS NOT NULL`,
+      ),
+    )
+    .orderBy(desc(agentSteps.stepIndex))
+    .limit(1);
+  const responseId = row?.metadata?.response_id;
+  if (typeof responseId !== "string") {
+    return null;
+  }
+  return { responseId, outputMessageId: latestRun.outputMessageId };
 }
 
 function isoOrNull(d: Date | null): string | null {

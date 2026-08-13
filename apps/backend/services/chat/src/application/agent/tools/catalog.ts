@@ -1,4 +1,4 @@
-import type { ChatProvider } from "@backend/transport-ts/provider-model";
+import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import type { ToolSet } from "ai";
 
 import type { ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
@@ -16,7 +16,7 @@ import { defineAgentTool, manifestsToTools, renderExecutionCapabilities } from "
 import type { AgentToolManifest, ToolSource } from "./types.js";
 
 export interface AgentToolProviders {
-  textProvider: ChatProvider;
+  textProvider: LanguageProviderSnapshot;
   imageProvider: ProviderSnapshot | null;
   videoProviderId: string | null;
 }

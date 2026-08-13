@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
+import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
@@ -62,6 +63,7 @@ import {
   finalizeCancelledRunToolCalls,
   finalizeRunToolCallsFromParts,
   getAgentRunById,
+  getLatestResponseLineage,
   getLatestConversationContextRecord,
   getRunTrace,
   type AgentRunTrace,
@@ -79,6 +81,18 @@ export interface RunAgentInput {
 }
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
+
+interface ChatMessageMetadata extends Record<string, unknown> {
+  runId: string;
+  providerId: string;
+  model: string;
+  api: LanguageProviderSnapshot["api"];
+  responseId: string | null;
+  parentResponseId: string | null;
+  status: "streaming" | "completed" | "failed" | "cancelled";
+  finishReason?: string;
+  usage?: UsageTokens;
+}
 
 const DEFAULT_CONVERSATION_TITLE = "新对话";
 
@@ -146,7 +160,11 @@ function referencedDocumentIds(message: AnyUIMessage): string[] {
 }
 
 function serializeMessageContent(message: AnyUIMessage): PersistedMessageContent {
-  return { version: 1, parts: message.parts };
+  const metadata =
+    message.metadata && typeof message.metadata === "object"
+      ? (message.metadata as Record<string, unknown>)
+      : undefined;
+  return { version: 2, parts: message.parts, ...(metadata ? { metadata } : {}) };
 }
 
 function partsFromPersistedContent(content: PersistedMessageContent): AnyUIMessage["parts"] | null {
@@ -162,13 +180,14 @@ function persistedMessageToUiMessage(message: Message): AnyUIMessage {
     id: message.id,
     role: message.role,
     parts: parts ?? [],
+    ...(message.content.metadata ? { metadata: message.content.metadata } : {}),
   } as AnyUIMessage;
 }
 
 export async function createAgentRunResponse(
   auth: AuthContext,
   conversationId: string,
-  provider: ProviderSnapshot,
+  provider: ProviderSnapshot & LanguageProviderSnapshot,
   uiMessagesInput: unknown[],
   input: RunAgentInput,
 ): Promise<Response> {
@@ -291,7 +310,19 @@ export async function createAgentRunResponse(
     const memorySourceText = memorySourceUser ? textFromUiMessage(memorySourceUser) : "";
 
     const runSignal = registerRunController(runId);
-    const projectionUiMessages = modelUiMessages.map(compactHistoricalSkillOutputs);
+    const lineage =
+      provider.api === "deepseek_responses"
+        ? null
+        : await getLatestResponseLineage({
+            runId,
+            conversationId: conversation.id,
+            providerId: provider.id,
+            model: provider.model,
+          });
+    const lineageIsCurrent =
+      lineage != null && modelUiMessages.some((message) => message.id === lineage.outputMessageId);
+    const projectionSource = lineageIsCurrent ? [modelUiMessages.at(-1)!] : modelUiMessages;
+    const projectionUiMessages = projectionSource.map(compactHistoricalSkillOutputs);
     const projected = await projectModelContext({
       runId,
       conversationId: conversation.id,
@@ -333,6 +364,7 @@ export async function createAgentRunResponse(
       imageProvider: input.imageProvider,
       videoProviderId: input.videoProviderId,
       modelMessages,
+      previousResponseId: lineageIsCurrent ? lineage.responseId : null,
       attachedImageDocumentIds: latestUser ? attachedImageDocumentIdsFromParts(latestUser.parts) : [],
       executionPlanDocumentId,
       instructionInput,
@@ -358,6 +390,29 @@ export async function createAgentRunResponse(
       originalMessages: modelUiMessages,
       generateMessageId: () => assistantMessageId,
       sendSources: true,
+      messageMetadata: ({ part }): ChatMessageMetadata | undefined => {
+        const lineage = agentInstance.responseLineage();
+        const base = {
+          runId,
+          providerId: provider.id,
+          model: provider.model,
+          api: provider.api,
+          responseId: lineage.responseId,
+          parentResponseId: lineage.parentResponseId,
+        };
+        if (part.type === "start") {
+          return { ...base, status: "streaming" };
+        }
+        if (part.type === "finish") {
+          return {
+            ...base,
+            status: part.finishReason === "error" ? "failed" : "completed",
+            finishReason: part.finishReason,
+            usage: extractUsageTokens(part.totalUsage),
+          };
+        }
+        return undefined;
+      },
       onError: (error) => {
         streamFailure = error;
         logger.error({ err: error }, "stream failed");
@@ -370,9 +425,23 @@ export async function createAgentRunResponse(
         try {
           const sanitizedParts = sanitizePersistedParts(responseMessage.parts);
           const parts = aborted ? finalizeCancelledParts(sanitizedParts) : sanitizedParts;
+          const lineage = agentInstance.responseLineage();
+          const usage = await Promise.resolve(result.totalUsage).catch(() => null);
+          const tokens = addUsage(extractUsageTokens(usage), contextUsage);
+          const metadata: ChatMessageMetadata = {
+            runId,
+            providerId: provider.id,
+            model: provider.model,
+            api: provider.api,
+            responseId: lineage.responseId,
+            parentResponseId: lineage.parentResponseId,
+            status: aborted ? "cancelled" : failed ? "failed" : "completed",
+            finishReason,
+            usage: tokens,
+          };
           let outputMessageId: string | null = null;
           if (parts.length > 0) {
-            const content = serializeMessageContent({ ...responseMessage, parts } as AnyUIMessage);
+            const content = serializeMessageContent({ ...responseMessage, parts, metadata } as AnyUIMessage);
             if (isContinuation) {
               await updateMessageContent({
                 id: responseMessage.id,
@@ -392,8 +461,6 @@ export async function createAgentRunResponse(
               outputMessageId = assistant.id;
             }
           }
-          const usage = await Promise.resolve(result.totalUsage).catch(() => null);
-          const tokens = addUsage(extractUsageTokens(usage), contextUsage);
           if (aborted) {
             await finalizeCancelledRunToolCalls(runId);
           } else {
@@ -535,13 +602,6 @@ function sanitizePersistedParts(parts: AnyUIMessage["parts"]): AnyUIMessage["par
 }
 
 function sanitizePersistedPart(part: AnyUIMessage["parts"][number]): AnyUIMessage["parts"][number] {
-  if (part.type === "reasoning" && part.text.length > 4_000) {
-    return {
-      ...part,
-      text: `${part.text.slice(0, 4_000).trimEnd()}\n[persisted reasoning truncated: ${part.text.length} chars]`,
-    };
-  }
-
   if (part.type === "tool-web_search" && "output" in part && part.output) {
     return {
       ...part,

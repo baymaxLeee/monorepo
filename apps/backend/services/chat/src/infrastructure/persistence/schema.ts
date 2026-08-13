@@ -3,6 +3,7 @@ import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, varchar }
 export interface PersistedMessageContent {
   version: number;
   parts: unknown[];
+  metadata?: Record<string, unknown>;
 }
 
 export const conversations = pgTable(

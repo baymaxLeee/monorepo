@@ -49,14 +49,15 @@ async def contextualize_chunks(
     async def one(chunk: str) -> str | None:
         async with semaphore:
             try:
-                resp = await client.chat.completions.create(
+                resp = await client.responses.create(
                     model=provider.model,
-                    messages=[{"role": "user", "content": _PROMPT.format(document=document, chunk=chunk)}],
-                    max_tokens=settings.contextual_context_max_tokens,
+                    input=_PROMPT.format(document=document, chunk=chunk),
+                    max_output_tokens=settings.contextual_context_max_tokens,
+                    extra_body=provider.extra_body or None,
                 )
             except Exception:
                 return None
-            text = (resp.choices[0].message.content or "").strip() if resp.choices else ""
+            text = resp.output_text.strip()
             return text or None
 
     try:

@@ -10,7 +10,9 @@ from openai import APIError, AsyncOpenAI, AuthenticationError
 
 from application.contracts.provider import TestModelProviderResult
 
-CHAT_RESERVED_KEYS = frozenset({"model", "messages", "max_tokens", "stream"})
+RESPONSES_RESERVED_KEYS = frozenset(
+    {"model", "input", "instructions", "max_output_tokens", "stream", "store", "previous_response_id"}
+)
 IMAGE_RESERVED_KEYS = frozenset({"model", "prompt", "response_format", "n"})
 EMBEDDING_RESERVED_KEYS = frozenset({"model", "input", "encoding_format"})
 VIDEO_TASKS_PATH = "/contents/generations/tasks"
@@ -22,7 +24,7 @@ def _ark_api_root(base_url: str) -> str:
     for suffix in (
         VIDEO_TASKS_PATH,
         "/images/generations",
-        "/chat/completions",
+        "/responses",
     ):
         if root.endswith(suffix):
             root = root[: -len(suffix)].rstrip("/")
@@ -59,20 +61,22 @@ async def test_chat_provider(
     base_url: str,
     api_key: str,
     model: str,
+    api: str,
     extra_body: dict[str, Any],
 ) -> TestModelProviderResult:
     client = _openai_client(api_key, base_url)
     start = time.perf_counter()
     try:
-        resp = await client.chat.completions.create(
+        request_body = _split_extra_body(extra_body, RESPONSES_RESERVED_KEYS)
+        if api == "deepseek_responses":
+            request_body.pop("store", None)
+        resp = await client.responses.create(
             model=model,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": "ping"},
-            ],
-            max_tokens=16,
+            instructions="You are a helpful assistant.",
+            input="ping",
+            max_output_tokens=16,
             stream=False,
-            extra_body=_split_extra_body(extra_body, CHAT_RESERVED_KEYS) or None,
+            extra_body=request_body or None,
         )
     except AuthenticationError as exc:
         return TestModelProviderResult(ok=False, error=f"authentication: {exc}")
@@ -84,9 +88,7 @@ async def test_chat_provider(
         await client.close()
 
     latency_ms = int((time.perf_counter() - start) * 1000)
-    sample = ""
-    if resp.choices:
-        sample = (resp.choices[0].message.content or "").strip()
+    sample = resp.output_text.strip()
     return TestModelProviderResult(
         ok=True,
         latency_ms=latency_ms,
@@ -264,6 +266,7 @@ async def test_embedding_provider(
 async def test_provider_by_kind(
     *,
     provider_kind: str,
+    api: str | None,
     base_url: str,
     api_key: str,
     model: str,
@@ -296,5 +299,6 @@ async def test_provider_by_kind(
         base_url=base_url,
         api_key=api_key,
         model=model,
+        api=api or "",
         extra_body=extra_body,
     )

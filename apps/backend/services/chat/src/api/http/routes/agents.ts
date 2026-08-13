@@ -1,3 +1,4 @@
+import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { zValidator } from "@hono/zod-validator";
 import { UI_MESSAGE_STREAM_HEADERS } from "ai";
 import { Hono } from "hono";
@@ -44,7 +45,7 @@ agentsRoutes.post(
     const conversationId = c.req.param("conversationId");
     const payload = c.req.valid("json");
 
-    let textProvider: ProviderSnapshot;
+    let textProvider: ProviderSnapshot & LanguageProviderSnapshot;
     let imageProvider: ProviderSnapshot | null = null;
     let videoProviderId: string | null = null;
     let botProfile: BotProfileSnapshot | null = null;

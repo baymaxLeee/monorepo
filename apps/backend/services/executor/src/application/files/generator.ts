@@ -1,4 +1,4 @@
-import { createProviderModel, type ChatProvider } from "@backend/transport-ts/provider-model";
+import { createProviderModel, type LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { streamText } from "ai";
 
 import { getProvider } from "../../infrastructure/clients/admin.js";
@@ -10,7 +10,11 @@ const FILE_GENERATION_TIMEOUT = {
 } as const;
 
 export async function buildFileTextModel(providerId: string, orgId: string) {
-  const provider: ChatProvider = await getProvider(providerId, orgId);
+  const snapshot = await getProvider(providerId, orgId);
+  if (snapshot.api == null) {
+    throw new Error(`provider ${providerId} is not a language provider`);
+  }
+  const provider: LanguageProviderSnapshot = { ...snapshot, api: snapshot.api };
   const model = createProviderModel(provider, { disableReasoning: true });
   return { model, maxOutputTokens: provider.maxOutputTokens };
 }

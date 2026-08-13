@@ -6115,6 +6115,22 @@
             "title": "Provider Kind",
             "default": "chat"
           },
+          "api": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai_responses",
+                  "ark_responses",
+                  "deepseek_responses"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api"
+          },
           "base_url": {
             "type": "string",
             "maxLength": 2083,
@@ -6304,6 +6320,22 @@
             ],
             "title": "Provider Kind"
           },
+          "api": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai_responses",
+                  "ark_responses",
+                  "deepseek_responses"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api"
+          },
           "base_url": {
             "type": "string",
             "title": "Base Url"
@@ -6355,6 +6387,7 @@
           "name",
           "model",
           "provider_kind",
+          "api",
           "base_url",
           "api_key",
           "extra_body",
@@ -6455,6 +6488,22 @@
             ],
             "title": "Provider Kind"
           },
+          "api": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai_responses",
+                  "ark_responses",
+                  "deepseek_responses"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api"
+          },
           "base_url": {
             "type": "string",
             "title": "Base Url"
@@ -6517,6 +6566,7 @@
           "name",
           "model",
           "provider_kind",
+          "api",
           "base_url",
           "api_key_masked",
           "extra_body",
@@ -7488,6 +7538,22 @@
               }
             ],
             "title": "Provider Kind"
+          },
+          "api": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai_responses",
+                  "ark_responses",
+                  "deepseek_responses"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api"
           },
           "base_url": {
             "anyOf": [

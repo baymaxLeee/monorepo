@@ -5,7 +5,8 @@ from __future__ import annotations
 import base64
 from io import BytesIO
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from application.admin_client import ProviderSnapshot
@@ -33,30 +34,32 @@ class AttachmentConversionError(BaseError):
     code = "attachment_conversion_failed"
 
 
-class _BoundedCompletions:
-    def __init__(self, completions: Any, max_tokens: int, extra_body: dict[str, Any] | None = None) -> None:
-        self._completions = completions
+class _ResponsesCompletions:
+    def __init__(self, client: OpenAI, max_tokens: int, extra_body: dict[str, Any] | None = None) -> None:
+        self._client = client
         self._max_tokens = max_tokens
         self._extra_body = extra_body or None
 
-    def create(self, *args: Any, **kwargs: Any) -> Any:
-        kwargs.setdefault("max_tokens", self._max_tokens)
-        # Provider params like Ark `thinking` must ride `extra_body`; the openai
-        # SDK 400s on unknown top-level kwargs.
-        if self._extra_body is not None:
-            kwargs.setdefault("extra_body", self._extra_body)
-        return self._completions.create(*args, **kwargs)
+    def create(self, *, model: str, messages: list[dict[str, Any]], **_: Any) -> Any:
+        response = self._client.responses.create(
+            model=model,
+            input=cast(Any, _responses_input(messages)),
+            max_output_tokens=self._max_tokens,
+            extra_body=self._extra_body,
+        )
+        # MarkItDown 0.1.x hardcodes the Chat-shaped return at this external boundary.
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=response.output_text))])
 
 
-class _BoundedChat:
-    def __init__(self, chat: Any, max_tokens: int, extra_body: dict[str, Any] | None = None) -> None:
-        self._chat = chat
+class _ResponsesChat:
+    def __init__(self, client: OpenAI, max_tokens: int, extra_body: dict[str, Any] | None = None) -> None:
+        self._client = client
         self._max_tokens = max_tokens
         self._extra_body = extra_body or None
 
     @property
-    def completions(self) -> _BoundedCompletions:
-        return _BoundedCompletions(self._chat.completions, self._max_tokens, self._extra_body)
+    def completions(self) -> _ResponsesCompletions:
+        return _ResponsesCompletions(self._client, self._max_tokens, self._extra_body)
 
 
 class _VisionCaptionClient:
@@ -69,8 +72,26 @@ class _VisionCaptionClient:
         return getattr(self._client, name)
 
     @property
-    def chat(self) -> _BoundedChat:
-        return _BoundedChat(self._client.chat, self._max_tokens, self._extra_body)
+    def chat(self) -> _ResponsesChat:
+        return _ResponsesChat(self._client, self._max_tokens, self._extra_body)
+
+
+def _responses_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            result.append({"role": message.get("role", "user"), "content": str(content or "")})
+            continue
+        parts: list[dict[str, Any]] = []
+        for part in content:
+            if part.get("type") == "text":
+                parts.append({"type": "input_text", "text": part.get("text", "")})
+            elif part.get("type") == "image_url":
+                image = part.get("image_url") or {}
+                parts.append({"type": "input_image", "image_url": image.get("url", "")})
+        result.append({"role": message.get("role", "user"), "content": parts})
+    return result
 
 
 class ConvertService:
@@ -202,7 +223,7 @@ class ConvertService:
         )
         normalized_mime = (mime_type.split(";")[0] or "application/octet-stream").strip().lower()
         data_uri = f"data:{normalized_mime};base64,{base64.b64encode(content).decode('utf-8')}"
-        messages: Any = [
+        messages: list[dict[str, Any]] = [
             {
                 "role": "user",
                 "content": [
@@ -211,14 +232,13 @@ class ConvertService:
                 ],
             }
         ]
-        response = client.chat.completions.create(
+        response = client.responses.create(
             model=provider.model,
-            messages=messages,
-            max_tokens=settings.attachment_vision_max_tokens,
+            input=cast(Any, _responses_input(messages)),
+            max_output_tokens=settings.attachment_vision_max_tokens,
             extra_body=provider.extra_body or None,
         )
-        text = response.choices[0].message.content
-        return (text or "").strip()
+        return response.output_text.strip()
 
     @staticmethod
     def _fallback_markdown(*, filename: str, mime_type: str, size: int, note: str | None) -> str:

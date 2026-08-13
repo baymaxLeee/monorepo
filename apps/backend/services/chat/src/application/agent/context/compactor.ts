@@ -2,7 +2,7 @@ import { finishSpan, startSpan } from "@backend/kernel-ts";
 import {
   createProviderModel,
   JSON_OBJECT_MODE_INSTRUCTION,
-  type ChatProvider,
+  type LanguageProviderSnapshot,
 } from "@backend/transport-ts/provider-model";
 import { extractJsonMiddleware, generateText, Output, wrapLanguageModel, type UIMessage } from "ai";
 
@@ -137,7 +137,7 @@ function documentReferences(messages: AnyUIMessage[]): string[] {
 export async function compactConversationPrefix(input: {
   runId: string;
   conversationId: string;
-  provider: ChatProvider;
+  provider: LanguageProviderSnapshot;
   messages: AnyUIMessage[];
   previous: CompactionState | null;
   abortSignal: AbortSignal;

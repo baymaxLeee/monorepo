@@ -44,6 +44,22 @@ usage, finish reason. Sent via the `messageMetadata` callback of
 `toUIMessageStream`; read via `message.metadata`. **Do NOT model these as
 `data-*` parts.**
 
+The assistant message metadata contract is:
+
+| Field | Meaning |
+| --- | --- |
+| `runId` | Local durable Agent run identifier. |
+| `providerId`, `model`, `api` | Exact model snapshot and explicit Responses driver used for the run. |
+| `responseId`, `parentResponseId` | Provider response lineage. Null for replay-only providers or before the first response is accepted. |
+| `status` | `streaming`, `completed`, `failed`, or `cancelled`. |
+| `finishReason` | AI SDK unified finish reason when available. |
+| `usage` | Input/output/cache/reasoning/total token counters. |
+
+Metadata streams through the official `messageMetadata` callback and is stored
+beside `parts` in the local message journal. It is observability and continuation
+state, not the source of conversation semantics; `parts` remain replayable when a
+provider chain expires or the selected provider/model changes.
+
 ### 1c. `data-*` parts (the escape hatch) — two flavors
 
 - **Persistent** `data-<name>` (optionally with a stable `id`): added to

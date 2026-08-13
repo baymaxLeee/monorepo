@@ -97,6 +97,10 @@ export async function finishModelStep(input: {
   usage: unknown;
   toolCallCount: number;
   performance?: unknown;
+  response?: unknown;
+  providerMetadata?: unknown;
+  responseId?: string | null;
+  parentResponseId?: string | null;
   contextEstimate?: ContextEstimate;
 }): Promise<void> {
   const tokens = extractUsageTokens(input.usage);
@@ -112,6 +116,10 @@ export async function finishModelStep(input: {
       usage: input.usage,
       tool_call_count: input.toolCallCount,
       performance: input.performance,
+      response: input.response,
+      provider_metadata: input.providerMetadata,
+      response_id: input.responseId,
+      parent_response_id: input.parentResponseId,
       ...(contextSnapshot ? { context_snapshot: contextSnapshot } : {}),
     },
     inputTokens: tokens.inputTokens,

@@ -1,4 +1,4 @@
-import type { ChatProvider } from "@backend/transport-ts/provider-model";
+import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { convertToModelMessages, pruneMessages, type ModelMessage, type UIMessage } from "ai";
 import { and, eq } from "drizzle-orm";
 
@@ -272,7 +272,7 @@ export async function projectModelContext(input: {
   runId: string;
   conversationId: string;
   userId: string;
-  provider: ChatProvider & { supportsImageInput: boolean };
+  provider: LanguageProviderSnapshot & { supportsImageInput: boolean };
   abortSignal: AbortSignal;
   messages: AnyUIMessage[];
 }): Promise<{ messages: ModelMessage[]; compactionUsage: UsageTokens }> {

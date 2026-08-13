@@ -18,6 +18,7 @@ from application.contracts.provider import (
     TOKENS_PER_K,
     CreateModelProviderInput,
     InternalModelProvider,
+    LanguageApi,
     ModelProvider,
     ProviderKind,
     ProviderPricing,
@@ -73,6 +74,7 @@ def to_public_schema(row: ModelProviderRow) -> ModelProvider:
         name=row.name,
         model=row.model,
         provider_kind=cast(ProviderKind, row.provider_kind),
+        api=cast(LanguageApi | None, row.api),
         base_url=row.base_url,
         api_key_masked=mask(decrypt(row.api_key_enc)),
         extra_body=_parse_extra_body(row.extra_body),
@@ -94,6 +96,7 @@ def to_internal_schema(row: ModelProviderRow) -> InternalModelProvider:
         name=row.name,
         model=row.model,
         provider_kind=cast(ProviderKind, row.provider_kind),
+        api=cast(LanguageApi | None, row.api),
         base_url=row.base_url,
         api_key=decrypt(row.api_key_enc),
         extra_body=_parse_extra_body(row.extra_body),
@@ -140,6 +143,7 @@ class ModelProviderService:
                 name=payload.name,
                 model=payload.model,
                 provider_kind=payload.provider_kind,
+                api=payload.api,
                 base_url=base_url,
                 api_key_enc=encrypt(payload.api_key),
                 extra_body=json.dumps(payload.extra_body),
@@ -171,6 +175,8 @@ class ModelProviderService:
                 values["model"] = payload.model
             if payload.provider_kind is not None:
                 values["provider_kind"] = payload.provider_kind
+            if "api" in payload.model_fields_set:
+                values["api"] = payload.api
             if validated_base_url is not None:
                 values["base_url"] = validated_base_url
             if payload.api_key is not None:
@@ -188,6 +194,11 @@ class ModelProviderService:
             if payload.is_enabled is not None:
                 values["is_enabled"] = payload.is_enabled
             next_kind = payload.provider_kind if payload.provider_kind is not None else row.provider_kind
+            next_api = payload.api if "api" in payload.model_fields_set else row.api
+            if next_kind == PROVIDER_KIND_CHAT and next_api is None:
+                raise RequestError("api is required for chat providers")
+            if next_kind != PROVIDER_KIND_CHAT and next_api is not None:
+                raise RequestError("api is only valid for chat providers")
             if next_kind != PROVIDER_KIND_CHAT:
                 if payload.is_default:
                     raise RequestError("only chat providers can be set as default")
@@ -261,6 +272,7 @@ class ModelProviderService:
         extra_body = _parse_extra_body(row.extra_body)
         return await test_provider_by_kind(
             provider_kind=row.provider_kind,
+            api=row.api,
             base_url=base_url,
             api_key=api_key,
             model=model,

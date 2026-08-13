@@ -10,7 +10,7 @@ Partially superseded by ADR-0011. The Workflow PostgreSQL decision no longer app
   and Node image builds inherit that version through Corepack.
 - Keep dependency build-script permissions explicit in each pnpm workspace.
 - Use `@workflow/world-postgres` for every deployed chat service.
-- Run the official `workflow-postgres-setup` command as a separate init
+- Run the official `@workflow/world-postgres` `bootstrap` command as a separate init
   workload before chat starts; chat never mutates its schema at startup.
 - Single-VPS owns a dedicated PostgreSQL container and persistent volume.
   Kubernetes receives an external PostgreSQL URL through `chat-secrets`.

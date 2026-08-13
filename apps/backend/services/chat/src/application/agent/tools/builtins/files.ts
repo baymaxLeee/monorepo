@@ -1,7 +1,7 @@
 import path from "node:path";
 
 import { TransportError } from "@backend/transport-ts";
-import type { ChatProvider } from "@backend/transport-ts/provider-model";
+import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { tool } from "ai";
 import { z } from "zod";
 
@@ -482,7 +482,7 @@ async function* delegateTasks(
     toolCallId: string;
     abortSignal?: AbortSignal;
   },
-  textProvider: ChatProvider,
+  textProvider: LanguageProviderSnapshot,
 ) {
   const root = `${input.root.replace(/\/+$/, "")}/`;
   const expectedPaths = input.tasks.map((item) => item.output_path);
@@ -618,7 +618,7 @@ function artifactFilePolicy(effect: "write" | "update", modes: AgentMode[]) {
   };
 }
 
-export function createFileToolManifests(_mode: AgentMode, textProvider: ChatProvider) {
+export function createFileToolManifests(_mode: AgentMode, textProvider: LanguageProviderSnapshot) {
   return [
     defineAgentTool(
       "list_files",

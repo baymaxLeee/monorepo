@@ -163,26 +163,11 @@ for the full rationale.
 
 All fixed, all re-check-worthy whenever `nitro`/`workflow`/`ai` are bumped:
 
-1. **`nf3`/`@vercel/nft` ESM interop bug** used to break `nitro build`'s
-   production server bundling (`Named export 'nodeFileTrace' not found`).
-   **Fixed upstream in `nf3@0.3.19`** — it ships the same default-import
-   destructure we used to `pnpm patch` into 0.3.18. The local patch and its
-   `patchedDependencies` entry are **gone**; `nf3` is pinned to `0.3.19` via
-   `overrides` in `apps/backend/pnpm-workspace.yaml` (nitro only requires
-   `^0.3.17`, so without the pin pnpm could resolve back to the broken 0.3.18).
-   Because there is no longer a workspace patch, backend `Dockerfile`s no longer
-   need to `COPY apps/backend/patches` before `pnpm install`. If a future
-   `nitro`/`nf3` bump reintroduces the bug, `pnpm patch nf3@<version>` (default
-   import + destructure) is the fallback — but check upstream first. Drop the
-   `overrides` pin once nitro's own floor moves past 0.3.19.
-2. **`nf3` path-depth bug**: `ai`/`@ai-sdk/gateway` pull in `@vercel/oidc`
-   (never actually called — this service only uses `createOpenAICompatible`
-   directly), and nf3 miscalculates the number of `../` segments when
-   copying that file into `.output` for a package nested this deep in the
-   monorepo, crashing at boot with `MODULE_NOT_FOUND`. Fixed via
-   `scripts/fix-oidc-trace.mjs`, wired as the `postbuild` step of
-   `pnpm run build` — always runs automatically, no manual step needed.
-3. **`nitro/~internal/runtime/plugin` isn't exported** by
+1. **`nf3`/`@vercel/nft` ESM interop and OIDC tracing bugs are fixed upstream.**
+   Nitro's production bundle now contains `@vercel/oidc` in its generated
+   `_libs` tree, so the former pnpm override, local patch, and post-build copy/
+   rewrite script have all been removed.
+2. **`nitro/~internal/runtime/plugin` isn't exported** by
    `nitro@3.0.260610-beta` (checked: it's absent from the package's own
    `exports` map), so the Postgres World doc's official "Starting the World"
    Nitro-plugin example cannot be used as written. Worked around by calling
@@ -199,7 +184,7 @@ All fixed, all re-check-worthy whenever `nitro`/`workflow`/`ai` are bumped:
    `completed`) — this had never actually been tested before, only assumed
    from reading the docs.
 
-4. **`nitro dev` auto-loads `.env`; the built server does not.** The Nitro
+3. **`nitro dev` auto-loads `.env`; the built server does not.** The Nitro
    dev watcher (now `pnpm dev:watch`) picks up `WORKFLOW_TARGET_WORLD` etc.
    from `.env` automatically — verified by dispatching a real task and
    confirming no `.workflow-data/` appeared. Running `node
@@ -212,7 +197,7 @@ All fixed, all re-check-worthy whenever `nitro`/`workflow`/`ai` are bumped:
    vars directly, never through a `.env` file — but it matters for local
    testing: don't assume `.env` "just works" for every way of running this.
 
-5. **Local dev runs the built server, not a watcher (no hot reload).** `pnpm
+4. **Local dev runs the built server, not a watcher (no hot reload).** `pnpm
    dev` is `pnpm build && pnpm start` — a one-shot `nitro build` then the
    `--env-file` node run above. This is deliberate: `nitro dev`'s file watcher
    is expensive and, more importantly, returns HTTP **503/500** from its dev

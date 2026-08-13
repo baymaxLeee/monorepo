@@ -84,7 +84,7 @@ build-image service registry="local" tag="latest":
     @if echo "{{ PY_SERVICES }}" | tr ' ' '\n' | grep -qx "{{ service }}"; then \
         docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile .; \
     elif echo "{{ NODE_SERVICES }}" | tr ' ' '\n' | grep -qx "{{ service }}"; then \
-        docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile .; \
+        docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile ../..; \
     else \
         docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile services/{{ service }}; \
     fi
@@ -93,7 +93,7 @@ build-image service registry="local" tag="latest":
 # Build images for ALL services (Python + Go).
 build-images registry="local" tag="latest":
     @for s in {{ PY_SERVICES }} {{ NODE_SERVICES }} {{ GO_SERVICES }}; do \
-        just build-image $s {{ registry }} {{ tag }}; \
+        just build-image $s {{ registry }} {{ tag }} || exit 1; \
     done
     @echo "✓ All backend images built with tag {{ registry }}/<svc>:{{ tag }}"
 

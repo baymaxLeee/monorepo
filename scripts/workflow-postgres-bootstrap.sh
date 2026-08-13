@@ -11,5 +11,5 @@ fi
 # Idempotent (safe to run on every `just up`), per workflow's own docs.
 echo "→ Setting up workflow-postgres schema..."
 cd "$EXECUTOR_DIR"
-npx workflow-postgres-setup
+pnpm exec bootstrap
 echo "✓ workflow-postgres schema ready"

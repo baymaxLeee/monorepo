@@ -1,5 +1,5 @@
 import { createProviderModel, JSON_OBJECT_MODE_INSTRUCTION } from "@backend/transport-ts/provider-model";
-import type { ChatProvider } from "@backend/transport-ts/provider-model";
+import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { extractJsonMiddleware, generateText, Output, wrapLanguageModel } from "ai";
 import { z } from "zod";
 
@@ -82,7 +82,7 @@ function buildExtractionPrompt(input: {
 export interface ExtractMemoryInput {
   userId: string;
   runId: string;
-  provider: ChatProvider;
+  provider: LanguageProviderSnapshot;
   userText: string;
 }
 
