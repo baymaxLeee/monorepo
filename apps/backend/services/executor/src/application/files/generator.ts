@@ -11,10 +11,7 @@ const FILE_GENERATION_TIMEOUT = {
 
 export async function buildFileTextModel(providerId: string, orgId: string) {
   const snapshot = await getProvider(providerId, orgId);
-  if (snapshot.api == null) {
-    throw new Error(`provider ${providerId} is not a language provider`);
-  }
-  const provider: LanguageProviderSnapshot = { ...snapshot, api: snapshot.api };
+  const provider: LanguageProviderSnapshot = snapshot;
   const model = createProviderModel(provider, { disableReasoning: true });
   return { model, maxOutputTokens: provider.maxOutputTokens };
 }

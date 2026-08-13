@@ -11,7 +11,16 @@ from openai import APIError, AsyncOpenAI, AuthenticationError
 from application.contracts.provider import TestModelProviderResult
 
 RESPONSES_RESERVED_KEYS = frozenset(
-    {"model", "input", "instructions", "max_output_tokens", "stream", "store", "previous_response_id"}
+    {
+        "model",
+        "input",
+        "instructions",
+        "max_output_tokens",
+        "stream",
+        "store",
+        "previous_response_id",
+        "reasoning_effort",
+    }
 )
 IMAGE_RESERVED_KEYS = frozenset({"model", "prompt", "response_format", "n"})
 EMBEDDING_RESERVED_KEYS = frozenset({"model", "input", "encoding_format"})
@@ -61,21 +70,53 @@ async def test_chat_provider(
     base_url: str,
     api_key: str,
     model: str,
-    api: str,
     extra_body: dict[str, Any],
 ) -> TestModelProviderResult:
     client = _openai_client(api_key, base_url)
     start = time.perf_counter()
     try:
         request_body = _split_extra_body(extra_body, RESPONSES_RESERVED_KEYS)
-        if api == "deepseek_responses":
-            request_body.pop("store", None)
-        resp = await client.responses.create(
+        tools = [
+            {
+                "type": "function",
+                "name": "provider_connectivity_probe",
+                "description": "Return the supplied value.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                    "required": ["value"],
+                    "additionalProperties": False,
+                },
+                "strict": True,
+            }
+        ]
+        first = await client.responses.create(
             model=model,
             instructions="You are a helpful assistant.",
-            input="ping",
-            max_output_tokens=16,
+            input="Call provider_connectivity_probe with value ping.",
+            tools=cast(Any, tools),
+            tool_choice=cast(Any, {"type": "function", "name": "provider_connectivity_probe"}),
+            max_output_tokens=512,
             stream=False,
+            store=True,
+            extra_body=request_body or None,
+        )
+        calls = [item for item in first.output if item.type == "function_call"]
+        if not calls:
+            return TestModelProviderResult(ok=False, error="api: Responses function calling returned no function_call")
+        resp = await client.responses.create(
+            model=model,
+            previous_response_id=first.id,
+            input=[
+                {
+                    "type": "function_call_output",
+                    "call_id": calls[0].call_id,
+                    "output": '{"value":"ping"}',
+                }
+            ],
+            max_output_tokens=512,
+            stream=False,
+            store=True,
             extra_body=request_body or None,
         )
     except AuthenticationError as exc:
@@ -266,7 +307,6 @@ async def test_embedding_provider(
 async def test_provider_by_kind(
     *,
     provider_kind: str,
-    api: str | None,
     base_url: str,
     api_key: str,
     model: str,
@@ -299,6 +339,5 @@ async def test_provider_by_kind(
         base_url=base_url,
         api_key=api_key,
         model=model,
-        api=api or "",
         extra_body=extra_body,
     )

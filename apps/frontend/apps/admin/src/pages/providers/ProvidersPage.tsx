@@ -4,7 +4,6 @@ import {
   createModelProvider,
   deleteModelProvider,
   fetchModelProviders,
-  type LanguageApi,
   type ModelProvider,
   type ProviderKind,
   setDefaultModelProvider,
@@ -72,7 +71,6 @@ const providerSchema = z
   .object({
     name: z.string().trim().min(1, "请输入名称").max(100),
     provider_kind: z.enum(["chat", "image", "video", "embedding", "rerank"]),
-    api: z.enum(["openai_responses", "ark_responses", "deepseek_responses"]).nullable(),
     model: z.string().trim().min(1, "请输入模型名").max(128),
     base_url: z.string().trim().url("base_url 必须是合法 URL"),
     api_key: z.string().max(4096),
@@ -109,10 +107,6 @@ const providerSchema = z
   .refine((value) => value.provider_kind === "chat" || !value.is_default, {
     message: "仅对话类型可设为 chat 默认模型",
     path: ["is_default"],
-  })
-  .refine((value) => (value.provider_kind === "chat" ? value.api !== null : value.api === null), {
-    message: "对话 Provider 必须选择 Responses API，其它类型不使用该字段",
-    path: ["api"],
   })
   .refine((value) => value.provider_kind !== "video" || value.unit_price_micros > 0, {
     message: "视频 Provider 必须配置大于 0 的每秒单价",
@@ -165,7 +159,6 @@ const chatTokenBudget = resolveChatTokenBudget(kindPresets.chat.model);
 const defaults: ProviderValues = {
   name: "",
   provider_kind: "chat",
-  api: "ark_responses",
   model: kindPresets.chat.model,
   base_url: kindPresets.chat.base_url,
   api_key: "",
@@ -254,7 +247,6 @@ export function ProvidersPage() {
     form.reset({
       name: provider.name,
       provider_kind: provider.provider_kind ?? "chat",
-      api: provider.api,
       model: provider.model,
       base_url: provider.base_url,
       api_key: "",
@@ -284,7 +276,6 @@ export function ProvidersPage() {
         const patch: Parameters<typeof updateModelProvider>[1] = {
           name: values.name,
           provider_kind: values.provider_kind,
-          api: values.provider_kind === "chat" ? values.api : null,
           model: values.model,
           base_url: values.base_url,
           extra_body,
@@ -309,7 +300,6 @@ export function ProvidersPage() {
         const payload: CreateModelProviderInput = {
           name: values.name,
           provider_kind: values.provider_kind,
-          api: values.provider_kind === "chat" ? values.api : null,
           model: values.model,
           base_url: values.base_url,
           api_key: values.api_key.trim(),
@@ -561,12 +551,10 @@ function ProviderFormDialog({
     form.setValue("model", preset.model);
     form.setValue("extra_body", preset.extra_body);
     if (kind === "chat") {
-      form.setValue("api", "ark_responses");
       const budget = resolveChatTokenBudget(preset.model);
       form.setValue("context_window_k", budget.context_window_k);
       form.setValue("max_output_tokens_k", budget.max_output_tokens_k);
     } else {
-      form.setValue("api", null);
       form.setValue("is_default", false);
     }
   }
@@ -607,9 +595,6 @@ function ProviderFormDialog({
                           field.onChange(value);
                           if (value !== "chat") {
                             form.setValue("is_default", false);
-                            form.setValue("api", null);
-                          } else if (form.getValues("api") === null) {
-                            form.setValue("api", "ark_responses");
                           }
                           if (!isEditing) {
                             applyKindPreset(value);
@@ -633,33 +618,6 @@ function ProviderFormDialog({
                     </Field>
                   )}
                 />
-                {providerKind === "chat" ? (
-                  <FormField
-                    control={form.control}
-                    name="api"
-                    render={({ field }) => (
-                      <Field>
-                        <FieldLabel>Responses Driver</FieldLabel>
-                        <Select
-                          value={field.value ?? undefined}
-                          onValueChange={(value: LanguageApi) => field.onChange(value)}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="选择 Responses API" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="ark_responses">Ark Responses</SelectItem>
-                            <SelectItem value="deepseek_responses">DeepSeek Responses</SelectItem>
-                            <SelectItem value="openai_responses">OpenAI Responses</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FieldError errors={[form.formState.errors.api]} />
-                      </Field>
-                    )}
-                  />
-                ) : null}
                 <FormField
                   control={form.control}
                   name="name"

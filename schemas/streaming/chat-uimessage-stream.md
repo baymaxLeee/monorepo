@@ -49,8 +49,8 @@ The assistant message metadata contract is:
 | Field | Meaning |
 | --- | --- |
 | `runId` | Local durable Agent run identifier. |
-| `providerId`, `model`, `api` | Exact model snapshot and explicit Responses driver used for the run. |
-| `responseId`, `parentResponseId` | Provider response lineage. Null for replay-only providers or before the first response is accepted. |
+| `providerId`, `model` | Exact model snapshot used for the run. Text providers use the single Responses protocol. |
+| `responseId`, `parentResponseId` | Provider response lineage. Null before the first response is accepted. |
 | `status` | `streaming`, `completed`, `failed`, or `cancelled`. |
 | `finishReason` | AI SDK unified finish reason when available. |
 | `usage` | Input/output/cache/reasoning/total token counters. |

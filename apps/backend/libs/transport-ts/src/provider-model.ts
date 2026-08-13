@@ -12,13 +12,10 @@ import { secureProviderFetch } from "./provider-url.js";
 export const JSON_OBJECT_MODE_INSTRUCTION =
   "Return your entire response as a single JSON object that matches the required schema.";
 
-export type LanguageApi = "openai_responses" | "ark_responses" | "deepseek_responses";
-
 export interface LanguageProviderSnapshot {
   id: string;
   name: string;
   model: string;
-  api: LanguageApi;
   baseUrl: string;
   apiKey: string;
   extraBody: Record<string, unknown>;
@@ -105,25 +102,15 @@ function providerBodyOptions(
     }
   }
 
-  const configuredReasoningEffort = provider.extraBody.reasoning_effort;
   const providerOptions: OpenAIResponsesProviderOptions = {
     parallelToolCalls: options.parallelToolCalls ?? undefined,
-    store: provider.api === "deepseek_responses" ? undefined : true,
-    ...(provider.api !== "deepseek_responses" && typeof configuredReasoningEffort === "string"
-      ? { reasoningEffort: configuredReasoningEffort as OpenAIResponsesProviderOptions["reasoningEffort"] }
-      : {}),
+    store: true,
   };
-  if (provider.api === "deepseek_responses" && typeof configuredReasoningEffort === "string") {
-    body.reasoning_effort = configuredReasoningEffort;
-  }
 
   if (options.disableReasoning) {
     delete body.reasoning;
     body.thinking = { type: "disabled" };
     body.enable_thinking = false;
-    if (provider.api !== "deepseek_responses") {
-      providerOptions.reasoningEffort = "none";
-    }
   }
 
   return { requestBody: body, providerOptions };
@@ -207,7 +194,42 @@ function normalizeResponsesStream(response: Response): Response {
   });
 }
 
-function createResponsesFetch(api: LanguageApi, extraBody: JSONObject): typeof fetch {
+async function normalizeResponsesJson(response: Response): Promise<Response> {
+  if (!response.headers.get("content-type")?.includes("application/json")) {
+    return response;
+  }
+  const body = (await response.json()) as unknown;
+  if (!body || typeof body !== "object") {
+    return new Response(JSON.stringify(body), response);
+  }
+  const output = (body as { output?: unknown }).output;
+  if (Array.isArray(output)) {
+    for (const item of output) {
+      if (!item || typeof item !== "object" || (item as { type?: unknown }).type !== "message") {
+        continue;
+      }
+      const content = (item as { content?: unknown }).content;
+      if (!Array.isArray(content)) {
+        continue;
+      }
+      for (const part of content) {
+        if (part && typeof part === "object" && (part as { type?: unknown }).type === "output_text") {
+          const text = part as { annotations?: unknown };
+          if (!Array.isArray(text.annotations)) {
+            text.annotations = [];
+          }
+        }
+      }
+    }
+  }
+  return new Response(JSON.stringify(body), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+function createResponsesFetch(extraBody: JSONObject): typeof fetch {
   return async (input, init) => {
     if (typeof init?.body !== "string") {
       return secureProviderFetch(input, init);
@@ -218,14 +240,10 @@ function createResponsesFetch(api: LanguageApi, extraBody: JSONObject): typeof f
     }
     const body = JSON.parse(init.body) as JSONObject;
     Object.assign(body, extraBody);
-    if (api === "deepseek_responses") {
-      delete body.store;
-      delete body.previous_response_id;
-      delete body.conversation;
-      delete body.context_management;
-    }
     const response = await secureProviderFetch(input, { ...init, body: JSON.stringify(body) });
-    return normalizeResponsesStream(response);
+    return response.headers.get("content-type")?.includes("text/event-stream")
+      ? normalizeResponsesStream(response)
+      : normalizeResponsesJson(response);
   };
 }
 
@@ -261,7 +279,7 @@ class AdminResponsesModel implements LanguageModelV4 {
       name: this.provider,
       baseURL: normalizeOpenAIBaseUrl(provider.baseUrl),
       apiKey: provider.apiKey,
-      fetch: createResponsesFetch(provider.api, requestBody),
+      fetch: createResponsesFetch(requestBody),
     });
     return openai.responses(provider.model);
   }

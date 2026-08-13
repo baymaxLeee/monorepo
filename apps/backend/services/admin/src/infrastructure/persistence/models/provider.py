@@ -32,7 +32,6 @@ class ModelProviderRow(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     model: Mapped[str] = mapped_column(String(128), nullable=False)
     provider_kind: Mapped[str] = mapped_column(String(16), nullable=False, default=PROVIDER_KIND_CHAT)
-    api: Mapped[str | None] = mapped_column(String(32), nullable=True)
     base_url: Mapped[str] = mapped_column(String(255), nullable=False)
     api_key_enc: Mapped[str] = mapped_column(Text, nullable=False)
     extra_body: Mapped[str] = mapped_column(Text, nullable=False, default="{}")

@@ -16,7 +16,6 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 ProviderKind = Literal["chat", "image", "video", "embedding", "rerank"]
-LanguageApi = Literal["openai_responses", "ark_responses", "deepseek_responses"]
 TOKENS_PER_K = 1024
 
 
@@ -35,7 +34,6 @@ class ModelProvider(BaseModel):
     name: str
     model: str
     provider_kind: ProviderKind
-    api: LanguageApi | None
     base_url: str
     api_key_masked: str
     extra_body: dict[str, Any]
@@ -57,7 +55,6 @@ class InternalModelProvider(BaseModel):
     name: str
     model: str
     provider_kind: ProviderKind
-    api: LanguageApi | None
     base_url: str
     api_key: str
     extra_body: dict[str, Any]
@@ -73,7 +70,6 @@ class CreateModelProviderInput(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     model: str = Field(min_length=1, max_length=128)
     provider_kind: ProviderKind = "chat"
-    api: LanguageApi | None = None
     base_url: HttpUrl
     api_key: str = Field(min_length=1, max_length=4096)
     extra_body: dict[str, Any] = Field(default_factory=dict)
@@ -98,10 +94,6 @@ class CreateModelProviderInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_token_budget(self) -> CreateModelProviderInput:
-        if self.provider_kind == "chat" and self.api is None:
-            raise ValueError("api is required for chat providers")
-        if self.provider_kind != "chat" and self.api is not None:
-            raise ValueError("api is only valid for chat providers")
         if self.max_output_tokens_k >= self.context_window_k:
             raise ValueError("max_output_tokens_k must be less than context_window_k")
         return self
@@ -111,7 +103,6 @@ class UpdateModelProviderInput(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     model: str | None = Field(default=None, min_length=1, max_length=128)
     provider_kind: ProviderKind | None = None
-    api: LanguageApi | None = None
     base_url: HttpUrl | None = None
     api_key: str | None = Field(default=None, min_length=1, max_length=4096)
     extra_body: dict[str, Any] | None = None

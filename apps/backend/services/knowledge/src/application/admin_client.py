@@ -29,7 +29,6 @@ class ProviderSnapshot:
     user_id: str
     name: str
     model: str
-    api: str | None
     base_url: str
     api_key: str
     extra_body: dict[str, Any]
@@ -120,7 +119,6 @@ class AdminClient:
             user_id=data["user_id"],
             name=data["name"],
             model=data["model"],
-            api=data.get("api"),
             base_url=data["base_url"],
             api_key=data["api_key"],
             extra_body=data.get("extra_body") or {},

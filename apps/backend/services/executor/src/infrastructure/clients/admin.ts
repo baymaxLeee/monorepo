@@ -1,5 +1,4 @@
 import { AdminInternalClient, TransportError, type AdminProviderSnapshot } from "@backend/transport-ts";
-import type { LanguageApi } from "@backend/transport-ts/provider-model";
 import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
 
 import { RequestError } from "../../application/errors.js";
@@ -18,7 +17,6 @@ export type ProviderSnapshot = {
   id: string;
   name: string;
   model: string;
-  api: LanguageApi | null;
   baseUrl: string;
   apiKey: string;
   extraBody: Record<string, unknown>;
@@ -41,7 +39,6 @@ export async function getProvider(providerId: string, orgId: string): Promise<Pr
     id: data.id,
     name: data.name,
     model: data.model,
-    api: (data.api as LanguageApi | null | undefined) ?? null,
     baseUrl: data.base_url,
     apiKey: data.api_key,
     extraBody: data.extra_body ?? {},

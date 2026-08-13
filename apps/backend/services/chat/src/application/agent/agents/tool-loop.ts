@@ -88,7 +88,8 @@ function withActiveToolSpans(tools: ToolSet, toolSpans: Map<string, ReturnType<t
 export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: ToolCatalog = new ToolCatalog()) {
   const provider = input.provider;
   let previousResponseId = input.previousResponseId ?? null;
-  let parentResponseId = input.previousResponseId ?? null;
+  let responseId: string | null = null;
+  let parentResponseId = previousResponseId;
   const botSkills = input.botSkills ?? [];
   const loadSkillBody = input.loadSkillBody;
   const loadSkillFile = input.loadSkillFile;
@@ -213,12 +214,14 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
       const activeTools = orchestration.skillLoadedThisRun ? loadSkillActiveTools : resolvedTools.activeTools;
       const nextContext = { ...stepContext, orchestration };
       const baseInstructions = String(initialInstructions ?? instructions);
-      const continuation = previousResponseId
-        ? {
-            providerOptions: { openai: { previousResponseId } },
-            ...(steps.length > 0 ? { messages: steps.at(-1)?.response.messages } : {}),
-          }
-        : {};
+      const toolResultMessages = steps.at(-1)?.response.messages.filter((message) => message.role === "tool") ?? [];
+      const continuation =
+        previousResponseId && (steps.length === 0 || toolResultMessages.length > 0)
+          ? {
+              providerOptions: { openai: { previousResponseId } },
+              ...(steps.length > 0 ? { messages: toolResultMessages } : {}),
+            }
+          : {};
       if (directive.kind === "final") {
         return {
           ...continuation,
@@ -288,12 +291,13 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
       }
       parentResponseId = previousResponseId;
       const providerResponseId = event.providerMetadata?.openai?.responseId;
-      previousResponseId =
+      responseId =
         typeof providerResponseId === "string"
           ? providerResponseId
           : typeof event.response.id === "string"
             ? event.response.id
             : null;
+      previousResponseId = responseId;
       return observe(
         "finish model step",
         finishModelStep({
@@ -305,7 +309,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
           performance: event.performance,
           response: event.response,
           providerMetadata: event.providerMetadata,
-          responseId: previousResponseId,
+          responseId,
           parentResponseId,
           contextEstimate,
         }),
@@ -367,6 +371,6 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
   return {
     agent,
     dispose: resolvedTools.dispose,
-    responseLineage: () => ({ responseId: previousResponseId, parentResponseId }),
+    responseLineage: () => ({ responseId, parentResponseId }),
   };
 }

@@ -4,7 +4,6 @@ export type ChatMessageMetadata = {
   runId: string;
   providerId: string;
   model: string;
-  api: "openai_responses" | "ark_responses" | "deepseek_responses";
   responseId: string | null;
   parentResponseId: string | null;
   status: "streaming" | "completed" | "failed" | "cancelled";

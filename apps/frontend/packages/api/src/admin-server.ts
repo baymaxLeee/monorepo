@@ -307,8 +307,6 @@ export function detachBotSkill(botId: string, skillId: string): Promise<SkillSum
 }
 
 export type ProviderKind = "chat" | "image" | "video" | "embedding" | "rerank";
-export type LanguageApi = "openai_responses" | "ark_responses" | "deepseek_responses";
-
 export interface ProviderPricing {
   currency: string;
   unit: "generated_second";
@@ -321,7 +319,6 @@ export interface ModelProvider {
   name: string;
   model: string;
   provider_kind: ProviderKind;
-  api: LanguageApi | null;
   base_url: string;
   api_key_masked: string;
   extra_body: Record<string, unknown>;
@@ -339,7 +336,6 @@ export interface CreateModelProviderInput {
   name: string;
   model: string;
   provider_kind?: ProviderKind;
-  api?: LanguageApi | null;
   base_url: string;
   api_key: string;
   extra_body?: Record<string, unknown>;
@@ -355,7 +351,6 @@ export interface UpdateModelProviderInput {
   name?: string;
   model?: string;
   provider_kind?: ProviderKind;
-  api?: LanguageApi | null;
   base_url?: string;
   api_key?: string;
   extra_body?: Record<string, unknown> | null;

@@ -5,7 +5,7 @@ import {
   type AdminProviderSnapshot,
   type AdminResolvedAgent,
 } from "@backend/transport-ts";
-import type { LanguageApi, LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
+import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
 
 import type { BotProfileSnapshot } from "../../application/agent/context/instructions/index.js";
@@ -19,7 +19,6 @@ export interface ProviderSnapshot {
   name: string;
   model: string;
   providerKind: string;
-  api: LanguageApi | null;
   baseUrl: string;
   apiKey: string;
   extraBody: Record<string, unknown>;
@@ -96,7 +95,6 @@ function toSnapshot(data: AdminProviderSnapshot): ProviderSnapshot {
     name: data.name,
     model: data.model,
     providerKind: data.provider_kind ?? "chat",
-    api: (data.api as LanguageApi | null | undefined) ?? null,
     baseUrl: data.base_url,
     apiKey: data.api_key,
     extraBody: data.extra_body ?? {},
@@ -132,7 +130,7 @@ export async function getProvider(
     throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
   }
   const provider = await assertSnapshotUrl(toSnapshot(data));
-  if (provider.providerKind !== "chat" || provider.api == null) {
+  if (provider.providerKind !== "chat") {
     throw new ProviderNotConfiguredError(`provider ${provider.id} is not a configured language provider`);
   }
   return provider as ProviderSnapshot & LanguageProviderSnapshot;
@@ -170,7 +168,7 @@ export async function getAgent(userId: string, agentId: string, orgId = ""): Pro
   }
   const resolve = async (p: AdminProviderSnapshot | null | undefined) => (p ? assertSnapshotUrl(toSnapshot(p)) : null);
   const text = await resolve(data.text_provider);
-  if (text && (text.providerKind !== "chat" || text.api == null)) {
+  if (text && text.providerKind !== "chat") {
     throw new ProviderNotConfiguredError(`provider ${text.id} is not a configured language provider`);
   }
   return {

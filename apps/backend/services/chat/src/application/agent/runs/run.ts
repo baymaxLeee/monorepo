@@ -86,7 +86,6 @@ interface ChatMessageMetadata extends Record<string, unknown> {
   runId: string;
   providerId: string;
   model: string;
-  api: LanguageProviderSnapshot["api"];
   responseId: string | null;
   parentResponseId: string | null;
   status: "streaming" | "completed" | "failed" | "cancelled";
@@ -129,9 +128,9 @@ function describeStreamError(error: unknown): string {
           })();
   const trimmed = message.trim();
   if (!trimmed) {
-    return "工具调用失败，未返回具体原因。";
+    return "模型调用失败，未返回具体原因。";
   }
-  return `工具调用失败：${trimmed.slice(0, 600)}`;
+  return `模型调用失败：${trimmed.slice(0, 600)}`;
 }
 
 function assertRunAccess(
@@ -310,15 +309,12 @@ export async function createAgentRunResponse(
     const memorySourceText = memorySourceUser ? textFromUiMessage(memorySourceUser) : "";
 
     const runSignal = registerRunController(runId);
-    const lineage =
-      provider.api === "deepseek_responses"
-        ? null
-        : await getLatestResponseLineage({
-            runId,
-            conversationId: conversation.id,
-            providerId: provider.id,
-            model: provider.model,
-          });
+    const lineage = await getLatestResponseLineage({
+      runId,
+      conversationId: conversation.id,
+      providerId: provider.id,
+      model: provider.model,
+    });
     const lineageIsCurrent =
       lineage != null && modelUiMessages.some((message) => message.id === lineage.outputMessageId);
     const projectionSource = lineageIsCurrent ? [modelUiMessages.at(-1)!] : modelUiMessages;
@@ -396,7 +392,6 @@ export async function createAgentRunResponse(
           runId,
           providerId: provider.id,
           model: provider.model,
-          api: provider.api,
           responseId: lineage.responseId,
           parentResponseId: lineage.parentResponseId,
         };
@@ -432,7 +427,6 @@ export async function createAgentRunResponse(
             runId,
             providerId: provider.id,
             model: provider.model,
-            api: provider.api,
             responseId: lineage.responseId,
             parentResponseId: lineage.parentResponseId,
             status: aborted ? "cancelled" : failed ? "failed" : "completed",

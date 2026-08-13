@@ -10,7 +10,7 @@
 ## 实施
 
 1. 将 AI SDK Core/React/provider/OpenAI、Hono 及其 Node/Zod 适配器、Workflow/Nitro 版本统一到 workspace catalog，更新 lockfile 并删除 Chat-only provider。
-2. Admin provider 增加显式 Responses driver/capability 契约；所有文本模型调用通过共享 Responses transport，禁止按 URL 猜协议或静默回退。
+2. Admin 的所有文本 Provider 统一遵循单一 Responses capability 契约；禁止按厂商拆分业务协议、按 URL 猜协议或静默回退。
 3. 将 response id、parent response id、provider/model、finish/usage 写入 message/run/step metadata；reasoning、tool call/result 和 provider metadata 以官方 UIMessage parts 完整持久化。
 4. Context Projector 支持 continuation 与 replay；换 provider/model、chain 无效或不支持 continuation 时从本地账本重建 Responses input。
 5. 升级 Chat、Executor、Admin/Knowledge 的调用方，并复核 Nitro/Workflow 的 nf3、OIDC trace、World 启动和 production build workaround。
@@ -20,5 +20,6 @@
 
 - 文本模型网络请求不再出现 `/chat/completions`。
 - 多轮、工具循环、审批 continuation、reasoning、取消、chain 失效回放均保持语义完整且不重复执行工具。
+- Provider 连通性检查必须覆盖 Responses function call 与 continuation；不支持者在配置阶段失败，不增加 Chat Completions fallback。
 - 前后端使用同一 AI SDK 协议版本；Hono/Nitro/Workflow 构建和运行契约不回退。
 - demo 阶段不新增测试脚手架。
