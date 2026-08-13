@@ -36,12 +36,12 @@ export async function generateConversationTitle(input: {
     return null;
   }
   try {
-    const model = createProviderModel(input.provider, { disableReasoning: true });
+    const model = createProviderModel(input.provider);
     const result = await generateText({
       model,
       instructions: TITLE_INSTRUCTIONS,
       prompt: source,
-      maxOutputTokens: 64,
+      maxOutputTokens: Math.min(1_024, input.provider.maxOutputTokens),
       timeout: { totalMs: 20_000, stepMs: 20_000 },
     });
     const title = sanitizeTitle(result.text ?? "");

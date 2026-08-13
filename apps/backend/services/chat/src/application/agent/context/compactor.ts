@@ -160,7 +160,7 @@ export async function compactConversationPrefix(input: {
   let cursor = 0;
   try {
     const model = wrapLanguageModel({
-      model: createProviderModel(input.provider, { disableReasoning: true }),
+      model: createProviderModel(input.provider),
       middleware: extractJsonMiddleware(),
     });
     const maxOutputTokens = Math.max(

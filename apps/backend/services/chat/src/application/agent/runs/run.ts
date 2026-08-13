@@ -262,12 +262,14 @@ export async function createAgentRunResponse(
       updateConversationProvider(conversation.id, provider.id, provider.model),
     ]);
 
-    const firstUserText = latestUser ? textFromUiMessage(latestUser) : "";
+    const firstPersistedUser = persistedMessages.find((message) => message.role === "user");
+    const titleSourceText = firstPersistedUser
+      ? textFromUiMessage(persistedMessageToUiMessage(firstPersistedUser))
+      : latestUser
+        ? textFromUiMessage(latestUser)
+        : "";
     const shouldGenerateTitle =
-      latestMessage.role === "user" &&
-      persistedMessages.length === 0 &&
-      isAutoNamableTitle(conversation.title) &&
-      firstUserText.length > 0;
+      latestMessage.role === "user" && isAutoNamableTitle(conversation.title) && titleSourceText.length > 0;
 
     let modelUiMessages: AnyUIMessage[];
     let continuedSkill: ContinuedSkillReference | null = null;
@@ -499,7 +501,7 @@ export async function createAgentRunResponse(
             const titlePromise = (async () => {
               const title = await generateConversationTitle({
                 provider,
-                userText: firstUserText,
+                userText: titleSourceText,
               });
               if (!title) {
                 return;

@@ -91,7 +91,6 @@ function isJsonValue(value: unknown): value is JSONValue {
 function providerBodyOptions(
   provider: LanguageProviderSnapshot,
   options: {
-    disableReasoning?: boolean;
     parallelToolCalls?: boolean | null;
   },
 ): { requestBody: JSONObject; providerOptions: OpenAIResponsesProviderOptions } {
@@ -106,12 +105,6 @@ function providerBodyOptions(
     parallelToolCalls: options.parallelToolCalls ?? undefined,
     store: true,
   };
-
-  if (options.disableReasoning) {
-    delete body.reasoning;
-    body.thinking = { type: "disabled" };
-    body.enable_thinking = false;
-  }
 
   return { requestBody: body, providerOptions };
 }
@@ -249,7 +242,6 @@ function createResponsesFetch(extraBody: JSONObject): typeof fetch {
 
 interface AdminResponsesModelSnapshot {
   provider: LanguageProviderSnapshot;
-  disableReasoning?: boolean;
   parallelToolCalls?: boolean | null;
 }
 
@@ -304,13 +296,11 @@ class AdminResponsesModel implements LanguageModelV4 {
 export function createProviderModel(
   provider: LanguageProviderSnapshot,
   options: {
-    disableReasoning?: boolean;
     parallelToolCalls?: boolean | null;
   } = {},
 ): LanguageModelV4 {
   return new AdminResponsesModel({
     provider,
-    disableReasoning: options.disableReasoning ?? false,
     parallelToolCalls: options.parallelToolCalls ?? null,
   });
 }

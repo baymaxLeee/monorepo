@@ -12,7 +12,7 @@ const FILE_GENERATION_TIMEOUT = {
 export async function buildFileTextModel(providerId: string, orgId: string) {
   const snapshot = await getProvider(providerId, orgId);
   const provider: LanguageProviderSnapshot = snapshot;
-  const model = createProviderModel(provider, { disableReasoning: true });
+  const model = createProviderModel(provider);
   return { model, maxOutputTokens: provider.maxOutputTokens };
 }
 

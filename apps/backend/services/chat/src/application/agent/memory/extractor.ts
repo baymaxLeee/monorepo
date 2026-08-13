@@ -102,7 +102,7 @@ export async function extractMemoryCandidates(input: ExtractMemoryInput): Promis
     ...pending.map((m) => ({ category: m.category, content: m.content })),
   ];
 
-  const baseModel = createProviderModel(input.provider, { disableReasoning: true });
+  const baseModel = createProviderModel(input.provider);
   const structuredModel = wrapLanguageModel({ model: baseModel, middleware: extractJsonMiddleware() });
 
   let candidates: z.infer<typeof extractionSchema>["candidates"];
