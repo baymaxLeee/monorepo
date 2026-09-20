@@ -3,7 +3,7 @@ import type { Context, Next } from "hono";
 import { UnauthorizedError } from "../../../application/errors.js";
 import { getSettings } from "../../../bootstrap/config.js";
 
-const ALLOWED_CALLERS = new Set(["chat"]);
+const ALLOWED_CALLERS = new Set(["chat", "canvas"]);
 
 export async function internalAuthMiddleware(c: Context, next: Next) {
   const token = c.req.header("X-Internal-Token");

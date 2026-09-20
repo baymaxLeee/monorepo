@@ -60,7 +60,7 @@ for the full rationale.
   functions for the actual work) and register it in `src/application/tasks/registry.ts`.
   Do not put business logic directly in `src/api/http/routes/tasks.ts` or
   `src/application/tasks/service.ts` — those stay type-agnostic.
-- Only `file-task-batch` and `video-generation` are registered. Executor does not
+- `file-task-batch`, `video-generation`, and `text-generation` are registered. Executor does not
   host smoke workflows or synchronous HTML validation/review endpoints.
 - `file-task-batch` accepts a frozen shared context and independent
   `{id,instruction,outputPath}` tasks. Every output path is unique. Each Workflow
@@ -257,3 +257,5 @@ uses `WorkflowRunCancelledError.is(error)` for classification.
 
 Run from `apps/backend`: `just lint executor`, `just build executor`,
 `just gen-openapi executor`.
+
+Canvas 通过内部 HTTP 提交 `text-generation`，按 generation ID 使用 owner 幂等键，并消费同一个任务状态 SSE。文本任务直接使用 Admin 的组织级 chat Provider，不运行第二套 Agent；付费模型调用禁用自动重试，取消信号传入 AI SDK。

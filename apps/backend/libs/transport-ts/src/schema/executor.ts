@@ -58,6 +58,14 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** @constant */
+                        type: "text-generation";
+                        /** @description calling service, e.g. chat */
+                        owner_service: string;
+                        /** @description idempotency key scoped to owner_service */
+                        owner_ref: string;
+                        payload: components["schemas"]["TextGenerationPayload"];
+                    } | {
+                        /** @constant */
                         type: "file-task-batch";
                         /** @description calling service, e.g. chat */
                         owner_service: string;
@@ -453,6 +461,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        TextGenerationPayload: {
+            orgId: string;
+            providerId: string;
+            prompt: string;
+        };
         Task: {
             id: string;
             type: string;
@@ -478,6 +491,14 @@ export interface components {
             production: components["schemas"]["VideoProductionProjection"] | null;
         };
         CreateTaskInput: {
+            /** @constant */
+            type: "text-generation";
+            /** @description calling service, e.g. chat */
+            owner_service: string;
+            /** @description idempotency key scoped to owner_service */
+            owner_ref: string;
+            payload: components["schemas"]["TextGenerationPayload"];
+        } | {
             /** @constant */
             type: "file-task-batch";
             /** @description calling service, e.g. chat */

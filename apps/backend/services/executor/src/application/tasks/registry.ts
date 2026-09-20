@@ -1,4 +1,5 @@
 import { fileTaskBatchInputSchema, fileTaskBatchWorkflow } from "../../../workflows/file-task-batch.js";
+import { textGenerationInputSchema, textGenerationWorkflow } from "../../../workflows/text-generation.js";
 import { videoGenerationInputSchema, videoGenerationWorkflow } from "../../../workflows/video-generation.js";
 import { cancelVideoGeneration } from "../video/cancel.js";
 import type { TaskTypeDefinition } from "./types.js";
@@ -28,3 +29,5 @@ registerTaskType({
   workflow: videoGenerationWorkflow,
   cancel: cancelVideoGeneration,
 });
+
+registerTaskType({ name: "text-generation", inputSchema: textGenerationInputSchema, workflow: textGenerationWorkflow });

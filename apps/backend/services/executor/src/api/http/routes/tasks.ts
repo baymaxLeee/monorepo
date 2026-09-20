@@ -5,6 +5,7 @@ import { getRun } from "workflow/api";
 import { z } from "zod";
 
 import { fileTaskBatchInputSchema } from "../../../../workflows/file-task-batch.js";
+import { textGenerationInputSchema } from "../../../../workflows/text-generation.js";
 import { videoGenerationInputSchema } from "../../../../workflows/video-generation.js";
 import { RequestError } from "../../../application/errors.js";
 import {
@@ -39,6 +40,7 @@ const createTaskEnvelope = {
 };
 
 const createTaskSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("text-generation"), payload: textGenerationInputSchema, ...createTaskEnvelope }),
   z.object({ type: z.literal("file-task-batch"), payload: fileTaskBatchInputSchema, ...createTaskEnvelope }),
   z.object({ type: z.literal("video-generation"), payload: videoGenerationInputSchema, ...createTaskEnvelope }),
 ]);

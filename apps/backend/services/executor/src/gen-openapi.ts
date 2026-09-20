@@ -160,8 +160,15 @@ const taskEnvelope = (type: string, payload: object) => ({
   required: ["type", "owner_service", "owner_ref", "payload"],
 });
 
+const textGenerationPayloadSchema = {
+  type: "object",
+  properties: { orgId: { type: "string" }, providerId: { type: "string" }, prompt: { type: "string" } },
+  required: ["orgId", "providerId", "prompt"],
+};
+
 const createTaskInputSchema = {
   oneOf: [
+    taskEnvelope("text-generation", ref("TextGenerationPayload")),
     taskEnvelope("file-task-batch", ref("FileTaskBatchPayload")),
     taskEnvelope("video-generation", ref("VideoGenerationTaskPayload")),
   ],
@@ -528,6 +535,7 @@ const openapi = {
   },
   components: {
     schemas: {
+      TextGenerationPayload: textGenerationPayloadSchema,
       Task: taskSchema,
       TaskWatchFrame: taskWatchFrameSchema,
       CreateTaskInput: createTaskInputSchema,
