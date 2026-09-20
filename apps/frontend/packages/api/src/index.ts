@@ -7,3 +7,5 @@ export * from "./orgs";
 export * from "./session";
 export * from "./telemetry-server";
 export * as telemetry from "./telemetry-server";
+export * from "./canvas-server";
+export * from "./canvas-settings";

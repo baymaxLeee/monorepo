@@ -15,6 +15,7 @@ export const conversations = pgTable(
     title: varchar("title", { length: 200 }).notNull().default("新对话"),
     model: varchar("model", { length: 120 }).notNull().default(""),
     providerId: varchar("provider_id", { length: 32 }).notNull().default(""),
+    canvasId: varchar("canvas_id", { length: 36 }),
     activePlanPath: varchar("active_plan_path", { length: 512 }),
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),

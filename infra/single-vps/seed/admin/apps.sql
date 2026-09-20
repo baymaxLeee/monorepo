@@ -19,7 +19,9 @@ VALUES
   ('admin', '后台管理', '/platform/admin', 'mfe_admin', './routes',
    '/mfe-admin/mf-manifest.json', true, true, 10, NOW(), NOW()),
   ('chat', '对话', '/platform/chat', 'mfe_chat', './routes',
-   '/mfe-chat/mf-manifest.json', false, true, 20, NOW(), NOW())
+   '/mfe-chat/mf-manifest.json', false, true, 20, NOW(), NOW()),
+  ('canvas', '画布', '/platform/canvas', 'mfe_canvas', './routes',
+   '/mfe-canvas/mf-manifest.json', false, true, 30, NOW(), NOW())
 ON CONFLICT (id) DO UPDATE SET
   title = EXCLUDED.title,
   base_path = EXCLUDED.base_path,

@@ -4,10 +4,10 @@ set shell := ["bash", "-cu"]
 # Service registry (Python / Node / Go services and their fixed dev ports)
 PY_SERVICES := "admin knowledge telemetry"
 NODE_SERVICES := "chat executor"
-GO_SERVICES := "gateway iam"
+GO_SERVICES := "gateway iam canvas"
 
 # Fixed port allocation so multiple agents/dev servers don't collide
-PORTS := '{"gateway":8000,"admin":8001,"iam":8002,"telemetry":8008,"chat":8009,"knowledge":8010,"executor":8011}'
+PORTS := '{"gateway":8000,"admin":8001,"iam":8002,"telemetry":8008,"chat":8009,"knowledge":8010,"executor":8011,"canvas":8012}'
 
 default:
     @just --list
@@ -128,7 +128,9 @@ lint-go:
 gen-openapi service:
     @echo "→ Exporting OpenAPI for {{ service }}..."
     @out="{{ service }}-server"; \
-    if [ -f "services/{{ service }}/package.json" ]; then \
+    if [ -f "services/{{ service }}/cmd/openapi/main.go" ]; then \
+        cd services/{{ service }} && go run ./cmd/openapi > ../../../../schemas/openapi/$out.json; \
+    elif [ -f "services/{{ service }}/package.json" ]; then \
         cd services/{{ service }} && pnpm exec tsx src/gen-openapi.ts > ../../../../schemas/openapi/$out.json; \
     else \
         cd services/{{ service }} && \
@@ -139,7 +141,7 @@ gen-openapi service:
     echo "✓ schemas/openapi/$out.json"
 
 gen-openapi-all:
-    @for s in {{ PY_SERVICES }} {{ NODE_SERVICES }}; do just gen-openapi $s; done
+    @for s in {{ PY_SERVICES }} {{ NODE_SERVICES }} canvas; do just gen-openapi $s; done
 
 gen-transport-ts:
     cd libs/transport-ts && pnpm install && pnpm run codegen

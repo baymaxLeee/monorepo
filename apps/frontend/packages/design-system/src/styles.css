@@ -680,3 +680,5 @@
     background-color: var(--muted-foreground);
   }
 }
+
+@source "../../chat/src/**/*.{ts,tsx}";

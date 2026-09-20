@@ -97,6 +97,45 @@ export interface BulkDeleteSkillsResult {
   deleted: number;
 }
 
+export type CanvasModelParametersReasoningEffort = typeof CanvasModelParametersReasoningEffort[keyof typeof CanvasModelParametersReasoningEffort] | null;
+
+
+export const CanvasModelParametersReasoningEffort = {
+  none: 'none',
+  minimal: 'minimal',
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  xhigh: 'xhigh',
+} as const;
+
+export interface CanvasModelParameters {
+  temperature?: number | null;
+  top_p?: number | null;
+  max_tokens?: number | null;
+  reasoning_effort?: CanvasModelParametersReasoningEffort;
+}
+
+export interface CanvasModelSelection {
+  /**
+     * @minLength 1
+     * @maxLength 32
+     */
+  provider_id: string;
+  parameters?: CanvasModelParameters;
+}
+
+export interface CanvasDefaults {
+  inference?: CanvasModelSelection | null;
+  image?: CanvasModelSelection | null;
+  video?: CanvasModelSelection | null;
+}
+
+export interface CanvasSettings {
+  revision: number;
+  defaults: CanvasDefaults;
+}
+
 export interface CreateAppInput {
   /**
      * @minLength 1
@@ -565,6 +604,12 @@ export interface UpdateBotInput {
   video_provider_id?: string | null;
 }
 
+export interface UpdateCanvasSettings {
+  /** @minimum 0 */
+  expected_revision: number;
+  defaults: CanvasDefaults;
+}
+
 export type UpdateModelProviderInputProviderKind = typeof UpdateModelProviderInputProviderKind[keyof typeof UpdateModelProviderInputProviderKind] | null;
 
 
@@ -830,6 +875,32 @@ const detachBotSkillBotBotIdSkillsSkillIdDelete = (
  options?: SecondParameter<typeof apiMutator<SkillSummary[]>>,) => {
       return apiMutator<SkillSummary[]>(
       {url: `/bot/${botId}/skills/${skillId}`, method: 'DELETE'
+    },
+      options);
+    }
+
+/**
+ * @summary Get Settings
+ */
+const getCanvasSettings = (
+
+ options?: SecondParameter<typeof apiMutator<CanvasSettings>>,) => {
+      return apiMutator<CanvasSettings>(
+      {url: `/canvas/settings`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * @summary Update Settings
+ */
+const updateCanvasSettings = (
+    updateCanvasSettings: UpdateCanvasSettings,
+ options?: SecondParameter<typeof apiMutator<CanvasSettings>>,) => {
+      return apiMutator<CanvasSettings>(
+      {url: `/canvas/settings`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: updateCanvasSettings
     },
       options);
     }
@@ -1301,7 +1372,7 @@ const deleteAppAppsAppIdDelete = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listBotSkillsBotBotIdSkillsGet,attachBotSkillBotBotIdSkillsPost,detachBotSkillBotBotIdSkillsSkillIdDelete,listSkillsSkillsGet,createSkillSkillsPost,getSkillSkillsSkillIdGet,updateSkillSkillsSkillIdPatch,deleteSkillSkillsSkillIdDelete,getSkillWorkspaceSkillsSkillIdWorkspaceGet,getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet,createSkillNodeSkillsSkillIdWorkspaceNodesPost,updateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPut,renameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePut,moveSkillNodeSkillsSkillIdWorkspaceNodesNodeIdParentPut,deleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDelete,validateSkillSkillsSkillIdValidatePost,publishSkillSkillsSkillIdPublishPost,bulkDeleteSkillsSkillsBulkDeletePost,getSkillFileInternalInternalSkillsSkillIdFilesGet,getSkillInternalInternalSkillsSkillIdGet,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderByKindInternalInternalProvidersByKindKindGet,getProviderInternalInternalProvidersProviderIdGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listBotSkillsBotBotIdSkillsGet,attachBotSkillBotBotIdSkillsPost,detachBotSkillBotBotIdSkillsSkillIdDelete,getCanvasSettings,updateCanvasSettings,listSkillsSkillsGet,createSkillSkillsPost,getSkillSkillsSkillIdGet,updateSkillSkillsSkillIdPatch,deleteSkillSkillsSkillIdDelete,getSkillWorkspaceSkillsSkillIdWorkspaceGet,getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet,createSkillNodeSkillsSkillIdWorkspaceNodesPost,updateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPut,renameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePut,moveSkillNodeSkillsSkillIdWorkspaceNodesNodeIdParentPut,deleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDelete,validateSkillSkillsSkillIdValidatePost,publishSkillSkillsSkillIdPublishPost,bulkDeleteSkillsSkillsBulkDeletePost,getSkillFileInternalInternalSkillsSkillIdFilesGet,getSkillInternalInternalSkillsSkillIdGet,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderByKindInternalInternalProvidersByKindKindGet,getProviderInternalInternalProvidersProviderIdGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['healthzHealthzGet']>>>
@@ -1313,6 +1384,8 @@ export type DeleteBotBotBotIdDeleteResult = NonNullable<Awaited<ReturnType<Retur
 export type ListBotSkillsBotBotIdSkillsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listBotSkillsBotBotIdSkillsGet']>>>
 export type AttachBotSkillBotBotIdSkillsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['attachBotSkillBotBotIdSkillsPost']>>>
 export type DetachBotSkillBotBotIdSkillsSkillIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['detachBotSkillBotBotIdSkillsSkillIdDelete']>>>
+export type GetCanvasSettingsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getCanvasSettings']>>>
+export type UpdateCanvasSettingsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateCanvasSettings']>>>
 export type ListSkillsSkillsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listSkillsSkillsGet']>>>
 export type CreateSkillSkillsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createSkillSkillsPost']>>>
 export type GetSkillSkillsSkillIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getSkillSkillsSkillIdGet']>>>

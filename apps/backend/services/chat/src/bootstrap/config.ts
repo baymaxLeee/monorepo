@@ -16,6 +16,7 @@ export interface Settings {
   adminServiceUrl: string;
   knowledgeServiceUrl: string;
   executorServiceUrl: string;
+  canvasServiceUrl: string;
   internalApiToken: string;
   toolApprovalSecret: string;
   exaApiKey: string;
@@ -63,6 +64,7 @@ export function getSettings(): Settings {
     redisDb: envInt("REDIS_DB", 2),
     adminServiceUrl: envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
     knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
+    canvasServiceUrl: envOr("CANVAS_SERVICE_URL", "http://localhost:8012"),
     executorServiceUrl: envOr("EXECUTOR_SERVICE_URL", "http://localhost:8011"),
     internalApiToken,
     toolApprovalSecret: toolApprovalSecret || DEV_INTERNAL_TOKEN,

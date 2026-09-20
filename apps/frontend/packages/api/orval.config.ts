@@ -3,6 +3,16 @@ import { defineConfig } from "orval";
 const schemasRoot = "../../../../schemas/openapi";
 
 export default defineConfig({
+  "canvas-server": {
+    input: `${schemasRoot}/canvas-server.json`,
+    output: {
+      mode: "single",
+      target: "generated/canvas-server/index.ts",
+      client: "axios",
+      baseUrl: "/api/canvas-server",
+      override: { mutator: { path: "./src/orval-mutator.ts", name: "apiMutator" } },
+    },
+  },
   "admin-server": {
     input: `${schemasRoot}/admin-server.json`,
     output: {

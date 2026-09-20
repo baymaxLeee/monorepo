@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { and, asc, desc, eq } from "drizzle-orm";
 
 import type { AuthContext } from "../api/http/middleware/auth.js";
+import { canvasClient } from "../infrastructure/clients/canvas.js";
 import {
   getDocument,
   getDocumentSource,
@@ -30,6 +31,7 @@ export interface Conversation {
   model: string;
   provider_id: string;
   active_plan_path: string | null;
+  canvas_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -121,6 +123,7 @@ function toConversation(row: typeof conversations.$inferSelect): Conversation {
     model: row.model,
     provider_id: row.providerId,
     active_plan_path: row.activePlanPath,
+    canvas_id: row.canvasId,
     created_at: iso(row.createdAt),
     updated_at: iso(row.updatedAt),
   };
@@ -178,16 +181,18 @@ export async function getConversation(auth: AuthContext, conversationId: string)
 
 export async function createConversation(
   auth: AuthContext,
-  input: { title?: string; provider_id?: string | null },
+  input: { title?: string; provider_id?: string | null; canvas_id?: string },
 ): Promise<Conversation> {
   const db = getDb();
   const now = new Date();
+  if (input.canvas_id) await canvasClient().graph(auth, input.canvas_id);
   const id = randomBytes(6).toString("hex");
   await db.insert(conversations).values({
     id,
     userId: auth.userId,
     orgId: auth.orgId,
     title: input.title ?? "新对话",
+    canvasId: input.canvas_id ?? null,
     model: "",
     providerId: input.provider_id ?? "",
     createdAt: now,

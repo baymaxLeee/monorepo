@@ -6,6 +6,33 @@
     "description": "对话 / Agent 微服务 (TypeScript)"
   },
   "paths": {
+    "/conversations/canvas": {
+      "post": {
+        "operationId": "createCanvasConversation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CanvasConversationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Canvas-bound conversation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasConversationBinding"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "responses": {
@@ -677,6 +704,39 @@
   },
   "components": {
     "schemas": {
+      "CanvasConversationInput": {
+        "type": "object",
+        "required": [
+          "canvas_id"
+        ],
+        "properties": {
+          "canvas_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 36
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        }
+      },
+      "CanvasConversationBinding": {
+        "type": "object",
+        "required": [
+          "id",
+          "canvas_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "canvas_id": {
+            "type": "string"
+          }
+        }
+      },
       "RunCancellation": {
         "type": "object",
         "required": [

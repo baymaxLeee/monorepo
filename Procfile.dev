@@ -17,3 +17,6 @@ gateway:   cd apps/backend/services/gateway && PORT=8000 go run ./cmd/server
 mfe-admin: cd apps/frontend && PORT=3001 pnpm -F admin dev
 mfe-chat:  cd apps/frontend && PORT=3005 pnpm -F chat dev
 platform:  ./scripts/wait-for-url.sh http://localhost:3001/mf-manifest.json mfe-admin && ./scripts/wait-for-url.sh http://localhost:3005/mf-manifest.json mfe-chat && cd apps/frontend && PORT=3000 pnpm -F platform dev
+
+canvas: cd apps/backend/services/canvas && PORT=8012 go run ./cmd/server
+mfe-canvas: cd apps/frontend && PORT=3006 pnpm -F canvas dev

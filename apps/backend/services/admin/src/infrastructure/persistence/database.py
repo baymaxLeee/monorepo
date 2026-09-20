@@ -64,6 +64,7 @@ async def close_db() -> None:
 _DEMO_APPS: list[tuple[str, str, str, str, bool, int]] = [
     ("admin", "后台管理", "/platform/admin", "mfe_admin", True, 10),
     ("chat", "对话", "/platform/chat", "mfe_chat", False, 20),
+    ("canvas", "画布", "/platform/canvas", "mfe_canvas", False, 30),
 ]
 
 
@@ -71,6 +72,7 @@ async def seed_demo_apps() -> None:
     app_entries = {
         "admin": "/mfe-admin/mf-manifest.json",
         "chat": "/mfe-chat/mf-manifest.json",
+        "canvas": "/mfe-canvas/mf-manifest.json",
     }
     factory = get_session_factory()
     async with factory() as session, write_tx(session):

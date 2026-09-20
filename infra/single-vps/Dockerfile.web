@@ -48,7 +48,7 @@ ENV NODE_ENV=production \
 
 # Build remotes first (admin + chat) so their manifests exist when the host
 # (platform) consumes the path-based entry URLs at runtime.
-RUN pnpm -F admin build && pnpm -F chat build && pnpm -F platform build
+RUN pnpm -F admin build && pnpm -F chat build && pnpm -F canvas build && pnpm -F platform build
 
 FROM nginx:1.27-alpine
 
@@ -60,6 +60,7 @@ COPY infra/single-vps/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/apps/frontend/apps/platform/dist /usr/share/nginx/html
 COPY --from=builder /app/apps/frontend/apps/admin/dist    /usr/share/nginx/html/mfe-admin
 COPY --from=builder /app/apps/frontend/apps/chat/dist     /usr/share/nginx/html/mfe-chat
+COPY --from=builder /app/apps/frontend/apps/canvas/dist     /usr/share/nginx/html/mfe-canvas
 
 # nginx default user is "nginx"; we keep it. EXPOSE for documentation only,
 # port mapping is done by docker-compose.

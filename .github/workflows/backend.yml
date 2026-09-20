@@ -64,7 +64,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [gateway, iam]
+        service: [gateway, iam, canvas]
     defaults:
       run:
         working-directory: apps/backend/services/${{ matrix.service }}

@@ -6,6 +6,24 @@
  * OpenAPI spec version: 0.1.0
  */
 import { apiMutator } from '../../src/orval-mutator';
+export interface CanvasConversationInput {
+  /**
+     * @minLength 1
+     * @maxLength 36
+     */
+  canvas_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  title?: string;
+}
+
+export interface CanvasConversationBinding {
+  id: string;
+  canvas_id: string;
+}
+
 export interface RunCancellation {
   cancelled: boolean;
   status?: string;
@@ -351,6 +369,17 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
   export const getChatService = () => {
+const createCanvasConversation = (
+    canvasConversationInput: CanvasConversationInput,
+ options?: SecondParameter<typeof apiMutator<CanvasConversationBinding>>,) => {
+      return apiMutator<CanvasConversationBinding>(
+      {url: `/conversations/canvas`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: canvasConversationInput
+    },
+      options);
+    }
+
 const getHealthz = (
 
  options?: SecondParameter<typeof apiMutator<void>>,) => {
@@ -597,7 +626,8 @@ const deleteMemoriesId = (
       options);
     }
 
-return {getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,getConversationsConversationIdContext,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdFilesDetail,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdVideoProductionsProductionId,postConversationsConversationIdVideoProductionsProductionIdDecisions,getConversationsConversationIdVideoProductionsProductionIdPreview,getConversationsConversationIdVideoProductionsProductionIdShotsShotIdTakesTakeIdPreview,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
+return {createCanvasConversation,getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,getConversationsConversationIdContext,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,getConversationsConversationIdDocumentsDocumentIdSource,getConversationsConversationIdFilesDetail,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdVideoProductionsProductionId,postConversationsConversationIdVideoProductionsProductionIdDecisions,getConversationsConversationIdVideoProductionsProductionIdPreview,getConversationsConversationIdVideoProductionsProductionIdShotsShotIdTakesTakeIdPreview,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
+export type CreateCanvasConversationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['createCanvasConversation']>>>
 export type GetHealthzResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getHealthz']>>>
 export type GetConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversations']>>>
 export type PostConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversations']>>>

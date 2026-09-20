@@ -5,6 +5,7 @@ resources:
   - ../../base/gateway
   - ../../base/iam
   - ../../base/admin
+  - ../../base/canvas
   - ../../base/chat
   - ../../base/executor
   - ../../base/knowledge
@@ -18,6 +19,8 @@ images:
     newTag: dev
   - name: ghcr.io/example/admin
     newTag: dev
+  - name: ghcr.io/example/canvas
+    newTag: latest
   - name: ghcr.io/example/chat
     newTag: dev
   - name: ghcr.io/example/executor

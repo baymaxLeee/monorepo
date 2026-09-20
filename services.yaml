@@ -12,6 +12,7 @@ services:
       - iam
       - admin
       - chat
+      - canvas
       - knowledge
       - telemetry
     databases: []
@@ -49,6 +50,7 @@ services:
       - admin
       - knowledge
       - executor
+      - canvas
     databases:
       - chat
     openapi: schemas/openapi/chat-server.json
@@ -88,3 +90,16 @@ services:
       - executor
       - workflow
     openapi: schemas/openapi/executor-server.json
+
+  canvas:
+    root: apps/backend/services/canvas
+    runtime: go
+    port: 8012
+    publicRoutes:
+      - /api/canvas-server/*
+    bindings:
+      - executor
+      - knowledge
+    databases:
+      - canvas
+    openapi: schemas/openapi/canvas-server.json

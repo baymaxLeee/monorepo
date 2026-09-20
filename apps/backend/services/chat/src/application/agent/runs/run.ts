@@ -12,6 +12,7 @@ import {
 import type { AuthContext } from "../../../api/http/middleware/auth.js";
 import type { AgentSkillRef, ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
 import { getProvider, getProviderLimits, getSkillBody, getSkillFile } from "../../../infrastructure/clients/admin.js";
+import { canvasClient } from "../../../infrastructure/clients/canvas.js";
 import { getDocument } from "../../../infrastructure/clients/knowledge.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import type { PersistedMessageContent } from "../../../infrastructure/persistence/schema.js";
@@ -196,6 +197,7 @@ export async function createAgentRunResponse(
 
   const startedAt = performance.now();
   const conversation = await getConversationRow(auth, conversationId);
+  if (conversation.canvasId) await canvasClient().graph(auth, conversation.canvasId);
   const uiMessages = await validateUIMessages<AnyUIMessage>({ messages: uiMessagesInput });
   const latestMessage = uiMessages.at(-1);
   if (!latestMessage) {
@@ -353,6 +355,8 @@ export async function createAgentRunResponse(
     }
     const assistantMessageId = randomBytes(8).toString("hex");
     const agentInstance = await createAgent({
+      canvasId: conversation.canvasId,
+      orgRole: auth.orgRole,
       runId,
       userId: conversation.userId,
       orgId: auth.orgId,

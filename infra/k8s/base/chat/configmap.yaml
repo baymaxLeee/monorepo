@@ -15,3 +15,4 @@ data:
   ADMIN_SERVICE_URL: "http://admin:8001"
   KNOWLEDGE_SERVICE_URL: "http://knowledge:8010"
   EXECUTOR_SERVICE_URL: "http://executor:8011"
+  CANVAS_SERVICE_URL: "http://canvas:8012"

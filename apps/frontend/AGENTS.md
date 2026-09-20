@@ -25,6 +25,7 @@ workspace package name — that name is the single module identity:
 | `@repo/ai-elements` | `ui` | AI Elements primitives + reusable Chat UI; host injects transport/state via props |
 | `@repo/editors` | `ui` | Authoring surfaces: markdown (tiptap), code (CodeMirror), file workspace |
 | `@repo/viewers` | `ui` | Read-only previewers: PDF, XMind |
+| `@repo/chat` | `feature` | Shared Chat session, native messages, tool cards and artifact/video workspaces |
 | `@repo/api` | `data` | Unified axios runtime, auth/session, OpenAPI-generated clients |
 | `@repo/runtime` | `runtime` | MFE registry, event bus, auth context |
 | `@repo/observability` | `runtime` | Tracing / logging / error reporting |
@@ -54,8 +55,9 @@ does not pull `ai-elements`.
 `turbo.json` declares tag rules; each package declares its tag in its own
 `turbo.json`. Run `turbo boundaries` (part of `just lint`) to verify:
 
-- `app` → may depend on `ui` / `data` / `runtime` / `util`; **nothing may depend on an `app`**
+- `app` → may depend on `feature` / `ui` / `data` / `runtime` / `util`; **nothing may depend on an `app`**
   (this is what makes "MFEs never import each other" mechanical)
+- `feature` → `ui` / `data` / `runtime` / `util`; shared feature orchestration may consume API and UI, but never an app.
 - `ui` → `ui` / `util` only — a UI package must not reach into `@repo/api` or `@repo/runtime`
 - `data` → `runtime` / `util`
 - `runtime` → `util`

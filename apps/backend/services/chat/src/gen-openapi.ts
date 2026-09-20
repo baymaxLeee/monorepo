@@ -64,6 +64,13 @@ const openapi = {
   openapi: "3.0.3",
   info: { title: "Chat Service", version: "0.1.0", description: "对话 / Agent 微服务 (TypeScript)" },
   paths: {
+    "/conversations/canvas": {
+      post: {
+        operationId: "createCanvasConversation",
+        requestBody: { required: true, content: { "application/json": { schema: ref("CanvasConversationInput") } } },
+        responses: { "201": jsonResponse("Canvas-bound conversation", ref("CanvasConversationBinding")) },
+      },
+    },
     "/healthz": { get: { responses: { "200": { description: "ok" } } } },
     "/conversations": {
       get: { responses: { "200": { description: "list conversations" } } },
@@ -261,6 +268,22 @@ const openapi = {
   },
   components: {
     schemas: {
+      CanvasConversationInput: {
+        type: "object",
+        required: ["canvas_id"],
+        properties: {
+          canvas_id: { type: "string", minLength: 1, maxLength: 36 },
+          title: { type: "string", minLength: 1, maxLength: 200 },
+        },
+      },
+      CanvasConversationBinding: {
+        type: "object",
+        required: ["id", "canvas_id"],
+        properties: {
+          id: { type: "string" },
+          canvas_id: { type: "string" },
+        },
+      },
       RunCancellation: {
         type: "object",
         required: ["cancelled"],

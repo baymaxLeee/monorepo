@@ -58,6 +58,7 @@ export interface Conversation {
   model: string;
   provider_id: string;
   active_plan_path: string | null;
+  canvas_id: string | null;
   created_at: string;
   updated_at: string;
 }

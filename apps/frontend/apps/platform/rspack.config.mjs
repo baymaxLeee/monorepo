@@ -136,6 +136,13 @@ export default defineConfig({
         secure: false,
         pathRewrite: { "^/mfe-chat": "" },
       },
+      {
+        context: ["/mfe-canvas"],
+        target: "http://localhost:3006",
+        changeOrigin: true,
+        secure: false,
+        pathRewrite: { "^/mfe-canvas": "" },
+      },
     ],
   },
 });

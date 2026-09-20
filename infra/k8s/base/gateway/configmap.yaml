@@ -20,3 +20,4 @@ data:
   HTTP_IDLE_TIMEOUT: "120s"
   REDIS_PORT: "6379"
   REDIS_DB: "1"
+  CANVAS_SERVICE_URL: "http://canvas:8012"

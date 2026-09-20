@@ -17,20 +17,37 @@
   "boundaries": {
     "tags": {
       "app": {
-        "dependencies": { "allow": ["ui", "data", "runtime", "util"] },
-        "dependents": { "allow": [] }
+        "dependencies": {
+          "allow": ["ui", "data", "runtime", "util", "feature"]
+        },
+        "dependents": {
+          "allow": []
+        }
       },
       "ui": {
-        "dependencies": { "allow": ["ui", "util"] }
+        "dependencies": {
+          "allow": ["ui", "util"]
+        }
       },
       "data": {
-        "dependencies": { "allow": ["runtime", "util"] }
+        "dependencies": {
+          "allow": ["runtime", "util"]
+        }
       },
       "runtime": {
-        "dependencies": { "allow": ["util"] }
+        "dependencies": {
+          "allow": ["util"]
+        }
       },
       "util": {
-        "dependencies": { "allow": ["util"] }
+        "dependencies": {
+          "allow": ["util"]
+        }
+      },
+      "feature": {
+        "dependencies": {
+          "allow": ["ui", "data", "runtime", "util"]
+        }
       }
     }
   }

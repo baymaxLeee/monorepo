@@ -6,6 +6,9 @@ import {
   fetchConversation,
   fetchConversations,
 } from "@repo/api";
+import { ChatArtifactPanel } from "@repo/chat/components/ChatArtifactPanel";
+import { VideoProductionWorkspace } from "@repo/chat/components/VideoProductionWorkspace";
+import { useChatStore } from "@repo/chat/store/useChatStore";
 import { Layout, toast } from "@repo/design-system";
 import { cn } from "@repo/shared";
 import type { UIMessage } from "ai";
@@ -13,13 +16,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 
-import { ChatArtifactPanel } from "../../components/ChatArtifactPanel";
 import { ChatAuxiliaryPanels } from "../../components/ChatAuxiliaryPanels";
 import { ChatConversationSidebar } from "../../components/ChatConversationSidebar";
 import { ChatPanelResizeHandle } from "../../components/ChatPanelResizeHandle";
-import { VideoProductionWorkspace } from "../../components/VideoProductionWorkspace";
 import { useChatShellLayout } from "../../hooks/useChatShellLayout";
-import { useChatStore } from "../../store/useChatStore";
 
 export function ChatLayout() {
   const navigate = useNavigate();

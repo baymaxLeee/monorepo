@@ -6,6 +6,7 @@ import type { AgentMode } from "../agents/types.js";
 import type { InstructionContributions } from "../context/instructions/index.js";
 import { type AdminSkillSource, resolveSkills } from "../integrations/skills/provider.js";
 import type { AgentExtension, AgentExtensionContext } from "../integrations/types.js";
+import { createCanvasToolManifests } from "./builtins/canvas.js";
 import { createFileToolManifests } from "./builtins/files.js";
 import { createInteractionToolManifests } from "./builtins/interaction.js";
 import { createMediaToolManifests } from "./builtins/media.js";
@@ -87,7 +88,11 @@ export class ToolCatalog {
     dispose: () => Promise<void>;
   }> {
     const resolvedSkills = resolveSkills(skillSource);
-    const manifests = [...builtinManifests(context.mode, providers), ...resolvedSkills.manifests];
+    const manifests = [
+      ...builtinManifests(context.mode, providers),
+      ...(context.canvasId ? createCanvasToolManifests() : []),
+      ...resolvedSkills.manifests,
+    ];
     const skills = [...resolvedSkills.skills];
     const disposers: Array<() => void | Promise<void>> = [];
 

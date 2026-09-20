@@ -50,7 +50,7 @@ jobs:
         # gateway / iam / knowledge / admin / chat / executor / telemetry → backend service images
         # web                                      → nginx + bundled frontend SPA dist
         # db-init                                  → one-shot Postgres schema bootstrap
-        service: [gateway, iam, knowledge, admin, chat, executor, telemetry, web, db-init]
+        service: [gateway, iam, canvas, knowledge, admin, chat, executor, telemetry, web, db-init]
     env:
       # Surfaced into the shell of every step so the "Compute tags" script
       # can branch on whether the TCR mirror is configured.
@@ -116,7 +116,7 @@ jobs:
         id: ctx
         run: |
           case "${{ matrix.service }}" in
-            gateway|iam)
+            gateway|iam|canvas)
               echo "context=apps/backend/services/${{ matrix.service }}" >> "$GITHUB_OUTPUT"
               echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
               ;;

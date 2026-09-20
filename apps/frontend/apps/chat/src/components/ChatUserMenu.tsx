@@ -1,4 +1,5 @@
 import { logout, switchActiveOrg } from "@repo/api";
+import { useChatStore } from "@repo/chat/store/useChatStore";
 import {
   Avatar,
   AvatarFallback,
@@ -16,8 +17,6 @@ import { type PlatformMembership, usePlatformStore } from "@repo/runtime";
 import { BrainIcon, CheckIcon, ChevronsUpDownIcon, LogOutIcon, SettingsIcon, UserIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
-
-import { useChatStore } from "../store/useChatStore";
 
 function getUserInitials(name: string) {
   return name.trim().slice(0, 1).toUpperCase() || "U";

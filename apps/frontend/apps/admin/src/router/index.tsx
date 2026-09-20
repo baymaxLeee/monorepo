@@ -32,6 +32,7 @@ export const routes: RouteObject[] = [
             path: "skills/:id",
             lazy: () => import("../pages/skills/workspace"),
           },
+          { path: "canvas", lazy: () => import("../pages/canvas") },
           { path: "providers", lazy: () => import("../pages/providers") },
           { path: "knowledge", lazy: () => import("../pages/knowledge") },
           { path: "apps", lazy: () => import("../pages/apps") },

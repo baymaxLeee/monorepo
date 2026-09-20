@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: canvas-config
+data:
+  PORT: "8012"
+  ENVIRONMENT: "development"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DATABASE: "canvas"
+  EXECUTOR_SERVICE_URL: "http://executor:8011"
+  KNOWLEDGE_SERVICE_URL: "http://knowledge:8010"

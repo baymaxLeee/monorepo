@@ -5,6 +5,7 @@ packages:
 catalogMode: strict
 
 catalog:
+  "@xyflow/react": 12.11.3
   "@ai-sdk/react": ^4.0.67
   "@hookform/resolvers": ^5.4.0
   "@module-federation/enhanced": ^2.4.0
@@ -30,6 +31,7 @@ catalog:
   tailwindcss: ^4.1.0
   typescript: ^5.4.0
   zod: ^4.4.3
+  jotai: 2.20.3
   zustand: ^5.0.2
 
 overrides:

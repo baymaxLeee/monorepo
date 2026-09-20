@@ -26,6 +26,7 @@ type Config struct {
 	Port                     string
 	AdminServiceURL          string
 	ChatServiceURL           string
+	CanvasServiceURL         string
 	IAMServiceURL            string
 	KnowledgeServiceURL      string
 	TelemetryServiceURL      string
@@ -58,6 +59,7 @@ func Load() (Config, error) {
 		Port:                envOr("PORT", "8000"),
 		AdminServiceURL:     envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
 		ChatServiceURL:      envOr("CHAT_SERVICE_URL", "http://localhost:8009"),
+		CanvasServiceURL:    envOr("CANVAS_SERVICE_URL", "http://localhost:8012"),
 		IAMServiceURL:       envOr("IAM_SERVICE_URL", "http://localhost:8002"),
 		KnowledgeServiceURL: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
 		TelemetryServiceURL: envOr("TELEMETRY_SERVICE_URL", "http://localhost:8008"),

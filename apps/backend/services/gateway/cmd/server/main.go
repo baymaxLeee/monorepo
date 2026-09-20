@@ -80,6 +80,7 @@ func main() {
 		"admin-server",
 		"/api/admin-server",
 	))
+	r.Mount("/api/canvas-server", handlers.NewServiceProxy(cfg.CanvasServiceURL, "canvas-server", "/api/canvas-server"))
 	r.Mount("/api/chat-server", handlers.NewServiceProxy(
 		cfg.ChatServiceURL,
 		"chat-server",

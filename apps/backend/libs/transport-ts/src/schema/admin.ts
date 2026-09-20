@@ -127,6 +127,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/canvas/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Settings */
+        get: operations["getCanvasSettings"];
+        /** Update Settings */
+        put: operations["updateCanvasSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/skills": {
         parameters: {
             query?: never;
@@ -674,6 +692,35 @@ export interface components {
             /** Deleted */
             deleted: number;
         };
+        /** CanvasDefaults */
+        CanvasDefaults: {
+            inference?: components["schemas"]["CanvasModelSelection"] | null;
+            image?: components["schemas"]["CanvasModelSelection"] | null;
+            video?: components["schemas"]["CanvasModelSelection"] | null;
+        };
+        /** CanvasModelParameters */
+        CanvasModelParameters: {
+            /** Temperature */
+            temperature?: number | null;
+            /** Top P */
+            top_p?: number | null;
+            /** Max Tokens */
+            max_tokens?: number | null;
+            /** Reasoning Effort */
+            reasoning_effort?: ("none" | "minimal" | "low" | "medium" | "high" | "xhigh") | null;
+        };
+        /** CanvasModelSelection */
+        CanvasModelSelection: {
+            /** Provider Id */
+            provider_id: string;
+            parameters?: components["schemas"]["CanvasModelParameters"];
+        };
+        /** CanvasSettings */
+        CanvasSettings: {
+            /** Revision */
+            revision: number;
+            defaults: components["schemas"]["CanvasDefaults"];
+        };
         /** CreateAppInput */
         CreateAppInput: {
             /** Id */
@@ -1171,6 +1218,12 @@ export interface components {
             /** Video Provider Id */
             video_provider_id?: string | null;
         };
+        /** UpdateCanvasSettings */
+        UpdateCanvasSettings: {
+            /** Expected Revision */
+            expected_revision: number;
+            defaults: components["schemas"]["CanvasDefaults"];
+        };
         /** UpdateModelProviderInput */
         UpdateModelProviderInput: {
             /** Name */
@@ -1605,6 +1658,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SkillSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCanvasSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasSettings"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCanvasSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Org-ID"?: string | null;
+                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCanvasSettings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasSettings"];
                 };
             };
             /** @description Validation Error */

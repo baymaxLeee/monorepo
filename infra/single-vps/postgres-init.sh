@@ -16,7 +16,7 @@ set -euo pipefail
 export DB_MIGRATE_TRANSPORT=tcp
 
 # service → database naming mirrors scripts/db-migrate.sh (basename of dir).
-SERVICES="iam admin chat executor knowledge telemetry"
+SERVICES="iam admin canvas chat executor knowledge telemetry"
 
 for svc in ${SERVICES}; do
   password_var="$(printf '%s_POSTGRES_PASSWORD' "$svc" | tr '[:lower:]' '[:upper:]')"

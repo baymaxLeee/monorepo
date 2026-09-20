@@ -153,6 +153,7 @@ services:
       IAM_POSTGRES_PASSWORD: ${IAM_POSTGRES_PASSWORD:?IAM_POSTGRES_PASSWORD is required}
       ADMIN_POSTGRES_PASSWORD: ${ADMIN_POSTGRES_PASSWORD:?ADMIN_POSTGRES_PASSWORD is required}
       CHAT_POSTGRES_PASSWORD: ${CHAT_POSTGRES_PASSWORD:?CHAT_POSTGRES_PASSWORD is required}
+      CANVAS_POSTGRES_PASSWORD: ${CANVAS_POSTGRES_PASSWORD:?CANVAS_POSTGRES_PASSWORD is required}
       EXECUTOR_POSTGRES_PASSWORD: ${EXECUTOR_POSTGRES_PASSWORD:?EXECUTOR_POSTGRES_PASSWORD is required}
       KNOWLEDGE_POSTGRES_PASSWORD: ${KNOWLEDGE_POSTGRES_PASSWORD:?KNOWLEDGE_POSTGRES_PASSWORD is required}
       TELEMETRY_POSTGRES_PASSWORD: ${TELEMETRY_POSTGRES_PASSWORD:?TELEMETRY_POSTGRES_PASSWORD is required}
@@ -221,6 +222,7 @@ services:
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:?ACCESS_TOKEN_SECRET is required}
       ADMIN_SERVICE_URL: http://admin:8001
       CHAT_SERVICE_URL: http://chat:8009
+      CANVAS_SERVICE_URL: http://canvas:8012
       IAM_SERVICE_URL: http://iam:8002
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
       TELEMETRY_SERVICE_URL: http://telemetry:8008
@@ -257,6 +259,25 @@ services:
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
     <<: *restart_policy
 
+  canvas:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/canvas:${IMAGE_TAG:-main}
+    container_name: monorepo-canvas
+    depends_on:
+      postgres: { condition: service_healthy }
+      db-init: { condition: service_completed_successfully }
+    environment:
+      ENVIRONMENT: single-vps
+      EXECUTOR_SERVICE_URL: http://executor:8011
+      KNOWLEDGE_SERVICE_URL: http://knowledge:8010
+      PORT: "8012"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: canvas
+      POSTGRES_PASSWORD: ${CANVAS_POSTGRES_PASSWORD:?CANVAS_POSTGRES_PASSWORD is required}
+      POSTGRES_DATABASE: canvas
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
+    <<: *restart_policy
+
   chat:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/chat:${IMAGE_TAG:-main}
     container_name: monorepo-chat
@@ -281,6 +302,7 @@ services:
       ADMIN_SERVICE_URL: http://admin:8001
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
       EXECUTOR_SERVICE_URL: http://executor:8011
+      CANVAS_SERVICE_URL: http://canvas:8012
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
       EXA_API_KEY: ${EXA_API_KEY:?EXA_API_KEY is required}
       # Optional fallback provider; chat runs on Exa alone if unset.

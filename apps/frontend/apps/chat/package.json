@@ -15,6 +15,7 @@
     "@hookform/resolvers": "catalog:",
     "@repo/ai-elements": "workspace:*",
     "@repo/api": "workspace:*",
+    "@repo/chat": "workspace:*",
     "@repo/design-system": "workspace:*",
     "@repo/editors": "workspace:*",
     "@repo/observability": "workspace:*",

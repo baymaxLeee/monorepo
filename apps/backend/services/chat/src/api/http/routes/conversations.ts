@@ -26,6 +26,21 @@ import { getAuth } from "../middleware/auth.js";
 
 export const conversationsRoutes = new Hono();
 
+conversationsRoutes.post(
+  "/canvas",
+  zValidator(
+    "json",
+    z.object({
+      canvas_id: z.string().min(1).max(36),
+      title: z.string().min(1).max(200).optional(),
+    }),
+  ),
+  async (c) => {
+    const conversation = await createConversation(getAuth(c), c.req.valid("json"));
+    return c.json({ id: conversation.id, canvas_id: conversation.canvas_id! }, 201);
+  },
+);
+
 const createSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   provider_id: z.string().max(32).optional().nullable(),

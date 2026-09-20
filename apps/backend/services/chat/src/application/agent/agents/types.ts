@@ -18,6 +18,8 @@ export interface AgentRuntimeContext {
 }
 
 export interface ChatAgentInput {
+  canvasId?: string | null;
+  orgRole?: string;
   runId: string;
   userId: string;
   orgId: string;
