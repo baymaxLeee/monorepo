@@ -11,6 +11,7 @@ from api.http.routes import (
     files_internal,
     health,
     ingest,
+    objects_internal,
     resources,
     retrieval_internal,
 )
@@ -74,6 +75,7 @@ def create_app() -> FastAPI:
     app.include_router(documents.router)
     app.include_router(documents_internal.router)
     app.include_router(resources.router)
+    app.include_router(objects_internal.router)
     app.include_router(files_internal.router)
     app.include_router(conversation_cleanup_internal.router)
     app.include_router(retrieval_internal.router)

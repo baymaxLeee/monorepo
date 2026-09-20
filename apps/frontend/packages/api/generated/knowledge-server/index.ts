@@ -441,6 +441,12 @@ export interface StagedMediaActionInput {
   org_id: string;
 }
 
+export interface StoredServiceObject {
+  key: string;
+  size: number;
+  sha256: string;
+}
+
 export interface UpdateArtifactInput {
   /**
      * @minLength 1
@@ -1023,6 +1029,31 @@ const getSignedFileResourceResourcesFilesFileIdGet = (
     }
 
 /**
+ * @summary Put Object
+ */
+const putObjectInternalObjectsScopePost = (
+    scope: string,
+ options?: SecondParameter<typeof apiMutator<StoredServiceObject>>,) => {
+      return apiMutator<StoredServiceObject>(
+      {url: `/internal/objects/${scope}`, method: 'POST'
+    },
+      options);
+    }
+
+/**
+ * @summary Get Object
+ */
+const getObjectInternalObjectsScopeKeyGet = (
+    scope: string,
+    key: string,
+ options?: SecondParameter<typeof apiMutator<unknown>>,) => {
+      return apiMutator<unknown>(
+      {url: `/internal/objects/${scope}/${key}`, method: 'GET'
+    },
+      options);
+    }
+
+/**
  * @summary List Files
  */
 const listFilesInternalFilesGet = (
@@ -1177,7 +1208,7 @@ const retrieveChunksInternalRetrievePost = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createStagedMediaInternalStagedMediaPost,getStagedMediaInternalStagedMediaStagedIdGet,getStagedMediaSourceInternalStagedMediaStagedIdSourceGet,publishStagedMediaInternalStagedMediaStagedIdPublishPost,discardStagedMediaInternalStagedMediaStagedIdDiscardPost,createResourceUrlDocumentsDocumentIdResourceUrlPost,createFileUrlFilesResourceUrlPost,getSignedResourceResourcesDocumentIdGet,getSignedFileResourceResourcesFilesFileIdGet,listFilesInternalFilesGet,readFileInternalFilesReadGet,createChangeSetInternalFilesChangeSetsPost,writeChangeSetFileInternalFilesChangeSetsChangeSetIdFilesPut,listChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGet,readChangeSetFileInternalFilesChangeSetsChangeSetIdReadGet,promoteChangeSetInternalFilesChangeSetsChangeSetIdPromotePost,discardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPost,searchFilesInternalFilesSearchPost,cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost,retrieveChunksInternalRetrievePost}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createStagedMediaInternalStagedMediaPost,getStagedMediaInternalStagedMediaStagedIdGet,getStagedMediaSourceInternalStagedMediaStagedIdSourceGet,publishStagedMediaInternalStagedMediaStagedIdPublishPost,discardStagedMediaInternalStagedMediaStagedIdDiscardPost,createResourceUrlDocumentsDocumentIdResourceUrlPost,createFileUrlFilesResourceUrlPost,getSignedResourceResourcesDocumentIdGet,getSignedFileResourceResourcesFilesFileIdGet,putObjectInternalObjectsScopePost,getObjectInternalObjectsScopeKeyGet,listFilesInternalFilesGet,readFileInternalFilesReadGet,createChangeSetInternalFilesChangeSetsPost,writeChangeSetFileInternalFilesChangeSetsChangeSetIdFilesPut,listChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGet,readChangeSetFileInternalFilesChangeSetsChangeSetIdReadGet,promoteChangeSetInternalFilesChangeSetsChangeSetIdPromotePost,discardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPost,searchFilesInternalFilesSearchPost,cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost,retrieveChunksInternalRetrievePost}};
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['healthzHealthzGet']>>>
@@ -1206,6 +1237,8 @@ export type CreateResourceUrlDocumentsDocumentIdResourceUrlPostResult = NonNulla
 export type CreateFileUrlFilesResourceUrlPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createFileUrlFilesResourceUrlPost']>>>
 export type GetSignedResourceResourcesDocumentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getSignedResourceResourcesDocumentIdGet']>>>
 export type GetSignedFileResourceResourcesFilesFileIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getSignedFileResourceResourcesFilesFileIdGet']>>>
+export type PutObjectInternalObjectsScopePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['putObjectInternalObjectsScopePost']>>>
+export type GetObjectInternalObjectsScopeKeyGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getObjectInternalObjectsScopeKeyGet']>>>
 export type ListFilesInternalFilesGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['listFilesInternalFilesGet']>>>
 export type ReadFileInternalFilesReadGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['readFileInternalFilesReadGet']>>>
 export type CreateChangeSetInternalFilesChangeSetsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createChangeSetInternalFilesChangeSetsPost']>>>

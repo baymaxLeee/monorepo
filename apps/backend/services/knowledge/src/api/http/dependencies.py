@@ -65,7 +65,7 @@ def require_internal_token(
     expected = get_settings().internal_api_token
     if not expected or not x_internal_token or not hmac.compare_digest(expected, x_internal_token):
         raise UnauthorizedError("invalid internal token")
-    if x_caller_service not in {"chat", "executor"}:
+    if x_caller_service not in {"chat", "executor", "canvas"}:
         raise UnauthorizedError("invalid or missing X-Caller-Service header")
 
 

@@ -75,3 +75,7 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
   overwrite `current.html`. `index_document` is DB-free (snapshot -> chunks); the
   ingest/indexer worker sessions keep intentional multi-stage `write_tx` blocks
   for durable SSE/background progress; the `pg_advisory_lock` raw connection is exempt.
+
+## Canvas 独立素材
+
+`/internal/objects` 复用现有 ObjectStore 和媒体大小配置，只有 Canvas 可以访问其服务命名空间。对象按组织/项目 scope 摘要与内容摘要寻址，字节不可变；Canvas 的资产身份与引用账本不使用摘要作业务 ID。该对象不属于 Chat 文档或会话，删除会话不会回收它。当前接口仅支持写入和读取，不实施物理删除；Canvas 的引用/GC 迁移完成前保留孤立对象。
