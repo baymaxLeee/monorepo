@@ -111,3 +111,36 @@ type Generation struct {
 type GenerationList struct {
 	Items []Generation `json:"items"`
 }
+
+type Resource struct {
+	ID                     string `json:"id"`
+	ProjectID              string `json:"project_id"`
+	Type                   int16  `json:"type"`
+	Name                   string `json:"name"`
+	Description            string `json:"description"`
+	PrimaryResourceAssetID string `json:"primary_resource_asset_id"`
+	Revision               int64  `json:"revision"`
+	ResourceAssetCount     int32  `json:"resource_asset_count"`
+}
+type ResourceInput struct {
+	Name             string `json:"name"`
+	Description      string `json:"description"`
+	Type             int16  `json:"type"`
+	ExpectedRevision int64  `json:"expected_revision"`
+}
+type ResourceList struct {
+	Items []Resource `json:"items"`
+}
+type ResourceAsset struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	MediaType int16  `json:"media_type"`
+	Revision  int64  `json:"revision"`
+}
+type ResourceAssetList struct {
+	Items []ResourceAsset `json:"items"`
+}
+type MaterializeResource struct {
+	NodeID          string `json:"node_id"`
+	ResourceAssetID string `json:"resource_asset_id"`
+}

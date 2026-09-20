@@ -109,3 +109,39 @@ type AssetReference struct {
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
 }
+
+type Resource struct {
+	ID                     string `gorm:"primaryKey"`
+	OrgID                  string
+	ProjectID              string
+	Type                   int16
+	Name                   string
+	Description            string
+	PrimaryResourceAssetID string
+	Revision               int64
+	ResourceAssetCount     int32
+	CreatedBy              string
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	DeletedAt              gorm.DeletedAt
+}
+type ResourceAsset struct {
+	ID             string `gorm:"primaryKey"`
+	ResourceID     string
+	Name           string
+	SequenceNo     int64
+	SourceType     int16
+	CurrentAssetID string
+	MediaType      int16
+	Revision       int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      gorm.DeletedAt
+}
+type ResourceAssetRevision struct {
+	ResourceAssetID string `gorm:"primaryKey"`
+	AssetID         string
+	MediaType       int16
+	RevisionNo      int64 `gorm:"primaryKey"`
+	CreatedAt       time.Time
+}

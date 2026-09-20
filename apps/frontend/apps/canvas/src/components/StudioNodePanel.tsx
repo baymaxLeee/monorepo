@@ -27,7 +27,7 @@ export function StudioNodePanel({
   const nodes = useAtomValue(canvasNodesAtom);
   const [query, setQuery] = useState("");
   return (
-    <aside className="flex h-full w-72 shrink-0 flex-col border-r bg-background" aria-label="节点面板">
+    <aside className="flex h-full w-full shrink-0 flex-col bg-background" aria-label="节点面板">
       <div className="space-y-4 border-b p-4">
         <h2 className="text-sm font-medium">节点</h2>
         <UploadMedia />

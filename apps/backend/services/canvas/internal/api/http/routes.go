@@ -22,6 +22,47 @@ type Route struct {
 }
 
 var Routes = []Route{
+	{"GET", "/projects/{projectId}/resources", "canvasListResources", nil, reflect.TypeFor[c.ResourceList](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
+		return s.ListResources(r.Context(), actor, chi.URLParam(r, "projectId"))
+	}},
+	{"POST", "/projects/{projectId}/resources", "canvasCreateResource", reflect.TypeFor[c.ResourceInput](), reflect.TypeFor[c.Resource](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
+		var in c.ResourceInput
+		if err := decode(r, &in); err != nil {
+			return nil, err
+		}
+		return s.SaveResource(r.Context(), actor, chi.URLParam(r, "projectId"), "", in)
+	}},
+	{"PATCH", "/projects/{projectId}/resources/{resourceId}", "canvasUpdateResource", reflect.TypeFor[c.ResourceInput](), reflect.TypeFor[c.Resource](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
+		var in c.ResourceInput
+		if err := decode(r, &in); err != nil {
+			return nil, err
+		}
+		return s.SaveResource(r.Context(), actor, chi.URLParam(r, "projectId"), chi.URLParam(r, "resourceId"), in)
+	}},
+	{"DELETE", "/projects/{projectId}/resources/{resourceId}", "canvasDeleteResource", reflect.TypeFor[c.ExpectedRevision](), reflect.TypeFor[c.Deleted](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
+		var in c.ExpectedRevision
+		if err := decode(r, &in); err != nil {
+			return nil, err
+		}
+		return s.DeleteResource(r.Context(), actor, chi.URLParam(r, "projectId"), chi.URLParam(r, "resourceId"), in)
+	}},
+	{"GET", "/projects/{projectId}/resources/{resourceId}/assets", "canvasListResourceAssets", nil, reflect.TypeFor[c.ResourceAssetList](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
+		return s.ListResourceAssets(r.Context(), actor, chi.URLParam(r, "projectId"), chi.URLParam(r, "resourceId"))
+	}},
+	{"POST", "/projects/{projectId}/resources/{resourceId}/uploads/{assetId}", "canvasUploadResourceAsset", nil, reflect.TypeFor[c.ResourceAsset](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
+		return s.UploadResourceAsset(r.Context(), actor, chi.URLParam(r, "projectId"), chi.URLParam(r, "resourceId"), chi.URLParam(r, "assetId"), r.URL.Query().Get("name"), r.Body)
+	}},
+	{"GET", "/projects/{projectId}/resource-assets/{assetId}/content", "canvasResourceContent", nil, reflect.TypeFor[string](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
+		return s.ResourceContent(r.Context(), actor, chi.URLParam(r, "projectId"), chi.URLParam(r, "assetId"))
+	}},
+	{"POST", "/canvases/{id}/resource-copies", "canvasCopyResourceToCanvas", reflect.TypeFor[c.MaterializeResource](), reflect.TypeFor[c.Graph](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
+		var in c.MaterializeResource
+		if err := decode(r, &in); err != nil {
+			return nil, err
+		}
+		return s.CopyResourceToCanvas(r.Context(), actor, chi.URLParam(r, "id"), in)
+	}},
+
 	{"POST", "/canvases/{id}/uploads/{nodeId}", "canvasUploadNode", nil, reflect.TypeFor[c.Graph](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
 		return s.UploadNode(r.Context(), actor, chi.URLParam(r, "id"), chi.URLParam(r, "nodeId"), r.URL.Query().Get("name"), r.Body)
 	}},
@@ -172,7 +213,7 @@ func Router(s *a.Service, token string) http.Handler {
 					return
 				}
 				limit := int64(8 << 20)
-				if route.OperationID == "canvasUploadNode" {
+				if route.OperationID == "canvasUploadNode" || route.OperationID == "canvasUploadResourceAsset" {
 					limit = 512 << 20
 				}
 				r.Body = http.MaxBytesReader(w, r.Body, limit)
@@ -244,11 +285,11 @@ func OpenAPI() map[string]any {
 				params = append(params, map[string]any{"name": strings.Trim(part, "{}"), "in": "path", "required": true, "schema": map[string]any{"type": "string"}})
 			}
 		}
-		if r.OperationID == "canvasUploadNode" {
+		if r.OperationID == "canvasUploadNode" || r.OperationID == "canvasUploadResourceAsset" {
 			params = append(params, map[string]any{"name": "name", "in": "query", "required": true, "schema": map[string]any{"type": "string"}})
 			op["requestBody"] = map[string]any{"required": true, "content": map[string]any{"application/octet-stream": map[string]any{"schema": map[string]any{"type": "string", "format": "binary"}}}}
 		}
-		if r.OperationID == "canvasNodeContent" {
+		if r.OperationID == "canvasNodeContent" || r.OperationID == "canvasResourceContent" {
 			op["responses"].(map[string]any)["200"] = map[string]any{"description": "Media content", "content": map[string]any{"application/octet-stream": map[string]any{"schema": map[string]any{"type": "string", "format": "binary"}}}}
 		}
 		if len(params) > 0 {

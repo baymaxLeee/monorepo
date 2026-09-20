@@ -73,3 +73,24 @@ CREATE TABLE asset_references (
  PRIMARY KEY(asset_id,owner_type,owner_key)
 );
 CREATE INDEX asset_references_owner ON asset_references(owner_type,owner_key,deleted_at);
+
+CREATE TABLE resources (
+ id varchar(36) PRIMARY KEY, org_id varchar(64) NOT NULL, project_id varchar(36) NOT NULL,
+ type smallint NOT NULL, name varchar(128) NOT NULL, description varchar(800) NOT NULL DEFAULT '',
+ primary_resource_asset_id varchar(36) NOT NULL DEFAULT '', revision bigint NOT NULL DEFAULT 1,
+ resource_asset_count integer NOT NULL DEFAULT 0, created_by varchar(64) NOT NULL,
+ created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, deleted_at timestamptz
+);
+CREATE INDEX resources_project_type ON resources(project_id,type,deleted_at);
+CREATE TABLE resource_assets (
+ id varchar(36) PRIMARY KEY, resource_id varchar(36) NOT NULL, name varchar(128) NOT NULL,
+ sequence_no bigint NOT NULL, source_type smallint NOT NULL, current_asset_id varchar(36) NOT NULL,
+ media_type smallint NOT NULL, revision bigint NOT NULL DEFAULT 1,
+ created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, deleted_at timestamptz
+);
+CREATE INDEX resource_assets_resource ON resource_assets(resource_id,deleted_at);
+CREATE TABLE resource_asset_revisions (
+ resource_asset_id varchar(36) NOT NULL, asset_id varchar(36) NOT NULL, media_type smallint NOT NULL,
+ revision_no bigint NOT NULL, created_at timestamptz NOT NULL,
+ PRIMARY KEY(resource_asset_id,revision_no)
+);

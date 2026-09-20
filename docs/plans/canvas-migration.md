@@ -39,3 +39,5 @@ Canvas 状态方案已按用户确认采用 Jotai：页面 Provider、规范化�
 - 本地图片/视频/音频上传 → Knowledge 独立对象命名空间 → Canvas Asset/引用账本 → 节点预览；不依赖 Chat 会话生命周期。素材资源库、媒体生成、审核和物理 GC 尚未接通。
 - 从源端直接迁入领域模块和生成输入 resolver；resolver 已用于文本生成，保留 mention 与输入顺序语义。
 - 用户授权按模块在 monorepo 本地提交；不 push。源 schema 基准改为 multix-app 最新 MySQL schema，目标 PostgreSQL，Canvas migration 合为 v1.0.0。
+
+- 资源库已接通四种分类、创建/重命名/删除、上传素材及独立复制到画布，左栏新增节点/资产页签。资源换版、跟随引用、审核、生成草稿仍待迁移。

@@ -93,6 +93,11 @@ export function Component() {
             <PageTitle>{projectId ? (project?.name ?? "项目") : "我的项目"}</PageTitle>
           </div>
           <div className="flex items-center gap-2">
+            {projectId ? (
+              <Button asChild variant="outline">
+                <Link to={`/platform/canvas/projects/${projectId}/resources`}>资产库</Link>
+              </Button>
+            ) : null}
             <Button asChild variant="ghost">
               <Link to="/platform/admin/canvas">
                 <Settings className="size-4" />

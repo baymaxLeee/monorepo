@@ -63,6 +63,9 @@ func (s *Service) DeleteProject(ctx context.Context, actor Actor, id string, in 
 		if err := tx.Where("owner_type = ? AND owner_key IN (SELECT id FROM canvas_nodes WHERE canvas_id IN (SELECT id FROM canvases WHERE project_id = ?))", "CANVAS_NODE_ASSET", id).Delete(&p.AssetReference{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("owner_type = ? AND owner_key IN (SELECT id FROM resource_assets WHERE resource_id IN (SELECT id FROM resources WHERE project_id = ?))", "RESOURCE_ASSET_REVISION", id).Delete(&p.AssetReference{}).Error; err != nil {
+			return err
+		}
 		// Retain content for recovery; the deleted project is the access boundary.
 		return tx.Delete(&project).Error
 	})

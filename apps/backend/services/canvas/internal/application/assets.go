@@ -28,24 +28,7 @@ func (s *Service) UploadNode(ctx context.Context, a Actor, canvasID, nodeID, nam
 	if err != nil {
 		return c.Graph{}, err
 	}
-	reader := bufio.NewReader(body)
-	prefix, err := reader.Peek(512)
-	if err != nil && err != io.EOF {
-		return c.Graph{}, err
-	}
-	mime := http.DetectContentType(prefix)
-	var kind int16
-	switch {
-	case strings.HasPrefix(mime, "image/"):
-		kind = 1
-	case strings.HasPrefix(mime, "video/"):
-		kind = 2
-	case strings.HasPrefix(mime, "audio/"):
-		kind = 3
-	default:
-		return c.Graph{}, Invalid("unsupported media content")
-	}
-	key, err := s.Storage.Put(ctx, storage.Scope(a.OrgID, board.ProjectID), reader)
+	key, mime, kind, err := s.storeMedia(ctx, a, board.ProjectID, body)
 	if err != nil {
 		return c.Graph{}, err
 	}
@@ -118,4 +101,25 @@ func (s *Service) NodeContent(ctx context.Context, a Actor, canvasID, nodeID str
 	}
 	body, err := s.Storage.Get(ctx, storage.Scope(a.OrgID, board.ProjectID), asset.ObjectKey)
 	return MediaContent{Body: body, MIME: asset.MimeType}, err
+}
+
+func (s *Service) storeMedia(ctx context.Context, a Actor, projectID string, body io.Reader) (key, mime string, kind int16, err error) {
+	reader := bufio.NewReader(body)
+	prefix, err := reader.Peek(512)
+	if err != nil && err != io.EOF {
+		return "", "", 0, err
+	}
+	mime = http.DetectContentType(prefix)
+	switch {
+	case strings.HasPrefix(mime, "image/"):
+		kind = 1
+	case strings.HasPrefix(mime, "video/"):
+		kind = 2
+	case strings.HasPrefix(mime, "audio/"):
+		kind = 3
+	default:
+		return "", "", 0, Invalid("unsupported media content")
+	}
+	key, err = s.Storage.Put(ctx, storage.Scope(a.OrgID, projectID), reader)
+	return key, mime, kind, err
 }

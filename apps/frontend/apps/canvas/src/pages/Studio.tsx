@@ -18,7 +18,8 @@ import { DeleteSelectionDialog, type CanvasSelection } from "../components/Delet
 import { NodeEditor, type NodeEditorHandle } from "../components/NodeEditor";
 import { NodeGeneration } from "../components/NodeGeneration";
 import { Storyboard } from "../components/Storyboard";
-import { StudioNodePanel, nodeKinds } from "../components/StudioNodePanel";
+import { nodeKinds } from "../components/StudioNodePanel";
+import { StudioSidebar } from "../components/StudioSidebar";
 import { useCanvasGraph } from "../hooks/useCanvasGraph";
 import { activeNodeIdAtom, studioViewAtom, nodePanelOpenAtom, chatPanelOpenAtom } from "../store/studio";
 
@@ -170,7 +171,12 @@ function Studio({ canvasId, projectId }: { canvasId: string; projectId: string }
           <ResizablePanel id="canvas-workspace" minSize="40%">
             <div className="flex h-full min-h-0">
               {leftOpen ? (
-                <StudioNodePanel
+                <StudioSidebar
+                  projectId={projectId}
+                  canvasId={canvasId}
+                  beforeCopy={async () => {
+                    await editor.current?.finish();
+                  }}
                   busy={busy || !graph}
                   selectedId={selected}
                   onCreate={(type) => void createNode(type)}
