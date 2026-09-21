@@ -495,7 +495,7 @@ export default function ResourcesPage() {
               className="h-[320px] w-[320px] object-contain"
               src={emptyIllustration}
             />
-            <p className="m-0 text-[20px] font-medium leading-8 text-[color:var(--color-text-1)]">
+            <p className="m-0 text-[20px] font-medium leading-8 text-foreground">
               {t("暂无{type}资产，快去添加", { type: selectedTypeLabel })}
             </p>
           </section>

@@ -11,7 +11,7 @@
     align-items: center;
     box-sizing: border-box;
     padding: 8px 20px;
-    border-bottom: 1px solid var(--color-border-2);
+    border-bottom: 1px solid var(--border);
   }
 
   :global(.canvas-modal-title) {
@@ -21,7 +21,7 @@
   :global(.canvas-modal-close-icon) {
     top: 12px;
     right: 20px;
-    color: var(--color-text-2);
+    color: var(--foreground);
     font-size: 20px;
   }
 
@@ -60,7 +60,7 @@
 }
 
 .videoFrameFailure {
-  background: var(--color-fill-1);
+  background: var(--muted);
 }
 
 .textFrame {
@@ -70,9 +70,9 @@
   box-sizing: border-box;
   padding: 16px;
   overflow-y: auto;
-  border: 1px solid var(--color-border-3);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  color: var(--color-text-1);
+  color: var(--foreground);
   font-size: 14px;
   line-height: 26px;
   white-space: pre-wrap;
@@ -86,7 +86,7 @@
     height: 100%;
     align-items: center;
     justify-content: center;
-    color: var(--color-text-3);
+    color: var(--muted-foreground);
   }
 }
 
@@ -98,7 +98,7 @@
   gap: 16px;
   box-sizing: border-box;
   padding: 12px 16px;
-  border: 1px solid var(--color-border-3);
+  border: 1px solid var(--border);
   border-radius: 12px;
 }
 
@@ -131,16 +131,16 @@
   text-align: left;
 
   &:hover {
-    background: var(--color-fill-1);
+    background: var(--muted);
   }
 }
 
 .historyRowSelected {
-  border-color: var(--color-text-1);
-  background: var(--color-bg-1);
+  border-color: var(--foreground);
+  background: var(--background);
 
   &:hover {
-    background: var(--color-bg-1);
+    background: var(--background);
   }
 }
 
@@ -149,7 +149,7 @@
   height: 0;
   border-top: 6px solid transparent;
   border-bottom: 6px solid transparent;
-  border-left: 7px solid var(--color-text-1);
+  border-left: 7px solid var(--foreground);
 }
 
 .scriptPanel {
@@ -175,7 +175,7 @@
   margin: 0;
   padding-right: 44px;
   overflow: hidden;
-  color: var(--color-text-2);
+  color: var(--foreground);
   font-size: 14px;
   line-height: 26px;
   overflow-wrap: anywhere;
@@ -205,7 +205,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--color-text-2);
+  color: var(--foreground);
   cursor: pointer;
   font-family: inherit;
   font-size: 13px;

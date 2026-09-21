@@ -30,7 +30,10 @@ const clearSelection = ({ tr }: { tr: any }) => {
 };
 
 export const TableColumnMenu: React.FC<TableColumnMenuProps> = ({ editor }) => {
-  const isMarkdown = useEditorContext((ctx) => ctx.contentType) === "markdown";
+  const { isMarkdown, popupConfig } = useEditorContext((ctx) => ({
+    isMarkdown: ctx.contentType === "markdown",
+    popupConfig: ctx.popupConfig,
+  }));
   const { canDeleteColumn, isTableSelected } = useEditorState({
     editor,
     selector: ({ editor: currentEditor }) => {
@@ -60,7 +63,8 @@ export const TableColumnMenu: React.FC<TableColumnMenuProps> = ({ editor }) => {
     <BubbleMenu
       editor={editor}
       pluginKey="tableColumnMenu"
-      appendTo={document.body}
+      appendTo={() => popupConfig.getContainer(editor.view.dom)}
+      style={{ zIndex: popupConfig.zIndex }}
       updateDelay={0}
       shouldShow={ALWAYS_SHOW}
       options={{ offset: 16 }}

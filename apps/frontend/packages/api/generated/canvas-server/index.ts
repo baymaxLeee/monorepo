@@ -189,6 +189,7 @@ export interface CanvasGenerationState {
   id: string;
   node_id: string;
   status: string;
+  task_type: number;
 }
 
 export interface CanvasGenerationStateList {
@@ -202,6 +203,8 @@ export interface CanvasNode {
   incoming_edges: CanvasEdge[];
   name: string;
   prompt: string;
+  resource_asset_id: string;
+  resource_id: string;
   revision: number;
   storyboard_rank: number;
   text: string;
@@ -262,12 +265,32 @@ export interface CanvasProject {
 }
 
 export interface CanvasProjectAsset {
+  expires_at: string;
   id: string;
   media_type: number;
+  preview_url: string;
+}
+
+export interface CanvasProjectStats {
+  canvas_count: number;
+  resource_count: number;
+  selected_video_duration_millis: number;
+}
+
+export interface CanvasProjectSummary {
+  cover_image_path: string;
+  created_at: string;
+  created_by: string;
+  description: string;
+  id: string;
+  name: string;
+  revision: number;
+  stats: CanvasProjectStats;
+  updated_at: string;
 }
 
 export interface CanvasProjectList {
-  items: CanvasProject[];
+  items: CanvasProjectSummary[];
 }
 
 export interface CanvasProjectManagement {
@@ -305,10 +328,13 @@ export interface CanvasResource {
 
 export interface CanvasResourceAsset {
   created_at: string;
+  current_asset_id: string;
+  expires_at: string;
   has_content: boolean;
   id: string;
   media_type: number;
   name: string;
+  preview_url: string;
   revision: number;
   sequence_no: number;
   source_type: number;
@@ -696,16 +722,6 @@ const canvasStartAssetMatch = (
       {url: `/api/canvas-server/canvases/${id}/nodes/${nodeId}/asset-matches`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: canvasStartAssetMatch
-    },
-      options);
-    }
-
-const canvasLatestAssetMatch = (
-    id: string,
-    nodeId: string,
- options?: SecondParameter<typeof apiMutator<CanvasAssetMatchRun>>,) => {
-      return apiMutator<CanvasAssetMatchRun>(
-      {url: `/api/canvas-server/canvases/${id}/nodes/${nodeId}/asset-matches/latest`, method: 'GET'
     },
       options);
     }
@@ -1441,7 +1457,7 @@ const canvasCommitStoryboardProgress = (
       options);
     }
 
-return {canvasDeleteBoard,canvasUpdateBoard,canvasListArchives,canvasCreateArchive,canvasCancelArchive,canvasArchiveContent,canvasCopyAsset,canvasClearBoardCover,canvasUploadBoardCover,canvasBoardCoverContent,canvasGenerationStatus,canvasStartAllVideoGenerations,canvasApplyGeneration,canvasCancelGeneration,canvasGenerationContent,canvasGetGraph,canvasMutateGraph,canvasStartAssetMatch,canvasLatestAssetMatch,canvasGetAssetMatch,canvasCancelAssetMatch,canvasNodeContent,canvasCopyNode,canvasNodeFrames,canvasListGenerations,canvasStartGeneration,canvasResourceFromNode,canvasCopyResourceToCanvas,canvasListStoryboards,canvasStartStoryboard,canvasGetStoryboard,canvasUpdateStoryboard,canvasCancelStoryboard,canvasConfirmStoryboard,canvasStreamStoryboard,canvasUploadNode,canvasGetView,canvasUpdateCanvasView,canvasSaveView,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasListAssetReviews,canvasProjectAssetContent,canvasSubmitProjectAssetReview,canvasUploadProjectAsset,canvasListAvailableBenefitPackages,canvasListBoards,canvasCreateBoard,canvasClearProjectCover,canvasUploadProjectCover,canvasProjectCoverContent,canvasSearchCreativeAssets,canvasProjectManagement,canvasUpdateProjectMembers,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasResourceContent,canvasGetResourceGeneration,canvasUpdateResourceGeneration,canvasListResourceGenerationRuns,canvasStartResourceGeneration,canvasCancelResourceGeneration,canvasSetPrimaryResourceAsset,canvasSubmitAssetReview,canvasReplaceResourceAsset,canvasListResourceVersions,canvasResourceVersionContent,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasUpdateResource,canvasListResourceAssets,canvasCreateGeneratedResourceAsset,canvasUploadResourceAsset,canvasProjectUsage,canvasUpdateProjectUsageLimit,canvasProjectUsageWorkbook,canvasExecuteArchive,canvasExecuteFrames,canvasCommitStoryboardProgress}};
+return {canvasDeleteBoard,canvasUpdateBoard,canvasListArchives,canvasCreateArchive,canvasCancelArchive,canvasArchiveContent,canvasCopyAsset,canvasClearBoardCover,canvasUploadBoardCover,canvasBoardCoverContent,canvasGenerationStatus,canvasStartAllVideoGenerations,canvasApplyGeneration,canvasCancelGeneration,canvasGenerationContent,canvasGetGraph,canvasMutateGraph,canvasStartAssetMatch,canvasGetAssetMatch,canvasCancelAssetMatch,canvasNodeContent,canvasCopyNode,canvasNodeFrames,canvasListGenerations,canvasStartGeneration,canvasResourceFromNode,canvasCopyResourceToCanvas,canvasListStoryboards,canvasStartStoryboard,canvasGetStoryboard,canvasUpdateStoryboard,canvasCancelStoryboard,canvasConfirmStoryboard,canvasStreamStoryboard,canvasUploadNode,canvasGetView,canvasUpdateCanvasView,canvasSaveView,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasListAssetReviews,canvasProjectAssetContent,canvasSubmitProjectAssetReview,canvasUploadProjectAsset,canvasListAvailableBenefitPackages,canvasListBoards,canvasCreateBoard,canvasClearProjectCover,canvasUploadProjectCover,canvasProjectCoverContent,canvasSearchCreativeAssets,canvasProjectManagement,canvasUpdateProjectMembers,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasResourceContent,canvasGetResourceGeneration,canvasUpdateResourceGeneration,canvasListResourceGenerationRuns,canvasStartResourceGeneration,canvasCancelResourceGeneration,canvasSetPrimaryResourceAsset,canvasSubmitAssetReview,canvasReplaceResourceAsset,canvasListResourceVersions,canvasResourceVersionContent,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasUpdateResource,canvasListResourceAssets,canvasCreateGeneratedResourceAsset,canvasUploadResourceAsset,canvasProjectUsage,canvasUpdateProjectUsageLimit,canvasProjectUsageWorkbook,canvasExecuteArchive,canvasExecuteFrames,canvasCommitStoryboardProgress}};
 export type CanvasDeleteBoardResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasDeleteBoard']>>>
 export type CanvasUpdateBoardResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUpdateBoard']>>>
 export type CanvasListArchivesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListArchives']>>>
@@ -1460,7 +1476,6 @@ export type CanvasGenerationContentResult = NonNullable<Awaited<ReturnType<Retur
 export type CanvasGetGraphResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGetGraph']>>>
 export type CanvasMutateGraphResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasMutateGraph']>>>
 export type CanvasStartAssetMatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasStartAssetMatch']>>>
-export type CanvasLatestAssetMatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasLatestAssetMatch']>>>
 export type CanvasGetAssetMatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGetAssetMatch']>>>
 export type CanvasCancelAssetMatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCancelAssetMatch']>>>
 export type CanvasNodeContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasNodeContent']>>>

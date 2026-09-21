@@ -3,8 +3,8 @@ import {
   History as IconAgentHistory,
   Download as IconDownloadFine,
   LoaderCircle as IconLoading,
+  Play as IconPlay,
   ArrowLeftRight as IconSwitchover,
-  Video as IconVideoGeneration,
 } from "lucide-react";
 import { type SyntheticEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -170,9 +170,9 @@ export function PreviewPanel({
   };
 
   return (
-    <aside className="box-border flex w-[418px] min-h-0 shrink-0 flex-col items-center justify-center border-0 border-l border-solid border-[color:var(--color-border-2)] p-3">
+    <aside className="box-border flex w-[418px] min-h-0 shrink-0 flex-col items-center justify-center border-0 border-l border-solid border-border p-3">
       <div
-        className="relative max-w-[394px] min-h-0 shrink grow-0 overflow-hidden rounded-[20px] bg-[color:var(--color-bg-5)]"
+        className="relative max-w-[394px] min-h-0 shrink grow-0 overflow-hidden rounded-[20px] bg-muted"
         data-testid="storyboard-preview-frame"
         style={{
           aspectRatio: `${previewRatio.width} / ${previewRatio.height}`,
@@ -260,17 +260,22 @@ export function PreviewPanel({
           </>
         ) : (
           <button
-            className={`flex h-full w-full flex-col items-center justify-center gap-3 border-0 bg-[transparent] p-0 text-[14px] leading-6 text-[color:var(--color-text-3)] ${
+            className={`flex h-full w-full flex-col items-center justify-center gap-3 border-0 bg-[transparent] p-0 text-[14px] leading-6 text-muted-foreground ${
               generatable ? "cursor-pointer" : "cursor-not-allowed"
             }`}
             disabled={!generatable}
             onClick={onGenerate}
             type="button"
           >
-            <IconVideoGeneration className="text-[72px] text-[color:var(--color-text-4)]" />
+            <span
+              aria-hidden
+              className="flex size-[72px] items-center justify-center rounded-[20px] border border-dashed border-muted-foreground/40 text-muted-foreground"
+            >
+              <IconPlay className="ml-1 size-8" strokeWidth={1.5} />
+            </span>
             <span>
               {t("未生成内容，")}
-              <span className="text-[color:var(--color-text-1)]">{t("立即生成")}</span>
+              <span className="text-foreground">{t("立即生成")}</span>
             </span>
           </button>
         )}

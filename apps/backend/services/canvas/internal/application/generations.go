@@ -133,7 +133,7 @@ func (s *Service) StartGeneration(ctx context.Context, a Actor, canvasID, nodeID
 		}
 		out.InputPayload = string(textPayload)
 		if node.Type == 5 {
-			references := []string{}
+			artifactIDs := []string{}
 			for _, input := range resolved.Inputs {
 				if input.Modality != inputdomain.ModalityImage {
 					continue
@@ -142,9 +142,9 @@ func (s *Service) StartGeneration(ctx context.Context, a Actor, canvasID, nodeID
 				if err := tx.Where("id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ?", input.AssetID, a.TenantID, a.WorkspaceID, board.ProjectID).First(&asset).Error; err != nil {
 					return NotFound()
 				}
-				references = append(references, asset.ObjectKey)
+				artifactIDs = append(artifactIDs, asset.ArtifactID)
 			}
-			payload := map[string]any{"tenantId": a.TenantID, "workspaceId": a.WorkspaceID, "providerId": out.ProviderID, "prompt": prompt, "objectScope": storage.Scope(a.TenantID, a.WorkspaceID, board.ProjectID), "references": references}
+			payload := map[string]any{"tenantId": a.TenantID, "workspaceId": a.WorkspaceID, "providerId": out.ProviderID, "prompt": prompt, "artifactNamespace": storage.Scope(a.TenantID, a.WorkspaceID, board.ProjectID), "artifactIds": artifactIDs}
 			if node.GenerationConfig.Resolution != "" {
 				width, height, err := imagegen.Dimensions(imagegen.Resolution(node.GenerationConfig.Resolution), imagegen.AspectRatio(node.GenerationConfig.AspectRatio))
 				if err != nil {

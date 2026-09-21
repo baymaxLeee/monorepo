@@ -27,7 +27,7 @@ func manageProject(tx *gorm.DB, actor Actor, id string) (p.Project, error) {
 
 func (s *Service) GetProject(ctx context.Context, actor Actor, id string) (c.Project, error) {
 	project, err := access(s.DB.WithContext(ctx), actor, id, false)
-	return projectDTO(project), err
+	return s.projectDTOWithCover(ctx, actor, project), err
 }
 
 func (s *Service) UpdateProject(ctx context.Context, actor Actor, id string, in c.UpdateProject) (c.Project, error) {
@@ -54,7 +54,7 @@ func (s *Service) UpdateProject(ctx context.Context, actor Actor, id string, in 
 	if uniqueViolation(err, "projects_scope_name") {
 		err = ConflictMessage("project_name_conflict", "同一工作空间内项目名称不能重复")
 	}
-	return projectDTO(project), err
+	return s.projectDTOWithCover(ctx, actor, project), err
 }
 
 func (s *Service) DeleteProject(ctx context.Context, actor Actor, id string, in c.ExpectedRevision) (c.Deleted, error) {
@@ -126,7 +126,7 @@ func (s *Service) UpdateBoard(ctx context.Context, actor Actor, id string, in c.
 		board.Revision++
 		return tx.Save(&board).Error
 	})
-	return boardDTO(board), err
+	return s.boardDTOWithCover(ctx, actor, board), err
 }
 
 func (s *Service) DeleteBoard(ctx context.Context, actor Actor, id string, in c.ExpectedRevision) (c.Deleted, error) {

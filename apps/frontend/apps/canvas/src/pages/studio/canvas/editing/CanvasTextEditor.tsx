@@ -42,21 +42,16 @@ export function CanvasTextEditor({
   };
 
   const renderEditor = () => (
-    <div className={`${styles.editor} relative flex min-h-0 flex-1`}>
+    <div className={`${styles.editor} flex min-h-0 flex-1`}>
       <ScriptEditor
         editable
         onChange={changeValue}
-        placeholder={null}
+        placeholder={placeholder}
         queryTree={queryTree}
         reviewAsset={reviewAsset}
         script={value}
         selectAsset={selectAsset}
       />
-      {value ? null : (
-        <span className="pointer-events-none absolute left-0 top-0 text-[13px] leading-5.5 text-[color:var(--color-text-3)]">
-          {placeholder}
-        </span>
-      )}
     </div>
   );
 
@@ -70,9 +65,7 @@ export function CanvasTextEditor({
           onPointerDown={(event) => event.stopPropagation()}
         >
           <div className="flex h-6 flex-none items-center justify-between">
-            <div className="min-w-0 truncate text-[14px] font-medium leading-6 text-[color:var(--color-text-1)]">
-              {title}
-            </div>
+            <div className="min-w-0 truncate text-[14px] font-medium leading-6 text-foreground">{title}</div>
             <button
               aria-label={t("收起文本编辑器")}
               className={`${styles.collapseButton} flex h-6 w-6 flex-none cursor-pointer items-center justify-center rounded-[8px] border-0 p-0 text-[16px]`}

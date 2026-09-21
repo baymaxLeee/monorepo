@@ -2,6 +2,7 @@ import { Input } from "@repo/design-system/shadcn/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@repo/design-system/shadcn/select";
 import { Tooltip, TooltipTrigger } from "@repo/design-system/shadcn/tooltip";
 import { cn } from "@repo/shared";
+import { Extension } from "@tiptap/core";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { NodeViewContent, type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import { common, createLowlight } from "lowlight";
@@ -23,14 +24,16 @@ const ACTION_BTN_CLS =
 
 const ACTION_BTN_ACTIVE_CLS = "bg-blue-50 text-blue-600 hover:text-blue-600";
 
-export const CodeBlockComponent: React.FC<NodeViewProps> = ({ node, updateAttributes }) => {
+export const CodeBlockComponent: React.FC<NodeViewProps> = ({ editor, node, updateAttributes }) => {
   const { language, title } = node.attrs;
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isAutoWrap, setIsAutoWrap] = useState(false);
-  const { contentType, editable } = useEditorContext((ctx) => ({
+  const { contentType, editable, popupConfig } = useEditorContext((ctx) => ({
     contentType: ctx.contentType,
     editable: ctx.editable,
+    popupConfig: ctx.popupConfig,
   }));
+  const popupContainer = popupConfig.getContainer(editor.view.dom);
   const isMarkdown = contentType === "markdown";
 
   const handleCopy = () => {
@@ -91,7 +94,7 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({ node, updateAttrib
                       <SelectTrigger className="h-6 w-[120px] border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground focus:ring-0 focus-visible:ring-0">
                         <SelectValue placeholder="语言" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent container={popupContainer} style={{ zIndex: popupConfig.zIndex }}>
                         {supportedLanguages.map((lang) => (
                           <SelectItem key={lang} value={lang}>
                             {lang}
@@ -173,5 +176,19 @@ export const createCodeBlockExtension = () =>
     },
     addNodeView() {
       return ReactNodeViewRenderer(CodeBlockComponent);
+    },
+  });
+
+/** Preserve fenced-code text as plain paragraphs when the code-block capability is disabled. */
+export const createCodeBlockFallbackExtension = () =>
+  Extension.create({
+    name: "codeBlockFallback",
+    markdownTokenName: "code",
+    parseMarkdown(token, helpers) {
+      const content = (token.text ?? "").split("\n").flatMap((line, index) => {
+        const lineContent = line ? [helpers.createTextNode(line)] : [];
+        return index === 0 ? lineContent : [helpers.createNode("hardBreak"), ...lineContent];
+      });
+      return helpers.createNode("paragraph", {}, content);
     },
   });

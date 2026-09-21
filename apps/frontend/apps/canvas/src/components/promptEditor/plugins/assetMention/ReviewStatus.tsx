@@ -19,7 +19,7 @@ export function ReviewShield({ tone }: { tone: ShieldTone }) {
     return (
       <span
         aria-hidden
-        className="box-border h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-[1.5px] border-solid border-[color:rgb(var(--primary-6))] border-r-[transparent]"
+        className="box-border h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-[1.5px] border-solid border-primary border-r-[transparent]"
       />
     );
   }
@@ -163,7 +163,7 @@ export function AssetReviewFooter({
   const canAddToLibrary = Boolean(onAddToLibrary) && approved.length > 0;
   const tone = approved.length ? "approved" : reviewTone(review);
   let label = t("未审核");
-  let labelClass = "text-[color:var(--color-text-4)]";
+  let labelClass = "text-muted-foreground";
   let detail: string | undefined;
   let detailClass = "";
   if (approved.length) {
@@ -179,13 +179,13 @@ export function AssetReviewFooter({
     detailClass = "text-[#FF832B]";
   } else if (review) {
     label = t("审核中");
-    labelClass = "font-medium text-[color:rgb(var(--primary-6))]";
+    labelClass = "font-medium text-primary";
   }
 
   return (
     <div
       className={`group flex h-7 items-center justify-between rounded-[8px] px-2 text-[12px] leading-5 ${
-        canSubmit ? "group-hover:bg-[color:var(--color-bg-6)]" : ""
+        canSubmit ? "group-hover:bg-muted" : ""
       }`}
     >
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
@@ -224,7 +224,7 @@ export function AssetReviewFooter({
       </div>
       {canSubmit || canAddToLibrary ? (
         <button
-          className={`shrink-0 cursor-pointer items-center gap-1 border-0 bg-[transparent] p-0 text-[12px] leading-5 text-[color:var(--color-text-1)] ${
+          className={`shrink-0 cursor-pointer items-center gap-1 border-0 bg-[transparent] p-0 text-[12px] leading-5 text-foreground ${
             canAddToLibrary ? "flex" : "hidden group-hover:flex"
           }`}
           onClick={(event) => {

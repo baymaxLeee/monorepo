@@ -89,7 +89,7 @@ func (s *Service) markUnreferencedAssets(ctx context.Context, now time.Time) err
 			}
 			candidate := p.AssetGCCandidate{
 				AssetID: asset.ID, TenantID: asset.TenantID, WorkspaceID: asset.WorkspaceID,
-				ProjectID: asset.ProjectID, ObjectKey: asset.ObjectKey,
+				ProjectID: asset.ProjectID, ArtifactID: asset.ArtifactID,
 				PurgeNotBefore: now.Add(assetRetention), NextAttemptAt: now.Add(assetRetention),
 				StateVersion: 1, CreatedAt: now, UpdatedAt: now,
 			}
@@ -111,18 +111,18 @@ func (s *Service) purgeAsset(ctx context.Context, item p.AssetGCCandidate, now t
 	}
 	var otherOwners int64
 	if err := s.DB.WithContext(ctx).Unscoped().Model(&p.Asset{}).
-		Where("id <> ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND object_key = ?", item.AssetID, item.TenantID, item.WorkspaceID, item.ProjectID, item.ObjectKey).
+		Where("id <> ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND artifact_id = ?", item.AssetID, item.TenantID, item.WorkspaceID, item.ProjectID, item.ArtifactID).
 		Count(&otherOwners).Error; err != nil {
 		return err
 	}
 	var archiveOwners int64
 	if err := s.DB.WithContext(ctx).Table("canvas_video_archive_exports").
-		Where("tenant_id = ? AND workspace_id = ? AND project_id = ? AND output_path = ? AND cleanup_status <> ?", item.TenantID, item.WorkspaceID, item.ProjectID, item.ObjectKey, "completed").
+		Where("tenant_id = ? AND workspace_id = ? AND project_id = ? AND output_path = ? AND cleanup_status <> ?", item.TenantID, item.WorkspaceID, item.ProjectID, item.ArtifactID, "completed").
 		Count(&archiveOwners).Error; err != nil {
 		return err
 	}
 	if otherOwners == 0 && archiveOwners == 0 {
-		if err := s.Storage.Delete(ctx, storage.Scope(item.TenantID, item.WorkspaceID, item.ProjectID), item.ObjectKey); err != nil {
+		if err := s.Storage.Delete(ctx, storage.Scope(item.TenantID, item.WorkspaceID, item.ProjectID), item.ArtifactID); err != nil {
 			return err
 		}
 	}

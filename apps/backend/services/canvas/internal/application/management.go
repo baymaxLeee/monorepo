@@ -47,7 +47,7 @@ func (s *Service) ProjectManagement(ctx context.Context, actor Actor, projectID 
 		return c.ProjectManagement{}, err
 	}
 	out := c.ProjectManagement{
-		Project: projectDTO(project), Members: []c.Member{},
+		Project: s.projectDTOWithCover(ctx, actor, project), Members: []c.Member{},
 		CanManage: actor.WorkspaceRole == "workspace_admin",
 	}
 	for _, member := range members {

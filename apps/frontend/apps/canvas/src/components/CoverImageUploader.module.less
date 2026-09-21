@@ -17,14 +17,14 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 1px dashed var(--color-border-3);
+  border: 1px dashed var(--border);
   border-radius: 12px;
-  background-color: var(--color-fill-1);
+  background-color: var(--muted);
   cursor: pointer;
 }
 
 .defaultEmptyIcon {
-  color: var(--color-text-3);
+  color: var(--muted-foreground);
   font-size: 32px;
 }
 
@@ -45,7 +45,7 @@
   justify-content: center;
   border-radius: inherit;
   background-color: rgba(0, 0, 0, 0.6);
-  color: var(--color-white);
+  color: var(--primary-foreground);
   opacity: 0;
   pointer-events: none;
   transition: opacity 200ms;
@@ -64,7 +64,7 @@
   border: 0;
   border-radius: 50%;
   background-color: rgba(255, 255, 255, 0.4);
-  color: var(--color-white);
+  color: var(--primary-foreground);
   opacity: 0;
   transition: opacity 200ms;
 }

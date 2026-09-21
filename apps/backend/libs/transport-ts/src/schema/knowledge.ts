@@ -55,6 +55,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/artifacts/presign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Batch Presign */
+        post: operations["batch_presign_internal_artifacts_presign_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ingest": {
         parameters: {
             query?: never;
@@ -466,7 +483,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/objects/{scope}/{key}": {
+    "/internal/objects/{scope}/{artifact_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -474,11 +491,11 @@ export interface paths {
             cookie?: never;
         };
         /** Get Object */
-        get: operations["get_object_internal_objects__scope___key__get"];
+        get: operations["get_object_internal_objects__scope___artifact_id__get"];
         put?: never;
         post?: never;
         /** Delete Object */
-        delete: operations["delete_object_internal_objects__scope___key__delete"];
+        delete: operations["delete_object_internal_objects__scope___artifact_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -659,6 +676,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ArtifactURLRequest */
+        ArtifactURLRequest: {
+            /** Namespace */
+            namespace: string;
+            /** Artifact Id */
+            artifact_id: string;
+            /** Content Type */
+            content_type: string;
+        };
+        /** BatchArtifactURLRequest */
+        BatchArtifactURLRequest: {
+            /** Items */
+            items: components["schemas"]["ArtifactURLRequest"][];
+        };
+        /** BatchArtifactURLResponse */
+        BatchArtifactURLResponse: {
+            /** Items */
+            items: components["schemas"]["PresignedArtifact"][];
+        };
         /** BatchDeleteInput */
         BatchDeleteInput: {
             /** Ids */
@@ -1029,6 +1065,17 @@ export interface components {
             /** Failed */
             failed?: components["schemas"]["IngestFailure"][];
         };
+        /** PresignedArtifact */
+        PresignedArtifact: {
+            /** Namespace */
+            namespace: string;
+            /** Artifact Id */
+            artifact_id: string;
+            /** Url */
+            url: string;
+            /** Expires At */
+            expires_at: string;
+        };
         /** PromoteChangeSetInput */
         PromoteChangeSetInput: {
             /** User Id */
@@ -1116,8 +1163,8 @@ export interface components {
         };
         /** StoredServiceObject */
         StoredServiceObject: {
-            /** Key */
-            key: string;
+            /** Artifact Id */
+            artifact_id: string;
             /** Size */
             size: number;
             /** Sha256 */
@@ -1250,6 +1297,42 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    batch_presign_internal_artifacts_presign_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchArtifactURLRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchArtifactURLResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -2218,7 +2301,7 @@ export interface operations {
             };
         };
     };
-    get_object_internal_objects__scope___key__get: {
+    get_object_internal_objects__scope___artifact_id__get: {
         parameters: {
             query?: never;
             header: {
@@ -2227,7 +2310,7 @@ export interface operations {
             };
             path: {
                 scope: string;
-                key: string;
+                artifact_id: string;
             };
             cookie?: never;
         };
@@ -2253,7 +2336,7 @@ export interface operations {
             };
         };
     };
-    delete_object_internal_objects__scope___key__delete: {
+    delete_object_internal_objects__scope___artifact_id__delete: {
         parameters: {
             query?: never;
             header: {
@@ -2262,7 +2345,7 @@ export interface operations {
             };
             path: {
                 scope: string;
-                key: string;
+                artifact_id: string;
             };
             cookie?: never;
         };

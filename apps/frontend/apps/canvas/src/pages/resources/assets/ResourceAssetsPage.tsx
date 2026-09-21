@@ -423,7 +423,7 @@ export function ResourceAssetsPageContent({
   };
 
   return (
-    <main className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[color:var(--color-bg-2)]">
+    <main className="relative flex h-full min-h-0 flex-col overflow-hidden bg-background">
       <header className="flex shrink-0 items-center gap-3 p-5">
         <Button
           aria-label={t("返回资产库")}
@@ -433,10 +433,10 @@ export function ResourceAssetsPageContent({
           onClick={() => onClose(resourceType ?? resource.ResourceType.CHARACTER)}
           size="mini"
         />
-        <h1 className="m-0 text-[20px] font-semibold leading-7 text-[color:var(--color-text-1)]">
+        <h1 className="m-0 text-[20px] font-semibold leading-7 text-foreground">
           {currentResource?.Name ?? item?.Name ?? t("资产")}
         </h1>
-        <span className="shrink-0 text-[20px] leading-7 text-[color:var(--color-text-3)]">
+        <span className="shrink-0 text-[20px] leading-7 text-muted-foreground">
           {t("共 {count} 个{materialName}", {
             count: total,
             materialName,
@@ -461,7 +461,7 @@ export function ResourceAssetsPageContent({
               </div>
               <div className="flex items-center gap-3">
                 {isOfficial ? (
-                  <span className="inline-flex items-center rounded-[8px] bg-[color:var(--color-bg-6)] px-3 py-[6px] text-[13px] text-[color:var(--color-text-2)]">
+                  <span className="inline-flex items-center rounded-[8px] bg-muted px-3 py-[6px] text-[13px] text-foreground">
                     {t("官方预置，仅支持试听与下载")}
                   </span>
                 ) : isAudio ? (
@@ -619,7 +619,7 @@ export function ResourceAssetsPageContent({
                   className="h-[320px] w-[320px] object-contain"
                   src={emptyIllustration}
                 />
-                <p className="m-0 text-[20px] font-medium leading-8 text-[color:var(--color-text-1)]">
+                <p className="m-0 text-[20px] font-medium leading-8 text-foreground">
                   {t("暂无{type}，快去添加", { type: emptyMaterialType })}
                 </p>
               </section>

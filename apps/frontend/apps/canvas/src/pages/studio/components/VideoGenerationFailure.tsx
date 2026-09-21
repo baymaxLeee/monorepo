@@ -40,20 +40,18 @@ export function VideoGenerationFailure({
 
   return (
     <div className={`flex h-full w-full flex-col items-center justify-center text-center ${compact ? "px-3" : "px-6"}`}>
-      <IconExclamationCircleRedFill aria-hidden className="text-[40px] text-[color:rgb(var(--danger-6))]" />
-      <strong
-        className={`${compact ? "mt-1 leading-5" : "mt-2 leading-6"} text-[14px] font-medium text-[color:rgb(var(--danger-6))]`}
-      >
+      <IconExclamationCircleRedFill aria-hidden className="text-[40px] text-destructive" />
+      <strong className={`${compact ? "mt-1 leading-5" : "mt-2 leading-6"} text-[14px] font-medium text-destructive`}>
         {title}
       </strong>
-      <div className="mt-0.5 flex w-full items-end justify-center gap-1 text-[color:var(--color-text-3)]">
+      <div className="mt-0.5 flex w-full items-end justify-center gap-1 text-muted-foreground">
         <p className="m-0 line-clamp-2 max-w-[calc(100%-24px)] text-center text-[13px] leading-5.5" title={message}>
           {message}
         </p>
         <Tooltip content={t("复制错误信息")} position="top">
           <button
             aria-label={t("复制错误信息")}
-            className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border-0 bg-[transparent] p-0 text-[14px] text-[color:var(--color-text-3)] hover:text-[color:var(--color-text-1)]"
+            className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border-0 bg-[transparent] p-0 text-[14px] text-muted-foreground hover:text-foreground"
             onClick={(event) => {
               event.stopPropagation();
               copyValue(message);
@@ -70,14 +68,14 @@ export function VideoGenerationFailure({
         <div
           className={`${compact ? "mt-1 max-w-[260px]" : "mt-2 max-w-[480px]"} flex w-full items-center justify-center gap-1 text-[12px] leading-5`}
         >
-          <span className="shrink-0 text-[color:var(--color-text-3)]">{traceLabel}</span>
-          <span className="min-w-0 truncate font-medium text-[color:var(--color-text-2)]" title={traceId}>
+          <span className="shrink-0 text-muted-foreground">{traceLabel}</span>
+          <span className="min-w-0 truncate font-medium text-foreground" title={traceId}>
             {traceId}
           </span>
           <Tooltip content={t("复制 {label}", { label: traceLabel })} position="top">
             <button
               aria-label={t("复制 {label}", { label: traceLabel })}
-              className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border-0 bg-[transparent] p-0 text-[14px] text-[color:var(--color-text-3)] hover:text-[color:var(--color-text-1)]"
+              className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border-0 bg-[transparent] p-0 text-[14px] text-muted-foreground hover:text-foreground"
               onClick={(event) => {
                 event.stopPropagation();
                 copyValue(traceId);

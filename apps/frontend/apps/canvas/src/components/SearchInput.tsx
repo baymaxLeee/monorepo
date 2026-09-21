@@ -13,7 +13,7 @@ export function SearchInput({ className, ...props }: SearchInputProps) {
       {...props}
       allowClear
       className={[styles.searchInput, className].filter(Boolean).join(" ")}
-      prefix={<IconSearch />}
+      prefix={<IconSearch className="relative z-10 size-4" />}
       size="default"
     />
   );

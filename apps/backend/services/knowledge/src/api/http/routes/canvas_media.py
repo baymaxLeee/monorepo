@@ -1,34 +1,35 @@
-"""Short-lived public Canvas media URLs for external review providers."""
+"""Public delivery for signed immutable artifact capabilities."""
 
-import hashlib
-import hmac
-import re
-import time
-
+from application.artifact_urls import valid_artifact_identity, valid_content_type, verify_artifact_url
 from application.object_store import ObjectStore
 from bootstrap.config import get_settings
 from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse
 from kernel.errors import RequestError, UnauthorizedError
 
-router = APIRouter(prefix="/media/canvas", tags=["canvas-media"])
+router = APIRouter(prefix="/media/artifacts", tags=["artifact-media"])
 
 
-@router.get("/{scope}/{key}", include_in_schema=False)
-def get_canvas_media(
-    scope: str, key: str, expires: int = Query(gt=0), signature: str = Query(min_length=64, max_length=64)
+@router.get("/{namespace}/{artifact_id}", include_in_schema=False)
+def get_artifact_media(
+    namespace: str,
+    artifact_id: str,
+    expires: int = Query(gt=0),
+    content_type: str = Query(min_length=3, max_length=129),
+    signature: str = Query(min_length=64, max_length=64),
 ) -> FileResponse:
-    if not re.fullmatch(r"[a-f0-9]{64}", scope) or not re.fullmatch(r"[a-f0-9]{64}", key):
-        raise RequestError("invalid canvas media key")
-    now = int(time.time())
-    if expires <= now or expires > now + 3600:
-        raise UnauthorizedError("canvas media URL expired")
-    message = f"{scope}\n{key}\n{expires}".encode()
-    expected = hmac.new(get_settings().internal_api_token.encode(), message, hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(signature, expected):
-        raise UnauthorizedError("invalid canvas media signature")
+    if not valid_artifact_identity(namespace, artifact_id) or not valid_content_type(content_type):
+        raise RequestError("invalid artifact capability")
+    if not verify_artifact_url(
+        namespace=namespace,
+        artifact_id=artifact_id,
+        content_type=content_type,
+        expires=expires,
+        signature=signature,
+    ):
+        raise UnauthorizedError("invalid or expired artifact capability")
     path = ObjectStore().get_path(
         bucket=get_settings().default_bucket,
-        key=f"service-objects/canvas/{scope}/{key}",
+        key=f"service-objects/canvas/{namespace}/{artifact_id}",
     )
-    return FileResponse(path, media_type="application/octet-stream")
+    return FileResponse(path, media_type=content_type)

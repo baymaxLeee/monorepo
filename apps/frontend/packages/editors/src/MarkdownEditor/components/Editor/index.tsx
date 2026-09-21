@@ -5,6 +5,7 @@ import { Color } from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
 import TaskList from "@tiptap/extension-task-list";
 import { TextStyle } from "@tiptap/extension-text-style";
+import { Placeholder } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -13,6 +14,7 @@ import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo,
 import { EditorProvider } from "../../context";
 import {
   createBlockDragExtension,
+  createCodeBlockFallbackExtension,
   createCodeBlockExtension,
   createCommentExtension,
   createImageExtension,
@@ -45,6 +47,7 @@ import { LinkMenu } from "../Link/LinkMenu";
 import { FixedToolbar } from "../TopToolbar";
 
 const EMPTY_EXTENSIONS: AnyExtension[] = [];
+const OVERLAY_CONTENT_SELECTOR = '[data-slot="sheet-content"], [data-slot="dialog-content"]';
 
 const normalizeMarkdownContent = (content: string | undefined, contentType: ContentType, parseHtml: boolean) => {
   if (!content || contentType !== "markdown" || parseHtml) {
@@ -89,11 +92,13 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
     toolbarMode = "bubble",
     extensions = EMPTY_EXTENSIONS,
     features,
+    popupConfig,
     editable = false,
     aiEnable = false,
     commentEnable = false,
     value,
     defaultValue,
+    placeholder,
     style,
     className,
     autoScrollToBottom,
@@ -111,6 +116,32 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
   const externalSyncFrameRef = useRef<number | null>(null);
   const lastSyncValueRef = useRef<string | undefined>();
   const stableExtensions = useShallowStableExtensions(extensions);
+  const codeBlockEnabled = features?.codeBlock !== false;
+  const blockMenuEnabled = features?.blockMenu !== false;
+  const blockDragEnabled = features?.blockDrag !== false;
+  const blockGutterEnabled = editable && (blockMenuEnabled || blockDragEnabled);
+  const resolvedFeatures = useMemo(
+    () => ({
+      blockDrag: blockDragEnabled,
+      blockMenu: blockMenuEnabled,
+      codeBlock: codeBlockEnabled,
+    }),
+    [blockDragEnabled, blockMenuEnabled, codeBlockEnabled],
+  );
+  const getEditorPopupContainer = useCallback(
+    (trigger: HTMLElement) =>
+      popupConfig?.getContainer?.(trigger) ??
+      (trigger.closest(OVERLAY_CONTENT_SELECTOR) as HTMLElement | null) ??
+      document.body,
+    [popupConfig?.getContainer],
+  );
+  const resolvedPopupConfig = useMemo(
+    () => ({
+      getContainer: getEditorPopupContainer,
+      zIndex: popupConfig?.zIndex ?? 101,
+    }),
+    [getEditorPopupContainer, popupConfig?.zIndex],
+  );
   const initialContent = useMemo(() => {
     return normalizeMarkdownContent(value ?? defaultValue, contentType, parseHtml);
   }, [contentType, defaultValue, parseHtml, value]);
@@ -151,19 +182,16 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
       TaskList,
       Markdown,
       createTaskItemExtension(),
+      ...(placeholder ? [Placeholder.configure({ placeholder })] : []),
       createCommentExtension(),
       createIndentExtension().configure({ contentType }),
-      ...(features?.codeBlock === false ? [] : [createCodeBlockExtension()]),
-      ...(editable
-        ? [
-            ...(features?.blockDrag === false ? [] : [createBlockDragExtension()]),
-            createSelectionPersistenceExtension(),
-          ]
-        : []),
-      createPasteFlattenExtension(),
+      ...(codeBlockEnabled ? [createCodeBlockExtension()] : [createCodeBlockFallbackExtension()]),
+      ...(editable && blockDragEnabled ? [createBlockDragExtension()] : []),
+      ...(editable ? [createSelectionPersistenceExtension()] : []),
+      createPasteFlattenExtension({ codeBlock: codeBlockEnabled }),
       ...stableExtensions,
     ],
-    [contentType, editable, stableExtensions, features?.blockDrag, features?.codeBlock],
+    [blockDragEnabled, codeBlockEnabled, contentType, editable, placeholder, stableExtensions],
   );
 
   const handleEditorUpdate = useCallback(
@@ -321,7 +349,15 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
     }
 
     if (toolbarMode === "bubble") {
-      return <BubbleToolbar editor={editor} aiEnable={aiEnable} commentEnable={commentEnable} />;
+      return (
+        <BubbleToolbar
+          appendTo={() => resolvedPopupConfig.getContainer(editor.view.dom)}
+          editor={editor}
+          zIndex={resolvedPopupConfig.zIndex}
+          aiEnable={aiEnable}
+          commentEnable={commentEnable}
+        />
+      );
     }
 
     return null;
@@ -329,7 +365,12 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
 
   return (
     <div
-      className={cn("markdown-editor text-sm text-foreground", editable && "markdown-editor-editable", className)}
+      className={cn(
+        "markdown-editor text-sm text-foreground",
+        editable && "markdown-editor-editable",
+        blockGutterEnabled && "markdown-editor-with-block-gutter",
+        className,
+      )}
       style={style}
     >
       {maskVisible && <div className="markdown-editor-mask" />}
@@ -340,6 +381,8 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
         onUpload={onUpload}
         contentType={contentType}
         toolbarMode={toolbarMode}
+        features={resolvedFeatures}
+        popupConfig={resolvedPopupConfig}
         toolbarRender={toolbarRender}
         editable={editable}
       >
@@ -348,8 +391,8 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
             {toolbarMode === "fixed" && (
               <FixedToolbar editor={editor} aiEnable={aiEnable} commentEnable={commentEnable} />
             )}
-            {features?.blockMenu !== false && <BlockMenu editor={editor} />}
-            {features?.blockDrag !== false && <DragHandler editor={editor} />}
+            {blockMenuEnabled && <BlockMenu editor={editor} />}
+            {blockDragEnabled && <DragHandler editor={editor} />}
             <LinkMenu editor={editor} />
             {renderToolbar()}
           </>

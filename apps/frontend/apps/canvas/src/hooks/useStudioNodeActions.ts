@@ -30,6 +30,8 @@ export function useStudioNodeActions(
           {
             id,
             asset_id: "",
+            resource_id: "",
+            resource_asset_id: "",
             type,
             name: nodeKinds.find((kind) => kind.type === type)?.name ?? "节点",
             text: "",

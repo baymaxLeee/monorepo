@@ -108,7 +108,6 @@ export function CanvasTools({
   return (
     <>
       <CanvasBoardControls
-        assetsOpen={false}
         graphLoaded
         nodeCount={flow.getNodes().length}
         canArrange={!busy && flow.getNodes().length > 0}

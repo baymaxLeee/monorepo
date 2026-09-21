@@ -54,7 +54,7 @@ export function CanvasConversation({ canvasId, onChange }: { canvasId: string; o
       </div>
     );
   return (
-    <div className="relative flex h-full min-h-0 flex-col">
+    <div className="relative flex h-full min-w-0 min-h-0 flex-col overflow-hidden [&_[role=log]>div]:[-ms-overflow-style:none] [&_[role=log]>div]:[scrollbar-width:none] [&_[role=log]>div::-webkit-scrollbar]:hidden">
       <ChatSession key={conversationId} conversationId={conversationId} onCanvasChange={onChange} />
       <ChatWorkspacePanel conversationId={conversationId} />
     </div>

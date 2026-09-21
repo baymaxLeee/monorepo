@@ -11,8 +11,8 @@ export function SegmentedTrack({ children }: { children: ReactNode }) {
 export function segmentItemClass(selected: boolean) {
   return `flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-[6px] border-0 p-0 text-[13px] font-medium leading-5.5 transition-colors ${
     selected
-      ? "bg-white text-[color:var(--color-text-1)] shadow-[0px_1px_3px_0px_rgba(0,0,0,0.08)]"
-      : "bg-[transparent] text-[color:var(--color-text-2)] hover:text-[color:var(--color-text-1)]"
+      ? "bg-white text-foreground shadow-[0px_1px_3px_0px_rgba(0,0,0,0.08)]"
+      : "bg-[transparent] text-foreground hover:text-foreground"
   }`;
 }
 

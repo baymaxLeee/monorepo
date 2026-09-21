@@ -77,7 +77,6 @@ import {
   extractSelectionToBlocks,
   extractTextFromPartialJson,
   getFullUrl,
-  getMountedEditorDom,
   parseSSEStream,
   type SelectionSnapshot,
 } from "../../utils";
@@ -124,14 +123,9 @@ function triggerCls(opts?: { isActive?: boolean; isDisabled?: boolean }) {
 
 /** 工具栏内的竖向分隔线 */
 const dividerCls = "mx-1 h-4 w-px shrink-0 bg-border";
-const OVERLAY_CONTENT_SELECTOR = '[data-slot="sheet-content"], [data-slot="dialog-content"]';
 
 function preventToolbarMouseDown(event: React.MouseEvent) {
   event.preventDefault();
-}
-
-function getOverlayContainer(editor: Editor): HTMLElement | null {
-  return (getMountedEditorDom(editor)?.closest(OVERLAY_CONTENT_SELECTOR) as HTMLElement | null) ?? null;
 }
 
 export function getActiveNodeType(editor: Editor, toolbarMode: ToolbarMode): string {
@@ -433,6 +427,7 @@ const NodeTypeDropdownItems = ({
   activeNodeType: string;
   toolbarMode: ToolbarMode;
 }) => {
+  const codeBlockEnabled = useEditorContext((ctx) => ctx.features.codeBlock);
   const handle = (key: string) => {
     let chain = editor.chain().focus();
 
@@ -567,10 +562,12 @@ const NodeTypeDropdownItems = ({
             引用
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => handle("codeBlock")} className={itemCls("codeBlock")}>
-            <Code2 />
-            代码块
-          </DropdownMenuItem>
+          {codeBlockEnabled ? (
+            <DropdownMenuItem onClick={() => handle("codeBlock")} className={itemCls("codeBlock")}>
+              <Code2 />
+              代码块
+            </DropdownMenuItem>
+          ) : null}
         </>
       )}
     </>
@@ -590,7 +587,6 @@ export const AIPolishContent = ({
   const [triggerVisible, setTriggerVisible] = useState(false);
   const [newTexts, setNewTexts] = useState<string[]>([]);
   const [status, _setStatus] = useState<AiPolishStatus>(AiPolishStatus.Pending);
-  const overlayContainer = useMemo(() => getOverlayContainer(editor), [editor]);
   const setStatus = (s: AiPolishStatus) => {
     _setStatus(s);
     if (statusRef) {
@@ -601,10 +597,14 @@ export const AIPolishContent = ({
   const promptRef = useRef<string>("");
   const actionTypeRef = useRef<RewriteActionType | undefined>();
   const abortControllerRef = useRef<AbortController | null>(null);
-  const { setMaskVisible, onAiPolish } = useEditorContext(({ onAiPolish, setMaskVisible }) => ({
-    onAiPolish,
-    setMaskVisible,
-  }));
+  const { setMaskVisible, onAiPolish, popupConfig } = useEditorContext(
+    ({ onAiPolish, setMaskVisible, popupConfig }) => ({
+      onAiPolish,
+      setMaskVisible,
+      popupConfig,
+    }),
+  );
+  const overlayContainer = popupConfig.getContainer(editor.view.dom);
 
   const getInputValue = () => {
     return inputRef.current?.innerText || "";
@@ -894,6 +894,7 @@ export const AIPolishContent = ({
         sideOffset={4}
         className="w-auto rounded-lg border bg-popover p-1 shadow-md"
         container={overlayContainer}
+        style={{ zIndex: popupConfig.zIndex }}
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <Menu inline>
@@ -921,19 +922,23 @@ interface ToolbarContentProps {
 }
 
 const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: ToolbarContentProps) => {
-  const { contentType, toolbarMode, toolbarRender, onUpload } = useEditorContext((ctx) => ({
-    contentType: ctx.contentType,
-    toolbarMode: ctx.toolbarMode,
-    toolbarRender: ctx.toolbarRender,
-    onUpload: ctx.onUpload,
-  }));
+  const { codeBlockEnabled, contentType, toolbarMode, toolbarRender, onUpload, popupConfig } = useEditorContext(
+    (ctx) => ({
+      codeBlockEnabled: ctx.features.codeBlock,
+      contentType: ctx.contentType,
+      toolbarMode: ctx.toolbarMode,
+      toolbarRender: ctx.toolbarRender,
+      onUpload: ctx.onUpload,
+      popupConfig: ctx.popupConfig,
+    }),
+  );
   const [linkUrl, setLinkUrl] = useState("");
   const [linkVisible, setLinkVisible] = useState(false);
   const [comment, setComment] = useState("");
   const [commentVisible, setCommentVisible] = useState(false);
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const overlayContainer = useMemo(() => getOverlayContainer(editor), [editor]);
+  const overlayContainer = popupConfig.getContainer(editor.view.dom);
 
   const handleImageClick = () => {
     if (editorState.isImage) {
@@ -1150,7 +1155,12 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
           {getNodeTypeIcon(editorState.activeNodeType)}
           <ChevronDown className="icon-down" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-32" container={overlayContainer}>
+        <DropdownMenuContent
+          align="start"
+          className="min-w-32"
+          container={overlayContainer}
+          style={{ zIndex: popupConfig.zIndex }}
+        >
           <NodeTypeDropdownItems
             editor={editor}
             activeNodeType={editorState.activeNodeType}
@@ -1174,7 +1184,12 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
               {getAlignIcon(editorState.textAlign)}
               <ChevronDown className="icon-down" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-28" container={overlayContainer}>
+            <DropdownMenuContent
+              align="start"
+              className="min-w-28"
+              container={overlayContainer}
+              style={{ zIndex: popupConfig.zIndex }}
+            >
               <AlignDropdownItems editor={editor} textAlign={editorState.textAlign} />
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1248,6 +1263,7 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
           align="start"
           className="w-64 p-3"
           container={overlayContainer}
+          style={{ zIndex: popupConfig.zIndex }}
           onOpenAutoFocus={(e) => {
             e.preventDefault();
           }}
@@ -1304,7 +1320,12 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
             </span>
             <ChevronDown className="icon-down" />
           </PopoverTrigger>
-          <PopoverContent align="start" className="w-auto p-3" container={overlayContainer}>
+          <PopoverContent
+            align="start"
+            className="w-auto p-3"
+            container={overlayContainer}
+            style={{ zIndex: popupConfig.zIndex }}
+          >
             <ColorPickerContent editor={editor} onClose={() => setColorPickerVisible(false)} />
           </PopoverContent>
         </Popover>
@@ -1342,13 +1363,15 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
             isDisabled={!editorState.canChangeType}
             onClick={() => editor.chain().focus().toggleBlockquote().run()}
           />
-          <IconBtn
-            label="代码块"
-            icon={<Code2 />}
-            isActive={editorState.isCodeBlock}
-            isDisabled={!editorState.canChangeType}
-            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-          />
+          {codeBlockEnabled ? (
+            <IconBtn
+              label="代码块"
+              icon={<Code2 />}
+              isActive={editorState.isCodeBlock}
+              isDisabled={!editorState.canChangeType}
+              onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+            />
+          ) : null}
           {editorState.isTable ? (
             <IconBtn
               label="删除表格"
@@ -1366,7 +1389,12 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
                 </TooltipTrigger>
                 <EditorTooltipContent>插入表格</EditorTooltipContent>
               </Tooltip>
-              <PopoverContent align="start" className="w-auto p-2" container={overlayContainer}>
+              <PopoverContent
+                align="start"
+                className="w-auto p-2"
+                container={overlayContainer}
+                style={{ zIndex: popupConfig.zIndex }}
+              >
                 <TableSelector
                   onSelect={(rows, cols) => {
                     editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
@@ -1430,7 +1458,12 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
               </TooltipTrigger>
               <EditorTooltipContent>评论</EditorTooltipContent>
             </Tooltip>
-            <PopoverContent align="end" className="w-64 p-3" container={overlayContainer}>
+            <PopoverContent
+              align="end"
+              className="w-64 p-3"
+              container={overlayContainer}
+              style={{ zIndex: popupConfig.zIndex }}
+            >
               <Textarea
                 placeholder="输入评论"
                 value={comment}

@@ -1,7 +1,6 @@
 import { type RouteObject, Navigate } from "react-router-dom";
 
 import { App } from "../App";
-import "../styles";
 export const routes: RouteObject[] = [
   {
     element: <App />,

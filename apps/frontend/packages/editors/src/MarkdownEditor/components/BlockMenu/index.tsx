@@ -44,7 +44,13 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
   const [visible, setVisible] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const onUpload = useEditorContext((ctx) => ctx.onUpload);
+  const { codeBlockEnabled, onUpload, popupConfig } = useEditorContext((ctx) => ({
+    codeBlockEnabled: ctx.features.codeBlock,
+    onUpload: ctx.onUpload,
+    popupConfig: ctx.popupConfig,
+  }));
+  const popupContainer = popupConfig.getContainer(editor.view.dom);
+  const popupStyle = { zIndex: popupConfig.zIndex };
 
   const handleInsert = (command: () => void) => {
     command();
@@ -80,6 +86,8 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
           </PopoverTrigger>
 
           <PopoverContent
+            container={popupContainer}
+            style={popupStyle}
             side="bottom"
             align="start"
             sideOffset={4}
@@ -110,6 +118,8 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
                     <MenuItem icon={<Heading />}>其他标题</MenuItem>
                   </PopoverTrigger>
                   <PopoverContent
+                    container={popupContainer}
+                    style={popupStyle}
                     side="right"
                     align="start"
                     sideOffset={8}
@@ -161,12 +171,14 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
               </MenuItemGroup>
 
               <MenuItemGroup label="插入">
-                <MenuItem
-                  icon={<Braces />}
-                  onClick={() => handleInsert(() => editor.chain().focus().setCodeBlock().run())}
-                >
-                  代码块
-                </MenuItem>
+                {codeBlockEnabled ? (
+                  <MenuItem
+                    icon={<Braces />}
+                    onClick={() => handleInsert(() => editor.chain().focus().setCodeBlock().run())}
+                  >
+                    代码块
+                  </MenuItem>
+                ) : null}
                 <MenuItem
                   icon={<Quote />}
                   onClick={() => handleInsert(() => editor.chain().focus().setBlockquote().run())}
@@ -189,6 +201,8 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
                     <MenuItem icon={<TableIcon />}>表格</MenuItem>
                   </PopoverTrigger>
                   <PopoverContent
+                    container={popupContainer}
+                    style={popupStyle}
                     side="right"
                     align="start"
                     sideOffset={8}

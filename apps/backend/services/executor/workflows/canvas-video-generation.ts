@@ -15,10 +15,10 @@ export const canvasVideoInputSchema = z.object({
   workspaceId: z.string().min(1),
   providerId: z.string().min(1),
   prompt: z.string().min(1),
-  objectScope: z.string().regex(/^[a-f0-9]{64}$/),
+  artifactNamespace: z.string().regex(/^[a-f0-9]{64}$/),
   references: z.array(
     z.object({
-      key: z.string().regex(/^[a-f0-9]{64}$/),
+      artifactId: z.string().regex(/^[a-f0-9]{64}$/),
       mimeType: z.string().regex(/^(image|video|audio)\/[a-zA-Z0-9.+-]+$/),
       role: z.enum(["reference_image", "reference_video", "reference_audio", "first_frame", "last_frame"]),
     }),
@@ -46,7 +46,7 @@ async function createStep(input: Input) {
     const content: Array<Record<string, unknown>> = [{ type: "text", text: input.prompt }];
     for (const reference of input.references) {
       const response = await fetch(
-        `${settings.knowledgeServiceUrl}/internal/objects/${input.objectScope}/${reference.key}`,
+        `${settings.knowledgeServiceUrl}/internal/objects/${input.artifactNamespace}/${reference.artifactId}`,
         { headers, signal: cancellation.signal },
       );
       if (!response.ok) throw new Error(`Canvas reference unavailable (${response.status})`);
@@ -105,10 +105,10 @@ async function storeStep(input: Input, videoUrl: string) {
       body: response.body,
       signal: cancellation.signal,
     };
-    const stored = await fetch(`${settings.knowledgeServiceUrl}/internal/objects/${input.objectScope}`, options);
+    const stored = await fetch(`${settings.knowledgeServiceUrl}/internal/objects/${input.artifactNamespace}`, options);
     if (!stored.ok) throw new Error(`Canvas video storage failed (${stored.status})`);
-    const { key } = z.object({ key: z.string().regex(/^[a-f0-9]{64}$/) }).parse(await stored.json());
-    return { objectKey: key, mimeType: "video/mp4" };
+    const { artifact_id } = z.object({ artifact_id: z.string().regex(/^[a-f0-9]{64}$/) }).parse(await stored.json());
+    return { artifactId: artifact_id, mimeType: "video/mp4" };
   } finally {
     cancellation.dispose();
   }

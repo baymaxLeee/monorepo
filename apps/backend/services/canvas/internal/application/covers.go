@@ -48,7 +48,7 @@ func (s *Service) UploadProjectCover(ctx context.Context, actor Actor, projectID
 	if err != nil {
 		return c.Project{}, err
 	}
-	asset := p.Asset{ID: newID(), TenantID: actor.TenantID, WorkspaceID: actor.WorkspaceID, ProjectID: projectID, ObjectKey: key, MimeType: mime}
+	asset := p.Asset{ID: newID(), TenantID: actor.TenantID, WorkspaceID: actor.WorkspaceID, ProjectID: projectID, ArtifactID: key, MimeType: mime}
 	var project p.Project
 	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var txErr error
@@ -80,7 +80,7 @@ func (s *Service) UploadProjectCover(ctx context.Context, actor Actor, projectID
 	if err != nil {
 		_ = s.Storage.Delete(context.WithoutCancel(ctx), storage.Scope(actor.TenantID, actor.WorkspaceID, projectID), key)
 	}
-	return projectDTO(project), err
+	return s.projectDTOWithCover(ctx, actor, project), err
 }
 
 func (s *Service) ClearProjectCover(ctx context.Context, actor Actor, projectID string, in c.ExpectedRevision) (c.Project, error) {
@@ -107,7 +107,7 @@ func (s *Service) ClearProjectCover(ctx context.Context, actor Actor, projectID 
 		}
 		return nil
 	})
-	return projectDTO(project), err
+	return s.projectDTOWithCover(ctx, actor, project), err
 }
 
 func (s *Service) ProjectCoverContent(ctx context.Context, actor Actor, projectID string) (MediaContent, error) {
@@ -131,7 +131,7 @@ func (s *Service) UploadBoardCover(ctx context.Context, actor Actor, canvasID st
 	if err != nil {
 		return c.Board{}, err
 	}
-	asset := p.Asset{ID: newID(), TenantID: actor.TenantID, WorkspaceID: actor.WorkspaceID, ProjectID: board.ProjectID, ObjectKey: key, MimeType: mime}
+	asset := p.Asset{ID: newID(), TenantID: actor.TenantID, WorkspaceID: actor.WorkspaceID, ProjectID: board.ProjectID, ArtifactID: key, MimeType: mime}
 	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var txErr error
 		board, txErr = boardAccess(tx, actor, canvasID, true)
@@ -162,7 +162,7 @@ func (s *Service) UploadBoardCover(ctx context.Context, actor Actor, canvasID st
 	if err != nil {
 		_ = s.Storage.Delete(context.WithoutCancel(ctx), storage.Scope(actor.TenantID, actor.WorkspaceID, board.ProjectID), key)
 	}
-	return boardDTO(board), err
+	return s.boardDTOWithCover(ctx, actor, board), err
 }
 
 func (s *Service) ClearBoardCover(ctx context.Context, actor Actor, canvasID string, in c.ExpectedRevision) (c.Board, error) {
@@ -189,7 +189,7 @@ func (s *Service) ClearBoardCover(ctx context.Context, actor Actor, canvasID str
 		}
 		return nil
 	})
-	return boardDTO(board), err
+	return s.boardDTOWithCover(ctx, actor, board), err
 }
 
 func (s *Service) BoardCoverContent(ctx context.Context, actor Actor, canvasID string) (MediaContent, error) {
@@ -210,7 +210,7 @@ func (s *Service) coverContent(ctx context.Context, actor Actor, projectID, asse
 	if err != nil {
 		return MediaContent{}, NotFound()
 	}
-	body, err := s.Storage.Get(ctx, storage.Scope(actor.TenantID, actor.WorkspaceID, projectID), asset.ObjectKey)
+	body, err := s.Storage.Get(ctx, storage.Scope(actor.TenantID, actor.WorkspaceID, projectID), asset.ArtifactID)
 	return MediaContent{Body: body, MIME: asset.MimeType}, err
 }
 
@@ -239,5 +239,5 @@ func (s *Service) UpdateCanvasView(ctx context.Context, actor Actor, canvasID st
 		board.UpdatedAt = time.Now().UTC()
 		return tx.Save(&board).Error
 	})
-	return boardDTO(board), err
+	return s.boardDTOWithCover(ctx, actor, board), err
 }

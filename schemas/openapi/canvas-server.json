@@ -652,12 +652,16 @@
           },
           "status": {
             "type": "string"
+          },
+          "task_type": {
+            "type": "integer"
           }
         },
         "required": [
           "id",
           "node_id",
           "status",
+          "task_type",
           "cancel_requested"
         ],
         "type": "object"
@@ -810,6 +814,12 @@
           "prompt": {
             "type": "string"
           },
+          "resource_asset_id": {
+            "type": "string"
+          },
+          "resource_id": {
+            "type": "string"
+          },
           "revision": {
             "type": "integer"
           },
@@ -834,6 +844,8 @@
         },
         "required": [
           "asset_id",
+          "resource_id",
+          "resource_asset_id",
           "generation_config",
           "video_input_mode",
           "id",
@@ -912,16 +924,24 @@
       "CanvasProjectAsset": {
         "additionalProperties": false,
         "properties": {
+          "expires_at": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
           },
           "media_type": {
             "type": "integer"
+          },
+          "preview_url": {
+            "type": "string"
           }
         },
         "required": [
           "id",
-          "media_type"
+          "media_type",
+          "preview_url",
+          "expires_at"
         ],
         "type": "object"
       },
@@ -930,7 +950,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/CanvasProject"
+              "$ref": "#/components/schemas/CanvasProjectSummary"
             },
             "type": "array"
           }
@@ -973,6 +993,70 @@
           "used_amount_micros",
           "currency",
           "can_manage"
+        ],
+        "type": "object"
+      },
+      "CanvasProjectStats": {
+        "additionalProperties": false,
+        "properties": {
+          "canvas_count": {
+            "type": "integer"
+          },
+          "resource_count": {
+            "type": "integer"
+          },
+          "selected_video_duration_millis": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "canvas_count",
+          "selected_video_duration_millis",
+          "resource_count"
+        ],
+        "type": "object"
+      },
+      "CanvasProjectSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "cover_image_path": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/CanvasProjectStats"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_at",
+          "updated_at",
+          "id",
+          "name",
+          "description",
+          "cover_image_path",
+          "created_by",
+          "revision",
+          "stats"
         ],
         "type": "object"
       },
@@ -1066,6 +1150,12 @@
           "created_at": {
             "type": "string"
           },
+          "current_asset_id": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
+          },
           "has_content": {
             "type": "boolean"
           },
@@ -1076,6 +1166,9 @@
             "type": "integer"
           },
           "name": {
+            "type": "string"
+          },
+          "preview_url": {
             "type": "string"
           },
           "revision": {
@@ -1096,6 +1189,9 @@
           "sequence_no",
           "has_content",
           "id",
+          "current_asset_id",
+          "preview_url",
+          "expires_at",
           "name",
           "media_type",
           "revision",
@@ -2543,56 +2639,6 @@
           },
           "required": true
         },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CanvasAssetMatchRun"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "400": {
-            "description": "Invalid input"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "404": {
-            "description": "Missing or inaccessible resource"
-          },
-          "409": {
-            "description": "Revision conflict"
-          }
-        },
-        "tags": [
-          "canvas"
-        ]
-      }
-    },
-    "/canvases/{id}/nodes/{nodeId}/asset-matches/latest": {
-      "get": {
-        "operationId": "canvasLatestAssetMatch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "nodeId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {

@@ -5,6 +5,7 @@ import {
   canvasCancelGeneration,
   canvasListGenerations,
   canvasApplyGeneration,
+  canvasGetAssetMatch,
   type ApiRequestConfig,
   type CanvasGeneration,
 } from "@repo/api";
@@ -18,6 +19,7 @@ const statuses: Record<string, canvasnode.CanvasGenerationStatus> = {
   pending: 1,
   queued: 1,
   running: 2,
+  completed: 3,
   cancelling: 2,
   succeeded: 3,
   failed: 4,
@@ -30,10 +32,12 @@ export async function StartCanvasNodeGeneration(
   options?: ApiRequestConfig,
 ) {
   const graph = await canvasGetGraph(input.CanvasID, options);
+  const node = graph.nodes.find((item) => item.id === input.NodeID);
+  if (!node) throw new Error("节点已不存在");
   const result = await canvasStartGeneration(
     input.CanvasID,
     input.NodeID,
-    { expected_revision: graph.canvas.revision, operation_id: crypto.randomUUID() },
+    { expected_revision: node.revision, operation_id: crypto.randomUUID() },
     options,
   );
   return { TaskRunID: result.id };
@@ -57,34 +61,53 @@ export async function CancelCanvasNodeGeneration(
 export const CancelCanvasNodeTextGeneration = CancelCanvasNodeGeneration;
 
 export async function BatchGetCanvasNodeStates(
-  input: { CanvasID: string; ProjectID?: string; Targets: Array<{ NodeID: string; TaskRunID: string }> },
+  input: {
+    CanvasID: string;
+    ProjectID?: string;
+    Targets: Array<{ NodeID: string; TaskRunID: string; TaskType?: canvasnode.CanvasNodeTaskType }>;
+  },
   options?: ApiRequestConfig,
 ) {
-  const graph = await canvasGetGraph(input.CanvasID, options);
-  const nodes = await presentGraph(graph);
-  const Items = await Promise.all(
-    input.Targets.map(async (target): Promise<canvasnode.CanvasNodeState | undefined> => {
+  const runs = await Promise.all(
+    input.Targets.map(async (target) => {
+      if (target.TaskType === canvasnode.CanvasNodeTaskType.ASSETS_MATCH) {
+        const run = await canvasGetAssetMatch(input.CanvasID, target.NodeID, target.TaskRunID, options);
+        return { target, run, matching: true } as const;
+      }
       const runs = await canvasListGenerations(input.CanvasID, target.NodeID, options);
       const run = runs.items.find((item) => item.id === target.TaskRunID);
-      const node = nodes.find((item) => item.NodeID === target.NodeID);
-      if (!run || !node) return undefined;
-      if (["queued", "running"].includes(run.status)) {
-        node.ActiveTaskRunID = run.id;
-        node.Status = canvasnode.CanvasNodeStatus.GENERATING;
-      }
-      return {
+      return run ? ({ target, run, matching: false } as const) : undefined;
+    }),
+  );
+  const graph = await canvasGetGraph(input.CanvasID, options);
+  const nodes = await presentGraph(graph);
+  const Items = runs.flatMap((state): canvasnode.CanvasNodeState[] => {
+    if (!state) return [];
+    const { target, run, matching } = state;
+    const node = nodes.find((item) => item.NodeID === target.NodeID);
+    if (!node) return [];
+    if (["queued", "running"].includes(run.status)) {
+      node.ActiveTaskRunID = run.id;
+      node.ActiveTaskType = matching
+        ? canvasnode.CanvasNodeTaskType.ASSETS_MATCH
+        : canvasnode.CanvasNodeTaskType.GENERATION;
+      if (!matching) node.Status = canvasnode.CanvasNodeStatus.GENERATING;
+    }
+    const relatedIds = new Set(node.IncomingEdges.map((edge) => edge.SourceNodeID));
+    return [
+      {
         NodeID: target.NodeID,
         TaskRunID: run.id,
         Status: generationStatus(run.status),
-        TaskType: canvasnode.CanvasNodeTaskType.GENERATION,
+        TaskType: matching ? canvasnode.CanvasNodeTaskType.ASSETS_MATCH : canvasnode.CanvasNodeTaskType.GENERATION,
         Node: node,
-        RelatedNodes: [],
+        RelatedNodes: matching ? nodes.filter((item) => relatedIds.has(item.NodeID)) : [],
         ErrorMessage: run.error || undefined,
         VideoProviderStatus: canvasnode.CanvasNodeVideoProviderStatus.UNKNOWN,
-      };
-    }),
-  );
-  return { Items: Items.filter((item): item is canvasnode.CanvasNodeState => item !== undefined) };
+      },
+    ];
+  });
+  return { Items, CanvasRevision: graph.canvas.revision };
 }
 
 async function history(run: CanvasGeneration, canvasId: string, type: number): Promise<canvasnode.CanvasNodeHistory> {
@@ -94,7 +117,7 @@ async function history(run: CanvasGeneration, canvasId: string, type: number): P
     ModelServiceID: run.provider_id,
     Prompt: run.prompt,
     CreatedAt: run.created_at,
-    CompletedAt: ["succeeded", "failed", "cancelled"].includes(run.status) ? run.updated_at : undefined,
+    CompletedAt: ["completed", "succeeded", "failed", "cancelled"].includes(run.status) ? run.updated_at : undefined,
     ProviderStatus: canvasnode.CanvasNodeVideoProviderStatus.UNKNOWN,
     ResourceAssetSnapshots: [],
     Type: type,
@@ -102,7 +125,7 @@ async function history(run: CanvasGeneration, canvasId: string, type: number): P
     OutputText: run.output_text || undefined,
     ErrorMessage: run.error || undefined,
   };
-  if (run.output_asset_id && run.status === "succeeded") {
+  if (run.output_asset_id && ["completed", "succeeded"].includes(run.status)) {
     result.OutputURL = await generationMediaURL(canvasId, run.id);
     if (type === canvasnode.CanvasNodeType.VIDEO_GENERATION) result.VideoURL = result.OutputURL;
   }
@@ -130,10 +153,12 @@ export async function SelectCanvasNodeHistory(
   ]);
   const selected = runs.items.find((run) => run.id === input.HistoryID);
   if (!selected) throw new Error("生成记录已不存在，请刷新后重试");
+  const currentNode = current.nodes.find((item) => item.id === input.NodeID);
+  if (!currentNode) throw new Error("节点已不存在");
   const graph = await canvasApplyGeneration(
     input.CanvasID,
     input.HistoryID,
-    { expected_revision: current.canvas.revision },
+    { expected_revision: currentNode.revision },
     options,
   );
   const node = graph.nodes.find((item) => item.id === input.NodeID);

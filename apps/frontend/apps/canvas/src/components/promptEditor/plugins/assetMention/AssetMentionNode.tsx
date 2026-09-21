@@ -35,7 +35,7 @@ export function createAssetMentionNode(source: AssetMentionSource) {
       return (
         <NodeViewWrapper
           as="span"
-          className={`${CHIP_BASE} gap-1 border-[color:rgb(var(--danger-3))] bg-[color:rgb(var(--danger-1))] px-[6px] text-[color:rgb(var(--danger-6))]`}
+          className={`${CHIP_BASE} gap-1 border-[color:oklch(0.808 0.114 19.571)] bg-[color:oklch(0.971 0.013 17.38)] px-[6px] text-destructive`}
           title={`${t("{label}（资产已被移除）", { label })}`}
         >
           <IconExclamationCircle />
@@ -47,7 +47,7 @@ export function createAssetMentionNode(source: AssetMentionSource) {
     return (
       <NodeViewWrapper
         as="span"
-        className={`${CHIP_BASE} gap-[6px] border-[color:var(--color-border-3)] bg-[rgba(26,27,30,0.05)] px-1 tracking-[0.042px] text-[color:var(--color-text-1)]`}
+        className={`${CHIP_BASE} gap-[6px] border-border bg-[rgba(26,27,30,0.05)] px-1 tracking-[0.042px] text-foreground`}
         title={asset.description}
       >
         {/* 图片和视频展示缩略画面，视频额外叠加播放标识；音频回退成分类图标。 */}

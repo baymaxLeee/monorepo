@@ -4,6 +4,7 @@ import (
 	"context"
 	c "github.com/example/monorepo/canvas/internal/application/contracts"
 	p "github.com/example/monorepo/canvas/internal/infrastructure/persistence"
+	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
 	domain "github.com/example/monorepo/canvas/internal/server/domain/resource"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -138,13 +139,32 @@ func (s *Service) ListResourceAssets(ctx context.Context, a Actor, projectID, id
 	if err := db.Where("id = ? AND project_id = ?", id, projectID).First(&resource).Error; err != nil {
 		return c.ResourceAssetList{}, NotFound()
 	}
-	var rows []p.ResourceAsset
-	if err := db.Where("resource_id = ?", id).Order("sequence_no,id").Find(&rows).Error; err != nil {
+	type resourceAssetRow struct {
+		p.ResourceAsset `gorm:"embedded"`
+		ArtifactID      string `gorm:"column:artifact_id"`
+		MimeType        string `gorm:"column:mime_type"`
+	}
+	var rows []resourceAssetRow
+	if err := db.Model(&p.ResourceAsset{}).Select("resource_assets.*, assets.artifact_id, assets.mime_type").Joins(
+		"LEFT JOIN assets ON assets.id = resource_assets.current_asset_id AND assets.deleted_at IS NULL",
+	).Where("resource_assets.resource_id = ?", id).Order("resource_assets.sequence_no,resource_assets.id").Scan(&rows).Error; err != nil {
 		return c.ResourceAssetList{}, err
 	}
+	namespace := storage.Scope(a.TenantID, a.WorkspaceID, projectID)
+	artifacts := make([]storage.Artifact, 0, len(rows))
+	for _, row := range rows {
+		if row.ArtifactID != "" {
+			artifacts = append(artifacts, storage.Artifact{Namespace: namespace, ID: row.ArtifactID, ContentType: row.MimeType})
+		}
+	}
+	urls, _ := s.Storage.BatchPublicURLs(ctx, artifacts)
 	result := c.ResourceAssetList{Items: []c.ResourceAsset{}}
 	for _, row := range rows {
-		result.Items = append(result.Items, resourceAssetDTO(row))
+		item := resourceAssetDTO(row.ResourceAsset)
+		if signed, ok := urls[storage.ArtifactLookupKey(namespace, row.ArtifactID)]; ok {
+			item.PreviewURL, item.ExpiresAt = signed.URL, signed.ExpiresAt
+		}
+		result.Items = append(result.Items, item)
 	}
 	return result, nil
 }

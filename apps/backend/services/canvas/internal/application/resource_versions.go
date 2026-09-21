@@ -35,7 +35,30 @@ func resourceSlot(db *gorm.DB, a Actor, projectID, id string, write bool) (p.Res
 	return resource, slot, nil
 }
 func resourceAssetDTO(slot p.ResourceAsset) c.ResourceAsset {
-	return c.ResourceAsset{SourceType: slot.SourceType, SequenceNo: slot.SequenceNo, HasContent: slot.CurrentAssetID != "", ID: slot.ID, Name: slot.Name, MediaType: slot.MediaType, Revision: slot.Revision, CreatedAt: isoTime(slot.CreatedAt), UpdatedAt: isoTime(slot.UpdatedAt)}
+	return c.ResourceAsset{SourceType: slot.SourceType, SequenceNo: slot.SequenceNo, HasContent: slot.CurrentAssetID != "", ID: slot.ID, CurrentAssetID: slot.CurrentAssetID, Name: slot.Name, MediaType: slot.MediaType, Revision: slot.Revision, CreatedAt: isoTime(slot.CreatedAt), UpdatedAt: isoTime(slot.UpdatedAt)}
+}
+
+func (s *Service) signedResourceAssetDTO(ctx context.Context, a Actor, projectID string, slot p.ResourceAsset) c.ResourceAsset {
+	item := resourceAssetDTO(slot)
+	if slot.CurrentAssetID == "" {
+		return item
+	}
+	var stored p.Asset
+	if err := s.DB.WithContext(ctx).Where(
+		"id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND deleted_at IS NULL",
+		slot.CurrentAssetID, a.TenantID, a.WorkspaceID, projectID,
+	).First(&stored).Error; err != nil {
+		return item
+	}
+	namespace := storage.Scope(a.TenantID, a.WorkspaceID, projectID)
+	urls, err := s.Storage.BatchPublicURLs(ctx, []storage.Artifact{{Namespace: namespace, ID: stored.ArtifactID, ContentType: stored.MimeType}})
+	if err != nil {
+		return item
+	}
+	if signed, ok := urls[storage.ArtifactLookupKey(namespace, stored.ArtifactID)]; ok {
+		item.PreviewURL, item.ExpiresAt = signed.URL, signed.ExpiresAt
+	}
+	return item
 }
 func (s *Service) ReplaceResourceAsset(ctx context.Context, a Actor, projectID, id string, expected int64, body io.Reader) (c.ResourceAsset, error) {
 	if expected < 1 {
@@ -71,7 +94,7 @@ func (s *Service) ReplaceResourceAsset(ctx context.Context, a Actor, projectID, 
 				return err
 			}
 		}
-		asset := p.Asset{ID: newID(), TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, ProjectID: projectID, ObjectKey: key, MimeType: mime}
+		asset := p.Asset{ID: newID(), TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, ProjectID: projectID, ArtifactID: key, MimeType: mime}
 		if err = tx.Create(&asset).Error; err != nil {
 			return err
 		}
@@ -96,7 +119,7 @@ func (s *Service) ReplaceResourceAsset(ctx context.Context, a Actor, projectID, 
 	if err == nil {
 		s.processAssetReviewCleanups(context.WithoutCancel(ctx), cleanupIDs)
 	}
-	return resourceAssetDTO(out), err
+	return s.signedResourceAssetDTO(ctx, a, projectID, out), err
 }
 func (s *Service) ListResourceVersions(ctx context.Context, a Actor, projectID, id string) (c.ResourceVersionList, error) {
 	db := s.DB.WithContext(ctx)
@@ -123,7 +146,7 @@ func (s *Service) ResourceVersionContent(ctx context.Context, a Actor, projectID
 	if err := db.Where("tenant_id = ? AND workspace_id = ? AND project_id = ? AND id IN (SELECT asset_id FROM resource_asset_revisions WHERE resource_asset_id = ? AND revision_no = ?) AND EXISTS (SELECT 1 FROM asset_references WHERE asset_id = assets.id AND owner_type = 'RESOURCE_ASSET_REVISION' AND owner_key = ? AND deleted_at IS NULL)", a.TenantID, a.WorkspaceID, projectID, id, revision, id).First(&asset).Error; err != nil {
 		return MediaContent{}, NotFound()
 	}
-	body, err := s.Storage.Get(ctx, storage.Scope(a.TenantID, a.WorkspaceID, projectID), asset.ObjectKey)
+	body, err := s.Storage.Get(ctx, storage.Scope(a.TenantID, a.WorkspaceID, projectID), asset.ArtifactID)
 	return MediaContent{Body: body, MIME: asset.MimeType}, err
 }
 func (s *Service) UpdateResourceAsset(ctx context.Context, a Actor, projectID, id string, in c.ResourceAssetUpdate) (c.ResourceAsset, error) {
@@ -167,7 +190,7 @@ func (s *Service) UpdateResourceAsset(ctx context.Context, a Actor, projectID, i
 	if err == nil {
 		s.processAssetReviewCleanups(context.WithoutCancel(ctx), cleanupIDs)
 	}
-	return resourceAssetDTO(out), err
+	return s.signedResourceAssetDTO(ctx, a, projectID, out), err
 }
 func (s *Service) SetPrimaryResourceAsset(ctx context.Context, a Actor, projectID, id string, in c.ExpectedRevision) (c.Resource, error) {
 	var out p.Resource

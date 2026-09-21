@@ -58,14 +58,14 @@ export function ScriptDraftCard({
         {generating ? (
           <IconLoading className="text-white" fontSize={16} />
         ) : status === "failed" ? (
-          <IconCloseCircleFill className="text-[18px] text-[color:rgb(var(--danger-6))]" />
+          <IconCloseCircleFill className="text-[18px] text-destructive" />
         ) : (
-          <IconCheckCircleFill className="text-[18px] text-[color:rgb(var(--success-6))]" />
+          <IconCheckCircleFill className="text-[18px] text-[color:oklch(0.627 0.194 149.214)]" />
         )}
         <span className="text-[11px] leading-4.25 text-white">
           {generating ? t("分镜脚本生成中") : status === "failed" ? t("分镜脚本生成失败") : t("分镜脚本已生成")}
         </span>
-        {/* agentframe 主题里 primary-6 被改成近黑，链接蓝用设计色 #1664FF。 */}
+        {/* 分镜入口保留产品蓝色，避免被中性的全局 primary 吞掉层级。 */}
         <span className="text-[11px] leading-4.25 text-[#1664FF]">{t("查看分镜")}</span>
 
         <span

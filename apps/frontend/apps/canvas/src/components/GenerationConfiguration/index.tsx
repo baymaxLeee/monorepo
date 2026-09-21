@@ -87,7 +87,7 @@ const SUMMARY_KEYS: (keyof Omit<GenerationSettings, "model">)[] = [
   "watermark",
 ];
 const CHIP_CLASS =
-  "flex h-8 items-center gap-2 rounded-[8px] bg-[rgba(26,27,30,0.05)] px-3 text-[13px] font-medium leading-5.5 text-[color:var(--color-text-2)]";
+  "flex h-8 items-center gap-2 rounded-[8px] bg-[rgba(26,27,30,0.05)] px-3 text-[13px] font-medium leading-5.5 text-foreground";
 const MODES = [
   { label: t("全能参考"), value: canvasnode.CanvasVideoInputMode.REFERENCE },
   {
@@ -97,7 +97,7 @@ const MODES = [
 ];
 
 function Divider() {
-  return <span className="h-3 w-[1px] shrink-0 bg-[color:var(--color-border-3)]" />;
+  return <span className="h-3 w-[1px] shrink-0 bg-border" />;
 }
 
 function ModelSelector({
@@ -130,7 +130,7 @@ function ModelSelector({
       dropdownMenuClassName="canvas-editor-overlay"
       dropdownRender={(menu) => (
         <div className="p-[6px]">
-          <div className="px-3 py-1 text-[12px] leading-5 text-[color:var(--color-text-4)]">
+          <div className="px-3 py-1 text-[12px] leading-5 text-muted-foreground">
             {t("建议选择与审核素材账号相同的模型")}
           </div>
           {menu}
@@ -155,7 +155,7 @@ function ModelSelector({
             {option.id === model ? (
               <IconCheck
                 aria-label={t("已选择")}
-                className="shrink-0 text-[16px] text-[color:rgb(var(--success-6))]"
+                className="shrink-0 text-[16px] text-[color:oklch(0.627 0.194 149.214)]"
                 role="img"
               />
             ) : null}
@@ -256,13 +256,11 @@ function VideoParameters({
       triggerProps={popupZIndex === undefined ? undefined : { style: { zIndex: popupZIndex } }}
     >
       <span
-        className={`${CHIP_CLASS} min-w-[88px] shrink overflow-hidden ${fillWidth ? "w-full" : ""} ${compact ? "gap-1 px-2 text-[11px]" : ""} ${disabled ? "cursor-not-allowed text-[color:var(--color-text-4)]" : "cursor-pointer"}`}
+        className={`${CHIP_CLASS} min-w-[88px] shrink overflow-hidden ${fillWidth ? "w-full" : ""} ${compact ? "gap-1 px-2 text-[11px]" : ""} ${disabled ? "cursor-not-allowed text-muted-foreground" : "cursor-pointer"}`}
       >
         <RatioIcon ratio={settings.ratio} />
         <span className="min-w-0 flex-1 truncate">{summary}</span>
-        <IconDown
-          className={`shrink-0 text-[12px] ${disabled ? "text-[color:var(--color-text-4)]" : "text-[color:var(--color-text-3)]"}`}
-        />
+        <IconDown className={`shrink-0 text-[12px] ${disabled ? "text-muted-foreground" : "text-muted-foreground"}`} />
       </span>
     </Dropdown>
   );
@@ -436,11 +434,7 @@ export function GenerationConfiguration(props: GenerationConfigurationProps) {
           style={popupZIndex === undefined ? undefined : { zIndex: popupZIndex }}
           trigger="click"
         >
-          <span
-            className={`${CHIP_CLASS} ${
-              disabled ? "cursor-not-allowed text-[color:var(--color-text-4)]" : "cursor-pointer"
-            }`}
-          >
+          <span className={`${CHIP_CLASS} ${disabled ? "cursor-not-allowed text-muted-foreground" : "cursor-pointer"}`}>
             <RatioIcon ratio={props.imageSettings.ratio} />
             <span className="min-w-[30px] text-center">{props.imageSettings.ratio}</span>
             <Divider />
@@ -453,11 +447,7 @@ export function GenerationConfiguration(props: GenerationConfigurationProps) {
                 </span>
               </>
             ) : null}
-            <IconDown
-              className={`text-[12px] ${
-                disabled ? "text-[color:var(--color-text-4)]" : "text-[color:var(--color-text-3)]"
-              }`}
-            />
+            <IconDown className={`text-[12px] ${disabled ? "text-muted-foreground" : "text-muted-foreground"}`} />
           </span>
         </Trigger>
       ) : null}

@@ -244,22 +244,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/canvases/{id}/nodes/{nodeId}/asset-matches/latest": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["canvasLatestAssetMatch"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/canvases/{id}/nodes/{nodeId}/asset-matches/{runId}": {
         parameters: {
             query?: never;
@@ -1205,6 +1189,7 @@ export interface components {
             id: string;
             node_id: string;
             status: string;
+            task_type: number;
         };
         CanvasGenerationStateList: {
             items: components["schemas"]["CanvasGenerationState"][];
@@ -1240,6 +1225,8 @@ export interface components {
             incoming_edges: components["schemas"]["CanvasEdge"][];
             name: string;
             prompt: string;
+            resource_asset_id: string;
+            resource_id: string;
             revision: number;
             storyboard_rank: number;
             text: string;
@@ -1264,11 +1251,13 @@ export interface components {
             updated_at: string;
         };
         CanvasProjectAsset: {
+            expires_at: string;
             id: string;
             media_type: number;
+            preview_url: string;
         };
         CanvasProjectList: {
-            items: components["schemas"]["CanvasProject"][];
+            items: components["schemas"]["CanvasProjectSummary"][];
         };
         CanvasProjectManagement: {
             can_manage: boolean;
@@ -1277,6 +1266,22 @@ export interface components {
             project: components["schemas"]["CanvasProject"];
             usage_limit_micros: number | null;
             used_amount_micros: number;
+        };
+        CanvasProjectStats: {
+            canvas_count: number;
+            resource_count: number;
+            selected_video_duration_millis: number;
+        };
+        CanvasProjectSummary: {
+            cover_image_path: string;
+            created_at: string;
+            created_by: string;
+            description: string;
+            id: string;
+            name: string;
+            revision: number;
+            stats: components["schemas"]["CanvasProjectStats"];
+            updated_at: string;
         };
         CanvasProjectUsage: {
             active: number;
@@ -1301,10 +1306,13 @@ export interface components {
         };
         CanvasResourceAsset: {
             created_at: string;
+            current_asset_id: string;
+            expires_at: string;
             has_content: boolean;
             id: string;
             media_type: number;
             name: string;
+            preview_url: string;
             revision: number;
             sequence_no: number;
             source_type: number;
@@ -2353,57 +2361,6 @@ export interface operations {
                 "application/json": components["schemas"]["CanvasStartAssetMatch"];
             };
         };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CanvasAssetMatchRun"];
-                };
-            };
-            /** @description Invalid input */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Missing or inaccessible resource */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Revision conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    canvasLatestAssetMatch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-                nodeId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Success */
             200: {

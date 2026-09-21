@@ -4,6 +4,7 @@ import { BubbleMenu } from "@tiptap/react/menus";
 import { AlignCenter, AlignLeft, AlignRight, Merge, Split } from "lucide-react";
 import type React from "react";
 
+import { useEditorContext } from "../../../../context";
 import { ALWAYS_SHOW, MenuItem } from "../MenuItem";
 
 interface TableCellMenuProps {
@@ -11,11 +12,13 @@ interface TableCellMenuProps {
 }
 
 export const TableCellMenu: React.FC<TableCellMenuProps> = ({ editor }) => {
+  const popupConfig = useEditorContext((ctx) => ctx.popupConfig);
   return (
     <BubbleMenu
       editor={editor}
       pluginKey="tableCellMenu"
-      appendTo={document.body}
+      appendTo={() => popupConfig.getContainer(editor.view.dom)}
+      style={{ zIndex: popupConfig.zIndex }}
       updateDelay={0}
       shouldShow={ALWAYS_SHOW}
     >

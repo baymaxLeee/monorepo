@@ -4,6 +4,7 @@ import {
   Clock3 as IconClockCircle,
   EllipsisVertical as IconMoreVertical1,
   Plus as IconPlus,
+  Sparkles,
   Video as IconVideoDefault,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -80,12 +81,20 @@ function CanvasCard({
       >
         <div className={`relative aspect-video w-full overflow-hidden rounded-[12px] ${styles.cardCover}`}>
           {coverImagePath ? (
-            <ProjectCoverImage alt={item.Name} className={styles.cardCoverImage} path={coverImagePath} />
+            <ProjectCoverImage
+              alt={item.Name}
+              className={styles.cardCoverImage}
+              path={coverImagePath}
+              version={String(item.Revision)}
+            />
           ) : fallbackCoverImageURL ? (
             <img alt={item.Name} className={styles.cardCoverImage} loading="lazy" src={fallbackCoverImageURL} />
           ) : (
-            <div className="flex h-full items-center justify-center text-[32px] text-[color:var(--color-text-4)]">
-              <IconVideoDefault />
+            <div className="flex h-full items-center justify-center text-[32px] text-muted-foreground">
+              <span className="relative inline-flex">
+                <IconVideoDefault />
+                <Sparkles className="absolute -right-1 -top-1 size-3 fill-current" />
+              </span>
             </div>
           )}
           <span className="absolute bottom-2 left-2 inline-flex h-6 items-center gap-1 rounded-[8px] bg-[rgba(0,0,0,0.5)] px-[6px] text-[13px] font-medium leading-5.5 text-white">
@@ -94,10 +103,10 @@ function CanvasCard({
           </span>
         </div>
         <div className="flex flex-col gap-1 px-3">
-          <h2 className="m-0 flex items-center text-[18px] font-medium leading-7 text-[color:var(--color-text-1)] group-hover:text-[color:rgb(var(--primary-6))]">
+          <h2 className="m-0 flex items-center text-[18px] font-medium leading-7 text-foreground group-hover:text-primary">
             <CEllipsis className="min-w-0 flex-1">{item.Name}</CEllipsis>
           </h2>
-          <div className="flex items-center gap-1 truncate text-[13px] leading-5.5 text-[color:var(--color-text-3)]">
+          <div className="flex items-center gap-1 truncate text-[13px] leading-5.5 text-muted-foreground">
             <UserAuto id={item.CreatedBy} prefix="@" showIcon={false} stableSign />
             <span>·</span>
             <CEllipsis className="min-w-0 flex-1">
@@ -109,7 +118,7 @@ function CanvasCard({
         </div>
       </Link>
       <div className="relative mt-3 px-3 pb-4">
-        <div className="flex h-6 items-center gap-2 text-[13px] font-medium leading-5.5 text-[color:var(--color-text-2)] group-hover:opacity-0 group-focus-within:opacity-0">
+        <div className="flex h-6 items-center gap-2 text-[13px] font-medium leading-5.5 text-foreground group-hover:opacity-0 group-focus-within:opacity-0">
           <span>{t("{count} 个分镜", { count: item.Stats.CanvasNodeCount })}</span>
         </div>
         <div className={styles.cardOperations}>
@@ -294,9 +303,7 @@ export default function CanvasesPage() {
         ) : (
           <div className="mt-[110px] flex flex-col items-center gap-[10px]">
             <img alt={t("项目暂无视频")} className="h-[320px] w-[320px] object-contain" src={emptyIllustration} />
-            <p className="m-0 text-[20px] font-medium leading-8 text-[color:var(--color-text-1)]">
-              {t("方寸之间，万物生长")}
-            </p>
+            <p className="m-0 text-[20px] font-medium leading-8 text-foreground">{t("方寸之间，万物生长")}</p>
           </div>
         )}
         {canvases.length > 0 && loadingMore ? (

@@ -46,12 +46,73 @@ func projectDTO(v p.Project) contracts.Project {
 	}
 	return contracts.Project{CreatedAt: isoTime(v.CreatedAt), UpdatedAt: isoTime(v.UpdatedAt), ID: v.ID, Name: v.Name, Description: v.Description, CoverImagePath: cover, CreatedBy: v.CreatedBy, Revision: v.Revision}
 }
+
+type projectSummaryRow struct {
+	p.Project                   `gorm:"embedded"`
+	CanvasCount                 int32  `gorm:"column:canvas_count"`
+	SelectedVideoDurationMillis int64  `gorm:"column:selected_video_duration_millis"`
+	ResourceCount               int32  `gorm:"column:resource_count"`
+	CoverArtifactID             string `gorm:"column:cover_artifact_id"`
+	CoverMimeType               string `gorm:"column:cover_mime_type"`
+}
+
+func projectSummaryDTO(v projectSummaryRow, coverURL string) contracts.ProjectSummary {
+	project := projectDTO(v.Project)
+	project.CoverImagePath = coverURL
+	return contracts.ProjectSummary{
+		CreatedAt: project.CreatedAt, UpdatedAt: project.UpdatedAt, ID: project.ID, Name: project.Name,
+		Description: project.Description, CoverImagePath: project.CoverImagePath, CreatedBy: project.CreatedBy,
+		Revision: project.Revision,
+		Stats: contracts.ProjectStats{
+			CanvasCount: v.CanvasCount, SelectedVideoDurationMillis: v.SelectedVideoDurationMillis,
+			ResourceCount: v.ResourceCount,
+		},
+	}
+}
+
+type boardSummaryRow struct {
+	p.Board         `gorm:"embedded"`
+	CoverArtifactID string `gorm:"column:cover_artifact_id"`
+	CoverMimeType   string `gorm:"column:cover_mime_type"`
+}
+
 func boardDTO(v p.Board) contracts.Board {
 	cover := ""
 	if v.CoverAssetID != "" {
 		cover = "/api/canvas-server/canvases/" + v.ID + "/cover/content"
 	}
 	return contracts.Board{CreatedAt: isoTime(v.CreatedAt), UpdatedAt: isoTime(v.UpdatedAt), ID: v.ID, ProjectID: v.ProjectID, Name: v.Name, CoverImagePath: cover, CreatedBy: v.CreatedBy, DefaultView: v.DefaultView, Revision: v.Revision}
+}
+
+func (s *Service) signedCoverURL(ctx context.Context, actor Actor, projectID, assetID string) string {
+	if assetID == "" {
+		return ""
+	}
+	var asset p.Asset
+	if err := s.DB.WithContext(ctx).Where(
+		"id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND deleted_at IS NULL",
+		assetID, actor.TenantID, actor.WorkspaceID, projectID,
+	).First(&asset).Error; err != nil {
+		return ""
+	}
+	namespace := storage.Scope(actor.TenantID, actor.WorkspaceID, projectID)
+	urls, err := s.Storage.BatchPublicURLs(ctx, []storage.Artifact{{Namespace: namespace, ID: asset.ArtifactID, ContentType: asset.MimeType}})
+	if err != nil {
+		return ""
+	}
+	return urls[storage.ArtifactLookupKey(namespace, asset.ArtifactID)].URL
+}
+
+func (s *Service) projectDTOWithCover(ctx context.Context, actor Actor, value p.Project) contracts.Project {
+	item := projectDTO(value)
+	item.CoverImagePath = s.signedCoverURL(ctx, actor, value.ID, value.CoverAssetID)
+	return item
+}
+
+func (s *Service) boardDTOWithCover(ctx context.Context, actor Actor, value p.Board) contracts.Board {
+	item := boardDTO(value)
+	item.CoverImagePath = s.signedCoverURL(ctx, actor, value.ProjectID, value.CoverAssetID)
+	return item
 }
 func access(db *gorm.DB, actor Actor, id string, write bool) (p.Project, error) {
 	var project p.Project
@@ -76,17 +137,50 @@ func access(db *gorm.DB, actor Actor, id string, write bool) (p.Project, error) 
 }
 func (s *Service) ListProjects(ctx context.Context, a Actor) (contracts.ProjectList, error) {
 	db := s.DB.WithContext(ctx)
-	var rows []p.Project
-	q := db.Where("tenant_id = ? AND workspace_id = ?", a.TenantID, a.WorkspaceID)
+	var rows []projectSummaryRow
+	q := db.Model(&p.Project{}).Select(`projects.*,
+		COALESCE(canvas_stats.canvas_count, 0) AS canvas_count,
+		COALESCE(canvas_stats.selected_video_duration_millis, 0) AS selected_video_duration_millis,
+		COALESCE(resource_stats.resource_count, 0) AS resource_count,
+		COALESCE(cover_assets.artifact_id, '') AS cover_artifact_id,
+		COALESCE(cover_assets.mime_type, '') AS cover_mime_type`).Joins(`LEFT JOIN (
+		SELECT canvases.project_id,
+			COUNT(DISTINCT canvases.id) AS canvas_count,
+			COALESCE(SUM(COALESCE((canvas_nodes.generation_config ->> 'duration_seconds')::bigint, 0)), 0) * 1000 AS selected_video_duration_millis
+		FROM canvases
+		LEFT JOIN canvas_nodes ON canvas_nodes.canvas_id = canvases.id AND canvas_nodes.deleted_at IS NULL
+		WHERE canvases.deleted_at IS NULL
+		GROUP BY canvases.project_id
+	) AS canvas_stats ON canvas_stats.project_id = projects.id`).Joins(`LEFT JOIN (
+		SELECT project_id, COUNT(*) AS resource_count
+		FROM resources
+		WHERE deleted_at IS NULL
+		GROUP BY project_id
+	) AS resource_stats ON resource_stats.project_id = projects.id`).Joins(
+		"LEFT JOIN assets AS cover_assets ON cover_assets.id = projects.cover_asset_id AND cover_assets.deleted_at IS NULL",
+	).Where(
+		"projects.tenant_id = ? AND projects.workspace_id = ?", a.TenantID, a.WorkspaceID,
+	)
 	if a.WorkspaceRole != "workspace_admin" {
-		q = q.Where("created_by = ? OR id IN (SELECT project_id FROM project_members WHERE user_id = ?)", a.UserID, a.UserID)
+		q = q.Where("projects.created_by = ? OR projects.id IN (SELECT project_id FROM project_members WHERE user_id = ?)", a.UserID, a.UserID)
 	}
-	if err := q.Order("updated_at DESC, id").Find(&rows).Error; err != nil {
+	if err := q.Order("projects.updated_at DESC, projects.id").Scan(&rows).Error; err != nil {
 		return contracts.ProjectList{}, err
 	}
-	result := contracts.ProjectList{Items: []contracts.Project{}}
+	artifacts := make([]storage.Artifact, 0, len(rows))
+	for _, row := range rows {
+		if row.CoverArtifactID != "" {
+			artifacts = append(artifacts, storage.Artifact{Namespace: storage.Scope(row.TenantID, row.WorkspaceID, row.ID), ID: row.CoverArtifactID, ContentType: row.CoverMimeType})
+		}
+	}
+	urls, _ := s.Storage.BatchPublicURLs(ctx, artifacts)
+	result := contracts.ProjectList{Items: []contracts.ProjectSummary{}}
 	for _, v := range rows {
-		result.Items = append(result.Items, projectDTO(v))
+		coverURL := ""
+		if item, ok := urls[storage.ArtifactLookupKey(storage.Scope(v.TenantID, v.WorkspaceID, v.ID), v.CoverArtifactID)]; ok {
+			coverURL = item.URL
+		}
+		result.Items = append(result.Items, projectSummaryDTO(v, coverURL))
 	}
 	return result, nil
 }
@@ -136,17 +230,35 @@ func (s *Service) ListBoards(ctx context.Context, a Actor, projectID string, cre
 	if _, err := access(db, a, projectID, false); err != nil {
 		return contracts.BoardList{}, err
 	}
-	var rows []p.Board
-	query := db.Where("project_id = ?", projectID)
+	var rows []boardSummaryRow
+	query := db.Model(&p.Board{}).Select(`canvases.*,
+		COALESCE(cover_assets.artifact_id, '') AS cover_artifact_id,
+		COALESCE(cover_assets.mime_type, '') AS cover_mime_type`).Joins(
+		"LEFT JOIN assets AS cover_assets ON cover_assets.id = canvases.cover_asset_id AND cover_assets.deleted_at IS NULL",
+	).Where("canvases.project_id = ?", projectID)
 	if createdByMe {
 		query = query.Where("created_by = ?", a.UserID)
 	}
-	if err := query.Order("created_at, id").Find(&rows).Error; err != nil {
+	if err := query.Order("canvases.created_at, canvases.id").Find(&rows).Error; err != nil {
 		return contracts.BoardList{}, err
 	}
+	artifacts := make([]storage.Artifact, 0, len(rows))
+	namespace := storage.Scope(a.TenantID, a.WorkspaceID, projectID)
+	for _, row := range rows {
+		if row.CoverArtifactID != "" {
+			artifacts = append(artifacts, storage.Artifact{Namespace: namespace, ID: row.CoverArtifactID, ContentType: row.CoverMimeType})
+		}
+	}
+	urls, _ := s.Storage.BatchPublicURLs(ctx, artifacts)
 	result := contracts.BoardList{Items: []contracts.Board{}}
 	for _, v := range rows {
-		result.Items = append(result.Items, boardDTO(v))
+		item := boardDTO(v.Board)
+		if signed, ok := urls[storage.ArtifactLookupKey(namespace, v.CoverArtifactID)]; ok {
+			item.CoverImagePath = signed.URL
+		} else {
+			item.CoverImagePath = ""
+		}
+		result.Items = append(result.Items, item)
 	}
 	return result, nil
 }

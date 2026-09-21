@@ -27,9 +27,7 @@ export function CanvasTextGenerationPreview({
         onPointerDown={(event) => event.stopPropagation()}
       >
         <div className="flex h-6 flex-none items-center justify-between">
-          <div className="min-w-0 truncate text-[14px] font-medium leading-6 text-[color:var(--color-text-1)]">
-            {title}
-          </div>
+          <div className="min-w-0 truncate text-[14px] font-medium leading-6 text-foreground">{title}</div>
           <button
             aria-label={t("收起结果预览")}
             className={`${styles.collapseButton} flex h-6 w-6 flex-none cursor-pointer items-center justify-center rounded-[8px] border-0 p-0 text-[16px]`}

@@ -31,7 +31,6 @@ function CanvasZoomPercent() {
 }
 
 export function CanvasBoardControls({
-  assetsOpen,
   graphLoaded,
   nodeCount,
   canArrange,
@@ -46,7 +45,6 @@ export function CanvasBoardControls({
   activateInteractionMode,
   openToolbarAddMenu,
 }: {
-  assetsOpen: boolean;
   graphLoaded: boolean;
   nodeCount: number;
   canArrange: boolean;
@@ -119,7 +117,7 @@ export function CanvasBoardControls({
 
   return (
     <>
-      <div className={assetsOpen ? styles.canvasMeta : styles.canvasMetaCollapsed}>
+      <div className={styles.canvasMeta}>
         <Tooltip
           content={
             <span className={styles.tooltipContent}>
@@ -274,7 +272,7 @@ export function CanvasBoardControls({
       </div>
 
       {graphLoaded && nodeCount === 0 ? (
-        <div className={`${styles.empty} ${assetsOpen ? styles.emptyWithAssets : ""}`}>
+        <div className={styles.empty}>
           <div className={styles.emptyTitle}>
             <span className={styles.emptyTitlePrimary}>
               <IconCursor />

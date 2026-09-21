@@ -68,7 +68,7 @@ func (s archiveSnapshot) SnapshotSelectedVideos(ctx context.Context, scope archi
 		if err := db.Where("id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND mime_type LIKE 'video/%'", node.AssetID, s.actor.TenantID, s.actor.WorkspaceID, projectID).First(&asset).Error; err != nil {
 			return nil, archive.ErrSelectedVideoUnavailable
 		}
-		items = append(items, archive.SelectedVideo{CanvasName: board.Name, NodeID: node.ID, OutputID: output.ID, AssetID: asset.ID, ArtifactID: asset.ObjectKey, ArtifactNamespace: storage.Scope(s.actor.TenantID, s.actor.WorkspaceID, projectID)})
+		items = append(items, archive.SelectedVideo{CanvasName: board.Name, NodeID: node.ID, OutputID: output.ID, AssetID: asset.ID, ArtifactID: asset.ArtifactID, ArtifactNamespace: storage.Scope(s.actor.TenantID, s.actor.WorkspaceID, projectID)})
 	}
 	return items, nil
 }

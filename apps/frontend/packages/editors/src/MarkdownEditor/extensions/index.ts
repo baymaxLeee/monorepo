@@ -1,9 +1,9 @@
 export { createBlockDragExtension, getBlockDragState } from "./BlockDrag";
-export { createCodeBlockExtension } from "./CodeBlock";
+export { createCodeBlockExtension, createCodeBlockFallbackExtension } from "./CodeBlock";
 export { createCommentExtension } from "./Comment";
 export { createImageExtension } from "./Image";
 export { createIndentExtension } from "./Indent";
-export { createPasteFlattenExtension } from "./Paste";
+export { createPasteFlattenExtension, flattenPastedCodeBlocks } from "./Paste";
 export { createSelectionPersistenceExtension } from "./Selection";
 export * from "./Table";
 export { createTaskItemExtension } from "./TaskItem";

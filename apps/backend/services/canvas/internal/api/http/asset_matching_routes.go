@@ -11,9 +11,6 @@ import (
 func init() { Routes = append(Routes, assetMatchingRoutes...) }
 
 var assetMatchingRoutes = []Route{
-	{"GET", "/canvases/{id}/nodes/{nodeId}/asset-matches/latest", "canvasLatestAssetMatch", nil, reflect.TypeFor[c.AssetMatchRun](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
-		return s.LatestAssetMatch(r.Context(), actor, chi.URLParam(r, "id"), chi.URLParam(r, "nodeId"))
-	}},
 	{"POST", "/canvases/{id}/nodes/{nodeId}/asset-matches", "canvasStartAssetMatch", reflect.TypeFor[c.StartAssetMatch](), reflect.TypeFor[c.AssetMatchRun](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
 		var in c.StartAssetMatch
 		if err := decode(r, &in); err != nil {

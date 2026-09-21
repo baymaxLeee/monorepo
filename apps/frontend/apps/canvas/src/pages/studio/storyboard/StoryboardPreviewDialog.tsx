@@ -17,15 +17,13 @@ function ShotNavItem({ active, label, onClick }: { active: boolean; label: strin
   return (
     <button
       className={`flex w-[120px] items-center justify-between rounded-[8px] border-0 px-3 py-1.25 text-[13px] leading-5.5 tracking-[0.039px] ${
-        active
-          ? "bg-[rgba(26,27,30,0.05)] font-medium text-[color:var(--color-text-1)]"
-          : "bg-white font-normal text-[color:var(--color-text-1)]"
+        active ? "bg-muted font-medium text-foreground" : "bg-background font-normal text-foreground"
       } ${onClick ? "cursor-pointer" : "cursor-default"}`}
       onClick={onClick}
       type="button"
     >
       <span className="truncate">{label}</span>
-      <IconDown className="shrink-0 rotate-[-90deg] text-[12px] text-[color:var(--color-text-3)]" />
+      <IconDown className="shrink-0 rotate-[-90deg] text-[12px] text-muted-foreground" />
     </button>
   );
 }
@@ -89,7 +87,7 @@ export function StoryboardPreviewDialog({
       onCancel={handleCancel}
       className={modalSizing.storyboard}
       title={
-        <span className="text-[18px] font-medium leading-6.5 tracking-[0.054px] text-[#1a2233]">{t("分镜预览")}</span>
+        <span className="text-[18px] font-medium leading-6.5 tracking-[0.054px] text-foreground">{t("分镜预览")}</span>
       }
       visible={visible}
     >
@@ -115,20 +113,18 @@ export function StoryboardPreviewDialog({
           {generating ? <ShotNavSkeleton /> : null}
         </div>
 
-        <div className="w-[1px] shrink-0 self-stretch bg-[color:var(--color-border-3)]" />
+        <div className="w-[1px] shrink-0 self-stretch bg-border" />
 
         {selected ? (
           <div className="flex min-w-0 flex-1 flex-col items-start justify-start gap-2.5 overflow-y-auto px-3">
             <div className="flex flex-col gap-1">
-              <span className="text-[13px] font-medium leading-5.5 tracking-[0.039px] text-[color:var(--color-text-1)]">
+              <span className="text-[13px] font-medium leading-5.5 tracking-[0.039px] text-foreground">
                 {t("时长：")}
               </span>
-              <span className="text-[12px] leading-5.5 text-[color:var(--color-text-2)]">
-                {selected.duration || "-"}
-              </span>
+              <span className="text-[12px] leading-5.5 text-foreground">{selected.duration || "-"}</span>
             </div>
             <div className="flex w-full min-h-0 flex-1 flex-col items-start gap-1">
-              <span className="text-[13px] font-medium leading-5.5 tracking-[0.039px] text-[color:var(--color-text-1)]">
+              <span className="text-[13px] font-medium leading-5.5 tracking-[0.039px] text-foreground">
                 {t("分镜脚本：")}
               </span>
               <DraftScriptPreview references={selected.assetReferences ?? []} script={selected.script || "-"} />
@@ -138,7 +134,7 @@ export function StoryboardPreviewDialog({
           <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-2.5 px-3">
             <img alt="" className="h-[200px] w-[222px] shrink-0 object-contain" src={emptyIllustration} />
             {generating ? (
-              <p className="m-0 text-[16px] leading-5.5 tracking-[0.048px] text-[color:var(--color-text-2)]">
+              <p className="m-0 text-[16px] leading-5.5 tracking-[0.048px] text-foreground">
                 {t("分镜生成中，请稍后...")}
               </p>
             ) : null}

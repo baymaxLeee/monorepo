@@ -1,4 +1,4 @@
-import { type ReactNode, forwardRef, useMemo, useRef } from "react";
+import { forwardRef, useMemo, useRef } from "react";
 
 import {
   type AssetMentionItem,
@@ -18,7 +18,7 @@ export const ScriptEditor = forwardRef<
     /** 生成中脚本区整体只读，光标落到 not-allowed 与设计稿一致。 */
     locked?: boolean;
     /** 默认展示分镜提示；复用方可以传 null 使用自己的占位内容。 */
-    placeholder?: ReactNode;
+    placeholder?: string | null;
     script: string;
     onChange: (value: string) => void;
     queryTree: NonNullable<AssetMentionSource["queryTree"]>;

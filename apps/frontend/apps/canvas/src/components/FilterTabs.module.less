@@ -6,7 +6,7 @@
   gap: 2px;
   padding: 3px;
   border-radius: 8px;
-  background-color: var(--color-bg-6);
+  background-color: var(--muted);
 }
 
 .item {
@@ -18,7 +18,7 @@
   border: 0;
   border-radius: 6px;
   background-color: transparent;
-  color: var(--color-text-2);
+  color: var(--foreground);
   font-size: 13px;
   line-height: 22px;
   white-space: nowrap;
@@ -29,7 +29,7 @@
     color 200ms;
 
   &:hover {
-    color: var(--color-text-1);
+    color: var(--foreground);
   }
 
   &[aria-disabled='true'] {
@@ -38,8 +38,8 @@
 }
 
 .itemActive {
-  background-color: var(--color-bg-1);
-  color: var(--color-text-1);
+  background-color: var(--background);
+  color: var(--foreground);
   font-weight: 500;
   box-shadow:
     0 0 0 0.5px rgba(213, 219, 227, 0.7),

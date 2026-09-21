@@ -37,9 +37,9 @@ func videoPayload(tx *gorm.DB, a Actor, projectID string, node c.Node, resolved 
 		if input.Role == inputdomain.RoleLastFrame {
 			role = "last_frame"
 		}
-		references = append(references, map[string]string{"key": asset.ObjectKey, "mimeType": asset.MimeType, "role": role})
+		references = append(references, map[string]string{"artifactId": asset.ArtifactID, "mimeType": asset.MimeType, "role": role})
 	}
-	payload := map[string]any{"tenantId": a.TenantID, "workspaceId": a.WorkspaceID, "providerId": config.ProviderID, "prompt": resolved.Prompt, "objectScope": storage.Scope(a.TenantID, a.WorkspaceID, projectID), "references": references, "duration": config.DurationSeconds, "generateAudio": config.GenerateAudio, "watermark": config.Watermark}
+	payload := map[string]any{"tenantId": a.TenantID, "workspaceId": a.WorkspaceID, "providerId": config.ProviderID, "prompt": resolved.Prompt, "artifactNamespace": storage.Scope(a.TenantID, a.WorkspaceID, projectID), "references": references, "duration": config.DurationSeconds, "generateAudio": config.GenerateAudio, "watermark": config.Watermark}
 	if config.Resolution != "" {
 		resolution := strings.ToLower(config.Resolution)
 		switch resolution {

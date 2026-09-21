@@ -13,6 +13,19 @@ export type ContentType = "html" | "markdown" | "json";
  */
 export type ToolbarMode = "fixed" | "bubble";
 
+/** Controls document-only editor capabilities. Omitted capabilities stay enabled. */
+export interface MarkdownEditorFeatures {
+  blockDrag?: boolean;
+  blockMenu?: boolean;
+  codeBlock?: boolean;
+}
+
+/** Controls where editor-owned floating UI is mounted. */
+export interface MarkdownEditorPopupConfig {
+  getContainer?: (trigger: HTMLElement) => HTMLElement;
+  zIndex?: number;
+}
+
 export enum MenuType {
   Toolbar = "toolbar",
   TableCell = "table-cell",
@@ -50,6 +63,8 @@ export type AiPolishCallback = (
  * @description 基于 TipTap 封装，支持 HTML、Markdown、JSON 三种内容格式，以及气泡工具栏、固定工具栏、表格、代码块、AI 润色等能力
  */
 export interface MarkdownEditorProps {
+  /** Floating UI configuration. Explicit values override automatic Dialog/Sheet discovery. */
+  popupConfig?: MarkdownEditorPopupConfig;
   /**
    * @zh 受控内容值
    * @default undefined
@@ -62,6 +77,8 @@ export interface MarkdownEditorProps {
    * @description 未传 `value` 时使用；仅在初始化时生效，后续不再自动同步
    */
   defaultValue?: string;
+  /** Placeholder shown by TipTap while the editable document is empty. */
+  placeholder?: string;
   /**
    * @zh 内容格式
    * @default "html"
@@ -110,7 +127,7 @@ export interface MarkdownEditorProps {
    */
   extensions?: AnyExtension[];
   /** Disable document-only tools for compact prompt editing. */
-  features?: { blockDrag?: boolean; blockMenu?: boolean; codeBlock?: boolean };
+  features?: MarkdownEditorFeatures;
   /**
    * @zh 是否开启 AI 能力
    * @default false

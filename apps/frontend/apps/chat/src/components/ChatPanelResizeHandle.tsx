@@ -70,11 +70,11 @@ export function ChatPanelResizeHandle({
       aria-valuenow={Math.round(value)}
       tabIndex={0}
       className={cn(
-        "absolute inset-y-0 z-50 flex w-3 touch-none select-none items-stretch justify-center",
+        "absolute inset-y-0 z-50 flex w-1 touch-none select-none items-stretch justify-center",
         isLeft ? "right-0 translate-x-1/2" : "left-0 -translate-x-1/2",
         "cursor-col-resize outline-none",
-        "hover:[&>span]:w-0.5 hover:[&>span]:bg-foreground/35",
-        "focus-visible:[&>span]:w-0.5 focus-visible:[&>span]:bg-ring",
+        "hover:[&>span]:w-0.5 hover:[&>span]:bg-blue-500",
+        "focus-visible:[&>span]:w-0.5 focus-visible:[&>span]:bg-blue-500",
       )}
       onKeyDown={(event) => {
         if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
@@ -132,8 +132,8 @@ export function ChatPanelResizeHandle({
       <span
         aria-hidden="true"
         className={cn(
-          "pointer-events-none my-0 h-full w-px shrink-0 bg-border/80 transition-all duration-150",
-          dragging && "w-0.5 bg-foreground/40",
+          "pointer-events-none my-0 h-full w-px shrink-0 bg-border/80 transition-[width,background-color] duration-150",
+          dragging && "w-0.5 bg-blue-500",
         )}
       />
     </div>

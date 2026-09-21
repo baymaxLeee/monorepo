@@ -86,7 +86,7 @@ export function AssetAvatar({
           />
           <span
             aria-label={t("视频")}
-            className="absolute inset-0 m-auto flex h-1/2 w-1/2 items-center justify-center rounded-[999px] bg-white text-[color:var(--color-text-1)] shadow-[0_1px_4px_rgba(0,0,0,0.18)] [&>svg]:h-1/2 [&>svg]:w-1/2"
+            className="absolute inset-0 m-auto flex h-1/2 w-1/2 items-center justify-center rounded-[999px] bg-white text-foreground shadow-[0_1px_4px_rgba(0,0,0,0.18)] [&>svg]:h-1/2 [&>svg]:w-1/2"
           >
             <IconPlay />
           </span>
@@ -108,9 +108,7 @@ export function AssetAvatar({
   const resourceType = asset.resourceType;
 
   return (
-    <span
-      className={`flex h-full w-full items-center justify-center bg-[color:var(--color-bg-5)] text-[color:var(--color-grey-4)] ${className}`}
-    >
+    <span className={`flex h-full w-full items-center justify-center bg-muted text-muted-foreground ${className}`}>
       {resourceType ? <ResourceTypeIcon type={RESOURCE_TYPE[resourceType]} /> : <CategoryIcon />}
     </span>
   );

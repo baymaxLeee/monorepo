@@ -54,6 +54,12 @@ export function VideoParametersPanel({
   const { limits } = modelParamConfig;
   const hasDurationRange = limits.durationMinSeconds > 0 && limits.durationMaxSeconds >= limits.durationMinSeconds;
   const hasDuration = limits.automaticDurationSupported || hasDurationRange;
+  const hasConfigurableParameter =
+    (showRatio && limits.ratios.length > 0) ||
+    limits.resolutions.length > 0 ||
+    (showDuration && hasDuration) ||
+    limits.audios.length > 0 ||
+    limits.watermarks.length > 0;
   const committedDuration = parseDurationSeconds(settings.duration);
   const manualDuration =
     committedDuration > 0 ? committedDuration : limits.durationDefaultSeconds || limits.durationMinSeconds;
@@ -86,7 +92,11 @@ export function VideoParametersPanel({
   };
 
   return (
-    <div className="flex w-[353px] flex-col gap-4 rounded-[12px] border-[0.5px] border-solid border-[color:var(--color-border-3)] bg-white p-3 shadow-[0px_15px_35px_-2px_rgba(0,0,0,0.05),0px_5px_15px_0px_rgba(0,0,0,0.05)]">
+    <div className="flex w-[353px] flex-col gap-4 rounded-[12px] border-[0.5px] border-solid border-border bg-white p-3 shadow-[0px_15px_35px_-2px_rgba(0,0,0,0.05),0px_5px_15px_0px_rgba(0,0,0,0.05)]">
+      {!hasConfigurableParameter ? (
+        <div className="py-4 text-center text-sm text-muted-foreground">{t("当前模型暂无可配置参数")}</div>
+      ) : null}
+
       {showRatio && limits.ratios.length > 0 ? (
         <Field label={t("比例")}>
           <SegmentedTrack>

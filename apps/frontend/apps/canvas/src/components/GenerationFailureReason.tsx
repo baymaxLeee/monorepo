@@ -35,10 +35,7 @@ export function GenerationFailureReason({ reason }: { reason: string }) {
   };
 
   return (
-    <div
-      className="flex max-w-[310px] items-end gap-1 text-[12px] leading-5 text-[color:var(--color-text-3)]"
-      ref={containerRef}
-    >
+    <div className="flex max-w-[310px] items-end gap-1 text-[12px] leading-5 text-muted-foreground" ref={containerRef}>
       <CEllipsis
         popoverProps={{ position: "top" }}
         className={styles.reason}
@@ -50,7 +47,7 @@ export function GenerationFailureReason({ reason }: { reason: string }) {
       </CEllipsis>
       <button
         aria-label={t("复制错误原因")}
-        className="mb-[3px] flex h-[14px] w-[14px] shrink-0 cursor-pointer items-center justify-center border-0 bg-[transparent] p-0 text-[color:var(--color-grey-4)] hover:text-[color:rgb(var(--primary-6))]"
+        className="mb-[3px] flex h-[14px] w-[14px] shrink-0 cursor-pointer items-center justify-center border-0 bg-[transparent] p-0 text-muted-foreground hover:text-primary"
         onClick={(event) => {
           event.stopPropagation();
           copy();

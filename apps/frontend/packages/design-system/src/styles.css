@@ -242,7 +242,7 @@
     background-color: rgb(255 255 255 / 0%);
   }
 
-  .markdown-editor-editable .markdown-editor-content {
+  .markdown-editor-with-block-gutter .markdown-editor-content {
     background-color: var(--background);
     padding-left: 2em;
     padding-right: 0.5em;
@@ -273,6 +273,13 @@
   }
   .markdown-editor-content .ProseMirror {
     outline: none !important;
+  }
+  .markdown-editor-content .ProseMirror > .is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    color: var(--muted-foreground);
+    pointer-events: none;
   }
   .markdown-editor-content .ProseMirror:focus,
   .markdown-editor-content .ProseMirror:focus-visible {

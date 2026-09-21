@@ -88,12 +88,12 @@ func (s *Service) submitAssetReview(ctx context.Context, review p.AssetReview, n
 	if err != nil {
 		return s.failAssetReview(ctx, review, "权益包服务不可用", true, now)
 	}
-	referenceURL := s.Storage.PublicURL(
-		s.PublicGatewayURL,
-		storage.Scope(review.TenantID, review.WorkspaceID, review.ProjectID),
-		asset.ObjectKey,
-		now.Add(30*time.Minute),
-	)
+	namespace := storage.Scope(review.TenantID, review.WorkspaceID, review.ProjectID)
+	presigned, err := s.Storage.BatchPublicURLs(ctx, []storage.Artifact{{Namespace: namespace, ID: asset.ArtifactID, ContentType: asset.MimeType}})
+	if err != nil {
+		return s.failAssetReview(ctx, review, "素材访问地址签发失败", true, now)
+	}
+	referenceURL := strings.TrimRight(s.PublicGatewayURL, "/") + presigned[storage.ArtifactLookupKey(namespace, asset.ArtifactID)].URL
 	providerAsset, err := directory.SubmitReviewedAsset(ctx, review.TenantID, review.WorkspaceID, review.BenefitPackageID, referenceURL, assetType, assetName)
 	if err != nil || providerAsset.ID == "" {
 		return s.failAssetReview(ctx, review, "素材提交审核失败", true, now)

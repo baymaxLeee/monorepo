@@ -24,7 +24,7 @@
 
 .fieldCount {
   margin-left: auto;
-  color: var(--color-text-3);
+  color: var(--muted-foreground);
   font-size: 12px;
   font-weight: 400;
 }
@@ -49,7 +49,7 @@
 
 .error {
   margin: 0;
-  color: rgb(var(--danger-6));
+  color: var(--destructive);
   font-size: 13px;
 }
 
@@ -61,12 +61,12 @@
   flex-direction: column;
   gap: 1rem;
   padding-left: 1.5rem;
-  border-left: 1px solid var(--color-border-2);
+  border-left: 1px solid var(--border);
 }
 
 .materialHeader {
   min-height: 2rem;
-  color: var(--color-text-1);
+  color: var(--foreground);
   font-size: 14px;
   font-weight: 500;
 }
@@ -78,10 +78,10 @@
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  border: 1px dashed var(--color-border-3);
+  border: 1px dashed var(--border);
   border-radius: 12px;
-  background: var(--color-bg-5);
-  color: var(--color-text-2);
+  background: var(--muted);
+  color: var(--foreground);
   cursor: pointer;
   flex-direction: column;
   gap: 0.5rem;
@@ -92,7 +92,7 @@
   }
 
   span {
-    color: var(--color-text-3);
+    color: var(--muted-foreground);
     font-size: 12px;
   }
 }
@@ -129,7 +129,7 @@
 
   &:hover,
   &:focus-within {
-    border-color: var(--color-text-3);
+    border-color: var(--muted-foreground);
   }
 }
 
@@ -140,10 +140,10 @@
   aspect-ratio: 1;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--color-border-3);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--color-bg-5);
-  color: var(--color-grey-4);
+  background: var(--muted);
+  color: var(--muted-foreground);
   font-size: 32px;
 
   img {
@@ -193,8 +193,8 @@
   justify-content: center;
   border: 0;
   border-radius: 50%;
-  background: var(--color-bg-white);
-  color: var(--color-text-1);
+  background: var(--background);
+  color: var(--foreground);
   font-size: 22px;
   opacity: 0;
   pointer-events: auto;
@@ -238,10 +238,10 @@
   height: 1.5rem;
   align-items: center;
   padding: 0 0.5rem;
-  border: 1px dashed var(--color-border-4);
+  border: 1px dashed var(--border);
   border-radius: 8px;
   background: rgb(241 243 245 / 90%);
-  color: var(--color-text-3);
+  color: var(--muted-foreground);
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
@@ -322,7 +322,7 @@
   overflow: hidden;
   border: 0;
   background: transparent;
-  color: var(--color-text-1);
+  color: var(--foreground);
   cursor: text;
   font-size: 14px;
   font-weight: 500;
@@ -330,7 +330,7 @@
 }
 
 .materialNameDuplicate {
-  color: rgb(var(--danger-6));
+  color: var(--destructive);
 }
 
 .materialNameInput {
@@ -356,7 +356,7 @@
     min-height: 22rem;
     padding-top: 1.5rem;
     padding-left: 0;
-    border-top: 1px solid var(--color-border-2);
+    border-top: 1px solid var(--border);
     border-left: 0;
   }
 }

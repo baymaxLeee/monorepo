@@ -85,13 +85,13 @@ export function ImageGenerationEditor({
       className={
         expanded
           ? `${styles.expanded} flex flex-col justify-between`
-          : "rounded-[20px] border border-[color:var(--color-border-3)] border-solid bg-white p-3 shadow-[0_4px_16px_rgba(0,0,0,0.1)]"
+          : "rounded-[20px] border border-border border-solid bg-white p-3 shadow-[0_4px_16px_rgba(0,0,0,0.1)]"
       }
     >
       <div className={`flex min-h-0 flex-col ${expanded ? "flex-1 gap-5" : "h-[200px] gap-3"}`}>
         {expanded ? (
           <div className="flex items-center justify-between">
-            <div className="truncate text-[14px] font-medium leading-6 text-[color:var(--color-text-1)]">{title}</div>
+            <div className="truncate text-[14px] font-medium leading-6 text-foreground">{title}</div>
             <Button
               aria-label={t("收起生图编辑器")}
               className={`${styles.fullscreenButton} flex h-6 w-6 shrink-0 items-center justify-center p-0 text-[20px]`}
@@ -137,7 +137,7 @@ export function ImageGenerationEditor({
           ) : null}
         </div>
         <textarea
-          className={`m-0 min-h-0 w-full flex-1 resize-none border-0 bg-[transparent] p-0 text-[13px] leading-5.5 text-[color:var(--color-text-1)] outline-none placeholder:text-[color:var(--color-text-3)] ${
+          className={`m-0 min-h-0 w-full flex-1 resize-none border-0 bg-[transparent] p-0 text-[13px] leading-5.5 text-foreground outline-none placeholder:text-muted-foreground ${
             generating ? styles.disabledEditorArea : ""
           }`}
           disabled={generating}
@@ -162,9 +162,7 @@ export function ImageGenerationEditor({
           />
         </div>
         <div className="flex items-center gap-2">
-          {settingsError ? (
-            <span className="text-[12px] leading-5 text-[color:rgb(var(--danger-6))]">{settingsError}</span>
-          ) : null}
+          {settingsError ? <span className="text-[12px] leading-5 text-destructive">{settingsError}</span> : null}
           {!generating ? (
             <Button disabled={!canGenerate} onClick={() => void onGenerate()} type="primary">
               {t("生成")}

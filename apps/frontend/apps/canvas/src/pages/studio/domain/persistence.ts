@@ -75,6 +75,8 @@ export function presentNode(graph: CanvasGraph, node: CanvasNode, state?: Canvas
     Text: node.text,
     SelectedOutputText: node.type === view.CanvasNodeType.TEXT_GENERATION ? node.text : undefined,
     AssetID: node.asset_id || undefined,
+    ResourceID: node.resource_id || undefined,
+    ResourceAssetID: node.resource_asset_id || undefined,
     CurrentAssetID: node.asset_id || undefined,
     SelectedAssetID: node.type >= 5 ? node.asset_id || undefined : undefined,
     Status: active
@@ -89,6 +91,11 @@ export function presentNode(graph: CanvasGraph, node: CanvasNode, state?: Canvas
     CreatedBy: "",
     UpdatedBy: "",
     ActiveTaskRunID: active ? state.id : undefined,
+    ActiveTaskType: active
+      ? state.task_type === view.CanvasNodeTaskType.ASSETS_MATCH
+        ? view.CanvasNodeTaskType.ASSETS_MATCH
+        : view.CanvasNodeTaskType.GENERATION
+      : undefined,
     GenerationConfig: {
       ModelServiceID: config.provider_id,
       Resolution: enumKey(resolutions, config.resolution, 2),
@@ -194,15 +201,16 @@ export async function CreateCanvasNode(request: view.CreateCanvasNodeRequest, op
   const graph = await writeGraph(
     request.CanvasID,
     (current) => {
+      const isStoryboardNode = request.Type === view.CanvasNodeType.VIDEO_GENERATION;
       const ordered = current.nodes
         .filter((node) => node.type === view.CanvasNodeType.VIDEO_GENERATION)
         .sort((a, b) => a.storyboard_rank - b.storyboard_rank);
       const afterIndex = request.AfterNodeID
         ? ordered.findIndex((node) => node.id === request.AfterNodeID)
         : ordered.length - 1;
-      const following = ordered
-        .slice(afterIndex + 1)
-        .map((node) => ({ ...node, storyboard_rank: node.storyboard_rank + 1 }));
+      const following = isStoryboardNode
+        ? ordered.slice(afterIndex + 1).map((node) => ({ ...node, storyboard_rank: node.storyboard_rank + 1 }))
+        : [];
       const rank = ordered[afterIndex]?.storyboard_rank ?? 0;
       const node: CanvasNode = {
         id,
@@ -216,9 +224,11 @@ export async function CreateCanvasNode(request: view.CreateCanvasNodeRequest, op
         text: request.Text ?? "",
         prompt: "",
         asset_id: request.AssetID ?? "",
+        resource_id: request.ResourceID ?? "",
+        resource_asset_id: request.ResourceAssetID ?? "",
         generation_config: generationConfig({ ModelServiceID: request.ModelServiceID }),
         incoming_edges: [],
-        storyboard_rank: rank + 1,
+        storyboard_rank: isStoryboardNode ? rank + 1 : 0,
         video_input_mode: 1,
         revision: 0,
       };

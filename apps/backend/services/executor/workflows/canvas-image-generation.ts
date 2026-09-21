@@ -14,8 +14,8 @@ export const canvasImageInputSchema = z.object({
   providerId: z.string().min(1),
   prompt: z.string().min(1),
   watermark: z.boolean().optional(),
-  objectScope: z.string().regex(/^[a-f0-9]{64}$/),
-  references: z.array(z.string().regex(/^[a-f0-9]{64}$/)),
+  artifactNamespace: z.string().regex(/^[a-f0-9]{64}$/),
+  artifactIds: z.array(z.string().regex(/^[a-f0-9]{64}$/)),
   aspectRatio: z
     .string()
     .regex(/^\d+:\d+$/)
@@ -46,11 +46,11 @@ async function generateStep(input: Input) {
   });
   const cancellation = observeTaskCancellation(getWorkflowMetadata().workflowRunId);
   const headers = { "X-Internal-Token": settings.internalApiToken, "X-Caller-Service": "executor" };
-  const objectUrl = `${settings.knowledgeServiceUrl.replace(/\/$/, "")}/internal/objects/${input.objectScope}`;
+  const objectUrl = `${settings.knowledgeServiceUrl.replace(/\/$/, "")}/internal/objects/${input.artifactNamespace}`;
   try {
     const images: Uint8Array[] = [];
-    for (const key of input.references) {
-      const response = await fetch(`${objectUrl}/${key}`, { headers, signal: cancellation.signal });
+    for (const artifactId of input.artifactIds) {
+      const response = await fetch(`${objectUrl}/${artifactId}`, { headers, signal: cancellation.signal });
       if (!response.ok) throw new Error(`Canvas reference unavailable (${response.status})`);
       images.push(new Uint8Array(await response.arrayBuffer()));
     }
@@ -88,8 +88,8 @@ async function generateStep(input: Input) {
       signal: cancellation.signal,
     });
     if (!response.ok) throw new Error(`Canvas output storage failed (${response.status})`);
-    const stored = z.object({ key: z.string().regex(/^[a-f0-9]{64}$/) }).parse(await response.json());
-    return { objectKey: stored.key, mimeType: file.mediaType || "image/png" };
+    const stored = z.object({ artifact_id: z.string().regex(/^[a-f0-9]{64}$/) }).parse(await response.json());
+    return { artifactId: stored.artifact_id, mimeType: file.mediaType || "image/png" };
   } finally {
     cancellation.dispose();
   }

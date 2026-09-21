@@ -7,11 +7,13 @@ import { createPortal } from "react-dom";
 
 import { AiPolishStatus } from "../../constants";
 import { isCellSelection } from "../../extensions/Table/utils";
-import { getMountedEditorDom } from "../../utils";
+import { getMountedEditorDom, getPortalPosition } from "../../utils";
 import { AIPolishContent, Toolbar } from "../Toolbar";
 
 interface IProps {
   editor: Editor;
+  appendTo?: HTMLElement | (() => HTMLElement);
+  zIndex?: number;
   aiEnable?: boolean;
   commentEnable?: boolean;
 }
@@ -27,8 +29,8 @@ const POSITION_EPSILON = 0.5;
 const BUBBLE_TOOLBAR_HOOK_CLASS = "markdown-editor-bubble-toolbar";
 /** 浮起气泡工具栏容器（高保真还原自原 BubbleToolbar/index.less） */
 const FLOATING_PANEL_CLS = `${BUBBLE_TOOLBAR_HOOK_CLASS} relative z-[101] rounded-md border bg-background text-sm text-foreground shadow-lg`;
-/** AI 润色面板（独立 portal，固定定位） */
-const POLISH_PANEL_CLS = "fixed z-[102] rounded-md border bg-background text-sm text-foreground shadow-lg";
+/** AI 润色面板（独立 portal，定位模式跟随挂载容器） */
+const POLISH_PANEL_CLS = "rounded-md border bg-background text-sm text-foreground shadow-lg";
 /** 用于 closest 查找编辑器根容器的稳定 hook */
 const EDITOR_ROOT_CLASS = "markdown-editor";
 const OVERLAY_CONTENT_SELECTOR = '[data-slot="sheet-content"], [data-slot="dialog-content"]';
@@ -51,12 +53,13 @@ const isValidSelection = (editor: Editor) => {
 };
 
 export const BubbleToolbar: React.FC<IProps> = (props) => {
-  const { editor, aiEnable } = props;
+  const { editor, appendTo, zIndex, aiEnable } = props;
 
   const [polishVisible, setPolishVisible] = useState(false);
   const [polishPos, setPolishPos] = useState<PolishPosition | null>(null);
   const [showCentered, setShowCentered] = useState(false);
   const polishRef = useRef<HTMLDivElement>(null);
+  const bubbleToolbarRef = useRef<HTMLDivElement>(null);
   const polishStatusRef = useRef<AiPolishStatus>(AiPolishStatus.Pending);
   const isRightClickRef = useRef(false);
   const showCenteredRef = useRef(false);
@@ -71,10 +74,12 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
   const skipNextResizeAdjustRef = useRef(false);
 
   const getPortalContainer = useCallback(() => {
+    if (typeof appendTo === "function") return appendTo();
+    if (appendTo) return appendTo;
     const dom = getMountedEditorDom(editor);
     const overlayContent = dom?.closest(OVERLAY_CONTENT_SELECTOR) as HTMLElement | null;
     return overlayContent ?? document.body;
-  }, [editor]);
+  }, [appendTo, editor]);
 
   useEffect(() => {
     const dom = getMountedEditorDom(editor);
@@ -152,7 +157,7 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
   };
 
   const getCurrentToolbarPos = (): PolishPosition | null => {
-    const toolbar = document.querySelector(`.${BUBBLE_TOOLBAR_HOOK_CLASS}`) as HTMLElement | null;
+    const toolbar = bubbleToolbarRef.current;
     if (!toolbar) {
       return null;
     }
@@ -289,6 +294,8 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
   }, [polishVisible, adjustPolishPosition]);
 
   const centeredPos = showCentered ? getEditorCenterPos() : null;
+  const portalContainer = getPortalContainer();
+  const nestedPanelZIndex = zIndex === undefined ? undefined : zIndex + 1;
   const centerStyle = {
     transform: "translate(-50%, -50%)",
     whiteSpace: "nowrap" as const,
@@ -298,10 +305,12 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
     <>
       {!polishVisible && !showCentered && (
         <BubbleMenu
+          ref={bubbleToolbarRef}
           className={FLOATING_PANEL_CLS}
           editor={editor}
           shouldShow={shouldShow}
-          appendTo={getPortalContainer()}
+          appendTo={appendTo ?? portalContainer}
+          style={zIndex === undefined ? undefined : { zIndex }}
           options={{
             placement: "top",
             offset: 8,
@@ -326,8 +335,8 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
           <div
             className={POLISH_PANEL_CLS}
             style={{
-              top: centeredPos.top,
-              left: centeredPos.left,
+              ...getPortalPosition(centeredPos, portalContainer),
+              zIndex: nestedPanelZIndex,
               ...centerStyle,
             }}
           >
@@ -338,7 +347,7 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
               onOpenPolish={handleOpenPolish}
             />
           </div>,
-          getPortalContainer(),
+          portalContainer,
         )}
 
       {polishVisible &&
@@ -348,14 +357,14 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
             ref={polishRef}
             className={POLISH_PANEL_CLS}
             style={{
-              top: polishPos.top,
-              left: polishPos.left,
+              ...getPortalPosition(polishPos, portalContainer),
+              zIndex: nestedPanelZIndex,
               ...(polishCenteredRef.current ? centerStyle : undefined),
             }}
           >
             <AIPolishContent editor={editor} onClose={handleClosePolish} statusRef={polishStatusRef} />
           </div>,
-          getPortalContainer(),
+          portalContainer,
         )}
     </>
   );

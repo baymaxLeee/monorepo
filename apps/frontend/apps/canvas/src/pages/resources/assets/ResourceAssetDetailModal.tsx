@@ -107,7 +107,7 @@ export function ResourceAssetDetailModal({
         renaming ? (
           <input
             aria-label={t("素材名称")}
-            className="h-6 w-full min-w-0 border-0 bg-[transparent] p-0 text-[14px] font-medium leading-6 text-[color:var(--color-text-1)] outline-none"
+            className="h-6 w-full min-w-0 border-0 bg-[transparent] p-0 text-[14px] font-medium leading-6 text-foreground outline-none"
             disabled={busy || renameSaving}
             maxLength={100}
             onBlur={() => void finishRenaming()}
@@ -131,7 +131,7 @@ export function ResourceAssetDetailModal({
               materialName,
               fileName: renameValue,
             })}
-            className="w-full min-w-0 cursor-text truncate border-0 bg-[transparent] p-0 text-left text-[14px] font-medium leading-6 text-[color:var(--color-text-1)] outline-none"
+            className="w-full min-w-0 cursor-text truncate border-0 bg-[transparent] p-0 text-left text-[14px] font-medium leading-6 text-foreground outline-none"
             disabled={busy}
             onClick={() => {
               renameCancelledRef.current = false;
@@ -143,9 +143,7 @@ export function ResourceAssetDetailModal({
             {renameValue}
           </button>
         ) : (
-          <div className="truncate text-[14px] font-medium leading-6 text-[color:var(--color-text-1)]">
-            {asset.Name}
-          </div>
+          <div className="truncate text-[14px] font-medium leading-6 text-foreground">{asset.Name}</div>
         )
       }
       unmountOnExit
@@ -165,10 +163,8 @@ export function ResourceAssetDetailModal({
               className="flex h-full w-full flex-col items-center justify-center gap-2 px-6 text-center"
               role="alert"
             >
-              <IconExclamationCircleRedFill className="text-[40px] text-[color:rgb(var(--danger-6))]" />
-              <strong className="text-[14px] font-medium leading-6 text-[color:rgb(var(--danger-6))]">
-                {t("生成失败")}
-              </strong>
+              <IconExclamationCircleRedFill className="text-[40px] text-destructive" />
+              <strong className="text-[14px] font-medium leading-6 text-destructive">{t("生成失败")}</strong>
               <GenerationFailureReason reason={generationFailure.message || t("生成失败，请重试")} />
               <Button icon={<IconRegenerate />} onClick={() => void generationFailure.onRetry()} type="outline">
                 {t("重新生成")}

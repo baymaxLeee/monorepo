@@ -47,6 +47,8 @@ type GenerationConfig struct {
 }
 type Node struct {
 	AssetID          string           `json:"asset_id"`
+	ResourceID       string           `json:"resource_id"`
+	ResourceAssetID  string           `json:"resource_asset_id"`
 	GenerationConfig GenerationConfig `json:"generation_config"`
 	VideoInputMode   int16            `json:"video_input_mode"`
 	ID               string           `json:"id"`
@@ -75,7 +77,23 @@ type Member struct {
 	Role   string `json:"role"`
 }
 type ProjectList struct {
-	Items []Project `json:"items"`
+	Items []ProjectSummary `json:"items"`
+}
+type ProjectStats struct {
+	CanvasCount                 int32 `json:"canvas_count"`
+	SelectedVideoDurationMillis int64 `json:"selected_video_duration_millis"`
+	ResourceCount               int32 `json:"resource_count"`
+}
+type ProjectSummary struct {
+	CreatedAt      string       `json:"created_at"`
+	UpdatedAt      string       `json:"updated_at"`
+	ID             string       `json:"id"`
+	Name           string       `json:"name"`
+	Description    string       `json:"description"`
+	CoverImagePath string       `json:"cover_image_path"`
+	CreatedBy      string       `json:"created_by"`
+	Revision       int64        `json:"revision"`
+	Stats          ProjectStats `json:"stats"`
 }
 type BoardList struct {
 	Items []Board `json:"items"`
@@ -145,15 +163,18 @@ type ResourceList struct {
 	Items []Resource `json:"items"`
 }
 type ResourceAsset struct {
-	SourceType int16  `json:"source_type"`
-	SequenceNo int64  `json:"sequence_no"`
-	HasContent bool   `json:"has_content"`
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	MediaType  int16  `json:"media_type"`
-	Revision   int64  `json:"revision"`
-	CreatedAt  string `json:"created_at"`
-	UpdatedAt  string `json:"updated_at"`
+	SourceType     int16  `json:"source_type"`
+	SequenceNo     int64  `json:"sequence_no"`
+	HasContent     bool   `json:"has_content"`
+	ID             string `json:"id"`
+	CurrentAssetID string `json:"current_asset_id"`
+	PreviewURL     string `json:"preview_url"`
+	ExpiresAt      string `json:"expires_at"`
+	Name           string `json:"name"`
+	MediaType      int16  `json:"media_type"`
+	Revision       int64  `json:"revision"`
+	CreatedAt      string `json:"created_at"`
+	UpdatedAt      string `json:"updated_at"`
 }
 type ResourceAssetList struct {
 	Items []ResourceAsset `json:"items"`
@@ -178,8 +199,10 @@ type MaterializeResource struct {
 }
 
 type ProjectAsset struct {
-	ID        string `json:"id"`
-	MediaType int16  `json:"media_type"`
+	ID         string `json:"id"`
+	MediaType  int16  `json:"media_type"`
+	PreviewURL string `json:"preview_url"`
+	ExpiresAt  string `json:"expires_at"`
 }
 
 type ResourceVersion struct {
@@ -226,6 +249,7 @@ type GenerationState struct {
 	ID              string `json:"id"`
 	NodeID          string `json:"node_id"`
 	Status          string `json:"status"`
+	TaskType        int16  `json:"task_type"`
 	CancelRequested bool   `json:"cancel_requested"`
 }
 type GenerationStateList struct {

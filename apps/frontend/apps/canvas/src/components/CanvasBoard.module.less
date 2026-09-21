@@ -12,11 +12,6 @@
 }
 
 .board {
-  --color-text-2: #42464e;
-  --color-text-3: #737a87;
-  --color-white: #fff;
-  --color-bg-6: #f2f3f5;
-  --color-danger-light-3: #f53f3f;
   position: relative;
   min-width: 0;
   min-height: 0;
@@ -123,7 +118,7 @@
   height: 24px;
   align-items: center;
   padding: 0;
-  color: var(--color-text-3);
+  color: var(--muted-foreground);
   font-size: 13px;
   font-weight: 500;
 }
@@ -204,7 +199,7 @@
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  color: var(--color-text-2);
+  color: var(--foreground);
   font: inherit;
 }
 
@@ -377,7 +372,7 @@
 }
 
 .deletedReferenceNode .previewShell {
-  border: 2px solid var(--color-danger-light-3);
+  border: 2px solid var(--destructive);
 }
 
 .deletedReferenceNode:global(.selected) .previewShell {
@@ -550,7 +545,7 @@
 
 .textPreviewPlaceholder {
   .textPreviewMarkdown {
-    color: var(--color-text-3);
+    color: var(--muted-foreground);
   }
 }
 
@@ -578,12 +573,12 @@
     height: 24px;
     padding: 0;
     border-radius: 8px;
-    background: var(--color-white);
+    background: var(--primary-foreground);
     box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
 
     &:hover,
     &:active {
-      background: var(--color-white) !important;
+      background: var(--primary-foreground) !important;
     }
   }
 }
@@ -604,7 +599,7 @@
   gap: 8px;
   padding: 0 12px;
   border-radius: 12px;
-  background-color: var(--color-bg-6);
+  background-color: var(--muted);
   font-size: 12px;
   line-height: 20px;
   transform: translateX(-50%);
@@ -613,7 +608,7 @@
 }
 
 .generatingBadgeStatus {
-  color: var(--color-text-2);
+  color: var(--foreground);
   font-weight: 500;
 }
 
@@ -621,14 +616,14 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--color-text-3);
+  color: var(--muted-foreground);
   cursor: pointer;
   font: inherit;
   font-weight: 400;
 }
 
 .generatingBadgeStop:hover:not(:disabled) {
-  color: var(--color-text-2);
+  color: var(--foreground);
 }
 
 .generatingBadgeStop:disabled {

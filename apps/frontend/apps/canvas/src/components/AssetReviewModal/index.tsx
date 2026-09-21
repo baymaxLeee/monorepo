@@ -156,13 +156,13 @@ export function AssetReviewModal({
       ) : loadError ? (
         <div>
           <div>{t("送审信息加载失败")}</div>
-          <div className="text-[color:var(--color-text-2)]">{loadError}</div>
+          <div className="text-foreground">{loadError}</div>
           <Button onClick={handleRetry} size="small" type="text">
             {t("重新加载")}
           </Button>
         </div>
       ) : packages.length && submissions.length ? (
-        <div className="flex flex-col gap-4 text-[13px] leading-5.5 text-[color:var(--color-text-1)]">
+        <div className="flex flex-col gap-4 text-[13px] leading-5.5 text-foreground">
           <div>
             {t("将提交 {count} 个{materialName}至合规审核。", {
               count: submissions.length,
@@ -170,7 +170,7 @@ export function AssetReviewModal({
             })}
             <> {t("请选择一个或多个权益账号后提交审核。")}</>
           </div>
-          <div className="flex flex-col gap-2 text-[color:var(--color-text-2)]">
+          <div className="flex flex-col gap-2 text-foreground">
             <span>{t("素材提交至：")}</span>
             <div className="grid max-h-48 gap-2 overflow-y-auto rounded-lg border p-3">
               {packages.map((option) => (
@@ -192,9 +192,7 @@ export function AssetReviewModal({
       ) : (
         <div>
           <div>{packages.length ? t("暂无可送审素材") : t("暂无可用权益包")}</div>
-          <div className="text-[color:var(--color-text-2)]">
-            {packages.length ? t("未选择可送审素材") : t("请先配置并启用权益包")}
-          </div>
+          <div className="text-foreground">{packages.length ? t("未选择可送审素材") : t("请先配置并启用权益包")}</div>
         </div>
       )}
     </Modal>

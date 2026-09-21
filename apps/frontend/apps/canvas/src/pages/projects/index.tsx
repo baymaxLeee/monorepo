@@ -5,7 +5,8 @@ import {
   Clock3 as IconClockCircle,
   EllipsisVertical as IconMoreVertical1,
   Plus as IconPlus,
-  Folder as IconProjectFill,
+  Layers3 as IconProjectFill,
+  Sparkles,
   Video as IconVideoDefault,
 } from "lucide-react";
 import { useRef, useState } from "react";
@@ -88,17 +89,21 @@ function ProjectCard({
         to={`/platform/canvas/projects/${project.id}/canvases`}
       >
         <div
-          className={`relative aspect-video w-full overflow-hidden rounded-[12px] bg-[color:var(--color-bg-5)] ${styles.projectCover}`}
+          className={`relative aspect-video w-full overflow-hidden rounded-[12px] bg-[#f2f3f5] ${styles.projectCover}`}
         >
           {project.thumbnail ? (
             <ProjectCoverImage
               alt={project.title}
               className={`h-full w-full object-cover ${styles.projectCoverImage}`}
               path={project.thumbnail}
+              version={project.updatedAt}
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-[32px] text-[color:var(--color-text-4)]">
-              <IconVideoDefault />
+            <div className="flex h-full w-full items-center justify-center text-[32px] text-muted-foreground">
+              <span className="relative inline-flex">
+                <IconVideoDefault />
+                <Sparkles className="absolute -right-1 -top-1 size-3 fill-current" />
+              </span>
             </div>
           )}
           <span className="absolute bottom-2 left-2 inline-flex h-6 items-center rounded-[8px] bg-[rgba(0,0,0,0.5)] px-[6px] text-[13px] font-medium leading-5.5 text-white">
@@ -107,12 +112,12 @@ function ProjectCard({
         </div>
 
         <div className="flex flex-col gap-1 px-3">
-          <h2 className="m-0 min-w-0 text-[18px] font-medium leading-7 text-[color:var(--color-text-1)] group-hover:text-[color:rgb(var(--primary-6))]">
+          <h2 className="m-0 min-w-0 text-[18px] font-medium leading-7 text-foreground group-hover:text-primary">
             <CEllipsis showPopover="auto" className={`w-full ${styles.projectTitle}`}>
               {project.title}
             </CEllipsis>
           </h2>
-          <div className="flex items-center gap-1 truncate text-[13px] leading-5.5 text-[color:var(--color-text-3)]">
+          <div className="flex items-center gap-1 truncate text-[13px] leading-5.5 text-muted-foreground">
             <UserAuto id={project.createdBy} stableSign={true} prefix="@" showIcon={false} />
             <span>·</span>
             <CEllipsis className="min-w-0 flex-1">
@@ -123,11 +128,11 @@ function ProjectCard({
           </div>
         </div>
         <div className="flex h-6 items-center gap-3 px-3">
-          <span className="inline-flex items-center gap-1 rounded-[8px] border border-[color:var(--color-text-2)] bg-[rgba(26,27,30,0.05)] px-[6px] text-[13px] leading-5.5 text-[#676b72] group-hover:opacity-0 group-focus-within:opacity-0">
+          <span className="inline-flex items-center gap-1 rounded-[8px] border border-border bg-[rgba(26,27,30,0.05)] px-[6px] text-[13px] leading-5.5 text-[#676b72] group-hover:opacity-0 group-focus-within:opacity-0">
             <IconClockCircle className="text-[14px]" />
             {project.duration}
           </span>
-          <span className="inline-flex items-center gap-1 rounded-[8px] border border-[color:var(--color-text-2)] bg-[rgba(26,27,30,0.05)] px-[6px] text-[13px] leading-5.5 text-[#676b72] group-hover:opacity-0 group-focus-within:opacity-0">
+          <span className="inline-flex items-center gap-1 rounded-[8px] border border-border bg-[rgba(26,27,30,0.05)] px-[6px] text-[13px] leading-5.5 text-[#676b72] group-hover:opacity-0 group-focus-within:opacity-0">
             <IconProjectFill className="text-[14px]" />
             {t("{count} 个资产", { count: project.assets })}
           </span>
@@ -249,9 +254,7 @@ export default function ProjectsPage() {
   return (
     <main className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
       <header className="shrink-0 px-5 pb-3 pt-4">
-        <h1 className="m-0 text-[28px] font-semibold leading-10 text-[color:var(--color-text-1)]">
-          {t("下午好，导演！")}
-        </h1>
+        <h1 className="m-0 text-[28px] font-semibold leading-10 text-foreground">{t("下午好，导演！")}</h1>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -314,20 +317,16 @@ export default function ProjectsPage() {
           </section>
         ) : debouncedKeyword.trim() ? (
           <section className="flex h-full min-h-[320px] flex-col items-center justify-center rounded-[16px] bg-white text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[color:var(--color-bg-3)] text-[color:var(--color-text-3)]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
               <IconSearch className="text-[18px]" />
             </div>
-            <p className="mb-0 mt-4 text-[16px] font-medium text-[color:var(--color-text-2)]">
-              {t("没有找到相关项目")}
-            </p>
-            <p className="mb-0 mt-1 text-[13px] text-[color:var(--color-text-3)]">{t("换个关键词再试试")}</p>
+            <p className="mb-0 mt-4 text-[16px] font-medium text-foreground">{t("没有找到相关项目")}</p>
+            <p className="mb-0 mt-1 text-[13px] text-muted-foreground">{t("换个关键词再试试")}</p>
           </section>
         ) : (
           <section className="mt-[110px] flex flex-col items-center gap-[10px]">
             <img alt={t("暂无项目")} className="h-[320px] w-[320px] object-contain" src={emptyIllustration} />
-            <p className="m-0 text-[20px] font-medium leading-8 text-[color:var(--color-text-1)]">
-              {t("方寸之间，万物生长")}
-            </p>
+            <p className="m-0 text-[20px] font-medium leading-8 text-foreground">{t("方寸之间，万物生长")}</p>
           </section>
         )}
         {projects.length > 0 && loadingMore ? (

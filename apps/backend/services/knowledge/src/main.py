@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from api.http.routes import (
+    artifacts_internal,
     canvas_media,
     conversation_cleanup_internal,
     documents,
@@ -21,6 +22,7 @@ from application.indexer import sweep_claim
 from application.processor import sweep_process
 from bootstrap.config import get_settings
 from fastapi import FastAPI
+from infrastructure.cache.redis import close_redis
 from infrastructure.persistence.database import close_db
 from kernel.errors import register_exception_handlers
 from kernel.logging import RequestLoggingMiddleware, configure_logging
@@ -48,6 +50,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         logger.exception("index sweep on startup failed")
     yield
     await close_admin_client()
+    await close_redis()
     await close_db()
 
 
@@ -73,6 +76,7 @@ def create_app() -> FastAPI:
     app.add_middleware(TraceIDMiddleware)
     app.include_router(health.router)
     app.include_router(canvas_media.router)
+    app.include_router(artifacts_internal.router)
     app.include_router(ingest.router)
     app.include_router(documents.router)
     app.include_router(documents_internal.router)

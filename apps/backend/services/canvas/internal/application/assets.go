@@ -51,7 +51,7 @@ func (s *Service) UploadNode(ctx context.Context, a Actor, canvasID, nodeID, nam
 			if err = tx.First(&asset, "id = ?", old.AssetID).Error; err != nil {
 				return Conflict()
 			}
-			if asset.ObjectKey != key {
+			if asset.ArtifactID != key {
 				return Conflict()
 			}
 			result, err = readGraph(tx, board)
@@ -60,7 +60,7 @@ func (s *Service) UploadNode(ctx context.Context, a Actor, canvasID, nodeID, nam
 		if err != gorm.ErrRecordNotFound {
 			return err
 		}
-		asset := p.Asset{ID: newID(), TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, ProjectID: board.ProjectID, ObjectKey: key, MimeType: mime}
+		asset := p.Asset{ID: newID(), TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, ProjectID: board.ProjectID, ArtifactID: key, MimeType: mime}
 		if err = tx.Create(&asset).Error; err != nil {
 			return err
 		}
@@ -92,14 +92,18 @@ func (s *Service) NodeContent(ctx context.Context, a Actor, canvasID, nodeID str
 		return MediaContent{}, NotFound()
 	}
 	var asset p.Asset
-	err = db.Where("id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND EXISTS (SELECT 1 FROM asset_references WHERE asset_id = assets.id AND ((owner_type = 'CANVAS_NODE_ASSET' AND owner_key = ?) OR (owner_type = 'CANVAS_GENERATION_OUTPUT' AND owner_key IN (SELECT id FROM canvas_generations WHERE node_id = ? AND output_asset_id = assets.id))) AND deleted_at IS NULL)", node.AssetID, a.TenantID, a.WorkspaceID, board.ProjectID, nodeID, nodeID).First(&asset).Error
+	if node.ResourceAssetID != "" {
+		err = db.Where("id = (SELECT current_asset_id FROM resource_assets WHERE id = ? AND resource_id = ? AND deleted_at IS NULL) AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND deleted_at IS NULL", node.ResourceAssetID, node.ResourceID, a.TenantID, a.WorkspaceID, board.ProjectID).First(&asset).Error
+	} else {
+		err = db.Where("id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND EXISTS (SELECT 1 FROM asset_references WHERE asset_id = assets.id AND ((owner_type = 'CANVAS_NODE_ASSET' AND owner_key = ?) OR (owner_type = 'CANVAS_GENERATION_OUTPUT' AND owner_key IN (SELECT id FROM canvas_generations WHERE node_id = ? AND output_asset_id = assets.id))) AND deleted_at IS NULL)", node.AssetID, a.TenantID, a.WorkspaceID, board.ProjectID, nodeID, nodeID).First(&asset).Error
+	}
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return MediaContent{}, NotFound()
 		}
 		return MediaContent{}, err
 	}
-	body, err := s.Storage.Get(ctx, storage.Scope(a.TenantID, a.WorkspaceID, board.ProjectID), asset.ObjectKey)
+	body, err := s.Storage.Get(ctx, storage.Scope(a.TenantID, a.WorkspaceID, board.ProjectID), asset.ArtifactID)
 	return MediaContent{Body: body, MIME: asset.MimeType}, err
 }
 

@@ -264,10 +264,12 @@ export async function streamCanvasNodeTextGeneration(
   onState: (state: CanvasTextGenerationStreamState) => void,
 ) {
   const graph = await canvasGetGraph(body.CanvasID, { signal });
+  const node = graph.nodes.find((item) => item.id === body.NodeID);
+  if (!node) throw new Error("节点已不存在");
   let run = await canvasStartGeneration(
     body.CanvasID,
     body.NodeID,
-    { expected_revision: graph.canvas.revision, operation_id: crypto.randomUUID() },
+    { expected_revision: node.revision, operation_id: crypto.randomUUID() },
     { signal },
   );
   for (;;) {

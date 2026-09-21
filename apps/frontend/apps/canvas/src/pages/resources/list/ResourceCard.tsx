@@ -80,9 +80,7 @@ export function ResourceCard({
   return (
     <article
       className={`group relative w-full overflow-hidden rounded-[16px] border border-solid p-[3px] transition-colors duration-200 ${
-        selected
-          ? "border-[color:rgb(var(--primary-6))]"
-          : "border-[transparent] hover:border-[color:var(--color-text-3)]"
+        selected ? "border-primary" : "border-[transparent] hover:border-muted-foreground"
       } ${selecting && !selected ? "opacity-50" : ""}`}
     >
       <button
@@ -109,7 +107,7 @@ export function ResourceCard({
               src={previewURL}
             />
           ) : !primaryAudioURL ? (
-            <span className="relative z-10 text-[42px] text-[color:var(--color-grey-4)]">
+            <span className="relative z-10 text-[42px] text-muted-foreground">
               {item.Type === resource.ResourceType.AUDIO ? typeIcon : <IconGenerationImage />}
             </span>
           ) : null}
@@ -125,7 +123,7 @@ export function ResourceCard({
           ) : null}
         </div>
         <div className="flex flex-col gap-2 px-3">
-          <h2 className="m-0 text-[16px] font-medium leading-6 text-[color:var(--color-text-1)] group-hover:text-[color:rgb(var(--primary-6))]">
+          <h2 className="m-0 text-[16px] font-medium leading-6 text-foreground group-hover:text-primary">
             <CEllipsis>{item.Name}</CEllipsis>
           </h2>
           <div className="flex items-center gap-2">
@@ -140,7 +138,7 @@ export function ResourceCard({
                 aria-label={t("{count} 个素材", {
                   count: item.ResourceAssetCount,
                 })}
-                className="inline-flex h-[22px] w-fit items-center gap-1 rounded-[8px] border border-[color:var(--color-text-2)] bg-[color:var(--color-bg-6)] px-[6px] text-[13px] leading-5.5 text-[color:var(--color-text-3)]"
+                className="inline-flex h-[22px] w-fit items-center gap-1 rounded-[8px] border border-foreground bg-muted px-[6px] text-[13px] leading-5.5 text-muted-foreground"
               >
                 <span className="inline-flex text-[14px]">{typeIcon}</span>
                 {item.ResourceAssetCount}
@@ -158,7 +156,7 @@ export function ResourceCard({
                   aria-label={t("{count} 个已审核通过素材", {
                     count: approvedResourceAssetCount,
                   })}
-                  className="inline-flex h-[22px] w-fit items-center gap-1 rounded-[8px] bg-[color:var(--color-bg-6)] px-[6px] text-[13px] leading-5.5 text-[color:var(--color-text-3)]"
+                  className="inline-flex h-[22px] w-fit items-center gap-1 rounded-[8px] bg-muted px-[6px] text-[13px] leading-5.5 text-muted-foreground"
                 >
                   <span className="inline-flex text-[14px]">
                     <IconComplianceLine />

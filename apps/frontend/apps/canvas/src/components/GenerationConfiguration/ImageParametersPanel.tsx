@@ -20,9 +20,7 @@ export const DEFAULT_IMAGE_GENERATION_SETTINGS: ImageGenerationSettings = {
 
 function optionClass(selected: boolean, disabled: boolean) {
   return `${segmentItemClass(selected)} ${
-    disabled
-      ? "cursor-not-allowed text-[color:var(--color-text-4)] opacity-50 hover:text-[color:var(--color-text-4)]"
-      : ""
+    disabled ? "cursor-not-allowed text-muted-foreground opacity-50 hover:text-muted-foreground" : ""
   }`;
 }
 
@@ -48,7 +46,7 @@ export function ImageParametersPanel({
   const patch = (part: Partial<ImageGenerationSettings>) => onChange({ ...settings, ...part });
 
   return (
-    <div className="flex w-[353px] flex-col gap-4 rounded-[12px] border-[0.5px] border-solid border-[color:var(--color-border-3)] bg-white p-3 shadow-[0px_15px_35px_-2px_rgba(0,0,0,0.05),0px_5px_15px_0px_rgba(0,0,0,0.05)]">
+    <div className="flex w-[353px] flex-col gap-4 rounded-[12px] border-[0.5px] border-solid border-border bg-white p-3 shadow-[0px_15px_35px_-2px_rgba(0,0,0,0.05),0px_5px_15px_0px_rgba(0,0,0,0.05)]">
       <Field label={t("比例")}>
         <SegmentedTrack>
           {ratioOptions.map((ratio) => {

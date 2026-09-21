@@ -7,8 +7,18 @@ import { Message, Spin } from "./ui";
 
 import styles from "./CoverImageUploader.module.less";
 
-export function CoverImage({ path, alt, className }: { path: string; alt: string; className?: string }) {
-  return <img alt={alt} className={className} loading="lazy" src={path} />;
+export function CoverImage({
+  path,
+  alt,
+  className,
+  version,
+}: {
+  path: string;
+  alt: string;
+  className?: string;
+  version?: string;
+}) {
+  return <img alt={alt} className={className} key={version} loading="lazy" src={path} />;
 }
 
 export function CoverImageUploader({

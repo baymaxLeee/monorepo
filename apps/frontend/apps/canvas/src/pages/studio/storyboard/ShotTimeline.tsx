@@ -25,14 +25,14 @@ function AddShotGap({ disabled, emphasized, onAdd }: { disabled: boolean; emphas
   return (
     <div className="group relative z-[1] h-[78px] w-3 shrink-0">
       <span
-        className={`pointer-events-none absolute left-[5px] top-[7px] hidden h-[64px] w-[2px] rounded-[999px] bg-[color:var(--color-border-3)] group-hover:block ${
+        className={`pointer-events-none absolute left-[5px] top-[7px] hidden h-[64px] w-[2px] rounded-[999px] bg-border group-hover:block ${
           emphasized ? "shadow-[0_0_0_2px_#fff]" : ""
         }`}
       />
       <Tooltip content={t("创建分镜")} position="top">
         <button
           aria-label={t("在此处创建分镜")}
-          className={`absolute left-[-4px] top-[29px] flex h-5 w-5 items-center justify-center rounded-[999px] border border-solid border-[color:var(--color-border-3)] bg-white p-0 text-[12px] text-[color:var(--color-text-2)] opacity-0 transition-opacity group-hover:opacity-100 ${
+          className={`absolute left-[-4px] top-[29px] flex h-5 w-5 items-center justify-center rounded-[999px] border border-solid border-border bg-background p-0 text-[12px] text-foreground opacity-0 transition-opacity group-hover:opacity-100 ${
             disabled ? "cursor-not-allowed" : "cursor-pointer"
           }`}
           onClick={() => {
@@ -119,10 +119,10 @@ export function ShotTimeline({
     >
       <button
         aria-label={t("新增分镜")}
-        className={`flex h-[78px] w-[78px] shrink-0 items-center justify-center rounded-[12px] border border-dashed border-[color:var(--color-text-4)] bg-white p-0 text-[32px] text-[color:var(--color-text-3)] ${
+        className={`flex h-[78px] w-[78px] shrink-0 items-center justify-center rounded-[12px] border border-dashed border-muted-foreground bg-background p-0 text-[32px] text-muted-foreground ${
           lockAdd
             ? "cursor-not-allowed opacity-60"
-            : "cursor-pointer hover:border-[color:var(--color-text-3)] hover:text-[color:var(--color-text-1)]"
+            : "cursor-pointer hover:border-muted-foreground hover:text-foreground"
         }`}
         type="button"
       >
@@ -165,7 +165,7 @@ export function ShotTimeline({
 
   return (
     <footer
-      className={`relative mx-5 mb-5 flex shrink-0 rounded-[20px] border border-solid border-[color:var(--color-border-3)] bg-white ${
+      className={`relative mx-5 mb-5 flex shrink-0 rounded-[20px] border border-solid border-border bg-background ${
         hasLabeledShot ? "items-start" : "items-center"
       }`}
     >
@@ -325,7 +325,7 @@ export function ShotTimeline({
             hasLabeledShot ? "items-start pt-3" : "items-center py-3"
           }`}
           style={{
-            background: "linear-gradient(90deg, rgba(255,255,255,0) 0px, #fff 40px)",
+            background: "linear-gradient(90deg, transparent 0px, var(--background) 40px)",
           }}
         >
           <div className="pointer-events-auto">{addShotButton}</div>

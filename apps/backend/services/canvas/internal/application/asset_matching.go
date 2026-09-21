@@ -284,7 +284,7 @@ func (s *Service) applyAssetMatch(ctx context.Context, actor Actor, match p.Asse
 			if err = tx.Where("id=? AND project_id=?", item.ResourceID, board.ProjectID).First(&resource).Error; err != nil {
 				continue
 			}
-			node := p.Node{ID: nodeID, CanvasID: match.CanvasID, AssetID: item.AssetID, Type: item.MediaType, Name: item.Name, X: target.X - 360, Y: target.Y + float64(index)*180, Revision: 1, VideoInputMode: 1, GenerationConfig: "{}", IncomingEdges: "[]"}
+			node := p.Node{ID: nodeID, CanvasID: match.CanvasID, AssetID: item.AssetID, ResourceID: item.ResourceID, ResourceAssetID: item.ResourceAssetID, Type: item.MediaType, Name: item.Name, X: target.X - 360, Y: target.Y + float64(index)*180, Revision: 1, VideoInputMode: 1, GenerationConfig: "{}", IncomingEdges: "[]"}
 			if err = tx.Create(&node).Error; err != nil {
 				return err
 			}
@@ -351,17 +351,6 @@ func (s *Service) GetAssetMatch(ctx context.Context, actor Actor, canvasID, node
 	return assetMatchDTO(match, generation), nil
 }
 
-func (s *Service) LatestAssetMatch(ctx context.Context, actor Actor, canvasID, nodeID string) (c.AssetMatchRun, error) {
-	if _, err := boardAccess(s.DB.WithContext(ctx), actor, canvasID, false); err != nil {
-		return c.AssetMatchRun{}, err
-	}
-	var match p.AssetMatchRun
-	if err := s.DB.WithContext(ctx).Where("canvas_id=? AND node_id=?", canvasID, nodeID).Order("created_at DESC,id DESC").First(&match).Error; err != nil {
-		return c.AssetMatchRun{}, NotFound()
-	}
-	return s.GetAssetMatch(ctx, actor, canvasID, nodeID, match.ID)
-}
-
 func (s *Service) CancelAssetMatch(ctx context.Context, actor Actor, canvasID, nodeID, runID string) (c.AssetMatchRun, error) {
 	if _, err := boardAccess(s.DB.WithContext(ctx), actor, canvasID, true); err != nil {
 		return c.AssetMatchRun{}, err
@@ -381,9 +370,6 @@ func (s *Service) CancelAssetMatch(ctx context.Context, actor Actor, canvasID, n
 			}
 		}
 	}
-	var match p.AssetMatchRun
-	if err := s.DB.WithContext(ctx).First(&match, "id=?", runID).Error; err != nil {
-		return c.AssetMatchRun{}, err
-	}
-	return assetMatchDTO(match, generation), nil
+	// 与 AgentFrame 一致：如果完成先于取消提交，完成结果获胜并立即投影回画布。
+	return s.GetAssetMatch(ctx, actor, canvasID, nodeID, runID)
 }

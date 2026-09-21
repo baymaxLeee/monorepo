@@ -55,16 +55,12 @@ export default function ProjectLayout() {
           onClick={() => navigate("/platform/canvas/projects")}
           size="mini"
         />
-        <h1 className="m-0 text-[20px] font-semibold leading-7 text-[color:var(--color-text-1)]">
-          {projectName || t("项目")}
-        </h1>
-        {summary ? (
-          <span className="shrink-0 text-[20px] leading-7 text-[color:var(--color-text-3)]">{summary}</span>
-        ) : null}
+        <h1 className="m-0 text-[20px] font-semibold leading-7 text-foreground">{projectName || t("项目")}</h1>
+        {summary ? <span className="shrink-0 text-[20px] leading-7 text-muted-foreground">{summary}</span> : null}
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="mt-3 w-[200px] shrink-0 border-0 border-r border-solid border-[color:var(--color-border-3)] px-3 pb-3">
+        <aside className="mt-3 w-[200px] shrink-0 border-0 border-r border-solid border-border px-3 pb-3">
           <nav aria-label={t("项目功能")} className="flex flex-col gap-1">
             <NavLink
               className={({ isActive }) => `${styles.navigation} ${isActive ? styles.selectedNavigation : ""}`}

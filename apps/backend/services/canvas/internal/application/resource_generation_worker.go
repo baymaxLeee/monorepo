@@ -113,11 +113,11 @@ func (s *Service) runResourceGeneration(ctx context.Context, row p.ResourceGener
 			row.Error = "生成失败，请检查模型配置后重试"
 		}
 		if row.Status == "completed" {
-			if task.Result.ObjectKey == "" {
+			if task.Result.ArtifactID == "" {
 				row.Status = "failed"
 				row.Error = "模型未返回图片"
 			} else {
-				asset := p.Asset{ID: newID(), TenantID: row.TenantID, WorkspaceID: row.WorkspaceID, ProjectID: row.ProjectID, ObjectKey: task.Result.ObjectKey, MimeType: task.Result.MimeType}
+				asset := p.Asset{ID: newID(), TenantID: row.TenantID, WorkspaceID: row.WorkspaceID, ProjectID: row.ProjectID, ArtifactID: task.Result.ArtifactID, MimeType: task.Result.MimeType}
 				if err := tx.Create(&asset).Error; err != nil {
 					return err
 				}

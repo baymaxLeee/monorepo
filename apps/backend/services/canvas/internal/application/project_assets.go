@@ -26,16 +26,16 @@ func (s *Service) UploadProjectAsset(ctx context.Context, actor Actor, projectID
 		Where("assets.tenant_id = ? AND assets.workspace_id = ? AND assets.project_id = ? AND project_owner.owner_type = ? AND project_owner.owner_key = ?", actor.TenantID, actor.WorkspaceID, projectID, "PROJECT_ASSET", clientID).
 		First(&existing).Error
 	if err == nil {
-		return c.ProjectAsset{ID: existing.ID, MediaType: mediaType(existing.MimeType)}, nil
+		return s.projectAssetDTO(ctx, actor, projectID, existing), nil
 	}
 	if err != gorm.ErrRecordNotFound {
 		return c.ProjectAsset{}, err
 	}
-	key, mime, kind, err := s.storeMedia(ctx, actor, projectID, body)
+	key, mime, _, err := s.storeMedia(ctx, actor, projectID, body)
 	if err != nil {
 		return c.ProjectAsset{}, err
 	}
-	asset := p.Asset{ID: newID(), TenantID: actor.TenantID, WorkspaceID: actor.WorkspaceID, ProjectID: projectID, ObjectKey: key, MimeType: mime, OriginalName: name}
+	asset := p.Asset{ID: newID(), TenantID: actor.TenantID, WorkspaceID: actor.WorkspaceID, ProjectID: projectID, ArtifactID: key, MimeType: mime, OriginalName: name}
 	err = db.Transaction(func(tx *gorm.DB) error {
 		if _, err := access(tx, actor, projectID, true); err != nil {
 			return err
@@ -49,7 +49,20 @@ func (s *Service) UploadProjectAsset(ctx context.Context, actor Actor, projectID
 		_ = s.Storage.Delete(context.WithoutCancel(ctx), storage.Scope(actor.TenantID, actor.WorkspaceID, projectID), key)
 		return c.ProjectAsset{}, err
 	}
-	return c.ProjectAsset{ID: asset.ID, MediaType: kind}, nil
+	return s.projectAssetDTO(ctx, actor, projectID, asset), nil
+}
+
+func (s *Service) projectAssetDTO(ctx context.Context, actor Actor, projectID string, asset p.Asset) c.ProjectAsset {
+	item := c.ProjectAsset{ID: asset.ID, MediaType: mediaType(asset.MimeType)}
+	namespace := storage.Scope(actor.TenantID, actor.WorkspaceID, projectID)
+	urls, err := s.Storage.BatchPublicURLs(ctx, []storage.Artifact{{Namespace: namespace, ID: asset.ArtifactID, ContentType: asset.MimeType}})
+	if err != nil {
+		return item
+	}
+	if signed, ok := urls[storage.ArtifactLookupKey(namespace, asset.ArtifactID)]; ok {
+		item.PreviewURL, item.ExpiresAt = signed.URL, signed.ExpiresAt
+	}
+	return item
 }
 
 func mediaType(mime string) int16 {
@@ -77,6 +90,6 @@ func (s *Service) ProjectAssetContent(ctx context.Context, actor Actor, projectI
 	if err != nil {
 		return MediaContent{}, NotFound()
 	}
-	body, err := s.Storage.Get(ctx, storage.Scope(actor.TenantID, actor.WorkspaceID, projectID), asset.ObjectKey)
+	body, err := s.Storage.Get(ctx, storage.Scope(actor.TenantID, actor.WorkspaceID, projectID), asset.ArtifactID)
 	return MediaContent{Body: body, MIME: asset.MimeType}, err
 }

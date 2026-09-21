@@ -1,6 +1,16 @@
 .searchInput {
+  width: 240px;
+  max-width: 100%;
+  flex: 0 1 auto;
+
   :global([data-ui-input-control]) {
     border-color: transparent;
-    background-color: var(--color-bg-6);
+    background-color: #f2f3f5;
+  }
+
+  :global([data-ui-input-control]:hover),
+  :global([data-ui-input-control]:focus) {
+    border-color: transparent;
+    background-color: #f2f3f5;
   }
 }

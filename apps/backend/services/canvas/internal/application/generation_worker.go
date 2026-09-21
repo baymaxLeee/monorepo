@@ -122,8 +122,8 @@ func (s *Service) runGeneration(ctx context.Context, row p.Generation) error {
 			if err != nil && err != gorm.ErrRecordNotFound {
 				return err
 			}
-			if err == nil && task.Result.ObjectKey != "" {
-				asset := p.Asset{ID: newID(), TenantID: row.TenantID, WorkspaceID: row.WorkspaceID, ProjectID: board.ProjectID, ObjectKey: task.Result.ObjectKey, MimeType: task.Result.MimeType}
+			if err == nil && task.Result.ArtifactID != "" {
+				asset := p.Asset{ID: newID(), TenantID: row.TenantID, WorkspaceID: row.WorkspaceID, ProjectID: board.ProjectID, ArtifactID: task.Result.ArtifactID, MimeType: task.Result.MimeType}
 				if err = tx.Create(&asset).Error; err != nil {
 					return err
 				}

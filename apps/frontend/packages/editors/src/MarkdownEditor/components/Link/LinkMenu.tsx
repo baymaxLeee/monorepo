@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { URL_REGEX } from "../../constants";
+import { useEditorContext } from "../../context";
 import { getFullUrl, getMountedEditorDom } from "../../utils";
 import { EditorTooltipContent } from "../EditorTooltipContent";
 
@@ -31,6 +32,7 @@ const ICON_BTN_CLS =
   "inline-flex size-7 cursor-pointer select-none items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground";
 
 export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
+  const popupConfig = useEditorContext((ctx) => ctx.popupConfig);
   const [mode, setMode] = useState<"preview" | "edit">("preview");
   const form = useForm<LinkFormValues>({
     resolver: zodResolver(linkSchema as never),
@@ -235,6 +237,8 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
     >
       <PopoverAnchor virtualRef={{ current: anchorEl }} />
       <PopoverContent
+        container={popupConfig.getContainer(editor.view.dom)}
+        style={{ zIndex: popupConfig.zIndex }}
         ref={menuRef}
         side={mode === "preview" ? "top" : "bottom"}
         align="start"

@@ -32,6 +32,7 @@ export function useNodeGenerationActions(
             id: run.id,
             node_id: nodeId,
             status: run.status,
+            task_type: 1,
             cancel_requested: run.cancel_requested,
           }),
         );
@@ -61,6 +62,7 @@ export function useNodeGenerationActions(
             id: runId,
             node_id: nodeId,
             status: result.status,
+            task_type: 1,
             cancel_requested: result.cancel_requested,
           });
         });

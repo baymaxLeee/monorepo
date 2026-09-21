@@ -1,6 +1,6 @@
 import { MarkdownEditor, type MarkdownEditorRef } from "@repo/editors/markdown-editor";
 import type { AnyExtension } from "@tiptap/core";
-import { type ReactNode, forwardRef, useEffect, useRef } from "react";
+import { forwardRef, useEffect, useRef } from "react";
 
 import styles from "./PromptEditor.module.less";
 
@@ -23,7 +23,7 @@ export const PromptEditor = forwardRef<
     extensions?: AnyExtension[];
     /** 只读且降透明度；光标落到 not-allowed 与设计稿一致。 */
     locked?: boolean;
-    placeholder?: ReactNode;
+    placeholder?: string | null;
     value: string;
     onChange: (value: string) => void;
   }
@@ -73,13 +73,8 @@ export const PromptEditor = forwardRef<
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col">
-      {!value.trim() && placeholder ? (
-        <p className="pointer-events-none absolute left-0 top-[0.5em] z-[1] m-0 text-[14px] leading-7 text-[color:var(--color-text-3)]">
-          {placeholder}
-        </p>
-      ) : null}
       <div
-        className={`min-h-0 flex-1 text-[14px] leading-6.5 text-[color:var(--color-text-1)] ${
+        className={`min-h-0 flex-1 text-[14px] leading-6.5 text-foreground ${
           locked ? "cursor-not-allowed opacity-60" : ""
         }`}
         ref={rootRef}
@@ -94,6 +89,7 @@ export const PromptEditor = forwardRef<
             codeBlock: false,
           }}
           onChange={onChange}
+          placeholder={placeholder ?? undefined}
           className={styles.editor}
           ref={ref}
           value={value}

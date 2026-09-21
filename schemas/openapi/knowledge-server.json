@@ -81,6 +81,81 @@
         }
       }
     },
+    "/internal/artifacts/presign": {
+      "post": {
+        "tags": [
+          "service-artifacts"
+        ],
+        "summary": "Batch Presign",
+        "operationId": "batch_presign_internal_artifacts_presign_post",
+        "parameters": [
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchArtifactURLRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchArtifactURLResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/ingest": {
       "post": {
         "tags": [
@@ -2801,13 +2876,13 @@
         }
       }
     },
-    "/internal/objects/{scope}/{key}": {
+    "/internal/objects/{scope}/{artifact_id}": {
       "get": {
         "tags": [
           "service-objects"
         ],
         "summary": "Get Object",
-        "operationId": "get_object_internal_objects__scope___key__get",
+        "operationId": "get_object_internal_objects__scope___artifact_id__get",
         "parameters": [
           {
             "name": "scope",
@@ -2819,12 +2894,12 @@
             }
           },
           {
-            "name": "key",
+            "name": "artifact_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Key"
+              "title": "Artifact Id"
             }
           },
           {
@@ -2879,7 +2954,7 @@
           "service-objects"
         ],
         "summary": "Delete Object",
-        "operationId": "delete_object_internal_objects__scope___key__delete",
+        "operationId": "delete_object_internal_objects__scope___artifact_id__delete",
         "parameters": [
           {
             "name": "scope",
@@ -2891,12 +2966,12 @@
             }
           },
           {
-            "name": "key",
+            "name": "artifact_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Key"
+              "title": "Artifact Id"
             }
           },
           {
@@ -3923,6 +3998,62 @@
   },
   "components": {
     "schemas": {
+      "ArtifactURLRequest": {
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "title": "Namespace"
+          },
+          "artifact_id": {
+            "type": "string",
+            "title": "Artifact Id"
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "namespace",
+          "artifact_id",
+          "content_type"
+        ],
+        "title": "ArtifactURLRequest"
+      },
+      "BatchArtifactURLRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactURLRequest"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "BatchArtifactURLRequest"
+      },
+      "BatchArtifactURLResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PresignedArtifact"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "BatchArtifactURLResponse"
+      },
       "BatchDeleteInput": {
         "properties": {
           "ids": {
@@ -5026,6 +5157,34 @@
         ],
         "title": "IngestResult"
       },
+      "PresignedArtifact": {
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "title": "Namespace"
+          },
+          "artifact_id": {
+            "type": "string",
+            "title": "Artifact Id"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "expires_at": {
+            "type": "string",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "namespace",
+          "artifact_id",
+          "url",
+          "expires_at"
+        ],
+        "title": "PresignedArtifact"
+      },
       "PromoteChangeSetInput": {
         "properties": {
           "user_id": {
@@ -5286,9 +5445,9 @@
       },
       "StoredServiceObject": {
         "properties": {
-          "key": {
+          "artifact_id": {
             "type": "string",
-            "title": "Key"
+            "title": "Artifact Id"
           },
           "size": {
             "type": "integer",
@@ -5301,7 +5460,7 @@
         },
         "type": "object",
         "required": [
-          "key",
+          "artifact_id",
           "size",
           "sha256"
         ],

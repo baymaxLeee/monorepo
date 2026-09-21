@@ -40,10 +40,7 @@ function ExportStatusAction({ item, canvasId }: { item: ExportItem; canvasId: st
   if (isActive(item)) {
     return (
       <Tooltip content={t("打包中")} position="left">
-        <span
-          aria-label={t("打包中")}
-          className="inline-flex size-5 items-center justify-center text-[color:rgb(var(--primary-6))]"
-        >
+        <span aria-label={t("打包中")} className="inline-flex size-5 items-center justify-center text-primary">
           <IconLoading className="animate-spin text-[16px]" />
         </span>
       </Tooltip>
@@ -56,7 +53,7 @@ function ExportStatusAction({ item, canvasId }: { item: ExportItem; canvasId: st
       <Tooltip content={message} position="left">
         <span
           aria-label={item.status === "cancelled" ? t("打包已取消") : t("打包失败")}
-          className="inline-flex size-5 items-center justify-center text-[color:rgb(var(--danger-6))]"
+          className="inline-flex size-5 items-center justify-center text-destructive"
         >
           <IconExclamationCircleRedFill className="text-[20px]" />
         </span>
@@ -114,7 +111,7 @@ export function ExportHistoryDrawer({
       footer={null}
       onCancel={onClose}
       title={
-        <span className="flex items-center gap-2 text-[16px] font-medium leading-6 text-[color:var(--color-text-1)]">
+        <span className="flex items-center gap-2 text-[16px] font-medium leading-6 text-foreground">
           <IconAgentHistory className="text-[20px]" />
           <span>{t("导出记录")}</span>
         </span>
@@ -137,7 +134,7 @@ export function ExportHistoryDrawer({
             <span>{formatBytes(item.size)}</span>
           </>
         )}
-        renderIcon={() => <IconZip className="text-[28px] text-[color:rgb(var(--primary-6))]" />}
+        renderIcon={() => <IconZip className="text-[28px] text-primary" />}
         renderTitle={(item) => formatDateTime(item.created_at)}
         retryText={t("重新加载")}
         sourceKey={`${projectId}:${canvasId}:${visible}`}

@@ -36,6 +36,6 @@ func (s *Service) GenerationContent(ctx context.Context, actor Actor, canvasID, 
 	if err := db.Where("id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND EXISTS (SELECT 1 FROM asset_references WHERE asset_id = assets.id AND owner_type = 'CANVAS_GENERATION_OUTPUT' AND owner_key = ? AND deleted_at IS NULL)", generation.OutputAssetID, actor.TenantID, actor.WorkspaceID, board.ProjectID, id).First(&asset).Error; err != nil {
 		return MediaContent{}, NotFound()
 	}
-	body, err := s.Storage.Get(ctx, storage.Scope(actor.TenantID, actor.WorkspaceID, board.ProjectID), asset.ObjectKey)
+	body, err := s.Storage.Get(ctx, storage.Scope(actor.TenantID, actor.WorkspaceID, board.ProjectID), asset.ArtifactID)
 	return MediaContent{Body: body, MIME: asset.MimeType}, err
 }

@@ -12,13 +12,17 @@ interface TableRowMenuProps {
 }
 
 export const TableRowMenu: React.FC<TableRowMenuProps> = ({ editor }) => {
-  const isMarkdown = useEditorContext((ctx) => ctx.contentType) === "markdown";
+  const { isMarkdown, popupConfig } = useEditorContext((ctx) => ({
+    isMarkdown: ctx.contentType === "markdown",
+    popupConfig: ctx.popupConfig,
+  }));
 
   return (
     <BubbleMenu
       editor={editor}
       pluginKey="tableRowMenu"
-      appendTo={document.body}
+      appendTo={() => popupConfig.getContainer(editor.view.dom)}
+      style={{ zIndex: popupConfig.zIndex }}
       updateDelay={0}
       shouldShow={ALWAYS_SHOW}
     >

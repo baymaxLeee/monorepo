@@ -14,6 +14,10 @@ const contextSchema = z.object({
 });
 const nodeSchema = z.object({
   asset_id: z.string().describe("Preserve the existing asset ID; empty for new generation and text nodes."),
+  resource_id: z.string().describe("Preserve the existing stable resource ID; empty for non-resource nodes."),
+  resource_asset_id: z
+    .string()
+    .describe("Preserve the existing stable resource asset ID; empty for non-resource nodes."),
   id: z.string().min(1).max(36).describe("Existing node ID, or a new unique ID for creation."),
   type: z
     .number()

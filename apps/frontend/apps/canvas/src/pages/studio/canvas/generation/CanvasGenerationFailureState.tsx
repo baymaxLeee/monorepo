@@ -58,8 +58,8 @@ export function CanvasGenerationFailureState({
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-6 text-center" role="alert">
-      <IconExclamationCircleRedFill className="text-[40px] text-[color:rgb(var(--danger-6))]" />
-      <strong className="text-[14px] font-medium leading-6 text-[color:rgb(var(--danger-6))]">{copy.title}</strong>
+      <IconExclamationCircleRedFill className="text-[40px] text-destructive" />
+      <strong className="text-[14px] font-medium leading-6 text-destructive">{copy.title}</strong>
       <GenerationFailureReason reason={message || copy.fallback} />
       <Button
         icon={<IconAiGenerateVariationSpark />}

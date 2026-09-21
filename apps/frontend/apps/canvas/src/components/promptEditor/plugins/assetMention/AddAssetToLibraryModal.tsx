@@ -75,7 +75,7 @@ export function AddAssetToLibraryModal({
       wrapClassName={ASSET_LIBRARY_MODAL_CLASS}
     >
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2 text-[14px] text-[color:var(--color-text-1)]">
+        <div className="flex flex-col gap-2 text-[14px] text-foreground">
           {t("资产类型")}
           <Select onChange={(value) => setType(value)} value={type}>
             {options.map((option) => (
@@ -85,11 +85,11 @@ export function AddAssetToLibraryModal({
             ))}
           </Select>
         </div>
-        <label className="flex flex-col gap-2 text-[14px] text-[color:var(--color-text-1)]">
+        <label className="flex flex-col gap-2 text-[14px] text-foreground">
           {t("资产名称")}
           <Input maxLength={NAME_MAX_LENGTH} onChange={setName} showWordLimit value={name} />
         </label>
-        <label className="flex flex-col gap-2 text-[14px] text-[color:var(--color-text-1)]">
+        <label className="flex flex-col gap-2 text-[14px] text-foreground">
           {t("资产描述")}
           <Input.TextArea
             maxLength={RESOURCE_DESCRIPTION_MAX_LENGTH}
@@ -99,7 +99,7 @@ export function AddAssetToLibraryModal({
             value={description}
           />
         </label>
-        {error ? <p className="m-0 text-[13px] text-[color:rgb(var(--danger-6))]">{error}</p> : null}
+        {error ? <p className="m-0 text-[13px] text-destructive">{error}</p> : null}
       </div>
     </Modal>
   );

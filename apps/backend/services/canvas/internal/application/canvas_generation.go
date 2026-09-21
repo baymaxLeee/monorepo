@@ -2,11 +2,11 @@ package application
 
 import (
 	"context"
+	"strings"
+
 	c "github.com/example/monorepo/canvas/internal/application/contracts"
-	p "github.com/example/monorepo/canvas/internal/infrastructure/persistence"
 	video "github.com/example/monorepo/canvas/internal/server/application/videogeneration"
 	domain "github.com/example/monorepo/canvas/internal/server/domain/canvas"
-	"strings"
 )
 
 func (s *Service) StartCanvasGeneration(ctx context.Context, actor Actor, canvasID string, input c.StartCanvasGeneration) (c.CanvasGenerationBatch, error) {
@@ -53,11 +53,24 @@ func (s *Service) CanvasGenerationStatus(ctx context.Context, actor Actor, canva
 	if _, err := boardAccess(s.DB.WithContext(ctx), actor, canvasID, false); err != nil {
 		return c.GenerationStateList{}, err
 	}
-	var rows []p.Generation
-	err := s.DB.WithContext(ctx).Select("DISTINCT ON (node_id) id, node_id, status, cancel_requested").Where("canvas_id = ? AND tenant_id = ? AND workspace_id = ? AND id NOT IN (SELECT id FROM canvas_asset_match_runs)", canvasID, actor.TenantID, actor.WorkspaceID).Order("node_id, created_at DESC, id DESC").Find(&rows).Error
+	type generationStateRow struct {
+		ID              string
+		NodeID          string
+		Status          string
+		TaskType        int16
+		CancelRequested bool
+	}
+	var rows []generationStateRow
+	err := s.DB.WithContext(ctx).
+		Table("canvas_generations AS g").
+		Select("DISTINCT ON (g.node_id) g.id, g.node_id, g.status, g.cancel_requested, CASE WHEN asset_match.id IS NULL THEN 1 ELSE 2 END AS task_type").
+		Joins("LEFT JOIN canvas_asset_match_runs AS asset_match ON asset_match.id = g.id").
+		Where("g.canvas_id = ? AND g.tenant_id = ? AND g.workspace_id = ?", canvasID, actor.TenantID, actor.WorkspaceID).
+		Order("g.node_id, g.created_at DESC, g.id DESC").
+		Scan(&rows).Error
 	result := c.GenerationStateList{Items: []c.GenerationState{}}
 	for _, row := range rows {
-		result.Items = append(result.Items, c.GenerationState{ID: row.ID, NodeID: row.NodeID, Status: row.Status, CancelRequested: row.CancelRequested})
+		result.Items = append(result.Items, c.GenerationState{ID: row.ID, NodeID: row.NodeID, Status: row.Status, TaskType: row.TaskType, CancelRequested: row.CancelRequested})
 	}
 	return result, err
 }

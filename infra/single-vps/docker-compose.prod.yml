@@ -352,6 +352,7 @@ services:
     container_name: monorepo-knowledge
     depends_on:
       db-init: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
     environment:
       ENVIRONMENT: single-vps
       OTEL_SERVICE_NAME: knowledge
@@ -362,6 +363,9 @@ services:
       POSTGRES_USER: knowledge
       POSTGRES_PASSWORD: ${KNOWLEDGE_POSTGRES_PASSWORD:?KNOWLEDGE_POSTGRES_PASSWORD is required}
       POSTGRES_DATABASE: knowledge
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "3"
       ADMIN_SERVICE_URL: http://admin:8001
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
       KNOWLEDGE_DATA_DIR: /data/objects

@@ -71,7 +71,7 @@ export function ShotCard({
   return (
     <div className="relative flex w-[138px] shrink-0 flex-col items-center gap-1">
       <div
-        className={`group relative h-[78px] w-full overflow-hidden rounded-[12px] bg-[color:var(--color-bg-5)] ${
+        className={`group relative h-[78px] w-full overflow-hidden rounded-[12px] bg-muted ${
           selected || playing ? "shadow-[0_0_0_6px_#bedaff]" : ""
         }`}
       >
@@ -79,7 +79,7 @@ export function ShotCard({
           <img alt={firstFrameURL ? t("分镜首帧") : ""} className="h-full w-full object-contain" src={thumbnail} />
         ) : (
           <span
-            className="flex h-full w-full items-center justify-center text-[24px] text-[color:var(--color-text-4)]"
+            className="flex h-full w-full items-center justify-center text-[24px] text-muted-foreground"
             title={firstFrameErrorMessage ?? firstFrameErrorCode}
           >
             <IconVideoDefault />
@@ -87,7 +87,7 @@ export function ShotCard({
         )}
 
         {creating ? (
-          <span className={`${OVERLAY_CLASS} bg-[rgba(255,255,255,0.86)] text-[color:var(--color-text-2)]`}>
+          <span className={`${OVERLAY_CLASS} bg-[rgba(255,255,255,0.86)] text-foreground`}>
             <IconLoading aria-hidden className="animate-spin" fontSize={14} />
             {t("分镜创建中")}
           </span>
@@ -98,7 +98,7 @@ export function ShotCard({
           </span>
         ) : failed ? (
           <span
-            className={`${OVERLAY_CLASS} bg-[rgba(215,49,42,0.1)] text-[color:rgb(var(--danger-6))]`}
+            className={`${OVERLAY_CLASS} bg-[rgba(215,49,42,0.1)] text-destructive`}
             title={failureReason || t("视频生成失败，请重试")}
           >
             <IconExclamationCircleRedFill aria-hidden className="text-[14px]" />
@@ -140,10 +140,10 @@ export function ShotCard({
       </div>
 
       <span
-        className="flex max-w-full items-center gap-1 text-[12px] capitalize leading-5 text-[color:var(--color-text-2)]"
+        className="flex max-w-full items-center gap-1 text-[12px] capitalize leading-5 text-foreground"
         title={label}
       >
-        <IconDrag aria-hidden className="h-[14px] w-[14px] shrink-0 text-[color:var(--color-text-2)]" />
+        <IconDrag aria-hidden className="h-[14px] w-[14px] shrink-0 text-foreground" />
         <span className="min-w-0 truncate">{label}</span>
       </span>
 
@@ -154,7 +154,7 @@ export function ShotCard({
       {playing ? (
         <span
           aria-label={t("正在播放")}
-          className="pointer-events-none absolute bottom-[-4px] left-[64px] h-0 w-0 border-solid border-b-[7px] border-l-[5px] border-r-[5px] border-t-0 border-b-[color:var(--color-text-1)] border-l-[transparent] border-r-[transparent]"
+          className="pointer-events-none absolute bottom-[-4px] left-[64px] h-0 w-0 border-solid border-b-[7px] border-l-[5px] border-r-[5px] border-t-0 border-b-foreground border-l-[transparent] border-r-[transparent]"
           role="img"
         />
       ) : null}

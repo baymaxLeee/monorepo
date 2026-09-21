@@ -42,9 +42,8 @@ function formatTip(categories: AssetCategory[]) {
 const FORMAT_TIP_POPUP = "max-h-none max-w-none rounded-xl p-3";
 
 const ADD_ASSET_BUTTON_CLASS =
-  "flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-[12px] border border-dashed border-[color:var(--color-fill-1)] bg-[color:var(--color-bg-1)] p-0 text-[27px] text-[color:var(--color-text-3)]";
-const ACTIVE_ADD_ASSET_BUTTON_CLASS =
-  "cursor-pointer hover:border-[color:var(--color-text-3)] hover:text-[color:var(--color-text-1)]";
+  "flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-[12px] border border-dashed border-muted bg-background p-0 text-[27px] text-muted-foreground";
+const ACTIVE_ADD_ASSET_BUTTON_CLASS = "cursor-pointer hover:border-muted-foreground hover:text-foreground";
 
 // AssetStrip 挂载到 body 的浮层需要高于宿主弹窗。
 const MODAL_POPUP_Z_INDEX = 1002;
@@ -87,7 +86,7 @@ function AssetThumb({
         trigger="hover"
       >
         <div
-          className={`group relative h-[54px] w-[54px] shrink-0 overflow-hidden rounded-[12px] bg-[color:var(--color-bg-5)] ${
+          className={`group relative h-[54px] w-[54px] shrink-0 overflow-hidden rounded-[12px] bg-muted ${
             previewable ? "cursor-zoom-in" : ""
           }`}
           onClick={() => {
@@ -100,7 +99,7 @@ function AssetThumb({
           <AssetAvatar className="text-[40px]" asset={asset} fit="cover" />
 
           {asset.syncStatus === "failed" ? (
-            <span className="absolute inset-0 flex items-center justify-center bg-[rgba(255,255,255,0.72)] text-[12px] text-[color:rgb(var(--danger-6))]">
+            <span className="absolute inset-0 flex items-center justify-center bg-[rgba(255,255,255,0.72)] text-[12px] text-destructive">
               {t("失败")}
             </span>
           ) : editable ? (
@@ -255,7 +254,7 @@ export function AssetStrip({
                       <IconPlus />
                     </button>
                   )}
-                  <span className="text-[12px] leading-4.5 text-[color:var(--color-text-3)]">{label}</span>
+                  <span className="text-[12px] leading-4.5 text-muted-foreground">{label}</span>
                 </div>
               );
               if (index === 0) {
@@ -266,8 +265,8 @@ export function AssetStrip({
                       <button
                         aria-disabled={!canSwapFrames}
                         aria-label={t("左右图切换")}
-                        className={`mt-[15px] flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] border-0 bg-[transparent] p-0 text-[16px] text-[color:var(--color-text-2)] ${
-                          canSwapFrames ? "cursor-pointer hover:bg-[color:var(--color-bg-6)]!" : "cursor-not-allowed"
+                        className={`mt-[15px] flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] border-0 bg-[transparent] p-0 text-[16px] text-foreground ${
+                          canSwapFrames ? "cursor-pointer hover:bg-muted!" : "cursor-not-allowed"
                         }`}
                         onClick={canSwapFrames ? onSwapFrames : undefined}
                         type="button"
@@ -361,7 +360,7 @@ export function AssetStrip({
         ) : null}
 
         {(editable || reserveEmptySpace) && !firstLastFrame && assets.length === 0 && emptyHint ? (
-          <p className="m-0 self-center text-[14px] leading-5.5 text-[color:var(--color-text-3)]">{emptyHint}</p>
+          <p className="m-0 self-center text-[14px] leading-5.5 text-muted-foreground">{emptyHint}</p>
         ) : null}
       </div>
       {showStats ? (
@@ -374,7 +373,7 @@ export function AssetStrip({
           }}
         >
           {statsPrefix}
-          <p className="m-0 text-[13px] leading-5.5 text-[color:var(--color-text-3)]">
+          <p className="m-0 text-[13px] leading-5.5 text-muted-foreground">
             {formatAssetStats(counts, assetLimits, categories, statsLabel)}
           </p>
         </div>

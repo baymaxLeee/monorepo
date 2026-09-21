@@ -56,7 +56,7 @@ export function ActionButton({
       aria-label={ariaLabel}
       className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-[8px] text-[13px] font-medium leading-5.5 tracking-[0.3px] ${
         square ? "px-0" : PADDING_X[paddingX]
-      } ${active && variant === "default" ? "border-[color:rgb(var(--primary-6))]" : ""} ${
+      } ${active && variant === "default" ? "border-primary" : ""} ${
         variant === "success" && !disabled ? "border-[#5cae77]! bg-white! text-[#2a814b]!" : ""
       }`}
       disabled={disabled}

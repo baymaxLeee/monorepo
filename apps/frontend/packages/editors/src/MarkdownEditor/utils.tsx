@@ -47,6 +47,23 @@ export const getMountedEditorDom = (editor: Editor | null | undefined): HTMLElem
   }
 };
 
+export const getPortalPosition = (position: { top: number; left: number }, container: HTMLElement) => {
+  if (container === document.body || container === document.documentElement) {
+    return {
+      position: "fixed" as const,
+      top: position.top,
+      left: position.left,
+    };
+  }
+
+  const containerRect = container.getBoundingClientRect();
+  return {
+    position: "absolute" as const,
+    top: position.top - containerRect.top + container.scrollTop - container.clientTop,
+    left: position.left - containerRect.left + container.scrollLeft - container.clientLeft,
+  };
+};
+
 /**
  * 提取选区快照
  * 遍历选区内的所有文本节点，将其转换为 StyledTextBlock 数组

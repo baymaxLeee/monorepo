@@ -74,7 +74,7 @@ func (c frameControl) GetExecution(ctx context.Context, id string) (worker.GetEx
 	if v.row.Status == "completed" {
 		return worker.GetExecutionResponse{State: worker.StateSucceeded}, nil
 	}
-	return worker.GetExecutionResponse{State: worker.StateReady, Execution: &contract.Execution{TaskRunID: id, GenerationTaskRunID: v.generation.ID, TenantID: v.project.TenantID, WorkspaceID: &v.project.WorkspaceID, ProjectID: v.project.ID, CreatedBy: v.generation.UserID, SourceArtifactID: v.asset.ObjectKey, SourceArtifactNamespace: storage.Scope(v.project.TenantID, v.project.WorkspaceID, v.project.ID), FirstFrameCheckpointID: v.row.FirstKey, LastFrameCheckpointID: v.row.LastKey, FirstFrameCheckpointSizeBytes: v.row.FirstSize, LastFrameCheckpointSizeBytes: v.row.LastSize}}, nil
+	return worker.GetExecutionResponse{State: worker.StateReady, Execution: &contract.Execution{TaskRunID: id, GenerationTaskRunID: v.generation.ID, TenantID: v.project.TenantID, WorkspaceID: &v.project.WorkspaceID, ProjectID: v.project.ID, CreatedBy: v.generation.UserID, SourceArtifactID: v.asset.ArtifactID, SourceArtifactNamespace: storage.Scope(v.project.TenantID, v.project.WorkspaceID, v.project.ID), FirstFrameCheckpointID: v.row.FirstKey, LastFrameCheckpointID: v.row.LastKey, FirstFrameCheckpointSizeBytes: v.row.FirstSize, LastFrameCheckpointSizeBytes: v.row.LastSize}}, nil
 }
 func (c frameControl) RecordCheckpoint(ctx context.Context, id string, result contract.Result) error {
 	return c.service.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -112,7 +112,7 @@ func (c frameControl) CommitSuccess(ctx context.Context, id string, result contr
 			key, owner string
 			id         *string
 		}{{v.row.FirstKey, "VIDEO_GENERATION_FIRST_FRAME", &v.row.FirstAssetID}, {v.row.LastKey, "VIDEO_GENERATION_LAST_FRAME", &v.row.LastAssetID}} {
-			asset := p.Asset{ID: newID(), TenantID: v.project.TenantID, WorkspaceID: v.project.WorkspaceID, ProjectID: v.project.ID, ObjectKey: frame.key, MimeType: "image/jpeg"}
+			asset := p.Asset{ID: newID(), TenantID: v.project.TenantID, WorkspaceID: v.project.WorkspaceID, ProjectID: v.project.ID, ArtifactID: frame.key, MimeType: "image/jpeg"}
 			if err := tx.Create(&asset).Error; err != nil {
 				return err
 			}

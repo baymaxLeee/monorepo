@@ -13,8 +13,8 @@ export class CanvasNodeStore {
   private readonly nodeAtoms = new Map<string, Atom<canvasnode.CanvasNode | undefined>>();
   readonly targetsAtom = atom((get) =>
     get(canvasGraphAtom).nodeIds.flatMap((NodeID) => {
-      const TaskRunID = get(canvasGraphAtom).nodesById.get(NodeID)?.ActiveTaskRunID;
-      return TaskRunID ? [{ NodeID, TaskRunID }] : [];
+      const node = get(canvasGraphAtom).nodesById.get(NodeID);
+      return node?.ActiveTaskRunID ? [{ NodeID, TaskRunID: node.ActiveTaskRunID, TaskType: node.ActiveTaskType }] : [];
     }),
   );
 
@@ -60,7 +60,10 @@ export function useCanvasGenerationTargets(store: CanvasNodeStore) {
   const unchanged =
     stableTargets.current.length === targets.length &&
     stableTargets.current.every(
-      (target, index) => target.NodeID === targets[index]?.NodeID && target.TaskRunID === targets[index]?.TaskRunID,
+      (target, index) =>
+        target.NodeID === targets[index]?.NodeID &&
+        target.TaskRunID === targets[index]?.TaskRunID &&
+        target.TaskType === targets[index]?.TaskType,
     );
 
   // Polling responses update node result projections, which recomputes the

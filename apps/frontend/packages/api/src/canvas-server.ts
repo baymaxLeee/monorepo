@@ -13,6 +13,8 @@ export type {
   CanvasEdge,
   CanvasBoard,
   CanvasProject,
+  CanvasProjectSummary,
+  CanvasProjectStats,
   CanvasMutation,
   CanvasAssetReview,
   CanvasBenefitPackageChoice,

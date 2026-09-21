@@ -81,7 +81,7 @@ func (s *Service) CreateGeneratedResourceAsset(ctx context.Context, a Actor, pro
 		r.ResourceAssetCount++
 		return tx.Save(&r).Error
 	})
-	return resourceAssetDTO(slot), err
+	return s.signedResourceAssetDTO(ctx, a, projectID, slot), err
 }
 func loadResourceDraft(ctx context.Context, tx *gorm.DB, a Actor, projectID, id string, write bool) (draft.Draft, error) {
 	_, slot, err := resourceSlot(tx, a, projectID, id, write)
@@ -143,7 +143,7 @@ func resolveResourceImageReferences(tx *gorm.DB, a Actor, projectID string, d dr
 		if err := tx.Where("id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND mime_type LIKE 'image/%' AND EXISTS (SELECT 1 FROM asset_references WHERE asset_id = assets.id AND owner_type = 'PROJECT_ASSET' AND deleted_at IS NULL)", ref.AssetID, a.TenantID, a.WorkspaceID, projectID).First(&asset).Error; err != nil {
 			return nil, Invalid("上传的参考素材尚无可用图片")
 		}
-		keys = append(keys, asset.ObjectKey)
+		keys = append(keys, asset.ArtifactID)
 	}
 	for _, ref := range d.ResourceReferences {
 		var slot p.ResourceAsset
@@ -154,7 +154,7 @@ func resolveResourceImageReferences(tx *gorm.DB, a Actor, projectID string, d dr
 		if err := tx.Where("id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND mime_type LIKE 'image/%' AND EXISTS (SELECT 1 FROM asset_references WHERE asset_id = assets.id AND owner_type = 'RESOURCE_ASSET_REVISION' AND owner_key = ? AND deleted_at IS NULL)", slot.CurrentAssetID, a.TenantID, a.WorkspaceID, projectID, slot.ID).First(&asset).Error; err != nil {
 			return nil, Invalid("参考素材尚无可用图片")
 		}
-		keys = append(keys, asset.ObjectKey)
+		keys = append(keys, asset.ArtifactID)
 	}
 	return keys, nil
 }

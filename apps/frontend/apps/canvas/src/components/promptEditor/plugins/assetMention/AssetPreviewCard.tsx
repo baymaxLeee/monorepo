@@ -14,7 +14,7 @@ export const SUGGESTION_PREVIEW_WIDTH = 316;
 export const SUGGESTION_PREVIEW_HEIGHT = 294;
 
 export const POPUP_SURFACE =
-  "rounded-[12px] border-[0.5px] border-solid border-[color:var(--color-border-3)] bg-white shadow-[0_15px_35px_-2px_rgba(0,0,0,0.05),0_5px_15px_0_rgba(0,0,0,0.05)]";
+  "rounded-[12px] border-[0.5px] border-solid border-border bg-white shadow-[0_15px_35px_-2px_rgba(0,0,0,0.05),0_5px_15px_0_rgba(0,0,0,0.05)]";
 
 function AssetPreviewMedia({ asset }: { asset: AssetMentionItem }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -27,14 +27,14 @@ function AssetPreviewMedia({ asset }: { asset: AssetMentionItem }) {
 
   if (asset.category === "text") {
     return (
-      <div className="h-[218px] w-full overflow-auto rounded-[8px] bg-[color:var(--color-bg-5)] p-3 text-[13px] leading-5.5 text-[color:var(--color-text-1)]">
+      <div className="h-[218px] w-full overflow-auto rounded-[8px] bg-muted p-3 text-[13px] leading-5.5 text-foreground">
         <MarkDown data={asset.description || asset.title} />
       </div>
     );
   }
 
   return (
-    <div className="relative flex h-[218px] w-full items-center justify-center overflow-hidden rounded-[8px] bg-[color:var(--color-bg-5)]">
+    <div className="relative flex h-[218px] w-full items-center justify-center overflow-hidden rounded-[8px] bg-muted">
       {asset.category === "image" && asset.isPrimary ? (
         <span className="absolute left-2 top-2 z-10 inline-flex h-6 items-center rounded-[8px] bg-[#c6e4ff] px-2 text-[13px] font-medium leading-5.5 text-[#031a79]">
           {t("主形象")}
@@ -52,7 +52,7 @@ function AssetPreviewMedia({ asset }: { asset: AssetMentionItem }) {
           {!videoPlaying && previewUrl ? (
             <button
               aria-label={t("播放视频")}
-              className="absolute inset-0 m-auto flex h-16 w-16 cursor-pointer items-center justify-center rounded-full border-0 bg-white p-0 text-[28px] text-[color:var(--color-text-1)] shadow-[0_2px_8px_rgba(0,0,0,0.18)]"
+              className="absolute inset-0 m-auto flex h-16 w-16 cursor-pointer items-center justify-center rounded-full border-0 bg-white p-0 text-[28px] text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.18)]"
               onClick={() => {
                 void videoRef.current?.play().catch(() => setVideoPlaying(false));
               }}
@@ -65,7 +65,7 @@ function AssetPreviewMedia({ asset }: { asset: AssetMentionItem }) {
       ) : previewUrl ? (
         <img alt={asset.title} className="max-h-full max-w-full object-contain" src={previewUrl} />
       ) : (
-        <span className="flex h-10 w-10 items-center justify-center text-[color:var(--color-text-3)]">
+        <span className="flex h-10 w-10 items-center justify-center text-muted-foreground">
           <AssetAvatar asset={asset} />
         </span>
       )}
@@ -93,9 +93,7 @@ export function AssetPreviewCard({
       }}
     >
       <AssetPreviewMedia asset={asset} />
-      <p className="mb-0 truncate px-2 text-[12px] font-medium leading-5 text-[color:var(--color-text-1)]">
-        {asset.title}
-      </p>
+      <p className="mb-0 truncate px-2 text-[12px] font-medium leading-5 text-foreground">{asset.title}</p>
       {asset.category !== "text" && showReviewStatus ? (
         <AssetReviewFooter asset={asset} onAddToLibrary={onAddToLibrary} onSubmit={onSubmitReview} />
       ) : null}

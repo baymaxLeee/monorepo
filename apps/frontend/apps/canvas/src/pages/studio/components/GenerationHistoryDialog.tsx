@@ -25,7 +25,7 @@ import { VideoGenerationFailure } from "./VideoGenerationFailure";
 import styles from "./GenerationHistoryDialog.module.less";
 
 function MetaDivider() {
-  return <span className="h-3 w-[1px] shrink-0 bg-[color:var(--color-border-3)]" />;
+  return <span className="h-3 w-[1px] shrink-0 bg-border" />;
 }
 
 function formatHistoryTime(timestamp: number) {
@@ -63,8 +63,8 @@ function HistoryThumb({ item }: { item: GenerationHistoryItem }) {
         position="top"
       >
         <div className="flex h-[47px] w-[84px] shrink-0 flex-col items-center justify-center rounded-[8px] bg-[rgba(215,49,42,0.1)]">
-          <span className="text-[12px] font-medium leading-3 text-[color:rgb(var(--danger-6))]">?</span>
-          <span className="text-[12px] font-medium leading-5 text-[color:rgb(var(--danger-6))]">
+          <span className="text-[12px] font-medium leading-3 text-destructive">?</span>
+          <span className="text-[12px] font-medium leading-5 text-destructive">
             {item.status === "cancelled" ? t("已取消") : t("生成失败")}
           </span>
         </div>
@@ -74,17 +74,15 @@ function HistoryThumb({ item }: { item: GenerationHistoryItem }) {
 
   if (item.status === "running") {
     return (
-      <div className="flex h-[47px] w-[84px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] bg-[color:var(--color-fill-3)]">
+      <div className="flex h-[47px] w-[84px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] bg-muted">
         <IconLoading />
-        <span className="text-center text-[10px] font-medium leading-3 text-[color:var(--color-text-3)]">
-          {t("生成中")}
-        </span>
+        <span className="text-center text-[10px] font-medium leading-3 text-muted-foreground">{t("生成中")}</span>
       </div>
     );
   }
   if (isText) {
     return (
-      <div className="flex h-[47px] w-[84px] shrink-0 items-center justify-center rounded-[8px] bg-[color:var(--color-fill-3)] text-[24px] text-[color:var(--color-text-3)]">
+      <div className="flex h-[47px] w-[84px] shrink-0 items-center justify-center rounded-[8px] bg-muted text-[24px] text-muted-foreground">
         <IconText aria-hidden />
       </div>
     );
@@ -93,7 +91,7 @@ function HistoryThumb({ item }: { item: GenerationHistoryItem }) {
     return item.videoUrl ? (
       <img alt={t("生成图片")} className="h-[47px] w-[84px] shrink-0 rounded-[8px] object-cover" src={item.videoUrl} />
     ) : (
-      <div className="flex h-[47px] w-[84px] shrink-0 items-center justify-center rounded-[8px] bg-[color:var(--color-fill-3)] text-[10px] text-[color:var(--color-text-3)]">
+      <div className="flex h-[47px] w-[84px] shrink-0 items-center justify-center rounded-[8px] bg-muted text-[10px] text-muted-foreground">
         {t("暂无图片")}
       </div>
     );
@@ -101,7 +99,7 @@ function HistoryThumb({ item }: { item: GenerationHistoryItem }) {
 
   return (
     <div
-      className="relative flex h-[47px] w-[84px] shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-[color:var(--color-fill-3)] text-[color:var(--color-text-3)]"
+      className="relative flex h-[47px] w-[84px] shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-muted text-muted-foreground"
       title={thumbnailErrorMessage ?? thumbnailErrorCode}
     >
       {thumbnailURL ? (
@@ -133,7 +131,7 @@ function HistoryRow({
       : plainHistoryScript(item.script);
   return (
     <div className="flex h-[63px] w-full shrink-0 items-center gap-1">
-      <div className="flex w-[18px] shrink-0 items-center justify-center text-[13px] font-medium leading-6 text-[color:var(--color-text-3)]">
+      <div className="flex w-[18px] shrink-0 items-center justify-center text-[13px] font-medium leading-6 text-muted-foreground">
         {selected ? <span className={styles.selectedMarker} /> : number}
       </div>
       <button
@@ -143,7 +141,7 @@ function HistoryRow({
         type="button"
       >
         <HistoryThumb item={item} />
-        <p className="m-0 line-clamp-2 min-w-0 flex-1 whitespace-pre-wrap wrap-break-word text-[13px] leading-5.5 text-[color:var(--color-text-2)]">
+        <p className="m-0 line-clamp-2 min-w-0 flex-1 whitespace-pre-wrap wrap-break-word text-[13px] leading-5.5 text-foreground">
           {summary}
         </p>
       </button>
@@ -218,7 +216,7 @@ function SelectedHistoryDetail({
         <VideoPlayer
           className={styles.videoFrame}
           empty={
-            <div className="flex h-full items-center justify-center text-[14px] text-[color:var(--color-text-3)]">
+            <div className="flex h-full items-center justify-center text-[14px] text-muted-foreground">
               {t("暂无可预览视频")}
             </div>
           }
@@ -228,12 +226,12 @@ function SelectedHistoryDetail({
 
       <div className="flex min-w-0 items-start justify-between gap-5">
         <div className="flex min-w-0 flex-col gap-1">
-          <div className="flex min-w-0 items-center gap-4 text-[20px] font-medium leading-7 text-[color:var(--color-text-1)]">
+          <div className="flex min-w-0 items-center gap-4 text-[20px] font-medium leading-7 text-foreground">
             <span className="shrink-0">{t("生成记录{number}", { number })}</span>
             {item ? <span className="truncate">{formatHistoryTime(item.completedAt ?? item.createdAt)}</span> : null}
           </div>
           {item ? (
-            <div className="flex items-center gap-2 text-[13px] leading-5.5 text-[color:var(--color-text-2)]">
+            <div className="flex items-center gap-2 text-[13px] leading-5.5 text-foreground">
               <span className="max-w-[240px] truncate">{modelLabel}</span>
               {item.resolution ? (
                 <>
@@ -378,13 +376,13 @@ export function GenerationHistoryDialog({
         <div className="flex min-w-0 items-center gap-4">
           <button
             aria-label={t("返回")}
-            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[8px] border border-solid border-[color:var(--color-border-3)] bg-white p-0 text-[14px] text-[color:var(--color-text-1)] hover:bg-[color:var(--color-bg-2)]"
+            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[8px] border border-solid border-border bg-white p-0 text-[14px] text-foreground hover:bg-background"
             onClick={onCancel}
             type="button"
           >
             <IconLeft />
           </button>
-          <span className="max-w-[320px] truncate text-[14px] font-medium leading-6 text-[color:var(--color-text-1)]">
+          <span className="max-w-[320px] truncate text-[14px] font-medium leading-6 text-foreground">
             {displayTitle}
           </span>
         </div>
@@ -404,10 +402,10 @@ export function GenerationHistoryDialog({
 
         <aside className={styles.historyPanel}>
           <div className="flex shrink-0 items-center gap-4">
-            <h2 className="m-0 text-[18px] font-medium leading-6.5 text-[color:var(--color-text-1)]">
+            <h2 className="m-0 text-[18px] font-medium leading-6.5 text-foreground">
               {t("{shot} 生成历史", { shot: displayTitle })}
             </h2>
-            <span className="text-[13px] leading-5.5 text-[color:var(--color-text-3)]">
+            <span className="text-[13px] leading-5.5 text-muted-foreground">
               {t("共 {count} 个记录", { count: items.length })}
             </span>
           </div>
@@ -417,7 +415,7 @@ export function GenerationHistoryDialog({
                 <IconLoading fontSize={20} />
               </div>
             ) : items.length === 0 ? (
-              <div className="flex h-[240px] items-center justify-center text-[14px] text-[color:var(--color-text-3)]">
+              <div className="flex h-[240px] items-center justify-center text-[14px] text-muted-foreground">
                 {t("暂无生成记录")}
               </div>
             ) : (

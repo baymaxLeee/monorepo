@@ -20,10 +20,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
         const start = offset;
         offset += part.text.length;
         return (
-          <span
-            className={part.match ? "text-[color:rgb(var(--primary-6))]" : undefined}
-            key={`${start}-${offset}-${part.text}`}
-          >
+          <span className={part.match ? "text-primary" : undefined} key={`${start}-${offset}-${part.text}`}>
             {part.text}
           </span>
         );
@@ -112,7 +109,7 @@ export function MentionListColumn({
       >
         {group ? <ChevronIcon expanded={expanded} /> : null}
         <span
-          className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-[color:var(--color-bg-3)] ${
+          className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-muted ${
             group ? "h-6 w-6" : "h-8 w-8"
           }`}
         >
@@ -123,7 +120,7 @@ export function MentionListColumn({
             </span>
           ) : null}
         </span>
-        <span className="min-w-0 flex-1 truncate text-[color:var(--color-text-1)]">
+        <span className="min-w-0 flex-1 truncate text-foreground">
           <HighlightText query={query} text={node.Label} />
           {group ? ` · ${node.Children.length}` : null}
         </span>
@@ -149,9 +146,7 @@ export function MentionListColumn({
       style={{ ...HIDDEN_SCROLLBAR_STYLE, msOverflowStyle: "none", maxHeight }}
     >
       {loading ? (
-        <div className="flex h-[42px] items-center px-3 text-[12px] text-[color:var(--color-text-3)]">
-          {t("查询中...")}
-        </div>
+        <div className="flex h-[42px] items-center px-3 text-[12px] text-muted-foreground">{t("查询中...")}</div>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-1 p-[6px]">
           {sections.map((section) => {
@@ -161,7 +156,7 @@ export function MentionListColumn({
                 <li className="shrink-0">
                   <button
                     aria-expanded={sectionExpanded}
-                    className="flex h-[42px] w-full cursor-pointer items-center justify-between rounded-[8px] border-0 bg-[transparent] px-3 text-left text-[13px] font-normal leading-5.5 text-[color:var(--color-text-1)] outline-none"
+                    className="flex h-[42px] w-full cursor-pointer items-center justify-between rounded-[8px] border-0 bg-[transparent] px-3 text-left text-[13px] font-normal leading-5.5 text-foreground outline-none"
                     onClick={() => onToggleSection(section)}
                     type="button"
                   >
@@ -187,20 +182,14 @@ export function MentionListColumn({
             );
           })}
           {empty ? (
-            <li className="flex h-[42px] items-center px-3 text-[12px] text-[color:var(--color-text-3)]">
-              {t("未找到匹配资产")}
-            </li>
+            <li className="flex h-[42px] items-center px-3 text-[12px] text-muted-foreground">{t("未找到匹配资产")}</li>
           ) : null}
         </ul>
       )}
       {assetsExpanded && loadingMore ? (
-        <div className="flex h-7 items-center justify-center text-[12px] text-[color:var(--color-text-3)]">
-          {t("加载更多...")}
-        </div>
+        <div className="flex h-7 items-center justify-center text-[12px] text-muted-foreground">{t("加载更多...")}</div>
       ) : assetsVisible && !loading && !empty && !hasMore ? (
-        <div className="flex h-7 items-center justify-center text-[12px] text-[color:var(--color-text-3)]">
-          {t("已加载完毕")}
-        </div>
+        <div className="flex h-7 items-center justify-center text-[12px] text-muted-foreground">{t("已加载完毕")}</div>
       ) : null}
     </div>
   );

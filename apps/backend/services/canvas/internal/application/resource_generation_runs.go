@@ -52,7 +52,7 @@ func (s *Service) StartResourceGeneration(ctx context.Context, a Actor, projectI
 		if err != nil {
 			return Invalid("分辨率或画幅无效")
 		}
-		payload, err := json.Marshal(map[string]any{"tenantId": a.TenantID, "workspaceId": a.WorkspaceID, "providerId": d.Config.ModelID, "prompt": d.Config.Prompt, "objectScope": storage.Scope(a.TenantID, a.WorkspaceID, projectID), "references": refs, "size": fmt.Sprintf("%dx%d", width, height), "aspectRatio": string(d.Config.AspectRatio), "watermark": d.Config.Watermark})
+		payload, err := json.Marshal(map[string]any{"tenantId": a.TenantID, "workspaceId": a.WorkspaceID, "providerId": d.Config.ModelID, "prompt": d.Config.Prompt, "artifactNamespace": storage.Scope(a.TenantID, a.WorkspaceID, projectID), "artifactIds": refs, "size": fmt.Sprintf("%dx%d", width, height), "aspectRatio": string(d.Config.AspectRatio), "watermark": d.Config.Watermark})
 		if err != nil {
 			return err
 		}

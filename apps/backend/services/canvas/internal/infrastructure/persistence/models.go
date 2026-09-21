@@ -43,6 +43,8 @@ func (Board) TableName() string { return "canvases" }
 
 type Node struct {
 	AssetID          string
+	ResourceID       string
+	ResourceAssetID  string
 	GenerationConfig string `gorm:"type:jsonb"`
 	VideoInputMode   int16
 	ID               string `gorm:"primaryKey"`
@@ -107,7 +109,7 @@ type Asset struct {
 	TenantID     string `json:"tenantId"`
 	WorkspaceID  string
 	ProjectID    string
-	ObjectKey    string
+	ArtifactID   string
 	MimeType     string
 	OriginalName string
 	CreatedAt    time.Time
@@ -127,7 +129,7 @@ type AssetGCCandidate struct {
 	TenantID       string
 	WorkspaceID    string
 	ProjectID      string
-	ObjectKey      string
+	ArtifactID     string
 	PurgeNotBefore time.Time
 	NextAttemptAt  time.Time
 	LeaseUntil     *time.Time

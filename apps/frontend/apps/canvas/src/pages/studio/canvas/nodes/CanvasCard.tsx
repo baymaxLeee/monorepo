@@ -278,6 +278,7 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
                     }
                   }}
                   parameters="image"
+                  popupPosition="top"
                 />
               ) : item.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION ? (
                 <GenerationConfiguration
@@ -299,6 +300,7 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
                     }
                   }}
                   parameters="video"
+                  popupPosition="top"
                   videoSettings={settingsFromDTO(item.GenerationConfig)}
                 />
               ) : (

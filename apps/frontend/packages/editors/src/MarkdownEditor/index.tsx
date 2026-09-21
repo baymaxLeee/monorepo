@@ -27,4 +27,9 @@ const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(functi
 export { MarkdownEditor };
 export default MarkdownEditor;
 
-export type { MarkdownEditorProps, MarkdownEditorRef } from "./interface";
+export type {
+  MarkdownEditorFeatures,
+  MarkdownEditorPopupConfig,
+  MarkdownEditorProps,
+  MarkdownEditorRef,
+} from "./interface";

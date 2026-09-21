@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 export function Field({ children, label }: { children: ReactNode; label: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[12px] leading-5 text-[color:var(--color-text-3)]">{label}</span>
+      <span className="text-[12px] leading-5 text-muted-foreground">{label}</span>
       {children}
     </div>
   );

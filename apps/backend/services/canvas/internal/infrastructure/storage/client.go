@@ -2,20 +2,29 @@ package storage
 
 import (
 	"context"
-	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"strconv"
 	"strings"
-	"time"
 )
 
 type Client struct{ URL, Token string }
+
+type Artifact struct {
+	Namespace   string `json:"namespace"`
+	ID          string `json:"artifact_id"`
+	ContentType string `json:"content_type"`
+}
+
+type PresignedArtifact struct {
+	Namespace  string `json:"namespace"`
+	ArtifactID string `json:"artifact_id"`
+	URL        string `json:"url"`
+	ExpiresAt  string `json:"expires_at"`
+}
 
 func Scope(tenant, workspace, project string) string {
 	v := sha256.Sum256([]byte(tenant + "\x00" + workspace + "\x00" + project))
@@ -46,31 +55,63 @@ func (c *Client) Put(ctx context.Context, scope string, body io.Reader) (string,
 	}
 	defer res.Body.Close()
 	var out struct {
-		Key string `json:"key"`
+		ArtifactID string `json:"artifact_id"`
 	}
 	err = json.NewDecoder(res.Body).Decode(&out)
-	return out.Key, err
+	return out.ArtifactID, err
 }
-func (c *Client) Get(ctx context.Context, scope, key string) (io.ReadCloser, error) {
-	res, err := c.request(ctx, "GET", scope+"/"+key, nil)
+func (c *Client) Get(ctx context.Context, namespace, artifactID string) (io.ReadCloser, error) {
+	res, err := c.request(ctx, "GET", namespace+"/"+artifactID, nil)
 	if err != nil {
 		return nil, err
 	}
 	return res.Body, nil
 }
 
-func (c *Client) Delete(ctx context.Context, scope, key string) error {
-	res, err := c.request(ctx, http.MethodDelete, scope+"/"+key, nil)
+func (c *Client) Delete(ctx context.Context, namespace, artifactID string) error {
+	res, err := c.request(ctx, http.MethodDelete, namespace+"/"+artifactID, nil)
 	if err != nil {
 		return err
 	}
 	return res.Body.Close()
 }
 
-func (c *Client) PublicURL(baseURL, scope, key string, expires time.Time) string {
-	expiresAt := strconv.FormatInt(expires.Unix(), 10)
-	mac := hmac.New(sha256.New, []byte(c.Token))
-	_, _ = mac.Write([]byte(scope + "\n" + key + "\n" + expiresAt))
-	query := url.Values{"expires": {expiresAt}, "signature": {hex.EncodeToString(mac.Sum(nil))}}
-	return strings.TrimRight(baseURL, "/") + "/api/knowledge-server/media/canvas/" + url.PathEscape(scope) + "/" + url.PathEscape(key) + "?" + query.Encode()
+func (c *Client) BatchPublicURLs(ctx context.Context, artifacts []Artifact) (map[string]PresignedArtifact, error) {
+	if len(artifacts) == 0 {
+		return map[string]PresignedArtifact{}, nil
+	}
+	payload, err := json.Marshal(map[string]any{"items": artifacts})
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(c.URL, "/")+"/internal/artifacts/presign", strings.NewReader(string(payload)))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Internal-Token", c.Token)
+	req.Header.Set("X-Caller-Service", "canvas")
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, fmt.Errorf("artifact presign returned status %d", res.StatusCode)
+	}
+	var response struct {
+		Items []PresignedArtifact `json:"items"`
+	}
+	if err = json.NewDecoder(res.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	result := make(map[string]PresignedArtifact, len(response.Items))
+	for _, item := range response.Items {
+		result[item.Namespace+"\x00"+item.ArtifactID] = item
+	}
+	return result, nil
+}
+
+func ArtifactLookupKey(namespace, artifactID string) string {
+	return namespace + "\x00" + artifactID
 }

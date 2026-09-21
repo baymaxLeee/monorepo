@@ -220,7 +220,7 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
                     prefix={<Search className="size-4" />}
                     value={memberQuery}
                   />
-                  <div className="max-h-48 overflow-y-auto rounded-lg border border-[color:var(--color-border-2)] p-2">
+                  <div className="max-h-48 overflow-y-auto rounded-lg border border-border p-2">
                     {membersLoading ? (
                       <div className="flex h-20 items-center justify-center">
                         <Spin />

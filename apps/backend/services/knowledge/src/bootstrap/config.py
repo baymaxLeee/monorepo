@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     postgres_password: str = "knowledge"
     postgres_database: str = "knowledge"
 
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 3
+
     admin_service_url: str = "http://localhost:8001"
     internal_api_token: str = _DEV_INTERNAL_API_TOKEN
 
@@ -57,6 +61,11 @@ class Settings(BaseSettings):
             f"postgresql+asyncpg://{user}:{password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_database}"
         )
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def redis_url(self) -> str:
+        return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
+
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
@@ -70,6 +79,8 @@ class Settings(BaseSettings):
             missing.append("POSTGRES_PASSWORD")
         if self.internal_api_token == _DEV_INTERNAL_API_TOKEN:
             missing.append("INTERNAL_API_TOKEN")
+        if self.redis_host in {"localhost", "127.0.0.1"}:
+            missing.append("REDIS_HOST")
         if missing:
             raise ValueError("production environment requires explicit values for: " + ", ".join(missing))
         return self

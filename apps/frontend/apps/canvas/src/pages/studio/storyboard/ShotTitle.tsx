@@ -87,7 +87,7 @@ export function ShotTitle({
   const visibleName = pendingName ?? label;
   return (
     <CEllipsis
-      className="m-0 shrink-0 truncate text-[20px] font-medium leading-7 text-[color:var(--color-text-1)] cursor-text"
+      className="m-0 shrink-0 truncate text-[20px] font-medium leading-7 text-foreground cursor-text"
       maxWidth={200}
       onClick={
         disabled

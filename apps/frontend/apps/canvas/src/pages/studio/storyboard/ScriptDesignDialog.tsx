@@ -80,9 +80,7 @@ function filterModelOption(input: string, option: ReactElement) {
 function LabeledField({ children, label }: { children: ReactNode; label: string }) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-[14px] font-medium leading-6 tracking-[0.042px] text-[color:var(--color-text-1)]">
-        {label}
-      </span>
+      <span className="text-[14px] font-medium leading-6 tracking-[0.042px] text-foreground">{label}</span>
       {children}
     </div>
   );
@@ -345,13 +343,13 @@ export function ScriptDesignDialog({
       onCancel={onCancel}
       className={modalSizing.storyboard}
       title={
-        <span className="text-[18px] font-medium leading-6.5 tracking-[0.054px] text-[#1a2233]">{t("剧本设计")}</span>
+        <span className="text-[18px] font-medium leading-6.5 tracking-[0.054px] text-foreground">{t("剧本设计")}</span>
       }
       visible={visible}
     >
       <div className={`${modalSizing.storyboardBody} flex min-h-0 overflow-hidden gap-6`}>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-          <p className="m-0 shrink-0 text-[13px] leading-5.5 tracking-[0.039px] text-[color:var(--color-text-2)]">
+          <p className="m-0 shrink-0 text-[13px] leading-5.5 tracking-[0.039px] text-foreground">
             {SCRIPT_INSTRUCTION}
           </p>
           <div className={`min-h-0 flex-1 ${styles.plotInput}`}>
@@ -372,7 +370,7 @@ export function ScriptDesignDialog({
           </div>
         </div>
 
-        <div className="w-[1px] shrink-0 self-stretch bg-[color:var(--color-border-3)]" />
+        <div className="w-[1px] shrink-0 self-stretch bg-border" />
 
         <div className="flex h-full w-[260px] shrink-0 flex-col gap-6 overflow-y-auto">
           <LabeledField label={t("分镜模型")}>
@@ -407,7 +405,7 @@ export function ScriptDesignDialog({
               unit={t("分钟")}
             />
           </LabeledField>
-          <p className="m-0 text-[12px] leading-5 text-[color:var(--color-text-3)]">
+          <p className="m-0 text-[12px] leading-5 text-muted-foreground">
             {t("时长仅用于引导节奏，生成会优先保证剧情完整和自然，不会刻意逼近上下限。")}
           </p>
           <LabeledField label={t("视频参数")}>
@@ -430,8 +428,8 @@ export function ScriptDesignDialog({
         <p
           className={`m-0 shrink-0 text-[12px] leading-5 ${
             plot.length > STORYBOARD_RECOMMENDED_PLOT_CHARACTERS
-              ? "text-[color:rgb(var(--warning-7))]"
-              : "text-[color:var(--color-text-3)]"
+              ? "text-[color:oklch(0.555 0.163 48.998)]"
+              : "text-muted-foreground"
           }`}
         >
           {t("建议单次不超过 6000 字；当前 {count}/30000 字", {

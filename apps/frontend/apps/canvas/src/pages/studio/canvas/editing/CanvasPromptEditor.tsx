@@ -24,9 +24,9 @@ import styles from "./CanvasPromptEditor.module.less";
 
 export type CanvasPromptEditorVariant = "text" | "image" | "video";
 
-// MarkdownEditor 的 BubbleToolbar 固定挂到 body 且层级为 101；该弹窗需低一层，
-// 同时保持高于画布内最高层级（20），避免浮动工具栏被弹窗内容遮挡。
+// 编辑器浮层跟随弹窗容器挂载，并始终高于编辑弹窗和画布节点。
 const EDITOR_MODAL_Z_INDEX = 100;
+const EDITOR_POPUP_Z_INDEX = EDITOR_MODAL_Z_INDEX + 1;
 
 export interface CanvasPromptEditorProps {
   actionDisabled?: boolean;
@@ -240,6 +240,7 @@ export function CanvasPromptEditor({
             codeBlock: false,
           }}
           onChange={changeValue}
+          popupConfig={{ zIndex: EDITOR_POPUP_Z_INDEX }}
           value={value}
         />
       </div>

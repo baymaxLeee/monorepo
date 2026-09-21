@@ -50,7 +50,7 @@ func (s *Service) UploadResourceAsset(ctx context.Context, a Actor, projectID, r
 			if err = tx.First(&existing, "id = ?", out.CurrentAssetID).Error; err != nil {
 				return err
 			}
-			if existing.ObjectKey != key {
+			if existing.ArtifactID != key {
 				return Conflict()
 			}
 			return nil
@@ -64,7 +64,7 @@ func (s *Service) UploadResourceAsset(ctx context.Context, a Actor, projectID, r
 		if resource.ResourceAssetCount >= domain.Type(resource.Type).ResourceAssetLimit() {
 			return Invalid("resource asset limit reached")
 		}
-		asset := p.Asset{ID: newID(), TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, ProjectID: projectID, ObjectKey: key, MimeType: mime}
+		asset := p.Asset{ID: newID(), TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, ProjectID: projectID, ArtifactID: key, MimeType: mime}
 		var sequence int64
 		if err = tx.Unscoped().Model(&p.ResourceAsset{}).Where("resource_id = ?", resourceID).Select("COALESCE(MAX(sequence_no),0)").Scan(&sequence).Error; err != nil {
 			return err
@@ -93,7 +93,7 @@ func (s *Service) UploadResourceAsset(ctx context.Context, a Actor, projectID, r
 		resource.Revision++
 		return tx.Save(&resource).Error
 	})
-	return resourceAssetDTO(out), err
+	return s.signedResourceAssetDTO(ctx, a, projectID, out), err
 }
 func (s *Service) ResourceContent(ctx context.Context, a Actor, projectID, id string) (MediaContent, error) {
 	db := s.DB.WithContext(ctx)
@@ -112,7 +112,7 @@ func (s *Service) ResourceContent(ctx context.Context, a Actor, projectID, id st
 		}
 		return MediaContent{}, err
 	}
-	body, err := s.Storage.Get(ctx, storage.Scope(a.TenantID, a.WorkspaceID, projectID), asset.ObjectKey)
+	body, err := s.Storage.Get(ctx, storage.Scope(a.TenantID, a.WorkspaceID, projectID), asset.ArtifactID)
 	return MediaContent{Body: body, MIME: asset.MimeType}, err
 }
 func (s *Service) CopyResourceToCanvas(ctx context.Context, a Actor, canvasID string, in c.MaterializeResource) (c.Graph, error) {
@@ -150,7 +150,7 @@ func (s *Service) CopyResourceToCanvas(ctx context.Context, a Actor, canvasID st
 		var old p.Node
 		err = tx.Unscoped().First(&old, "id = ?", in.NodeID).Error
 		if err == nil {
-			if old.CanvasID != canvasID || old.AssetID != asset.ID || old.DeletedAt.Valid {
+			if old.CanvasID != canvasID || old.ResourceAssetID != slot.ID || old.DeletedAt.Valid {
 				return Conflict()
 			}
 			result, err = readGraph(tx, board)
@@ -160,7 +160,7 @@ func (s *Service) CopyResourceToCanvas(ctx context.Context, a Actor, canvasID st
 			return err
 		}
 		config, _ := json.Marshal(c.GenerationConfig{})
-		node := p.Node{ID: in.NodeID, CanvasID: canvasID, AssetID: asset.ID, Type: slot.MediaType, Name: slot.Name, Revision: 1, VideoInputMode: 1, GenerationConfig: string(config), IncomingEdges: "[]"}
+		node := p.Node{ID: in.NodeID, CanvasID: canvasID, AssetID: asset.ID, ResourceID: resource.ID, ResourceAssetID: slot.ID, Type: slot.MediaType, Name: slot.Name, Revision: 1, VideoInputMode: 1, GenerationConfig: string(config), IncomingEdges: "[]"}
 		if err = tx.Create(&node).Error; err != nil {
 			return err
 		}

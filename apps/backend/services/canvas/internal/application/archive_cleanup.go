@@ -36,7 +36,7 @@ func (s archiveObjectStore) Delete(ctx context.Context, _ string, taskRunID stri
 	}
 	var assetReferences int64
 	err = s.db.WithContext(ctx).Table("assets").
-		Where("tenant_id = ? AND workspace_id = ? AND project_id = ? AND object_key = ? AND deleted_at IS NULL",
+		Where("tenant_id = ? AND workspace_id = ? AND project_id = ? AND artifact_id = ? AND deleted_at IS NULL",
 			item.TenantID, *item.WorkspaceID, item.ProjectID, item.OutputPath).
 		Count(&assetReferences).Error
 	if err != nil || assetReferences > 0 {

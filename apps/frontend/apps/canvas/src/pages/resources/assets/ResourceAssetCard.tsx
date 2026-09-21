@@ -68,7 +68,7 @@ const MATERIAL_ACTION_BUTTON_STYLE: CSSProperties = {
   alignItems: "center",
   backdropFilter: "blur(2px)",
   backgroundColor: "rgba(0, 0, 0, 0.5)",
-  border: "1px solid var(--color-border-4)",
+  border: "1px solid var(--border)",
   borderRadius: 8,
   boxSizing: "border-box",
   color: "#fff",
@@ -148,9 +148,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
       className={`group relative w-full overflow-hidden rounded-[16px] border border-solid p-[3px] transition-colors duration-200 ${styles.materialCard} ${
         !batchSelecting && !busy && file.MediaType === asset.AssetMediaType.IMAGE ? "cursor-pointer" : ""
       } ${batchSelecting && !selected ? "opacity-50" : ""} ${
-        selected
-          ? "border-[color:rgb(var(--primary-6))]"
-          : "border-[transparent] hover:border-[color:var(--color-text-3)]"
+        selected ? "border-primary" : "border-[transparent] hover:border-muted-foreground"
       }`}
       key={file.ResourceAssetID}
       onClick={(event) => {
@@ -196,7 +194,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
         </>
       ) : null}
       <div
-        className={`relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-[12px] bg-[color:var(--color-bg-5)] text-[42px] text-[color:var(--color-grey-4)] ${styles.materialPreview}`}
+        className={`relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-[12px] bg-muted text-[42px] text-muted-foreground ${styles.materialPreview}`}
       >
         {generating ? (
           <ResourceGenerationStatus fileName={file.Name} onStop={() => stopGeneration(file)} variant="card" />
@@ -420,7 +418,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
         {batchSelecting || isOfficial ? (
           <CEllipsis
             popoverProps={{ position: "top" }}
-            className="w-full text-[16px] font-medium leading-6 text-[color:var(--color-text-1)]"
+            className="w-full text-[16px] font-medium leading-6 text-foreground"
             useCursorPointer={false}
           >
             {file.Name}
@@ -431,7 +429,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
               materialName,
               fileName: file.Name,
             })}
-            className="h-6 w-full min-w-0 border-0 bg-[transparent] p-0 text-[16px] font-medium leading-6 text-[color:var(--color-text-1)] outline-none"
+            className="h-6 w-full min-w-0 border-0 bg-[transparent] p-0 text-[16px] font-medium leading-6 text-foreground outline-none"
             maxLength={100}
             onBlur={() => saveRename(file)}
             onChange={(event) => setRenameValue(event.currentTarget.value)}
@@ -455,7 +453,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
               fileName: file.Name,
             })}
             aria-disabled={busy || generating}
-            className="w-full min-w-0 cursor-text border-0 bg-[transparent] p-0 text-left text-[16px] font-medium leading-6 text-[color:var(--color-text-1)]"
+            className="w-full min-w-0 cursor-text border-0 bg-[transparent] p-0 text-left text-[16px] font-medium leading-6 text-foreground"
             onClick={() => startRename(file)}
             onKeyDown={(event) => {
               if (event.key !== "Enter" && event.key !== " ") return;

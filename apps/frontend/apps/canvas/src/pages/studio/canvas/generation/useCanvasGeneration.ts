@@ -25,6 +25,7 @@ import {
   setCanvasGenerationFailureAtom,
   setCanvasGenerationRuntimeStateAtom,
   upsertCanvasNodesAtom,
+  updateCanvasRevisionAtom,
   useStudioMutationCoordinator,
 } from "../../store";
 import { isDeletedReferenceNode } from "../graph/canvasNodeHelpers";
@@ -101,6 +102,8 @@ export function useCanvasGeneration({
         const responses = await Promise.all(batches);
         if (disposed || !mutations.isSnapshotCurrent(epoch)) return;
         const response = { Items: responses.flatMap((batch) => batch.Items) };
+        const canvasRevision = Math.max(...responses.map((batch) => batch.CanvasRevision ?? 0));
+        if (canvasRevision > 0) nodePubSub.store.set(updateCanvasRevisionAtom, canvasRevision);
         const returned = new Set(response.Items.map((item) => `${item.NodeID}:${item.TaskRunID}`));
         response.Items.forEach((state) => {
           const current = nodePubSub.store.get(canvasGraphAtom).nodesById.get(state.NodeID);

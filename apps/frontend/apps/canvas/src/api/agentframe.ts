@@ -45,7 +45,9 @@ import {
   type CanvasAssetReview,
   type CanvasBoard,
   type CanvasGeneration,
+  type ModelProvider,
   type CanvasProject,
+  type CanvasProjectSummary as CanvasProjectListItem,
   type CanvasResource,
   type CanvasResourceAsset,
   type CanvasResourceGenerationDraft,
@@ -77,8 +79,6 @@ const page = (total: number, pageNum = 1, pageSize = Math.max(total, 1)) => ({
   TotalPage: Math.ceil(total / pageSize),
 });
 
-const resourceAssetContentURL = (projectId: string, assetId: string) =>
-  `/api/canvas-server/projects/${encodeURIComponent(projectId)}/resource-assets/${encodeURIComponent(assetId)}/content`;
 const projectAssetContentURL = (projectId: string, assetId: string) =>
   `/api/canvas-server/projects/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}/content`;
 
@@ -97,7 +97,7 @@ async function projectStats(projectId: string): Promise<project.ProjectStats> {
   };
 }
 
-async function toProjectSummary(value: CanvasProject): Promise<project.ProjectSummary> {
+function projectSummary(value: CanvasProject, stats: project.ProjectStats): project.ProjectSummary {
   return {
     ProjectID: value.id,
     Name: value.name,
@@ -106,14 +106,22 @@ async function toProjectSummary(value: CanvasProject): Promise<project.ProjectSu
     CreatedAt: value.created_at,
     UpdatedAt: value.updated_at,
     MemberUserIDs: [],
-    Stats: await projectStats(value.id),
+    Stats: stats,
   };
+}
+
+function toListedProjectSummary(value: CanvasProjectListItem): project.ProjectSummary {
+  return projectSummary(value, {
+    CanvasCount: value.stats.canvas_count,
+    ResourceCount: value.stats.resource_count,
+    SelectedVideoDurationMillis: value.stats.selected_video_duration_millis,
+  });
 }
 
 async function toProjectDetail(value: CanvasProject): Promise<project.ProjectDetail> {
   const management = await canvasProjectManagement(value.id);
   return {
-    ...(await toProjectSummary(value)),
+    ...projectSummary(value, await projectStats(value.id)),
     MemberUserIDs: management.members.map((member) => member.user_id),
     UsageLimit: management.usage_limit_micros == null ? undefined : management.usage_limit_micros / 1_000_000,
     UsedAmount: management.used_amount_micros / 1_000_000,
@@ -147,6 +155,72 @@ const reviewStatus: Record<string, asset.AssetReviewStatus> = {
   failed: asset.AssetReviewStatus.FAILED,
 };
 
+function providerModelType(kind: ModelProvider["provider_kind"]): string {
+  if (kind === "chat") return "text-generation";
+  if (kind === "image" || kind === "video") return "vision";
+  return kind;
+}
+
+function providerModelFeatures(provider: ModelProvider): string[] {
+  if (provider.provider_kind === "chat") return ["tool-call"];
+  if (provider.provider_kind === "image") {
+    return ["text2image", ...(provider.supports_image_input ? ["image2image"] : [])];
+  }
+  if (provider.provider_kind === "video") {
+    return ["text2video", ...(provider.supports_image_input ? ["image2video"] : [])];
+  }
+  return [];
+}
+
+/**
+ * The current provider directory does not expose AIGW's model-level generation
+ * capabilities yet. Keep the compatibility contract in this adapter so the
+ * copied AgentFrame UI can continue to render from ProjectModelInfo.Property.
+ *
+ * The fallback is a conservative subset of canvas-server's accepted video
+ * payload. Replace it once the provider directory starts returning per-model
+ * capability metadata; callers must not grow another independent set of UI
+ * defaults.
+ */
+function providerModelProperty(provider: ModelProvider): project.ProjectModelProperty | undefined {
+  if (provider.provider_kind !== "video") return undefined;
+  return {
+    Vision: {
+      Video: {
+        Duration: {
+          Min: 5,
+          Max: 10,
+          Default: 5,
+          Recommends: [5],
+          RecommendDefault: 5,
+        },
+        Ratio: {
+          Values: ["16:9", "4:3", "1:1", "3:4", "9:16"],
+          Adaptive: true,
+          Default: "16:9",
+        },
+        Resolutions: ["720P", "1080P", "480P"],
+        GenerateAudio: {
+          Types: ["disabled", "enabled"],
+          Default: "disabled",
+        },
+        Watermark: {
+          Supported: true,
+          Enabled: false,
+        },
+        Reference: {
+          Image: {
+            Supported: provider.supports_image_input,
+            Max: provider.supports_image_input ? 2 : 0,
+          },
+          Video: { Supported: false, Max: 0 },
+          Audio: { Supported: false, Max: 0 },
+        },
+      },
+    },
+  };
+}
+
 function toReview(value: CanvasAssetReview): asset.AssetReview {
   return {
     PackageID: value.benefit_package_id,
@@ -175,8 +249,8 @@ async function toResource(
       ? {
           ResourceAssetID: primary.id,
           Name: primary.name,
-          CurrentAssetID: primary.has_content ? primary.id : undefined,
-          PreviewURL: primary.has_content ? resourceAssetContentURL(value.project_id, primary.id) : undefined,
+          CurrentAssetID: primary.current_asset_id || undefined,
+          PreviewURL: primary.preview_url || undefined,
           MediaType: primary.media_type,
           SourceType: primary.source_type,
         }
@@ -268,8 +342,9 @@ async function toResourceAsset(
     ResourceID: resourceId,
     Name: value.name,
     SequenceNo: value.sequence_no,
-    CurrentAssetID: value.has_content ? value.id : undefined,
-    PreviewURL: value.has_content ? resourceAssetContentURL(projectId, value.id) : undefined,
+    CurrentAssetID: value.current_asset_id || undefined,
+    PreviewURL: value.preview_url || undefined,
+    ExpiresAt: value.expires_at || undefined,
     IsPrimary: value.id === primaryId,
     Revision: value.revision,
     CreatedAt: value.created_at,
@@ -299,7 +374,7 @@ export const agentframeService = {
   ): Promise<project.ListProjectsByMemberResponse> {
     const response = await canvasListProjects();
     const keyword = request.Filter?.Keyword?.trim().toLocaleLowerCase();
-    const items = await Promise.all(response.items.map(toProjectSummary));
+    const items = response.items.map(toListedProjectSummary);
     const filtered = keyword ? items.filter((item) => item.Name.toLocaleLowerCase().includes(keyword)) : items;
     if (request.Sort?.Direction === 1) filtered.sort((a, b) => a.UpdatedAt.localeCompare(b.UpdatedAt));
     else filtered.sort((a, b) => b.UpdatedAt.localeCompare(a.UpdatedAt));
@@ -800,19 +875,27 @@ export const agentframeService = {
   async ListProjectModels(request: project.ListProjectModelsRequest): Promise<project.ListProjectModelsResponse> {
     const response = await fetchModelProviders();
     const items: project.ProjectModelInfo[] = response
-      .filter((item) => !request.Filter?.IsGranted || item.is_enabled)
       .map((item) => ({
         ID: item.id,
         Name: item.name,
-        Type: item.provider_kind,
+        Type: providerModelType(item.provider_kind),
+        FeaturesConfig: providerModelFeatures(item),
+        Property: providerModelProperty(item),
         IsPublic: true,
         IsDefault: item.is_default,
-        IsDefaultVision: item.is_default,
         ModelName: item.model,
         Provider: item.provider_kind,
-        Status: item.is_enabled ? "enabled" : "disabled",
+        Status: item.is_enabled ? "Running" : "Disabled",
         Granted: item.is_enabled,
-      }));
+      }))
+      .filter(
+        (item) =>
+          (!request.Filter?.IsGranted || item.Granted) &&
+          (!request.Filter?.Types?.length || request.Filter.Types.includes(item.Type)) &&
+          (!request.Filter?.Statuses?.length || request.Filter.Statuses.includes(item.Status ?? "")) &&
+          (!request.Filter?.Features?.length ||
+            request.Filter.Features.some((feature) => item.FeaturesConfig?.includes(feature))),
+      );
     return { Items: items, Total: items.length };
   },
   async CreateResourceFromAsset(

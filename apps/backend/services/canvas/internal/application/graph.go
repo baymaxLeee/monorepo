@@ -25,12 +25,41 @@ func nodeDTO(v p.Node) (c.Node, error) {
 	if err := json.Unmarshal([]byte(v.IncomingEdges), &edges); err != nil {
 		return c.Node{}, err
 	}
-	return c.Node{AssetID: v.AssetID, GenerationConfig: config, VideoInputMode: v.VideoInputMode, ID: v.ID, Type: v.Type, Name: v.Name, Text: v.Text, Prompt: v.Prompt, X: v.X, Y: v.Y, StoryboardRank: v.StoryboardRank, Revision: v.Revision, IncomingEdges: edges}, nil
+	return c.Node{AssetID: v.AssetID, ResourceID: v.ResourceID, ResourceAssetID: v.ResourceAssetID, GenerationConfig: config, VideoInputMode: v.VideoInputMode, ID: v.ID, Type: v.Type, Name: v.Name, Text: v.Text, Prompt: v.Prompt, X: v.X, Y: v.Y, StoryboardRank: v.StoryboardRank, Revision: v.Revision, IncomingEdges: edges}, nil
 }
 func readGraph(db *gorm.DB, board p.Board) (c.Graph, error) {
 	var rows []p.Node
 	if err := db.Where("canvas_id = ?", board.ID).Order("created_at, id").Find(&rows).Error; err != nil {
 		return c.Graph{}, err
+	}
+	resourceAssetIDs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.ResourceAssetID != "" {
+			resourceAssetIDs = append(resourceAssetIDs, row.ResourceAssetID)
+		}
+	}
+	if len(resourceAssetIDs) > 0 {
+		type liveAsset struct {
+			ResourceAssetID string
+			AssetID         string
+			Name            string
+			MediaType       int16
+		}
+		var live []liveAsset
+		if err := db.Table("resource_assets").Select("resource_assets.id AS resource_asset_id, resource_assets.current_asset_id AS asset_id, resource_assets.name, resource_assets.media_type").Joins(
+			"JOIN resources ON resources.id = resource_assets.resource_id AND resources.project_id = ? AND resources.deleted_at IS NULL", board.ProjectID,
+		).Where("resource_assets.id IN ? AND resource_assets.deleted_at IS NULL", resourceAssetIDs).Scan(&live).Error; err != nil {
+			return c.Graph{}, err
+		}
+		byID := make(map[string]liveAsset, len(live))
+		for _, item := range live {
+			byID[item.ResourceAssetID] = item
+		}
+		for index := range rows {
+			if item, ok := byID[rows[index].ResourceAssetID]; ok {
+				rows[index].AssetID, rows[index].Name, rows[index].Type = item.AssetID, item.Name, item.MediaType
+			}
+		}
 	}
 	result := c.Graph{Canvas: boardDTO(board), Nodes: []c.Node{}}
 	for _, row := range rows {
@@ -179,7 +208,7 @@ func (s *Service) Mutate(ctx context.Context, a Actor, id string, in c.Mutation)
 			changed[n.ID] = true
 			old, exists := nodes[n.ID]
 			if exists {
-				if old.Type != n.Type || old.AssetID != n.AssetID {
+				if old.Type != n.Type || old.AssetID != n.AssetID || old.ResourceID != n.ResourceID || old.ResourceAssetID != n.ResourceAssetID {
 					return Invalid("node type is immutable")
 				}
 				if old.Revision != n.Revision {
@@ -262,7 +291,7 @@ func (s *Service) Mutate(ctx context.Context, a Actor, id string, in c.Mutation)
 			if err != nil {
 				return err
 			}
-			v := p.Node{AssetID: n.AssetID, GenerationConfig: string(config), VideoInputMode: n.VideoInputMode, ID: n.ID, CanvasID: id, Type: n.Type, Name: n.Name, Text: n.Text, Prompt: n.Prompt, X: n.X, Y: n.Y, StoryboardRank: n.StoryboardRank, Revision: n.Revision, IncomingEdges: string(edges)}
+			v := p.Node{AssetID: n.AssetID, ResourceID: n.ResourceID, ResourceAssetID: n.ResourceAssetID, GenerationConfig: string(config), VideoInputMode: n.VideoInputMode, ID: n.ID, CanvasID: id, Type: n.Type, Name: n.Name, Text: n.Text, Prompt: n.Prompt, X: n.X, Y: n.Y, StoryboardRank: n.StoryboardRank, Revision: n.Revision, IncomingEdges: string(edges)}
 			if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.AssignmentColumns([]string{"generation_config", "video_input_mode", "name", "text", "prompt", "x", "y", "storyboard_rank", "revision", "incoming_edges", "updated_at"})}).Create(&v).Error; err != nil {
 				return err
 			}

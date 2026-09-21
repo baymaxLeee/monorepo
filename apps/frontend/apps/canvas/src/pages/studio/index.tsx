@@ -146,6 +146,9 @@ import { StoryboardPreviewDialog } from "./storyboard/StoryboardPreviewDialog";
 import { StoryboardToolbar } from "./storyboard/StoryboardToolbar";
 import { useStudioAssetReviewPolling } from "./useStudioAssetReviewPolling";
 
+const CHAT_PANEL_MIN_WIDTH = 320;
+const CHAT_PANEL_MAX_WIDTH = 640;
+
 export default function StudioPage() {
   const { projectId = "", canvasId = "" } = useParams();
   return (
@@ -171,6 +174,7 @@ function StudioContent() {
   const [assetsOpen, setAssetsOpen] = useAtom(assetsPanelOpenAtom);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatWidth, setChatWidth] = useState(420);
+  const [chatResizing, setChatResizing] = useState(false);
   const chatResizeCleanupRef = useRef<(() => void) | undefined>(undefined);
   const canvasBoardRef = useRef<CanvasBoardHandle>(null);
   const shots = useAtomValue(storyboardShotsAtom);
@@ -1513,7 +1517,7 @@ function StudioContent() {
 
   const handleAddShot = (index: number, mode: AddShotMode) => {
     if (!hasVideoModels || (mode === "batch" && !hasStoryboardModels)) {
-      Message.warning(t("当前项目暂无可用模型，请先在项目管理中授权模型"));
+      Message.warning(t("当前工作空间暂无可用模型，请先在管理端配置并启用模型"));
       return;
     }
     if (mode === "single") {
@@ -1847,7 +1851,7 @@ function StudioContent() {
 
   const handleCompose = async () => {
     if (!hasVideoModels) {
-      Message.warning(t("当前项目暂无可用视频模型，请先在项目管理中授权模型"));
+      Message.warning(t("当前工作空间暂无可用视频模型，请先在管理端配置并启用视频模型"));
       return;
     }
     if (composing || !hasGeneratableShot) {
@@ -2324,21 +2328,41 @@ function StudioContent() {
   };
 
   const handleChatResizeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
     event.preventDefault();
+    event.stopPropagation();
     chatResizeCleanupRef.current?.();
     const startX = event.clientX;
     const startWidth = chatWidth;
+    const bodyCursor = document.body.style.cursor;
+    const bodyUserSelect = document.body.style.userSelect;
+    let shouldCollapse = false;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    setChatResizing(true);
     const handleMove = (moveEvent: PointerEvent) => {
-      setChatWidth(Math.min(640, Math.max(320, startWidth + startX - moveEvent.clientX)));
+      moveEvent.preventDefault();
+      const targetWidth = startWidth + startX - moveEvent.clientX;
+      shouldCollapse = targetWidth < CHAT_PANEL_MIN_WIDTH;
+      setChatWidth(shouldCollapse ? Math.max(0, targetWidth) : Math.min(CHAT_PANEL_MAX_WIDTH, targetWidth));
     };
     const handleUp = () => {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
+      document.body.style.cursor = bodyCursor;
+      document.body.style.userSelect = bodyUserSelect;
+      setChatResizing(false);
+      if (shouldCollapse) {
+        setChatWidth(startWidth);
+        setChatOpen(false);
+      }
       chatResizeCleanupRef.current = undefined;
     };
     chatResizeCleanupRef.current = handleUp;
     window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleUp, { once: true });
+    window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
   };
 
   return (
@@ -2379,13 +2403,13 @@ function StudioContent() {
 
       {!modelsLoading && (!hasVideoModels || !hasStoryboardModels) ? (
         <div
-          className={`shrink-0 bg-[color:rgb(var(--warning-1))] px-6 py-2 text-[13px] text-[color:rgb(var(--warning-7))] ${
-            view === "canvas" ? "mt-[48px]" : ""
+          className={`bg-[color:oklch(0.987 0.022 95.277)] px-6 py-2 text-[13px] text-[color:oklch(0.555 0.163 48.998)] ${
+            view === "canvas" ? "absolute inset-x-0 top-[48px] z-20" : "shrink-0"
           }`}
         >
           {!hasVideoModels
-            ? t("当前项目暂无可用视频模型，请先在项目管理中授权模型。")
-            : t("当前项目暂无可用分镜推理模型，批量创建分镜暂不可用，请先授权模型。")}
+            ? t("当前工作空间暂无可用视频模型，请先在管理端配置并启用视频模型。")
+            : t("当前工作空间暂无可用分镜推理模型，批量创建分镜暂不可用，请先在管理端配置并启用文本模型。")}
         </div>
       ) : null}
 
@@ -2445,8 +2469,8 @@ function StudioContent() {
             {studioReady ? (
               <div
                 aria-hidden={view !== "canvas"}
-                className={`absolute inset-0 flex min-w-0 min-h-0 ${
-                  view === "canvas" ? "" : "opacity-0 pointer-events-none"
+                className={`flex min-w-0 min-h-0 flex-1 ${
+                  view === "canvas" ? "" : "absolute inset-0 opacity-0 pointer-events-none"
                 }`}
               >
                 <CanvasBoard onRefreshGraph={refreshCanvasGraph} ref={canvasBoardRef} />
@@ -2488,7 +2512,7 @@ function StudioContent() {
                             />
                           ) : (
                             <CEllipsis
-                              className="m-0 shrink-0 truncate text-[20px] font-medium leading-7 text-[color:var(--color-text-1)]"
+                              className="m-0 shrink-0 truncate text-[20px] font-medium leading-7 text-foreground"
                               maxWidth={200}
                             >
                               {t("分镜脚本")}
@@ -2697,15 +2721,41 @@ function StudioContent() {
           {chatOpen ? (
             <aside
               aria-label={t("画布 AI 助手")}
-              className="relative z-20 min-h-0 shrink-0 border-0 border-l border-solid border-[color:var(--color-border-2)] bg-white"
+              className={`z-20 min-h-0 shrink-0 overflow-hidden bg-white ${
+                view === "canvas" ? "absolute inset-y-0 right-0" : "relative"
+              }`}
               style={{ width: chatWidth }}
             >
               <div
                 aria-label={t("调整 AI 助手面板宽度")}
-                className="absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize bg-transparent transition-colors hover:bg-primary/20"
+                aria-orientation="vertical"
+                aria-valuemax={CHAT_PANEL_MAX_WIDTH}
+                aria-valuemin={CHAT_PANEL_MIN_WIDTH}
+                aria-valuenow={Math.round(chatWidth)}
+                className="group absolute inset-y-0 left-0 z-10 flex w-1 -translate-x-1/2 touch-none select-none justify-center cursor-col-resize outline-none"
+                onKeyDown={(event) => {
+                  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                  event.preventDefault();
+                  const targetWidth = chatWidth + (event.key === "ArrowLeft" ? 16 : -16);
+                  if (targetWidth < CHAT_PANEL_MIN_WIDTH) {
+                    setChatOpen(false);
+                    return;
+                  }
+                  setChatWidth(Math.min(CHAT_PANEL_MAX_WIDTH, targetWidth));
+                }}
                 onPointerDown={handleChatResizeStart}
                 role="separator"
-              />
+                tabIndex={0}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none h-full shrink-0 transition-[width,background-color] duration-150 ${
+                    chatResizing
+                      ? "w-1 bg-blue-500"
+                      : "w-px bg-border/80 group-hover:w-1 group-hover:bg-blue-500 group-focus:w-1 group-focus:bg-blue-500"
+                  }`}
+                />
+              </div>
               <CanvasConversation canvasId={canvasId} onChange={() => void refreshCanvasGraph()} />
             </aside>
           ) : null}
