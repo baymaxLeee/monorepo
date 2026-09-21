@@ -1,71 +1,59 @@
-# Canvas 迁移执行清单
+# AgentFrame → Canvas 端到端迁移核对
 
-目标：将 AgentFrame 用户端与管控端完整迁入 monorepo，前后端均命名 canvas；复用 IAM、存储、Provider、Chat runtime，禁止引入 Arco 与旧物料库。
+核对日期：2026-09-21。基准为本地 `multix-app` 当前实现、`llmops-web/apps/agentframe-web`，目标为 monorepo 当前工作区，包含其他 agent 尚未提交的代码。其他 agent 持续修改中，本清单是当时快照。没有把复制进 `internal/server/**` 的未挂载代码计为可用功能，也没有按接口或表数量计算完成率。
 
-- [ ] Canvas 服务、契约、IAM/gateway、项目与画布、手动/Agent 共用 mutation。
-- [ ] Canvas 微前端与现有组件、图标、画布/故事板交互。
-- [ ] Chat 会话绑定、内部 Canvas client、工具与会话面板。
-- [ ] Admin 默认模型、权益、项目管理、权限配置。
-- [ ] 素材上传、独立持有、引用/历史/GC、现有存储接入。
-- [ ] Provider、executor、文本/图片/视频/分镜生成、取消/恢复/历史。
-- [ ] 资源库、审核、匹配、导出、用量及配额。
-- [ ] 存量数据转换、在途任务、恢复方案和不变量验收。
-- [ ] 生成、静态检查、构建、API 验证、部署组成与文档 review。
+目标保持：Canvas Go 业务与媒体执行 + TS Executor Workflow；Chat 复用唯一 ToolLoopAgent、共享 `@repo/chat`；Jotai 页面级状态；Tenant 公司 / Workspace 公司内组织；源 schema 以最新 MySQL 为准，目标 PostgreSQL，Canvas 首次建库合入 v1.0.0。按用户说明，本期没有存量数据兼容要求，未把 MySQL 历史数据搬运列为上线必做项。源仓库只读。
 
-源仓库保持只读。未完成的能力不得标记已迁移，未验证部署不替换旧环境。真实环境切换与不可逆数据操作另行在具体方案就绪后确认。
+## 已接线的能力
 
-语言策略：第一版保留 Go，长期将 Canvas 后端统一到 TS；当前功能迁移不同时开展全量语言重写。OpenAPI 与内部 HTTP SDK 是替换边界，共享 Chat UI 和唯一 ToolLoopAgent 不随 Canvas 实现语言变化。后续 TS 替换必须保留数据与任务语义，并逐模块切换唯一写入方，详见 ADR 0063。
+- 项目、画布、节点与连线、手动/Agent CAS mutation；Tenant/Workspace 权限上下文。
+- 共享 Chat 右侧会话，Canvas 会话绑定；read/update/delete/generate/history/cancel 工具复用现有 runtime。
+- 文本、图片、视频任务派发至 Executor；生成历史、取消、结果回写、资源版本、上传和独立复制。
+- 导出接入原 Go ZIP/FCPXML；视频首尾帧接入原 Go FFmpeg executor；唯一 Workflow 调度，不启动旧 MQ/lease worker。
+- 资源图片生成草稿/历史/Worker；故事板草稿编辑、确认、SSE、预览、时间线和排序已有在途实现。是否接线与真实模型成功验收分别记录。
+- 管控默认模型、成员/模型授权、项目金额限额、权益包配置 CRUD、用量 XLSX 入口已有在途实现。
 
-## 前端还原验收
+## 明确缺口与断点
 
-以源端现行组件、交互文档和用户截图为基线，不以简版入口代替迁移。基础原语改用 monorepo design-system / lucide；布局、操作顺序和状态保留。
+| 优先级 | 功能 | 端到端断点和完成标准 |
+| --- | --- | --- |
+| P0 | 资源生成与初始数据库结构 | `ResourceGeneration` 嵌入 Generation，初始 SQL 曾漏 reserved_amount_micros / usage_settled；本轮已补两列。资源任务仍未调用 `admitGeneration`，没有资源任务结算 trigger；项目模型授权/额度必须覆盖资源生成，不能只保护画布节点。 |
+| P0 | 权益包并发正确性 | Admin benefit_packages update/delete 先查 revision 后写，缺行锁/CAS；模型归属靠 JSON 查重，缺数据库唯一约束。需要保证并发同 revision 只能一个成功，同一模型不能被两个有效权益包占用。 |
+| P1 | 审核与官方素材 | 源 `benefitpackage/review.go`、`review_cleanup_processor.go` 与 `assetreview/client.go` 的送审、查询、重试、清理及 AssetGroup 管理未接入目标运行链；当前权益包只有配置 CRUD，material_used 无实际消费更新。需要上传→审核→官方素材注册/使用→清理全链。 |
+| P1 | 素材匹配与物化 | 源 Start/CancelCanvasNodeAssetsMatch、SearchCanvasNodeAssets、MaterializeCanvasResourceAssetReference / StandaloneAssetReference 无完整目标链。目标故事板 matching 固定 false，提示词仅当前图节点；resource-copies 不能代替项目素材搜索、绑定/独立物化。 |
+| P1 | 资源双向流转 | 缺画布已有 Asset 入库（源 CreateResourceFromAsset）、资源批量删除/分页/完整描述编辑、生成草稿上传参考图。当前版本历史与独立复制已实现，不能把整个资源模块标为缺失。 |
+| P1 | 故事板渐进生成 | Go progress endpoint 与前端 SSE 已存在，但当前 `canvas-storyboard.ts` 没有调用 progress endpoint；Worker 仅终态一次性保存 shots。需分批持久回写、稳定 shot identity、取消/父资源删除检查，才能实现生成过程中逐段可见。完整源素材增强/引用物化亦缺。 |
+| P1 | 首尾帧结果消费 | 抽帧 Worker 成功保存两个 Asset 和 owner，但公共 Generation DTO/内容接口未提供首尾帧读取/选用；现有 GenerationContent 只读取视频主输出。前端最新在途代码已有模式选择和 FrameReferences 首尾帧交换，不能再列为完全没有 UI；仍须接上视频产物提帧后的消费链。 |
+| P1 | 默认参数与模型选择 | 管控 temperature/top_p/max_tokens/reasoning_effort 未完整进入执行 payload；GenerationSettings、ResourceGenerationForm 仍读全局模型列表，未统一消费项目授权目录。配置可保存不等于执行生效。 |
+| P1 | 计费、用量与配额 | 节点 SQL trigger 已做终态释放预占/扣预估费用；但目前主要按 generated_second×请求时长估价，不是实际 Provider 结算。文本/图片/自动时长、币种一致性、资源生成/剧本拆分用量与对账缺失；XLSX 固定 Pending、姓名/模型名为 ID。项目数/存储量/预置权益素材量配额未装配。 |
+| P1 | 清理与生命周期 | 源 asset GC/reference reconciler、archive Cleaner、IAM scope cleanup 均未装配。删除 owner 不会物理删除 Knowledge 对象，导出七天不可下载也不会自动清理；租户/Workspace 删除后的业务清理缺失。 |
+| P2 | 用户端交互补齐 | 已有节点复制、用户视口保存/恢复、项目封面和项目统计仍缺；资源批量操作等见上。布局/键盘/拖拽/错误恢复需用户按源端验收，未使用浏览器宣称视觉还原。 |
+| P2 | Chat 能力覆盖 | 当前只有画布读取/修改/删除和节点生成/历史/取消工具；尚不能经对话操作资源库、故事板拆分确认、审核、导出和管理配置。这是用户要求的 AI 扩展目标，不是源 AgentFrame 已有 runtime 的迁移缺失。 |
 
-- 项目与剧集：封面卡片、搜索排序、分页、创建/编辑/删除确认、项目内视频创作与资产库导航。
-- Studio：左侧节点/资产双页签与分类检索，中间点阵画布、节点端口/连线、多选拖动、快捷操作、编辑浮层和视图切换。
-- 用户截图右侧为可折叠、可调宽的 Chat 会话栏；共用 packages/chat，不占用节点编辑浮层的位置。
-- 故事板：分镜顺序、选择、编辑、生成/取消、历史选版、预览播放和时间线；离开编辑前保存，失败保留草稿。
-- 素材：角色/场景/道具/音频分类、搜索、上传、物化、引用、详情与审核状态。
-- 管控：默认模型参数、项目管理与授权、权益配置、用量导出。
-- 导出：批量导出、记录、进度、失败恢复。
+## 证据入口
 
-当前已运行 install/up/dev、前三个前端构建与核心静态检查；这些仅证明组合启动，不代表上述 UI 或业务已完成。
+- 源公共能力：`../multix-app/api/idl/server.thrift`；源 Worker 实际注册：`../multix-app/internal/bootstrap/worker/module.go`（归档、首尾帧两个 executor）。
+- 源平台生命周期：`../multix-app/internal/bootstrap/server/{quota,asset_gc,iam_scope_cleanup}.go`；源业务：`internal/server/application/{benefitpackage,projectusage,canvasnode,resource}`。
+- 目标接线：`apps/backend/services/canvas/cmd/server/main.go`、`internal/api/http/*routes.go`；仅 `internal/server/**` 中有实现不等于上述入口消费。
+- 目标资源生成：Canvas `internal/application/resource_generation_runs.go`、`internal/infrastructure/persistence/resource_generation.go`、`migrations/versions/v1.0.0.sql`。
+- 目标 Worker：Canvas `internal/application/{frame_execution,frame_worker,storyboard_worker,worker_cancellation}.go`；Executor `workflows/canvas-storyboard.ts`、`src/application/tasks/{binding,cleanup,service}.ts`。
+- 目标费用/配置：Canvas `internal/application/{management,management_usage}.go`；Admin `src/application/benefit_packages.py` 与 repository。
+- 目标用户入口：`apps/frontend/apps/canvas/src/components/{Storyboard,CanvasBoard,GenerationSettings,ResourceGenerationForm,ResourceLibrary}.tsx`、`components/prompt/{PromptEditor,FrameReferences}.tsx`。
+- 目标 Agent 工具：`apps/backend/services/chat/src/application/agent/tools/builtins/canvas.ts`；共享会话：`apps/frontend/apps/canvas/src/components/CanvasConversation.tsx`。
 
-Canvas 状态方案已按用户确认采用 Jotai：页面 Provider、规范化正式图、派生故事板、按节点订阅与串行写入协调器。Chat 不建立第二份消息状态。
+## 运行证据与验收边界
 
+已验证：真实本地 Workflow→Go FFmpeg→Knowledge 首尾帧 JPEG、执行重放仍恰好两个输出 owner；先取消 owner 再提交返回同一取消记录、不启动 Workflow；此前已验证上传/版本字节、节点生成派发/幂等/失败回写、导出失败与权限边界。Worker Go build/vet、Executor lint/typecheck/Nitro build、OpenAPI sync 通过。
 
-## 已接通的增量
+本轮根 `just build` 通过；根 `just lint` 被其他 agent 在途前端文件格式问题阻断，未修改其业务文件。上述结果不是完整产品验收：真实 Provider 文本/图片/视频/分镜成功生成、执行中取消与宕机恢复、真实视频 ZIP/FCPXML 导出、审核及 UI 交互仍未完成真实端到端验证。
 
-- 文本节点 → Canvas 生成记录 → Executor Workflow → Admin Provider；支持历史、取消、CAS 回写与 Chat 调用。真实 Provider 成功结果仍待验证。
-- 本地图片/视频/音频上传 → Knowledge 独立对象命名空间 → Canvas Asset/引用账本 → 节点预览；不依赖 Chat 会话生命周期。素材资源库、媒体生成、审核和物理 GC 尚未接通。
-- 从源端直接迁入领域模块和生成输入 resolver；resolver 已用于文本生成，保留 mention 与输入顺序语义。
-- 用户授权按模块在 monorepo 本地提交；不 push。源 schema 基准改为 multix-app 最新 MySQL schema，目标 PostgreSQL，Canvas migration 合为 v1.0.0。
+Provider 已接收付费请求但返回 task ID 前连接丢失，缺 Provider 幂等支持时不能保证恰好一次；凭据被删除/失效可能使清理持续失败。持久 cleanup_pending 保证重试意图，不保证外部服务必然接受取消。
 
-- 资源库已接通四种分类、创建/重命名/删除、上传素材及独立复制到画布，左栏新增节点/资产页签。资源换版、跟随引用、审核、生成草稿仍待迁移。
+默认配置与权益包原源端主要按 Tenant，当前目标按 Tenant+Workspace：公司共享还是组织独立需形成明确目标产品语义，不能自动认为等价。
 
-## Tenant / Workspace（当前实施）
+## 剩余工作的闭环顺序
 
-用户确认 monorepo 全量移除 Org 概念：Tenant 是公司，Workspace 是公司内的组织工作空间；无存量兼容与滚动升级窗口，直接整体改造。IAM 增加公司管理与工作空间归属，签发双层 scope；Gateway、Canvas、Chat、Admin、Knowledge、Executor 和生成客户端统一采用新契约。Canvas 初始 migration 仍保持单版本。
-
-已验证公司/工作空间创建和切换、Canvas/Chat 跨空间及跨租户拒绝、Gateway 清除伪造 scope 头；全仓 lint/build/sync 与本地 migration/up/dev 通过。IAM 原 char(26) ID 的补空格破坏会话切换，已统一 varchar(26)。后续继续检查 Knowledge 原先仅按 user_id 授权的接口，不能把字段迁移当成所有资源的隔离验收。
-
-- 图片生成已连接 AI SDK generateImage → Executor Workflow → Knowledge 独立对象 → Canvas 生成输出账本与选版；参考图与参数在提交时冻结，复用源端分辨率/画幅换算。Chat 使用 generate_canvas_node 统一发起文本或图片任务。已验证实际任务派发、幂等与失败回写；本地无启用 Provider，真实出图和成功回写未验收。
-
-- 视频节点已接独立 Executor Workflow：参考素材/首尾帧、取消、结果对象持有和历史选版；Chat 同一工具支持三种生成节点。本地已验证派发、幂等、失败回写，真实模型成功结果未验收。
-
-- 资源素材已补齐替换上传、历史预览/选版、重命名、主素材切换/删除递补和单素材删除。HTTP 验证覆盖版本字节与独立副本持有；跟随资源引用、审核、生成草稿、GC 仍未完成。
-
-## 批量迁移纠偏
-
-源端 domain/application/persistence、worker 媒体处理、普通 HTTP handler 和纯 Go DTO 已整体复制到 Canvas。去除私有 tracing 依赖并改用原生 OTel；DTO 不包含 Thrift runtime，尚需纳入 OpenAPI。旧 internal/domain 已合并到完整的 internal/server/domain，避免双份领域规则。Go build/vet 通过。
-
-下一步以原接口边界装配现有业务，实现 Knowledge/IAM/Admin/Executor ports，统一 PostgreSQL 首版 schema，再切换 HTTP/OpenAPI 和前端调用。禁止同时启动源 worker 调度器与 Executor Workflow，原 agent runner 也不启动。当前复制完成与线上能力可用分开记录，不把未挂载代码计为端到端完成。
-
-### 已挂载的原端用例
-
-- canvasarchive application/repository/task repository 进入运行链路，原 ZIP/FCPXML Builder 由 TS Workflow 经内部 HTTP 调用。首次 schema 加入任务、导出和输入快照表；outbox 只负责派发与终态投影。
-- 原批量视频提交 helper 进入 Canvas 公共 API，前端新增生成全部、批量导出、导出记录。
-- Knowledge 对象上传改为流式落盘，保留现有媒体大小配置与内容摘要接口。
-- 已验证空画布、权限拒绝、原批量筛选/跳过/幂等、Workflow 失败回写、流式存储字节；真实视频导出成功/取消验收尚缺输入。
-- 全量原项目/画布/资源 service 尚未替换早期简化实现，管理配置、额度/审核、匹配/拆分、首尾帧与 GC 等装配未完成，不能标记整体完成。
-
-- 已接通画布整体任务状态投影，批量生成时未选中节点也显示进度/停止入口；状态变化后自动刷新结果，复用 Jotai 页面 Store。
+1. 收敛当前集成断点：资源生成授权/结算、权益包并发、模型配置执行生效、生成结构与初始 SQL 一致。
+2. 补素材域：审核/AssetGroup、智能匹配/物化、入库与资源引用、GC及生命周期清理。
+3. 补创作闭环：分镜渐进回写/素材增强、首尾帧消费、缺失交互及 Chat 工具覆盖。
+4. 配置真实 Provider 按用户路径验收，完成整个工作区生成、构建、静态检查与部署验收。不得以本 Worker 批次提交代替整体迁移完成。

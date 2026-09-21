@@ -297,4 +297,3 @@ CREATE TABLE canvas_storyboard_sessions (
 );
 CREATE INDEX canvas_storyboard_sessions_active ON canvas_storyboard_sessions(status) WHERE status IN ('queued','running');
 CREATE INDEX canvas_storyboard_sessions_scope ON canvas_storyboard_sessions(tenant_id,workspace_id,canvas_id,user_id,created_at DESC);
-
