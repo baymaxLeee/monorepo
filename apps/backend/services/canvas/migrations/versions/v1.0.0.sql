@@ -103,6 +103,24 @@ CREATE TABLE asset_references (
 );
 CREATE INDEX asset_references_owner ON asset_references(owner_type,owner_key,deleted_at);
 
+CREATE TABLE asset_gc_candidates (
+ asset_id varchar(32) PRIMARY KEY,
+ tenant_id varchar(26) NOT NULL,
+ workspace_id varchar(32) NOT NULL,
+ project_id varchar(32) NOT NULL,
+ object_key varchar(64) NOT NULL,
+ purge_not_before timestamptz NOT NULL,
+ next_attempt_at timestamptz NOT NULL,
+ lease_until timestamptz,
+ state_version bigint NOT NULL DEFAULT 1,
+ attempts integer NOT NULL DEFAULT 0,
+ last_error varchar(512) NOT NULL DEFAULT '',
+ created_at timestamptz NOT NULL DEFAULT now(),
+ updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX asset_gc_candidates_due ON asset_gc_candidates(next_attempt_at,lease_until);
+CREATE INDEX asset_gc_candidates_object ON asset_gc_candidates(tenant_id,workspace_id,project_id,object_key,created_at);
+
 CREATE TABLE resources (
  id varchar(36) PRIMARY KEY, tenant_id varchar(26) NOT NULL,
   workspace_id varchar(64) NOT NULL, project_id varchar(36) NOT NULL,
@@ -363,3 +381,20 @@ CREATE TABLE generation_usage_metadata (
  estimate_known boolean NOT NULL DEFAULT false
 );
 CREATE INDEX generation_usage_metadata_scope ON generation_usage_metadata(tenant_id,workspace_id,project_id);
+
+CREATE TABLE asset_reviews (
+ id varchar(32) PRIMARY KEY,
+ tenant_id varchar(26) NOT NULL, workspace_id varchar(64) NOT NULL, project_id varchar(36) NOT NULL,
+ resource_asset_id varchar(36) NOT NULL, asset_id varchar(32) NOT NULL,
+ benefit_package_id varchar(32) NOT NULL, package_name varchar(80) NOT NULL, is_preset boolean NOT NULL,
+ reservation_id varchar(36) NOT NULL, operation_id varchar(36) NOT NULL, created_by varchar(64) NOT NULL,
+ provider_asset_id varchar(128) NOT NULL DEFAULT '',
+ status varchar(16) NOT NULL CHECK(status IN ('SUBMITTING','PROCESSING','APPROVED','FAILED')),
+ failure_reason varchar(512) NOT NULL DEFAULT '', submitted_at timestamptz,
+ created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL,
+ CONSTRAINT asset_reviews_operation UNIQUE(tenant_id,workspace_id,created_by,operation_id),
+ CONSTRAINT asset_reviews_asset_package UNIQUE(tenant_id,workspace_id,project_id,asset_id,benefit_package_id)
+);
+CREATE INDEX asset_reviews_project_current ON asset_reviews(tenant_id,workspace_id,project_id,resource_asset_id,updated_at DESC);
+CREATE INDEX asset_reviews_reservation ON asset_reviews(reservation_id);
+CREATE INDEX asset_reviews_pending ON asset_reviews(created_at) WHERE status IN ('SUBMITTING','PROCESSING');

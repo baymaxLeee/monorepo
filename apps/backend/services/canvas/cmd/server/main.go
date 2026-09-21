@@ -47,6 +47,7 @@ func run() error {
 	go service.RunGenerations(ctx)
 	go service.RunArchives(ctx)
 	go service.RunArchiveCleanup(ctx)
+	go service.RunAssetCleanup(ctx)
 	go service.RunVideoFrames(ctx)
 	go service.RunResourceGenerations(ctx)
 	go service.RunStoryboardDrafts(ctx)
