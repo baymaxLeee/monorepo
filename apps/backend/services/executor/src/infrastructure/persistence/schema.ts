@@ -1,5 +1,6 @@
 import {
   bigint,
+  boolean,
   index,
   integer,
   jsonb,
@@ -27,6 +28,7 @@ export const tasks = pgTable(
     ownerService: varchar("owner_service", { length: 40 }).notNull(),
     ownerRef: varchar("owner_ref", { length: 80 }).notNull(),
     workflowRunId: varchar("workflow_run_id", { length: 64 }),
+    cleanupPending: boolean("cleanup_pending").notNull().default(false),
     payload: jsonb("payload").$type<unknown>().notNull(),
     result: jsonb("result").$type<unknown>(),
     progress: jsonb("progress").$type<TaskProgress | null>(),

@@ -4,6 +4,7 @@ import { getWorkflowMetadata } from "workflow";
 import { z } from "zod";
 
 import { buildFileTextModel, generateFileContent } from "../src/application/files/generator.js";
+import { claimTaskStep } from "../src/application/tasks/binding.js";
 import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
 import { isTaskCancelled, reportTaskProgress } from "../src/application/tasks/notify.js";
 import { getSettings } from "../src/bootstrap/config.js";
@@ -156,8 +157,9 @@ async function mapConcurrent<T, R>(
   return result;
 }
 
-export async function fileTaskBatchWorkflow(input: FileTaskBatchInput) {
+export async function fileTaskBatchWorkflow(input: FileTaskBatchInput, executorTaskId: string) {
   "use workflow";
+  await claimTaskStep(executorTaskId);
   console.log("[file-task-batch] workflow start", { total: input.tasks.length });
   const concurrency = await concurrencyStep();
   await reportProgressStep(0, input.tasks.length);

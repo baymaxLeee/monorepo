@@ -34,6 +34,14 @@ for the full rationale.
   Workflow `start()` itself idempotent. A Workflow start failure marks the
   inserted row failed immediately; callers must not automatically start a
   second Workflow under the same user-visible tool call.
+- Every registered Workflow accepts the Executor task ID as its second argument
+  and calls `claimTaskStep` before business or paid side effects. The claim binds
+  the run atomically and rejects terminal tasks; boot recovery fails unbound
+  orphans instead of launching another run.
+- Cancellation records durable `cleanup_pending` intent. Recovery retries Workflow
+  and Provider cleanup after errors/restarts, including failed runs; recording a
+  late external task ID re-arms cleanup. Owner cancellation may create a terminal
+  tombstone before dispatch, preventing a delayed submission from starting work.
 - Task execution durability comes from `workflow` (Workflow DevKit), not
   from this service's own process. `reconcilePendingTasks()` re-attaches to
   any `running` task's workflow run on every boot — safe to call every time,

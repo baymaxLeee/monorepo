@@ -1,5 +1,6 @@
 import { getWorld } from "workflow/runtime";
 
+import { reconcileTaskCleanup, startTaskCleanupRecovery } from "../application/tasks/cleanup.js";
 import { reconcilePendingTasks } from "../application/tasks/service.js";
 import {
   recoverStaleVideoProductionDecisions,
@@ -17,6 +18,8 @@ export async function bootstrapExecutor(): Promise<void> {
       markWorkflowWorldStarted();
     }
     await reconcilePendingTasks();
+    await reconcileTaskCleanup();
+    startTaskCleanupRecovery();
     await recoverStaleVideoProductionDecisions();
     startStaleVideoProductionDecisionRecovery();
     markBootReady();

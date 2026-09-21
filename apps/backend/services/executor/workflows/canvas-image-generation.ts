@@ -4,6 +4,7 @@ import { generateImage, type JSONValue } from "ai";
 import { getWorkflowMetadata } from "workflow";
 import { z } from "zod";
 
+import { claimTaskStep } from "../src/application/tasks/binding.js";
 import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
 import { getSettings } from "../src/bootstrap/config.js";
 
@@ -12,6 +13,7 @@ export const canvasImageInputSchema = z.object({
   workspaceId: z.string().min(1),
   providerId: z.string().min(1),
   prompt: z.string().min(1),
+  watermark: z.boolean().optional(),
   objectScope: z.string().regex(/^[a-f0-9]{64}$/),
   references: z.array(z.string().regex(/^[a-f0-9]{64}$/)),
   aspectRatio: z
@@ -66,6 +68,7 @@ async function generateStep(input: Input) {
     const options = Object.fromEntries(
       Object.entries(provider.extra_body ?? {}).filter(([key]) => !owned.has(key)),
     ) as Record<string, JSONValue>;
+    if (input.watermark !== undefined) options.watermark = input.watermark;
     const result = await generateImage({
       model,
       prompt: images.length ? { text: input.prompt, images } : input.prompt,
@@ -94,7 +97,8 @@ async function generateStep(input: Input) {
 // The provider call is paid and has no replay-safe idempotency key.
 generateStep.maxRetries = 0;
 
-export async function canvasImageWorkflow(input: Input) {
+export async function canvasImageWorkflow(input: Input, executorTaskId: string) {
   "use workflow";
+  await claimTaskStep(executorTaskId);
   return generateStep(input);
 }

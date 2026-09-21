@@ -3,6 +3,7 @@ import { CanvasInternalClient } from "@backend/transport-ts/canvas";
 import { getWorkflowMetadata, FatalError } from "workflow";
 import { z } from "zod";
 
+import { claimTaskStep } from "../src/application/tasks/binding.js";
 import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
 import { getSettings } from "../src/bootstrap/config.js";
 
@@ -30,7 +31,8 @@ async function archiveStep(input: Input) {
   }
 }
 
-export async function canvasArchiveWorkflow(input: Input) {
+export async function canvasArchiveWorkflow(input: Input, executorTaskId: string) {
   "use workflow";
+  await claimTaskStep(executorTaskId);
   return archiveStep(input);
 }

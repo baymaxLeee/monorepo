@@ -3,6 +3,7 @@ import { getWorkflowMetadata, sleep } from "workflow";
 import { z } from "zod";
 
 import { providerFor } from "../src/application/canvas/video.js";
+import { claimTaskStep } from "../src/application/tasks/binding.js";
 import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
 import { isTaskCancelled, recordExternalTask } from "../src/application/tasks/notify.js";
 import { pickArkVideoBody } from "../src/application/video/output-config.js";
@@ -86,7 +87,7 @@ createStep.maxRetries = 0;
 
 async function pollStep(input: Input, taskId: string) {
   "use step";
-  const provider = await providerFor(input);
+  const provider = await providerFor(input, true);
   return getArkVideoTask({ ...provider, taskId, signal: AbortSignal.timeout(30_000) });
 }
 
@@ -113,8 +114,9 @@ async function storeStep(input: Input, videoUrl: string) {
   }
 }
 
-export async function canvasVideoWorkflow(input: Input) {
+export async function canvasVideoWorkflow(input: Input, executorTaskId: string) {
   "use workflow";
+  await claimTaskStep(executorTaskId);
   const taskId = await createStep(input);
   while (true) {
     const snapshot = await pollStep(input, taskId);

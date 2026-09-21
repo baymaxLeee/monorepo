@@ -65,6 +65,7 @@ async function updateRuntimeProgress(
       .update(tasks)
       .set({
         progress: update(row.progress ?? { done: 0, total: 0 }),
+        cleanupPending: row.status === "cancelled" || row.status === "failed" || row.cleanupPending,
         updatedAt: new Date(),
       })
       .where(eq(tasks.id, row.id));

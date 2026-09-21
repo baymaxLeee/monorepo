@@ -1,6 +1,7 @@
 import { getWorkflowMetadata } from "workflow";
 import { z } from "zod";
 
+import { claimTaskStep } from "../src/application/tasks/binding.js";
 import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
 import { rethrowTerminalArtifactError } from "../src/application/tasks/errors.js";
 import {
@@ -843,8 +844,9 @@ function toVideoTake(result: SegmentResult): VideoTake {
   };
 }
 
-export async function videoGenerationWorkflow(input: VideoGenerationInput) {
+export async function videoGenerationWorkflow(input: VideoGenerationInput, executorTaskId: string) {
   "use workflow";
+  await claimTaskStep(executorTaskId);
   const { workflowRunId } = getWorkflowMetadata();
   const outputConfig = await loadVideoOutputConfigStep({
     tenantId: input.tenantId,

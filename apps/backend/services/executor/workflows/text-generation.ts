@@ -5,6 +5,7 @@ import { generateText } from "ai";
 import { getWorkflowMetadata } from "workflow";
 import { z } from "zod";
 
+import { claimTaskStep } from "../src/application/tasks/binding.js";
 import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
 import { getSettings } from "../src/bootstrap/config.js";
 
@@ -56,7 +57,8 @@ async function generateStep(input: Input) {
 // A paid model request must not be silently replayed after an ambiguous failure.
 generateStep.maxRetries = 0;
 
-export async function textGenerationWorkflow(input: Input) {
+export async function textGenerationWorkflow(input: Input, executorTaskId: string) {
   "use workflow";
+  await claimTaskStep(executorTaskId);
   return generateStep(input);
 }
