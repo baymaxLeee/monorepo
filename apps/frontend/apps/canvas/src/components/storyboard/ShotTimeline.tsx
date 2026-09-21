@@ -168,13 +168,13 @@ export function ShotTimeline({
                     <DropdownMenuContent>
                       <DropdownMenuItem
                         disabled={busy || index === 0}
-                        onSelect={() => reorder(shot.id, shots[index - 1]!.id, false)}
+                        onSelect={() => reorder(shot.id, shots[index - 1].id, false)}
                       >
                         向前移动
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         disabled={busy || index === shots.length - 1}
-                        onSelect={() => reorder(shot.id, shots[index + 1]!.id, true)}
+                        onSelect={() => reorder(shot.id, shots[index + 1].id, true)}
                       >
                         向后移动
                       </DropdownMenuItem>

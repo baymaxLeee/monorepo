@@ -61,6 +61,7 @@ func (s *Service) DeleteProject(ctx context.Context, actor Actor, id string, in 
 	if err := requireProjectAdmin(actor); err != nil {
 		return c.Deleted{}, err
 	}
+	var cleanupIDs []string
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		project, err := manageProject(tx, actor, id)
 		if err != nil {
@@ -68,6 +69,14 @@ func (s *Service) DeleteProject(ctx context.Context, actor Actor, id string, in 
 		}
 		if project.Revision != in.ExpectedRevision {
 			return Conflict()
+		}
+		var reviewAssetIDs []string
+		if err := tx.Model(&p.Asset{}).Where("project_id = ?", id).Pluck("id", &reviewAssetIDs).Error; err != nil {
+			return err
+		}
+		cleanupIDs, err = s.retireAssetReviews(tx, actor, reviewAssetIDs, "", time.Now().UTC())
+		if err != nil {
+			return err
 		}
 		if err := releaseGenerationOwners(tx, tx.Model(&p.Node{}).Select("id").Where("canvas_id IN (SELECT id FROM canvases WHERE project_id = ?)", id)); err != nil {
 			return err
@@ -78,9 +87,21 @@ func (s *Service) DeleteProject(ctx context.Context, actor Actor, id string, in 
 		if err := tx.Where("owner_type = ? AND owner_key IN (SELECT id FROM resource_assets WHERE resource_id IN (SELECT id FROM resources WHERE project_id = ?))", "RESOURCE_ASSET_REVISION", id).Delete(&p.AssetReference{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("owner_type = ? AND asset_id IN (SELECT id FROM assets WHERE project_id = ?)", "PROJECT_ASSET", id).Delete(&p.AssetReference{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("owner_type = ? AND owner_key = ?", "PROJECT_COVER", id).Delete(&p.AssetReference{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("owner_type = ? AND owner_key IN (SELECT id FROM canvases WHERE project_id = ?)", "CANVAS_COVER", id).Delete(&p.AssetReference{}).Error; err != nil {
+			return err
+		}
 		// Retain content for recovery; the deleted project is the access boundary.
 		return tx.Delete(&project).Error
 	})
+	if err == nil {
+		s.processAssetReviewCleanups(context.WithoutCancel(ctx), cleanupIDs)
+	}
 	return c.Deleted{Deleted: err == nil}, err
 }
 
@@ -124,6 +145,9 @@ func (s *Service) DeleteBoard(ctx context.Context, actor Actor, id string, in c.
 			return err
 		}
 		if err := tx.Where("owner_type = ? AND owner_key IN (SELECT id FROM canvas_nodes WHERE canvas_id = ?)", "CANVAS_NODE_ASSET", id).Delete(&p.AssetReference{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("owner_type = ? AND owner_key = ?", "CANVAS_COVER", id).Delete(&p.AssetReference{}).Error; err != nil {
 			return err
 		}
 		return tx.Delete(&board).Error

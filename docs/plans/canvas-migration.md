@@ -11,7 +11,7 @@
 - 文本、图片、视频任务派发至 Executor；生成历史、取消、结果回写、资源版本、上传和独立复制。
 - 导出接入原 Go ZIP/FCPXML；视频首尾帧接入原 Go FFmpeg executor；唯一 Workflow 调度，不启动旧 MQ/lease worker。
 - 资源图片生成草稿/历史/Worker；故事板草稿编辑、确认、渐进 SSE、预览、时间线和排序。
-- 管控默认模型、成员/模型授权、项目金额限额、权益包配置 CRUD、用量 XLSX。
+- Admin 统一维护工作空间模型，Canvas 前端直接读取 Admin 公开目录；Canvas 服务端仅在生成准入时通过内部接口校验模型。另含成员、项目金额限额、权益包配置 CRUD、用量 XLSX。
 - 项目素材搜索与物化、资产入库、节点复制、用户视口、视频首尾帧选用、智能素材匹配。
 - 权益包送审：额度预占、短期签名素材 URL、Ark CreateAsset/GetAsset、异步状态轮询及额度提交/释放。
 - 归档过期清理和引用安全的两阶段资产 GC；Knowledge 对象删除为幂等内部接口。
@@ -35,7 +35,7 @@
 - 目标接线：`apps/backend/services/canvas/cmd/server/main.go`、`internal/api/http/*routes.go`；仅 `internal/server/**` 中有实现不等于上述入口消费。
 - 目标资源生成：Canvas `internal/application/resource_generation_runs.go`、`internal/infrastructure/persistence/resource_generation.go`、`migrations/versions/v1.0.0.sql`。
 - 目标 Worker：Canvas `internal/application/{frame_execution,frame_worker,storyboard_worker,worker_cancellation}.go`；Executor `workflows/canvas-storyboard.ts`、`src/application/tasks/{binding,cleanup,service}.ts`。
-- 目标费用/配置：Canvas `internal/application/{management,management_usage}.go`；Admin `src/application/benefit_packages.py` 与 repository。
+- 目标费用/配置：Canvas `internal/application/{management,management_usage}.go`；Admin `src/application/{providers,benefit_packages}.py` 与 repository。模型配置不在 Canvas 建立项目级副本。
 - 目标用户入口：`apps/frontend/apps/canvas/src/components/{Storyboard,CanvasBoard,GenerationSettings,ResourceGenerationForm,ResourceLibrary}.tsx`、`components/prompt/{PromptEditor,FrameReferences}.tsx`。
 - 目标 Agent 工具：`apps/backend/services/chat/src/application/agent/tools/builtins/canvas.ts`；共享会话：`apps/frontend/apps/canvas/src/components/CanvasConversation.tsx`。
 
@@ -43,7 +43,7 @@
 
 已验证：真实本地 Workflow→Go FFmpeg→Knowledge 首尾帧 JPEG、执行重放仍恰好两个输出 owner；先取消 owner 再提交返回同一取消记录、不启动 Workflow；上传/版本字节、节点生成派发/幂等/失败回写、导出失败与权限边界。独立 PostgreSQL 完整执行 Canvas v1.0.0，覆盖送审 fence、归档 cleanup 和资产 GC 表结构；临时数据库已删除。
 
-本轮 `just sync`、根 `just lint`、根 `just build`、Canvas/Gateway Go test+vet、Admin/Knowledge Ruff+Mypy 全部通过。上述结果不是完整产品验收：真实 Provider 文本/图片/视频/分镜成功生成、真实 Ark 审核、执行中取消与宕机恢复、真实视频 ZIP/FCPXML 导出及 UI 交互仍需目标环境验收。
+此前完整迁移批次的 `just sync`、根 `just lint`、根 `just build`、Canvas/Gateway Go test+vet、Admin/Knowledge Ruff+Mypy 全部通过。本次阻塞修复另以版本化 `v1.1.0` 追赶已标记 `v1.0.0` 的开发数据库 schema，并移除 Canvas 对外模型目录代理；本段不把历史验证结果误记为本次重新执行。上述结果不是完整产品验收：真实 Provider 文本/图片/视频/分镜成功生成、真实 Ark 审核、执行中取消与宕机恢复、真实视频 ZIP/FCPXML 导出及 UI 交互仍需目标环境验收。
 
 Provider 已接收付费请求但返回 task ID 前连接丢失，缺 Provider 幂等支持时不能保证恰好一次；凭据被删除/失效可能使清理持续失败。持久 cleanup_pending 保证重试意图，不保证外部服务必然接受取消。
 
@@ -59,7 +59,7 @@ Provider 已接收付费请求但返回 task ID 前连接丢失，缺 Provider �
 ## 三 Agent 执行分工（当前批次）
 
 - 主 Agent：分镜分批持久回写/稳定身份、取消和父级生命周期检查、默认推理参数的 Executor 消费；统一公共 client、Workflow、启动、SQL及生成集成。下一批处理导出清理、资产 GC 和作用域清理；物理删除须先核对内容摘要共用与并发上传，不直接按单个 Asset 行删对象。
-- 管控 Agent：权益包 CAS/模型归属，节点与资源生成授权/额度，默认参数服务端冻结，用量统计与导出。下一批补审核/AssetGroup与配额。
+- 管控 Agent：权益包 CAS、节点与资源生成准入/额度、默认参数服务端冻结，用量统计与导出；模型归属统一以 Admin 工作空间目录为事实源，不在 Canvas 保存项目级授权副本。下一批补审核/AssetGroup与配额。
 - 用户端 Agent：产物入库、节点复制、视口保存、项目素材搜索/物化、首尾帧读取与选用。下一批补智能匹配和其余交互。
 
 各自按垂直业务闭环修改前后端；共享文件由主 Agent 集成。当前分支继续，不建 worktree、不 push；分批验证后由主 Agent 统一提交，避免共享 Git index 交叉提交。

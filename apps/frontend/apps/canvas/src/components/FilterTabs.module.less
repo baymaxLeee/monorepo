@@ -1,0 +1,48 @@
+.track {
+  display: flex;
+  box-sizing: border-box;
+  height: 32px;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background-color: var(--color-bg-6);
+}
+
+.item {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background-color: transparent;
+  color: var(--color-text-2);
+  font-size: 13px;
+  line-height: 22px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 200ms,
+    color 200ms;
+
+  &:hover {
+    color: var(--color-text-1);
+  }
+
+  &[aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+}
+
+.itemActive {
+  background-color: var(--color-bg-1);
+  color: var(--color-text-1);
+  font-weight: 500;
+  box-shadow:
+    0 0 0 0.5px rgba(213, 219, 227, 0.7),
+    0 0.5px 1px 0 rgba(0, 0, 0, 0.05),
+    0 1px 2px 0 rgba(0, 0, 0, 0.07);
+}

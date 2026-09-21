@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ai-sdk/react": "catalog:",
+    "@dagrejs/dagre": "catalog:",
     "@hookform/resolvers": "catalog:",
     "@repo/ai-elements": "workspace:*",
     "@repo/api": "workspace:*",
@@ -27,7 +28,9 @@
     "@tiptap/react": "catalog:",
     "@tiptap/suggestion": "catalog:",
     "@xyflow/react": "catalog:",
+    "ahooks": "catalog:",
     "ai": "catalog:",
+    "copy-to-clipboard": "catalog:",
     "jotai": "catalog:",
     "lucide-react": "catalog:",
     "react": "catalog:",

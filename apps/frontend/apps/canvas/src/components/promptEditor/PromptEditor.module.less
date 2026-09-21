@@ -1,0 +1,17 @@
+.editor {
+  &:global(.markdown-editor.markdown-editor-editable) {
+    :global(.markdown-editor-content) {
+      padding-right: 0;
+    }
+  }
+
+  // 14px 正文使用 28px 行高；段落本身清零，再单独设置相邻段落间距。
+  :global(.markdown-editor-content .ProseMirror p) {
+    margin: 0;
+    line-height: 28px;
+  }
+
+  :global(.markdown-editor-content .ProseMirror p + p) {
+    margin-top: 12px;
+  }
+}

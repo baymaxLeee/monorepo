@@ -1,9 +1,9 @@
 import {
-  canvasCreativeProviders,
+  fetchModelProviders,
   type CanvasResourceAsset,
   type CanvasResourceGenerationConfig,
   type CanvasResourceGenerationDraft,
-  type CanvasProjectProvider,
+  type ModelProvider,
 } from "@repo/api";
 import {
   Button,
@@ -46,12 +46,12 @@ export function ResourceGenerationForm({
       aspect_ratio: draft.config.aspect_ratio || "1:1",
     },
   });
-  const [providers, setProviders] = useState<CanvasProjectProvider[]>([]);
+  const [providers, setProviders] = useState<ModelProvider[]>([]);
   useEffect(() => {
     let active = true;
-    void canvasCreativeProviders(projectId, { skipErrorNotify: true })
-      .then(({ items }) => {
-        if (active) setProviders(items.filter((provider) => provider.provider_kind === "image"));
+    void fetchModelProviders({ skipErrorNotify: true })
+      .then((items) => {
+        if (active) setProviders(items.filter((provider) => provider.is_enabled && provider.provider_kind === "image"));
       })
       .catch(() => {});
     return () => {

@@ -64,7 +64,10 @@ export interface CanvasBenefitPackageChoiceList {
 }
 
 export interface CanvasBoard {
+  cover_image_path: string;
   created_at: string;
+  created_by: string;
+  default_view: number;
   id: string;
   name: string;
   project_id: string;
@@ -162,7 +165,10 @@ export interface CanvasGeneration {
   node_id: string;
   output_asset_id: string;
   output_text: string;
+  prompt: string;
+  provider_id: string;
   status: string;
+  updated_at: string;
 }
 
 export interface CanvasGenerationConfig {
@@ -245,6 +251,7 @@ export interface CanvasNodeFrames {
 }
 
 export interface CanvasProject {
+  cover_image_path: string;
   created_at: string;
   created_by: string;
   description: string;
@@ -252,6 +259,11 @@ export interface CanvasProject {
   name: string;
   revision: number;
   updated_at: string;
+}
+
+export interface CanvasProjectAsset {
+  id: string;
+  media_type: number;
 }
 
 export interface CanvasProjectList {
@@ -263,26 +275,9 @@ export interface CanvasProjectManagement {
   currency: string;
   members: CanvasMember[];
   project: CanvasProject;
-  provider_ids: string[];
   /** @nullable */
   usage_limit_micros: number | null;
   used_amount_micros: number;
-}
-
-export interface CanvasProjectProvider {
-  currency: string;
-  granted: boolean;
-  id: string;
-  is_default: boolean;
-  is_enabled: boolean;
-  model: string;
-  name: string;
-  provider_kind: string;
-  unit_price_micros: number;
-}
-
-export interface CanvasProjectProviderList {
-  items: CanvasProjectProvider[];
 }
 
 export interface CanvasProjectUsage {
@@ -295,6 +290,8 @@ export interface CanvasProjectUsage {
 }
 
 export interface CanvasResource {
+  created_at: string;
+  created_by: string;
   description: string;
   id: string;
   name: string;
@@ -303,9 +300,11 @@ export interface CanvasResource {
   resource_asset_count: number;
   revision: number;
   type: number;
+  updated_at: string;
 }
 
 export interface CanvasResourceAsset {
+  created_at: string;
   has_content: boolean;
   id: string;
   media_type: number;
@@ -313,6 +312,7 @@ export interface CanvasResourceAsset {
   revision: number;
   sequence_no: number;
   source_type: number;
+  updated_at: string;
 }
 
 export interface CanvasResourceAssetList {
@@ -338,6 +338,7 @@ export interface CanvasResourceGenerationConfig {
   provider_id: string;
   reference_sequences: number[];
   resolution: string;
+  uploaded_asset_ids: string[];
   watermark: boolean;
 }
 
@@ -444,6 +445,11 @@ export interface CanvasUpdateBoard {
   name: string;
 }
 
+export interface CanvasUpdateCanvasView {
+  default_view: number;
+  expected_revision: number;
+}
+
 export interface CanvasUpdateProject {
   description: string;
   expected_revision: number;
@@ -453,11 +459,6 @@ export interface CanvasUpdateProject {
 export interface CanvasUpdateProjectMembers {
   expected_revision: number;
   members: CanvasMember[];
-}
-
-export interface CanvasUpdateProjectModels {
-  expected_revision: number;
-  provider_ids: string[];
 }
 
 export interface CanvasUpdateProjectUsageLimit {
@@ -471,8 +472,24 @@ export interface CanvasUpdateResourceGeneration {
   expected_revision: number;
 }
 
+export type CanvasUploadBoardCoverParams = {
+expected_revision: number;
+};
+
 export type CanvasUploadNodeParams = {
 name: string;
+};
+
+export type CanvasUploadProjectAssetParams = {
+name: string;
+};
+
+export type CanvasListBoardsParams = {
+created_by_me?: boolean;
+};
+
+export type CanvasUploadProjectCoverParams = {
+expected_revision: number;
 };
 
 export type CanvasUploadResourceAssetParams = {
@@ -554,6 +571,42 @@ const canvasCopyAsset = (
       {url: `/api/canvas-server/canvases/${id}/asset-copies`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: canvasCopyAsset
+    },
+      options);
+    }
+
+const canvasClearBoardCover = (
+    id: string,
+    canvasExpectedRevision: CanvasExpectedRevision,
+ options?: SecondParameter<typeof apiMutator<CanvasBoard>>,) => {
+      return apiMutator<CanvasBoard>(
+      {url: `/api/canvas-server/canvases/${id}/cover`, method: 'DELETE',
+      headers: {'Content-Type': 'application/json', },
+      data: canvasExpectedRevision
+    },
+      options);
+    }
+
+const canvasUploadBoardCover = (
+    id: string,
+    canvasUploadBoardCoverBody: Blob,
+    params: CanvasUploadBoardCoverParams,
+ options?: SecondParameter<typeof apiMutator<CanvasBoard>>,) => {
+      return apiMutator<CanvasBoard>(
+      {url: `/api/canvas-server/canvases/${id}/cover`, method: 'PUT',
+      headers: {'Content-Type': 'application/octet-stream', },
+      data: canvasUploadBoardCoverBody,
+        params
+    },
+      options);
+    }
+
+const canvasBoardCoverContent = (
+    id: string,
+ options?: SecondParameter<typeof apiMutator<Blob>>,) => {
+      return apiMutator<Blob>(
+      {url: `/api/canvas-server/canvases/${id}/cover/content`, method: 'GET',
+        responseType: 'blob'
     },
       options);
     }
@@ -862,6 +915,18 @@ const canvasGetView = (
       options);
     }
 
+const canvasUpdateCanvasView = (
+    id: string,
+    canvasUpdateCanvasView: CanvasUpdateCanvasView,
+ options?: SecondParameter<typeof apiMutator<CanvasBoard>>,) => {
+      return apiMutator<CanvasBoard>(
+      {url: `/api/canvas-server/canvases/${id}/view`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: canvasUpdateCanvasView
+    },
+      options);
+    }
+
 const canvasSaveView = (
     id: string,
     canvasCanvasView: CanvasCanvasView,
@@ -936,6 +1001,45 @@ const canvasListAssetReviews = (
       options);
     }
 
+const canvasProjectAssetContent = (
+    projectId: string,
+    assetId: string,
+ options?: SecondParameter<typeof apiMutator<Blob>>,) => {
+      return apiMutator<Blob>(
+      {url: `/api/canvas-server/projects/${projectId}/assets/${assetId}/content`, method: 'GET',
+        responseType: 'blob'
+    },
+      options);
+    }
+
+const canvasSubmitProjectAssetReview = (
+    projectId: string,
+    assetId: string,
+    canvasSubmitAssetReview: CanvasSubmitAssetReview,
+ options?: SecondParameter<typeof apiMutator<CanvasAssetReview>>,) => {
+      return apiMutator<CanvasAssetReview>(
+      {url: `/api/canvas-server/projects/${projectId}/assets/${assetId}/reviews`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: canvasSubmitAssetReview
+    },
+      options);
+    }
+
+const canvasUploadProjectAsset = (
+    projectId: string,
+    clientId: string,
+    canvasUploadProjectAssetBody: Blob,
+    params: CanvasUploadProjectAssetParams,
+ options?: SecondParameter<typeof apiMutator<CanvasProjectAsset>>,) => {
+      return apiMutator<CanvasProjectAsset>(
+      {url: `/api/canvas-server/projects/${projectId}/assets/${clientId}`, method: 'POST',
+      headers: {'Content-Type': 'application/octet-stream', },
+      data: canvasUploadProjectAssetBody,
+        params
+    },
+      options);
+    }
+
 const canvasListAvailableBenefitPackages = (
     projectId: string,
  options?: SecondParameter<typeof apiMutator<CanvasBenefitPackageChoiceList>>,) => {
@@ -947,9 +1051,11 @@ const canvasListAvailableBenefitPackages = (
 
 const canvasListBoards = (
     projectId: string,
+    params?: CanvasListBoardsParams,
  options?: SecondParameter<typeof apiMutator<CanvasBoardList>>,) => {
       return apiMutator<CanvasBoardList>(
-      {url: `/api/canvas-server/projects/${projectId}/canvases`, method: 'GET'
+      {url: `/api/canvas-server/projects/${projectId}/canvases`, method: 'GET',
+        params
     },
       options);
     }
@@ -966,20 +1072,47 @@ const canvasCreateBoard = (
       options);
     }
 
+const canvasClearProjectCover = (
+    projectId: string,
+    canvasExpectedRevision: CanvasExpectedRevision,
+ options?: SecondParameter<typeof apiMutator<CanvasProject>>,) => {
+      return apiMutator<CanvasProject>(
+      {url: `/api/canvas-server/projects/${projectId}/cover`, method: 'DELETE',
+      headers: {'Content-Type': 'application/json', },
+      data: canvasExpectedRevision
+    },
+      options);
+    }
+
+const canvasUploadProjectCover = (
+    projectId: string,
+    canvasUploadProjectCoverBody: Blob,
+    params: CanvasUploadProjectCoverParams,
+ options?: SecondParameter<typeof apiMutator<CanvasProject>>,) => {
+      return apiMutator<CanvasProject>(
+      {url: `/api/canvas-server/projects/${projectId}/cover`, method: 'PUT',
+      headers: {'Content-Type': 'application/octet-stream', },
+      data: canvasUploadProjectCoverBody,
+        params
+    },
+      options);
+    }
+
+const canvasProjectCoverContent = (
+    projectId: string,
+ options?: SecondParameter<typeof apiMutator<Blob>>,) => {
+      return apiMutator<Blob>(
+      {url: `/api/canvas-server/projects/${projectId}/cover/content`, method: 'GET',
+        responseType: 'blob'
+    },
+      options);
+    }
+
 const canvasSearchCreativeAssets = (
     projectId: string,
  options?: SecondParameter<typeof apiMutator<CanvasCreativeAssetList>>,) => {
       return apiMutator<CanvasCreativeAssetList>(
       {url: `/api/canvas-server/projects/${projectId}/creative-assets`, method: 'GET'
-    },
-      options);
-    }
-
-const canvasCreativeProviders = (
-    projectId: string,
- options?: SecondParameter<typeof apiMutator<CanvasProjectProviderList>>,) => {
-      return apiMutator<CanvasProjectProviderList>(
-      {url: `/api/canvas-server/projects/${projectId}/creative-models`, method: 'GET'
     },
       options);
     }
@@ -1001,27 +1134,6 @@ const canvasUpdateProjectMembers = (
       {url: `/api/canvas-server/projects/${projectId}/members`, method: 'PUT',
       headers: {'Content-Type': 'application/json', },
       data: canvasUpdateProjectMembers
-    },
-      options);
-    }
-
-const canvasProjectProviders = (
-    projectId: string,
- options?: SecondParameter<typeof apiMutator<CanvasProjectProviderList>>,) => {
-      return apiMutator<CanvasProjectProviderList>(
-      {url: `/api/canvas-server/projects/${projectId}/models`, method: 'GET'
-    },
-      options);
-    }
-
-const canvasUpdateProjectModels = (
-    projectId: string,
-    canvasUpdateProjectModels: CanvasUpdateProjectModels,
- options?: SecondParameter<typeof apiMutator<CanvasProjectManagement>>,) => {
-      return apiMutator<CanvasProjectManagement>(
-      {url: `/api/canvas-server/projects/${projectId}/models`, method: 'PUT',
-      headers: {'Content-Type': 'application/json', },
-      data: canvasUpdateProjectModels
     },
       options);
     }
@@ -1329,7 +1441,7 @@ const canvasCommitStoryboardProgress = (
       options);
     }
 
-return {canvasDeleteBoard,canvasUpdateBoard,canvasListArchives,canvasCreateArchive,canvasCancelArchive,canvasArchiveContent,canvasCopyAsset,canvasGenerationStatus,canvasStartAllVideoGenerations,canvasApplyGeneration,canvasCancelGeneration,canvasGenerationContent,canvasGetGraph,canvasMutateGraph,canvasStartAssetMatch,canvasLatestAssetMatch,canvasGetAssetMatch,canvasCancelAssetMatch,canvasNodeContent,canvasCopyNode,canvasNodeFrames,canvasListGenerations,canvasStartGeneration,canvasResourceFromNode,canvasCopyResourceToCanvas,canvasListStoryboards,canvasStartStoryboard,canvasGetStoryboard,canvasUpdateStoryboard,canvasCancelStoryboard,canvasConfirmStoryboard,canvasStreamStoryboard,canvasUploadNode,canvasGetView,canvasSaveView,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasListAssetReviews,canvasListAvailableBenefitPackages,canvasListBoards,canvasCreateBoard,canvasSearchCreativeAssets,canvasCreativeProviders,canvasProjectManagement,canvasUpdateProjectMembers,canvasProjectProviders,canvasUpdateProjectModels,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasResourceContent,canvasGetResourceGeneration,canvasUpdateResourceGeneration,canvasListResourceGenerationRuns,canvasStartResourceGeneration,canvasCancelResourceGeneration,canvasSetPrimaryResourceAsset,canvasSubmitAssetReview,canvasReplaceResourceAsset,canvasListResourceVersions,canvasResourceVersionContent,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasUpdateResource,canvasListResourceAssets,canvasCreateGeneratedResourceAsset,canvasUploadResourceAsset,canvasProjectUsage,canvasUpdateProjectUsageLimit,canvasProjectUsageWorkbook,canvasExecuteArchive,canvasExecuteFrames,canvasCommitStoryboardProgress}};
+return {canvasDeleteBoard,canvasUpdateBoard,canvasListArchives,canvasCreateArchive,canvasCancelArchive,canvasArchiveContent,canvasCopyAsset,canvasClearBoardCover,canvasUploadBoardCover,canvasBoardCoverContent,canvasGenerationStatus,canvasStartAllVideoGenerations,canvasApplyGeneration,canvasCancelGeneration,canvasGenerationContent,canvasGetGraph,canvasMutateGraph,canvasStartAssetMatch,canvasLatestAssetMatch,canvasGetAssetMatch,canvasCancelAssetMatch,canvasNodeContent,canvasCopyNode,canvasNodeFrames,canvasListGenerations,canvasStartGeneration,canvasResourceFromNode,canvasCopyResourceToCanvas,canvasListStoryboards,canvasStartStoryboard,canvasGetStoryboard,canvasUpdateStoryboard,canvasCancelStoryboard,canvasConfirmStoryboard,canvasStreamStoryboard,canvasUploadNode,canvasGetView,canvasUpdateCanvasView,canvasSaveView,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasListAssetReviews,canvasProjectAssetContent,canvasSubmitProjectAssetReview,canvasUploadProjectAsset,canvasListAvailableBenefitPackages,canvasListBoards,canvasCreateBoard,canvasClearProjectCover,canvasUploadProjectCover,canvasProjectCoverContent,canvasSearchCreativeAssets,canvasProjectManagement,canvasUpdateProjectMembers,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasResourceContent,canvasGetResourceGeneration,canvasUpdateResourceGeneration,canvasListResourceGenerationRuns,canvasStartResourceGeneration,canvasCancelResourceGeneration,canvasSetPrimaryResourceAsset,canvasSubmitAssetReview,canvasReplaceResourceAsset,canvasListResourceVersions,canvasResourceVersionContent,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasUpdateResource,canvasListResourceAssets,canvasCreateGeneratedResourceAsset,canvasUploadResourceAsset,canvasProjectUsage,canvasUpdateProjectUsageLimit,canvasProjectUsageWorkbook,canvasExecuteArchive,canvasExecuteFrames,canvasCommitStoryboardProgress}};
 export type CanvasDeleteBoardResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasDeleteBoard']>>>
 export type CanvasUpdateBoardResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUpdateBoard']>>>
 export type CanvasListArchivesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListArchives']>>>
@@ -1337,6 +1449,9 @@ export type CanvasCreateArchiveResult = NonNullable<Awaited<ReturnType<ReturnTyp
 export type CanvasCancelArchiveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCancelArchive']>>>
 export type CanvasArchiveContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasArchiveContent']>>>
 export type CanvasCopyAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCopyAsset']>>>
+export type CanvasClearBoardCoverResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasClearBoardCover']>>>
+export type CanvasUploadBoardCoverResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUploadBoardCover']>>>
+export type CanvasBoardCoverContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasBoardCoverContent']>>>
 export type CanvasGenerationStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGenerationStatus']>>>
 export type CanvasStartAllVideoGenerationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasStartAllVideoGenerations']>>>
 export type CanvasApplyGenerationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasApplyGeneration']>>>
@@ -1364,6 +1479,7 @@ export type CanvasConfirmStoryboardResult = NonNullable<Awaited<ReturnType<Retur
 export type CanvasStreamStoryboardResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasStreamStoryboard']>>>
 export type CanvasUploadNodeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUploadNode']>>>
 export type CanvasGetViewResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGetView']>>>
+export type CanvasUpdateCanvasViewResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUpdateCanvasView']>>>
 export type CanvasSaveViewResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasSaveView']>>>
 export type CanvasListProjectsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListProjects']>>>
 export type CanvasCreateProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreateProject']>>>
@@ -1371,15 +1487,18 @@ export type CanvasDeleteProjectResult = NonNullable<Awaited<ReturnType<ReturnTyp
 export type CanvasGetProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGetProject']>>>
 export type CanvasUpdateProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUpdateProject']>>>
 export type CanvasListAssetReviewsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListAssetReviews']>>>
+export type CanvasProjectAssetContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasProjectAssetContent']>>>
+export type CanvasSubmitProjectAssetReviewResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasSubmitProjectAssetReview']>>>
+export type CanvasUploadProjectAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUploadProjectAsset']>>>
 export type CanvasListAvailableBenefitPackagesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListAvailableBenefitPackages']>>>
 export type CanvasListBoardsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListBoards']>>>
 export type CanvasCreateBoardResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreateBoard']>>>
+export type CanvasClearProjectCoverResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasClearProjectCover']>>>
+export type CanvasUploadProjectCoverResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUploadProjectCover']>>>
+export type CanvasProjectCoverContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasProjectCoverContent']>>>
 export type CanvasSearchCreativeAssetsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasSearchCreativeAssets']>>>
-export type CanvasCreativeProvidersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreativeProviders']>>>
 export type CanvasProjectManagementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasProjectManagement']>>>
 export type CanvasUpdateProjectMembersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUpdateProjectMembers']>>>
-export type CanvasProjectProvidersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasProjectProviders']>>>
-export type CanvasUpdateProjectModelsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUpdateProjectModels']>>>
 export type CanvasDeleteResourceAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasDeleteResourceAsset']>>>
 export type CanvasUpdateResourceAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUpdateResourceAsset']>>>
 export type CanvasResourceContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasResourceContent']>>>

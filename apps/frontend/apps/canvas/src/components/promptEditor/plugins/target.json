@@ -1,0 +1,50 @@
+[
+  {
+    "ID": "references",
+    "Label": "引用",
+    "Children": [
+      {
+        "ID": "01a023fb-9f79-7d85-b788-344e2ef7683b",
+        "Label": "白莲教三位长老2.png",
+        "Children": [],
+        "URL": "?Action=DownloadForPresignArtifact&Key=TqCD2jYLdcluLeOVzFa-2w==",
+        "MediaType": 1,
+        "Description": "4.3 MB"
+      }
+    ]
+  },
+  {
+    "ID": "nodes",
+    "Label": "节点",
+    "Children": []
+  },
+  {
+    "ID": "assets",
+    "Label": "资产",
+    "Children": [
+      {
+        "ID": "01a0191d-1b84-75e8-b359-985e722f44e5",
+        "Label": "曹陌",
+        "Children": [
+          {
+            "ID": "01a0191d-8dea-792d-99b4-c16614dbadb4",
+            "Label": "曹陌，男主，普通内侍服饰3d",
+            "Children": [],
+            "URL": "?Action=DownloadForPresignArtifact&Key=ED2iJY9YnHvoGae_Fcn3tg==",
+            "MediaType": 1,
+            "Description": "4.4 MB",
+            "Review": {
+              "PackageID": "01a022e6-5032-7f20-8768-2a86aafa08cf",
+              "PackageName": "seedance2.5-package",
+              "Status": 3,
+              "SubmittedAt": "2026-08-21T07:11:11.612Z",
+              "UpdatedAt": "2026-08-21T07:11:15.332Z"
+            }
+          }
+        ],
+        "URL": "?Action=DownloadForPresignArtifact&Key=ED2iJY9YnHvoGae_Fcn3tg==",
+        "Description": "青年内侍曹陌的角色素材组"
+      }
+    ]
+  }
+]

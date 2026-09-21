@@ -9,9 +9,6 @@ import (
 )
 
 var storyboardRoutes = []Route{
-	{"GET", "/projects/{projectId}/creative-models", "canvasCreativeProviders", nil, reflect.TypeFor[c.ProjectProviderList](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
-		return s.CreativeProviders(r.Context(), actor, chi.URLParam(r, "projectId"))
-	}},
 	{"GET", "/canvases/{id}/storyboards/{draftId}", "canvasGetStoryboard", nil, reflect.TypeFor[c.StoryboardDraft](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
 		return s.GetStoryboard(r.Context(), actor, chi.URLParam(r, "id"), chi.URLParam(r, "draftId"))
 	}},

@@ -64,9 +64,21 @@ func (s *Service) submitAssetReview(ctx context.Context, review p.AssetReview, n
 	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ?", review.AssetID, review.TenantID, review.WorkspaceID, review.ProjectID).First(&asset).Error; err != nil {
 		return s.failAssetReview(ctx, review, "送审素材不存在", true, now)
 	}
-	var slot p.ResourceAsset
-	if err := s.DB.WithContext(ctx).Where("id = ?", review.ResourceAssetID).First(&slot).Error; err != nil {
-		return s.failAssetReview(ctx, review, "送审素材不存在", true, now)
+	assetName := asset.OriginalName
+	if review.ResourceAssetID != "" {
+		var slot p.ResourceAsset
+		if err := s.DB.WithContext(ctx).Where("id = ?", review.ResourceAssetID).First(&slot).Error; err != nil {
+			return s.failAssetReview(ctx, review, "送审素材不存在", true, now)
+		}
+		assetName = slot.Name
+	} else {
+		var owners int64
+		if err := s.DB.WithContext(ctx).Model(&p.AssetReference{}).Where("asset_id = ? AND owner_type = ?", asset.ID, "PROJECT_ASSET").Count(&owners).Error; err != nil || owners == 0 {
+			return s.failAssetReview(ctx, review, "送审素材不存在", true, now)
+		}
+	}
+	if assetName == "" {
+		assetName = "素材"
 	}
 	assetType := reviewAssetType(asset.MimeType)
 	if assetType == "" {
@@ -82,7 +94,7 @@ func (s *Service) submitAssetReview(ctx context.Context, review p.AssetReview, n
 		asset.ObjectKey,
 		now.Add(30*time.Minute),
 	)
-	providerAsset, err := directory.SubmitReviewedAsset(ctx, review.TenantID, review.WorkspaceID, review.BenefitPackageID, referenceURL, assetType, slot.Name)
+	providerAsset, err := directory.SubmitReviewedAsset(ctx, review.TenantID, review.WorkspaceID, review.BenefitPackageID, referenceURL, assetType, assetName)
 	if err != nil || providerAsset.ID == "" {
 		return s.failAssetReview(ctx, review, "素材提交审核失败", true, now)
 	}

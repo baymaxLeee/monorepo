@@ -18,11 +18,15 @@ func draftScope(a Actor) draftapp.DraftScope {
 	return draftapp.DraftScope{TenantID: a.TenantID, WorkspaceID: &a.WorkspaceID, CallerID: a.UserID}
 }
 func resourceDraftDTO(d draft.Draft) c.ResourceGenerationDraft {
+	uploaded := make([]string, 0, len(d.UploadedReferences))
+	for _, v := range d.UploadedReferences {
+		uploaded = append(uploaded, v.AssetID)
+	}
 	refs := make([]int64, 0, len(d.ResourceReferences))
 	for _, v := range d.ResourceReferences {
 		refs = append(refs, v.SequenceNo)
 	}
-	return c.ResourceGenerationDraft{Revision: d.Revision, ActiveRunID: d.ActiveTaskRunID, Config: c.ResourceGenerationConfig{Prompt: d.Config.Prompt, ProviderID: d.Config.ModelID, Resolution: string(d.Config.Resolution), AspectRatio: string(d.Config.AspectRatio), Watermark: d.Config.Watermark, ReferenceSequences: refs}}
+	return c.ResourceGenerationDraft{Revision: d.Revision, ActiveRunID: d.ActiveTaskRunID, Config: c.ResourceGenerationConfig{Prompt: d.Config.Prompt, ProviderID: d.Config.ModelID, Resolution: string(d.Config.Resolution), AspectRatio: string(d.Config.AspectRatio), Watermark: d.Config.Watermark, UploadedAssetIDs: uploaded, ReferenceSequences: refs}}
 }
 func (s *Service) CreateGeneratedResourceAsset(ctx context.Context, a Actor, projectID, resourceID string, in c.ExpectedRevision) (c.ResourceAsset, error) {
 	var slot p.ResourceAsset
@@ -109,11 +113,15 @@ func (s *Service) UpdateResourceGeneration(ctx context.Context, a Actor, project
 			return Conflict()
 		}
 		resolution, ratio := image.Resolution(in.Config.Resolution), image.AspectRatio(in.Config.AspectRatio)
+		uploaded := make([]draft.UploadedReference, 0, len(in.Config.UploadedAssetIDs))
+		for _, assetID := range in.Config.UploadedAssetIDs {
+			uploaded = append(uploaded, draft.UploadedReference{AssetID: assetID})
+		}
 		references := make([]draft.ResourceReference, 0, len(in.Config.ReferenceSequences))
 		for _, seq := range in.Config.ReferenceSequences {
 			references = append(references, draft.ResourceReference{ResourceID: d.ResourceID, SequenceNo: seq})
 		}
-		changed, err := d.Update(draft.DraftPatch{Config: image.ConfigPatch{Prompt: &in.Config.Prompt, ModelID: &in.Config.ProviderID, Resolution: &resolution, AspectRatio: &ratio, Watermark: &in.Config.Watermark}, ResourceReferences: &references}, in.ExpectedRevision, time.Now())
+		changed, err := d.Update(draft.DraftPatch{Config: image.ConfigPatch{Prompt: &in.Config.Prompt, ModelID: &in.Config.ProviderID, Resolution: &resolution, AspectRatio: &ratio, Watermark: &in.Config.Watermark}, UploadedReferences: &uploaded, ResourceReferences: &references}, in.ExpectedRevision, time.Now())
 		if err != nil {
 			return Invalid("生成参数或参考素材无效")
 		}
@@ -129,7 +137,14 @@ func (s *Service) UpdateResourceGeneration(ctx context.Context, a Actor, project
 	return resourceDraftDTO(d), err
 }
 func resolveResourceImageReferences(tx *gorm.DB, a Actor, projectID string, d draft.Draft) ([]string, error) {
-	keys := make([]string, 0, len(d.ResourceReferences))
+	keys := make([]string, 0, len(d.UploadedReferences)+len(d.ResourceReferences))
+	for _, ref := range d.UploadedReferences {
+		var asset p.Asset
+		if err := tx.Where("id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND mime_type LIKE 'image/%' AND EXISTS (SELECT 1 FROM asset_references WHERE asset_id = assets.id AND owner_type = 'PROJECT_ASSET' AND deleted_at IS NULL)", ref.AssetID, a.TenantID, a.WorkspaceID, projectID).First(&asset).Error; err != nil {
+			return nil, Invalid("上传的参考素材尚无可用图片")
+		}
+		keys = append(keys, asset.ObjectKey)
+	}
 	for _, ref := range d.ResourceReferences {
 		var slot p.ResourceAsset
 		if err := tx.Where("resource_id = ? AND sequence_no = ?", ref.ResourceID, ref.SequenceNo).First(&slot).Error; err != nil {

@@ -1,0 +1,61 @@
+/**
+ * Chrome 的媒体控件是 shadow DOM，只能通过这组非标准的 ::-webkit-media-controls-*
+ * 伪元素微调，Firefox / Safari 不认，会保持各自的默认外观。
+ * 图标字形由浏览器绘制，改不了，这里只对齐设计稿的底板、圆角、排布和时间文案。
+ */
+.root {
+  position: relative;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.defaultFrame {
+  min-height: 38px;
+  border-radius: 12px;
+  background-color: var(--color-bg-5);
+}
+
+.player {
+  width: 100%;
+  height: 38px;
+  color-scheme: light;
+
+  &::-webkit-media-controls-enclosure {
+    border-radius: 12px;
+    background-color: var(--color-bg-5);
+  }
+
+  &::-webkit-media-controls-panel {
+    padding: 0 12px;
+    background-color: var(--color-bg-5);
+  }
+
+  /*
+   * 设计稿顺序：播放 → 进度 → 时间 → 音量。
+   * 音量被包在 volume-control-container 里，不给它设 order 的话默认是 0，
+   * 会排到 order:1 的播放键前面（也就是现在看到的最左侧）。
+   */
+  &::-webkit-media-controls-play-button {
+    order: 1;
+  }
+
+  &::-webkit-media-controls-timeline {
+    order: 2;
+    margin: 0 12px;
+  }
+
+  &::-webkit-media-controls-current-time-display,
+  &::-webkit-media-controls-time-remaining-display {
+    order: 3;
+    color: var(--color-text-3);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.039px;
+    text-shadow: none;
+  }
+
+  &::-webkit-media-controls-volume-control-container {
+    order: 4;
+  }
+}

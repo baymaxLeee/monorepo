@@ -1,6 +1,5 @@
 import {
   Background,
-  Controls,
   ReactFlow,
   applyNodeChanges,
   type Connection,
@@ -13,6 +12,7 @@ import { useEffect, useState } from "react";
 import type { useCanvasGraph } from "../hooks/useCanvasGraph";
 import { canvasGraphAtom } from "../store/graph";
 import { CanvasNode, type FlowNode } from "./CanvasNode";
+import { CanvasTools } from "./CanvasTools";
 import { CanvasViewport } from "./CanvasViewport";
 import type { CanvasSelection } from "./DeleteSelectionDialog";
 
@@ -24,15 +24,19 @@ export function CanvasBoard({
   mutate,
   onSelect,
   onDeleteSelection,
+  onCreate,
 }: {
   busy: boolean;
   mutate: ReturnType<typeof useCanvasGraph>["mutate"];
   onSelect: (id: string | null) => void;
   onDeleteSelection: (selection: CanvasSelection) => void;
+  onCreate: (type: number) => void;
 }) {
   const graph = useAtomValue(canvasGraphAtom);
   const [nodes, setNodes] = useState<FlowNode[]>([]);
   const [selectedEdges, setSelectedEdges] = useState<Set<string>>(new Set());
+  const [mode, setMode] = useState<"select" | "hand">("select");
+  const [addOpen, setAddOpen] = useState(false);
   useEffect(() => {
     if (!graph) return;
     setNodes((previous) => {
@@ -92,7 +96,8 @@ export function CanvasBoard({
   }
   return (
     <ReactFlow<FlowNode>
-      className={styles.board}
+      className={`${styles.board} ${mode === "hand" ? styles.boardHandMode : ""}`}
+      style={{ background: "#f6f6f6" }}
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
@@ -102,8 +107,15 @@ export function CanvasBoard({
       }}
       onPaneClick={() => onSelect(null)}
       onConnect={connect}
-      nodesDraggable={!busy}
-      nodesConnectable={!busy}
+      nodesDraggable={!busy && mode === "select"}
+      nodesConnectable={!busy && mode === "select"}
+      selectionOnDrag={mode === "select"}
+      panOnDrag={mode === "hand" ? true : [1, 2]}
+      panOnScroll
+      zoomOnDoubleClick={false}
+      onDoubleClick={(event) => {
+        if (event.target instanceof Element && event.target.classList.contains("react-flow__pane")) setAddOpen(true);
+      }}
       deleteKeyCode={["Backspace", "Delete"]}
       nodesFocusable={false}
       edgesFocusable={false}
@@ -141,8 +153,16 @@ export function CanvasBoard({
       fitView
     >
       {graph ? <CanvasViewport canvasId={graph.canvas.id} /> : null}
-      <Background />
-      <Controls />
+      <Background color="#d5d8df" gap={16} size={0.7} />
+      <CanvasTools
+        busy={busy}
+        mutate={mutate}
+        mode={mode}
+        setMode={setMode}
+        onCreate={onCreate}
+        addOpen={addOpen}
+        setAddOpen={setAddOpen}
+      />
     </ReactFlow>
   );
 }

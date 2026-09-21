@@ -21,15 +21,6 @@ type ProjectProviderDirectory interface {
 
 const maximumProjectUsageMicros int64 = 1_000_000_000 * 1_000_000
 
-type projectModelGrant struct {
-	ProjectID   string `gorm:"primaryKey"`
-	TenantID    string
-	WorkspaceID string
-	ProviderID  string `gorm:"primaryKey"`
-}
-
-func (projectModelGrant) TableName() string { return "project_model_grants" }
-
 type projectUsagePolicy struct {
 	ProjectID            string `gorm:"primaryKey"`
 	TenantID             string
@@ -56,16 +47,11 @@ func (s *Service) ProjectManagement(ctx context.Context, actor Actor, projectID 
 		return c.ProjectManagement{}, err
 	}
 	out := c.ProjectManagement{
-		Project: projectDTO(project), Members: []c.Member{}, ProviderIDs: []string{},
+		Project: projectDTO(project), Members: []c.Member{},
 		CanManage: actor.WorkspaceRole == "workspace_admin",
 	}
 	for _, member := range members {
 		out.Members = append(out.Members, c.Member{UserID: member.UserID, Role: member.Role})
-	}
-	if err := db.Model(&projectModelGrant{}).Where(
-		"project_id = ? AND tenant_id = ? AND workspace_id = ?", projectID, actor.TenantID, actor.WorkspaceID,
-	).Order("provider_id").Pluck("provider_id", &out.ProviderIDs).Error; err != nil {
-		return c.ProjectManagement{}, err
 	}
 	var policy projectUsagePolicy
 	if err := db.Where(
@@ -183,95 +169,6 @@ func memberIDsExcept(members []c.Member, excluded string) []string {
 	return ids
 }
 
-func (s *Service) ProjectProviders(ctx context.Context, actor Actor, projectID string) (c.ProjectProviderList, error) {
-	if err := requireProjectAdmin(actor); err != nil {
-		return c.ProjectProviderList{}, err
-	}
-	if _, err := access(s.DB.WithContext(ctx), actor, projectID, false); err != nil {
-		return c.ProjectProviderList{}, err
-	}
-	if s.ProviderDirectory == nil {
-		return c.ProjectProviderList{}, &Error{Status: 503, Code: "provider_directory_unavailable", Message: "模型目录不可用"}
-	}
-	providers, err := s.ProviderDirectory.List(ctx, actor.TenantID, actor.WorkspaceID)
-	if err != nil {
-		return c.ProjectProviderList{}, &Error{Status: 503, Code: "provider_directory_unavailable", Message: "模型目录不可用"}
-	}
-	var granted []string
-	if err := s.DB.WithContext(ctx).Model(&projectModelGrant{}).Where(
-		"project_id = ? AND tenant_id = ? AND workspace_id = ?", projectID, actor.TenantID, actor.WorkspaceID,
-	).Pluck("provider_id", &granted).Error; err != nil {
-		return c.ProjectProviderList{}, err
-	}
-	grants := make(map[string]bool, len(granted))
-	for _, id := range granted {
-		grants[id] = true
-	}
-	out := c.ProjectProviderList{Items: make([]c.ProjectProvider, 0, len(providers))}
-	for _, provider := range providers {
-		item := c.ProjectProvider{
-			ID: provider.ID, Name: provider.Name, Model: provider.Model, ProviderKind: provider.ProviderKind,
-			IsDefault: provider.IsDefault, IsEnabled: provider.IsEnabled, Granted: grants[provider.ID],
-		}
-		if provider.Pricing != nil {
-			item.Currency = provider.Pricing.Currency
-			item.UnitPriceMicros = provider.Pricing.UnitPriceMicros
-		}
-		out.Items = append(out.Items, item)
-	}
-	return out, nil
-}
-
-func (s *Service) UpdateProjectModels(ctx context.Context, actor Actor, projectID string, in c.UpdateProjectModels) (c.ProjectManagement, error) {
-	if err := requireProjectAdmin(actor); err != nil {
-		return c.ProjectManagement{}, err
-	}
-	catalog, err := s.ProjectProviders(ctx, actor, projectID)
-	if err != nil {
-		return c.ProjectManagement{}, err
-	}
-	available := make(map[string]bool, len(catalog.Items))
-	for _, provider := range catalog.Items {
-		if provider.IsEnabled {
-			available[provider.ID] = true
-		}
-	}
-	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		project, err := manageProject(tx, actor, projectID)
-		if err != nil {
-			return err
-		}
-		if project.Revision != in.ExpectedRevision {
-			return Conflict()
-		}
-		grants := make([]projectModelGrant, 0, len(in.ProviderIDs))
-		seen := make(map[string]bool, len(in.ProviderIDs))
-		for _, id := range in.ProviderIDs {
-			if !available[id] {
-				return Invalid("仅可授权当前工作空间已启用的模型")
-			}
-			if seen[id] {
-				continue
-			}
-			seen[id] = true
-			grants = append(grants, projectModelGrant{ProjectID: projectID, TenantID: actor.TenantID, WorkspaceID: actor.WorkspaceID, ProviderID: id})
-		}
-		if err := tx.Where("project_id = ?", projectID).Delete(&projectModelGrant{}).Error; err != nil {
-			return err
-		}
-		if len(grants) > 0 {
-			if err := tx.Create(&grants).Error; err != nil {
-				return err
-			}
-		}
-		return tx.Model(&project).Update("revision", project.Revision+1).Error
-	})
-	if err != nil {
-		return c.ProjectManagement{}, err
-	}
-	return s.ProjectManagement(ctx, actor, projectID)
-}
-
 func (s *Service) UpdateProjectUsageLimit(ctx context.Context, actor Actor, projectID string, in c.UpdateProjectUsageLimit) (c.ProjectManagement, error) {
 	if err := requireProjectAdmin(actor); err != nil {
 		return c.ProjectManagement{}, err
@@ -334,16 +231,6 @@ func (s *Service) admitGeneration(ctx context.Context, tx *gorm.DB, actor Actor,
 	}
 	if provider.ProviderKind != providerKind {
 		return generationAdmission{}, &Error{Status: 400, Code: "model_kind_mismatch", Message: "模型类型与生成任务不匹配"}
-	}
-	var grantCount int64
-	if err := tx.Model(&projectModelGrant{}).Where(
-		"project_id = ? AND tenant_id = ? AND workspace_id = ? AND provider_id = ?",
-		projectID, actor.TenantID, actor.WorkspaceID, providerID,
-	).Count(&grantCount).Error; err != nil {
-		return generationAdmission{}, err
-	}
-	if !provider.IsDefault && grantCount == 0 {
-		return generationAdmission{}, &Error{Status: 403, Code: "model_not_granted", Message: "该模型未获得项目授权"}
 	}
 	var policy projectUsagePolicy
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("project_id = ? AND tenant_id = ? AND workspace_id = ?", projectID, actor.TenantID, actor.WorkspaceID).Take(&policy).Error; err != nil {

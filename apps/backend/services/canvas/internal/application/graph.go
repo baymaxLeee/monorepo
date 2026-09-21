@@ -171,6 +171,7 @@ func (s *Service) Mutate(ctx context.Context, a Actor, id string, in c.Mutation)
 			delete(nodes, nodeID)
 		}
 		changed := map[string]bool{}
+		createdMedia := map[string]string{}
 		for _, n := range in.Upsert {
 			if changed[n.ID] || removed[n.ID] {
 				return Invalid("duplicate node mutation")
@@ -186,8 +187,23 @@ func (s *Service) Mutate(ctx context.Context, a Actor, id string, in c.Mutation)
 				}
 				n.Revision++
 			} else {
-				if n.Type <= 3 || n.AssetID != "" {
-					return Invalid("create media nodes through upload")
+				if n.Type <= 3 {
+					if n.AssetID == "" {
+						return Invalid("media nodes require an owned asset")
+					}
+					var owned int64
+					if err := tx.Model(&p.Asset{}).Where(
+						"id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND deleted_at IS NULL AND EXISTS (SELECT 1 FROM asset_references WHERE asset_id = assets.id AND owner_type = 'PROJECT_ASSET' AND deleted_at IS NULL)",
+						n.AssetID, a.TenantID, a.WorkspaceID, board.ProjectID,
+					).Count(&owned).Error; err != nil {
+						return err
+					}
+					if owned != 1 {
+						return NotFound()
+					}
+					createdMedia[n.ID] = n.AssetID
+				} else if n.AssetID != "" {
+					return Invalid("generated nodes cannot bind uploaded assets")
 				}
 				if n.Revision != 0 {
 					return Conflict()
@@ -249,6 +265,11 @@ func (s *Service) Mutate(ctx context.Context, a Actor, id string, in c.Mutation)
 			v := p.Node{AssetID: n.AssetID, GenerationConfig: string(config), VideoInputMode: n.VideoInputMode, ID: n.ID, CanvasID: id, Type: n.Type, Name: n.Name, Text: n.Text, Prompt: n.Prompt, X: n.X, Y: n.Y, StoryboardRank: n.StoryboardRank, Revision: n.Revision, IncomingEdges: string(edges)}
 			if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.AssignmentColumns([]string{"generation_config", "video_input_mode", "name", "text", "prompt", "x", "y", "storyboard_rank", "revision", "incoming_edges", "updated_at"})}).Create(&v).Error; err != nil {
 				return err
+			}
+			if assetID := createdMedia[nodeID]; assetID != "" {
+				if err := tx.Create(&p.AssetReference{AssetID: assetID, OwnerType: "CANVAS_NODE_ASSET", OwnerKey: nodeID}).Error; err != nil {
+					return err
+				}
 			}
 		}
 		board.Revision++

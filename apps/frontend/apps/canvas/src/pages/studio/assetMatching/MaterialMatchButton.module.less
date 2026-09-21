@@ -1,0 +1,21 @@
+.root {
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 13px;
+  &[data-compact] { font-size: 12px; }
+}
+.icon { width: 16px; height: 16px; }
+.root[data-compact] .icon { width: 14px; height: 14px; }
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding-left: 8px;
+  border: 1px solid var(--color-border-2);
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.root[data-compact] .progress { min-height: 24px; }
+.spinner { color: rgb(var(--primary-6)); font-size: 14px; }
+.separator { width: 1px; height: 12px; background: var(--color-border-2); margin-left: 4px; }

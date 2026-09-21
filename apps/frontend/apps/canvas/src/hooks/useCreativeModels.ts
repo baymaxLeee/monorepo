@@ -1,4 +1,4 @@
-import { canvasCreativeProviders, type CanvasProjectProvider } from "@repo/api";
+import { fetchModelProviders, type ModelProvider } from "@repo/api";
 import { atom, useAtomValue, useStore } from "jotai";
 import { useEffect } from "react";
 
@@ -6,7 +6,7 @@ import { canvasGraphAtom } from "../store/graph";
 
 const modelsAtom = atom<{
   projectId: string;
-  items: CanvasProjectProvider[];
+  items: ModelProvider[];
   state: "idle" | "loading" | "loaded" | "failed";
 }>({ projectId: "", items: [], state: "idle" });
 
@@ -20,10 +20,10 @@ export function useCreativeModels() {
     const current = store.get(modelsAtom);
     if (current.projectId === projectId && current.state !== "idle") return;
     store.set(modelsAtom, { projectId, items: [], state: "loading" });
-    void canvasCreativeProviders(projectId, { skipErrorNotify: true })
+    void fetchModelProviders({ skipErrorNotify: true })
       .then((value) => {
         if (store.get(modelsAtom).projectId === projectId)
-          store.set(modelsAtom, { projectId, items: value.items, state: "loaded" });
+          store.set(modelsAtom, { projectId, items: value.filter((provider) => provider.is_enabled), state: "loaded" });
       })
       .catch(() => {
         if (store.get(modelsAtom).projectId === projectId)

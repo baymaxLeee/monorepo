@@ -1,0 +1,15 @@
+.reason {
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+
+  :global(.c-m-ellipsis-content) {
+    display: -webkit-box;
+    min-width: 0;
+    overflow: hidden;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+}

@@ -42,7 +42,7 @@ export default defineConfig({
           "less-loader",
         ],
       },
-      { test: /\.(png|jpe?g|webp|svg)$/, type: "asset/resource" },
+      { test: /\.(png|jpe?g|webp|svg|pdf)$/, type: "asset/resource" },
     ],
   },
   plugins: [

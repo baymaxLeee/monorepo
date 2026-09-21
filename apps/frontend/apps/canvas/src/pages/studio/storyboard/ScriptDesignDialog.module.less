@@ -1,0 +1,125 @@
+.modelSelectChip {
+  width: 260px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 8px;
+  background-color: rgba(26, 27, 30, 0.05);
+
+  :global(button) {
+    height: 32px;
+    padding: 0 12px;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    font-size: 13px;
+    line-height: 22px;
+  }
+}
+
+.modelSelect {
+  width: 100%;
+}
+
+.durationRange {
+  display: flex;
+  align-items: center;
+  width: 260px;
+  height: 32px;
+  padding: 0 12px;
+  overflow: hidden;
+  border-radius: 8px;
+  background-color: rgba(26, 27, 30, 0.05);
+}
+
+.durationValues {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.durationField {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  cursor: text;
+
+  :global([data-ui-number-input]),
+  :global([data-ui-input-control]) {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  :global([data-ui-number-input]) {
+    display: flex;
+    align-items: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  :global([data-ui-number-input]:hover),
+  :global([data-ui-number-input]:focus-within) {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  :global([data-ui-input-control]) {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    font-size: 13px;
+    line-height: 22px;
+    text-align: center;
+    background: transparent;
+    cursor: text;
+  }
+}
+
+.durationSep {
+  flex-shrink: 0;
+  width: 8px;
+  align-self: center;
+  font-size: 13px;
+  line-height: 22px;
+  color: var(--color-text-1);
+  text-align: center;
+}
+
+.durationUnit {
+  flex-shrink: 0;
+  margin-left: 8px;
+  font-size: 13px;
+  line-height: 22px;
+  color: var(--color-text-2);
+  text-align: right;
+}
+
+.plotInput {
+  :global(textarea) {
+    height: 100%;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    outline: none;
+    resize: none;
+    caret-color: var(--color-text-1);
+    padding: 0;
+  }
+
+  :global(textarea:hover) {
+    background: rgba(26, 27, 30, 0.03);
+    box-shadow: none;
+  }
+
+  :global(textarea:focus) {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+  }
+}

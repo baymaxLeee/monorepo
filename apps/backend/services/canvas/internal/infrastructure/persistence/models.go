@@ -6,16 +6,17 @@ import (
 )
 
 type Project struct {
-	ID          string `gorm:"primaryKey"`
-	TenantID    string `json:"tenantId"`
-	WorkspaceID string
-	Name        string
-	Description string
-	CreatedBy   string
-	Revision    int64
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   gorm.DeletedAt
+	ID           string `gorm:"primaryKey"`
+	TenantID     string `json:"tenantId"`
+	WorkspaceID  string
+	Name         string
+	Description  string
+	CoverAssetID string
+	CreatedBy    string
+	Revision     int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	DeletedAt    gorm.DeletedAt
 }
 type Member struct {
 	ProjectID string `gorm:"primaryKey"`
@@ -26,13 +27,16 @@ type Member struct {
 func (Member) TableName() string { return "project_members" }
 
 type Board struct {
-	ID        string `gorm:"primaryKey"`
-	ProjectID string
-	Name      string
-	Revision  int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt gorm.DeletedAt
+	ID           string `gorm:"primaryKey"`
+	ProjectID    string
+	Name         string
+	CoverAssetID string
+	CreatedBy    string
+	DefaultView  int16
+	Revision     int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	DeletedAt    gorm.DeletedAt
 }
 
 func (Board) TableName() string { return "canvases" }
@@ -99,15 +103,16 @@ type Generation struct {
 func (Generation) TableName() string { return "canvas_generations" }
 
 type Asset struct {
-	ID          string `gorm:"primaryKey"`
-	TenantID    string `json:"tenantId"`
-	WorkspaceID string
-	ProjectID   string
-	ObjectKey   string
-	MimeType    string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   gorm.DeletedAt
+	ID           string `gorm:"primaryKey"`
+	TenantID     string `json:"tenantId"`
+	WorkspaceID  string
+	ProjectID    string
+	ObjectKey    string
+	MimeType     string
+	OriginalName string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	DeletedAt    gorm.DeletedAt
 }
 type AssetReference struct {
 	AssetID   string `gorm:"primaryKey"`

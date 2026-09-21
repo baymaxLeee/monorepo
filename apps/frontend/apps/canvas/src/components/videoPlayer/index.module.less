@@ -1,0 +1,33 @@
+.root {
+  position: relative;
+  overflow: hidden;
+}
+
+/* 未传 className 时的默认尺寸，资产预览用 16:9。 */
+.defaultFrame {
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  background-color: var(--color-fill-3);
+}
+
+.video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+
+  /* 原生控件使用暗色菜单；text-fill-color 可继承进 UA Shadow DOM，覆盖字幕状态的黑色文本。 */
+  color-scheme: dark;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.87);
+
+  /*
+   * 原生全屏作用在 video 本身，页面容器的 9:16 / object-fit 都失效。
+   * 按片源比例 contain，避免竖屏被拉满横屏。
+   */
+  &:fullscreen,
+  &:-webkit-full-screen {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background-color: #000;
+  }
+}

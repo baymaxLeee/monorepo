@@ -1,13 +1,14 @@
 package contracts
 
 type Project struct {
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	CreatedBy   string `json:"created_by"`
-	Revision    int64  `json:"revision"`
+	CreatedAt      string `json:"created_at"`
+	UpdatedAt      string `json:"updated_at"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	CoverImagePath string `json:"cover_image_path"`
+	CreatedBy      string `json:"created_by"`
+	Revision       int64  `json:"revision"`
 }
 type CreateProject struct {
 	Name             string   `json:"name"`
@@ -16,12 +17,15 @@ type CreateProject struct {
 	UsageLimitMicros *int64   `json:"usage_limit_micros"`
 }
 type Board struct {
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
-	ID        string `json:"id"`
-	ProjectID string `json:"project_id"`
-	Name      string `json:"name"`
-	Revision  int64  `json:"revision"`
+	CreatedAt      string `json:"created_at"`
+	UpdatedAt      string `json:"updated_at"`
+	ID             string `json:"id"`
+	ProjectID      string `json:"project_id"`
+	Name           string `json:"name"`
+	CoverImagePath string `json:"cover_image_path"`
+	CreatedBy      string `json:"created_by"`
+	DefaultView    int16  `json:"default_view"`
+	Revision       int64  `json:"revision"`
 }
 type CreateBoard struct {
 	Name string `json:"name"`
@@ -106,10 +110,13 @@ type Generation struct {
 	Status          string `json:"status"`
 	OutputAssetID   string `json:"output_asset_id"`
 	OutputText      string `json:"output_text"`
+	Prompt          string `json:"prompt"`
+	ProviderID      string `json:"provider_id"`
 	Error           string `json:"error"`
 	Applied         bool   `json:"applied"`
 	CancelRequested bool   `json:"cancel_requested"`
 	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
 }
 type GenerationList struct {
 	Items []Generation `json:"items"`
@@ -124,6 +131,9 @@ type Resource struct {
 	PrimaryResourceAssetID string `json:"primary_resource_asset_id"`
 	Revision               int64  `json:"revision"`
 	ResourceAssetCount     int32  `json:"resource_asset_count"`
+	CreatedBy              string `json:"created_by"`
+	CreatedAt              string `json:"created_at"`
+	UpdatedAt              string `json:"updated_at"`
 }
 type ResourceInput struct {
 	Name             string `json:"name"`
@@ -142,6 +152,8 @@ type ResourceAsset struct {
 	Name       string `json:"name"`
 	MediaType  int16  `json:"media_type"`
 	Revision   int64  `json:"revision"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
 }
 type ResourceAssetList struct {
 	Items []ResourceAsset `json:"items"`
@@ -163,6 +175,11 @@ type CreativeAssetList struct {
 type MaterializeResource struct {
 	NodeID          string `json:"node_id"`
 	ResourceAssetID string `json:"resource_asset_id"`
+}
+
+type ProjectAsset struct {
+	ID        string `json:"id"`
+	MediaType int16  `json:"media_type"`
 }
 
 type ResourceVersion struct {

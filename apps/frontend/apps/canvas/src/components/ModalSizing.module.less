@@ -1,0 +1,36 @@
+@import (reference) './modalSizing.less';
+
+.compact {
+  .responsive-modal-size(384);
+  .responsive-modal-scroll();
+}
+
+.small {
+  .responsive-modal-size(428);
+  .responsive-modal-scroll();
+}
+
+.standard {
+  .responsive-modal-size(520);
+  .responsive-modal-scroll();
+}
+
+.form {
+  .responsive-modal-size(720);
+}
+
+.authorization {
+  .responsive-modal-size(732);
+}
+
+.storyboard {
+  .responsive-modal-size(900);
+  overflow: auto;
+}
+
+.storyboardBody {
+  height: 60vh;
+  height: 60dvh;
+  max-height: calc(90vh - 180px);
+  max-height: calc(90dvh - 180px);
+}

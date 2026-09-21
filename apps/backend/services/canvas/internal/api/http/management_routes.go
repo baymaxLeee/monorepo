@@ -21,16 +21,6 @@ var managementRoutes = []Route{
 		}
 		return s.UpdateProjectMembers(r.Context(), actor, chi.URLParam(r, "projectId"), in, r.Header.Get("Authorization"))
 	}},
-	{"PUT", "/projects/{projectId}/models", "canvasUpdateProjectModels", reflect.TypeFor[c.UpdateProjectModels](), reflect.TypeFor[c.ProjectManagement](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
-		var in c.UpdateProjectModels
-		if err := decode(r, &in); err != nil {
-			return nil, err
-		}
-		return s.UpdateProjectModels(r.Context(), actor, chi.URLParam(r, "projectId"), in)
-	}},
-	{"GET", "/projects/{projectId}/models", "canvasProjectProviders", nil, reflect.TypeFor[c.ProjectProviderList](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
-		return s.ProjectProviders(r.Context(), actor, chi.URLParam(r, "projectId"))
-	}},
 	{"PUT", "/projects/{projectId}/usage-limit", "canvasUpdateProjectUsageLimit", reflect.TypeFor[c.UpdateProjectUsageLimit](), reflect.TypeFor[c.ProjectManagement](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
 		var in c.UpdateProjectUsageLimit
 		if err := decode(r, &in); err != nil {

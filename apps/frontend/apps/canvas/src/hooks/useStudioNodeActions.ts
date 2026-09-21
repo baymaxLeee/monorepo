@@ -1,4 +1,4 @@
-import { canvasCreativeProviders, type CanvasGraph } from "@repo/api";
+import { fetchModelProviders, type CanvasGraph } from "@repo/api";
 import type { RefObject } from "react";
 
 import type { NodeEditorHandle } from "../components/NodeEditor";
@@ -6,7 +6,7 @@ import { nodeKinds } from "../components/StudioNodePanel";
 import type { useCanvasGraph } from "./useCanvasGraph";
 
 export function useStudioNodeActions(
-  projectId: string,
+  _projectId: string,
   graph: CanvasGraph | null,
   mutate: ReturnType<typeof useCanvasGraph>["mutate"],
   editor: RefObject<NodeEditorHandle>,
@@ -18,7 +18,7 @@ export function useStudioNodeActions(
       await editor.current?.finish();
       const kind = type === 5 ? "image" : type === 6 ? "video" : "chat";
       const available =
-        type >= 5 ? (await canvasCreativeProviders(projectId)).items.filter((item) => item.provider_kind === kind) : [];
+        type >= 5 ? (await fetchModelProviders()).filter((item) => item.is_enabled && item.provider_kind === kind) : [];
       const providerId = available.find((item) => item.is_default)?.id ?? available[0]?.id ?? "";
       const id = crypto.randomUUID();
       await mutate((current) => {

@@ -25,7 +25,8 @@ export function useAssetMatching({
   const [error, setError] = useState("");
   const refreshed = useRef("");
   const operationId = useRef("");
-  const runningId = run && active(run) ? run.id : "";
+  const currentRun = run?.node_id === nodeId ? run : null;
+  const runningId = currentRun && active(currentRun) ? currentRun.id : "";
   const accept = useCallback(
     async (next: CanvasAssetMatchRun) => {
       setRun(next);
@@ -68,11 +69,11 @@ export function useAssetMatching({
     };
   }, [accept, canvasId, nodeId, runningId]);
   return {
-    matching: starting || active(run),
+    matching: starting || active(currentRun),
     cancelling,
     error,
     async start(prepare: () => Promise<number>) {
-      if (!canvasId || !nodeId || starting || active(run)) return;
+      if (!canvasId || !nodeId || starting || active(currentRun)) return false;
       setStarting(true);
       setError("");
       try {
@@ -85,17 +86,19 @@ export function useAssetMatching({
           }),
         );
         operationId.current = "";
+        return true;
       } catch (cause) {
         setError(getErrorMessage(cause, "素材匹配启动失败"));
+        return false;
       } finally {
         setStarting(false);
       }
     },
     async cancel() {
-      if (!run || !active(run) || cancelling) return;
+      if (!currentRun || !active(currentRun) || cancelling) return;
       setCancelling(true);
       try {
-        await accept(await canvasCancelAssetMatch(canvasId, nodeId, run.id));
+        await accept(await canvasCancelAssetMatch(canvasId, nodeId, currentRun.id));
       } catch (cause) {
         setError(getErrorMessage(cause, "取消素材匹配失败"));
       } finally {

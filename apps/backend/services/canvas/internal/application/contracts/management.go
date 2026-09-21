@@ -3,7 +3,6 @@ package contracts
 type ProjectManagement struct {
 	Project          Project  `json:"project"`
 	Members          []Member `json:"members"`
-	ProviderIDs      []string `json:"provider_ids"`
 	UsageLimitMicros *int64   `json:"usage_limit_micros"`
 	UsedAmountMicros int64    `json:"used_amount_micros"`
 	Currency         string   `json:"currency"`
@@ -12,10 +11,6 @@ type ProjectManagement struct {
 type UpdateProjectMembers struct {
 	ExpectedRevision int64    `json:"expected_revision"`
 	Members          []Member `json:"members"`
-}
-type UpdateProjectModels struct {
-	ExpectedRevision int64    `json:"expected_revision"`
-	ProviderIDs      []string `json:"provider_ids"`
 }
 type UpdateProjectUsageLimit struct {
 	ExpectedRevision int64  `json:"expected_revision"`
@@ -42,4 +37,9 @@ type ProjectUsage struct {
 	Cancelled     int64  `json:"cancelled"`
 	Active        int64  `json:"active"`
 	BillingStatus string `json:"billing_status"`
+}
+
+type UpdateCanvasView struct {
+	ExpectedRevision int64 `json:"expected_revision"`
+	DefaultView      int16 `json:"default_view"`
 }

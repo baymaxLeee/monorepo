@@ -40,10 +40,18 @@ func validName(name string) bool {
 		runes[len(runes)-1] != '-' && runes[len(runes)-1] != '_' && !unicode.IsSpace(runes[len(runes)-1])
 }
 func projectDTO(v p.Project) contracts.Project {
-	return contracts.Project{CreatedAt: isoTime(v.CreatedAt), UpdatedAt: isoTime(v.UpdatedAt), ID: v.ID, Name: v.Name, Description: v.Description, CreatedBy: v.CreatedBy, Revision: v.Revision}
+	cover := ""
+	if v.CoverAssetID != "" {
+		cover = "/api/canvas-server/projects/" + v.ID + "/cover/content"
+	}
+	return contracts.Project{CreatedAt: isoTime(v.CreatedAt), UpdatedAt: isoTime(v.UpdatedAt), ID: v.ID, Name: v.Name, Description: v.Description, CoverImagePath: cover, CreatedBy: v.CreatedBy, Revision: v.Revision}
 }
 func boardDTO(v p.Board) contracts.Board {
-	return contracts.Board{CreatedAt: isoTime(v.CreatedAt), UpdatedAt: isoTime(v.UpdatedAt), ID: v.ID, ProjectID: v.ProjectID, Name: v.Name, Revision: v.Revision}
+	cover := ""
+	if v.CoverAssetID != "" {
+		cover = "/api/canvas-server/canvases/" + v.ID + "/cover/content"
+	}
+	return contracts.Board{CreatedAt: isoTime(v.CreatedAt), UpdatedAt: isoTime(v.UpdatedAt), ID: v.ID, ProjectID: v.ProjectID, Name: v.Name, CoverImagePath: cover, CreatedBy: v.CreatedBy, DefaultView: v.DefaultView, Revision: v.Revision}
 }
 func access(db *gorm.DB, actor Actor, id string, write bool) (p.Project, error) {
 	var project p.Project
@@ -123,13 +131,17 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, in contracts.Creat
 	}
 	return projectDTO(v), err
 }
-func (s *Service) ListBoards(ctx context.Context, a Actor, projectID string) (contracts.BoardList, error) {
+func (s *Service) ListBoards(ctx context.Context, a Actor, projectID string, createdByMe bool) (contracts.BoardList, error) {
 	db := s.DB.WithContext(ctx)
 	if _, err := access(db, a, projectID, false); err != nil {
 		return contracts.BoardList{}, err
 	}
 	var rows []p.Board
-	if err := db.Where("project_id = ?", projectID).Order("created_at, id").Find(&rows).Error; err != nil {
+	query := db.Where("project_id = ?", projectID)
+	if createdByMe {
+		query = query.Where("created_by = ?", a.UserID)
+	}
+	if err := query.Order("created_at, id").Find(&rows).Error; err != nil {
 		return contracts.BoardList{}, err
 	}
 	result := contracts.BoardList{Items: []contracts.Board{}}
@@ -142,7 +154,7 @@ func (s *Service) CreateBoard(ctx context.Context, a Actor, projectID string, in
 	if !validName(in.Name) {
 		return contracts.Board{}, Invalid("invalid canvas name")
 	}
-	v := p.Board{ID: newID(), ProjectID: projectID, Name: in.Name, Revision: 1}
+	v := p.Board{ID: newID(), ProjectID: projectID, Name: in.Name, CreatedBy: a.UserID, DefaultView: 2, Revision: 1}
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := access(tx, a, projectID, true); err != nil {
 			return err

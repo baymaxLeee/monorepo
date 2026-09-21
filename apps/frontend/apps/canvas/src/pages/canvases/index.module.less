@@ -1,0 +1,75 @@
+.workspace {
+  background-color: var(--color-bg-2);
+}
+
+.selectedNavigation {
+  color: var(--color-text-1);
+
+  &:hover {
+    color: var(--color-text-1);
+  }
+}
+
+.toolbarSearchInput {
+  width: 278px;
+}
+
+.cardCover {
+  background-color: var(--color-bg-5);
+}
+
+.cardCoverImage {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 300ms;
+
+  .cardCover:hover & {
+    transform: scale(1.05);
+  }
+}
+
+.metadataUser {
+  line-height: 22px;
+}
+
+.cardGrid {
+  column-gap: 14px;
+  row-gap: 34px;
+}
+
+.loadMore {
+  display: flex;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+}
+
+.cardOperations {
+  position: absolute;
+  inset: 0 12px 16px;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 200ms;
+
+  :global(.group:hover) &,
+  &:focus-within {
+    opacity: 1;
+  }
+}
+
+.cardOperationMenu {
+  width: 100%;
+
+  :global(.c-m-operation-menu-opt-btn) {
+    width: 100%;
+  }
+
+  :global(.c-m-operation-menu-dropdown-button) {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    padding: 2px 3px;
+  }
+}

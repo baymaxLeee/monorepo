@@ -1,0 +1,268 @@
+.root {
+  --editor-body-height: 120px;
+
+  position: relative;
+  display: flex;
+  box-sizing: border-box;
+  width: 612px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #dde2e9;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 10%);
+  transform-origin: top center;
+  animation: editor-enter 180ms ease-out;
+}
+
+@keyframes editor-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.body {
+  position: relative;
+  display: flex;
+  height: var(--editor-body-height);
+  min-height: var(--editor-body-height);
+  max-height: var(--editor-body-height);
+  flex: 0 0 var(--editor-body-height);
+  flex-direction: column;
+  overflow: hidden;
+  transition:
+    height 180ms ease,
+    min-height 180ms ease,
+    max-height 180ms ease,
+    flex-basis 180ms ease;
+}
+
+.image,
+.video {
+  .body {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    flex: 0 0 auto;
+  }
+
+  .editor {
+    // 正文独占 5.5 行，参考素材行不占用正文的可视高度。
+    height: 5.5lh;
+    min-height: 5.5lh;
+    flex: 0 0 5.5lh;
+  }
+}
+
+.video {
+  width: 760px;
+  max-width: calc(100vw - 32px);
+}
+
+.expanded {
+  --editor-body-height: auto;
+
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  animation: none;
+  box-shadow: none;
+
+  .body {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    flex: 1 1 0;
+  }
+
+  .footer,
+  .matchToolbar {
+    flex-shrink: 0;
+  }
+
+  .footer {
+    height: auto;
+    flex-wrap: wrap;
+  }
+
+  .settings {
+    flex-wrap: wrap;
+  }
+
+  .editor {
+    height: 0;
+    min-height: 0;
+    flex: 1 1 0;
+  }
+}
+
+.expandedHeader {
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.expandedTitle {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-1);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.referenceRow {
+  display: flex;
+  min-height: 54px;
+  flex-shrink: 0;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.referenceAssets {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.expandButton {
+  display: flex;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #737a87;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.referenceRow .expandButton {
+  margin-left: auto;
+}
+
+.expandButton:hover {
+  background: rgb(26 27 30 / 5%);
+  color: #42464e;
+}
+
+.expandButtonFloating {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+}
+
+.editor {
+  &:global(.markdown-editor.markdown-editor-editable) {
+    :global(.markdown-editor-content) {
+      padding-right: 0;
+    }
+  }
+
+  width: 100%;
+  height: 0;
+  min-height: 0;
+  flex: 1 1 0;
+  color: #0c0d0e;
+  font-size: 13px;
+  line-height: 22px;
+
+  :global(.markdown-editor-content) {
+    min-height: 0;
+    line-height: inherit;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  :global(.markdown-editor-content::-webkit-scrollbar) {
+    display: none;
+  }
+
+  :global(.markdown-editor-content .ProseMirror) {
+    box-sizing: border-box;
+    min-height: 100%;
+    padding: 0 28px 0 0;
+    outline: none;
+    line-height: inherit;
+
+    // 底层编辑器为首个子元素添加 0.5em margin，会挤占 5.5lh 可视区域。
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  :global(.markdown-editor-content .ProseMirror p) {
+    margin: 0;
+    line-height: inherit;
+  }
+
+  :global(.markdown-editor-content .ProseMirror p + p) {
+    margin-top: 8px;
+  }
+}
+
+.footer {
+  display: flex;
+  min-width: 0;
+  height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+}
+
+.generateButton {
+  height: 32px;
+  flex-shrink: 0;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #42464e;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.generateButtonTooltip {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.generateButton:disabled {
+  background: #c7ccd6;
+  cursor: not-allowed;
+}
+
+.matchToolbar { display: flex; align-items: center; justify-content: space-between; }
+.body[data-matching] { cursor: not-allowed; pointer-events: none; }
+.body[data-matching] .editor { opacity: 0.3; }
+.settings[inert] { pointer-events: none; }
+
+.root[data-dragging] {
+  display: none;
+}

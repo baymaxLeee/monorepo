@@ -18,7 +18,7 @@ import (
 )
 
 func generationDTO(v p.Generation) c.Generation {
-	return c.Generation{ID: v.ID, NodeID: v.NodeID, Status: v.Status, OutputText: v.OutputText, OutputAssetID: v.OutputAssetID, Error: v.Error, Applied: v.Applied, CancelRequested: v.CancelRequested, CreatedAt: isoTime(v.CreatedAt)}
+	return c.Generation{ID: v.ID, NodeID: v.NodeID, Status: v.Status, OutputText: v.OutputText, OutputAssetID: v.OutputAssetID, Prompt: v.Prompt, ProviderID: v.ProviderID, Error: v.Error, Applied: v.Applied, CancelRequested: v.CancelRequested, CreatedAt: isoTime(v.CreatedAt), UpdatedAt: isoTime(v.UpdatedAt)}
 }
 func (s *Service) StartGeneration(ctx context.Context, a Actor, canvasID, nodeID string, in c.StartGeneration) (c.Generation, error) {
 	var out p.Generation

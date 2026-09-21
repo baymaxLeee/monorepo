@@ -1,0 +1,108 @@
+.root {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  overflow: hidden;
+  flex-direction: column;
+  background: var(--color-bg-5);
+}
+
+.root::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgb(255 255 255 / 75%) 0%,
+    rgb(255 255 255 / 25%) 52%,
+    transparent 72%
+  );
+  content: '';
+  pointer-events: none;
+}
+
+.iconArea,
+.statusArea {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconArea {
+  min-height: 0;
+  flex: 1;
+  color: var(--color-grey-4);
+}
+
+.statusArea {
+  flex-shrink: 0;
+  align-items: flex-start;
+}
+
+.pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgb(26 27 30 / 5%);
+  backdrop-filter: blur(4px);
+  white-space: nowrap;
+}
+
+.label {
+  color: var(--color-text-2);
+  font-weight: 500;
+}
+
+.stopButton {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-3);
+  cursor: pointer;
+  font: inherit;
+}
+
+.card .iconArea {
+  font-size: 42px;
+}
+
+.card .statusArea {
+  height: 48px;
+}
+
+.card .pill {
+  width: 120px;
+  height: 40px;
+  gap: 12px;
+  padding: 0 12px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.modal {
+  padding: 12px;
+}
+
+.modal .iconArea {
+  font-size: 62px;
+}
+
+.modal .statusArea {
+  height: 32px;
+}
+
+.modal .pill {
+  height: 32px;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 20px;
+}

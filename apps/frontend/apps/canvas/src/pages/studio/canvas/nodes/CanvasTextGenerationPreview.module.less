@@ -1,0 +1,28 @@
+.collapseButton {
+  background: transparent !important;
+  color: var(--color-text-3) !important;
+
+  &:hover {
+    background: rgb(26 27 30 / 5%) !important;
+    color: var(--color-text-2) !important;
+  }
+}
+
+.content {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  color: var(--color-text-1);
+  font-size: 13px;
+  line-height: 22px;
+  scrollbar-width: none;
+}
+
+.content::-webkit-scrollbar {
+  display: none;
+}
+
+.markdown {
+  min-width: 0;
+  white-space: normal;
+}

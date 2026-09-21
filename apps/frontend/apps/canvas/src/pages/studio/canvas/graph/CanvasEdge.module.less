@@ -1,0 +1,39 @@
+@highlight-stroke-width: 1.5;
+
+.edge {
+  --canvas-edge-highlight: rgb(var(--link-6));
+  --xy-edge-stroke: rgb(var(--gray-5));
+  // XYFlow also uses this variable for focus; only actual selection changes color.
+  --xy-edge-stroke-selected: var(--xy-edge-stroke);
+}
+
+.selected {
+  --xy-edge-stroke: var(--canvas-edge-highlight);
+  --xy-edge-stroke-width: @highlight-stroke-width;
+}
+
+.flow {
+  fill: none;
+  stroke: var(--canvas-edge-highlight);
+  stroke-width: @highlight-stroke-width;
+  stroke-linecap: round;
+  stroke-dasharray: 8 100;
+  pointer-events: none;
+  animation: flow 2.4s linear infinite;
+}
+
+@keyframes flow {
+  from {
+    stroke-dashoffset: 8;
+  }
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow {
+    display: none;
+    animation: none;
+  }
+}

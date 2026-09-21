@@ -1,0 +1,344 @@
+import { type NodeProps, type NodeTypes } from "@xyflow/react";
+import { useAtomValue } from "jotai";
+import { CircleAlert as IconExclamationCircleRedFill, Music as IconMusic } from "lucide-react";
+import { memo, useContext } from "react";
+
+import textGenerationLoadingIcon from "@/assets/canvas/text-generation-loading.svg";
+import { AudioPlayer } from "@/components/audioPlayer/index";
+import { Markdown as MarkDown } from "@/components/compat";
+import { GenerationConfiguration } from "@/components/GenerationConfiguration/index";
+import { canvasnode } from "@/domain";
+import t from "@/utils/i18n";
+import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
+
+import { useMaterialMatching } from "../../assetMatching/useMaterialMatching";
+import { generationConfigPatch, settingsFromDTO } from "../../domain/actions";
+import { isVideoGenerationCancellationDisabled, videoProviderStatusForRun } from "../../domain/generationCancellation";
+import {
+  canvasGenerationFailuresAtom,
+  canvasGenerationRuntimeStatesAtom,
+  defaultImageModelIdAtom,
+} from "../../store/index";
+import { CanvasContentActionsContext, CanvasEditingContext, TextGenerationWaitingContext } from "../CanvasNodeContexts";
+import { CanvasModelSelect, useCanvasModelOptions } from "../editing/CanvasModelSelect";
+import { CanvasPromptEditor } from "../editing/CanvasPromptEditor";
+import { CanvasTextEditor } from "../editing/CanvasTextEditor";
+import { CanvasGeneratingBadge } from "../generation/CanvasGeneratingBadge";
+import { CanvasGenerationFailureState } from "../generation/CanvasGenerationFailureState";
+import { generationPreviewMode, shouldShowGenerationLoadingBackground } from "../generation/generationLoading";
+import { isDeletedReferenceNode, isGenerationType, textNodeContent } from "../graph/canvasNodeHelpers";
+import { useCanvasNodeSnapshot } from "../graph/CanvasNodeStore";
+import type { CanvasFlowNode } from "../graph/canvasNodeTypes";
+import { canvasNodeProtocol } from "../graph/nodeProtocol";
+import { CanvasNodeHeader } from "./CanvasNodeHeader";
+import { CanvasNodePort } from "./CanvasNodePort";
+import { CanvasNodeVideoPlayer } from "./CanvasNodeVideoPlayer";
+import { CanvasTextGenerationPreview } from "./CanvasTextGenerationPreview";
+import { CanvasTextResultOperations } from "./CanvasTextResultOperations";
+import { CanvasNodeToolbar } from "./Toolbar";
+import {
+  MEDIA_ASSET_DEFAULT_PREVIEW_SIZE,
+  MEDIA_GENERATION_DEFAULT_PREVIEW_SIZE,
+  useMediaNodePreviewSize,
+} from "./useMediaNodePreviewSize";
+
+import styles from "../CanvasBoard.module.less";
+export function DeletedReferenceNotice({ item }: { item: canvasnode.CanvasNode }) {
+  if (item.ReferenceStatus !== canvasnode.CanvasNodeReferenceStatus.DELETED) {
+    return null;
+  }
+  return (
+    <div className={styles.deletedReferenceNotice}>
+      <IconExclamationCircleRedFill aria-hidden />
+      <strong>{t("引用素材已删除")}</strong>
+    </div>
+  );
+}
+
+export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }: NodeProps<CanvasFlowNode>) {
+  const editor = useContext(CanvasEditingContext);
+  const actions = useContext(CanvasContentActionsContext);
+  const textGenerationWaitingNodeIDs = useContext(TextGenerationWaitingContext);
+  const { image: imageModelOptions, selected: modelOptions } = useCanvasModelOptions(data.item.Type);
+  const defaultImageModelId = useAtomValue(defaultImageModelIdAtom);
+  const generationFailures = useAtomValue(canvasGenerationFailuresAtom);
+  const generationRuntimeStates = useAtomValue(canvasGenerationRuntimeStatesAtom);
+  const { item: storedItem, onHistory, onPatch, previewURL, queryTree, selectAsset, thumbnailURL } = data;
+  const item = useCanvasNodeSnapshot(data.nodePubSub, storedItem, isGenerationType(storedItem.Type));
+  const persistedMediaURL =
+    resolveUpPreviewURL(item.SelectedOutputURL ?? "") || resolveUpPreviewURL(item.PreviewURL ?? "");
+  const mediaURL = isGenerationType(item.Type) ? persistedMediaURL || previewURL : previewURL || persistedMediaURL;
+  const firstFrameURL = isGenerationType(item.Type)
+    ? resolveUpPreviewURL(item.FirstFrameURL ?? "") || thumbnailURL
+    : thumbnailURL || resolveUpPreviewURL(item.FirstFrameURL ?? "");
+  const isVideo =
+    item.Type === canvasnode.CanvasNodeType.VIDEO_ASSET || item.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION;
+  const isImage =
+    item.Type === canvasnode.CanvasNodeType.IMAGE_ASSET || item.Type === canvasnode.CanvasNodeType.IMAGE_GENERATION;
+  const isImageGeneration = item.Type === canvasnode.CanvasNodeType.IMAGE_GENERATION;
+  const isGeneration = isGenerationType(item.Type);
+  const materialMatching = useMaterialMatching(item.NodeID);
+  const cancellationDisabled =
+    !materialMatching.matching &&
+    item.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION &&
+    isVideoGenerationCancellationDisabled(
+      videoProviderStatusForRun(generationRuntimeStates, item.NodeID, item.ActiveTaskRunID),
+    );
+  const generationFailure = isGeneration ? generationFailures.get(item.NodeID) : undefined;
+  const currentSettings = settingsFromDTO(item.GenerationConfig);
+  const imageSettings = {
+    model: imageModelOptions.some((model) => model.id === currentSettings.model)
+      ? currentSettings.model
+      : defaultImageModelId,
+    ratio: currentSettings.ratio,
+    resolution: currentSettings.resolution,
+    watermark: item.GenerationConfig?.Watermark === true,
+  };
+  const isAudio = item.Type === canvasnode.CanvasNodeType.AUDIO_ASSET;
+  const isEmptyText = item.Type === canvasnode.CanvasNodeType.TEXT && !item.Text;
+  const nodeTextContent = textNodeContent(item);
+  const content = isEmptyText ? t("单击编辑文本") : nodeTextContent;
+  const generationHasOutput =
+    item.Type === canvasnode.CanvasNodeType.TEXT_GENERATION ? Boolean(item.SelectedOutputText) : Boolean(mediaURL);
+  const isEditing = editor.editingNodeId === item.NodeID && !isDeletedReferenceNode(item);
+  const isWaitingForTextGeneration =
+    item.Type === canvasnode.CanvasNodeType.TEXT_GENERATION &&
+    (textGenerationWaitingNodeIDs.has(item.NodeID) || (Boolean(item.ActiveTaskRunID) && !item.SelectedOutputText));
+  const isStartingTextGeneration =
+    item.Type === canvasnode.CanvasNodeType.TEXT_GENERATION &&
+    textGenerationWaitingNodeIDs.has(item.NodeID) &&
+    !item.ActiveTaskRunID;
+  const showGenerationLoadingBackground = shouldShowGenerationLoadingBackground({
+    activeTaskRunID: materialMatching.matching ? undefined : item.ActiveTaskRunID,
+    isTextGenerationWaiting: isWaitingForTextGeneration,
+    type: item.Type,
+  });
+  const previewMode = isGeneration
+    ? generationPreviewMode({
+        hasOutput: generationHasOutput,
+        isLoading: showGenerationLoadingBackground,
+      })
+    : undefined;
+  const generationLoadingContainerClass =
+    item.Type === canvasnode.CanvasNodeType.TEXT_GENERATION ? styles.textGenerationWaiting : styles.placeholder;
+  const generationLoadingIcon =
+    item.Type === canvasnode.CanvasNodeType.TEXT_GENERATION
+      ? textGenerationLoadingIcon
+      : canvasNodeProtocol(item.Type).placeholderIcon;
+  const isAutoSizedMedia = isImage || isVideo;
+  const mediaPreview = useMediaNodePreviewSize(
+    item.NodeID,
+    isAutoSizedMedia && previewMode !== "loading" ? mediaURL : undefined,
+    isGeneration ? MEDIA_GENERATION_DEFAULT_PREVIEW_SIZE : MEDIA_ASSET_DEFAULT_PREVIEW_SIZE,
+  );
+  return (
+    <>
+      <CanvasNodeToolbar
+        item={item}
+        mediaURL={mediaURL ?? ""}
+        onAddToLibrary={actions.addToLibrary}
+        onCopy={actions.copy}
+        onHistory={onHistory}
+        onLargePreview={() => editor.openLargeTextPreview(item.NodeID)}
+        onReview={actions.review}
+        textContent={nodeTextContent}
+        visible={isEditing}
+      />
+      <CanvasNodeHeader item={item} onPatch={onPatch} reviewAsset={data.reviewAsset} />
+      <div className={styles.nodeBody}>
+        <CanvasNodePort item={item} side="input" />
+        <div
+          className={`${styles.previewShell} ${
+            isAudio ? styles.audioPreviewShell : ""
+          } ${isAutoSizedMedia ? styles.autoSizedMediaPreviewShell : ""} canvas-node-drag-handle`}
+          data-canvas-node-preview={item.NodeID}
+          style={isAutoSizedMedia ? mediaPreview.style : undefined}
+        >
+          {generationFailure && !item.ActiveTaskRunID ? (
+            <CanvasGenerationFailureState
+              code={generationFailure.errorCode}
+              message={generationFailure.errorMessage}
+              onRetry={() => editor.retry(item)}
+              requestId={generationFailure.requestId ?? generationFailure.taskRunId}
+              seedanceTaskId={generationFailure.seedanceTaskId}
+              type={item.Type}
+            />
+          ) : isAudio ? (
+            <>
+              <div className={styles.audioArtwork}>
+                <IconMusic />
+              </div>
+              {mediaURL ? (
+                <AudioPlayer className={`${styles.audioPlayer} nodrag nopan nowheel`} src={mediaURL} />
+              ) : null}
+            </>
+          ) : previewMode === "loading" ? (
+            <div className={`${generationLoadingContainerClass} ${styles.generationLoading}`}>
+              <img alt="" src={generationLoadingIcon} />
+            </div>
+          ) : previewMode === "empty" ? (
+            <div className={styles.placeholder}>
+              <img alt="" src={canvasNodeProtocol(item.Type).placeholderIcon} />
+            </div>
+          ) : mediaURL && isVideo ? (
+            <CanvasNodeVideoPlayer
+              dragging={dragging}
+              onLoadedMetadata={mediaPreview.onVideoLoadedMetadata}
+              poster={firstFrameURL}
+              selected={selected}
+              src={mediaURL}
+            />
+          ) : firstFrameURL && isVideo ? (
+            <img alt={t("视频首帧")} className={styles.media} src={firstFrameURL} />
+          ) : mediaURL && isImage ? (
+            <img alt="" className={styles.media} onLoad={mediaPreview.onImageLoad} src={mediaURL} />
+          ) : item.Type === canvasnode.CanvasNodeType.TEXT && isEditing ? (
+            <>
+              <div className={`${styles.textEditorShell} nodrag nopan nowheel`}>
+                <CanvasTextEditor
+                  expanded={editor.largeTextEditorNodeId === item.NodeID}
+                  initialValue={item.Text ?? ""}
+                  onChange={editor.changeDraft}
+                  onCollapse={editor.collapseLargeTextEditor}
+                  placeholder={t("请输入内容")}
+                  queryTree={queryTree}
+                  reviewAsset={actions.reviewAsset}
+                  selectAsset={selectAsset}
+                  title={item.Name || canvasNodeProtocol(item.Type).label}
+                />
+              </div>
+              <CanvasTextResultOperations
+                className={styles.textResultOperations}
+                getText={editor.getDraft}
+                text={nodeTextContent}
+              />
+            </>
+          ) : item.Type === canvasnode.CanvasNodeType.TEXT ||
+            item.Type === canvasnode.CanvasNodeType.TEXT_GENERATION ? (
+            <>
+              <div
+                className={`${styles.textPreview} ${isEmptyText ? styles.textPreviewPlaceholder : ""} nopan nowheel`}
+              >
+                <MarkDown className={styles.textPreviewMarkdown} data={content} />
+              </div>
+              {nodeTextContent ? (
+                <CanvasTextResultOperations className={styles.textResultOperations} text={nodeTextContent} />
+              ) : null}
+            </>
+          ) : (
+            <div className={styles.placeholder}>
+              <img alt="" src={canvasNodeProtocol(item.Type).placeholderIcon} />
+            </div>
+          )}
+          {materialMatching.matching ? (
+            <CanvasGeneratingBadge
+              statusLabel="素材匹配中..."
+              stopLabel="取消匹配"
+              disabled={materialMatching.cancelling || !editor.projectId}
+              onStop={() => {
+                if (editor.projectId) void materialMatching.cancel(editor.projectId, item.CanvasID);
+              }}
+            />
+          ) : item.ActiveTaskRunID || isWaitingForTextGeneration ? (
+            <CanvasGeneratingBadge
+              disabled={editor.saving || cancellationDisabled || !item.ActiveTaskRunID}
+              disabledReason={cancellationDisabled ? t("视频已开始生成，无法取消") : undefined}
+              onStop={() => editor.cancel(item)}
+            />
+          ) : null}
+          <DeletedReferenceNotice item={item} />
+        </div>
+        <CanvasNodePort item={item} side="output" />
+      </div>
+      {isGeneration && isEditing ? (
+        <div className={styles.promptEditorOverlay}>
+          <CanvasPromptEditor
+            onSave={editor.save}
+            matchTarget={item}
+            matchProjectId={editor.projectId}
+            actionDisabled={editor.saving || isStartingTextGeneration}
+            disabled={editor.saving || isStartingTextGeneration || Boolean(item.ActiveTaskRunID)}
+            footer={
+              isImageGeneration ? (
+                <GenerationConfiguration
+                  compact
+                  disabled={editor.saving || Boolean(item.ActiveTaskRunID)}
+                  imageSettings={imageSettings}
+                  modelOptions={imageModelOptions}
+                  onImageSettingsChange={(next) => {
+                    const patch = generationConfigPatch(currentSettings, {
+                      ...currentSettings,
+                      model: next.model,
+                      ratio: next.ratio,
+                      resolution: next.resolution,
+                      watermark: next.watermark ? t("有水印") : t("无水印"),
+                    });
+                    if (Object.keys(patch).length > 0) {
+                      void onPatch(item, { GenerationConfig: patch });
+                    }
+                  }}
+                  parameters="image"
+                />
+              ) : item.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION ? (
+                <GenerationConfiguration
+                  compact
+                  disabled={Boolean(item.ActiveTaskRunID)}
+                  generationMode={item.VideoInputMode ?? canvasnode.CanvasVideoInputMode.REFERENCE}
+                  modelOptions={modelOptions}
+                  onGenerationModeChange={(next) => {
+                    void onPatch(item, { VideoInputMode: next });
+                  }}
+                  onVideoSettingsChange={(next) => {
+                    const patch = generationConfigPatch(
+                      settingsFromDTO(item.GenerationConfig),
+                      next,
+                      item.VideoInputMode,
+                    );
+                    if (Object.keys(patch).length > 0) {
+                      void onPatch(item, { GenerationConfig: patch });
+                    }
+                  }}
+                  parameters="video"
+                  videoSettings={settingsFromDTO(item.GenerationConfig)}
+                />
+              ) : (
+                <CanvasModelSelect
+                  disabled={editor.saving || Boolean(item.ActiveTaskRunID)}
+                  item={item}
+                  modelOptions={modelOptions}
+                  onPatch={onPatch}
+                />
+              )
+            }
+            generating={Boolean(item.ActiveTaskRunID) && !materialMatching.matching}
+            cancelDisabled={cancellationDisabled}
+            initialValue={item.Prompt}
+            onCancel={() => editor.cancel(item)}
+            onChange={editor.changeDraft}
+            onGenerate={() => editor.generate(item)}
+            onSwapFrames={() => editor.swapFrames(item)}
+            queryTree={queryTree}
+            references={data.referenceAssets}
+            reviewAsset={actions.reviewAsset}
+            selectAsset={selectAsset}
+            title={item.Name || canvasNodeProtocol(item.Type).label}
+            variant={
+              isImageGeneration ? "image" : item.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION ? "video" : "text"
+            }
+            videoInputMode={item.VideoInputMode}
+          />
+        </div>
+      ) : null}
+      {item.Type === canvasnode.CanvasNodeType.TEXT_GENERATION ? (
+        <CanvasTextGenerationPreview
+          content={item.SelectedOutputText ?? ""}
+          onClose={editor.collapseLargeTextPreview}
+          title={item.Name || canvasNodeProtocol(item.Type).label}
+          visible={editor.largeTextPreviewNodeId === item.NodeID && Boolean(item.SelectedOutputText)}
+        />
+      ) : null}
+    </>
+  );
+});
+
+export const nodeTypes: NodeTypes = { canvasNode: CanvasCard };

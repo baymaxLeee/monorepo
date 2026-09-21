@@ -1,0 +1,55 @@
+.sortControl {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 8px;
+  background-color: var(--color-bg-5);
+}
+
+.sortSelect {
+  width: 136px;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.sortLabel {
+  width: 136px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  color: var(--color-text-1);
+  font-size: 13px;
+  line-height: 32px;
+}
+
+.sortDirectionButton {
+  position: relative;
+  min-width: 44px;
+  padding: 0;
+  border-radius: 0;
+
+  color: var(--color-text-2);
+
+  &::before {
+    position: absolute;
+    top: 6px;
+    left: 0;
+    width: 1px;
+    height: 20px;
+    background-color: var(--color-border-3);
+    content: '';
+  }
+
+  &:hover,
+  &:focus-visible,
+  &:active {
+    background-color: transparent;
+    color: var(--color-text-1);
+  }
+}
+
+.ascendingIcon {
+  transform: scaleY(-1);
+}

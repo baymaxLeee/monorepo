@@ -62,7 +62,7 @@ export function NameDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <Input {...field} aria-label="名称" placeholder="输入名称" autoFocus />
+                    <Input {...field} aria-label="名称" placeholder="输入名称" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

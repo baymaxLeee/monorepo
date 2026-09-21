@@ -1,4 +1,10 @@
-import { canvasCreateArchive, canvasListArchives, canvasCancelArchive, authFetch, type CanvasArchive } from "@repo/api";
+import {
+  canvasCreateArchive,
+  canvasListArchives,
+  canvasCancelArchive,
+  canvasArchiveContent,
+  type CanvasArchive,
+} from "@repo/api";
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Badge, toast } from "@repo/design-system";
 import { getErrorMessage } from "@repo/shared";
 import { Download, History, LoaderCircle } from "lucide-react";
@@ -72,11 +78,7 @@ export function CanvasArchives({
   }
   async function download(item: CanvasArchive) {
     try {
-      const response = await authFetch(
-        `/api/canvas-server/canvases/${encodeURIComponent(canvasId)}/archives/${encodeURIComponent(item.id)}/content`,
-      );
-      if (!response.ok) throw new Error("导出文件暂不可用，请刷新记录");
-      const url = URL.createObjectURL(await response.blob());
+      const url = URL.createObjectURL(await canvasArchiveContent(canvasId, item.id));
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = item.filename;

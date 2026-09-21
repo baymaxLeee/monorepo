@@ -143,7 +143,7 @@ var Routes = append(append(append(storyboardRoutes, archiveRoutes...), resourceR
 		return s.CreateProject(r.Context(), actor, in, r.Header.Get("Authorization"))
 	}},
 	{"GET", "/projects/{projectId}/canvases", "canvasListBoards", nil, reflect.TypeFor[c.BoardList](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
-		return s.ListBoards(r.Context(), actor, chi.URLParam(r, "projectId"))
+		return s.ListBoards(r.Context(), actor, chi.URLParam(r, "projectId"), r.URL.Query().Get("created_by_me") == "true")
 	}},
 	{"POST", "/projects/{projectId}/canvases", "canvasCreateBoard", reflect.TypeFor[c.CreateBoard](), reflect.TypeFor[c.Board](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
 		var in c.CreateBoard
@@ -232,8 +232,11 @@ func Router(s *a.Service, token string) http.Handler {
 					return
 				}
 				limit := int64(8 << 20)
-				if route.OperationID == "canvasReplaceResourceAsset" || route.OperationID == "canvasUploadNode" || route.OperationID == "canvasUploadResourceAsset" {
+				if route.OperationID == "canvasReplaceResourceAsset" || route.OperationID == "canvasUploadNode" || route.OperationID == "canvasUploadResourceAsset" || route.OperationID == "canvasUploadProjectAsset" {
 					limit = 512 << 20
+				}
+				if route.OperationID == "canvasUploadProjectCover" || route.OperationID == "canvasUploadBoardCover" {
+					limit = (2 << 20) + 1
 				}
 				r.Body = http.MaxBytesReader(w, r.Body, limit)
 				value, err := route.Handle(s, actor, r)
@@ -331,14 +334,22 @@ func OpenAPI() map[string]any {
 				params = append(params, map[string]any{"name": strings.Trim(part, "{}"), "in": "path", "required": true, "schema": map[string]any{"type": "string"}})
 			}
 		}
-		if r.OperationID == "canvasReplaceResourceAsset" || r.OperationID == "canvasUploadNode" || r.OperationID == "canvasUploadResourceAsset" {
+		if r.OperationID == "canvasReplaceResourceAsset" || r.OperationID == "canvasUploadNode" || r.OperationID == "canvasUploadResourceAsset" || r.OperationID == "canvasUploadProjectAsset" || r.OperationID == "canvasUploadProjectCover" || r.OperationID == "canvasUploadBoardCover" {
 			if r.OperationID != "canvasReplaceResourceAsset" {
-				params = append(params, map[string]any{"name": "name", "in": "query", "required": true, "schema": map[string]any{"type": "string"}})
+				if r.OperationID == "canvasUploadNode" || r.OperationID == "canvasUploadResourceAsset" || r.OperationID == "canvasUploadProjectAsset" {
+					params = append(params, map[string]any{"name": "name", "in": "query", "required": true, "schema": map[string]any{"type": "string"}})
+				}
+			}
+			if r.OperationID == "canvasUploadProjectCover" || r.OperationID == "canvasUploadBoardCover" {
+				params = append(params, map[string]any{"name": "expected_revision", "in": "query", "required": true, "schema": map[string]any{"type": "integer", "format": "int64"}})
 			}
 			op["requestBody"] = map[string]any{"required": true, "content": map[string]any{"application/octet-stream": map[string]any{"schema": map[string]any{"type": "string", "format": "binary"}}}}
 		}
-		if r.OperationID == "canvasProjectUsageWorkbook" || r.OperationID == "canvasArchiveContent" || r.OperationID == "canvasResourceVersionContent" || r.OperationID == "canvasGenerationContent" || r.OperationID == "canvasNodeContent" || r.OperationID == "canvasResourceContent" {
+		if r.OperationID == "canvasProjectUsageWorkbook" || r.OperationID == "canvasArchiveContent" || r.OperationID == "canvasResourceVersionContent" || r.OperationID == "canvasGenerationContent" || r.OperationID == "canvasNodeContent" || r.OperationID == "canvasResourceContent" || r.OperationID == "canvasProjectAssetContent" || r.OperationID == "canvasProjectCoverContent" || r.OperationID == "canvasBoardCoverContent" {
 			op["responses"].(map[string]any)["200"] = map[string]any{"description": "Media content", "content": map[string]any{"application/octet-stream": map[string]any{"schema": map[string]any{"type": "string", "format": "binary"}}}}
+		}
+		if r.OperationID == "canvasListBoards" {
+			params = append(params, map[string]any{"name": "created_by_me", "in": "query", "required": false, "schema": map[string]any{"type": "boolean"}})
 		}
 		if len(params) > 0 {
 			op["parameters"] = params

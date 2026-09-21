@@ -1,0 +1,74 @@
+.coverTrigger {
+  position: relative;
+
+  &:hover {
+    .replaceMask,
+    .removeButton {
+      opacity: 1;
+    }
+  }
+}
+
+.defaultUploader {
+  position: relative;
+  display: flex;
+  width: 120px;
+  height: 120px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px dashed var(--color-border-3);
+  border-radius: 12px;
+  background-color: var(--color-fill-1);
+  cursor: pointer;
+}
+
+.defaultEmptyIcon {
+  color: var(--color-text-3);
+  font-size: 32px;
+}
+
+.uploadingMask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgb(255 255 255 / 70%);
+}
+
+.replaceMask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: var(--color-white);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms;
+}
+
+.removeButton {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.4);
+  color: var(--color-white);
+  opacity: 0;
+  transition: opacity 200ms;
+}
+
+.removeIcon {
+  font-size: 16px;
+}

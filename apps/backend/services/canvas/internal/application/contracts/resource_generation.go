@@ -1,12 +1,13 @@
 package contracts
 
 type ResourceGenerationConfig struct {
-	Prompt             string  `json:"prompt"`
-	ProviderID         string  `json:"provider_id"`
-	Resolution         string  `json:"resolution"`
-	AspectRatio        string  `json:"aspect_ratio"`
-	Watermark          bool    `json:"watermark"`
-	ReferenceSequences []int64 `json:"reference_sequences"`
+	Prompt             string   `json:"prompt"`
+	ProviderID         string   `json:"provider_id"`
+	Resolution         string   `json:"resolution"`
+	AspectRatio        string   `json:"aspect_ratio"`
+	Watermark          bool     `json:"watermark"`
+	UploadedAssetIDs   []string `json:"uploaded_asset_ids"`
+	ReferenceSequences []int64  `json:"reference_sequences"`
 }
 type ResourceGenerationDraft struct {
 	Config      ResourceGenerationConfig `json:"config"`

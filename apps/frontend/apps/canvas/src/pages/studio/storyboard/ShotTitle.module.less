@@ -1,0 +1,28 @@
+.input.input {
+  box-sizing: border-box;
+  width: 200px;
+  height: 28px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-1);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 28px;
+}
+
+.input.input:hover,
+.input.input:focus-within,
+.input.input:focus-within:hover {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.input.input :global([data-ui-input-control]) {
+  color: inherit;
+  font: inherit;
+}

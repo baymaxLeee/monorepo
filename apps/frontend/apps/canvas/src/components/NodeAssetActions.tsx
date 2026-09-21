@@ -150,7 +150,7 @@ export function NodeAssetActions({
                               ["3", "道具"],
                             ]
                         ).map(([value, label]) => (
-                          <SelectItem key={value} value={value!}>
+                          <SelectItem key={value} value={value}>
                             {label}
                           </SelectItem>
                         ))}

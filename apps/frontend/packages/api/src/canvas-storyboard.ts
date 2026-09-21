@@ -7,7 +7,6 @@ export type {
   CanvasStoryboardDraftUpdate,
 } from "../generated/canvas-server/index";
 export const {
-  canvasCreativeProviders,
   canvasGetStoryboard,
   canvasUpdateStoryboard,
   canvasStartStoryboard,

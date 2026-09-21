@@ -1,0 +1,19 @@
+// 以 1440px 桌面视口换算原有宽度；窄屏优先使用可用空间。
+.responsive-modal-size(@width) {
+  width: (@width / 1440 * 100vw);
+  max-width: 92vw;
+  max-height: 90vh;
+  max-height: 90dvh;
+
+  @media (max-width: 1024px) {
+    width: 92vw;
+  }
+}
+
+.responsive-modal-scroll() {
+  :global(.canvas-modal-content) {
+    max-height: calc(90vh - 160px);
+    max-height: calc(90dvh - 160px);
+    overflow: auto;
+  }
+}

@@ -1,20 +1,17 @@
 import {
   canvasProjectManagement,
-  canvasProjectProviders,
   canvasProjectUsage,
   canvasProjectUsageWorkbook,
   canvasUpdateProjectUsageLimit,
   listWorkspaceMembers,
   type CanvasProjectManagement,
   type CanvasProjectUsage,
-  type CanvasProjectProvider,
   type WorkspaceMemberView,
 } from "@repo/api";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Skeleton, toast } from "@repo/design-system";
 import { useEffect, useState } from "react";
 
 import { MembersForm } from "./MembersForm";
-import { ModelsForm } from "./ModelsForm";
 
 export function ProjectDetails({
   projectId,
@@ -28,7 +25,6 @@ export function ProjectDetails({
   const [details, setDetails] = useState<CanvasProjectManagement | null>(null);
   const [usage, setUsage] = useState<CanvasProjectUsage | null>(null);
   const [members, setMembers] = useState<WorkspaceMemberView[]>([]);
-  const [providers, setProviders] = useState<CanvasProjectProvider[]>([]);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [downloading, setDownloading] = useState(false);
@@ -40,15 +36,13 @@ export function ProjectDetails({
     setFailed(false);
     void canvasProjectManagement(projectId)
       .then(async (value) => {
-        const [models, directory, stats] = await Promise.all([
-          canvasProjectProviders(projectId),
+        const [directory, stats] = await Promise.all([
           canManageMembers ? listWorkspaceMembers(workspaceId, "active") : Promise.resolve([]),
           value.can_manage ? canvasProjectUsage(projectId) : Promise.resolve(null),
         ]);
         if (active) {
           setDetails(value);
           setMembers(directory);
-          setProviders(models.items);
           setUsage(stats);
           setUsageLimit(value.usage_limit_micros === null ? "" : String(value.usage_limit_micros / 1_000_000));
         }
@@ -103,12 +97,6 @@ export function ProjectDetails({
         details={details}
         directory={members}
         editable={canManageMembers && details.can_manage}
-        onSaved={setDetails}
-      />
-      <ModelsForm
-        key={`models:${details.project.revision}`}
-        details={details}
-        providers={providers}
         onSaved={setDetails}
       />
       {usage ? (

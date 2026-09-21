@@ -1,0 +1,55 @@
+.projectGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 14px;
+  row-gap: 34px;
+}
+
+.projectTitle {
+  height: 28px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectCoverImage {
+  transition: transform 300ms;
+
+  .projectCover:hover & {
+    transform: scale(1.05);
+  }
+}
+
+.cardOperations {
+  position: absolute;
+  right: 15px;
+  bottom: 19px;
+  left: 15px;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 200ms;
+
+  :global(.group:hover) &,
+  &:focus-within {
+    opacity: 1;
+  }
+}
+
+.cardOperationMenu {
+  width: 100%;
+
+  :global(.c-m-operation-menu-opt-btn) { width: 100%; }
+  :global(.c-m-operation-menu-dropdown-button) {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    padding: 2px 3px;
+  }
+}
+
+.loadMore {
+  display: flex;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+}

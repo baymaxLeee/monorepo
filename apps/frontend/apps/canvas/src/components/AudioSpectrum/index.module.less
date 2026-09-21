@@ -1,0 +1,46 @@
+.root {
+  display: flex;
+  width: 156px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+
+  span {
+    width: 2px;
+    flex: none;
+    border-radius: 999px;
+    background: rgb(var(--primary-6));
+    opacity: 0.34;
+    transform-origin: center center;
+    transition: height 80ms linear;
+  }
+}
+
+.playing span {
+  background-image: linear-gradient(
+    to right,
+    #c069ff 15%,
+    #0d5fff 50%,
+    #3b91ff 90%
+  );
+  background-repeat: no-repeat;
+  background-size: 156px 100%;
+  opacity: 1;
+}
+
+.fallbackPlaying span {
+  animation: spectrumPulse 620ms ease-in-out infinite alternate;
+}
+
+@keyframes spectrumPulse {
+  from {
+    opacity: 0.28;
+    transform: scaleY(0.7);
+  }
+
+  to {
+    opacity: 0.72;
+    transform: scaleY(1.25);
+  }
+}

@@ -1,0 +1,48 @@
+import { Minimize2 as IconAbbreviation } from "lucide-react";
+
+import { Markdown as MarkDown } from "@/components/compat";
+import { GenerationEditorModal } from "@/components/ImageGeneration/GenerationEditorModal";
+import t from "@/utils/i18n";
+
+import styles from "./CanvasTextGenerationPreview.module.less";
+
+const PREVIEW_MODAL_Z_INDEX = 100;
+
+export function CanvasTextGenerationPreview({
+  content,
+  onClose,
+  title,
+  visible,
+}: {
+  content: string;
+  onClose: () => void;
+  title: string;
+  visible: boolean;
+}) {
+  return (
+    <GenerationEditorModal onClose={onClose} visible={visible} zIndex={PREVIEW_MODAL_Z_INDEX}>
+      <section
+        className="nodrag nopan nowheel flex h-full w-full flex-col gap-5"
+        onDoubleClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex h-6 flex-none items-center justify-between">
+          <div className="min-w-0 truncate text-[14px] font-medium leading-6 text-[color:var(--color-text-1)]">
+            {title}
+          </div>
+          <button
+            aria-label={t("收起结果预览")}
+            className={`${styles.collapseButton} flex h-6 w-6 flex-none cursor-pointer items-center justify-center rounded-[8px] border-0 p-0 text-[16px]`}
+            onClick={onClose}
+            type="button"
+          >
+            <IconAbbreviation />
+          </button>
+        </div>
+        <div className={styles.content}>
+          <MarkDown className={styles.markdown} data={content} />
+        </div>
+      </section>
+    </GenerationEditorModal>
+  );
+}

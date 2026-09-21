@@ -1,5 +1,5 @@
 import type { CanvasNode } from "@repo/api";
-import { Button, Form, FormField, FormItem, FormControl, FormLabel, Input, Textarea } from "@repo/design-system";
+import { Button, Form, FormField, FormItem, FormControl, FormLabel, Input } from "@repo/design-system";
 import { useStore } from "jotai";
 import { LoaderCircle, Sparkles } from "lucide-react";
 import { forwardRef, useEffect, useImperativeHandle } from "react";
@@ -10,6 +10,7 @@ import { canvasGraphAtom } from "../store/graph";
 import { GenerationSettings } from "./GenerationSettings";
 import { NodeAssetActions } from "./NodeAssetActions";
 import { AssetStrip } from "./prompt/AssetStrip";
+import { BasePromptEditor } from "./prompt/BasePromptEditor";
 import { PromptEditor } from "./prompt/PromptEditor";
 import { addPromptReference } from "./prompt/references";
 export interface NodeEditorHandle {
@@ -86,7 +87,12 @@ export const NodeEditor = forwardRef<
                 <FormControl>
                   <div className="flex h-60 flex-col">
                     {node.type === 4 ? (
-                      <Textarea {...field} rows={6} disabled={locked} />
+                      <BasePromptEditor
+                        value={field.value}
+                        onChange={field.onChange}
+                        editable={!locked}
+                        placeholder="输入文本内容"
+                      />
                     ) : (
                       <PromptEditor
                         projectId={projectId}

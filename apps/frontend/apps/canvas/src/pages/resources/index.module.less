@@ -1,0 +1,154 @@
+.workspace {
+  background-color: var(--color-bg-2);
+}
+
+.filterTabCount {
+  display: inline-flex;
+  height: 14px;
+  min-width: 12px;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 42px;
+  background-color: var(--color-bg-6);
+  color: var(--color-text-2);
+  font-family: Inter, sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 14px;
+}
+
+.searchInput {
+  width: 200px;
+}
+
+.cardGrid {
+  column-gap: 14px;
+  row-gap: 32px;
+}
+
+.resourceCover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-5);
+  color: var(--color-grey-4);
+}
+
+.resourceCoverImage {
+  .resourceCover:hover & {
+    transform: scale(1.05);
+  }
+}
+
+.audioPreviewControl {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  left: 4px;
+  z-index: 2;
+  display: flex;
+  aspect-ratio: 16 / 9;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.audioSpectrum {
+  position: absolute;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    #000 12%,
+    #000 88%,
+    transparent 100%
+  );
+  transition: opacity 200ms;
+}
+
+.audioPlayButton {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-bg-white);
+  color: var(--color-text-1);
+  font-size: 22px;
+  opacity: 0;
+  pointer-events: auto;
+  transition:
+    transform 160ms ease,
+    opacity 160ms ease;
+
+  &:hover {
+    transform: scale(1.06);
+  }
+
+  &:active {
+    transform: scale(0.96);
+  }
+}
+
+:global(.group:hover) .audioPlayButton,
+.audioPlayButton:focus-visible {
+  opacity: 1;
+}
+
+.cardOperations {
+  position: absolute;
+  right: 15px;
+  bottom: 19px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 200ms;
+
+  :global(.group:hover) &,
+  &:focus-within {
+    opacity: 1;
+  }
+}
+
+.audioDownloadButton {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
+.cardSelector {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+}
+
+.cardSelectorCheckbox {
+  padding: 0;
+  line-height: 0;
+  border-color: var(--color-text-1);
+  background-color: var(--color-text-1);
+  color: var(--color-white);
+}
+
+.cardOperationMenu {
+  :global(.c-m-operation-menu-dropdown-button) {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    padding: 2px 3px;
+  }
+}

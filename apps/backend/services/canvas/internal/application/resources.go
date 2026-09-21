@@ -12,7 +12,7 @@ import (
 )
 
 func resourceDTO(v p.Resource) c.Resource {
-	return c.Resource{ID: v.ID, ProjectID: v.ProjectID, Type: v.Type, Name: v.Name, Description: v.Description, PrimaryResourceAssetID: v.PrimaryResourceAssetID, Revision: v.Revision, ResourceAssetCount: v.ResourceAssetCount}
+	return c.Resource{ID: v.ID, ProjectID: v.ProjectID, Type: v.Type, Name: v.Name, Description: v.Description, PrimaryResourceAssetID: v.PrimaryResourceAssetID, Revision: v.Revision, ResourceAssetCount: v.ResourceAssetCount, CreatedBy: v.CreatedBy, CreatedAt: isoTime(v.CreatedAt), UpdatedAt: isoTime(v.UpdatedAt)}
 }
 func (s *Service) ListResources(ctx context.Context, a Actor, projectID string) (c.ResourceList, error) {
 	db := s.DB.WithContext(ctx)

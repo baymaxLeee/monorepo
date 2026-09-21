@@ -41,36 +41,14 @@ func (s *Service) ListAvailableBenefitPackages(ctx context.Context, actor Actor,
 	if err != nil {
 		return c.BenefitPackageChoiceList{}, benefitPackageError(err)
 	}
-	var providerIDs []string
-	if err := s.DB.WithContext(ctx).Model(&projectModelGrant{}).Where(
-		"project_id = ? AND tenant_id = ? AND workspace_id = ?", projectID, actor.TenantID, actor.WorkspaceID,
-	).Pluck("provider_id", &providerIDs).Error; err != nil {
-		return c.BenefitPackageChoiceList{}, err
-	}
-	granted := make(map[string]bool, len(providerIDs))
-	for _, providerID := range providerIDs {
-		granted[providerID] = true
-	}
 	out := c.BenefitPackageChoiceList{Items: make([]c.BenefitPackageChoice, 0, len(packages))}
 	for _, item := range packages {
-		if !item.IsPreset && !hasGrantedModel(item.ModelIDs, granted) {
-			continue
-		}
 		out.Items = append(out.Items, c.BenefitPackageChoice{
 			ID: item.ID, Name: item.Name, IsPreset: item.IsPreset, ModelIDs: item.ModelIDs,
 			MaterialUsed: item.MaterialUsed, MaterialReserved: item.MaterialReserved, MaterialLimit: item.MaterialLimit,
 		})
 	}
 	return out, nil
-}
-
-func hasGrantedModel(modelIDs []string, granted map[string]bool) bool {
-	for _, modelID := range modelIDs {
-		if granted[modelID] {
-			return true
-		}
-	}
-	return false
 }
 
 func assetReviewDTO(row p.AssetReview) c.AssetReview {
@@ -93,12 +71,18 @@ func (s *Service) ListAssetReviews(ctx context.Context, actor Actor, projectID s
 	}
 	var rows []p.AssetReview
 	err := db.Where(
-		`tenant_id = ? AND workspace_id = ? AND project_id = ? AND EXISTS (
+		`tenant_id = ? AND workspace_id = ? AND project_id = ? AND (
+			(resource_asset_id = '' AND EXISTS (
+				SELECT 1 FROM asset_references project_asset
+				WHERE project_asset.asset_id = asset_reviews.asset_id
+				AND project_asset.owner_type = 'PROJECT_ASSET'
+				AND project_asset.deleted_at IS NULL
+			)) OR EXISTS (
 			SELECT 1 FROM resource_assets current_slot
 			WHERE current_slot.id = asset_reviews.resource_asset_id
 			AND current_slot.current_asset_id = asset_reviews.asset_id
 			AND current_slot.deleted_at IS NULL
-		)`,
+		))`,
 		actor.TenantID, actor.WorkspaceID, projectID,
 	).Order("updated_at DESC, id").Find(&rows).Error
 	out := c.AssetReviewList{Items: make([]c.AssetReview, 0, len(rows))}
@@ -109,11 +93,6 @@ func (s *Service) ListAssetReviews(ctx context.Context, actor Actor, projectID s
 }
 
 func (s *Service) SubmitAssetReview(ctx context.Context, actor Actor, projectID, resourceAssetID string, in c.SubmitAssetReview) (c.AssetReview, error) {
-	packageID := strings.TrimSpace(in.PackageID)
-	operationID := strings.TrimSpace(in.OperationID)
-	if packageID == "" || len(packageID) > 32 || operationID == "" || len(operationID) > 36 {
-		return c.AssetReview{}, Invalid("invalid asset review request")
-	}
 	db := s.DB.WithContext(ctx)
 	_, slot, err := resourceSlot(db, actor, projectID, resourceAssetID, false)
 	if err != nil {
@@ -126,10 +105,36 @@ func (s *Service) SubmitAssetReview(ctx context.Context, actor Actor, projectID,
 	if err = db.Where("id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND deleted_at IS NULL", slot.CurrentAssetID, actor.TenantID, actor.WorkspaceID, projectID).First(&content).Error; err != nil {
 		return c.AssetReview{}, NotFound()
 	}
+	return s.submitAssetReviewRequest(ctx, actor, projectID, resourceAssetID, content.ID, in)
+}
+
+func (s *Service) SubmitProjectAssetReview(ctx context.Context, actor Actor, projectID, assetID string, in c.SubmitAssetReview) (c.AssetReview, error) {
+	db := s.DB.WithContext(ctx)
+	if _, err := access(db, actor, projectID, true); err != nil {
+		return c.AssetReview{}, err
+	}
+	var content p.Asset
+	err := db.Where(
+		"id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND deleted_at IS NULL AND EXISTS (SELECT 1 FROM asset_references WHERE asset_id = assets.id AND owner_type = 'PROJECT_ASSET' AND deleted_at IS NULL)",
+		assetID, actor.TenantID, actor.WorkspaceID, projectID,
+	).First(&content).Error
+	if err != nil {
+		return c.AssetReview{}, NotFound()
+	}
+	return s.submitAssetReviewRequest(ctx, actor, projectID, "", content.ID, in)
+}
+
+func (s *Service) submitAssetReviewRequest(ctx context.Context, actor Actor, projectID, resourceAssetID, assetID string, in c.SubmitAssetReview) (c.AssetReview, error) {
+	packageID := strings.TrimSpace(in.PackageID)
+	operationID := strings.TrimSpace(in.OperationID)
+	if packageID == "" || len(packageID) > 32 || operationID == "" || len(operationID) > 36 {
+		return c.AssetReview{}, Invalid("invalid asset review request")
+	}
+	db := s.DB.WithContext(ctx)
 	var existing p.AssetReview
-	err = db.Unscoped().Where("tenant_id = ? AND workspace_id = ? AND created_by = ? AND operation_id = ?", actor.TenantID, actor.WorkspaceID, actor.UserID, operationID).First(&existing).Error
+	err := db.Unscoped().Where("tenant_id = ? AND workspace_id = ? AND created_by = ? AND operation_id = ?", actor.TenantID, actor.WorkspaceID, actor.UserID, operationID).First(&existing).Error
 	if err == nil {
-		if existing.ProjectID != projectID || existing.ResourceAssetID != resourceAssetID || existing.BenefitPackageID != packageID {
+		if existing.ProjectID != projectID || existing.AssetID != assetID || existing.BenefitPackageID != packageID {
 			return c.AssetReview{}, ConflictMessage("asset_review_operation_conflict", "送审操作编号已用于其他素材")
 		}
 		return assetReviewDTO(existing), nil
@@ -155,23 +160,11 @@ func (s *Service) SubmitAssetReview(ctx context.Context, actor Actor, projectID,
 	if selected == nil {
 		return c.AssetReview{}, &Error{Status: 404, Code: "benefit_package_not_found", Message: "权益包不存在或已停用"}
 	}
-	if !selected.IsPreset {
-		var granted int64
-		if err = db.Model(&projectModelGrant{}).Where(
-			"project_id = ? AND tenant_id = ? AND workspace_id = ? AND provider_id IN ?",
-			projectID, actor.TenantID, actor.WorkspaceID, selected.ModelIDs,
-		).Count(&granted).Error; err != nil {
-			return c.AssetReview{}, err
-		}
-		if granted == 0 {
-			return c.AssetReview{}, &Error{Status: 403, Code: "benefit_package_not_granted", Message: "权益包未关联项目已授权的视频模型"}
-		}
-	}
-	s.retryAssetReviewCleanupsForAsset(ctx, actor, slot.CurrentAssetID, packageID)
+	s.retryAssetReviewCleanupsForAsset(ctx, actor, assetID, packageID)
 	var current p.AssetReview
 	err = db.Where(
 		"tenant_id = ? AND workspace_id = ? AND project_id = ? AND asset_id = ? AND benefit_package_id = ?",
-		actor.TenantID, actor.WorkspaceID, projectID, slot.CurrentAssetID, packageID,
+		actor.TenantID, actor.WorkspaceID, projectID, assetID, packageID,
 	).First(&current).Error
 	if err == nil {
 		if current.Status != "FAILED" {
@@ -180,7 +173,7 @@ func (s *Service) SubmitAssetReview(ctx context.Context, actor Actor, projectID,
 		var cleanupIDs []string
 		err = db.Transaction(func(tx *gorm.DB) error {
 			var retireErr error
-			cleanupIDs, retireErr = s.retireAssetReviews(tx, actor, []string{slot.CurrentAssetID}, packageID, time.Now().UTC())
+			cleanupIDs, retireErr = s.retireAssetReviews(tx, actor, []string{assetID}, packageID, time.Now().UTC())
 			return retireErr
 		})
 		if err != nil {
@@ -190,21 +183,21 @@ func (s *Service) SubmitAssetReview(ctx context.Context, actor Actor, projectID,
 	} else if err != gorm.ErrRecordNotFound {
 		return c.AssetReview{}, err
 	}
-	reservation, err := directory.ReserveBenefitPackageReview(ctx, actor.TenantID, actor.WorkspaceID, packageID, operationID, projectID, slot.CurrentAssetID)
+	reservation, err := directory.ReserveBenefitPackageReview(ctx, actor.TenantID, actor.WorkspaceID, packageID, operationID, projectID, assetID)
 	if err != nil {
 		return c.AssetReview{}, benefitPackageError(err)
 	}
 	now := time.Now().UTC()
 	row := p.AssetReview{
 		ID: newID(), TenantID: actor.TenantID, WorkspaceID: actor.WorkspaceID, ProjectID: projectID,
-		ResourceAssetID: resourceAssetID, AssetID: slot.CurrentAssetID, BenefitPackageID: packageID,
+		ResourceAssetID: resourceAssetID, AssetID: assetID, BenefitPackageID: packageID,
 		PackageName: selected.Name, IsPreset: selected.IsPreset, ReservationID: reservation.ID,
 		OperationID: operationID, CreatedBy: actor.UserID, Status: "SUBMITTING", CreatedAt: now, UpdatedAt: now,
 	}
 	if err = db.Create(&row).Error; err != nil {
 		var concurrent p.AssetReview
 		lookupErr := db.Where("tenant_id = ? AND workspace_id = ? AND created_by = ? AND operation_id = ?", actor.TenantID, actor.WorkspaceID, actor.UserID, operationID).First(&concurrent).Error
-		if lookupErr == nil && concurrent.ProjectID == projectID && concurrent.ResourceAssetID == resourceAssetID && concurrent.BenefitPackageID == packageID {
+		if lookupErr == nil && concurrent.ProjectID == projectID && concurrent.AssetID == assetID && concurrent.BenefitPackageID == packageID {
 			return assetReviewDTO(concurrent), nil
 		}
 		_, releaseErr := directory.TransitionBenefitPackageReview(ctx, actor.TenantID, actor.WorkspaceID, packageID, reservation.ID, "released")

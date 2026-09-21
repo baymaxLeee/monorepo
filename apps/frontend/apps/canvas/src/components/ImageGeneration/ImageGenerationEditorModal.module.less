@@ -1,0 +1,15 @@
+@import (reference) '../modalSizing.less';
+
+.modal {
+  .responsive-modal-size(800);
+  height: 90vh;
+  height: 90dvh;
+  overflow: hidden;
+  border-radius: 20px;
+
+  :global(.canvas-modal-content) {
+    height: 100%;
+    box-sizing: border-box;
+    padding: 24px;
+  }
+}
