@@ -44,8 +44,20 @@ func (s *Service) RunGenerations(ctx context.Context) {
 	}
 }
 func (s *Service) runGeneration(ctx context.Context, row p.Generation) error {
+	requested, checkErr := s.generationCancellation(ctx, row.ID)
+	if checkErr != nil {
+		return checkErr
+	}
+	row.CancelRequested = requested
 	if row.CancelRequested && row.TaskID == "" {
-		return s.DB.WithContext(ctx).Model(&p.Generation{}).Where("id = ? AND task_id = ''", row.ID).Update("status", "cancelled").Error
+		task, err := s.Executor.CancelByOwner(ctx, row.ID, row.TaskType)
+		if err != nil {
+			return err
+		}
+		if err = s.DB.WithContext(ctx).Model(&p.Generation{}).Where("id = ?", row.ID).Update("task_id", task.ID).Error; err != nil {
+			return err
+		}
+		row.TaskID = task.ID
 	}
 	var input any = executor.TextInput{TenantID: row.TenantID, WorkspaceID: row.WorkspaceID, ProviderID: row.ProviderID, Prompt: row.Prompt}
 	if row.TaskType == "canvas-image-generation" || row.TaskType == "canvas-video-generation" {
@@ -68,7 +80,9 @@ func (s *Service) runGeneration(ctx context.Context, row p.Generation) error {
 		}
 	}
 	if !executor.Terminal(task.Status) {
-		task, err = s.Executor.Watch(ctx, task.ID, row.ID)
+		task, err = s.Executor.WatchWithCancellation(ctx, task.ID, row.ID, func(checkCtx context.Context) (bool, error) {
+			return s.generationCancellation(checkCtx, row.ID)
+		})
 		if err != nil {
 			return err
 		}
@@ -117,6 +131,11 @@ func (s *Service) runGeneration(ctx context.Context, row p.Generation) error {
 					return err
 				}
 				row.OutputAssetID = asset.ID
+				if row.TaskType == "canvas-video-generation" {
+					if err = tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&p.VideoFrames{ID: newID(), GenerationID: row.ID, Status: "queued"}).Error; err != nil {
+						return err
+					}
+				}
 			}
 			if err == nil && node.Revision == row.NodeRevision {
 				node.Text = row.OutputText

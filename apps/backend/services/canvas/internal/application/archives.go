@@ -98,18 +98,7 @@ func (s *Service) CreateArchive(ctx context.Context, actor Actor, canvasID strin
 		if err != nil {
 			return err
 		}
-		inputs, err := archiveRepo.NewRepository(s.DB).ListInputs(ctx, result.TaskRunID)
-		if err != nil {
-			return err
-		}
-		for _, input := range inputs {
-			if input.AssetID == "" {
-				continue
-			}
-			if err = db.Clauses(clause.OnConflict{DoNothing: true}).Create(&p.AssetReference{AssetID: input.AssetID, OwnerType: "CANVAS_ARCHIVE_INPUT", OwnerKey: result.TaskRunID}).Error; err != nil {
-				return err
-			}
-		}
+
 		return nil
 	})
 	return archiveDTO(result), err

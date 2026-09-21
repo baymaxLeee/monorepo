@@ -29,10 +29,13 @@ export async function getProvider(
   providerId: string,
   tenantId: string,
   workspaceId: string,
+  existingTask = false,
 ): Promise<ProviderSnapshot> {
   let data: AdminProviderSnapshot;
   try {
-    data = await adminClient().getProvider(providerId, tenantId, workspaceId);
+    data = existingTask
+      ? await adminClient().getTaskProvider(providerId, tenantId, workspaceId)
+      : await adminClient().getProvider(providerId, tenantId, workspaceId);
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new RequestError(`provider ${providerId} not found`);

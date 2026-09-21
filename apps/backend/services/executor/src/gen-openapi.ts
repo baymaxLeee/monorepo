@@ -177,6 +177,7 @@ const canvasImagePayloadSchema = {
   type: "object",
   properties: {
     ...textGenerationPayloadSchema.properties,
+    watermark: { type: "boolean" },
     objectScope: { type: "string", pattern: "^[a-f0-9]{64}$" },
     references: { type: "array", items: { type: "string" } },
     aspectRatio: { type: "string" },
@@ -221,6 +222,34 @@ const canvasVideoPayloadSchema = {
 };
 const createTaskInputSchema = {
   oneOf: [
+    taskEnvelope("canvas-storyboard", {
+      type: "object",
+      properties: {
+        tenantId: { type: "string", minLength: 1 },
+        workspaceId: { type: "string", minLength: 1 },
+        providerId: { type: "string", minLength: 1 },
+        plot: { type: "string", minLength: 1, maxLength: 50000 },
+        durationMin: { type: "integer", minimum: 1 },
+        durationMax: { type: "integer", maximum: 300 },
+        totalDurationMin: { type: "integer", minimum: 0 },
+        totalDurationMax: { type: "integer", minimum: 0 },
+      },
+      required: [
+        "tenantId",
+        "workspaceId",
+        "providerId",
+        "plot",
+        "durationMin",
+        "durationMax",
+        "totalDurationMin",
+        "totalDurationMax",
+      ],
+    }),
+    taskEnvelope("canvas-video-frames", {
+      type: "object",
+      properties: { taskRunId: { type: "string", pattern: "^[a-f0-9]{32}$" } },
+      required: ["taskRunId"],
+    }),
     taskEnvelope("canvas-archive", {
       type: "object",
       properties: { taskRunId: { type: "string", pattern: "^[a-f0-9]{32}$" } },
@@ -540,6 +569,27 @@ const openapi = {
           },
           "404": { description: "task not found" },
         },
+      },
+    },
+    "/tasks/cancel-by-owner": {
+      post: {
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  owner_service: { type: "string" },
+                  owner_ref: { type: "string" },
+                  type: { type: "string" },
+                },
+                required: ["owner_service", "owner_ref", "type"],
+              },
+            },
+          },
+        },
+        responses: { "200": jsonResponse("task snapshot after cancellation by owner", taskSchema) },
       },
     },
     "/tasks/{id}/cancel": {

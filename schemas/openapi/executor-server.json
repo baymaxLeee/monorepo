@@ -28,6 +28,110 @@
                     "type": "object",
                     "properties": {
                       "type": {
+                        "const": "canvas-storyboard"
+                      },
+                      "owner_service": {
+                        "type": "string",
+                        "description": "calling service, e.g. chat"
+                      },
+                      "owner_ref": {
+                        "type": "string",
+                        "description": "idempotency key scoped to owner_service"
+                      },
+                      "payload": {
+                        "type": "object",
+                        "properties": {
+                          "tenantId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "workspaceId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "providerId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "plot": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 50000
+                          },
+                          "durationMin": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "durationMax": {
+                            "type": "integer",
+                            "maximum": 300
+                          },
+                          "totalDurationMin": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "totalDurationMax": {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        },
+                        "required": [
+                          "tenantId",
+                          "workspaceId",
+                          "providerId",
+                          "plot",
+                          "durationMin",
+                          "durationMax",
+                          "totalDurationMin",
+                          "totalDurationMax"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "owner_service",
+                      "owner_ref",
+                      "payload"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "const": "canvas-video-frames"
+                      },
+                      "owner_service": {
+                        "type": "string",
+                        "description": "calling service, e.g. chat"
+                      },
+                      "owner_ref": {
+                        "type": "string",
+                        "description": "idempotency key scoped to owner_service"
+                      },
+                      "payload": {
+                        "type": "object",
+                        "properties": {
+                          "taskRunId": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{32}$"
+                          }
+                        },
+                        "required": [
+                          "taskRunId"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "owner_service",
+                      "owner_ref",
+                      "payload"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
                         "const": "canvas-archive"
                       },
                       "owner_service": {
@@ -437,6 +541,119 @@
           },
           "404": {
             "description": "task not found"
+          }
+        }
+      }
+    },
+    "/tasks/cancel-by-owner": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner_service": {
+                    "type": "string"
+                  },
+                  "owner_ref": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "owner_service",
+                  "owner_ref",
+                  "type"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "task snapshot after cancellation by owner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "completed",
+                        "failed",
+                        "cancelled"
+                      ]
+                    },
+                    "ownerService": {
+                      "type": "string"
+                    },
+                    "ownerRef": {
+                      "type": "string"
+                    },
+                    "result": {},
+                    "progress": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "done": {
+                          "type": "integer"
+                        },
+                        "total": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "done",
+                        "total"
+                      ]
+                    },
+                    "error": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "finishedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "status",
+                    "ownerService",
+                    "ownerRef",
+                    "result",
+                    "progress",
+                    "error",
+                    "createdAt",
+                    "updatedAt",
+                    "finishedAt"
+                  ]
+                }
+              }
+            }
           }
         }
       }
@@ -994,6 +1211,9 @@
           "prompt": {
             "type": "string"
           },
+          "watermark": {
+            "type": "boolean"
+          },
           "objectScope": {
             "type": "string",
             "pattern": "^[a-f0-9]{64}$"
@@ -1118,6 +1338,110 @@
       },
       "CreateTaskInput": {
         "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "const": "canvas-storyboard"
+              },
+              "owner_service": {
+                "type": "string",
+                "description": "calling service, e.g. chat"
+              },
+              "owner_ref": {
+                "type": "string",
+                "description": "idempotency key scoped to owner_service"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "tenantId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "providerId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "plot": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  },
+                  "durationMin": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "durationMax": {
+                    "type": "integer",
+                    "maximum": 300
+                  },
+                  "totalDurationMin": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "totalDurationMax": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "tenantId",
+                  "workspaceId",
+                  "providerId",
+                  "plot",
+                  "durationMin",
+                  "durationMax",
+                  "totalDurationMin",
+                  "totalDurationMax"
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "owner_service",
+              "owner_ref",
+              "payload"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "const": "canvas-video-frames"
+              },
+              "owner_service": {
+                "type": "string",
+                "description": "calling service, e.g. chat"
+              },
+              "owner_ref": {
+                "type": "string",
+                "description": "idempotency key scoped to owner_service"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "taskRunId": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{32}$"
+                  }
+                },
+                "required": [
+                  "taskRunId"
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "owner_service",
+              "owner_ref",
+              "payload"
+            ]
+          },
           {
             "type": "object",
             "properties": {

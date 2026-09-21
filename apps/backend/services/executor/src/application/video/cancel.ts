@@ -36,7 +36,7 @@ export async function cancelVideoGeneration(
     );
   }
   if (taskIds.length > 0) {
-    const provider = await getProvider(input.providerId, input.tenantId, input.workspaceId);
+    const provider = await getProvider(input.providerId, input.tenantId, input.workspaceId, true);
     cleanup.push(
       ...taskIds.map((taskId) =>
         deleteArkVideoTask({
@@ -49,12 +49,10 @@ export async function cancelVideoGeneration(
     );
   }
   const results = await Promise.allSettled(cleanup);
-  for (const [index, result] of results.entries()) {
-    if (result.status === "rejected") {
-      console.error("[executor] video cancellation cleanup failed", {
-        operation: index,
-        error: result.reason,
-      });
-    }
-  }
+  const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+  if (failures.length)
+    throw new AggregateError(
+      failures.map((result) => result.reason),
+      "Video cancellation cleanup is incomplete",
+    );
 }

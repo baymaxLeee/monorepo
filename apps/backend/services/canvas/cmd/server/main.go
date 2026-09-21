@@ -41,6 +41,7 @@ func run() error {
 	service := &application.Service{Storage: &storage.Client{URL: bootstrap.Env("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"), Token: cfg.InternalToken}, DB: db, Executor: &executor.Client{URL: bootstrap.Env("EXECUTOR_SERVICE_URL", "http://localhost:8011"), Token: cfg.InternalToken}}
 	go service.RunGenerations(ctx)
 	go service.RunArchives(ctx)
+	go service.RunVideoFrames(ctx)
 	server := &http.Server{Addr: ":" + cfg.Port, Handler: api.Router(service, cfg.InternalToken), ReadHeaderTimeout: 10 * time.Second}
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()

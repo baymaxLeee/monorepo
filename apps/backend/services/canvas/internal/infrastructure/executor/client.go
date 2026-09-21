@@ -116,3 +116,16 @@ func (c *Client) Watch(ctx context.Context, id, owner string) (Task, error) {
 	}
 	return Task{}, io.ErrUnexpectedEOF
 }
+
+func (c *Client) CancelByOwner(ctx context.Context, owner, taskType string) (Task, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	res, err := c.request(ctx, "POST", "/tasks/cancel-by-owner", map[string]string{"owner_service": "canvas", "owner_ref": owner, "type": taskType})
+	if err != nil {
+		return Task{}, err
+	}
+	defer res.Body.Close()
+	var task Task
+	err = json.NewDecoder(res.Body).Decode(&task)
+	return task, err
+}

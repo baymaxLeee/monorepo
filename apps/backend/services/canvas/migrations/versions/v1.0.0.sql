@@ -183,3 +183,16 @@ CREATE TABLE canvas_workflow_tasks (
  updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX canvas_workflow_tasks_pending ON canvas_workflow_tasks (created_at) WHERE NOT settled;
+
+CREATE TABLE canvas_video_frames (
+ id varchar(32) PRIMARY KEY,
+ generation_id varchar(32) NOT NULL UNIQUE,
+ task_id varchar(32) NOT NULL DEFAULT '',
+ status varchar(20) NOT NULL DEFAULT 'queued',
+ cancel_requested boolean NOT NULL DEFAULT false,
+ first_key varchar(64) NOT NULL DEFAULT '', last_key varchar(64) NOT NULL DEFAULT '',
+ first_size bigint NOT NULL DEFAULT 0, last_size bigint NOT NULL DEFAULT 0,
+ first_asset_id varchar(32) NOT NULL DEFAULT '', last_asset_id varchar(32) NOT NULL DEFAULT '',
+ created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX canvas_video_frames_active ON canvas_video_frames(status) WHERE status IN ('queued','running');

@@ -252,11 +252,13 @@ class ModelProviderService:
             raise NotFoundError(f"no enabled {kind} provider for workspace {workspace_id}")
         return to_internal_schema(row)
 
-    async def get_internal(self, provider_id: str, workspace_id: str, tenant_id: str) -> InternalModelProvider:
+    async def get_internal(
+        self, provider_id: str, workspace_id: str, tenant_id: str, *, allow_disabled: bool = False
+    ) -> InternalModelProvider:
         row = await provider_crud.get_provider(self._session, provider_id, workspace_id, tenant_id)
         if row is None:
             raise NotFoundError(f"model provider {provider_id} not found")
-        if not row.is_enabled:
+        if not row.is_enabled and not allow_disabled:
             raise ConflictError(f"model provider {provider_id} is disabled")
         return to_internal_schema(row)
 

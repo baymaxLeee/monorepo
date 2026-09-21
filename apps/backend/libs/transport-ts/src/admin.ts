@@ -16,8 +16,10 @@ export interface AdminClientOptions {
 
 export class AdminInternalClient {
   private readonly client: InternalOpenApiClient<paths>;
+  private readonly callerService: string;
 
   constructor(options: AdminClientOptions) {
+    this.callerService = options.callerService;
     this.client = createInternalOpenApiClient<paths>({ ...options, service: "admin" });
   }
 
@@ -38,6 +40,18 @@ export class AdminInternalClient {
     if (data) {
       return data;
     }
+    throw toTransportError(response, error);
+  }
+
+  async getTaskProvider(providerId: string, tenantId: string, workspaceId: string): Promise<AdminProviderSnapshot> {
+    const { data, error, response } = await this.client.GET("/internal/providers/{provider_id}/task-credentials", {
+      params: {
+        path: { provider_id: providerId },
+        query: { tenant_id: tenantId, workspace_id: workspaceId },
+        header: { "X-Caller-Service": this.callerService },
+      },
+    });
+    if (data) return data;
     throw toTransportError(response, error);
   }
 

@@ -127,6 +127,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/benefit-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Packages */
+        get: operations["listBenefitPackages"];
+        put?: never;
+        /** Create Package */
+        post: operations["createBenefitPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/benefit-packages/{package_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Package */
+        delete: operations["deleteBenefitPackage"];
+        options?: never;
+        head?: never;
+        /** Update Package */
+        patch: operations["updateBenefitPackage"];
+        trace?: never;
+    };
+    "/internal/canvas/benefit-packages/{package_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Benefit Package Internal */
+        get: operations["get_benefit_package_internal_internal_canvas_benefit_packages__package_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/canvas/settings": {
         parameters: {
             query?: never;
@@ -474,6 +527,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Provider Catalog Internal */
+        get: operations["list_provider_catalog_internal_internal_providers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/providers/default": {
         parameters: {
             query?: never;
@@ -523,6 +593,23 @@ export interface paths {
         };
         /** Get Provider Internal */
         get: operations["get_provider_internal_internal_providers__provider_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/providers/{provider_id}/task-credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Task Provider Internal */
+        get: operations["get_task_provider_internal_internal_providers__provider_id__task_credentials_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -627,6 +714,37 @@ export interface components {
         AttachSkillInput: {
             /** Skill Id */
             skill_id: string;
+        };
+        /** BenefitPackage */
+        BenefitPackage: {
+            /** Id */
+            id: string;
+            /** Is Preset */
+            is_preset: boolean;
+            /** Name */
+            name: string;
+            /** Project Name */
+            project_name: string;
+            /** Has Access Key Id */
+            has_access_key_id: boolean;
+            /** Has Secret Access Key */
+            has_secret_access_key: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Model Ids */
+            model_ids: string[];
+            /** Material Used */
+            material_used: number;
+            /** Revision */
+            revision: number;
+            /** Created By */
+            created_by: string;
+            /** Updated By */
+            updated_by: string;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
         };
         /** Bot */
         Bot: {
@@ -759,6 +877,35 @@ export interface components {
              */
             sort_order: number;
         };
+        /** CreateBenefitPackageInput */
+        CreateBenefitPackageInput: {
+            /**
+             * Is Preset
+             * @default false
+             */
+            is_preset: boolean;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Project Name
+             * @default default
+             */
+            project_name: string;
+            /** Access Key Id */
+            access_key_id: string;
+            /** Secret Access Key */
+            secret_access_key: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Model Ids */
+            model_ids?: string[];
+        };
         /** CreateBotInput */
         CreateBotInput: {
             /** Name */
@@ -843,6 +990,23 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** InternalBenefitPackage */
+        InternalBenefitPackage: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Project Name */
+            project_name: string;
+            /** Access Key Id */
+            access_key_id: string;
+            /** Secret Access Key */
+            secret_access_key: string;
+            /** Is Preset */
+            is_preset: boolean;
+            /** Model Ids */
+            model_ids: string[];
         };
         /**
          * InternalModelProvider
@@ -960,6 +1124,25 @@ export interface components {
             base_etag: string;
             /** Parent Id */
             parent_id?: string | null;
+        };
+        /** ProviderCatalogItem */
+        ProviderCatalogItem: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Model */
+            model: string;
+            /**
+             * Provider Kind
+             * @enum {string}
+             */
+            provider_kind: "chat" | "image" | "video" | "embedding" | "rerank";
+            pricing: components["schemas"]["ProviderPricing"] | null;
+            /** Is Default */
+            is_default: boolean;
+            /** Is Enabled */
+            is_enabled: boolean;
         };
         /** ProviderPricing */
         ProviderPricing: {
@@ -1196,6 +1379,23 @@ export interface components {
             is_enabled?: boolean | null;
             /** Sort Order */
             sort_order?: number | null;
+        };
+        /** UpdateBenefitPackageInput */
+        UpdateBenefitPackageInput: {
+            /** Expected Revision */
+            expected_revision: number;
+            /** Name */
+            name?: string | null;
+            /** Project Name */
+            project_name?: string | null;
+            /** Access Key Id */
+            access_key_id?: string | null;
+            /** Secret Access Key */
+            secret_access_key?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Model Ids */
+            model_ids?: string[] | null;
         };
         /**
          * UpdateBotInput
@@ -1674,6 +1874,205 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SkillSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listBenefitPackages: {
+        parameters: {
+            query?: {
+                available_only?: boolean;
+            };
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenefitPackage"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createBenefitPackage: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBenefitPackageInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenefitPackage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteBenefitPackage: {
+        parameters: {
+            query: {
+                expected_revision: number;
+            };
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateBenefitPackage: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBenefitPackageInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenefitPackage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_benefit_package_internal_internal_canvas_benefit_packages__package_id__get: {
+        parameters: {
+            query: {
+                workspace_id: string;
+                tenant_id: string;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalBenefitPackage"];
                 };
             };
             /** @description Validation Error */
@@ -2780,6 +3179,43 @@ export interface operations {
             };
         };
     };
+    list_provider_catalog_internal_internal_providers_get: {
+        parameters: {
+            query: {
+                /** @description Team that owns the provider */
+                workspace_id: string;
+                /** @description Tenant that owns the provider */
+                tenant_id: string;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderCatalogItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_default_provider_internal_internal_providers_default_get: {
         parameters: {
             query: {
@@ -2867,6 +3303,43 @@ export interface operations {
             header?: {
                 "X-Internal-Token"?: string | null;
                 "X-Caller-Service"?: string | null;
+            };
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalModelProvider"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_task_provider_internal_internal_providers__provider_id__task_credentials_get: {
+        parameters: {
+            query: {
+                workspace_id: string;
+                tenant_id: string;
+            };
+            header: {
+                "X-Caller-Service": string;
+                "X-Internal-Token"?: string | null;
             };
             path: {
                 provider_id: string;

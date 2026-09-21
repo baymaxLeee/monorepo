@@ -9,7 +9,10 @@ import (
 
 func releaseGenerationOwners(tx *gorm.DB, nodeIDs *gorm.DB) error {
 	generations := tx.Model(&p.Generation{}).Select("id").Where("node_id IN (?)", nodeIDs)
-	if err := tx.Where("owner_type = ? AND owner_key IN (?)", "CANVAS_GENERATION_OUTPUT", generations).Delete(&p.AssetReference{}).Error; err != nil {
+	if err := tx.Where("owner_type IN ? AND owner_key IN (?)", []string{"CANVAS_GENERATION_OUTPUT", "VIDEO_GENERATION_FIRST_FRAME", "VIDEO_GENERATION_LAST_FRAME"}, generations).Delete(&p.AssetReference{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Model(&p.VideoFrames{}).Where("generation_id IN (?) AND status IN ?", generations, []string{"queued", "running"}).Update("cancel_requested", true).Error; err != nil {
 		return err
 	}
 	return tx.Model(&p.Generation{}).Where("node_id IN (?) AND status IN ?", nodeIDs, []string{"queued", "running"}).Update("cancel_requested", true).Error

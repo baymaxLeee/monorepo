@@ -58,6 +58,33 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** @constant */
+                        type: "canvas-storyboard";
+                        /** @description calling service, e.g. chat */
+                        owner_service: string;
+                        /** @description idempotency key scoped to owner_service */
+                        owner_ref: string;
+                        payload: {
+                            tenantId: string;
+                            workspaceId: string;
+                            providerId: string;
+                            plot: string;
+                            durationMin: number;
+                            durationMax: number;
+                            totalDurationMin: number;
+                            totalDurationMax: number;
+                        };
+                    } | {
+                        /** @constant */
+                        type: "canvas-video-frames";
+                        /** @description calling service, e.g. chat */
+                        owner_service: string;
+                        /** @description idempotency key scoped to owner_service */
+                        owner_ref: string;
+                        payload: {
+                            taskRunId: string;
+                        };
+                    } | {
+                        /** @constant */
                         type: "canvas-archive";
                         /** @description calling service, e.g. chat */
                         owner_service: string;
@@ -261,6 +288,68 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/cancel-by-owner": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        owner_service: string;
+                        owner_ref: string;
+                        type: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description task snapshot after cancellation by owner */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            type: string;
+                            /** @enum {string} */
+                            status: "queued" | "running" | "completed" | "failed" | "cancelled";
+                            ownerService: string;
+                            ownerRef: string;
+                            result: unknown;
+                            progress: {
+                                done: number;
+                                total: number;
+                            } | null;
+                            error: string | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                            /** Format: date-time */
+                            finishedAt: string | null;
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -518,6 +607,7 @@ export interface components {
             workspaceId: string;
             providerId: string;
             prompt: string;
+            watermark?: boolean;
             objectScope: string;
             references: string[];
             aspectRatio?: string;
@@ -548,6 +638,33 @@ export interface components {
             production: components["schemas"]["VideoProductionProjection"] | null;
         };
         CreateTaskInput: {
+            /** @constant */
+            type: "canvas-storyboard";
+            /** @description calling service, e.g. chat */
+            owner_service: string;
+            /** @description idempotency key scoped to owner_service */
+            owner_ref: string;
+            payload: {
+                tenantId: string;
+                workspaceId: string;
+                providerId: string;
+                plot: string;
+                durationMin: number;
+                durationMax: number;
+                totalDurationMin: number;
+                totalDurationMax: number;
+            };
+        } | {
+            /** @constant */
+            type: "canvas-video-frames";
+            /** @description calling service, e.g. chat */
+            owner_service: string;
+            /** @description idempotency key scoped to owner_service */
+            owner_ref: string;
+            payload: {
+                taskRunId: string;
+            };
+        } | {
             /** @constant */
             type: "canvas-archive";
             /** @description calling service, e.g. chat */

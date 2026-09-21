@@ -259,6 +259,13 @@ func OpenAPI() map[string]any {
 	var schema func(reflect.Type) map[string]any
 	schema = func(t reflect.Type) map[string]any {
 		switch t.Kind() {
+		case reflect.Pointer:
+			value := schema(t.Elem())
+			if _, reference := value["$ref"]; reference {
+				return map[string]any{"allOf": []any{value}, "nullable": true}
+			}
+			value["nullable"] = true
+			return value
 		case reflect.String:
 			return map[string]any{"type": "string"}
 		case reflect.Bool:

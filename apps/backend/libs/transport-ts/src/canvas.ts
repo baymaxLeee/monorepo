@@ -25,6 +25,14 @@ export class CanvasInternalClient {
       service: "canvas",
     });
   }
+  async executeFrames(taskRunId: string, signal?: AbortSignal) {
+    const { data, error, response } = await this.client.POST("/worker/frames/{taskRunId}/execute", {
+      params: { path: { taskRunId } },
+      signal,
+    });
+    if (data) return data;
+    throw new TransportError("canvas", response.status, `Canvas frame extraction failed (${response.status})`, error);
+  }
   async executeArchive(archiveId: string, signal?: AbortSignal) {
     const { data, error, response } = await this.client.POST("/worker/archives/{archiveId}/execute", {
       params: { path: { archiveId } },

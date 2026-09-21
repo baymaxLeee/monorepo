@@ -86,30 +86,11 @@ func (s *Service) runArchive(ctx context.Context, row workflowTask) error {
 		}
 	}
 	if !executor.Terminal(t.Status) {
-		taskID := t.ID
-		watchCtx, cancel := context.WithCancel(ctx)
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			ticker := time.NewTicker(time.Second)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-watchCtx.Done():
-					return
-				case <-ticker.C:
-					var current workflowTask
-					if e := s.DB.WithContext(watchCtx).First(&current, "task_run_id = ?", row.TaskRunID).Error; e == nil && current.CancelRequested {
-						if _, e = s.Executor.Cancel(watchCtx, taskID, row.TaskRunID); e == nil {
-							return
-						}
-					}
-				}
-			}
-		}()
-		t, err = s.Executor.Watch(watchCtx, taskID, row.TaskRunID)
-		cancel()
-		<-done
+		t, err = s.Executor.WatchWithCancellation(ctx, t.ID, row.TaskRunID, func(checkCtx context.Context) (bool, error) {
+			var current workflowTask
+			err := s.DB.WithContext(checkCtx).Select("cancel_requested").First(&current, "task_run_id = ?", row.TaskRunID).Error
+			return current.CancelRequested, err
+		})
 		if err != nil {
 			return err
 		}

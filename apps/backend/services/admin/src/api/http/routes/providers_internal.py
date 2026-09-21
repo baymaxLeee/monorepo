@@ -10,7 +10,8 @@ from typing import Annotated
 
 from application.contracts.provider import InternalModelProvider
 from application.providers import ModelProviderService
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Header, Query
+from kernel.errors import ForbiddenError
 
 from api.http.dependencies import AuthContext, DbSession, InternalCaller
 
@@ -64,3 +65,19 @@ async def get_provider_internal(
     _caller: InternalCaller,
 ) -> InternalModelProvider:
     return await _service(session, workspace_id, tenant_id).get_internal(provider_id, workspace_id, tenant_id)
+
+
+@router.get("/{provider_id}/task-credentials", response_model=InternalModelProvider)
+async def get_task_provider_internal(
+    provider_id: str,
+    workspace_id: Annotated[str, Query(min_length=1)],
+    tenant_id: Annotated[str, Query(min_length=1)],
+    caller: Annotated[str, Header(alias="X-Caller-Service")],
+    session: DbSession,
+    _caller: InternalCaller,
+) -> InternalModelProvider:
+    if caller != "executor":
+        raise ForbiddenError("Only Executor may resolve credentials for existing tasks")
+    return await _service(session, workspace_id, tenant_id).get_internal(
+        provider_id, workspace_id, tenant_id, allow_disabled=True
+    )

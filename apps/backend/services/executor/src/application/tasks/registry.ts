@@ -1,5 +1,7 @@
 import { canvasArchiveInputSchema, canvasArchiveWorkflow } from "../../../workflows/canvas-archive.js";
 import { canvasImageInputSchema, canvasImageWorkflow } from "../../../workflows/canvas-image-generation.js";
+import { canvasStoryboardInputSchema, canvasStoryboardWorkflow } from "../../../workflows/canvas-storyboard.js";
+import { canvasFramesInputSchema, canvasFramesWorkflow } from "../../../workflows/canvas-video-frames.js";
 import { canvasVideoInputSchema, canvasVideoWorkflow } from "../../../workflows/canvas-video-generation.js";
 import { fileTaskBatchInputSchema, fileTaskBatchWorkflow } from "../../../workflows/file-task-batch.js";
 import { textGenerationInputSchema, textGenerationWorkflow } from "../../../workflows/text-generation.js";
@@ -50,3 +52,11 @@ registerTaskType({
 });
 
 registerTaskType({ name: "canvas-archive", inputSchema: canvasArchiveInputSchema, workflow: canvasArchiveWorkflow });
+
+registerTaskType({
+  name: "canvas-storyboard",
+  inputSchema: canvasStoryboardInputSchema,
+  workflow: canvasStoryboardWorkflow,
+});
+
+registerTaskType({ name: "canvas-video-frames", inputSchema: canvasFramesInputSchema, workflow: canvasFramesWorkflow });

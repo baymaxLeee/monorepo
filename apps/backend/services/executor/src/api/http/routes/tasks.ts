@@ -6,6 +6,8 @@ import { z } from "zod";
 
 import { canvasArchiveInputSchema } from "../../../../workflows/canvas-archive.js";
 import { canvasImageInputSchema } from "../../../../workflows/canvas-image-generation.js";
+import { canvasStoryboardInputSchema } from "../../../../workflows/canvas-storyboard.js";
+import { canvasFramesInputSchema } from "../../../../workflows/canvas-video-frames.js";
 import { canvasVideoInputSchema } from "../../../../workflows/canvas-video-generation.js";
 import { fileTaskBatchInputSchema } from "../../../../workflows/file-task-batch.js";
 import { textGenerationInputSchema } from "../../../../workflows/text-generation.js";
@@ -13,6 +15,7 @@ import { videoGenerationInputSchema } from "../../../../workflows/video-generati
 import { RequestError } from "../../../application/errors.js";
 import {
   cancelTask,
+  cancelTaskByOwner,
   createTask,
   getTask,
   getTaskWatchSource,
@@ -43,6 +46,8 @@ const createTaskEnvelope = {
 };
 
 const createTaskSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("canvas-storyboard"), payload: canvasStoryboardInputSchema, ...createTaskEnvelope }),
+  z.object({ type: z.literal("canvas-video-frames"), payload: canvasFramesInputSchema, ...createTaskEnvelope }),
   z.object({ type: z.literal("canvas-archive"), payload: canvasArchiveInputSchema, ...createTaskEnvelope }),
   z.object({ type: z.literal("canvas-video-generation"), payload: canvasVideoInputSchema, ...createTaskEnvelope }),
   z.object({ type: z.literal("canvas-image-generation"), payload: canvasImageInputSchema, ...createTaskEnvelope }),
@@ -76,7 +81,13 @@ tasksRoutes.post("/", zValidator("json", createTaskSchema), async (c) => {
     throw new RequestError("owner_service must match X-Caller-Service");
   }
   if (
-    ["canvas-archive", "canvas-image-generation", "canvas-video-generation"].includes(body.type) &&
+    [
+      "canvas-video-frames",
+      "canvas-storyboard",
+      "canvas-archive",
+      "canvas-image-generation",
+      "canvas-video-generation",
+    ].includes(body.type) &&
     caller !== "canvas"
   )
     throw new RequestError("Canvas tasks require the Canvas caller");
@@ -88,6 +99,17 @@ tasksRoutes.post("/", zValidator("json", createTaskSchema), async (c) => {
   });
   return c.json(task, 201);
 });
+
+tasksRoutes.post(
+  "/cancel-by-owner",
+  zValidator("json", z.object({ ...createTaskEnvelope, type: z.string().min(1).max(64) })),
+  async (c) => {
+    const caller = requireCallerService(c);
+    const body = c.req.valid("json");
+    if (body.owner_service !== caller) throw new RequestError("owner_service must match X-Caller-Service");
+    return c.json(await cancelTaskByOwner(caller, body.owner_ref, body.type));
+  },
+);
 
 tasksRoutes.get("/:id/stream", async (c) => {
   const id = c.req.param("id");

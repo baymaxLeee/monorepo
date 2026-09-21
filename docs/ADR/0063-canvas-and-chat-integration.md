@@ -100,3 +100,12 @@ HTTP 返回丢失不表示 Go 未执行。允许重试的处理必须按 TaskRun
 验证：bare sync/lint/build、独立 Executor Nitro build 通过；初始 SQL 在隔离事务中执行并回滚。HTTP 验证覆盖导出空输入、跨租户拒绝、worker caller 鉴权，以及真实 Workflow → Go 404 的持久失败收敛；批量提交覆盖视频筛选、跳过未就绪节点、operation 重放和取消。Knowledge 验证 chunked 上传、摘要、大小和原字节读取。没有本地成功生成的视频，所以完整 ZIP 下载与执行中取消仍未验收；不以失败路径代替成功路径。资产物理 GC、导出快照 owner 的统一回收和其余源业务装配仍在整体迁移范围内。
 
 画布新增按节点批量读取最新任务状态的轻量投影，一次查询返回状态及取消意图，不携带历史文本或媒体字节。页面级 Jotai 存储投影，节点按 ID 订阅；终态变化刷新正式图，未选中节点也能看到生成进度和停止入口。
+
+
+## Worker 接入与恢复边界
+
+视频生成成功在同一事务写入首尾帧 outbox。`canvas-video-frames` Workflow 调用 Go 内部执行接口，复用原 `worker/application/firstlastframe` 的 FFmpeg、checkpoint 和执行控制协议；成功事务建立 `VIDEO_GENERATION_FIRST_FRAME` / `VIDEO_GENERATION_LAST_FRAME` owner。导出输入快照不再新增资产 owner，内容所有权仍由原生成历史持有。物理对象 GC 尚未接入。
+
+Executor 在任何业务 step 前原子绑定任务与 Workflow，终态不得重新变为 running。按 owner 取消允许先写取消记录，关闭 Canvas 尚未保存远端 TaskID 的取消窗口。`cleanup_pending` 由 Executor v1.4.0 migration 引入；取消、失败及迟到的 Provider task ID 都保留可重试清理意图，服务启动及后台恢复继续清理。Canvas watch 从数据库读取取消意图，并检查节点／资源父级存活。任务已经存在时，Executor 使用 Admin 受内部鉴权保护的 task-credentials 接口读取停用 Provider 的凭据；新任务仍要求 Provider 启用，不新增私有配置副本。
+
+验证：真实本地 Workflow → Go FFmpeg → Knowledge 完成首尾帧 JPEG；执行重放后仍恰有两个输出 owner。先取消 owner 后提交任务返回同一取消记录，没有启动 Workflow。OpenAPI 全链生成、Canvas Go vet 和 Executor 构建已验证；真实付费 Provider 成功生成尚未验证。Provider 已接受请求但返回 task ID 前连接丢失仍需要 Provider 幂等支持，不能安全自动重试；Provider 凭据删除或失效也可能使清理持续失败。没有承诺上述情形下的恰好一次外部执行。
