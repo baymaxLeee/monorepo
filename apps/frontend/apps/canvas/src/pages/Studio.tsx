@@ -218,11 +218,12 @@ function Studio({ canvasId, projectId }: { canvasId: string; projectId: string }
                       onSave={(node) => mutate([node])}
                       onDelete={() => setDeletion({ nodes: [active.id], edges: [] })}
                     />
-                    {active.type === 7 ? (
+                    {active.type === 7 || active.type === 5 ? (
                       <NodeGeneration
                         key={`generation:${active.id}`}
                         canvasId={canvasId}
                         nodeId={active.id}
+                        type={active.type}
                         beforeStart={async () => {
                           await editor.current?.finish();
                         }}

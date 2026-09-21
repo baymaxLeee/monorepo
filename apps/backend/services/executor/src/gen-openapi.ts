@@ -173,8 +173,20 @@ const textGenerationPayloadSchema = {
   required: ["tenantId", "workspaceId", "providerId", "prompt"],
 };
 
+const canvasImagePayloadSchema = {
+  type: "object",
+  properties: {
+    ...textGenerationPayloadSchema.properties,
+    objectScope: { type: "string", pattern: "^[a-f0-9]{64}$" },
+    references: { type: "array", items: { type: "string" } },
+    aspectRatio: { type: "string" },
+    size: { type: "string" },
+  },
+  required: [...textGenerationPayloadSchema.required, "objectScope", "references"],
+};
 const createTaskInputSchema = {
   oneOf: [
+    taskEnvelope("canvas-image-generation", ref("CanvasImagePayload")),
     taskEnvelope("text-generation", ref("TextGenerationPayload")),
     taskEnvelope("file-task-batch", ref("FileTaskBatchPayload")),
     taskEnvelope("video-generation", ref("VideoGenerationTaskPayload")),
@@ -545,6 +557,7 @@ const openapi = {
   components: {
     schemas: {
       TextGenerationPayload: textGenerationPayloadSchema,
+      CanvasImagePayload: canvasImagePayloadSchema,
       Task: taskSchema,
       TaskWatchFrame: taskWatchFrameSchema,
       CreateTaskInput: createTaskInputSchema,

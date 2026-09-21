@@ -60,6 +60,9 @@ func (s *Service) DeleteProject(ctx context.Context, actor Actor, id string, in 
 		if project.Revision != in.ExpectedRevision {
 			return Conflict()
 		}
+		if err := releaseGenerationOwners(tx, tx.Model(&p.Node{}).Select("id").Where("canvas_id IN (SELECT id FROM canvases WHERE project_id = ?)", id)); err != nil {
+			return err
+		}
 		if err := tx.Where("owner_type = ? AND owner_key IN (SELECT id FROM canvas_nodes WHERE canvas_id IN (SELECT id FROM canvases WHERE project_id = ?))", "CANVAS_NODE_ASSET", id).Delete(&p.AssetReference{}).Error; err != nil {
 			return err
 		}
@@ -107,6 +110,9 @@ func (s *Service) DeleteBoard(ctx context.Context, actor Actor, id string, in c.
 		}
 		if board.Revision != in.ExpectedRevision {
 			return Conflict()
+		}
+		if err := releaseGenerationOwners(tx, tx.Model(&p.Node{}).Select("id").Where("canvas_id = ?", id)); err != nil {
+			return err
 		}
 		if err := tx.Where("owner_type = ? AND owner_key IN (SELECT id FROM canvas_nodes WHERE canvas_id = ?)", "CANVAS_NODE_ASSET", id).Delete(&p.AssetReference{}).Error; err != nil {
 			return err

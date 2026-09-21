@@ -1,3 +1,4 @@
+import { canvasImageInputSchema, canvasImageWorkflow } from "../../../workflows/canvas-image-generation.js";
 import { fileTaskBatchInputSchema, fileTaskBatchWorkflow } from "../../../workflows/file-task-batch.js";
 import { textGenerationInputSchema, textGenerationWorkflow } from "../../../workflows/text-generation.js";
 import { videoGenerationInputSchema, videoGenerationWorkflow } from "../../../workflows/video-generation.js";
@@ -31,3 +32,9 @@ registerTaskType({
 });
 
 registerTaskType({ name: "text-generation", inputSchema: textGenerationInputSchema, workflow: textGenerationWorkflow });
+
+registerTaskType({
+  name: "canvas-image-generation",
+  inputSchema: canvasImageInputSchema,
+  workflow: canvasImageWorkflow,
+});

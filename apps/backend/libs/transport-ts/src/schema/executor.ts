@@ -58,6 +58,14 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** @constant */
+                        type: "canvas-image-generation";
+                        /** @description calling service, e.g. chat */
+                        owner_service: string;
+                        /** @description idempotency key scoped to owner_service */
+                        owner_ref: string;
+                        payload: components["schemas"]["CanvasImagePayload"];
+                    } | {
+                        /** @constant */
                         type: "text-generation";
                         /** @description calling service, e.g. chat */
                         owner_service: string;
@@ -467,6 +475,16 @@ export interface components {
             providerId: string;
             prompt: string;
         };
+        CanvasImagePayload: {
+            tenantId: string;
+            workspaceId: string;
+            providerId: string;
+            prompt: string;
+            objectScope: string;
+            references: string[];
+            aspectRatio?: string;
+            size?: string;
+        };
         Task: {
             id: string;
             type: string;
@@ -492,6 +510,14 @@ export interface components {
             production: components["schemas"]["VideoProductionProjection"] | null;
         };
         CreateTaskInput: {
+            /** @constant */
+            type: "canvas-image-generation";
+            /** @description calling service, e.g. chat */
+            owner_service: string;
+            /** @description idempotency key scoped to owner_service */
+            owner_ref: string;
+            payload: components["schemas"]["CanvasImagePayload"];
+        } | {
             /** @constant */
             type: "text-generation";
             /** @description calling service, e.g. chat */

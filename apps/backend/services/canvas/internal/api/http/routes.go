@@ -22,6 +22,9 @@ type Route struct {
 }
 
 var Routes = []Route{
+	{"GET", "/canvases/{id}/generations/{generationId}/content", "canvasGenerationContent", nil, reflect.TypeFor[string](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
+		return s.GenerationContent(r.Context(), actor, chi.URLParam(r, "id"), chi.URLParam(r, "generationId"))
+	}},
 	{"GET", "/projects/{projectId}/resources", "canvasListResources", nil, reflect.TypeFor[c.ResourceList](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
 		return s.ListResources(r.Context(), actor, chi.URLParam(r, "projectId"))
 	}},
@@ -289,7 +292,7 @@ func OpenAPI() map[string]any {
 			params = append(params, map[string]any{"name": "name", "in": "query", "required": true, "schema": map[string]any{"type": "string"}})
 			op["requestBody"] = map[string]any{"required": true, "content": map[string]any{"application/octet-stream": map[string]any{"schema": map[string]any{"type": "string", "format": "binary"}}}}
 		}
-		if r.OperationID == "canvasNodeContent" || r.OperationID == "canvasResourceContent" {
+		if r.OperationID == "canvasGenerationContent" || r.OperationID == "canvasNodeContent" || r.OperationID == "canvasResourceContent" {
 			op["responses"].(map[string]any)["200"] = map[string]any{"description": "Media content", "content": map[string]any{"application/octet-stream": map[string]any{"schema": map[string]any{"type": "string", "format": "binary"}}}}
 		}
 		if len(params) > 0 {

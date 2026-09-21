@@ -22,6 +22,7 @@ export const {
   canvasCopyResourceToCanvas,
   canvasUploadNode,
   canvasNodeContent,
+  canvasGenerationContent,
   canvasStartGeneration,
   canvasListGenerations,
   canvasCancelGeneration,

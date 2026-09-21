@@ -149,6 +149,9 @@
           "node_id": {
             "type": "string"
           },
+          "output_asset_id": {
+            "type": "string"
+          },
           "output_text": {
             "type": "string"
           },
@@ -160,6 +163,7 @@
           "id",
           "node_id",
           "status",
+          "output_asset_id",
           "output_text",
           "error",
           "applied",
@@ -765,6 +769,57 @@
               }
             },
             "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/canvases/{id}/generations/{generationId}/content": {
+      "get": {
+        "operationId": "canvasGenerationContent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "generationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Media content"
           },
           "400": {
             "description": "Invalid input"

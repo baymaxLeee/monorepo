@@ -13,7 +13,7 @@ const contextSchema = z.object({
   runId: z.string(),
 });
 const nodeSchema = z.object({
-  asset_id: z.string().describe("Preserve the existing asset ID; empty for generation and text nodes."),
+  asset_id: z.string().describe("Preserve the existing asset ID; empty for new generation and text nodes."),
   id: z.string().min(1).max(36).describe("Existing node ID, or a new unique ID for creation."),
   type: z
     .number()
@@ -62,10 +62,10 @@ const nodeSchema = z.object({
 export function createCanvasToolManifests() {
   return [
     defineAgentTool(
-      "generate_canvas_text",
+      "generate_canvas_node",
       tool({
         description:
-          "Start durable text generation for a configured type-7 node. Read the canvas first. Returns a job immediately; use read_canvas_generations to inspect completion. The job continues independently of this conversation.",
+          "Start durable generation for a configured type-5 image or type-7 text node. Read the canvas first. Returns a job immediately; use read_canvas_generations to inspect completion. The job continues independently of this conversation.",
         inputSchema: z.object({ node_id: z.string(), expected_revision: z.number().int().positive() }),
         contextSchema,
         execute: (input, { context, toolCallId, abortSignal }) =>
@@ -78,7 +78,7 @@ export function createCanvasToolManifests() {
           ),
       }),
       { capability: "canvas", effect: "update", trust: "closed", execution: "inline", modes: ["normal"] },
-      { summary: "Generate text into a canvas node with the configured provider." },
+      { summary: "Generate an image or text into a canvas node with the configured provider." },
     ),
     defineAgentTool(
       "read_canvas_generations",

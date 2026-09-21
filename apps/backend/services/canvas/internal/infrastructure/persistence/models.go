@@ -83,6 +83,9 @@ type Generation struct {
 	Prompt          string
 	Status          string
 	TaskID          string
+	TaskType        string
+	InputPayload    string `gorm:"type:jsonb"`
+	OutputAssetID   string
 	OutputText      string
 	Error           string
 	Applied         bool

@@ -50,6 +50,7 @@ export interface CanvasGeneration {
   error: string;
   id: string;
   node_id: string;
+  output_asset_id: string;
   output_text: string;
   status: string;
 }
@@ -218,6 +219,17 @@ const canvasCancelGeneration = (
  options?: SecondParameter<typeof apiMutator<CanvasGeneration>>,) => {
       return apiMutator<CanvasGeneration>(
       {url: `/api/canvas-server/canvases/${id}/generations/${generationId}/cancel`, method: 'POST'
+    },
+      options);
+    }
+
+const canvasGenerationContent = (
+    id: string,
+    generationId: string,
+ options?: SecondParameter<typeof apiMutator<Blob>>,) => {
+      return apiMutator<Blob>(
+      {url: `/api/canvas-server/canvases/${id}/generations/${generationId}/content`, method: 'GET',
+        responseType: 'blob'
     },
       options);
     }
@@ -462,11 +474,12 @@ const canvasUploadResourceAsset = (
       options);
     }
 
-return {canvasDeleteBoard,canvasUpdateBoard,canvasApplyGeneration,canvasCancelGeneration,canvasGetGraph,canvasMutateGraph,canvasNodeContent,canvasListGenerations,canvasStartGeneration,canvasCopyResourceToCanvas,canvasUploadNode,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasListBoards,canvasCreateBoard,canvasResourceContent,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasUpdateResource,canvasListResourceAssets,canvasUploadResourceAsset}};
+return {canvasDeleteBoard,canvasUpdateBoard,canvasApplyGeneration,canvasCancelGeneration,canvasGenerationContent,canvasGetGraph,canvasMutateGraph,canvasNodeContent,canvasListGenerations,canvasStartGeneration,canvasCopyResourceToCanvas,canvasUploadNode,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasListBoards,canvasCreateBoard,canvasResourceContent,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasUpdateResource,canvasListResourceAssets,canvasUploadResourceAsset}};
 export type CanvasDeleteBoardResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasDeleteBoard']>>>
 export type CanvasUpdateBoardResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUpdateBoard']>>>
 export type CanvasApplyGenerationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasApplyGeneration']>>>
 export type CanvasCancelGenerationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCancelGeneration']>>>
+export type CanvasGenerationContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGenerationContent']>>>
 export type CanvasGetGraphResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGetGraph']>>>
 export type CanvasMutateGraphResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasMutateGraph']>>>
 export type CanvasNodeContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasNodeContent']>>>

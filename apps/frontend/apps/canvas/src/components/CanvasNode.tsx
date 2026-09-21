@@ -21,7 +21,13 @@ export function CanvasNode({ data, selected }: NodeProps<FlowNode>) {
         {node.name}
       </div>
       {node.asset_id && graph ? (
-        <MediaPreview canvasId={graph.canvas.id} nodeId={node.id} type={node.type} name={node.name} />
+        <MediaPreview
+          key={node.asset_id}
+          canvasId={graph.canvas.id}
+          nodeId={node.id}
+          type={node.type}
+          name={node.name}
+        />
       ) : (
         <div className="max-h-48 min-h-24 overflow-hidden whitespace-pre-wrap p-3 text-sm text-muted-foreground">
           {node.text || node.prompt || "选择节点以编辑内容"}

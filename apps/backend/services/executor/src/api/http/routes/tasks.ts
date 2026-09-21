@@ -4,6 +4,7 @@ import { streamSSE } from "hono/streaming";
 import { getRun } from "workflow/api";
 import { z } from "zod";
 
+import { canvasImageInputSchema } from "../../../../workflows/canvas-image-generation.js";
 import { fileTaskBatchInputSchema } from "../../../../workflows/file-task-batch.js";
 import { textGenerationInputSchema } from "../../../../workflows/text-generation.js";
 import { videoGenerationInputSchema } from "../../../../workflows/video-generation.js";
@@ -40,6 +41,7 @@ const createTaskEnvelope = {
 };
 
 const createTaskSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("canvas-image-generation"), payload: canvasImageInputSchema, ...createTaskEnvelope }),
   z.object({ type: z.literal("text-generation"), payload: textGenerationInputSchema, ...createTaskEnvelope }),
   z.object({ type: z.literal("file-task-batch"), payload: fileTaskBatchInputSchema, ...createTaskEnvelope }),
   z.object({ type: z.literal("video-generation"), payload: videoGenerationInputSchema, ...createTaskEnvelope }),
@@ -69,6 +71,8 @@ tasksRoutes.post("/", zValidator("json", createTaskSchema), async (c) => {
   if (body.owner_service !== caller) {
     throw new RequestError("owner_service must match X-Caller-Service");
   }
+  if (body.type === "canvas-image-generation" && caller !== "canvas")
+    throw new RequestError("Canvas image tasks require the Canvas caller");
   const task = await createTask({
     type: body.type,
     ownerService: body.owner_service,

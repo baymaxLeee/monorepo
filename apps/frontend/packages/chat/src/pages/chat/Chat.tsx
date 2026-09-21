@@ -365,7 +365,7 @@ export function ChatSession({
       (part) =>
         (part.type === "tool-update_canvas_nodes" ||
           part.type === "tool-delete_canvas_nodes" ||
-          part.type === "tool-generate_canvas_text" ||
+          part.type === "tool-generate_canvas_node" ||
           part.type === "tool-read_canvas_generations" ||
           part.type === "tool-cancel_canvas_generation") &&
         "state" in part &&

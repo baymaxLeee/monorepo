@@ -92,7 +92,7 @@ func (s *Service) NodeContent(ctx context.Context, a Actor, canvasID, nodeID str
 		return MediaContent{}, NotFound()
 	}
 	var asset p.Asset
-	err = db.Where("id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND EXISTS (SELECT 1 FROM asset_references WHERE asset_id = assets.id AND owner_type = 'CANVAS_NODE_ASSET' AND owner_key = ? AND deleted_at IS NULL)", node.AssetID, a.TenantID, a.WorkspaceID, board.ProjectID, nodeID).First(&asset).Error
+	err = db.Where("id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND EXISTS (SELECT 1 FROM asset_references WHERE asset_id = assets.id AND ((owner_type = 'CANVAS_NODE_ASSET' AND owner_key = ?) OR (owner_type = 'CANVAS_GENERATION_OUTPUT' AND owner_key IN (SELECT id FROM canvas_generations WHERE node_id = ? AND output_asset_id = assets.id))) AND deleted_at IS NULL)", node.AssetID, a.TenantID, a.WorkspaceID, board.ProjectID, nodeID, nodeID).First(&asset).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return MediaContent{}, NotFound()

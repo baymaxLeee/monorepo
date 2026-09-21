@@ -86,7 +86,7 @@ func validNode(n c.Node) error {
 		return Invalid("invalid position")
 	}
 	// Media nodes require the asset ownership migration before they can be created.
-	if n.Type < 1 || n.Type > 7 || (n.Type <= 3 && n.AssetID == "") || (n.Type >= 4 && n.AssetID != "") {
+	if n.Type < 1 || n.Type > 7 || (n.Type <= 3 && n.AssetID == "") || ((n.Type == 4 || n.Type == 7) && n.AssetID != "") {
 		return Invalid("media nodes require an owned asset")
 	}
 	if (n.Type == 6 && n.StoryboardRank <= 0) || (n.Type != 6 && n.StoryboardRank != 0) {
@@ -186,7 +186,7 @@ func (s *Service) Mutate(ctx context.Context, a Actor, id string, in c.Mutation)
 				}
 				n.Revision++
 			} else {
-				if n.Type <= 3 {
+				if n.Type <= 3 || n.AssetID != "" {
 					return Invalid("create media nodes through upload")
 				}
 				if n.Revision != 0 {
@@ -226,6 +226,9 @@ func (s *Service) Mutate(ctx context.Context, a Actor, id string, in c.Mutation)
 			return err
 		}
 		if len(in.DeleteIDs) > 0 {
+			if err := releaseGenerationOwners(tx, tx.Model(&p.Node{}).Select("id").Where("canvas_id = ? AND id IN ?", id, in.DeleteIDs)); err != nil {
+				return err
+			}
 			if err := tx.Where("owner_type = ? AND owner_key IN ?", "CANVAS_NODE_ASSET", in.DeleteIDs).Delete(&p.AssetReference{}).Error; err != nil {
 				return err
 			}

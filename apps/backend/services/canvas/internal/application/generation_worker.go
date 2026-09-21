@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/example/monorepo/canvas/internal/infrastructure/executor"
 	p "github.com/example/monorepo/canvas/internal/infrastructure/persistence"
 	"gorm.io/gorm"
@@ -43,7 +44,14 @@ func (s *Service) RunGenerations(ctx context.Context) {
 	}
 }
 func (s *Service) runGeneration(ctx context.Context, row p.Generation) error {
-	task, err := s.Executor.Start(ctx, row.ID, executor.TextInput{TenantID: row.TenantID, WorkspaceID: row.WorkspaceID, ProviderID: row.ProviderID, Prompt: row.Prompt})
+	if row.CancelRequested && row.TaskID == "" {
+		return s.DB.WithContext(ctx).Model(&p.Generation{}).Where("id = ? AND task_id = ''", row.ID).Update("status", "cancelled").Error
+	}
+	var input any = executor.TextInput{TenantID: row.TenantID, WorkspaceID: row.WorkspaceID, ProviderID: row.ProviderID, Prompt: row.Prompt}
+	if row.TaskType == "canvas-image-generation" {
+		input = json.RawMessage(row.InputPayload)
+	}
+	task, err := s.Executor.Start(ctx, row.ID, row.TaskType, input)
 	if err != nil {
 		return err
 	}
@@ -100,8 +108,19 @@ func (s *Service) runGeneration(ctx context.Context, row p.Generation) error {
 			if err != nil && err != gorm.ErrRecordNotFound {
 				return err
 			}
+			if err == nil && task.Result.ObjectKey != "" {
+				asset := p.Asset{ID: newID(), TenantID: row.TenantID, WorkspaceID: row.WorkspaceID, ProjectID: board.ProjectID, ObjectKey: task.Result.ObjectKey, MimeType: task.Result.MimeType}
+				if err = tx.Create(&asset).Error; err != nil {
+					return err
+				}
+				if err = tx.Create(&p.AssetReference{AssetID: asset.ID, OwnerType: "CANVAS_GENERATION_OUTPUT", OwnerKey: row.ID}).Error; err != nil {
+					return err
+				}
+				row.OutputAssetID = asset.ID
+			}
 			if err == nil && node.Revision == row.NodeRevision {
 				node.Text = row.OutputText
+				node.AssetID = row.OutputAssetID
 				node.Revision++
 				if err = tx.Save(&node).Error; err != nil {
 					return err

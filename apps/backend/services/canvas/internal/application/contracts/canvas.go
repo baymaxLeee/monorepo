@@ -102,6 +102,7 @@ type Generation struct {
 	ID              string `json:"id"`
 	NodeID          string `json:"node_id"`
 	Status          string `json:"status"`
+	OutputAssetID   string `json:"output_asset_id"`
 	OutputText      string `json:"output_text"`
 	Error           string `json:"error"`
 	Applied         bool   `json:"applied"`

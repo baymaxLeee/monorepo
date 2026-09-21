@@ -24,7 +24,9 @@ type Task struct {
 	ID     string `json:"id"`
 	Status string `json:"status"`
 	Result struct {
-		Text string `json:"text"`
+		Text      string `json:"text"`
+		ObjectKey string `json:"objectKey"`
+		MimeType  string `json:"mimeType"`
 	} `json:"result"`
 }
 
@@ -54,10 +56,10 @@ func (c *Client) request(ctx context.Context, method, path string, body any) (*h
 	}
 	return res, nil
 }
-func (c *Client) Start(ctx context.Context, owner string, input TextInput) (Task, error) {
+func (c *Client) Start(ctx context.Context, owner, taskType string, input any) (Task, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	res, err := c.request(ctx, "POST", "/tasks", map[string]any{"type": "text-generation", "owner_service": "canvas", "owner_ref": owner, "payload": input})
+	res, err := c.request(ctx, "POST", "/tasks", map[string]any{"type": taskType, "owner_service": "canvas", "owner_ref": owner, "payload": input})
 	if err != nil {
 		return Task{}, err
 	}

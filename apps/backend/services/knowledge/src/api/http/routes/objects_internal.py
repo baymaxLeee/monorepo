@@ -23,7 +23,7 @@ class StoredServiceObject(BaseModel):
 
 
 def check_scope(caller: str, scope: str) -> None:
-    if caller != "canvas":
+    if caller not in {"canvas", "executor"}:
         raise UnauthorizedError("caller does not own this object namespace")
     if not re.fullmatch(r"[a-f0-9]{64}", scope):
         raise RequestError("invalid object scope")
@@ -48,7 +48,7 @@ async def put_object(
         filename=digest,
         mime_type="application/octet-stream",
         user_id=scope,
-        prefix=f"service-objects/{caller}",
+        prefix="service-objects/canvas",
         max_bytes=limit,
     )
     return StoredServiceObject(key=digest, size=stored.size, sha256=digest)
@@ -59,5 +59,5 @@ def get_object(scope: str, key: str, caller: Annotated[str, Header(alias="X-Call
     check_scope(caller, scope)
     if not re.fullmatch(r"[a-f0-9]{64}", key):
         raise RequestError("invalid object key")
-    path = ObjectStore().get_path(bucket=get_settings().default_bucket, key=f"service-objects/{caller}/{scope}/{key}")
+    path = ObjectStore().get_path(bucket=get_settings().default_bucket, key=f"service-objects/canvas/{scope}/{key}")
     return FileResponse(path, media_type="application/octet-stream")

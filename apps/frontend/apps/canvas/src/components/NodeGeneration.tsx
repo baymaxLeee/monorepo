@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 
 import { applyGraphAtom, canvasGraphAtom } from "../store/graph";
 import { useStudioMutationCoordinator } from "../store/mutations";
+import { MediaPreview } from "./MediaPreview";
 
 const labels: Record<string, string> = {
   queued: "排队中",
@@ -22,11 +23,13 @@ const labels: Record<string, string> = {
 export function NodeGeneration({
   canvasId,
   nodeId,
+  type,
   beforeStart,
   onChange,
 }: {
   canvasId: string;
   nodeId: string;
+  type: number;
   beforeStart: () => Promise<void>;
   onChange: () => Promise<void>;
 }) {
@@ -96,7 +99,7 @@ export function NodeGeneration({
           })
         }
       >
-        {active ? "生成中…" : "生成文本"}
+        {active ? "生成中…" : type === 5 ? "生成图片" : "生成文本"}
       </Button>
       {failed ? (
         <p role="alert" className="text-sm text-destructive">
@@ -111,6 +114,9 @@ export function NodeGeneration({
             <time>{new Date(item.created_at).toLocaleString()}</time>
           </div>
           {item.error ? <p className="text-destructive">{item.error}</p> : null}
+          {item.output_asset_id ? (
+            <MediaPreview canvasId={canvasId} nodeId={nodeId} generationId={item.id} type={type} name="生成结果" />
+          ) : null}
           {item.output_text ? (
             <details>
               <summary className="cursor-pointer">查看结果{item.applied ? " · 已自动写入" : ""}</summary>

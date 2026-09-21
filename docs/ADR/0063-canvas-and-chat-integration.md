@@ -60,3 +60,7 @@ Canvas 新应用首次接入仅维护 `v1.0.0.sql` 建库版本。源结构事�
 资源库按源端 `resource` 领域规则迁入，支持角色/场景/道具/音频分类、创建编辑删除、素材上传与首个内容 revision。每个 ResourceAsset revision 通过 `RESOURCE_ASSET_REVISION / ResourceAssetID` 持有素材；独立复制到画布额外建立 `CANVAS_NODE_ASSET`。资源删除只释放资源 owner，画布独立副本继续可读。当前复制语义不是“跟随资源当前版本”；跟随绑定、换版与主素材切换仍待迁入，不以静态副本冒充。
 
 资源链路 API 验证覆盖创建、上传、列表、预览、复制以及删除资源后独立副本仍可读。源 MySQL 当前版本链截至 `3.1.0.16`，最终 schema 包含 41 张业务表；尚未迁入的表与用途需逐项对照，不以目标表数相等代替业务验收。
+
+## 图片生成
+
+Canvas 的图片任务复用 AI SDK `generateImage` 和现有 `createProviderImageModel`，API 依据本地 ai/dist/index.d.ts 的 GenerateImagePrompt（文本及图片字节输入）与官方 https://ai-sdk.dev/docs/reference/ai-sdk-core/generate-image。Executor 在单个不可自动重试的付费 step 内读取参考图、调用 Provider、上传不可变对象，仅持久化定位符。Knowledge 允许 Canvas 与 Executor 读写固定 Canvas namespace，任务入口限制 Canvas caller。生成历史以 CANVAS_GENERATION_OUTPUT 拥有资产，节点选中结果只是投影；删除节点、画布或项目释放历史 owner 并请求取消在途任务。CAS 防止后台结果覆盖更新后的节点。

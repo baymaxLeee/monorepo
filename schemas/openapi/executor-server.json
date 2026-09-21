@@ -28,6 +28,31 @@
                     "type": "object",
                     "properties": {
                       "type": {
+                        "const": "canvas-image-generation"
+                      },
+                      "owner_service": {
+                        "type": "string",
+                        "description": "calling service, e.g. chat"
+                      },
+                      "owner_ref": {
+                        "type": "string",
+                        "description": "idempotency key scoped to owner_service"
+                      },
+                      "payload": {
+                        "$ref": "#/components/schemas/CanvasImagePayload"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "owner_service",
+                      "owner_ref",
+                      "payload"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
                         "const": "text-generation"
                       },
                       "owner_service": {
@@ -800,6 +825,47 @@
           "prompt"
         ]
       },
+      "CanvasImagePayload": {
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "objectScope": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "aspectRatio": {
+            "type": "string"
+          },
+          "size": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenantId",
+          "workspaceId",
+          "providerId",
+          "prompt",
+          "objectScope",
+          "references"
+        ]
+      },
       "Task": {
         "type": "object",
         "properties": {
@@ -898,6 +964,31 @@
       },
       "CreateTaskInput": {
         "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "const": "canvas-image-generation"
+              },
+              "owner_service": {
+                "type": "string",
+                "description": "calling service, e.g. chat"
+              },
+              "owner_ref": {
+                "type": "string",
+                "description": "idempotency key scoped to owner_service"
+              },
+              "payload": {
+                "$ref": "#/components/schemas/CanvasImagePayload"
+              }
+            },
+            "required": [
+              "type",
+              "owner_service",
+              "owner_ref",
+              "payload"
+            ]
+          },
           {
             "type": "object",
             "properties": {

@@ -2,6 +2,10 @@ package application
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	imagegen "github.com/example/monorepo/canvas/internal/domain/imagegeneration"
+	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
 	"strings"
 
 	c "github.com/example/monorepo/canvas/internal/application/contracts"
@@ -14,7 +18,7 @@ import (
 )
 
 func generationDTO(v p.Generation) c.Generation {
-	return c.Generation{ID: v.ID, NodeID: v.NodeID, Status: v.Status, OutputText: v.OutputText, Error: v.Error, Applied: v.Applied, CancelRequested: v.CancelRequested, CreatedAt: isoTime(v.CreatedAt)}
+	return c.Generation{ID: v.ID, NodeID: v.NodeID, Status: v.Status, OutputText: v.OutputText, OutputAssetID: v.OutputAssetID, Error: v.Error, Applied: v.Applied, CancelRequested: v.CancelRequested, CreatedAt: isoTime(v.CreatedAt)}
 }
 func (s *Service) StartGeneration(ctx context.Context, a Actor, canvasID, nodeID string, in c.StartGeneration) (c.Generation, error) {
 	var out p.Generation
@@ -55,8 +59,8 @@ func (s *Service) StartGeneration(ctx context.Context, a Actor, canvasID, nodeID
 		if node.Revision != in.ExpectedRevision {
 			return Conflict()
 		}
-		if node.Type != 7 {
-			return Invalid("this generation endpoint requires a text generation node")
+		if node.Type != 7 && node.Type != 5 {
+			return Invalid("select an image or text generation node")
 		}
 		if node.GenerationConfig.ProviderID == "" || strings.TrimSpace(node.Prompt) == "" {
 			return Invalid("select a provider and enter a prompt")
@@ -71,7 +75,7 @@ func (s *Service) StartGeneration(ctx context.Context, a Actor, canvasID, nodeID
 		nodes := make([]domain.CanvasNode, 0, len(graph.Nodes))
 		var target domain.CanvasNode
 		for _, n := range graph.Nodes {
-			v := domain.CanvasNode{ID: n.ID, Name: n.Name, Type: domain.NodeType(n.Type), Revision: n.Revision, Text: n.Text, SelectedOutputText: n.Text, Prompt: n.Prompt}
+			v := domain.CanvasNode{ID: n.ID, AssetID: n.AssetID, SelectedAssetID: n.AssetID, Name: n.Name, Type: domain.NodeType(n.Type), Revision: n.Revision, Text: n.Text, SelectedOutputText: n.Text, Prompt: n.Prompt}
 			for _, e := range n.IncomingEdges {
 				v.IncomingEdges = append(v.IncomingEdges, domain.IncomingEdge{ID: e.ID, SourceNodeID: e.SourceNodeID, SourcePort: domain.Port(e.SourcePort), TargetPort: domain.Port(e.TargetPort), TargetOrder: e.TargetOrder})
 			}
@@ -80,12 +84,50 @@ func (s *Service) StartGeneration(ctx context.Context, a Actor, canvasID, nodeID
 				target = v
 			}
 		}
-		resolved, err := inputs.New(nil).ResolveMentions(ctx, inputs.Scope{TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, UserID: a.UserID}, board.ProjectID, target, nodes, inputs.Modalities(inputdomain.ModalityText))
+		allowed := inputs.Modalities(inputdomain.ModalityText)
+		if node.Type == 5 {
+			allowed = inputs.Modalities(inputdomain.ModalityText, inputdomain.ModalityImage)
+		}
+		resolved, err := inputs.New(nil).ResolveMentions(ctx, inputs.Scope{TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, UserID: a.UserID}, board.ProjectID, target, nodes, allowed)
 		if err != nil {
 			return Invalid(err.Error())
 		}
 		prompt := resolved.Prompt
 		out = p.Generation{ID: newID(), CanvasID: canvasID, NodeID: nodeID, TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, UserID: a.UserID, OperationID: in.OperationID, NodeRevision: node.Revision, ProviderID: node.GenerationConfig.ProviderID, Prompt: prompt, Status: "queued"}
+		out.TaskType = "text-generation"
+		out.InputPayload = "{}"
+		if node.Type == 5 {
+			references := []string{}
+			for _, input := range resolved.Inputs {
+				if input.Modality != inputdomain.ModalityImage {
+					continue
+				}
+				var asset p.Asset
+				if err := tx.Where("id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ?", input.AssetID, a.TenantID, a.WorkspaceID, board.ProjectID).First(&asset).Error; err != nil {
+					return NotFound()
+				}
+				references = append(references, asset.ObjectKey)
+			}
+			payload := map[string]any{"tenantId": a.TenantID, "workspaceId": a.WorkspaceID, "providerId": out.ProviderID, "prompt": prompt, "objectScope": storage.Scope(a.TenantID, a.WorkspaceID, board.ProjectID), "references": references}
+			if node.GenerationConfig.Resolution != "" {
+				width, height, err := imagegen.Dimensions(imagegen.Resolution(node.GenerationConfig.Resolution), imagegen.AspectRatio(node.GenerationConfig.AspectRatio))
+				if err != nil {
+					return Invalid("请选择有效的分辨率与画幅")
+				}
+				payload["size"] = fmt.Sprintf("%dx%d", width, height)
+			}
+			if node.GenerationConfig.AspectRatio != "" {
+				if !imagegen.AspectRatio(node.GenerationConfig.AspectRatio).Valid() {
+					return Invalid("画幅不受支持")
+				}
+				payload["aspectRatio"] = node.GenerationConfig.AspectRatio
+			}
+			encoded, err := json.Marshal(payload)
+			if err != nil {
+				return err
+			}
+			out.InputPayload, out.TaskType = string(encoded), "canvas-image-generation"
+		}
 		return tx.Create(&out).Error
 	})
 	return generationDTO(out), err
@@ -154,6 +196,7 @@ func (s *Service) ApplyGeneration(ctx context.Context, a Actor, canvasID, id str
 			return Conflict()
 		}
 		node.Text = row.OutputText
+		node.AssetID = row.OutputAssetID
 		node.Revision++
 		if err = tx.Save(&node).Error; err != nil {
 			return err
