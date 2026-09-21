@@ -21,7 +21,7 @@ type Route struct {
 	Handle                    func(*a.Service, a.Actor, *http.Request) (any, error)
 }
 
-var Routes = []Route{
+var Routes = append(resourceRoutes, []Route{
 	{"GET", "/canvases/{id}/generations/{generationId}/content", "canvasGenerationContent", nil, reflect.TypeFor[string](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
 		return s.GenerationContent(r.Context(), actor, chi.URLParam(r, "id"), chi.URLParam(r, "generationId"))
 	}},
@@ -155,7 +155,7 @@ var Routes = []Route{
 		}
 		return s.Mutate(r.Context(), actor, chi.URLParam(r, "id"), in)
 	}},
-}
+}...)
 
 func decode(r *http.Request, v any) error {
 	d := json.NewDecoder(r.Body)
@@ -216,7 +216,7 @@ func Router(s *a.Service, token string) http.Handler {
 					return
 				}
 				limit := int64(8 << 20)
-				if route.OperationID == "canvasUploadNode" || route.OperationID == "canvasUploadResourceAsset" {
+				if route.OperationID == "canvasReplaceResourceAsset" || route.OperationID == "canvasUploadNode" || route.OperationID == "canvasUploadResourceAsset" {
 					limit = 512 << 20
 				}
 				r.Body = http.MaxBytesReader(w, r.Body, limit)
@@ -288,11 +288,13 @@ func OpenAPI() map[string]any {
 				params = append(params, map[string]any{"name": strings.Trim(part, "{}"), "in": "path", "required": true, "schema": map[string]any{"type": "string"}})
 			}
 		}
-		if r.OperationID == "canvasUploadNode" || r.OperationID == "canvasUploadResourceAsset" {
-			params = append(params, map[string]any{"name": "name", "in": "query", "required": true, "schema": map[string]any{"type": "string"}})
+		if r.OperationID == "canvasReplaceResourceAsset" || r.OperationID == "canvasUploadNode" || r.OperationID == "canvasUploadResourceAsset" {
+			if r.OperationID != "canvasReplaceResourceAsset" {
+				params = append(params, map[string]any{"name": "name", "in": "query", "required": true, "schema": map[string]any{"type": "string"}})
+			}
 			op["requestBody"] = map[string]any{"required": true, "content": map[string]any{"application/octet-stream": map[string]any{"schema": map[string]any{"type": "string", "format": "binary"}}}}
 		}
-		if r.OperationID == "canvasGenerationContent" || r.OperationID == "canvasNodeContent" || r.OperationID == "canvasResourceContent" {
+		if r.OperationID == "canvasResourceVersionContent" || r.OperationID == "canvasGenerationContent" || r.OperationID == "canvasNodeContent" || r.OperationID == "canvasResourceContent" {
 			op["responses"].(map[string]any)["200"] = map[string]any{"description": "Media content", "content": map[string]any{"application/octet-stream": map[string]any{"schema": map[string]any{"type": "string", "format": "binary"}}}}
 		}
 		if len(params) > 0 {

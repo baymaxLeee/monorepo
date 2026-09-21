@@ -7,6 +7,7 @@ import {
 import { Button, Skeleton } from "@repo/design-system";
 import { useEffect, useRef, useState } from "react";
 
+import { ResourceAssetActions } from "./ResourceAssetActions";
 import { ResourceMedia } from "./ResourceMedia";
 
 export function ResourceAssets({
@@ -82,7 +83,13 @@ export function ResourceAssets({
       ) : (
         items.map((asset) => (
           <div className="space-y-2 rounded-lg border p-2" key={asset.id}>
-            <ResourceMedia projectId={projectId} assetId={asset.id} name={asset.name} type={asset.media_type} />
+            <ResourceMedia
+              key={`${asset.id}:${asset.revision}`}
+              projectId={projectId}
+              assetId={asset.id}
+              name={asset.name}
+              type={asset.media_type}
+            />
             <div className="flex items-center justify-between gap-2">
               <span className="truncate text-sm">{asset.name}</span>
               {onCopy ? (
@@ -101,6 +108,15 @@ export function ResourceAssets({
                 </Button>
               ) : null}
             </div>
+            <ResourceAssetActions
+              projectId={projectId}
+              resource={resource}
+              asset={asset}
+              onChange={() => {
+                setReload((v) => v + 1);
+                onChange();
+              }}
+            />
           </div>
         ))
       )}

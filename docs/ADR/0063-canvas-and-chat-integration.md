@@ -70,3 +70,9 @@ Canvas 的图片任务复用 AI SDK `generateImage` 和现有 `createProviderIma
 Canvas 独立视频节点使用 canvas-video-generation Workflow，提交时冻结参考素材、首尾帧角色及参数。复用 Executor Ark 查询/取消客户端、Provider scope 与 Knowledge 对象存储；不经过 Chat 的短剧策划和拼接流程。付费创建不重试，外部任务 ID 写入任务进度，取消执行 Provider DELETE。轮询使用 Workflow sleep（https://useworkflow.dev/docs/api-reference/workflow/sleep），不占用长期轮询 step。Ark 内容字段依据官方 SDK content_generation/create_task_content_param.py；参考素材在 step 内转为 data URL，不进入持久化步骤结果。
 
 本地通过视频提交、相同 operation 重放、真实 Executor 派发后的 Provider 缺失失败回写。独立 Nitro 构建和 full-stack 启动通过；实际付费视频、不同模型的媒体/参数限制仍待配置 Provider 后验收。
+
+## 资源版本管理
+
+ResourceAsset 的替换上传新增不可变 revision，不覆盖旧对象；切换历史仅更新 current_asset_id。资源与素材修改先锁定项目、资源，再校验乐观版本。每个历史素材保留 RESOURCE_ASSET_REVISION owner；删除素材释放其全部历史 owner，已独立复制的 Canvas 节点继续持有自己的 owner。主素材显式切换，删除主素材按 sequence_no 选择剩余首项。OpenAPI 生成前后端契约，UI 提供替换、预览历史、选版、重命名、删除确认与主素材操作。
+
+本地 HTTP 验证已覆盖换版前后与历史逐字节读取、旧版本恢复、过期 revision 返回 409、删除主素材递补、删除后历史返回 404，以及画布独立副本仍可读取。

@@ -145,3 +145,17 @@ type MaterializeResource struct {
 	NodeID          string `json:"node_id"`
 	ResourceAssetID string `json:"resource_asset_id"`
 }
+
+type ResourceVersion struct {
+	RevisionNo int64  `json:"revision_no"`
+	Current    bool   `json:"current"`
+	CreatedAt  string `json:"created_at"`
+}
+type ResourceVersionList struct {
+	Items []ResourceVersion `json:"items"`
+}
+type ResourceAssetUpdate struct {
+	ExpectedRevision int64  `json:"expected_revision"`
+	Name             string `json:"name"`
+	RevisionNo       int64  `json:"revision_no"`
+}
