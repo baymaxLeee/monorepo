@@ -5,7 +5,7 @@ from typing import Annotated
 
 from application.object_store import ObjectStore
 from bootstrap.config import get_settings
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.responses import FileResponse
 from kernel.errors import RequestError, UnauthorizedError
 from pydantic import BaseModel
@@ -49,3 +49,12 @@ def get_object(scope: str, key: str, caller: Annotated[str, Header(alias="X-Call
         raise RequestError("invalid object key")
     path = ObjectStore().get_path(bucket=get_settings().default_bucket, key=f"service-objects/canvas/{scope}/{key}")
     return FileResponse(path, media_type="application/octet-stream")
+
+
+@router.delete("/{scope}/{key}", status_code=204)
+def delete_object(scope: str, key: str, caller: Annotated[str, Header(alias="X-Caller-Service")]) -> Response:
+    check_scope(caller, scope)
+    if not re.fullmatch(r"[a-f0-9]{64}", key):
+        raise RequestError("invalid object key")
+    ObjectStore().delete(bucket=get_settings().default_bucket, key=f"service-objects/canvas/{scope}/{key}")
+    return Response(status_code=204)

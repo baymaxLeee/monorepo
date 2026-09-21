@@ -54,3 +54,11 @@ func (c *Client) Get(ctx context.Context, scope, key string) (io.ReadCloser, err
 	}
 	return res.Body, nil
 }
+
+func (c *Client) Delete(ctx context.Context, scope, key string) error {
+	res, err := c.request(ctx, http.MethodDelete, scope+"/"+key, nil)
+	if err != nil {
+		return err
+	}
+	return res.Body.Close()
+}

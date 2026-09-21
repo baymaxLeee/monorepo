@@ -46,6 +46,7 @@ func run() error {
 	service.UsageExporter = application.NewProjectUsageExporter(db)
 	go service.RunGenerations(ctx)
 	go service.RunArchives(ctx)
+	go service.RunArchiveCleanup(ctx)
 	go service.RunVideoFrames(ctx)
 	go service.RunResourceGenerations(ctx)
 	go service.RunStoryboardDrafts(ctx)

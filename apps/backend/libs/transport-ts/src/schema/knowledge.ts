@@ -477,7 +477,8 @@ export interface paths {
         get: operations["get_object_internal_objects__scope___key__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete Object */
+        delete: operations["delete_object_internal_objects__scope___key__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2240,6 +2241,39 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_object_internal_objects__scope___key__delete: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Caller-Service": string;
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                scope: string;
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
