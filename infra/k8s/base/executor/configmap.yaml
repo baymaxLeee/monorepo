@@ -22,3 +22,4 @@ data:
   FILE_TASK_CONCURRENCY: "8"
   ADMIN_SERVICE_URL: "http://admin:8001"
   KNOWLEDGE_SERVICE_URL: "http://knowledge:8010"
+  CANVAS_SERVICE_URL: "http://canvas:8012"

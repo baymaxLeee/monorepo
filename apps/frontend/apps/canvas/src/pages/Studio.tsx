@@ -7,10 +7,9 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@repo/design-system";
-import { Provider, useAtom } from "jotai";
-import { ArrowLeft, MessageSquare, PanelsTopLeft, Film, PanelLeftClose, PanelLeftOpen, RefreshCw } from "lucide-react";
+import { Provider, useAtom, useAtomValue } from "jotai";
 import { useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 
 import { CanvasBoard } from "../components/CanvasBoard";
 import { CanvasConversation } from "../components/CanvasConversation";
@@ -20,6 +19,8 @@ import { NodeGeneration } from "../components/NodeGeneration";
 import { Storyboard } from "../components/Storyboard";
 import { nodeKinds } from "../components/StudioNodePanel";
 import { StudioSidebar } from "../components/StudioSidebar";
+import { StudioToolbar } from "../components/StudioToolbar";
+import { useCanvasGenerations } from "../hooks/useCanvasGenerations";
 import { useCanvasGraph } from "../hooks/useCanvasGraph";
 import { activeNodeIdAtom, studioViewAtom, nodePanelOpenAtom, chatPanelOpenAtom } from "../store/studio";
 
@@ -35,11 +36,12 @@ export function Component() {
 }
 function Studio({ canvasId, projectId }: { canvasId: string; projectId: string }) {
   const { graph, busy, failed, refresh, mutate } = useCanvasGraph(canvasId);
+  useCanvasGenerations(canvasId, refresh);
   const [selected, setSelected] = useAtom(activeNodeIdAtom);
   const [deletion, setDeletion] = useState<CanvasSelection | null>(null);
   const editor = useRef<NodeEditorHandle>(null);
   const navigation = useRef(0);
-  const [leftOpen, setLeftOpen] = useAtom(nodePanelOpenAtom);
+  const leftOpen = useAtomValue(nodePanelOpenAtom);
   const [view, setView] = useAtom(studioViewAtom);
   async function selectNode(id: string | null) {
     const intent = ++navigation.current;
@@ -117,56 +119,21 @@ function Studio({ canvasId, projectId }: { canvasId: string; projectId: string }
       /* Preserve the authoritative order after a conflict. */
     }
   }
-  const [chatOpen, setChatOpen] = useAtom(chatPanelOpenAtom);
+  const chatOpen = useAtomValue(chatPanelOpenAtom);
   const active = graph?.nodes.find((node) => node.id === selected);
   return (
     <TooltipProvider>
       <div className="flex h-screen flex-col bg-background">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
-          <Button asChild size="icon" variant="ghost">
-            <Link to={`/platform/canvas/projects/${projectId}`} aria-label="返回项目">
-              <ArrowLeft />
-            </Link>
-          </Button>
-          <h1 className="flex-1 truncate font-medium">{graph?.canvas.name ?? "画布"}</h1>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setLeftOpen(!leftOpen)}
-            aria-label={leftOpen ? "收起节点面板" : "展开节点面板"}
-          >
-            {leftOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
-          </Button>
-          <div className="flex gap-1 rounded-lg bg-muted p-1">
-            <Button
-              size="sm"
-              variant={view === "canvas" ? "secondary" : "ghost"}
-              onClick={() => void changeView("canvas")}
-            >
-              <PanelsTopLeft className="size-4" />
-              画布
-            </Button>
-            <Button
-              size="sm"
-              variant={view === "storyboard" ? "secondary" : "ghost"}
-              onClick={() => void changeView("storyboard")}
-            >
-              <Film className="size-4" />
-              故事板
-            </Button>
-          </div>
-          <Button size="icon" variant="ghost" onClick={() => void refresh()} aria-label="刷新">
-            <RefreshCw className="size-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant={chatOpen ? "secondary" : "ghost"}
-            onClick={() => setChatOpen(!chatOpen)}
-            aria-label="对话"
-          >
-            <MessageSquare className="size-4" />
-          </Button>
-        </header>
+        <StudioToolbar
+          projectId={projectId}
+          canvasId={canvasId}
+          busy={busy}
+          beforeStart={async () => {
+            await editor.current?.finish();
+          }}
+          onRefresh={refresh}
+          onViewChange={changeView}
+        />
         <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
           <ResizablePanel id="canvas-workspace" minSize="40%">
             <div className="flex h-full min-h-0">

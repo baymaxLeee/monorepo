@@ -59,3 +59,13 @@ Canvas 状态方案已按用户确认采用 Jotai：页面 Provider、规范化�
 源端 domain/application/persistence、worker 媒体处理、普通 HTTP handler 和纯 Go DTO 已整体复制到 Canvas。去除私有 tracing 依赖并改用原生 OTel；DTO 不包含 Thrift runtime，尚需纳入 OpenAPI。旧 internal/domain 已合并到完整的 internal/server/domain，避免双份领域规则。Go build/vet 通过。
 
 下一步以原接口边界装配现有业务，实现 Knowledge/IAM/Admin/Executor ports，统一 PostgreSQL 首版 schema，再切换 HTTP/OpenAPI 和前端调用。禁止同时启动源 worker 调度器与 Executor Workflow，原 agent runner 也不启动。当前复制完成与线上能力可用分开记录，不把未挂载代码计为端到端完成。
+
+### 已挂载的原端用例
+
+- canvasarchive application/repository/task repository 进入运行链路，原 ZIP/FCPXML Builder 由 TS Workflow 经内部 HTTP 调用。首次 schema 加入任务、导出和输入快照表；outbox 只负责派发与终态投影。
+- 原批量视频提交 helper 进入 Canvas 公共 API，前端新增生成全部、批量导出、导出记录。
+- Knowledge 对象上传改为流式落盘，保留现有媒体大小配置与内容摘要接口。
+- 已验证空画布、权限拒绝、原批量筛选/跳过/幂等、Workflow 失败回写、流式存储字节；真实视频导出成功/取消验收尚缺输入。
+- 全量原项目/画布/资源 service 尚未替换早期简化实现，管理配置、额度/审核、匹配/拆分、首尾帧与 GC 等装配未完成，不能标记整体完成。
+
+- 已接通画布整体任务状态投影，批量生成时未选中节点也显示进度/停止入口；状态变化后自动刷新结果，复用 Jotai 页面 Store。

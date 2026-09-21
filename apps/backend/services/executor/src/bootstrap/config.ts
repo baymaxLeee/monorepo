@@ -13,6 +13,7 @@ export interface Settings {
   internalApiToken: string;
   adminServiceUrl: string;
   knowledgeServiceUrl: string;
+  canvasServiceUrl: string;
   ffmpegPath: string;
   fileTaskConcurrency: number;
   videoSegmentConcurrency: number;
@@ -55,6 +56,7 @@ export function getSettings(): Settings {
     postgresDatabase: envOr("POSTGRES_DATABASE", "executor"),
     internalApiToken,
     adminServiceUrl: envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
+    canvasServiceUrl: envOr("CANVAS_SERVICE_URL", "http://localhost:8012"),
     knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
     ffmpegPath: envOr("FFMPEG_PATH", "ffmpeg"),
     // Bounded above by WORKFLOW_POSTGRES_WORKER_CONCURRENCY (the WDK step pool)

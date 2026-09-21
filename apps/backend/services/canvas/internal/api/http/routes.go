@@ -12,6 +12,7 @@ import (
 
 	a "github.com/example/monorepo/canvas/internal/application"
 	c "github.com/example/monorepo/canvas/internal/application/contracts"
+	archive "github.com/example/monorepo/canvas/internal/server/application/canvasarchive"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -21,7 +22,7 @@ type Route struct {
 	Handle                    func(*a.Service, a.Actor, *http.Request) (any, error)
 }
 
-var Routes = append(resourceRoutes, []Route{
+var Routes = append(append(archiveRoutes, resourceRoutes...), []Route{
 	{"GET", "/canvases/{id}/generations/{generationId}/content", "canvasGenerationContent", nil, reflect.TypeFor[string](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
 		return s.GenerationContent(r.Context(), actor, chi.URLParam(r, "id"), chi.URLParam(r, "generationId"))
 	}},
@@ -178,6 +179,15 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 func writeError(w http.ResponseWriter, err error) {
 	status, code, message := 500, "internal_error", "internal service error"
 	var e *a.Error
+	if errors.Is(err, archive.ErrNotFound) {
+		err = a.NotFound()
+	}
+	if errors.Is(err, archive.ErrExecutionTerminal) {
+		err = &a.Error{Status: 409, Code: "archive_terminal", Message: "导出任务已结束"}
+	}
+	if errors.Is(err, archive.ErrSelectedVideoUnavailable) {
+		err = a.Invalid("选中的视频不可用")
+	}
 	if errors.As(err, &e) {
 		status, code, message = e.Status, e.Code, e.Message
 	} else {
@@ -239,6 +249,7 @@ func Router(s *a.Service, token string) http.Handler {
 			})
 		}
 	}
+	registerWorkerRoutes(r, s, token)
 	register(r, false)
 	r.Route("/internal", func(inner chi.Router) { register(inner, true) })
 	return r
@@ -280,7 +291,7 @@ func OpenAPI() map[string]any {
 		panic("unsupported OpenAPI type: " + t.String())
 	}
 	paths := map[string]any{}
-	for _, r := range Routes {
+	for _, r := range append(append([]Route{}, Routes...), workerRoutes...) {
 		op := map[string]any{"operationId": r.OperationID, "tags": []string{"canvas"}, "responses": map[string]any{"200": map[string]any{"description": "Success", "content": map[string]any{"application/json": map[string]any{"schema": schema(r.Output)}}}, "400": map[string]any{"description": "Invalid input"}, "401": map[string]any{"description": "Authentication required"}, "404": map[string]any{"description": "Missing or inaccessible resource"}, "409": map[string]any{"description": "Revision conflict"}}}
 		params := []any{}
 		for _, part := range strings.Split(r.Path, "/") {
@@ -294,7 +305,7 @@ func OpenAPI() map[string]any {
 			}
 			op["requestBody"] = map[string]any{"required": true, "content": map[string]any{"application/octet-stream": map[string]any{"schema": map[string]any{"type": "string", "format": "binary"}}}}
 		}
-		if r.OperationID == "canvasResourceVersionContent" || r.OperationID == "canvasGenerationContent" || r.OperationID == "canvasNodeContent" || r.OperationID == "canvasResourceContent" {
+		if r.OperationID == "canvasArchiveContent" || r.OperationID == "canvasResourceVersionContent" || r.OperationID == "canvasGenerationContent" || r.OperationID == "canvasNodeContent" || r.OperationID == "canvasResourceContent" {
 			op["responses"].(map[string]any)["200"] = map[string]any{"description": "Media content", "content": map[string]any{"application/octet-stream": map[string]any{"schema": map[string]any{"type": "string", "format": "binary"}}}}
 		}
 		if len(params) > 0 {

@@ -159,3 +159,39 @@ type ResourceAssetUpdate struct {
 	Name             string `json:"name"`
 	RevisionNo       int64  `json:"revision_no"`
 }
+
+type Archive struct {
+	ID           string `json:"id"`
+	Status       string `json:"status"`
+	Filename     string `json:"filename"`
+	InputCount   int32  `json:"input_count"`
+	Size         int64  `json:"size"`
+	CreatedAt    string `json:"created_at"`
+	Error        string `json:"error"`
+	Downloadable bool   `json:"downloadable"`
+}
+type ArchiveList struct {
+	Items []Archive `json:"items"`
+}
+
+type StartCanvasGeneration struct {
+	OperationID string `json:"operation_id"`
+}
+type CanvasGenerationStart struct {
+	NodeID    string `json:"node_id"`
+	TaskRunID string `json:"task_run_id"`
+}
+type CanvasGenerationBatch struct {
+	Started      []CanvasGenerationStart `json:"started"`
+	SkippedCount int                     `json:"skipped_count"`
+}
+
+type GenerationState struct {
+	ID              string `json:"id"`
+	NodeID          string `json:"node_id"`
+	Status          string `json:"status"`
+	CancelRequested bool   `json:"cancel_requested"`
+}
+type GenerationStateList struct {
+	Items []GenerationState `json:"items"`
+}

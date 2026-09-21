@@ -1,6 +1,61 @@
 {
   "components": {
     "schemas": {
+      "CanvasArchive": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "downloadable": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "input_count": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "filename",
+          "input_count",
+          "size",
+          "created_at",
+          "error",
+          "downloadable"
+        ],
+        "type": "object"
+      },
+      "CanvasArchiveList": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasArchive"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "CanvasBoard": {
         "additionalProperties": false,
         "properties": {
@@ -45,6 +100,41 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "CanvasCanvasGenerationBatch": {
+        "additionalProperties": false,
+        "properties": {
+          "skipped_count": {
+            "type": "integer"
+          },
+          "started": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasCanvasGenerationStart"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "started",
+          "skipped_count"
+        ],
+        "type": "object"
+      },
+      "CanvasCanvasGenerationStart": {
+        "additionalProperties": false,
+        "properties": {
+          "node_id": {
+            "type": "string"
+          },
+          "task_run_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_id",
+          "task_run_id"
         ],
         "type": "object"
       },
@@ -210,6 +300,45 @@
           "items": {
             "items": {
               "$ref": "#/components/schemas/CanvasGeneration"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "CanvasGenerationState": {
+        "additionalProperties": false,
+        "properties": {
+          "cancel_requested": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "node_id",
+          "status",
+          "cancel_requested"
+        ],
+        "type": "object"
+      },
+      "CanvasGenerationStateList": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasGenerationState"
             },
             "type": "array"
           }
@@ -571,6 +700,18 @@
         ],
         "type": "object"
       },
+      "CanvasStartCanvasGeneration": {
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id"
+        ],
+        "type": "object"
+      },
       "CanvasStartGeneration": {
         "additionalProperties": false,
         "properties": {
@@ -710,6 +851,283 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CanvasBoard"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/canvases/{id}/archives": {
+      "get": {
+        "operationId": "canvasListArchives",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasArchiveList"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      },
+      "post": {
+        "operationId": "canvasCreateArchive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasArchive"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/canvases/{id}/archives/{archiveId}/cancel": {
+      "post": {
+        "operationId": "canvasCancelArchive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "archiveId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasDeleted"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/canvases/{id}/archives/{archiveId}/content": {
+      "get": {
+        "operationId": "canvasArchiveContent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "archiveId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Media content"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/canvases/{id}/generation-status": {
+      "get": {
+        "operationId": "canvasGenerationStatus",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasGenerationStateList"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/canvases/{id}/generations": {
+      "post": {
+        "operationId": "canvasStartAllVideoGenerations",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CanvasStartCanvasGeneration"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasCanvasGenerationBatch"
                 }
               }
             },
@@ -2295,6 +2713,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CanvasResourceAsset"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/worker/archives/{archiveId}/execute": {
+      "post": {
+        "operationId": "canvasExecuteArchive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "archiveId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasArchive"
                 }
               }
             },

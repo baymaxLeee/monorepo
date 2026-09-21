@@ -221,6 +221,11 @@ const canvasVideoPayloadSchema = {
 };
 const createTaskInputSchema = {
   oneOf: [
+    taskEnvelope("canvas-archive", {
+      type: "object",
+      properties: { taskRunId: { type: "string", pattern: "^[a-f0-9]{32}$" } },
+      required: ["taskRunId"],
+    }),
     taskEnvelope("canvas-video-generation", ref("CanvasVideoPayload")),
     taskEnvelope("canvas-image-generation", ref("CanvasImagePayload")),
     taskEnvelope("text-generation", ref("TextGenerationPayload")),

@@ -341,6 +341,7 @@ services:
       # Provider calls (SSRF-guarded); knowledge owns the published document.
       ADMIN_SERVICE_URL: http://admin:8001
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
+      CANVAS_SERVICE_URL: http://canvas:8012
     <<: *restart_policy
 
   knowledge:

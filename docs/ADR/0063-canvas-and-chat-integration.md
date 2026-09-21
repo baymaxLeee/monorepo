@@ -86,3 +86,17 @@ Executor 是唯一持久执行调度方，负责 Workflow 重放、等待、步�
 HTTP 返回丢失不表示 Go 未执行。允许重试的处理必须按 TaskRunID 和步骤检查已有 checkpoint，并在事务内完成状态转换；付费 Provider 创建无幂等保证时禁止自动重试。取消 Workflow 不自动终止已运行的 Go 处理或外部 Provider：必须传播取消、终止 ffmpeg 子进程，并在提交结果前校验持久取消状态，防止迟到结果复活任务。媒体字节留在执行端，Workflow 只持久化定位符。参考 [Workflow 幂等说明](https://workflow-sdk.dev/docs/foundations/idempotency)。
 
 当前批量迁入核心与普通 HTTP handler 已通过 Go build/vet；HTTP handler 尚未挂载，新 schema 与基础设施 adapter 尚未装配，不能据此宣称源端功能已经可用。已有 Canvas 入口仍运行原先接通的链路。
+
+## 导出与批量生成运行接入
+
+导出已挂载原端 `application/canvasarchive.Service`、`persistence/canvasarchive`、`persistence/task`，保留快照、活动任务去重、checkpoint、CAS 成功/失败/取消及七天下载窗口。原端 `worker/application/canvasarchive.Builder` 保留 ZIP、媒体探测与 FCPXML 实现。UP multipart adapter 不迁入，产物走 Knowledge 现有独立对象接口；Knowledge 对该接口改为有上限的流式落盘与摘要原子发布，避免整包内存缓冲。
+
+`canvas_workflow_tasks` 是 Canvas 事务 outbox 和 Executor ID 关联，不实现任务租约或执行重试。Executor 注册 `canvas-archive` Workflow，通过生成的内部 HTTP client 调用 Go 执行端点；调用仅允许 Executor service 身份，用户与 scope 取自已授权的持久任务。取消意图先提交 Canvas，再由 outbox 送达 Executor；step 的取消信号中止 HTTP，Go context 传递给 FFprobe 和归档 I/O，最终提交再次检查父资源存活及原状态机。源端 async dispatcher、MQ 与 agent runner 不启动。
+
+源表 task_runs、canvas_video_archive_exports、canvas_video_archive_export_inputs 合并进入首次 v1.0.0；PostgreSQL 标识列使用 uuid，API 保持 monorepo 的紧凑字符串。新服务端 ID 生成 UUID v7，接受前端创建节点的 UUID；不继承源持久层“所有外部 ID 必须 v7”的约束。执行端镜像安装 FFmpeg，Executor → Canvas binding 同步本地示例、K8s 和 single-VPS。
+
+批量生成复用源端 StartCanvasNodes 并发提交实现，只选择视频生成节点。每节点继续使用既有 Canvas → Executor Workflow；operation ID 按节点派生，未就绪/已有运行任务计入跳过数。前端新增生成全部、批量导出与导出记录，工具栏从 Studio 拆出，仍共享同一页面 Jotai Store。
+
+验证：bare sync/lint/build、独立 Executor Nitro build 通过；初始 SQL 在隔离事务中执行并回滚。HTTP 验证覆盖导出空输入、跨租户拒绝、worker caller 鉴权，以及真实 Workflow → Go 404 的持久失败收敛；批量提交覆盖视频筛选、跳过未就绪节点、operation 重放和取消。Knowledge 验证 chunked 上传、摘要、大小和原字节读取。没有本地成功生成的视频，所以完整 ZIP 下载与执行中取消仍未验收；不以失败路径代替成功路径。资产物理 GC、导出快照 owner 的统一回收和其余源业务装配仍在整体迁移范围内。
+
+画布新增按节点批量读取最新任务状态的轻量投影，一次查询返回状态及取消意图，不携带历史文本或媒体字节。页面级 Jotai 存储投影，节点按 ID 订阅；终态变化刷新正式图，未选中节点也能看到生成进度和停止入口。

@@ -58,6 +58,16 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** @constant */
+                        type: "canvas-archive";
+                        /** @description calling service, e.g. chat */
+                        owner_service: string;
+                        /** @description idempotency key scoped to owner_service */
+                        owner_ref: string;
+                        payload: {
+                            taskRunId: string;
+                        };
+                    } | {
+                        /** @constant */
                         type: "canvas-video-generation";
                         /** @description calling service, e.g. chat */
                         owner_service: string;
@@ -538,6 +548,16 @@ export interface components {
             production: components["schemas"]["VideoProductionProjection"] | null;
         };
         CreateTaskInput: {
+            /** @constant */
+            type: "canvas-archive";
+            /** @description calling service, e.g. chat */
+            owner_service: string;
+            /** @description idempotency key scoped to owner_service */
+            owner_ref: string;
+            payload: {
+                taskRunId: string;
+            };
+        } | {
             /** @constant */
             type: "canvas-video-generation";
             /** @description calling service, e.g. chat */

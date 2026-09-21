@@ -101,3 +101,85 @@ CREATE TABLE resource_asset_revisions (
  revision_no bigint NOT NULL, created_at timestamptz NOT NULL,
  PRIMARY KEY(resource_asset_id,revision_no)
 );
+
+CREATE TABLE task_runs (
+ "id" uuid NOT NULL,
+ "tenant_id" character varying(64) NOT NULL,
+ "workspace_id" character varying(64) DEFAULT NULL::character varying,
+ "created_by" character varying(64) NOT NULL,
+ "run_type" character varying(64) NOT NULL,
+ "subject_type" character varying(64) NOT NULL,
+ "subject_id" character varying(64) NOT NULL,
+ "is_internal" boolean NOT NULL DEFAULT false,
+ "hidden_at" timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
+ "status" character varying(32) NOT NULL,
+ "error_code" character varying(128) NOT NULL,
+ "error_message" text NOT NULL,
+ "state_version" bigint NOT NULL,
+ "started_at" timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
+ "finished_at" timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
+ "created_at" timestamp(3) with time zone NOT NULL,
+ "updated_at" timestamp(3) with time zone NOT NULL,
+ PRIMARY KEY ("id")
+);
+
+CREATE INDEX idx_task_runs_creator_updated ON task_runs ("tenant_id", "workspace_id", "created_by", "is_internal", "updated_at", "id");
+
+CREATE INDEX idx_task_runs_subject ON task_runs ("tenant_id", "workspace_id", "run_type", "subject_type", "subject_id");
+
+CREATE TABLE canvas_video_archive_exports (
+ "task_run_id" uuid NOT NULL,
+ "tenant_id" character varying(64) NOT NULL,
+ "workspace_id" character varying(64) DEFAULT NULL::character varying,
+ "project_id" uuid NOT NULL,
+ "canvas_id" uuid NOT NULL,
+ "status" character varying(32) NOT NULL,
+ "error_code" character varying(128) NOT NULL,
+ "error_message" text NOT NULL,
+ "input_count" integer NOT NULL,
+ "output_filename" character varying(255) NOT NULL,
+ "output_path" character varying(512) NOT NULL,
+ "output_size" bigint NOT NULL,
+ "output_sha256" character varying(64) NOT NULL,
+ "upload_id" character varying(255) NOT NULL,
+ "part_size" bigint NOT NULL,
+ "created_by" character varying(64) NOT NULL,
+ "retention_started_at" timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
+ "retention_guaranteed_until" timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
+ "cleanup_status" character varying(32) NOT NULL,
+ "cleanup_next_at" timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
+ "cleanup_lease_until" timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
+ "cleanup_state_version" bigint NOT NULL,
+ "cleanup_attempts" integer NOT NULL,
+ "cleanup_last_error" text NOT NULL,
+ "started_at" timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
+ "finished_at" timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
+ "created_at" timestamp(3) with time zone NOT NULL,
+ "updated_at" timestamp(3) with time zone NOT NULL,
+ PRIMARY KEY ("task_run_id")
+);
+
+CREATE INDEX idx_canvas_video_archive_cleanup_due ON canvas_video_archive_exports ("cleanup_status", "cleanup_next_at");
+
+CREATE INDEX idx_canvas_video_archive_exports_list ON canvas_video_archive_exports ("tenant_id", "workspace_id", "project_id", "canvas_id", "created_at", "task_run_id");
+
+CREATE INDEX idx_canvas_video_archive_exports_scope ON canvas_video_archive_exports ("tenant_id", "workspace_id", "project_id", "canvas_id", "task_run_id", "created_at");
+
+CREATE INDEX idx_canvas_video_archive_exports_status ON canvas_video_archive_exports ("status");
+
+CREATE TABLE canvas_video_archive_export_inputs (
+ "task_run_id" uuid NOT NULL,
+ "inputs" jsonb NOT NULL,
+ "created_at" timestamp(3) with time zone NOT NULL,
+ PRIMARY KEY ("task_run_id")
+);
+
+CREATE TABLE canvas_workflow_tasks (
+ task_run_id uuid PRIMARY KEY,
+ executor_task_id varchar(32) NOT NULL DEFAULT '',
+ cancel_requested boolean NOT NULL DEFAULT false,
+ settled boolean NOT NULL DEFAULT false,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX canvas_workflow_tasks_pending ON canvas_workflow_tasks (created_at) WHERE NOT settled;

@@ -1,3 +1,4 @@
+import { canvasArchiveInputSchema, canvasArchiveWorkflow } from "../../../workflows/canvas-archive.js";
 import { canvasImageInputSchema, canvasImageWorkflow } from "../../../workflows/canvas-image-generation.js";
 import { canvasVideoInputSchema, canvasVideoWorkflow } from "../../../workflows/canvas-video-generation.js";
 import { fileTaskBatchInputSchema, fileTaskBatchWorkflow } from "../../../workflows/file-task-batch.js";
@@ -47,3 +48,5 @@ registerTaskType({
   workflow: canvasVideoWorkflow,
   cancel: cancelCanvasVideo,
 });
+
+registerTaskType({ name: "canvas-archive", inputSchema: canvasArchiveInputSchema, workflow: canvasArchiveWorkflow });

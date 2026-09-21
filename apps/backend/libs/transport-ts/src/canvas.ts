@@ -25,6 +25,14 @@ export class CanvasInternalClient {
       service: "canvas",
     });
   }
+  async executeArchive(archiveId: string, signal?: AbortSignal) {
+    const { data, error, response } = await this.client.POST("/worker/archives/{archiveId}/execute", {
+      params: { path: { archiveId } },
+      signal,
+    });
+    if (data) return data;
+    throw new TransportError("canvas", response.status, `Canvas archive execution failed (${response.status})`, error);
+  }
   private headers(actor: CanvasActor) {
     return {
       "X-Auth-User-ID": actor.userId,

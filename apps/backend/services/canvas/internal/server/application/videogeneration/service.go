@@ -176,7 +176,7 @@ type CanvasStart struct {
 	TaskRunID string
 }
 
-type canvasStartResult struct {
+type CanvasStartResult struct {
 	NodeID    string
 	TaskRunID string
 	Started   bool
@@ -534,7 +534,7 @@ func (s *Service) StartCanvas(ctx context.Context, scope Scope, projectID, canva
 			videoNodes = append(videoNodes, item)
 		}
 	}
-	results, err := startCanvasNodes(ctx, videoNodes, func(startCtx context.Context, canvasnodeID string) (string, bool, error) {
+	results, err := StartCanvasNodes(ctx, videoNodes, func(startCtx context.Context, canvasnodeID string) (string, bool, error) {
 		return s.start(startCtx, scope, projectID, canvasID, canvasnodeID, canvas_nodes)
 	})
 	if err != nil {
@@ -555,18 +555,18 @@ func (s *Service) StartCanvas(ctx context.Context, scope Scope, projectID, canva
 	return started, skipped, nil
 }
 
-func startCanvasNodes(
+func StartCanvasNodes(
 	ctx context.Context,
 	canvas_nodes []domaincanvasnode.CanvasNode,
 	start func(context.Context, string) (string, bool, error),
-) ([]canvasStartResult, error) {
-	results := make([]canvasStartResult, len(canvas_nodes))
+) ([]CanvasStartResult, error) {
+	results := make([]CanvasStartResult, len(canvas_nodes))
 	var group errgroup.Group
 	group.SetLimit(canvasGenerationConcurrency)
 	for index := range canvas_nodes {
 		group.Go(func() error {
 			canvasnodeID := canvas_nodes[index].ID
-			result := canvasStartResult{NodeID: canvasnodeID}
+			result := CanvasStartResult{NodeID: canvasnodeID}
 			if err := ctx.Err(); err != nil {
 				result.Err = err
 			} else {

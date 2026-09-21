@@ -2,12 +2,11 @@ package application
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"github.com/example/monorepo/canvas/internal/application/contracts"
 	"github.com/example/monorepo/canvas/internal/infrastructure/executor"
 	p "github.com/example/monorepo/canvas/internal/infrastructure/persistence"
 	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"strings"
@@ -21,12 +20,13 @@ type Service struct {
 }
 
 func newID() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
+	id, err := uuid.NewV7()
+	if err != nil {
 		panic(err)
 	}
-	return hex.EncodeToString(b)
+	return strings.ReplaceAll(id.String(), "-", "")
 }
+
 func validName(name string) bool {
 	return strings.TrimSpace(name) == name && utf8.RuneCountInString(name) > 0 && utf8.RuneCountInString(name) <= 50
 }

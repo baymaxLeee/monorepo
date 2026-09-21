@@ -5,6 +5,21 @@
  * OpenAPI spec version: 1.0.0
  */
 import { apiMutator } from '../../src/orval-mutator';
+export interface CanvasArchive {
+  created_at: string;
+  downloadable: boolean;
+  error: string;
+  filename: string;
+  id: string;
+  input_count: number;
+  size: number;
+  status: string;
+}
+
+export interface CanvasArchiveList {
+  items: CanvasArchive[];
+}
+
 export interface CanvasBoard {
   created_at: string;
   id: string;
@@ -16,6 +31,16 @@ export interface CanvasBoard {
 
 export interface CanvasBoardList {
   items: CanvasBoard[];
+}
+
+export interface CanvasCanvasGenerationStart {
+  node_id: string;
+  task_run_id: string;
+}
+
+export interface CanvasCanvasGenerationBatch {
+  skipped_count: number;
+  started: CanvasCanvasGenerationStart[];
 }
 
 export interface CanvasCreateBoard {
@@ -66,6 +91,17 @@ export interface CanvasGenerationConfig {
 
 export interface CanvasGenerationList {
   items: CanvasGeneration[];
+}
+
+export interface CanvasGenerationState {
+  cancel_requested: boolean;
+  id: string;
+  node_id: string;
+  status: string;
+}
+
+export interface CanvasGenerationStateList {
+  items: CanvasGenerationState[];
 }
 
 export interface CanvasNode {
@@ -164,6 +200,10 @@ export interface CanvasResourceVersionList {
   items: CanvasResourceVersion[];
 }
 
+export interface CanvasStartCanvasGeneration {
+  operation_id: string;
+}
+
 export interface CanvasStartGeneration {
   expected_revision: number;
   operation_id: string;
@@ -212,6 +252,66 @@ const canvasUpdateBoard = (
       {url: `/api/canvas-server/canvases/${id}`, method: 'PATCH',
       headers: {'Content-Type': 'application/json', },
       data: canvasUpdateBoard
+    },
+      options);
+    }
+
+const canvasListArchives = (
+    id: string,
+ options?: SecondParameter<typeof apiMutator<CanvasArchiveList>>,) => {
+      return apiMutator<CanvasArchiveList>(
+      {url: `/api/canvas-server/canvases/${id}/archives`, method: 'GET'
+    },
+      options);
+    }
+
+const canvasCreateArchive = (
+    id: string,
+ options?: SecondParameter<typeof apiMutator<CanvasArchive>>,) => {
+      return apiMutator<CanvasArchive>(
+      {url: `/api/canvas-server/canvases/${id}/archives`, method: 'POST'
+    },
+      options);
+    }
+
+const canvasCancelArchive = (
+    id: string,
+    archiveId: string,
+ options?: SecondParameter<typeof apiMutator<CanvasDeleted>>,) => {
+      return apiMutator<CanvasDeleted>(
+      {url: `/api/canvas-server/canvases/${id}/archives/${archiveId}/cancel`, method: 'POST'
+    },
+      options);
+    }
+
+const canvasArchiveContent = (
+    id: string,
+    archiveId: string,
+ options?: SecondParameter<typeof apiMutator<Blob>>,) => {
+      return apiMutator<Blob>(
+      {url: `/api/canvas-server/canvases/${id}/archives/${archiveId}/content`, method: 'GET',
+        responseType: 'blob'
+    },
+      options);
+    }
+
+const canvasGenerationStatus = (
+    id: string,
+ options?: SecondParameter<typeof apiMutator<CanvasGenerationStateList>>,) => {
+      return apiMutator<CanvasGenerationStateList>(
+      {url: `/api/canvas-server/canvases/${id}/generation-status`, method: 'GET'
+    },
+      options);
+    }
+
+const canvasStartAllVideoGenerations = (
+    id: string,
+    canvasStartCanvasGeneration: CanvasStartCanvasGeneration,
+ options?: SecondParameter<typeof apiMutator<CanvasCanvasGenerationBatch>>,) => {
+      return apiMutator<CanvasCanvasGenerationBatch>(
+      {url: `/api/canvas-server/canvases/${id}/generations`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: canvasStartCanvasGeneration
     },
       options);
     }
@@ -565,9 +665,24 @@ const canvasUploadResourceAsset = (
       options);
     }
 
-return {canvasDeleteBoard,canvasUpdateBoard,canvasApplyGeneration,canvasCancelGeneration,canvasGenerationContent,canvasGetGraph,canvasMutateGraph,canvasNodeContent,canvasListGenerations,canvasStartGeneration,canvasCopyResourceToCanvas,canvasUploadNode,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasListBoards,canvasCreateBoard,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasResourceContent,canvasSetPrimaryResourceAsset,canvasReplaceResourceAsset,canvasListResourceVersions,canvasResourceVersionContent,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasUpdateResource,canvasListResourceAssets,canvasUploadResourceAsset}};
+const canvasExecuteArchive = (
+    archiveId: string,
+ options?: SecondParameter<typeof apiMutator<CanvasArchive>>,) => {
+      return apiMutator<CanvasArchive>(
+      {url: `/api/canvas-server/worker/archives/${archiveId}/execute`, method: 'POST'
+    },
+      options);
+    }
+
+return {canvasDeleteBoard,canvasUpdateBoard,canvasListArchives,canvasCreateArchive,canvasCancelArchive,canvasArchiveContent,canvasGenerationStatus,canvasStartAllVideoGenerations,canvasApplyGeneration,canvasCancelGeneration,canvasGenerationContent,canvasGetGraph,canvasMutateGraph,canvasNodeContent,canvasListGenerations,canvasStartGeneration,canvasCopyResourceToCanvas,canvasUploadNode,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasListBoards,canvasCreateBoard,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasResourceContent,canvasSetPrimaryResourceAsset,canvasReplaceResourceAsset,canvasListResourceVersions,canvasResourceVersionContent,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasUpdateResource,canvasListResourceAssets,canvasUploadResourceAsset,canvasExecuteArchive}};
 export type CanvasDeleteBoardResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasDeleteBoard']>>>
 export type CanvasUpdateBoardResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUpdateBoard']>>>
+export type CanvasListArchivesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListArchives']>>>
+export type CanvasCreateArchiveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreateArchive']>>>
+export type CanvasCancelArchiveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCancelArchive']>>>
+export type CanvasArchiveContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasArchiveContent']>>>
+export type CanvasGenerationStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGenerationStatus']>>>
+export type CanvasStartAllVideoGenerationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasStartAllVideoGenerations']>>>
 export type CanvasApplyGenerationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasApplyGeneration']>>>
 export type CanvasCancelGenerationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCancelGeneration']>>>
 export type CanvasGenerationContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGenerationContent']>>>
@@ -598,3 +713,4 @@ export type CanvasDeleteResourceResult = NonNullable<Awaited<ReturnType<ReturnTy
 export type CanvasUpdateResourceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUpdateResource']>>>
 export type CanvasListResourceAssetsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListResourceAssets']>>>
 export type CanvasUploadResourceAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUploadResourceAsset']>>>
+export type CanvasExecuteArchiveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasExecuteArchive']>>>

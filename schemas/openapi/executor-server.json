@@ -28,6 +28,40 @@
                     "type": "object",
                     "properties": {
                       "type": {
+                        "const": "canvas-archive"
+                      },
+                      "owner_service": {
+                        "type": "string",
+                        "description": "calling service, e.g. chat"
+                      },
+                      "owner_ref": {
+                        "type": "string",
+                        "description": "idempotency key scoped to owner_service"
+                      },
+                      "payload": {
+                        "type": "object",
+                        "properties": {
+                          "taskRunId": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{32}$"
+                          }
+                        },
+                        "required": [
+                          "taskRunId"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "owner_service",
+                      "owner_ref",
+                      "payload"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
                         "const": "canvas-video-generation"
                       },
                       "owner_service": {
@@ -1084,6 +1118,40 @@
       },
       "CreateTaskInput": {
         "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "const": "canvas-archive"
+              },
+              "owner_service": {
+                "type": "string",
+                "description": "calling service, e.g. chat"
+              },
+              "owner_ref": {
+                "type": "string",
+                "description": "idempotency key scoped to owner_service"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "taskRunId": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{32}$"
+                  }
+                },
+                "required": [
+                  "taskRunId"
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "owner_service",
+              "owner_ref",
+              "payload"
+            ]
+          },
           {
             "type": "object",
             "properties": {

@@ -60,7 +60,7 @@ for the full rationale.
   functions for the actual work) and register it in `src/application/tasks/registry.ts`.
   Do not put business logic directly in `src/api/http/routes/tasks.ts` or
   `src/application/tasks/service.ts` — those stay type-agnostic.
-- `file-task-batch`, `video-generation`, `text-generation`, `canvas-image-generation`, and `canvas-video-generation` are registered. Executor does not
+- `file-task-batch`, `video-generation`, `text-generation`, `canvas-image-generation`, `canvas-video-generation`, and `canvas-archive` are registered. Executor does not
   host smoke workflows or synchronous HTML validation/review endpoints.
 - `file-task-batch` accepts a frozen shared context and independent
   `{id,instruction,outputPath}` tasks. Every output path is unique. Each Workflow
@@ -263,3 +263,5 @@ Canvas 通过内部 HTTP 提交 `text-generation`，按 generation ID 使用 own
 Canvas 图片任务仅接受 Canvas caller，使用已认证的租户/工作空间 Provider，参考图和输出在 Knowledge 的 Canvas 不可变对象命名空间读写。Workflow 只持久化对象定位符；图片字节留在 step 内，生成不自动重试。Canvas 负责资产与生成历史的同事务引用，不绑定 Chat 会话。
 
 Canvas 视频节点独立使用 canvas-video-generation，支持参考媒体和首尾帧；不改变 Chat video-generation 的非串联短剧约束。取消清理函数放在 application/canvas，不能作为普通导出置于 Workflow 文件，否则其 Node 依赖进入 Workflow 沙箱导致构建失败。
+
+Canvas 归档使用 canvas-archive Workflow，通过生成的 CanvasInternalClient 调用 Go 内部媒体执行端点，取消信号传到 HTTP。Go 持有原导出快照、checkpoint 和 CAS 状态机，保留 ZIP/FCPXML 实现；Executor 不复制此业务逻辑。Go outbox 只派发并关联 Workflow，旧 Go MQ/调度器不启动。

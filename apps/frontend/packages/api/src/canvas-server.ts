@@ -1,6 +1,8 @@
 import { getCanvasService } from "../generated/canvas-server/index";
 import { getChatService } from "../generated/chat-server/index";
 export type {
+  CanvasGenerationState,
+  CanvasArchive,
   CanvasResourceVersion,
   CanvasResource,
   CanvasResourceAsset,
@@ -13,6 +15,12 @@ export type {
   CanvasMutation,
 } from "../generated/canvas-server/index";
 export const {
+  canvasGenerationStatus,
+  canvasStartAllVideoGenerations,
+  canvasCreateArchive,
+  canvasListArchives,
+  canvasCancelArchive,
+  canvasArchiveContent,
   canvasReplaceResourceAsset,
   canvasListResourceVersions,
   canvasResourceVersionContent,
