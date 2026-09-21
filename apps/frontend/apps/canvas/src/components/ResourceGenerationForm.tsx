@@ -1,9 +1,9 @@
 import {
-  fetchModelProviders,
+  canvasCreativeProviders,
   type CanvasResourceAsset,
   type CanvasResourceGenerationConfig,
   type CanvasResourceGenerationDraft,
-  type ModelProvider,
+  type CanvasProjectProvider,
 } from "@repo/api";
 import {
   Button,
@@ -25,12 +25,14 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 
 export function ResourceGenerationForm({
+  projectId,
   draft,
   busy,
   running,
   references,
   onSave,
 }: {
+  projectId: string;
   draft: CanvasResourceGenerationDraft;
   busy: boolean;
   running: boolean;
@@ -44,18 +46,18 @@ export function ResourceGenerationForm({
       aspect_ratio: draft.config.aspect_ratio || "1:1",
     },
   });
-  const [providers, setProviders] = useState<ModelProvider[]>([]);
+  const [providers, setProviders] = useState<CanvasProjectProvider[]>([]);
   useEffect(() => {
     let active = true;
-    void fetchModelProviders()
-      .then((items) => {
-        if (active) setProviders(items.filter((p) => p.is_enabled && p.provider_kind === "image"));
+    void canvasCreativeProviders(projectId, { skipErrorNotify: true })
+      .then(({ items }) => {
+        if (active) setProviders(items.filter((provider) => provider.provider_kind === "image"));
       })
       .catch(() => {});
     return () => {
       active = false;
     };
-  }, []);
+  }, [projectId]);
   return (
     <Form {...form}>
       <form className="space-y-3" onSubmit={form.handleSubmit((config) => onSave(config, true))}>

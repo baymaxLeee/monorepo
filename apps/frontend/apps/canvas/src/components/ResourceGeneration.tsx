@@ -78,6 +78,7 @@ export function ResourceGeneration({
           ) : (
             <ResourceGenerationForm
               key={`${asset.id}:${draft.revision}`}
+              projectId={projectId}
               draft={draft}
               busy={busy}
               running={Boolean(running)}

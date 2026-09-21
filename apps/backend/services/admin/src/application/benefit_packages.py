@@ -256,6 +256,10 @@ class BenefitPackageService:
                 if payload.enabled is not None:
                     row.enabled = payload.enabled
                 if "material_limit" in payload.model_fields_set:
+                    usage = await repository.review_usage(self._session, self._user.tenant_id, self._user.workspace_id)
+                    committed, reserved = usage.get(package_id, (0, 0))
+                    if payload.material_limit is not None and payload.material_limit < committed + reserved:
+                        raise ConflictError("material limit cannot be lower than committed and reserved reviews")
                     row.material_limit = payload.material_limit
                 row.model_ids_json = json.dumps([] if row.is_preset else model_ids)
                 row.revision += 1
