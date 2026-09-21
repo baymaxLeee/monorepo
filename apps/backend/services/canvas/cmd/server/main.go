@@ -42,6 +42,8 @@ func run() error {
 	go service.RunGenerations(ctx)
 	go service.RunArchives(ctx)
 	go service.RunVideoFrames(ctx)
+	go service.RunResourceGenerations(ctx)
+	go service.RunStoryboardDrafts(ctx)
 	server := &http.Server{Addr: ":" + cfg.Port, Handler: api.Router(service, cfg.InternalToken), ReadHeaderTimeout: 10 * time.Second}
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()
