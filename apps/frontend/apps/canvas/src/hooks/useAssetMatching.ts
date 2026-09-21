@@ -25,6 +25,7 @@ export function useAssetMatching({
   const [error, setError] = useState("");
   const refreshed = useRef("");
   const operationId = useRef("");
+  const runningId = run && active(run) ? run.id : "";
   const accept = useCallback(
     async (next: CanvasAssetMatchRun) => {
       setRun(next);
@@ -49,11 +50,11 @@ export function useAssetMatching({
     };
   }, [accept, canvasId, nodeId]);
   useEffect(() => {
-    if (!run || !active(run)) return;
+    if (!runningId) return;
     let closed = false;
     const poll = async () => {
       try {
-        const next = await canvasGetAssetMatch(canvasId, nodeId, run.id, { skipErrorNotify: true });
+        const next = await canvasGetAssetMatch(canvasId, nodeId, runningId, { skipErrorNotify: true });
         if (!closed) await accept(next);
       } catch (cause) {
         if (!closed) setError(getErrorMessage(cause, "素材匹配状态读取失败"));
@@ -65,7 +66,7 @@ export function useAssetMatching({
       closed = true;
       window.clearInterval(timer);
     };
-  }, [accept, canvasId, nodeId, run]);
+  }, [accept, canvasId, nodeId, runningId]);
   return {
     matching: starting || active(run),
     cancelling,

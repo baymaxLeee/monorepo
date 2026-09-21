@@ -65,9 +65,11 @@ export function useCreativeAssets(projectId: string, canvasId: string) {
       const existing = store.get(canvasGraphAtom)?.nodes.find((node) => node.asset_id === item.asset?.current_asset_id);
       if (existing) return existing;
       return coordinator.enqueue(async () => {
-        const nodeId = crypto.randomUUID();
         const current = store.get(canvasGraphAtom);
         if (!current) throw new Error("画布已关闭");
+        const materialized = current.nodes.find((node) => node.asset_id === item.asset?.current_asset_id);
+        if (materialized) return materialized;
+        const nodeId = crypto.randomUUID();
         const graph = item.asset!.resource_asset_id
           ? await canvasCopyResourceToCanvas(canvasId, {
               node_id: nodeId,
@@ -100,6 +102,8 @@ export function useCreativeAssets(projectId: string, canvasId: string) {
       return coordinator.enqueue(async () => {
         const graph = store.get(canvasGraphAtom);
         if (!graph) throw new Error("画布已关闭");
+        const materialized = graph.nodes.find((node) => node.asset_id === assetId);
+        if (materialized) return materialized;
         const nodeId = crypto.randomUUID();
         const result = await canvasCopyAsset(canvasId, {
           asset_id: assetId,

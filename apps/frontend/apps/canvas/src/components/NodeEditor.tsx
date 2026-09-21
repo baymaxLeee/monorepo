@@ -25,8 +25,9 @@ export const NodeEditor = forwardRef<
     onSave: (node: CanvasNode) => Promise<void>;
     onRefresh: () => Promise<void>;
     onDelete: () => void;
+    onSelect: (id: string) => void;
   }
->(function NodeEditor({ node, projectId, canvasId, busy, onSave, onRefresh, onDelete }, ref) {
+>(function NodeEditor({ node, projectId, canvasId, busy, onSave, onRefresh, onDelete, onSelect }, ref) {
   const store = useStore();
   const form = useForm({ defaultValues: node });
   const dirty = form.formState.isDirty;
@@ -107,7 +108,7 @@ export const NodeEditor = forwardRef<
         {node.type === 5 || node.type === 6 ? (
           <AssetStrip form={form} disabled={locked} projectId={projectId} canvasId={canvasId} />
         ) : null}
-        <NodeAssetActions node={node} disabled={locked || dirty} />
+        <NodeAssetActions node={node} disabled={locked || dirty} onCopied={onSelect} />
         {[5, 6].includes(node.type) && node.video_input_mode !== 2 ? (
           <div className="space-y-2">
             <Button

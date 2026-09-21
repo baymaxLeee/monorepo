@@ -26,7 +26,15 @@ import { useForm } from "react-hook-form";
 import { applyGraphAtom, canvasGraphAtom } from "../store/graph";
 import { useStudioMutationCoordinator } from "../store/mutations";
 
-export function NodeAssetActions({ node, disabled }: { node: CanvasNode; disabled: boolean }) {
+export function NodeAssetActions({
+  node,
+  disabled,
+  onCopied,
+}: {
+  node: CanvasNode;
+  disabled: boolean;
+  onCopied?: (nodeId: string) => void;
+}) {
   const store = useStore();
   const coordinator = useStudioMutationCoordinator();
   const [open, setOpen] = useState(false);
@@ -39,11 +47,13 @@ export function NodeAssetActions({ node, disabled }: { node: CanvasNode; disable
       await coordinator.enqueue(async () => {
         const graph = store.get(canvasGraphAtom);
         if (!graph) return;
+        const nodeId = crypto.randomUUID();
         const result = await canvasCopyNode(graph.canvas.id, node.id, {
-          node_id: crypto.randomUUID(),
+          node_id: nodeId,
           expected_revision: graph.canvas.revision,
         });
         store.set(applyGraphAtom, result);
+        onCopied?.(nodeId);
       });
     } catch {
     } finally {

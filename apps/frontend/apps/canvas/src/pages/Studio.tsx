@@ -141,6 +141,7 @@ function Studio({ canvasId, projectId }: { canvasId: string; projectId: string }
                       busy={busy}
                       onRefresh={refresh}
                       onSave={(node) => mutate([node])}
+                      onSelect={(id) => void selectNode(id)}
                       onDelete={() => setDeletion({ nodes: [active.id], edges: [] })}
                     />
                     {active.type >= 5 && active.type <= 7 ? (
