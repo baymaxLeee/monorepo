@@ -64,3 +64,9 @@ Canvas 新应用首次接入仅维护 `v1.0.0.sql` 建库版本。源结构事�
 ## 图片生成
 
 Canvas 的图片任务复用 AI SDK `generateImage` 和现有 `createProviderImageModel`，API 依据本地 ai/dist/index.d.ts 的 GenerateImagePrompt（文本及图片字节输入）与官方 https://ai-sdk.dev/docs/reference/ai-sdk-core/generate-image。Executor 在单个不可自动重试的付费 step 内读取参考图、调用 Provider、上传不可变对象，仅持久化定位符。Knowledge 允许 Canvas 与 Executor 读写固定 Canvas namespace，任务入口限制 Canvas caller。生成历史以 CANVAS_GENERATION_OUTPUT 拥有资产，节点选中结果只是投影；删除节点、画布或项目释放历史 owner 并请求取消在途任务。CAS 防止后台结果覆盖更新后的节点。
+
+## 视频节点
+
+Canvas 独立视频节点使用 canvas-video-generation Workflow，提交时冻结参考素材、首尾帧角色及参数。复用 Executor Ark 查询/取消客户端、Provider scope 与 Knowledge 对象存储；不经过 Chat 的短剧策划和拼接流程。付费创建不重试，外部任务 ID 写入任务进度，取消执行 Provider DELETE。轮询使用 Workflow sleep（https://useworkflow.dev/docs/api-reference/workflow/sleep），不占用长期轮询 step。Ark 内容字段依据官方 SDK content_generation/create_task_content_param.py；参考素材在 step 内转为 data URL，不进入持久化步骤结果。
+
+本地通过视频提交、相同 operation 重放、真实 Executor 派发后的 Provider 缺失失败回写。独立 Nitro 构建和 full-stack 启动通过；实际付费视频、不同模型的媒体/参数限制仍待配置 Provider 后验收。

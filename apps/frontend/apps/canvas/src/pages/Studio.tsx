@@ -218,7 +218,7 @@ function Studio({ canvasId, projectId }: { canvasId: string; projectId: string }
                       onSave={(node) => mutate([node])}
                       onDelete={() => setDeletion({ nodes: [active.id], edges: [] })}
                     />
-                    {active.type === 7 || active.type === 5 ? (
+                    {active.type >= 5 && active.type <= 7 ? (
                       <NodeGeneration
                         key={`generation:${active.id}`}
                         canvasId={canvasId}

@@ -1,7 +1,9 @@
 import { canvasImageInputSchema, canvasImageWorkflow } from "../../../workflows/canvas-image-generation.js";
+import { canvasVideoInputSchema, canvasVideoWorkflow } from "../../../workflows/canvas-video-generation.js";
 import { fileTaskBatchInputSchema, fileTaskBatchWorkflow } from "../../../workflows/file-task-batch.js";
 import { textGenerationInputSchema, textGenerationWorkflow } from "../../../workflows/text-generation.js";
 import { videoGenerationInputSchema, videoGenerationWorkflow } from "../../../workflows/video-generation.js";
+import { cancelCanvasVideo } from "../canvas/video.js";
 import { cancelVideoGeneration } from "../video/cancel.js";
 import type { TaskTypeDefinition } from "./types.js";
 
@@ -37,4 +39,11 @@ registerTaskType({
   name: "canvas-image-generation",
   inputSchema: canvasImageInputSchema,
   workflow: canvasImageWorkflow,
+});
+
+registerTaskType({
+  name: "canvas-video-generation",
+  inputSchema: canvasVideoInputSchema,
+  workflow: canvasVideoWorkflow,
+  cancel: cancelCanvasVideo,
 });

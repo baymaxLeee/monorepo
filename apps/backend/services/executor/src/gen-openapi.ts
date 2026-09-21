@@ -184,8 +184,44 @@ const canvasImagePayloadSchema = {
   },
   required: [...textGenerationPayloadSchema.required, "objectScope", "references"],
 };
+const canvasVideoPayloadSchema = {
+  type: "object",
+  properties: {
+    ...textGenerationPayloadSchema.properties,
+    objectScope: { type: "string", pattern: "^[a-f0-9]{64}$" },
+    references: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          key: { type: "string", pattern: "^[a-f0-9]{64}$" },
+          mimeType: { type: "string" },
+          role: {
+            type: "string",
+            enum: ["reference_image", "reference_video", "reference_audio", "first_frame", "last_frame"],
+          },
+        },
+        required: ["key", "mimeType", "role"],
+      },
+    },
+    duration: { type: "integer" },
+    resolution: { type: "string", enum: ["480p", "720p", "1080p", "2k", "4k"] },
+    aspectRatio: { type: "string", enum: ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16", "3:2", "2:3", "adaptive"] },
+    generateAudio: { type: "boolean" },
+    watermark: { type: "boolean" },
+  },
+  required: [
+    ...textGenerationPayloadSchema.required,
+    "objectScope",
+    "references",
+    "duration",
+    "generateAudio",
+    "watermark",
+  ],
+};
 const createTaskInputSchema = {
   oneOf: [
+    taskEnvelope("canvas-video-generation", ref("CanvasVideoPayload")),
     taskEnvelope("canvas-image-generation", ref("CanvasImagePayload")),
     taskEnvelope("text-generation", ref("TextGenerationPayload")),
     taskEnvelope("file-task-batch", ref("FileTaskBatchPayload")),
@@ -557,6 +593,7 @@ const openapi = {
   components: {
     schemas: {
       TextGenerationPayload: textGenerationPayloadSchema,
+      CanvasVideoPayload: canvasVideoPayloadSchema,
       CanvasImagePayload: canvasImagePayloadSchema,
       Task: taskSchema,
       TaskWatchFrame: taskWatchFrameSchema,

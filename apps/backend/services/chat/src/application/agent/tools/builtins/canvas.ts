@@ -65,7 +65,7 @@ export function createCanvasToolManifests() {
       "generate_canvas_node",
       tool({
         description:
-          "Start durable generation for a configured type-5 image or type-7 text node. Read the canvas first. Returns a job immediately; use read_canvas_generations to inspect completion. The job continues independently of this conversation.",
+          "Start durable generation for a configured type-5 image, type-6 video, or type-7 text node. Read the canvas first. Returns a job immediately; use read_canvas_generations to inspect completion. The job continues independently of this conversation.",
         inputSchema: z.object({ node_id: z.string(), expected_revision: z.number().int().positive() }),
         contextSchema,
         execute: (input, { context, toolCallId, abortSignal }) =>

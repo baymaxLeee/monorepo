@@ -48,7 +48,7 @@ func (s *Service) runGeneration(ctx context.Context, row p.Generation) error {
 		return s.DB.WithContext(ctx).Model(&p.Generation{}).Where("id = ? AND task_id = ''", row.ID).Update("status", "cancelled").Error
 	}
 	var input any = executor.TextInput{TenantID: row.TenantID, WorkspaceID: row.WorkspaceID, ProviderID: row.ProviderID, Prompt: row.Prompt}
-	if row.TaskType == "canvas-image-generation" {
+	if row.TaskType == "canvas-image-generation" || row.TaskType == "canvas-video-generation" {
 		input = json.RawMessage(row.InputPayload)
 	}
 	task, err := s.Executor.Start(ctx, row.ID, row.TaskType, input)

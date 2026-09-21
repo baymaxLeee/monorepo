@@ -28,6 +28,31 @@
                     "type": "object",
                     "properties": {
                       "type": {
+                        "const": "canvas-video-generation"
+                      },
+                      "owner_service": {
+                        "type": "string",
+                        "description": "calling service, e.g. chat"
+                      },
+                      "owner_ref": {
+                        "type": "string",
+                        "description": "idempotency key scoped to owner_service"
+                      },
+                      "payload": {
+                        "$ref": "#/components/schemas/CanvasVideoPayload"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "owner_service",
+                      "owner_ref",
+                      "payload"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
                         "const": "canvas-image-generation"
                       },
                       "owner_service": {
@@ -825,6 +850,101 @@
           "prompt"
         ]
       },
+      "CanvasVideoPayload": {
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "objectScope": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "mimeType": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "reference_image",
+                    "reference_video",
+                    "reference_audio",
+                    "first_frame",
+                    "last_frame"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "mimeType",
+                "role"
+              ]
+            }
+          },
+          "duration": {
+            "type": "integer"
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "480p",
+              "720p",
+              "1080p",
+              "2k",
+              "4k"
+            ]
+          },
+          "aspectRatio": {
+            "type": "string",
+            "enum": [
+              "21:9",
+              "16:9",
+              "4:3",
+              "1:1",
+              "3:4",
+              "9:16",
+              "3:2",
+              "2:3",
+              "adaptive"
+            ]
+          },
+          "generateAudio": {
+            "type": "boolean"
+          },
+          "watermark": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tenantId",
+          "workspaceId",
+          "providerId",
+          "prompt",
+          "objectScope",
+          "references",
+          "duration",
+          "generateAudio",
+          "watermark"
+        ]
+      },
       "CanvasImagePayload": {
         "type": "object",
         "properties": {
@@ -964,6 +1084,31 @@
       },
       "CreateTaskInput": {
         "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "const": "canvas-video-generation"
+              },
+              "owner_service": {
+                "type": "string",
+                "description": "calling service, e.g. chat"
+              },
+              "owner_ref": {
+                "type": "string",
+                "description": "idempotency key scoped to owner_service"
+              },
+              "payload": {
+                "$ref": "#/components/schemas/CanvasVideoPayload"
+              }
+            },
+            "required": [
+              "type",
+              "owner_service",
+              "owner_ref",
+              "payload"
+            ]
+          },
           {
             "type": "object",
             "properties": {

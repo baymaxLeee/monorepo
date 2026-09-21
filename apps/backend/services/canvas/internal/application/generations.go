@@ -59,8 +59,8 @@ func (s *Service) StartGeneration(ctx context.Context, a Actor, canvasID, nodeID
 		if node.Revision != in.ExpectedRevision {
 			return Conflict()
 		}
-		if node.Type != 7 && node.Type != 5 {
-			return Invalid("select an image or text generation node")
+		if node.Type < 5 || node.Type > 7 {
+			return Invalid("select a generation node")
 		}
 		if node.GenerationConfig.ProviderID == "" || strings.TrimSpace(node.Prompt) == "" {
 			return Invalid("select a provider and enter a prompt")
@@ -88,7 +88,18 @@ func (s *Service) StartGeneration(ctx context.Context, a Actor, canvasID, nodeID
 		if node.Type == 5 {
 			allowed = inputs.Modalities(inputdomain.ModalityText, inputdomain.ModalityImage)
 		}
-		resolved, err := inputs.New(nil).ResolveMentions(ctx, inputs.Scope{TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, UserID: a.UserID}, board.ProjectID, target, nodes, allowed)
+		if node.Type == 6 {
+			allowed = inputs.Modalities(inputdomain.ModalityText, inputdomain.ModalityImage, inputdomain.ModalityVideo, inputdomain.ModalityAudio)
+		}
+		scope := inputs.Scope{TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, UserID: a.UserID}
+		var resolved inputs.Result
+		if node.Type == 5 {
+			resolved, err = inputs.New(nil).ResolveImageGeneration(ctx, scope, board.ProjectID, target, nodes)
+		} else if node.Type == 6 && node.VideoInputMode == 2 {
+			resolved, err = inputs.New(nil).ResolveFrames(ctx, scope, board.ProjectID, target, nodes)
+		} else {
+			resolved, err = inputs.New(nil).ResolveMentions(ctx, scope, board.ProjectID, target, nodes, allowed)
+		}
 		if err != nil {
 			return Invalid(err.Error())
 		}
@@ -127,6 +138,13 @@ func (s *Service) StartGeneration(ctx context.Context, a Actor, canvasID, nodeID
 				return err
 			}
 			out.InputPayload, out.TaskType = string(encoded), "canvas-image-generation"
+		}
+		if node.Type == 6 {
+			payload, err := videoPayload(tx, a, board.ProjectID, node, resolved)
+			if err != nil {
+				return err
+			}
+			out.InputPayload, out.TaskType = payload, "canvas-video-generation"
 		}
 		return tx.Create(&out).Error
 	})

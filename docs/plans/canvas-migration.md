@@ -49,3 +49,5 @@ Canvas 状态方案已按用户确认采用 Jotai：页面 Provider、规范化�
 已验证公司/工作空间创建和切换、Canvas/Chat 跨空间及跨租户拒绝、Gateway 清除伪造 scope 头；全仓 lint/build/sync 与本地 migration/up/dev 通过。IAM 原 char(26) ID 的补空格破坏会话切换，已统一 varchar(26)。后续继续检查 Knowledge 原先仅按 user_id 授权的接口，不能把字段迁移当成所有资源的隔离验收。
 
 - 图片生成已连接 AI SDK generateImage → Executor Workflow → Knowledge 独立对象 → Canvas 生成输出账本与选版；参考图与参数在提交时冻结，复用源端分辨率/画幅换算。Chat 使用 generate_canvas_node 统一发起文本或图片任务。已验证实际任务派发、幂等与失败回写；本地无启用 Provider，真实出图和成功回写未验收。
+
+- 视频节点已接独立 Executor Workflow：参考素材/首尾帧、取消、结果对象持有和历史选版；Chat 同一工具支持三种生成节点。本地已验证派发、幂等、失败回写，真实模型成功结果未验收。

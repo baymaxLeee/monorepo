@@ -99,7 +99,7 @@ export function NodeGeneration({
           })
         }
       >
-        {active ? "生成中…" : type === 5 ? "生成图片" : "生成文本"}
+        {active ? "生成中…" : type === 5 ? "生成图片" : type === 6 ? "生成视频" : "生成文本"}
       </Button>
       {failed ? (
         <p role="alert" className="text-sm text-destructive">
