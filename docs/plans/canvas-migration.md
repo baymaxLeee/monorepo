@@ -53,3 +53,9 @@ Canvas 状态方案已按用户确认采用 Jotai：页面 Provider、规范化�
 - 视频节点已接独立 Executor Workflow：参考素材/首尾帧、取消、结果对象持有和历史选版；Chat 同一工具支持三种生成节点。本地已验证派发、幂等、失败回写，真实模型成功结果未验收。
 
 - 资源素材已补齐替换上传、历史预览/选版、重命名、主素材切换/删除递补和单素材删除。HTTP 验证覆盖版本字节与独立副本持有；跟随资源引用、审核、生成草稿、GC 仍未完成。
+
+## 批量迁移纠偏
+
+源端 domain/application/persistence、worker 媒体处理、普通 HTTP handler 和纯 Go DTO 已整体复制到 Canvas。去除私有 tracing 依赖并改用原生 OTel；DTO 不包含 Thrift runtime，尚需纳入 OpenAPI。旧 internal/domain 已合并到完整的 internal/server/domain，避免双份领域规则。Go build/vet 通过。
+
+下一步以原接口边界装配现有业务，实现 Knowledge/IAM/Admin/Executor ports，统一 PostgreSQL 首版 schema，再切换 HTTP/OpenAPI 和前端调用。禁止同时启动源 worker 调度器与 Executor Workflow，原 agent runner 也不启动。当前复制完成与线上能力可用分开记录，不把未挂载代码计为端到端完成。

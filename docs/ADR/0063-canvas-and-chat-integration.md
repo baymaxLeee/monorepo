@@ -76,3 +76,13 @@ Canvas 独立视频节点使用 canvas-video-generation Workflow，提交时冻�
 ResourceAsset 的替换上传新增不可变 revision，不覆盖旧对象；切换历史仅更新 current_asset_id。资源与素材修改先锁定项目、资源，再校验乐观版本。每个历史素材保留 RESOURCE_ASSET_REVISION owner；删除素材释放其全部历史 owner，已独立复制的 Canvas 节点继续持有自己的 owner。主素材显式切换，删除主素材按 sequence_no 选择剩余首项。OpenAPI 生成前后端契约，UI 提供替换、预览历史、选版、重命名、删除确认与主素材操作。
 
 本地 HTTP 验证已覆盖换版前后与历史逐字节读取、旧版本恢复、过期 revision 返回 409、删除主素材递补、删除后历史返回 404，以及画布独立副本仍可读取。
+
+## Go 执行代码与 TS Workflow 的边界
+
+保留源端 Go domain、application、persistence 和媒体处理实现，通过 ports 替换外部依赖；不再逐功能重写简化业务。搬入代码不代表已经完成运行装配。原 Go 的 MQ consumer、租约心跳、poll scheduler 和 agent runner 不挂入 Canvas 启动流程。
+
+Executor 是唯一持久执行调度方，负责 Workflow 重放、等待、步骤重试和取消意图。Go Canvas 保存业务任务、资产引用、额度与审计，保留原 CAS 状态机；两边以业务 TaskRunID 对应 Executor owner_ref，不能各自派发同一笔生成。原 worker 的 ZIP/FCPXML 与首尾帧处理可作为内部 HTTP 执行能力，由 Workflow step 调用，不新启独立调度系统。
+
+HTTP 返回丢失不表示 Go 未执行。允许重试的处理必须按 TaskRunID 和步骤检查已有 checkpoint，并在事务内完成状态转换；付费 Provider 创建无幂等保证时禁止自动重试。取消 Workflow 不自动终止已运行的 Go 处理或外部 Provider：必须传播取消、终止 ffmpeg 子进程，并在提交结果前校验持久取消状态，防止迟到结果复活任务。媒体字节留在执行端，Workflow 只持久化定位符。参考 [Workflow 幂等说明](https://workflow-sdk.dev/docs/foundations/idempotency)。
+
+当前批量迁入核心与普通 HTTP handler 已通过 Go build/vet；HTTP handler 尚未挂载，新 schema 与基础设施 adapter 尚未装配，不能据此宣称源端功能已经可用。已有 Canvas 入口仍运行原先接通的链路。

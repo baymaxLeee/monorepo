@@ -1,0 +1,16 @@
+[
+  {
+    "Code": "ProjectNameAlreadyExists",
+    "BizCode": 4091001,
+    "HTTPCode": 409,
+    "Message": "project name already exists",
+    "Comment": "Project name is already used in the tenant"
+  },
+  {
+    "Code": "ProjectMembersRequired",
+    "BizCode": 4001001,
+    "HTTPCode": 400,
+    "Message": "project requires at least one member",
+    "Comment": "Project member list is empty"
+  }
+]

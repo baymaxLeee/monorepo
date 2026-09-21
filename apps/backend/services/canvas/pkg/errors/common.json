@@ -1,0 +1,142 @@
+[
+  {
+    "Code": "InvalidArgument",
+    "BizCode": 4000001,
+    "HTTPCode": 400,
+    "Message": "invalid argument",
+    "Comment": "Invalid argument"
+  },
+  {
+    "Code": "ModelUnavailable",
+    "BizCode": 4000002,
+    "HTTPCode": 400,
+    "Message": "selected model is unavailable",
+    "Comment": "The selected model does not exist, is not running, or lacks the required capability"
+  },
+  {
+    "Code": "Forbidden",
+    "BizCode": 4030001,
+    "HTTPCode": 403,
+    "Message": "forbidden",
+    "Comment": "Access forbidden"
+  },
+  {
+    "Code": "NotFound",
+    "BizCode": 4040001,
+    "HTTPCode": 404,
+    "Message": "not found",
+    "Comment": "Resource not found"
+  },
+  {
+    "Code": "Conflict",
+    "BizCode": 4090001,
+    "HTTPCode": 409,
+    "Message": "conflict",
+    "Comment": "Conflict"
+  },
+  {
+    "Code": "FailedPrecondition",
+    "BizCode": 4120001,
+    "HTTPCode": 412,
+    "Message": "failed precondition",
+    "Comment": "Failed business precondition"
+  },
+  {
+    "Code": "DefaultModelNotConfigured",
+    "BizCode": 4120002,
+    "HTTPCode": 412,
+    "Message": "default model is not configured",
+    "Comment": "The tenant has no default model configured for the requested capability"
+  },
+  {
+    "Code": "TooManyRequests",
+    "BizCode": 4290001,
+    "HTTPCode": 429,
+    "Message": "too many requests",
+    "Comment": "Too many requests"
+  },
+  {
+    "Code": "InternalError",
+    "BizCode": 5000000,
+    "HTTPCode": 500,
+    "Message": "internal server error",
+    "Comment": "Internal server error"
+  },
+  {
+    "Code": "PersistenceError",
+    "BizCode": 5000001,
+    "HTTPCode": 500,
+    "Message": "persistence error",
+    "Comment": "Persistence dependency failure"
+  },
+  {
+    "Code": "ExternalDependencyError",
+    "BizCode": 5000002,
+    "HTTPCode": 500,
+    "Message": "external dependency error",
+    "Comment": "External dependency failure"
+  },
+  {
+    "Code": "ConfigurationError",
+    "BizCode": 5000004,
+    "HTTPCode": 500,
+    "Message": "configuration error",
+    "Comment": "Runtime configuration error"
+  },
+  {
+    "Code": "SerializationError",
+    "BizCode": 5000005,
+    "HTTPCode": 500,
+    "Message": "serialization error",
+    "Comment": "Serialization failure"
+  },
+  {
+    "Code": "RedisDependencyError",
+    "BizCode": 5000006,
+    "HTTPCode": 500,
+    "Message": "redis dependency error",
+    "Comment": "Redis dependency failure"
+  },
+  {
+    "Code": "ModelDependencyError",
+    "BizCode": 5000007,
+    "HTTPCode": 500,
+    "Message": "model dependency error",
+    "Comment": "Model dependency failure"
+  },
+  {
+    "Code": "ObjectStorageDependencyError",
+    "BizCode": 5000008,
+    "HTTPCode": 500,
+    "Message": "object storage dependency error",
+    "Comment": "Object storage dependency failure"
+  },
+  {
+    "Code": "ExecutionLaneDependencyError",
+    "BizCode": 5000010,
+    "HTTPCode": 500,
+    "Message": "execution lane dependency error",
+    "Comment": "Execution lane dependency failure"
+  },
+  {
+    "Code": "NotImplemented",
+    "BizCode": 5010001,
+    "HTTPCode": 501,
+    "Message": "not implemented",
+    "Comment": "Not implemented"
+  },
+  {
+    "Code": "Unavailable",
+    "BizCode": 5030001,
+    "HTTPCode": 503,
+    "Message": "service unavailable",
+    "Comment": "Service unavailable"
+  },
+  {
+    "Code": "RequestTimeout",
+    "BizCode": 5040001,
+    "HTTPCode": 504,
+    "Message": "request timed out",
+    "Comment": "Request timeout"
+  }
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "Code": "BenefitPackageNameAlreadyExists",
+    "BizCode": 4096001,
+    "HTTPCode": 409,
+    "Message": "benefit package name already exists",
+    "Comment": "Benefit package name is already used in the tenant"
+  }
+]

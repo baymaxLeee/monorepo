@@ -6,9 +6,9 @@ import (
 
 	c "github.com/example/monorepo/canvas/internal/application/contracts"
 	inputs "github.com/example/monorepo/canvas/internal/application/generationinput"
-	inputdomain "github.com/example/monorepo/canvas/internal/domain/generationinput"
 	p "github.com/example/monorepo/canvas/internal/infrastructure/persistence"
 	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
+	inputdomain "github.com/example/monorepo/canvas/internal/server/domain/generationinput"
 	"gorm.io/gorm"
 )
 

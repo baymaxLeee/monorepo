@@ -1,0 +1,16 @@
+[
+  {
+    "Code": "UnsupportedAssetFormat",
+    "BizCode": 4003001,
+    "HTTPCode": 400,
+    "Message": "unsupported asset format",
+    "Comment": "Uploaded blob content is not a supported asset format"
+  },
+  {
+    "Code": "AssetTooLarge",
+    "BizCode": 4003003,
+    "HTTPCode": 400,
+    "Message": "asset is too large",
+    "Comment": "Uploaded asset exceeds the size limit for its media type"
+  }
+]

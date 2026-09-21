@@ -1,0 +1,16 @@
+[
+  {
+    "Code": "CanvasNameAlreadyExists",
+    "BizCode": 4092001,
+    "HTTPCode": 409,
+    "Message": "canvas name already exists",
+    "Comment": "Canvas name is already used in the project"
+  },
+  {
+    "Code": "CanvasLimitExceeded",
+    "BizCode": 4092002,
+    "HTTPCode": 409,
+    "Message": "canvas limit exceeded",
+    "Comment": "Project already contains the maximum number of active canvases"
+  }
+]

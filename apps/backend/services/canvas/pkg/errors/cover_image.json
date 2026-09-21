@@ -1,0 +1,9 @@
+[
+  {
+    "Code": "CoverImageTooLarge",
+    "BizCode": 4004001,
+    "HTTPCode": 400,
+    "Message": "cover image is too large",
+    "Comment": "Project or Video cover image exceeds the 2 MiB limit"
+  }
+]

@@ -1,0 +1,128 @@
+[
+  {
+    "Code": "ResourceNotFound",
+    "BizCode": 4045001,
+    "HTTPCode": 404,
+    "Message": "resource not found",
+    "Comment": "Resource does not exist or is outside the requested project scope"
+  },
+  {
+    "Code": "ResourceAssetNotFound",
+    "BizCode": 4045002,
+    "HTTPCode": 404,
+    "Message": "resource asset not found",
+    "Comment": "Resource asset does not exist or is outside the requested resource scope"
+  },
+  {
+    "Code": "ResourceNameConflict",
+    "BizCode": 4095001,
+    "HTTPCode": 409,
+    "Message": "resource name already exists",
+    "Comment": "An active resource with the same name already exists in the project"
+  },
+  {
+    "Code": "ResourceAssetNameConflict",
+    "BizCode": 4095002,
+    "HTTPCode": 409,
+    "Message": "resource asset name already exists",
+    "Comment": "An active resource asset with the same name already exists in the resource"
+  },
+  {
+    "Code": "ResourceLimitExceeded",
+    "BizCode": 4095003,
+    "HTTPCode": 409,
+    "Message": "resource limit exceeded",
+    "Comment": "The project resource type has reached its active resource limit"
+  },
+  {
+    "Code": "ResourceAssetLimitExceeded",
+    "BizCode": 4095004,
+    "HTTPCode": 409,
+    "Message": "resource asset limit exceeded",
+    "Comment": "The resource has reached its active resource asset limit"
+  },
+  {
+    "Code": "ResourceRevisionConflict",
+    "BizCode": 4095005,
+    "HTTPCode": 409,
+    "Message": "resource revision conflict",
+    "Comment": "The resource changed after the caller read it"
+  },
+  {
+    "Code": "ResourceAssetRevisionConflict",
+    "BizCode": 4095006,
+    "HTTPCode": 409,
+    "Message": "resource asset revision conflict",
+    "Comment": "The resource asset changed after the caller read it"
+  },
+  {
+    "Code": "ResourceAssetMediaTypeMismatch",
+    "BizCode": 4005001,
+    "HTTPCode": 400,
+    "Message": "resource asset media type mismatch",
+    "Comment": "The selected asset media type is not supported by the resource type"
+  },
+  {
+    "Code": "ResourceAssetOwnerMismatch",
+    "BizCode": 4005002,
+    "HTTPCode": 400,
+    "Message": "resource asset owner mismatch",
+    "Comment": "The selected asset is not owned by the requested resource"
+  },
+  {
+    "Code": "ResourceAssetSourceTypeMismatch",
+    "BizCode": 4005003,
+    "HTTPCode": 400,
+    "Message": "resource asset source type mismatch",
+    "Comment": "The resource asset source type does not support the requested operation"
+  },
+  {
+    "Code": "ResourceAssetGenerationReferenceInvalid",
+    "BizCode": 4005004,
+    "HTTPCode": 400,
+    "Message": "resource asset generation reference is invalid",
+    "Comment": "A generation reference is unavailable, unsupported, self-referential, or has no current image"
+  },
+  {
+    "Code": "ResourceAssetGenerationNotFound",
+    "BizCode": 4045003,
+    "HTTPCode": 404,
+    "Message": "resource asset generation not found",
+    "Comment": "The generated resource asset has no visible generation configuration or run"
+  },
+  {
+    "Code": "ResourceAssetGenerationRevisionConflict",
+    "BizCode": 4095007,
+    "HTTPCode": 409,
+    "Message": "resource asset generation revision conflict",
+    "Comment": "The generation configuration changed after the caller read it"
+  },
+  {
+    "Code": "ResourceAssetGenerationRunActive",
+    "BizCode": 4095008,
+    "HTTPCode": 409,
+    "Message": "resource asset generation run is active",
+    "Comment": "The generated resource asset already has an active run"
+  },
+  {
+    "Code": "ResourceAssetGenerationRunConflict",
+    "BizCode": 4095009,
+    "HTTPCode": 409,
+    "Message": "resource asset generation run conflict",
+    "Comment": "The task run is not the active run for the generated resource asset"
+  },
+  {
+    "Code": "ResourceAssetGenerationConfigIncomplete",
+    "BizCode": 4125001,
+    "HTTPCode": 412,
+    "Message": "resource asset generation config is incomplete",
+    "Comment": "Prompt, model, resolution, or aspect ratio is incomplete"
+  },
+  {
+    "Code": "ResourceReadOnly",
+    "BizCode": 4035001,
+    "HTTPCode": 403,
+    "Message": "resource is read-only",
+    "Comment": "OFFICIAL resources and their assets are read-only and maintained by trusted reconciliation"
+  }
+]

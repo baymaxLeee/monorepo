@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
-	domaincanvas "github.com/example/monorepo/canvas/internal/domain/canvas"
-	domaingenerationinput "github.com/example/monorepo/canvas/internal/domain/generationinput"
+	domainasset "github.com/example/monorepo/canvas/internal/server/domain/asset"
+	domaincanvas "github.com/example/monorepo/canvas/internal/server/domain/canvas"
+	domaingenerationinput "github.com/example/monorepo/canvas/internal/server/domain/generationinput"
 )
 
 var (

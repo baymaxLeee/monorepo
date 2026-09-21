@@ -6,9 +6,9 @@ import (
 	"time"
 
 	c "github.com/example/monorepo/canvas/internal/application/contracts"
-	domain "github.com/example/monorepo/canvas/internal/domain/resource"
 	p "github.com/example/monorepo/canvas/internal/infrastructure/persistence"
 	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
+	domain "github.com/example/monorepo/canvas/internal/server/domain/resource"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

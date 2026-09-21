@@ -1,0 +1,37 @@
+[
+  {
+    "Code": "CanvasNodeLimitExceeded",
+    "BizCode": 4092003,
+    "HTTPCode": 409,
+    "Message": "canvas node limit exceeded",
+    "Comment": "Canvas already contains the maximum number of active nodes"
+  },
+  {
+    "Code": "CanvasNodeGenerationInProgress",
+    "BizCode": 4092004,
+    "HTTPCode": 409,
+    "Message": "canvas node generation is already in progress",
+    "Comment": "A task run already owns the canvas node"
+  },
+  {
+    "Code": "CanvasNodeAssetLimitExceeded",
+    "BizCode": 4092005,
+    "HTTPCode": 409,
+    "Message": "canvas node asset limit exceeded",
+    "Comment": "Canvas node already contains the maximum assets for the media type"
+  },
+  {
+    "Code": "CanvasNodeAssetMissing",
+    "BizCode": 4002006,
+    "HTTPCode": 400,
+    "Message": "canvas node asset is missing",
+    "Comment": "Prompt references an asset that is no longer bound to the canvas node"
+  },
+  {
+    "Code": "CanvasNodeNameConflict",
+    "BizCode": 4092007,
+    "HTTPCode": 409,
+    "Message": "canvas node name already exists",
+    "Comment": "An active canvas node with the same name already exists in the canvas"
+  }
+]
