@@ -268,6 +268,8 @@ services:
     environment:
       ENVIRONMENT: single-vps
       EXECUTOR_SERVICE_URL: http://executor:8011
+      IAM_SERVICE_URL: http://iam:8002
+      ADMIN_SERVICE_URL: http://admin:8001
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
       PORT: "8012"
       POSTGRES_HOST: postgres

@@ -34,6 +34,23 @@ export interface AttachSkillInput {
   skill_id: string;
 }
 
+export interface BenefitPackage {
+  id: string;
+  is_preset: boolean;
+  name: string;
+  project_name: string;
+  has_access_key_id: boolean;
+  has_secret_access_key: boolean;
+  enabled: boolean;
+  model_ids: string[];
+  material_used: number;
+  revision: number;
+  created_by: string;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export type BotTone = typeof BotTone[keyof typeof BotTone];
 
 
@@ -171,6 +188,30 @@ export interface CreateAppInput {
   sort_order?: number;
 }
 
+export interface CreateBenefitPackageInput {
+  is_preset?: boolean;
+  /** @maxLength 80 */
+  name?: string;
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  project_name?: string;
+  /**
+     * @minLength 1
+     * @maxLength 4096
+     */
+  access_key_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 4096
+     */
+  secret_access_key: string;
+  enabled?: boolean;
+  /** @maxItems 100 */
+  model_ids?: string[];
+}
+
 export interface CreateBotInput {
   /**
      * @minLength 1
@@ -295,6 +336,16 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
+export interface InternalBenefitPackage {
+  id: string;
+  name: string;
+  project_name: string;
+  access_key_id: string;
+  secret_access_key: string;
+  is_preset: boolean;
+  model_ids: string[];
+}
+
 export type InternalModelProviderProviderKind = typeof InternalModelProviderProviderKind[keyof typeof InternalModelProviderProviderKind];
 
 
@@ -387,6 +438,27 @@ export interface MoveSkillNodeInput {
      */
   base_etag: string;
   parent_id?: string | null;
+}
+
+export type ProviderCatalogItemProviderKind = typeof ProviderCatalogItemProviderKind[keyof typeof ProviderCatalogItemProviderKind];
+
+
+export const ProviderCatalogItemProviderKind = {
+  chat: 'chat',
+  image: 'image',
+  video: 'video',
+  embedding: 'embedding',
+  rerank: 'rerank',
+} as const;
+
+export interface ProviderCatalogItem {
+  id: string;
+  name: string;
+  model: string;
+  provider_kind: ProviderCatalogItemProviderKind;
+  pricing: ProviderPricing | null;
+  is_default: boolean;
+  is_enabled: boolean;
 }
 
 export interface PublishSkillInput {
@@ -571,6 +643,17 @@ export interface UpdateAppInput {
   sort_order?: number | null;
 }
 
+export interface UpdateBenefitPackageInput {
+  /** @minimum 1 */
+  expected_revision: number;
+  name?: string | null;
+  project_name?: string | null;
+  access_key_id?: string | null;
+  secret_access_key?: string | null;
+  enabled?: boolean | null;
+  model_ids?: string[] | null;
+}
+
 export type UpdateBotInputTone = typeof UpdateBotInputTone[keyof typeof UpdateBotInputTone] | null;
 
 
@@ -673,6 +756,28 @@ export type ReadyzReadyzGet200 = { [key: string]: unknown };
 
 export type HealthzHealthzGet200 = { [key: string]: unknown };
 
+export type ListBenefitPackagesParams = {
+available_only?: boolean;
+};
+
+export type DeleteBenefitPackageParams = {
+/**
+ * @minimum 1
+ */
+expected_revision: number;
+};
+
+export type GetBenefitPackageInternalInternalCanvasBenefitPackagesPackageIdGetParams = {
+/**
+ * @minLength 1
+ */
+workspace_id: string;
+/**
+ * @minLength 1
+ */
+tenant_id: string;
+};
+
 export type DeleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDeleteParams = {
 /**
  * @minLength 64
@@ -712,6 +817,19 @@ workspace_id: string;
 tenant_id: string;
 };
 
+export type ListProviderCatalogInternalInternalProvidersGetParams = {
+/**
+ * Team that owns the provider
+ * @minLength 1
+ */
+workspace_id: string;
+/**
+ * Tenant that owns the provider
+ * @minLength 1
+ */
+tenant_id: string;
+};
+
 export type GetDefaultProviderInternalInternalProvidersDefaultGetParams = {
 /**
  * Team that owns the provider
@@ -746,6 +864,17 @@ export type GetProviderInternalInternalProvidersProviderIdGetParams = {
 workspace_id: string;
 /**
  * Team that owns the provider
+ * @minLength 1
+ */
+tenant_id: string;
+};
+
+export type GetTaskProviderInternalInternalProvidersProviderIdTaskCredentialsGetParams = {
+/**
+ * @minLength 1
+ */
+workspace_id: string;
+/**
  * @minLength 1
  */
 tenant_id: string;
@@ -908,6 +1037,76 @@ const detachBotSkillBotBotIdSkillsSkillIdDelete = (
  options?: SecondParameter<typeof apiMutator<SkillSummary[]>>,) => {
       return apiMutator<SkillSummary[]>(
       {url: `/bot/${botId}/skills/${skillId}`, method: 'DELETE'
+    },
+      options);
+    }
+
+/**
+ * @summary List Packages
+ */
+const listBenefitPackages = (
+    params?: ListBenefitPackagesParams,
+ options?: SecondParameter<typeof apiMutator<BenefitPackage[]>>,) => {
+      return apiMutator<BenefitPackage[]>(
+      {url: `/benefit-packages`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+/**
+ * @summary Create Package
+ */
+const createBenefitPackage = (
+    createBenefitPackageInput: CreateBenefitPackageInput,
+ options?: SecondParameter<typeof apiMutator<BenefitPackage>>,) => {
+      return apiMutator<BenefitPackage>(
+      {url: `/benefit-packages`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createBenefitPackageInput
+    },
+      options);
+    }
+
+/**
+ * @summary Update Package
+ */
+const updateBenefitPackage = (
+    packageId: string,
+    updateBenefitPackageInput: UpdateBenefitPackageInput,
+ options?: SecondParameter<typeof apiMutator<BenefitPackage>>,) => {
+      return apiMutator<BenefitPackage>(
+      {url: `/benefit-packages/${packageId}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: updateBenefitPackageInput
+    },
+      options);
+    }
+
+/**
+ * @summary Delete Package
+ */
+const deleteBenefitPackage = (
+    packageId: string,
+    params: DeleteBenefitPackageParams,
+ options?: SecondParameter<typeof apiMutator<void>>,) => {
+      return apiMutator<void>(
+      {url: `/benefit-packages/${packageId}`, method: 'DELETE',
+        params
+    },
+      options);
+    }
+
+/**
+ * @summary Get Benefit Package Internal
+ */
+const getBenefitPackageInternalInternalCanvasBenefitPackagesPackageIdGet = (
+    packageId: string,
+    params: GetBenefitPackageInternalInternalCanvasBenefitPackagesPackageIdGetParams,
+ options?: SecondParameter<typeof apiMutator<InternalBenefitPackage>>,) => {
+      return apiMutator<InternalBenefitPackage>(
+      {url: `/internal/canvas/benefit-packages/${packageId}`, method: 'GET',
+        params
     },
       options);
     }
@@ -1282,6 +1481,19 @@ const testProviderProvidersProviderIdTestPost = (
     }
 
 /**
+ * @summary List Provider Catalog Internal
+ */
+const listProviderCatalogInternalInternalProvidersGet = (
+    params: ListProviderCatalogInternalInternalProvidersGetParams,
+ options?: SecondParameter<typeof apiMutator<ProviderCatalogItem[]>>,) => {
+      return apiMutator<ProviderCatalogItem[]>(
+      {url: `/internal/providers`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+/**
  * @summary Get Default Provider Internal
  */
 const getDefaultProviderInternalInternalProvidersDefaultGet = (
@@ -1321,6 +1533,20 @@ const getProviderInternalInternalProvidersProviderIdGet = (
  options?: SecondParameter<typeof apiMutator<InternalModelProvider>>,) => {
       return apiMutator<InternalModelProvider>(
       {url: `/internal/providers/${providerId}`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+/**
+ * @summary Get Task Provider Internal
+ */
+const getTaskProviderInternalInternalProvidersProviderIdTaskCredentialsGet = (
+    providerId: string,
+    params: GetTaskProviderInternalInternalProvidersProviderIdTaskCredentialsGetParams,
+ options?: SecondParameter<typeof apiMutator<InternalModelProvider>>,) => {
+      return apiMutator<InternalModelProvider>(
+      {url: `/internal/providers/${providerId}/task-credentials`, method: 'GET',
         params
     },
       options);
@@ -1405,7 +1631,7 @@ const deleteAppAppsAppIdDelete = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listBotSkillsBotBotIdSkillsGet,attachBotSkillBotBotIdSkillsPost,detachBotSkillBotBotIdSkillsSkillIdDelete,getCanvasSettings,updateCanvasSettings,listSkillsSkillsGet,createSkillSkillsPost,getSkillSkillsSkillIdGet,updateSkillSkillsSkillIdPatch,deleteSkillSkillsSkillIdDelete,getSkillWorkspaceSkillsSkillIdWorkspaceGet,getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet,createSkillNodeSkillsSkillIdWorkspaceNodesPost,updateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPut,renameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePut,moveSkillNodeSkillsSkillIdWorkspaceNodesNodeIdParentPut,deleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDelete,validateSkillSkillsSkillIdValidatePost,publishSkillSkillsSkillIdPublishPost,bulkDeleteSkillsSkillsBulkDeletePost,getSkillFileInternalInternalSkillsSkillIdFilesGet,getSkillInternalInternalSkillsSkillIdGet,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderByKindInternalInternalProvidersByKindKindGet,getProviderInternalInternalProvidersProviderIdGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listBotSkillsBotBotIdSkillsGet,attachBotSkillBotBotIdSkillsPost,detachBotSkillBotBotIdSkillsSkillIdDelete,listBenefitPackages,createBenefitPackage,updateBenefitPackage,deleteBenefitPackage,getBenefitPackageInternalInternalCanvasBenefitPackagesPackageIdGet,getCanvasSettings,updateCanvasSettings,listSkillsSkillsGet,createSkillSkillsPost,getSkillSkillsSkillIdGet,updateSkillSkillsSkillIdPatch,deleteSkillSkillsSkillIdDelete,getSkillWorkspaceSkillsSkillIdWorkspaceGet,getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet,createSkillNodeSkillsSkillIdWorkspaceNodesPost,updateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPut,renameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePut,moveSkillNodeSkillsSkillIdWorkspaceNodesNodeIdParentPut,deleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDelete,validateSkillSkillsSkillIdValidatePost,publishSkillSkillsSkillIdPublishPost,bulkDeleteSkillsSkillsBulkDeletePost,getSkillFileInternalInternalSkillsSkillIdFilesGet,getSkillInternalInternalSkillsSkillIdGet,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,listProviderCatalogInternalInternalProvidersGet,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderByKindInternalInternalProvidersByKindKindGet,getProviderInternalInternalProvidersProviderIdGet,getTaskProviderInternalInternalProvidersProviderIdTaskCredentialsGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['healthzHealthzGet']>>>
@@ -1417,6 +1643,11 @@ export type DeleteBotBotBotIdDeleteResult = NonNullable<Awaited<ReturnType<Retur
 export type ListBotSkillsBotBotIdSkillsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listBotSkillsBotBotIdSkillsGet']>>>
 export type AttachBotSkillBotBotIdSkillsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['attachBotSkillBotBotIdSkillsPost']>>>
 export type DetachBotSkillBotBotIdSkillsSkillIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['detachBotSkillBotBotIdSkillsSkillIdDelete']>>>
+export type ListBenefitPackagesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listBenefitPackages']>>>
+export type CreateBenefitPackageResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createBenefitPackage']>>>
+export type UpdateBenefitPackageResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateBenefitPackage']>>>
+export type DeleteBenefitPackageResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['deleteBenefitPackage']>>>
+export type GetBenefitPackageInternalInternalCanvasBenefitPackagesPackageIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getBenefitPackageInternalInternalCanvasBenefitPackagesPackageIdGet']>>>
 export type GetCanvasSettingsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getCanvasSettings']>>>
 export type UpdateCanvasSettingsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateCanvasSettings']>>>
 export type ListSkillsSkillsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listSkillsSkillsGet']>>>
@@ -1444,9 +1675,11 @@ export type DeleteProviderProvidersProviderIdDeleteResult = NonNullable<Awaited<
 export type BulkDeleteProvidersProvidersBulkDeletePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['bulkDeleteProvidersProvidersBulkDeletePost']>>>
 export type SetDefaultProviderProvidersProviderIdSetDefaultPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['setDefaultProviderProvidersProviderIdSetDefaultPost']>>>
 export type TestProviderProvidersProviderIdTestPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['testProviderProvidersProviderIdTestPost']>>>
+export type ListProviderCatalogInternalInternalProvidersGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listProviderCatalogInternalInternalProvidersGet']>>>
 export type GetDefaultProviderInternalInternalProvidersDefaultGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getDefaultProviderInternalInternalProvidersDefaultGet']>>>
 export type GetProviderByKindInternalInternalProvidersByKindKindGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getProviderByKindInternalInternalProvidersByKindKindGet']>>>
 export type GetProviderInternalInternalProvidersProviderIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getProviderInternalInternalProvidersProviderIdGet']>>>
+export type GetTaskProviderInternalInternalProvidersProviderIdTaskCredentialsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getTaskProviderInternalInternalProvidersProviderIdTaskCredentialsGet']>>>
 export type GetResolvedAgentInternalInternalAgentsAgentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getResolvedAgentInternalInternalAgentsAgentIdGet']>>>
 export type ListAppsAppsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['listAppsAppsGet']>>>
 export type CreateAppAppsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createAppAppsPost']>>>

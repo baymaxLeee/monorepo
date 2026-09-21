@@ -99,7 +99,9 @@ services:
     publicRoutes:
       - /api/canvas-server/*
     bindings:
+      - admin
       - executor
+      - iam
       - knowledge
     databases:
       - canvas
