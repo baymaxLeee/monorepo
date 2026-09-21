@@ -28,6 +28,8 @@ from application.contracts.benefit_package import (
     CreateBenefitPackageInput,
     InternalBenefitPackage,
     ReserveBenefitPackageReviewInput,
+    ReviewedAsset,
+    SubmitReviewedAssetInput,
     UpdateBenefitPackageInput,
 )
 from application.encryption import decrypt, encrypt
@@ -455,6 +457,29 @@ class BenefitPackageService:
             is_preset=row.is_preset,
             model_ids=_models(row.model_ids_json),
         )
+
+    async def submit_reviewed_asset(self, package_id: str, payload: SubmitReviewedAssetInput) -> ReviewedAsset:
+        item = await self.get_internal(package_id)
+        asset_id = await self._asset_groups.create_asset(
+            group_id=item.asset_group_id,
+            url=payload.url,
+            asset_type=payload.asset_type,
+            name=payload.name,
+            project_name=item.project_name,
+            access_key_id=item.access_key_id,
+            secret_access_key=item.secret_access_key,
+        )
+        return ReviewedAsset(id=asset_id, status="Processing")
+
+    async def get_reviewed_asset(self, package_id: str, asset_id: str) -> ReviewedAsset:
+        item = await self.get_internal(package_id)
+        status, reason = await self._asset_groups.get_asset(
+            asset_id=asset_id,
+            project_name=item.project_name,
+            access_key_id=item.access_key_id,
+            secret_access_key=item.secret_access_key,
+        )
+        return ReviewedAsset(id=asset_id, status=status, failure_reason=reason)
 
     async def _validate_models(
         self, model_ids: list_type[str], packages: list_type[BenefitPackageRow], package_id: str = ""

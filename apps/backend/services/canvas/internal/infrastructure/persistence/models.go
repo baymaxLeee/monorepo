@@ -173,24 +173,25 @@ type ResourceAssetRevision struct {
 }
 
 type AssetReview struct {
-	ID               string `gorm:"primaryKey"`
-	TenantID         string
-	WorkspaceID      string
-	ProjectID        string
-	ResourceAssetID  string
-	AssetID          string
-	BenefitPackageID string
-	PackageName      string
-	IsPreset         bool
-	ReservationID    string
-	OperationID      string
-	CreatedBy        string
-	ProviderAssetID  string
-	Status           string
-	FailureReason    string
-	SubmittedAt      *time.Time
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID                  string `gorm:"primaryKey"`
+	TenantID            string
+	WorkspaceID         string
+	ProjectID           string
+	ResourceAssetID     string
+	AssetID              string
+	BenefitPackageID    string
+	PackageName          string
+	IsPreset             bool
+	ReservationID        string
+	OperationID          string
+	CreatedBy            string
+	ProviderAssetID      string
+	SubmissionStartedAt *time.Time
+	Status              string
+	FailureReason       string
+	SubmittedAt         *time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 func (AssetReview) TableName() string { return "asset_reviews" }

@@ -9,6 +9,8 @@ from application.contracts.benefit_package import (
     BenefitPackageReviewReservation,
     InternalBenefitPackage,
     ReserveBenefitPackageReviewInput,
+    ReviewedAsset,
+    SubmitReviewedAssetInput,
 )
 from fastapi import APIRouter, Header, Query
 from kernel.errors import ForbiddenError
@@ -87,3 +89,33 @@ async def transition_review(
     _require_canvas(caller)
     user = AuthContext(user_id="", username="", email="", workspace_id=workspace_id, tenant_id=tenant_id)
     return await BenefitPackageService(session, user).transition_review_reservation(package_id, reservation_id, status)
+
+
+@router.post("/{package_id}/reviewed-assets", response_model=ReviewedAsset, operation_id="submitReviewedAsset")
+async def submit_reviewed_asset(
+    package_id: str,
+    payload: SubmitReviewedAssetInput,
+    workspace_id: Annotated[str, Query(min_length=1)],
+    tenant_id: Annotated[str, Query(min_length=1)],
+    session: DbSession,
+    _caller: InternalCaller,
+    caller: Annotated[str, Header(alias="X-Caller-Service")],
+) -> ReviewedAsset:
+    _require_canvas(caller)
+    user = AuthContext(user_id="", username="", email="", workspace_id=workspace_id, tenant_id=tenant_id)
+    return await BenefitPackageService(session, user).submit_reviewed_asset(package_id, payload)
+
+
+@router.get("/{package_id}/reviewed-assets/{asset_id}", response_model=ReviewedAsset, operation_id="getReviewedAsset")
+async def get_reviewed_asset(
+    package_id: str,
+    asset_id: str,
+    workspace_id: Annotated[str, Query(min_length=1)],
+    tenant_id: Annotated[str, Query(min_length=1)],
+    session: DbSession,
+    _caller: InternalCaller,
+    caller: Annotated[str, Header(alias="X-Caller-Service")],
+) -> ReviewedAsset:
+    _require_canvas(caller)
+    user = AuthContext(user_id="", username="", email="", workspace_id=workspace_id, tenant_id=tenant_id)
+    return await BenefitPackageService(session, user).get_reviewed_asset(package_id, asset_id)

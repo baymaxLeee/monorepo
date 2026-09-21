@@ -2,13 +2,17 @@ package storage
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type Client struct{ URL, Token string }
@@ -61,4 +65,12 @@ func (c *Client) Delete(ctx context.Context, scope, key string) error {
 		return err
 	}
 	return res.Body.Close()
+}
+
+func (c *Client) PublicURL(baseURL, scope, key string, expires time.Time) string {
+	expiresAt := strconv.FormatInt(expires.Unix(), 10)
+	mac := hmac.New(sha256.New, []byte(c.Token))
+	_, _ = mac.Write([]byte(scope + "\n" + key + "\n" + expiresAt))
+	query := url.Values{"expires": {expiresAt}, "signature": {hex.EncodeToString(mac.Sum(nil))}}
+	return strings.TrimRight(baseURL, "/") + "/api/knowledge-server/media/canvas/" + url.PathEscape(scope) + "/" + url.PathEscape(key) + "?" + query.Encode()
 }

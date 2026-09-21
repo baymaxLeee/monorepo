@@ -77,6 +77,7 @@ func Load() (Config, error) {
 			"/api/iam-server/refresh",
 			"/api/iam-server/logout",
 			"/api/knowledge-server/resources",
+			"/api/knowledge-server/media/canvas",
 		}),
 		// Method-aware exact publics: the register page must read the applyable
 		// workspace list before authenticating, but POST /workspaces and /workspaces/{id}/... stay

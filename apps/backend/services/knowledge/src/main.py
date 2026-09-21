@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from api.http.routes import (
+    canvas_media,
     conversation_cleanup_internal,
     documents,
     documents_internal,
@@ -71,6 +72,7 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(TraceIDMiddleware)
     app.include_router(health.router)
+    app.include_router(canvas_media.router)
     app.include_router(ingest.router)
     app.include_router(documents.router)
     app.include_router(documents_internal.router)

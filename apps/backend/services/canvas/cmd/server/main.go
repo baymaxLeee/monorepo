@@ -40,7 +40,7 @@ func run() error {
 	defer sql.Close()
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
-	service := &application.Service{Storage: &storage.Client{URL: bootstrap.Env("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"), Token: cfg.InternalToken}, DB: db, Executor: &executor.Client{URL: bootstrap.Env("EXECUTOR_SERVICE_URL", "http://localhost:8011"), Token: cfg.InternalToken}}
+	service := &application.Service{Storage: &storage.Client{URL: bootstrap.Env("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"), Token: cfg.InternalToken}, DB: db, Executor: &executor.Client{URL: bootstrap.Env("EXECUTOR_SERVICE_URL", "http://localhost:8011"), Token: cfg.InternalToken}, PublicGatewayURL: cfg.PublicGatewayURL}
 	service.MemberDirectory = &iam.Directory{URL: bootstrap.Env("IAM_SERVICE_URL", "http://localhost:8002")}
 	service.ProviderDirectory = &admin.Directory{URL: bootstrap.Env("ADMIN_SERVICE_URL", "http://localhost:8001"), Token: cfg.InternalToken}
 	service.UsageExporter = application.NewProjectUsageExporter(db)
@@ -48,6 +48,7 @@ func run() error {
 	go service.RunArchives(ctx)
 	go service.RunArchiveCleanup(ctx)
 	go service.RunAssetCleanup(ctx)
+	go service.RunAssetReviews(ctx)
 	go service.RunVideoFrames(ctx)
 	go service.RunResourceGenerations(ctx)
 	go service.RunStoryboardDrafts(ctx)

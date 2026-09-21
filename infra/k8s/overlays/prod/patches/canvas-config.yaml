@@ -4,3 +4,4 @@ metadata:
   name: canvas-config
 data:
   ENVIRONMENT: production
+  PUBLIC_GATEWAY_URL: "https://app.your-domain.com"

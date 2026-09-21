@@ -265,6 +265,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/canvas/benefit-packages/{package_id}/reviewed-assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit Reviewed Asset */
+        post: operations["submitReviewedAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/canvas/benefit-packages/{package_id}/reviewed-assets/{asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Reviewed Asset */
+        get: operations["getReviewedAsset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/canvas/settings": {
         parameters: {
             query?: never;
@@ -1372,6 +1406,18 @@ export interface components {
             /** Skills */
             skills?: components["schemas"]["AgentSkill"][];
         };
+        /** ReviewedAsset */
+        ReviewedAsset: {
+            /** Id */
+            id: string;
+            /** Status */
+            status: string;
+            /**
+             * Failure Reason
+             * @default
+             */
+            failure_reason: string;
+        };
         /** Skill */
         Skill: {
             /** Id */
@@ -1500,6 +1546,15 @@ export interface components {
             workspace_seq: number;
             /** Tree */
             tree: components["schemas"]["SkillFileNode"][];
+        };
+        /** SubmitReviewedAssetInput */
+        SubmitReviewedAssetInput: {
+            /** Url */
+            url: string;
+            /** Asset Type */
+            asset_type: string;
+            /** Name */
+            name: string;
         };
         /**
          * TestModelProviderInput
@@ -2429,6 +2484,85 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BenefitPackageReviewReservation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submitReviewedAsset: {
+        parameters: {
+            query: {
+                workspace_id: string;
+                tenant_id: string;
+            };
+            header: {
+                "X-Caller-Service": string;
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitReviewedAssetInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewedAsset"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getReviewedAsset: {
+        parameters: {
+            query: {
+                workspace_id: string;
+                tenant_id: string;
+            };
+            header: {
+                "X-Caller-Service": string;
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                package_id: string;
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewedAsset"];
                 };
             };
             /** @description Validation Error */

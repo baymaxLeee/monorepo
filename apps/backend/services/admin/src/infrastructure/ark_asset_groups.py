@@ -50,6 +50,51 @@ class AssetGroupClient:
             secret_access_key,
         )
 
+    async def create_asset(
+        self,
+        *,
+        group_id: str,
+        url: str,
+        asset_type: str,
+        name: str,
+        project_name: str,
+        access_key_id: str,
+        secret_access_key: str,
+    ) -> str:
+        result = await self._call(
+            "CreateAsset",
+            {"GroupId": group_id, "URL": url, "AssetType": asset_type, "Name": name, "ProjectName": project_name},
+            access_key_id,
+            secret_access_key,
+        )
+        asset_id = result.get("Id")
+        if not isinstance(asset_id, str) or not asset_id.strip():
+            raise AssetGroupDependencyError("Ark 创建送审素材响应缺少 Id")
+        return asset_id.strip()
+
+    async def get_asset(
+        self,
+        *,
+        asset_id: str,
+        project_name: str,
+        access_key_id: str,
+        secret_access_key: str,
+    ) -> tuple[str, str]:
+        result = await self._call(
+            "GetAsset",
+            {"Id": asset_id, "ProjectName": project_name},
+            access_key_id,
+            secret_access_key,
+        )
+        status = result.get("Status")
+        if not isinstance(status, str) or not status.strip():
+            raise AssetGroupDependencyError("Ark 查询送审素材响应缺少 Status")
+        reason = next(
+            (str(result[key]).strip() for key in ("Reason", "FailureReason", "Message") if result.get(key)),
+            "",
+        )
+        return status.strip(), reason
+
     async def _call(
         self, action: str, payload: dict[str, object], access_key_id: str, secret_access_key: str
     ) -> dict[str, object]:

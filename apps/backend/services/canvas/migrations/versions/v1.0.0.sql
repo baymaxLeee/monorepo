@@ -389,6 +389,7 @@ CREATE TABLE asset_reviews (
  benefit_package_id varchar(32) NOT NULL, package_name varchar(80) NOT NULL, is_preset boolean NOT NULL,
  reservation_id varchar(36) NOT NULL, operation_id varchar(36) NOT NULL, created_by varchar(64) NOT NULL,
  provider_asset_id varchar(128) NOT NULL DEFAULT '',
+ submission_started_at timestamptz,
  status varchar(16) NOT NULL CHECK(status IN ('SUBMITTING','PROCESSING','APPROVED','FAILED')),
  failure_reason varchar(512) NOT NULL DEFAULT '', submitted_at timestamptz,
  created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL,

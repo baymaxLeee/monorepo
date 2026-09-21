@@ -22,6 +22,7 @@ type Service struct {
 	MemberDirectory   ProjectMemberDirectory
 	ProviderDirectory ProjectProviderDirectory
 	UsageExporter     *projectusage.Exporter
+	PublicGatewayURL  string
 }
 
 func newID() string {

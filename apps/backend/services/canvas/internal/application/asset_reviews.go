@@ -17,6 +17,8 @@ type benefitPackageDirectory interface {
 	ListBenefitPackages(context.Context, string, string) ([]adminclient.BenefitPackage, error)
 	ReserveBenefitPackageReview(context.Context, string, string, string, string, string, string) (adminclient.ReviewReservation, error)
 	TransitionBenefitPackageReview(context.Context, string, string, string, string, string) (adminclient.ReviewReservation, error)
+	SubmitReviewedAsset(context.Context, string, string, string, string, string, string) (adminclient.ReviewedAsset, error)
+	GetReviewedAsset(context.Context, string, string, string, string) (adminclient.ReviewedAsset, error)
 }
 
 func (s *Service) benefitPackages() (benefitPackageDirectory, error) {

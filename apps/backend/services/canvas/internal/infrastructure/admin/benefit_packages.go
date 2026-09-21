@@ -26,6 +26,12 @@ type ReviewReservation struct {
 	Status string `json:"status"`
 }
 
+type ReviewedAsset struct {
+	ID            string `json:"id"`
+	Status        string `json:"status"`
+	FailureReason string `json:"failure_reason"`
+}
+
 type DependencyError struct {
 	Status int
 	Detail string
@@ -52,6 +58,19 @@ func (d *Directory) TransitionBenefitPackageReview(ctx context.Context, tenantID
 	var reservation ReviewReservation
 	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/review-reservations/"+url.PathEscape(reservationID)+"/"+url.PathEscape(status), tenantID, workspaceID, nil, &reservation)
 	return reservation, err
+}
+
+func (d *Directory) SubmitReviewedAsset(ctx context.Context, tenantID, workspaceID, packageID, referenceURL, assetType, name string) (ReviewedAsset, error) {
+	payload := map[string]string{"url": referenceURL, "asset_type": assetType, "name": name}
+	var asset ReviewedAsset
+	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/reviewed-assets", tenantID, workspaceID, payload, &asset)
+	return asset, err
+}
+
+func (d *Directory) GetReviewedAsset(ctx context.Context, tenantID, workspaceID, packageID, assetID string) (ReviewedAsset, error) {
+	var asset ReviewedAsset
+	err := d.benefitPackageRequest(ctx, http.MethodGet, "/"+url.PathEscape(packageID)+"/reviewed-assets/"+url.PathEscape(assetID), tenantID, workspaceID, nil, &asset)
+	return asset, err
 }
 
 func (d *Directory) benefitPackageRequest(ctx context.Context, method, path, tenantID, workspaceID string, payload any, output any) error {

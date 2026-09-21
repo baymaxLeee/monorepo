@@ -90,3 +90,15 @@ class ReserveBenefitPackageReviewInput(BaseModel):
 class BenefitPackageReviewReservation(BaseModel):
     id: str
     status: str
+
+
+class SubmitReviewedAssetInput(BaseModel):
+    url: str = Field(min_length=1, max_length=4096)
+    asset_type: str = Field(pattern="^(Image|Video|Audio)$")
+    name: str = Field(min_length=1, max_length=512)
+
+
+class ReviewedAsset(BaseModel):
+    id: str
+    status: str
+    failure_reason: str = ""
