@@ -88,6 +88,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
     parseHtml = true,
     toolbarMode = "bubble",
     extensions = EMPTY_EXTENSIONS,
+    features,
     editable = false,
     aiEnable = false,
     commentEnable = false,
@@ -152,12 +153,17 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
       createTaskItemExtension(),
       createCommentExtension(),
       createIndentExtension().configure({ contentType }),
-      createCodeBlockExtension(),
-      ...(editable ? [createBlockDragExtension(), createSelectionPersistenceExtension()] : []),
+      ...(features?.codeBlock === false ? [] : [createCodeBlockExtension()]),
+      ...(editable
+        ? [
+            ...(features?.blockDrag === false ? [] : [createBlockDragExtension()]),
+            createSelectionPersistenceExtension(),
+          ]
+        : []),
       createPasteFlattenExtension(),
       ...stableExtensions,
     ],
-    [contentType, editable, stableExtensions],
+    [contentType, editable, stableExtensions, features?.blockDrag, features?.codeBlock],
   );
 
   const handleEditorUpdate = useCallback(
@@ -342,8 +348,8 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
             {toolbarMode === "fixed" && (
               <FixedToolbar editor={editor} aiEnable={aiEnable} commentEnable={commentEnable} />
             )}
-            <BlockMenu editor={editor} />
-            <DragHandler editor={editor} />
+            {features?.blockMenu !== false && <BlockMenu editor={editor} />}
+            {features?.blockDrag !== false && <DragHandler editor={editor} />}
             <LinkMenu editor={editor} />
             {renderToolbar()}
           </>

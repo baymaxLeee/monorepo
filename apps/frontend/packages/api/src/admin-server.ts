@@ -1,3 +1,4 @@
+import { getAdminService } from "../generated/admin-server/index";
 import { type ApiRequestConfig, request } from "./http";
 
 type RequestOptions = Pick<ApiRequestConfig, "signal" | "skipErrorNotify">;
@@ -309,7 +310,7 @@ export function detachBotSkill(botId: string, skillId: string): Promise<SkillSum
 export type ProviderKind = "chat" | "image" | "video" | "embedding" | "rerank";
 export interface ProviderPricing {
   currency: string;
-  unit: "generated_second";
+  unit: "generated_item" | "generated_second";
   unit_price_micros: number;
 }
 
@@ -479,3 +480,19 @@ export function updateApp(id: string, input: UpdateAppInput): Promise<AppEntry> 
 export function deleteApp(id: string): Promise<void> {
   return request<void>({ url: appPath(id), method: "DELETE" });
 }
+
+export type {
+  AssetGroupCleanup,
+  BenefitPackage,
+  CreateBenefitPackageInput,
+  UpdateBenefitPackageInput,
+} from "../generated/admin-server/index";
+
+export const {
+  listBenefitPackageAssetGroupCleanups,
+  retryBenefitPackageAssetGroupCleanup,
+  listBenefitPackages,
+  createBenefitPackage,
+  updateBenefitPackage,
+  deleteBenefitPackage,
+} = getAdminService();

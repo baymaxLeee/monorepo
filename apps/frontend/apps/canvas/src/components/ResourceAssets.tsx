@@ -1,4 +1,5 @@
 import {
+  canvasCreateGeneratedResourceAsset,
   canvasListResourceAssets,
   canvasUploadResourceAsset,
   type CanvasResource,
@@ -8,6 +9,7 @@ import { Button, Skeleton } from "@repo/design-system";
 import { useEffect, useRef, useState } from "react";
 
 import { ResourceAssetActions } from "./ResourceAssetActions";
+import { ResourceGeneration } from "./ResourceGeneration";
 import { ResourceMedia } from "./ResourceMedia";
 
 export function ResourceAssets({
@@ -72,6 +74,25 @@ export function ResourceAssets({
       <Button size="sm" variant="outline" disabled={busy} onClick={() => input.current?.click()}>
         {busy ? "处理中…" : "上传素材"}
       </Button>
+      {resource.type !== 4 ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            void canvasCreateGeneratedResourceAsset(projectId, resource.id, { expected_revision: resource.revision })
+              .then(() => {
+                setReload((v) => v + 1);
+                onChange();
+              })
+              .catch(() => {})
+              .finally(() => setBusy(false));
+          }}
+        >
+          添加生成素材
+        </Button>
+      ) : null}
       {loading ? (
         <Skeleton className="h-24 w-full" />
       ) : failed ? (
@@ -83,20 +104,26 @@ export function ResourceAssets({
       ) : (
         items.map((asset) => (
           <div className="space-y-2 rounded-lg border p-2" key={asset.id}>
-            <ResourceMedia
-              key={`${asset.id}:${asset.revision}`}
-              projectId={projectId}
-              assetId={asset.id}
-              name={asset.name}
-              type={asset.media_type}
-            />
+            {asset.has_content ? (
+              <ResourceMedia
+                key={`${asset.id}:${asset.revision}`}
+                projectId={projectId}
+                assetId={asset.id}
+                name={asset.name}
+                type={asset.media_type}
+              />
+            ) : (
+              <div className="flex h-24 items-center justify-center rounded-md bg-muted text-sm text-muted-foreground">
+                尚未生成图片
+              </div>
+            )}
             <div className="flex items-center justify-between gap-2">
               <span className="truncate text-sm">{asset.name}</span>
               {onCopy ? (
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={busy}
+                  disabled={busy || !asset.has_content}
                   onClick={() => {
                     setBusy(true);
                     void onCopy(asset.id)
@@ -108,6 +135,17 @@ export function ResourceAssets({
                 </Button>
               ) : null}
             </div>
+            {asset.source_type === 2 ? (
+              <ResourceGeneration
+                projectId={projectId}
+                asset={asset}
+                siblings={items}
+                onChange={() => {
+                  setReload((v) => v + 1);
+                  onChange();
+                }}
+              />
+            ) : null}
             <ResourceAssetActions
               projectId={projectId}
               resource={resource}

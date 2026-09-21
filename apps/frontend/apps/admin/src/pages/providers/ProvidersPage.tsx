@@ -108,8 +108,8 @@ const providerSchema = z
     message: "仅对话类型可设为 chat 默认模型",
     path: ["is_default"],
   })
-  .refine((value) => value.provider_kind !== "video" || value.unit_price_micros > 0, {
-    message: "视频 Provider 必须配置大于 0 的每秒单价",
+  .refine((value) => !["image", "video"].includes(value.provider_kind) || value.unit_price_micros > 0, {
+    message: "图片和视频 Provider 必须配置大于 0 的生成单价",
     path: ["unit_price_micros"],
   });
 
@@ -265,10 +265,10 @@ export function ProvidersPage() {
     try {
       const extra_body = parseExtraBody(values.extra_body);
       const pricing =
-        values.provider_kind === "video"
+        values.provider_kind === "image" || values.provider_kind === "video"
           ? {
               currency: values.pricing_currency.toUpperCase(),
-              unit: "generated_second" as const,
+              unit: values.provider_kind === "image" ? ("generated_item" as const) : ("generated_second" as const),
               unit_price_micros: values.unit_price_micros,
             }
           : null;
@@ -723,7 +723,7 @@ function ProviderFormDialog({
                     </Field>
                   )}
                 />
-                {providerKind === "video" ? (
+                {providerKind === "image" || providerKind === "video" ? (
                   <div className="grid grid-cols-2 gap-3">
                     <FormField
                       control={form.control}
@@ -743,7 +743,9 @@ function ProviderFormDialog({
                       name="unit_price_micros"
                       render={({ field }) => (
                         <Field>
-                          <FieldLabel>每生成秒单价（微单位）</FieldLabel>
+                          <FieldLabel>
+                            {providerKind === "image" ? "每张图片单价（微单位）" : "每生成秒单价（微单位）"}
+                          </FieldLabel>
                           <FormControl>
                             <Input
                               {...field}

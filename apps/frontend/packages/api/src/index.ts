@@ -9,3 +9,11 @@ export * from "./telemetry-server";
 export * as telemetry from "./telemetry-server";
 export * from "./canvas-server";
 export * from "./canvas-settings";
+
+export * from "./canvas-management";
+export * from "./canvas-resource-generation";
+
+export * from "./canvas-storyboard";
+
+export * from "./canvas-creative";
+export * from "./canvas-asset-matching";

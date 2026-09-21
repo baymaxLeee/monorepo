@@ -1,4 +1,3 @@
-import { fetchCanvasSettings } from "@repo/api";
 import {
   Button,
   Skeleton,
@@ -17,11 +16,11 @@ import { DeleteSelectionDialog, type CanvasSelection } from "../components/Delet
 import { NodeEditor, type NodeEditorHandle } from "../components/NodeEditor";
 import { NodeGeneration } from "../components/NodeGeneration";
 import { Storyboard } from "../components/Storyboard";
-import { nodeKinds } from "../components/StudioNodePanel";
 import { StudioSidebar } from "../components/StudioSidebar";
 import { StudioToolbar } from "../components/StudioToolbar";
 import { useCanvasGenerations } from "../hooks/useCanvasGenerations";
 import { useCanvasGraph } from "../hooks/useCanvasGraph";
+import { useStudioNodeActions } from "../hooks/useStudioNodeActions";
 import { activeNodeIdAtom, studioViewAtom, nodePanelOpenAtom, chatPanelOpenAtom } from "../store/studio";
 
 import "@xyflow/react/dist/style.css";
@@ -61,64 +60,7 @@ function Studio({ canvasId, projectId }: { canvasId: string; projectId: string }
       /* Do not leave an unsaved editing session. */
     }
   }
-  async function createNode(type: number) {
-    if (!graph) return;
-    try {
-      await editor.current?.finish();
-      const defaults = type >= 5 ? (await fetchCanvasSettings()).defaults : null;
-      const providerId =
-        (type === 5 ? defaults?.image : type === 6 ? defaults?.video : defaults?.inference)?.provider_id ?? "";
-      const id = crypto.randomUUID();
-      await mutate([
-        {
-          id,
-          asset_id: "",
-          type,
-          name: nodeKinds.find((kind) => kind.type === type)?.name ?? "节点",
-          text: "",
-          prompt: "",
-          x: graph.nodes.length * 40,
-          y: graph.nodes.length * 40,
-          storyboard_rank: type === 6 ? Math.max(0, ...graph.nodes.map((node) => node.storyboard_rank)) + 1024 : 0,
-          revision: 0,
-          video_input_mode: 1,
-          generation_config: {
-            provider_id: providerId,
-            resolution: "",
-            aspect_ratio: "",
-            duration_seconds: 0,
-            generate_audio: false,
-            watermark: false,
-          },
-          incoming_edges: [],
-        },
-      ]);
-      setSelected(id);
-    } catch {
-      /* API errors retain the previous state. */
-    }
-  }
-  async function moveShot(id: string, direction: -1 | 1) {
-    if (!graph) return;
-    try {
-      await editor.current?.finish();
-      const shots = graph.nodes
-        .filter((node) => node.type === 6)
-        .sort((a, b) => a.storyboard_rank - b.storyboard_rank || a.id.localeCompare(b.id));
-      const index = shots.findIndex((node) => node.id === id);
-      const next = index + direction;
-      if (index < 0 || next < 0 || next >= shots.length) return;
-      [shots[index], shots[next]] = [shots[next]!, shots[index]!];
-      await mutate((current) =>
-        shots.map((node, index) => ({
-          ...current.nodes.find((value) => value.id === node.id)!,
-          storyboard_rank: (index + 1) * 1024,
-        })),
-      );
-    } catch {
-      /* Preserve the authoritative order after a conflict. */
-    }
-  }
+  const { createNode, reorderShots } = useStudioNodeActions(projectId, graph, mutate, editor, setSelected);
   const chatOpen = useAtomValue(chatPanelOpenAtom);
   const active = graph?.nodes.find((node) => node.id === selected);
   return (
@@ -159,29 +101,45 @@ function Studio({ canvasId, projectId }: { canvasId: string; projectId: string }
                   ) : (
                     <Skeleton className="h-full w-full" />
                   )
-                ) : view === "storyboard" ? (
-                  <Storyboard
-                    selectedId={selected}
-                    busy={busy}
-                    onSelect={(id) => void selectNode(id)}
-                    onAdd={() => void createNode(6)}
-                    onMove={(id, direction) => void moveShot(id, direction)}
-                  />
                 ) : (
-                  <CanvasBoard
-                    busy={busy}
-                    mutate={mutate}
-                    onSelect={(id) => void selectNode(id)}
-                    onDeleteSelection={setDeletion}
-                  />
+                  <>
+                    <div
+                      aria-hidden={view !== "canvas"}
+                      className={`absolute inset-0 ${view !== "canvas" ? "invisible pointer-events-none" : ""}`}
+                    >
+                      <CanvasBoard
+                        busy={busy}
+                        mutate={mutate}
+                        onSelect={(id) => void selectNode(id)}
+                        onDeleteSelection={setDeletion}
+                      />
+                    </div>
+                    {view === "storyboard" ? (
+                      <Storyboard
+                        ref={editor}
+                        projectId={projectId}
+                        selectedId={selected}
+                        busy={busy}
+                        onSelect={selectNode}
+                        onAdd={(index) => void createNode(6, index)}
+                        onReorder={(ids) => void reorderShots(ids)}
+                        onRemove={(id) => setDeletion({ nodes: [id], edges: [] })}
+                        onSave={(node) => mutate([node])}
+                        onRefresh={refresh}
+                      />
+                    ) : null}
+                  </>
                 )}
-                {active ? (
+                {active && view === "canvas" ? (
                   <div className="absolute bottom-16 left-1/2 z-20 max-h-[70%] w-96 max-w-[90%] -translate-x-1/2 overflow-auto rounded-xl border bg-background shadow-lg">
                     <NodeEditor
                       ref={editor}
                       key={active.id}
+                      projectId={projectId}
+                      canvasId={canvasId}
                       node={active}
                       busy={busy}
+                      onRefresh={refresh}
                       onSave={(node) => mutate([node])}
                       onDelete={() => setDeletion({ nodes: [active.id], edges: [] })}
                     />

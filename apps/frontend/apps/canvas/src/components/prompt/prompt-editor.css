@@ -1,0 +1,18 @@
+.canvas-prompt-editor.markdown-editor-editable .markdown-editor-content {
+  padding-right: 0;
+}
+.canvas-prompt-editor .markdown-editor-content .ProseMirror p {
+  margin: 0;
+  line-height: 28px;
+}
+.canvas-prompt-editor .markdown-editor-content .ProseMirror p + p {
+  margin-top: 12px;
+}
+.canvas-prompt-editor .canvas-asset-mention {
+  display: inline;
+  border-radius: 6px;
+  padding: 2px 6px;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  box-decoration-break: clone;
+}

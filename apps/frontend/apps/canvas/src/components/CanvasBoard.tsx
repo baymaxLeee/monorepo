@@ -13,7 +13,10 @@ import { useEffect, useState } from "react";
 import type { useCanvasGraph } from "../hooks/useCanvasGraph";
 import { canvasGraphAtom } from "../store/graph";
 import { CanvasNode, type FlowNode } from "./CanvasNode";
+import { CanvasViewport } from "./CanvasViewport";
 import type { CanvasSelection } from "./DeleteSelectionDialog";
+
+import styles from "./CanvasBoard.module.less";
 
 const nodeTypes = { canvas: CanvasNode };
 export function CanvasBoard({
@@ -37,6 +40,7 @@ export function CanvasBoard({
       return graph.nodes.map((node) => ({
         id: node.id,
         type: "canvas",
+        dragHandle: ".canvas-node-drag-handle",
         position: { x: node.x, y: node.y },
         data: { nodeId: node.id },
         selected: selection.has(node.id),
@@ -88,6 +92,7 @@ export function CanvasBoard({
   }
   return (
     <ReactFlow<FlowNode>
+      className={styles.board}
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
@@ -135,6 +140,7 @@ export function CanvasBoard({
       }}
       fitView
     >
+      {graph ? <CanvasViewport canvasId={graph.canvas.id} /> : null}
       <Background />
       <Controls />
     </ReactFlow>

@@ -17,9 +17,15 @@
     "@repo/api": "workspace:*",
     "@repo/chat": "workspace:*",
     "@repo/design-system": "workspace:*",
+    "@repo/editors": "workspace:*",
     "@repo/observability": "workspace:*",
     "@repo/runtime": "workspace:*",
     "@repo/shared": "workspace:*",
+    "@tiptap/core": "catalog:",
+    "@tiptap/extension-mention": "catalog:",
+    "@tiptap/pm": "catalog:",
+    "@tiptap/react": "catalog:",
+    "@tiptap/suggestion": "catalog:",
     "@xyflow/react": "catalog:",
     "ai": "catalog:",
     "jotai": "catalog:",
@@ -45,6 +51,8 @@
     "@types/react-dom": "catalog:",
     "@typescript/native": "catalog:",
     "html-webpack-plugin": "^5.6.0",
+    "less": "catalog:",
+    "less-loader": "catalog:",
     "typescript": "catalog:"
   }
 }

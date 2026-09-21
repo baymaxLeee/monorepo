@@ -216,7 +216,7 @@ export function Component() {
             onSubmit={async (name) => {
               if (dialog === "create") {
                 if (projectId) await canvasCreateBoard(projectId, { name });
-                else await canvasCreateProject({ name, description: "" });
+                else await canvasCreateProject({ name, description: "", member_user_ids: [], usage_limit_micros: 0 });
               } else if (projectId) await canvasUpdateBoard(dialog.id, { name, expected_revision: dialog.revision });
               else
                 await canvasUpdateProject(dialog.id, {

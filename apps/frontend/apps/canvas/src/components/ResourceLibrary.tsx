@@ -49,6 +49,11 @@ export function ResourceLibrary({
   const [dialog, setDialog] = useState<CanvasResource | "create" | null>(null);
   const [deleting, setDeleting] = useState<CanvasResource | null>(null);
   useEffect(() => {
+    const refresh = () => setReload((value) => value + 1);
+    window.addEventListener("canvas:resources-changed", refresh);
+    return () => window.removeEventListener("canvas:resources-changed", refresh);
+  }, []);
+  useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setFailed(false);

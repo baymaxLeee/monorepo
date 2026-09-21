@@ -32,6 +32,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { useAdminIdentity } from "../../identity";
+import { BenefitPackages } from "./BenefitPackages";
 
 const slots = [
   { key: "inference", kind: "chat", title: "推理模型" },
@@ -81,6 +82,7 @@ export function Component() {
           onSaved={setSettings}
         />
       )}
+      <BenefitPackages editable={isWorkspaceAdmin} workspaceKey={activeWorkspaceId ?? ""} />
     </Page>
   );
 }
@@ -152,7 +154,7 @@ function SettingsForm({
                   </FormItem>
                 )}
               />
-              {form.watch(slot.key) ? (
+              {slot.key === "inference" && form.watch(slot.key) ? (
                 <div className="grid gap-4 sm:grid-cols-3">
                   {(
                     [

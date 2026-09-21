@@ -1,4 +1,4 @@
-import { fetchModelProviders, type CanvasNode, type ModelProvider } from "@repo/api";
+import { type CanvasNode } from "@repo/api";
 import {
   FormControl,
   FormField,
@@ -12,8 +12,9 @@ import {
   SelectValue,
   Switch,
 } from "@repo/design-system";
-import { useEffect, useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
+
+import { useCreativeModels } from "../hooks/useCreativeModels";
 
 export function GenerationSettings({
   form,
@@ -24,21 +25,15 @@ export function GenerationSettings({
   type: number;
   disabled: boolean;
 }) {
-  const [models, setModels] = useState<ModelProvider[]>([]);
-  useEffect(() => {
-    let active = true;
-    void fetchModelProviders()
-      .then((items) => {
-        if (active) setModels(items);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { models, failed, retry } = useCreativeModels();
   const kind = type === 5 ? "image" : type === 6 ? "video" : "chat";
   return (
     <div className="space-y-3">
+      {failed ? (
+        <button type="button" className="text-sm text-destructive" onClick={retry}>
+          模型加载失败，点击重试
+        </button>
+      ) : null}
       <FormField
         control={form.control}
         name="generation_config.provider_id"
@@ -95,6 +90,30 @@ export function GenerationSettings({
       ) : null}
       {type === 6 ? (
         <>
+          <FormField
+            control={form.control}
+            name="video_input_mode"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>视频输入模式</FormLabel>
+                <Select
+                  value={String(field.value)}
+                  disabled={disabled}
+                  onValueChange={(value) => field.onChange(Number(value))}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="1">全能参考</SelectItem>
+                    <SelectItem value="2">首尾帧</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormItem>
+            )}
+          />
           <FormField
             control={form.control}
             name="generation_config.duration_seconds"

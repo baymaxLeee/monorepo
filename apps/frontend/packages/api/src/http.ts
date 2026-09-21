@@ -59,6 +59,7 @@ const GATEWAY_PREFIX_BY_ROOT_SEGMENT: Record<string, string> = {
   users: "/api/iam-server",
   apps: "/api/admin-server",
   bots: "/api/admin-server",
+  "benefit-packages": "/api/admin-server",
   providers: "/api/admin-server",
   skills: "/api/admin-server",
   conversations: "/api/chat-server",

@@ -36,6 +36,7 @@ const personalMenus: AdminMenuItem[] = [
 ];
 
 const adminMenus: AdminMenuItem[] = [
+  { title: "创作项目", href: "/platform/admin/canvas-management", icon: SparklesIcon },
   { title: "创作设置", href: "/platform/admin/canvas", icon: SparklesIcon },
   { title: "智能体", href: "/platform/admin/bots", icon: BotIcon },
   { title: "技能", href: "/platform/admin/skills", icon: SparklesIcon },

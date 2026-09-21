@@ -109,6 +109,8 @@ export interface MarkdownEditorProps {
    * @description 在组件内置扩展之后合并，可用于追加自定义 node、mark、plugin 或覆写默认行为
    */
   extensions?: AnyExtension[];
+  /** Disable document-only tools for compact prompt editing. */
+  features?: { blockDrag?: boolean; blockMenu?: boolean; codeBlock?: boolean };
   /**
    * @zh 是否开启 AI 能力
    * @default false
