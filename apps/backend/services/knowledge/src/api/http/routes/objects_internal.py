@@ -1,6 +1,5 @@
 """Immutable service-owned objects; lifecycle remains with the owning service."""
 
-import hashlib
 import re
 from typing import Annotated
 
@@ -34,24 +33,13 @@ async def put_object(
     scope: str, request: Request, caller: Annotated[str, Header(alias="X-Caller-Service")]
 ) -> StoredServiceObject:
     check_scope(caller, scope)
-    limit = get_settings().media_max_object_bytes
-    content = bytearray()
-    async for chunk in request.stream():
-        if len(content) + len(chunk) > limit:
-            raise RequestError("media exceeds the configured storage limit")
-        content.extend(chunk)
-    if not content:
-        raise RequestError("empty media")
-    digest = hashlib.sha256(content).hexdigest()
-    stored = ObjectStore().put_bytes(
-        content=bytes(content),
-        filename=digest,
-        mime_type="application/octet-stream",
+    stored = await ObjectStore().put_content_stream(
+        chunks=request.stream(),
         user_id=scope,
         prefix="service-objects/canvas",
-        max_bytes=limit,
+        max_bytes=get_settings().media_max_object_bytes,
     )
-    return StoredServiceObject(key=digest, size=stored.size, sha256=digest)
+    return StoredServiceObject(key=stored.sha256, size=stored.size, sha256=stored.sha256)
 
 
 @router.get("/{scope}/{key}")

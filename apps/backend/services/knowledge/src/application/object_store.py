@@ -7,9 +7,11 @@ import os
 import re
 import shutil
 import uuid
+from collections.abc import AsyncIterable
 from dataclasses import dataclass
 from pathlib import Path
 
+import anyio
 from bootstrap.config import Settings, get_settings
 from kernel.errors import BaseError, RequestError
 
@@ -79,6 +81,49 @@ class ObjectStore:
             content_type=mime_type or "application/octet-stream",
             path=final_path,
         )
+
+    async def put_content_stream(
+        self,
+        *,
+        chunks: AsyncIterable[bytes],
+        user_id: str,
+        prefix: str,
+        max_bytes: int,
+    ) -> StoredObject:
+        bucket = self._settings.default_bucket
+        pending_key = self._safe_key(prefix, user_id, f"{uuid.uuid4().hex}.tmp")
+        if not _SAFE_SEGMENT.match(bucket) or not self._valid_key(pending_key):
+            raise RequestError("invalid bucket or object key")
+        temporary = self._root / bucket / pending_key
+        temporary.parent.mkdir(parents=True, exist_ok=True)
+        digest = hashlib.sha256()
+        size = 0
+        try:
+            async with await anyio.open_file(temporary, "xb") as stream:
+                async for chunk in chunks:
+                    size += len(chunk)
+                    if size > max_bytes:
+                        raise ObjectTooLargeError(
+                            "object exceeds max size", details={"max_bytes": max_bytes, "actual_bytes": size}
+                        )
+                    digest.update(chunk)
+                    await stream.write(chunk)
+            if size == 0:
+                raise RequestError("empty media")
+            sha = digest.hexdigest()
+            key = self._safe_key(prefix, user_id, sha)
+            final_path = self._root / bucket / key
+            await anyio.to_thread.run_sync(os.replace, temporary, final_path)
+            return StoredObject(
+                bucket=bucket,
+                key=key,
+                sha256=sha,
+                size=size,
+                content_type="application/octet-stream",
+                path=final_path,
+            )
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def put_bytes_at(self, *, bucket: str, key: str, content: bytes) -> None:
         """Write bytes to an explicit, caller-computed key (unlike ``put_bytes``

@@ -79,3 +79,5 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 ## Canvas 独立素材
 
 `/internal/objects` 复用现有 ObjectStore 和媒体大小配置，Canvas 和代其执行媒体生成的 Executor 可以访问 Canvas 服务命名空间。对象按租户/工作空间/项目 scope 摘要与内容摘要寻址，字节不可变；Canvas 的资产身份与引用账本不使用摘要作业务 ID。该对象不属于 Chat 文档或会话，删除会话不会回收它。当前接口仅支持写入和读取，不实施物理删除；Canvas 的引用/GC 迁移完成前保留孤立对象。
+
+对象上传通过 `ObjectStore.put_content_stream` 逐块写入临时文件并计算内容摘要，完成后在同一文件系统原子发布；异常与断连清理临时文件。Canvas/Executor 的生成媒体和归档共用此路径，不在 HTTP handler 内聚合完整文件。
