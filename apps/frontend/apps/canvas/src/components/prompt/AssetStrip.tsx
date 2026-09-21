@@ -12,8 +12,8 @@ import {
   toast,
 } from "@repo/design-system";
 import { useAtomValue } from "jotai";
-import { FileText, Image, Music, Plus, Video, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { FileText, Image, Music, Plus, Upload, Video, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
 
 import { type CreativeAssetItem, useCreativeAssets } from "../../hooks/useCreativeAssets";
@@ -46,12 +46,14 @@ export function AssetStrip({
   canvasId: string;
 }) {
   const graph = useAtomValue(canvasGraphAtom);
-  const { search, materialize, materializeFrame } = useCreativeAssets(projectId, canvasId);
+  const { search, materialize, materializeFrame, upload } = useCreativeAssets(projectId, canvasId);
+  const uploadInput = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [preview, setPreview] = useState<CanvasNode | null>(null);
   const [open, setOpen] = useState(false);
   const [candidates, setCandidates] = useState<CreativeAssetItem[]>([]);
   const [searching, setSearching] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [searchFailed, setSearchFailed] = useState(false);
   const edges = form.watch("incoming_edges");
   const nodeId = form.watch("id");
@@ -166,6 +168,38 @@ export function AssetStrip({
             </Button>
           </PopoverTrigger>
           <PopoverContent align="start" className="w-72">
+            <input
+              ref={uploadInput}
+              type="file"
+              className="hidden"
+              accept={frameMode || type === 5 ? "image/*" : "image/*,video/*,audio/*"}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (!file) return;
+                setUploading(true);
+                void upload(file)
+                  .then((node) => {
+                    if (frameMode) setFrame(node);
+                    else {
+                      addPromptReference(form, node);
+                      setOpen(false);
+                    }
+                  })
+                  .catch((cause: unknown) => toast.error(cause instanceof Error ? cause.message : "素材上传失败"))
+                  .finally(() => setUploading(false));
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="mb-2 w-full"
+              disabled={uploading}
+              onClick={() => uploadInput.current?.click()}
+            >
+              <Upload className="size-4" />
+              {uploading ? "上传中…" : frameMode ? "上传帧图片" : "从本地上传"}
+            </Button>
             <Input
               aria-label="搜索参考素材"
               placeholder="搜索画布与项目素材"

@@ -3,6 +3,7 @@ import {
   canvasCopyAsset,
   canvasNodeFrames,
   canvasSearchCreativeAssets,
+  canvasUploadNode,
   type CanvasCreativeAsset,
   type CanvasNode,
 } from "@repo/api";
@@ -120,5 +121,24 @@ export function useCreativeAssets(projectId: string, canvasId: string) {
     },
     [canvasId, coordinator, store],
   );
-  return { search, materialize, materializeFrame };
+  const upload = useCallback(
+    async (file: File): Promise<CanvasNode> =>
+      coordinator.enqueue(async () => {
+        const current = store.get(canvasGraphAtom);
+        if (!current) throw new Error("画布已关闭");
+        const nodeId = crypto.randomUUID();
+        const result = await canvasUploadNode(canvasId, nodeId, file, {
+          name:
+            Array.from(file.name.replace(/\.[^.]+$/u, ""))
+              .slice(0, 50)
+              .join("") || "上传素材",
+        });
+        store.set(applyGraphAtom, result);
+        const node = result.nodes.find((candidate) => candidate.id === nodeId);
+        if (!node) throw new Error("素材已上传，但画布未返回对应节点");
+        return node;
+      }),
+    [canvasId, coordinator, store],
+  );
+  return { search, materialize, materializeFrame, upload };
 }
