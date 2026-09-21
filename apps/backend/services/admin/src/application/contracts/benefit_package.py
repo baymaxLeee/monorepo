@@ -11,6 +11,8 @@ class BenefitPackage(BaseModel):
     enabled: bool
     model_ids: list[str]
     material_used: int
+    material_reserved: int
+    material_limit: int | None
     revision: int
     created_by: str
     updated_by: str
@@ -26,6 +28,7 @@ class CreateBenefitPackageInput(BaseModel):
     secret_access_key: str = Field(min_length=1, max_length=4096)
     enabled: bool = True
     model_ids: list[str] = Field(default_factory=list, max_length=100)
+    material_limit: int | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def validate_kind(self) -> CreateBenefitPackageInput:
@@ -42,6 +45,7 @@ class UpdateBenefitPackageInput(BaseModel):
     secret_access_key: str | None = Field(default=None, min_length=1, max_length=4096)
     enabled: bool | None = None
     model_ids: list[str] | None = Field(default=None, max_length=100)
+    material_limit: int | None = Field(default=None, ge=1)
 
 
 class InternalBenefitPackage(BaseModel):
@@ -65,3 +69,14 @@ class AssetGroupCleanup(BaseModel):
     created_at: str
     updated_at: str
     completed_at: str | None
+
+
+class ReserveBenefitPackageReviewInput(BaseModel):
+    reservation_id: str = Field(min_length=1, max_length=36)
+    project_id: str = Field(min_length=1, max_length=36)
+    asset_id: str = Field(min_length=1, max_length=36)
+
+
+class BenefitPackageReviewReservation(BaseModel):
+    id: str
+    status: str

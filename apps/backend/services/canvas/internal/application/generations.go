@@ -186,7 +186,7 @@ func (s *Service) ListGenerations(ctx context.Context, a Actor, canvasID, nodeID
 		return c.GenerationList{}, err
 	}
 	var rows []p.Generation
-	if err := db.Where("canvas_id = ? AND node_id = ?", canvasID, nodeID).Order("created_at DESC,id").Find(&rows).Error; err != nil {
+	if err := db.Where("canvas_id = ? AND node_id = ? AND id NOT IN (SELECT id FROM canvas_asset_match_runs)", canvasID, nodeID).Order("created_at DESC,id").Find(&rows).Error; err != nil {
 		return c.GenerationList{}, err
 	}
 	out := c.GenerationList{Items: []c.Generation{}}

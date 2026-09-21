@@ -1,7 +1,11 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from infrastructure.persistence.models.benefit_package import AssetGroupCleanupRow, BenefitPackageRow
+from infrastructure.persistence.models.benefit_package import (
+    AssetGroupCleanupRow,
+    BenefitPackageReviewReservationRow,
+    BenefitPackageRow,
+)
 
 
 async def list_packages(session: AsyncSession, tenant_id: str, workspace_id: str) -> list[BenefitPackageRow]:
@@ -53,6 +57,34 @@ async def get_asset_group_cleanup(
         AssetGroupCleanupRow.id == cleanup_id,
         AssetGroupCleanupRow.tenant_id == tenant_id,
         AssetGroupCleanupRow.workspace_id == workspace_id,
+    )
+    if for_update:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    row = await session.scalars(statement)
+    return row.one_or_none()
+
+
+async def review_usage(session: AsyncSession, tenant_id: str, workspace_id: str) -> dict[str, tuple[int, int]]:
+    rows = await session.execute(
+        select(
+            BenefitPackageReviewReservationRow.benefit_package_id,
+            func.count().filter(BenefitPackageReviewReservationRow.status == "committed"),
+            func.count().filter(BenefitPackageReviewReservationRow.status == "reserved"),
+        )
+        .where(
+            BenefitPackageReviewReservationRow.tenant_id == tenant_id,
+            BenefitPackageReviewReservationRow.workspace_id == workspace_id,
+        )
+        .group_by(BenefitPackageReviewReservationRow.benefit_package_id)
+    )
+    return {str(package_id): (int(committed), int(reserved)) for package_id, committed, reserved in rows}
+
+
+async def get_review_reservation(
+    session: AsyncSession, reservation_id: str, *, for_update: bool = False
+) -> BenefitPackageReviewReservationRow | None:
+    statement = select(BenefitPackageReviewReservationRow).where(
+        BenefitPackageReviewReservationRow.id == reservation_id
     )
     if for_update:
         statement = statement.with_for_update().execution_options(populate_existing=True)

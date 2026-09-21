@@ -9,6 +9,7 @@ from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.models.benefit_package import (
     AssetGroupCleanupRow,
     BenefitPackageModelRow,
+    BenefitPackageReviewReservationRow,
     BenefitPackageRow,
 )
 from infrastructure.persistence.repositories import benefit_packages as repository
@@ -22,8 +23,10 @@ from application.auth import AuthContext
 from application.contracts.benefit_package import (
     AssetGroupCleanup,
     BenefitPackage,
+    BenefitPackageReviewReservation,
     CreateBenefitPackageInput,
     InternalBenefitPackage,
+    ReserveBenefitPackageReviewInput,
     UpdateBenefitPackageInput,
 )
 from application.encryption import decrypt, encrypt
@@ -40,7 +43,7 @@ def _models(raw: str) -> list[str]:
     return [str(item) for item in value] if isinstance(value, list) else []
 
 
-def _public(row: BenefitPackageRow) -> BenefitPackage:
+def _public(row: BenefitPackageRow, *, material_used: int | None = None, material_reserved: int = 0) -> BenefitPackage:
     return BenefitPackage(
         id=row.id,
         is_preset=row.is_preset,
@@ -50,7 +53,9 @@ def _public(row: BenefitPackageRow) -> BenefitPackage:
         has_secret_access_key=bool(decrypt(row.secret_access_key_enc)),
         enabled=row.enabled,
         model_ids=_models(row.model_ids_json),
-        material_used=row.material_used,
+        material_used=row.material_used if material_used is None else material_used,
+        material_reserved=material_reserved,
+        material_limit=row.material_limit,
         revision=row.revision,
         created_by=row.created_by,
         updated_by=row.updated_by,
@@ -106,9 +111,13 @@ class BenefitPackageService:
 
     async def list(self, available_only: bool = False) -> list[BenefitPackage]:
         rows = await repository.list_packages(self._session, self._user.tenant_id, self._user.workspace_id)
+        usage = await repository.review_usage(self._session, self._user.tenant_id, self._user.workspace_id)
         if available_only or not self._user.can_write_workspace_config:
             rows = [row for row in rows if row.enabled]
-        return [_public(row) for row in rows]
+        return [
+            _public(row, material_used=usage.get(row.id, (0, 0))[0], material_reserved=usage.get(row.id, (0, 0))[1])
+            for row in rows
+        ]
 
     async def create(self, payload: CreateBenefitPackageInput) -> BenefitPackage:
         model_ids = self._normalize_models(payload.model_ids)
@@ -148,6 +157,7 @@ class BenefitPackageService:
             enabled=True if payload.is_preset else payload.enabled,
             model_ids_json=json.dumps([] if payload.is_preset else model_ids),
             material_used=0,
+            material_limit=payload.material_limit,
             revision=1,
             created_by=self._user.user_id,
             updated_by=self._user.user_id,
@@ -165,9 +175,7 @@ class BenefitPackageService:
                 await self._session.flush()
                 await self._replace_models(row, model_ids)
         except Exception as exc:
-            await self._enqueue_group_cleanup(
-                row.id, asset_group_id, project_name, access_key_id, secret_access_key
-            )
+            await self._enqueue_group_cleanup(row.id, asset_group_id, project_name, access_key_id, secret_access_key)
             if isinstance(exc, IntegrityError):
                 raise _integrity_conflict(exc) from exc
             raise
@@ -247,6 +255,8 @@ class BenefitPackageService:
                     row.secret_access_key_enc = encrypt(secret_access_key)
                 if payload.enabled is not None:
                     row.enabled = payload.enabled
+                if "material_limit" in payload.model_fields_set:
+                    row.material_limit = payload.material_limit
                 row.model_ids_json = json.dumps([] if row.is_preset else model_ids)
                 row.revision += 1
                 row.updated_by = self._user.user_id
@@ -262,6 +272,70 @@ class BenefitPackageService:
         if old_group is not None:
             await self._enqueue_group_cleanup(package_id, *old_group)
         return _public(row)
+
+    async def reserve_review(
+        self, package_id: str, payload: ReserveBenefitPackageReviewInput
+    ) -> BenefitPackageReviewReservation:
+        now = datetime.now(UTC)
+        try:
+            async with write_tx(self._session):
+                package = await self._get(package_id, for_update=True)
+                if not package.enabled:
+                    raise ConflictError("benefit package is disabled")
+                existing = await repository.get_review_reservation(
+                    self._session, payload.reservation_id, for_update=True
+                )
+                if existing is not None:
+                    if (
+                        existing.tenant_id != self._user.tenant_id
+                        or existing.workspace_id != self._user.workspace_id
+                        or existing.benefit_package_id != package_id
+                        or existing.project_id != payload.project_id
+                        or existing.asset_id != payload.asset_id
+                    ):
+                        raise ConflictError("review reservation id already belongs to another request")
+                    return BenefitPackageReviewReservation(id=existing.id, status=existing.status)
+                usage = await repository.review_usage(self._session, self._user.tenant_id, self._user.workspace_id)
+                committed, reserved = usage.get(package_id, (0, 0))
+                if package.material_limit is not None and committed + reserved >= package.material_limit:
+                    raise ConflictError("benefit package material quota exceeded")
+                row = BenefitPackageReviewReservationRow(
+                    id=payload.reservation_id,
+                    tenant_id=self._user.tenant_id,
+                    workspace_id=self._user.workspace_id,
+                    benefit_package_id=package_id,
+                    project_id=payload.project_id,
+                    asset_id=payload.asset_id,
+                    status="reserved",
+                    created_at=now,
+                    updated_at=now,
+                )
+                self._session.add(row)
+                await self._session.flush()
+        except IntegrityError as exc:
+            raise ConflictError("asset already has an active review in this benefit package") from exc
+        return BenefitPackageReviewReservation(id=row.id, status=row.status)
+
+    async def transition_review_reservation(
+        self, package_id: str, reservation_id: str, status: str
+    ) -> BenefitPackageReviewReservation:
+        if status not in {"committed", "released"}:
+            raise RequestError("unsupported review reservation status")
+        async with write_tx(self._session):
+            row = await repository.get_review_reservation(self._session, reservation_id, for_update=True)
+            if (
+                row is None
+                or row.tenant_id != self._user.tenant_id
+                or row.workspace_id != self._user.workspace_id
+                or row.benefit_package_id != package_id
+            ):
+                raise NotFoundError(f"review reservation {reservation_id} not found")
+            if row.status == status or row.status == "released":
+                return BenefitPackageReviewReservation(id=row.id, status=row.status)
+            row.status = status
+            row.updated_at = datetime.now(UTC)
+            await self._session.flush()
+        return BenefitPackageReviewReservation(id=row.id, status=row.status)
 
     async def delete(self, package_id: str, expected_revision: int) -> None:
         obsolete_group: tuple[str, str, str, str] | None = None
@@ -286,10 +360,8 @@ class BenefitPackageService:
         if obsolete_group is not None:
             await self._enqueue_group_cleanup(package_id, *obsolete_group)
 
-    async def list_asset_group_cleanups(self) -> list[AssetGroupCleanup]:
-        rows = await repository.list_asset_group_cleanups(
-            self._session, self._user.tenant_id, self._user.workspace_id
-        )
+    async def list_asset_group_cleanups(self) -> list_type[AssetGroupCleanup]:
+        rows = await repository.list_asset_group_cleanups(self._session, self._user.tenant_id, self._user.workspace_id)
         return [_cleanup_public(row) for row in rows]
 
     async def retry_asset_group_cleanup(self, cleanup_id: str) -> AssetGroupCleanup:

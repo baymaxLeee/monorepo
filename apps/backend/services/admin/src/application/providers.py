@@ -10,8 +10,8 @@ from typing import Any, cast
 
 from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.models.provider import PROVIDER_KIND_CHAT, ModelProviderRow
-from infrastructure.persistence.repositories import providers as provider_crud
 from infrastructure.persistence.repositories import canvas_settings as canvas_settings_repository
+from infrastructure.persistence.repositories import providers as provider_crud
 from kernel.errors import ConflictError, NotFoundError, RequestError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -146,7 +146,7 @@ class ModelProviderService:
                     selection = raw_defaults.get(slot) if isinstance(raw_defaults, dict) else None
                     if isinstance(selection, dict) and isinstance(selection.get("provider_id"), str):
                         configured_defaults.add(selection["provider_id"])
-            except (TypeError, json.JSONDecodeError):
+            except TypeError, json.JSONDecodeError:
                 pass
         return [
             ProviderCatalogItem(
@@ -224,7 +224,9 @@ class ModelProviderService:
             if payload.is_enabled is not None:
                 values["is_enabled"] = payload.is_enabled
             next_kind = payload.provider_kind if payload.provider_kind is not None else row.provider_kind
-            next_pricing = payload.pricing if "pricing" in payload.model_fields_set else _parse_pricing(row.pricing_json)
+            next_pricing = (
+                payload.pricing if "pricing" in payload.model_fields_set else _parse_pricing(row.pricing_json)
+            )
             _validate_pricing(next_kind, next_pricing)
             if next_kind != PROVIDER_KIND_CHAT:
                 if payload.is_default:

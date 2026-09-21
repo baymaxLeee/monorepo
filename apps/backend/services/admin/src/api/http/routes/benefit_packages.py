@@ -28,9 +28,7 @@ async def list_asset_group_cleanups(session: DbSession, user: AdminUser) -> list
     response_model=AssetGroupCleanup,
     operation_id="retryBenefitPackageAssetGroupCleanup",
 )
-async def retry_asset_group_cleanup(
-    cleanup_id: str, session: DbSession, user: AdminUser
-) -> AssetGroupCleanup:
+async def retry_asset_group_cleanup(cleanup_id: str, session: DbSession, user: AdminUser) -> AssetGroupCleanup:
     return await BenefitPackageService(session, user).retry_asset_group_cleanup(cleanup_id)
 
 

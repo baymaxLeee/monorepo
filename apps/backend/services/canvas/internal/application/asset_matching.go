@@ -50,10 +50,34 @@ func loadMatchCandidates(tx *gorm.DB, actor Actor, projectID string, node p.Node
 	if node.Type == 5 {
 		query = query.Where("ra.media_type=1")
 	}
-	if err := query.Order("r.type, r.created_at DESC, ra.sequence_no").Limit(100).Scan(&rows).Error; err != nil {
+	if err := query.Order("r.type, r.created_at DESC, ra.sequence_no").Limit(40).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
-	return rows, nil
+	var edges []c.Edge
+	if err := json.Unmarshal([]byte(node.IncomingEdges), &edges); err != nil {
+		return nil, err
+	}
+	sourceIDs := make([]string, 0, len(edges))
+	for _, edge := range edges {
+		sourceIDs = append(sourceIDs, edge.SourceNodeID)
+	}
+	used := map[string]bool{}
+	if len(sourceIDs) > 0 {
+		var assetIDs []string
+		if err := tx.Model(&p.Node{}).Where("canvas_id=? AND id IN ? AND deleted_at IS NULL", node.CanvasID, sourceIDs).Pluck("asset_id", &assetIDs).Error; err != nil {
+			return nil, err
+		}
+		for _, id := range assetIDs {
+			used[id] = true
+		}
+	}
+	available := rows[:0]
+	for _, item := range rows {
+		if !used[item.AssetID] {
+			available = append(available, item)
+		}
+	}
+	return available, nil
 }
 
 func matchingPrompt(prompt string, candidates []matchCandidate) (string, error) {
@@ -74,7 +98,25 @@ func (s *Service) StartAssetMatch(ctx context.Context, actor Actor, canvasID, no
 	}
 	var match p.AssetMatchRun
 	var generation p.Generation
-	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	initialBoard, err := boardAccess(s.DB.WithContext(ctx), actor, canvasID, true)
+	if err != nil {
+		return c.AssetMatchRun{}, err
+	}
+	providers, err := s.CreativeProviders(ctx, actor, initialBoard.ProjectID)
+	if err != nil {
+		return c.AssetMatchRun{}, err
+	}
+	var provider c.ProjectProvider
+	for _, item := range providers.Items {
+		if item.ProviderKind == "chat" {
+			provider = item
+			break
+		}
+	}
+	if provider.ID == "" {
+		return c.AssetMatchRun{}, &Error{Status: 503, Code: "model_unavailable", Message: "素材匹配模型不可用"}
+	}
+	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		board, err := boardAccess(tx, actor, canvasID, true)
 		if err != nil {
 			return err
@@ -109,20 +151,6 @@ func (s *Service) StartAssetMatch(ctx context.Context, actor Actor, canvasID, no
 		}
 		if active > 0 {
 			return Conflict()
-		}
-		providers, err := s.CreativeProviders(ctx, actor, board.ProjectID)
-		if err != nil {
-			return err
-		}
-		var provider c.ProjectProvider
-		for _, item := range providers.Items {
-			if item.ProviderKind == "chat" {
-				provider = item
-				break
-			}
-		}
-		if provider.ID == "" {
-			return &Error{Status: 503, Code: "model_unavailable", Message: "素材匹配模型不可用"}
 		}
 		candidates, err := loadMatchCandidates(tx, actor, board.ProjectID, node)
 		if err != nil {
@@ -210,7 +238,30 @@ func (s *Service) applyAssetMatch(ctx context.Context, actor Actor, match p.Asse
 		}
 		prompt := target.Prompt
 		counts := map[int16]int{}
+		nextOrder := map[int16]int32{}
+		var edges []c.Edge
+		if err = json.Unmarshal([]byte(target.IncomingEdges), &edges); err != nil {
+			return err
+		}
+		for _, edge := range edges {
+			media := int16(0)
+			switch edge.TargetPort {
+			case "REFERENCE_IMAGE":
+				media = 1
+			case "REFERENCE_VIDEO":
+				media = 2
+			case "REFERENCE_AUDIO":
+				media = 3
+			}
+			if media != 0 {
+				counts[media]++
+				if nextOrder[media] <= edge.TargetOrder {
+					nextOrder[media] = edge.TargetOrder + 1
+				}
+			}
+		}
 		seenResource := map[string]bool{}
+		changed := false
 		for index, selected := range output.Matches {
 			item, ok := byID[selected.ResourceAssetID]
 			limit := map[int16]int{1: 4, 2: 2, 3: 1}[item.MediaType]
@@ -246,27 +297,26 @@ func (s *Service) applyAssetMatch(ctx context.Context, actor Actor, match p.Asse
 			} else if item.MediaType == 3 {
 				port = "REFERENCE_AUDIO"
 			}
-			var edges []c.Edge
-			if err = json.Unmarshal([]byte(target.IncomingEdges), &edges); err != nil {
-				return err
-			}
-			edges = append(edges, c.Edge{ID: newID(), SourceNodeID: nodeID, SourcePort: "OUTPUT", TargetPort: port, TargetOrder: int32(counts[item.MediaType])})
+			edges = append(edges, c.Edge{ID: newID(), SourceNodeID: nodeID, SourcePort: "OUTPUT", TargetPort: port, TargetOrder: nextOrder[item.MediaType]})
+			prompt = next
+			counts[item.MediaType]++
+			nextOrder[item.MediaType]++
+			seenResource[item.ResourceID] = true
+			changed = true
+		}
+		if changed {
 			rawEdges, err := json.Marshal(edges)
 			if err != nil {
 				return err
 			}
-			target.IncomingEdges = string(rawEdges)
-			prompt = next
-			counts[item.MediaType]++
-			seenResource[item.ResourceID] = true
-		}
-		target.Prompt, target.Revision = prompt, target.Revision+1
-		if err = tx.Save(&target).Error; err != nil {
-			return err
-		}
-		board.Revision++
-		if err = tx.Save(&board).Error; err != nil {
-			return err
+			target.Prompt, target.IncomingEdges, target.Revision = prompt, string(rawEdges), target.Revision+1
+			if err = tx.Save(&target).Error; err != nil {
+				return err
+			}
+			board.Revision++
+			if err = tx.Save(&board).Error; err != nil {
+				return err
+			}
 		}
 		match.Applied = true
 		return tx.Save(&match).Error
@@ -287,7 +337,12 @@ func (s *Service) GetAssetMatch(ctx context.Context, actor Actor, canvasID, node
 	}
 	if generation.Status == "completed" && !match.Applied && match.Error == "" {
 		if err := s.applyAssetMatch(ctx, actor, match, generation); err != nil {
-			if appErr, ok := err.(*Error); !ok || appErr.Code != "asset_match_stale" {
+			if appErr, ok := err.(*Error); ok && appErr.Code == "asset_match_stale" {
+				match.Error = appErr.Message
+				if updateErr := s.DB.WithContext(ctx).Model(&p.AssetMatchRun{}).Where("id=? AND applied=false", runID).Update("error", match.Error).Error; updateErr != nil {
+					return c.AssetMatchRun{}, updateErr
+				}
+			} else {
 				return c.AssetMatchRun{}, err
 			}
 		}

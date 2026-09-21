@@ -54,7 +54,7 @@ func (s *Service) CanvasGenerationStatus(ctx context.Context, actor Actor, canva
 		return c.GenerationStateList{}, err
 	}
 	var rows []p.Generation
-	err := s.DB.WithContext(ctx).Select("DISTINCT ON (node_id) id, node_id, status, cancel_requested").Where("canvas_id = ? AND tenant_id = ? AND workspace_id = ?", canvasID, actor.TenantID, actor.WorkspaceID).Order("node_id, created_at DESC, id DESC").Find(&rows).Error
+	err := s.DB.WithContext(ctx).Select("DISTINCT ON (node_id) id, node_id, status, cancel_requested").Where("canvas_id = ? AND tenant_id = ? AND workspace_id = ? AND id NOT IN (SELECT id FROM canvas_asset_match_runs)", canvasID, actor.TenantID, actor.WorkspaceID).Order("node_id, created_at DESC, id DESC").Find(&rows).Error
 	result := c.GenerationStateList{Items: []c.GenerationState{}}
 	for _, row := range rows {
 		result.Items = append(result.Items, c.GenerationState{ID: row.ID, NodeID: row.NodeID, Status: row.Status, CancelRequested: row.CancelRequested})

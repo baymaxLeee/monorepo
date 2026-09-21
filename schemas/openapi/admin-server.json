@@ -2352,6 +2352,208 @@
         }
       }
     },
+    "/internal/canvas/benefit-packages/{package_id}/review-reservations": {
+      "post": {
+        "tags": [
+          "internal-canvas-benefit-packages"
+        ],
+        "summary": "Reserve Review",
+        "operationId": "reserveBenefitPackageReview",
+        "parameters": [
+          {
+            "name": "package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Package Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Caller-Service"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReserveBenefitPackageReviewInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenefitPackageReviewReservation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/canvas/benefit-packages/{package_id}/review-reservations/{reservation_id}/{status}": {
+      "post": {
+        "tags": [
+          "internal-canvas-benefit-packages"
+        ],
+        "summary": "Transition Review",
+        "operationId": "transitionBenefitPackageReview",
+        "parameters": [
+          {
+            "name": "package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Package Id"
+            }
+          },
+          {
+            "name": "reservation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reservation Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Caller-Service"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenefitPackageReviewReservation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/canvas/settings": {
       "get": {
         "tags": [
@@ -8132,6 +8334,21 @@
             "type": "integer",
             "title": "Material Used"
           },
+          "material_reserved": {
+            "type": "integer",
+            "title": "Material Reserved"
+          },
+          "material_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material Limit"
+          },
           "revision": {
             "type": "integer",
             "title": "Revision"
@@ -8164,6 +8381,8 @@
           "enabled",
           "model_ids",
           "material_used",
+          "material_reserved",
+          "material_limit",
           "revision",
           "created_by",
           "updated_by",
@@ -8171,6 +8390,24 @@
           "updated_at"
         ],
         "title": "BenefitPackage"
+      },
+      "BenefitPackageReviewReservation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status"
+        ],
+        "title": "BenefitPackageReviewReservation"
       },
       "Bot": {
         "properties": {
@@ -8633,6 +8870,18 @@
             "type": "array",
             "maxItems": 100,
             "title": "Model Ids"
+          },
+          "material_limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material Limit"
           }
         },
         "type": "object",
@@ -9319,6 +9568,35 @@
           "name"
         ],
         "title": "RenameSkillNodeInput"
+      },
+      "ReserveBenefitPackageReviewInput": {
+        "properties": {
+          "reservation_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Reservation Id"
+          },
+          "project_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Project Id"
+          },
+          "asset_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Asset Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reservation_id",
+          "project_id",
+          "asset_id"
+        ],
+        "title": "ReserveBenefitPackageReviewInput"
       },
       "ResolvedAgent": {
         "properties": {
@@ -10068,6 +10346,18 @@
               }
             ],
             "title": "Model Ids"
+          },
+          "material_limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material Limit"
           }
         },
         "type": "object",

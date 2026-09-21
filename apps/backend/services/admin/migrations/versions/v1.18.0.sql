@@ -11,6 +11,7 @@ CREATE TABLE benefit_packages (
     enabled boolean NOT NULL DEFAULT true,
     model_ids_json text NOT NULL DEFAULT '[]',
     material_used bigint NOT NULL DEFAULT 0 CHECK (material_used >= 0),
+    material_limit bigint CHECK (material_limit IS NULL OR material_limit > 0),
     revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
     created_by varchar(26) NOT NULL,
     updated_by varchar(26) NOT NULL,
@@ -50,4 +51,20 @@ CREATE TABLE benefit_package_asset_group_cleanups (
 );
 CREATE INDEX benefit_package_asset_group_cleanups_scope
     ON benefit_package_asset_group_cleanups (tenant_id, workspace_id, status, updated_at DESC);
+CREATE TABLE benefit_package_review_reservations (
+    id varchar(36) PRIMARY KEY,
+    tenant_id varchar(26) NOT NULL,
+    workspace_id varchar(26) NOT NULL,
+    benefit_package_id varchar(32) NOT NULL REFERENCES benefit_packages(id),
+    project_id varchar(36) NOT NULL,
+    asset_id varchar(36) NOT NULL,
+    status varchar(16) NOT NULL DEFAULT 'reserved' CHECK (status IN ('reserved', 'committed', 'released')),
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL
+);
+CREATE UNIQUE INDEX benefit_package_review_reservations_active
+    ON benefit_package_review_reservations (benefit_package_id, project_id, asset_id)
+    WHERE status IN ('reserved', 'committed');
+CREATE INDEX benefit_package_review_reservations_scope
+    ON benefit_package_review_reservations (tenant_id, workspace_id, benefit_package_id, status);
 UPDATE migration SET version = 'v1.18.0', update_time = now() WHERE id = 1;

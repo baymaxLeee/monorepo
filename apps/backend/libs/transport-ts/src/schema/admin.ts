@@ -214,6 +214,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/canvas/benefit-packages/{package_id}/review-reservations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reserve Review */
+        post: operations["reserveBenefitPackageReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/canvas/benefit-packages/{package_id}/review-reservations/{reservation_id}/{status}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Transition Review */
+        post: operations["transitionBenefitPackageReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/canvas/settings": {
         parameters: {
             query?: never;
@@ -807,6 +841,10 @@ export interface components {
             model_ids: string[];
             /** Material Used */
             material_used: number;
+            /** Material Reserved */
+            material_reserved: number;
+            /** Material Limit */
+            material_limit: number | null;
             /** Revision */
             revision: number;
             /** Created By */
@@ -817,6 +855,13 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
+        };
+        /** BenefitPackageReviewReservation */
+        BenefitPackageReviewReservation: {
+            /** Id */
+            id: string;
+            /** Status */
+            status: string;
         };
         /** Bot */
         Bot: {
@@ -977,6 +1022,8 @@ export interface components {
             enabled: boolean;
             /** Model Ids */
             model_ids?: string[];
+            /** Material Limit */
+            material_limit?: number | null;
         };
         /** CreateBotInput */
         CreateBotInput: {
@@ -1247,6 +1294,15 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** ReserveBenefitPackageReviewInput */
+        ReserveBenefitPackageReviewInput: {
+            /** Reservation Id */
+            reservation_id: string;
+            /** Project Id */
+            project_id: string;
+            /** Asset Id */
+            asset_id: string;
+        };
         /**
          * ResolvedAgent
          * @description An agent with its per-capability model providers fully resolved to
@@ -1469,6 +1525,8 @@ export interface components {
             enabled?: boolean | null;
             /** Model Ids */
             model_ids?: string[] | null;
+            /** Material Limit */
+            material_limit?: number | null;
         };
         /**
          * UpdateBotInput
@@ -2222,6 +2280,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InternalBenefitPackage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reserveBenefitPackageReview: {
+        parameters: {
+            query: {
+                workspace_id: string;
+                tenant_id: string;
+            };
+            header: {
+                "X-Caller-Service": string;
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReserveBenefitPackageReviewInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenefitPackageReviewReservation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transitionBenefitPackageReview: {
+        parameters: {
+            query: {
+                workspace_id: string;
+                tenant_id: string;
+            };
+            header: {
+                "X-Caller-Service": string;
+                "X-Internal-Token"?: string | null;
+            };
+            path: {
+                package_id: string;
+                reservation_id: string;
+                status: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenefitPackageReviewReservation"];
                 };
             };
             /** @description Validation Error */
