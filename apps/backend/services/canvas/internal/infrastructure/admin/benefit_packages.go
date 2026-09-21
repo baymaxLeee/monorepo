@@ -32,6 +32,12 @@ type ReviewedAsset struct {
 	FailureReason string `json:"failure_reason"`
 }
 
+type ReviewCleanup struct {
+	CleanupID     string `json:"cleanup_id"`
+	ReservationID string `json:"reservation_id"`
+	Status        string `json:"status"`
+}
+
 type DependencyError struct {
 	Status int
 	Detail string
@@ -71,6 +77,23 @@ func (d *Directory) GetReviewedAsset(ctx context.Context, tenantID, workspaceID,
 	var asset ReviewedAsset
 	err := d.benefitPackageRequest(ctx, http.MethodGet, "/"+url.PathEscape(packageID)+"/reviewed-assets/"+url.PathEscape(assetID), tenantID, workspaceID, nil, &asset)
 	return asset, err
+}
+
+func (d *Directory) BeginBenefitPackageReviewCleanup(ctx context.Context, tenantID, workspaceID, packageID, reservationID, cleanupID string) (ReviewCleanup, error) {
+	payload := map[string]string{"cleanup_id": cleanupID}
+	var cleanup ReviewCleanup
+	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/review-cleanups/"+url.PathEscape(reservationID), tenantID, workspaceID, payload, &cleanup)
+	return cleanup, err
+}
+
+func (d *Directory) CompleteBenefitPackageReviewCleanup(ctx context.Context, tenantID, workspaceID, packageID, reservationID, cleanupID string) (ReviewCleanup, error) {
+	var cleanup ReviewCleanup
+	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/review-cleanups/"+url.PathEscape(reservationID)+"/"+url.PathEscape(cleanupID)+"/complete", tenantID, workspaceID, nil, &cleanup)
+	return cleanup, err
+}
+
+func (d *Directory) DeleteReviewedAsset(ctx context.Context, tenantID, workspaceID, packageID, assetID string) error {
+	return d.benefitPackageRequest(ctx, http.MethodDelete, "/"+url.PathEscape(packageID)+"/reviewed-assets/"+url.PathEscape(assetID), tenantID, workspaceID, nil, nil)
 }
 
 func (d *Directory) benefitPackageRequest(ctx context.Context, method, path, tenantID, workspaceID string, payload any, output any) error {

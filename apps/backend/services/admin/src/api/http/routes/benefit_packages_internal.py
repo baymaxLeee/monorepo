@@ -6,6 +6,8 @@ from application.auth import AuthContext
 from application.benefit_packages import BenefitPackageService
 from application.contracts.benefit_package import (
     AvailableBenefitPackage,
+    BeginBenefitPackageReviewCleanupInput,
+    BenefitPackageReviewCleanup,
     BenefitPackageReviewReservation,
     InternalBenefitPackage,
     ReserveBenefitPackageReviewInput,
@@ -91,6 +93,48 @@ async def transition_review(
     return await BenefitPackageService(session, user).transition_review_reservation(package_id, reservation_id, status)
 
 
+@router.post(
+    "/{package_id}/review-cleanups/{reservation_id}",
+    response_model=BenefitPackageReviewCleanup,
+    operation_id="beginBenefitPackageReviewCleanup",
+)
+async def begin_review_cleanup(
+    package_id: str,
+    reservation_id: str,
+    payload: BeginBenefitPackageReviewCleanupInput,
+    workspace_id: Annotated[str, Query(min_length=1)],
+    tenant_id: Annotated[str, Query(min_length=1)],
+    session: DbSession,
+    _caller: InternalCaller,
+    caller: Annotated[str, Header(alias="X-Caller-Service")],
+) -> BenefitPackageReviewCleanup:
+    _require_canvas(caller)
+    user = AuthContext(user_id="", username="", email="", workspace_id=workspace_id, tenant_id=tenant_id)
+    return await BenefitPackageService(session, user).begin_review_cleanup(
+        package_id, reservation_id, payload.cleanup_id
+    )
+
+
+@router.post(
+    "/{package_id}/review-cleanups/{reservation_id}/{cleanup_id}/complete",
+    response_model=BenefitPackageReviewCleanup,
+    operation_id="completeBenefitPackageReviewCleanup",
+)
+async def complete_review_cleanup(
+    package_id: str,
+    reservation_id: str,
+    cleanup_id: str,
+    workspace_id: Annotated[str, Query(min_length=1)],
+    tenant_id: Annotated[str, Query(min_length=1)],
+    session: DbSession,
+    _caller: InternalCaller,
+    caller: Annotated[str, Header(alias="X-Caller-Service")],
+) -> BenefitPackageReviewCleanup:
+    _require_canvas(caller)
+    user = AuthContext(user_id="", username="", email="", workspace_id=workspace_id, tenant_id=tenant_id)
+    return await BenefitPackageService(session, user).complete_review_cleanup(package_id, reservation_id, cleanup_id)
+
+
 @router.post("/{package_id}/reviewed-assets", response_model=ReviewedAsset, operation_id="submitReviewedAsset")
 async def submit_reviewed_asset(
     package_id: str,
@@ -119,3 +163,22 @@ async def get_reviewed_asset(
     _require_canvas(caller)
     user = AuthContext(user_id="", username="", email="", workspace_id=workspace_id, tenant_id=tenant_id)
     return await BenefitPackageService(session, user).get_reviewed_asset(package_id, asset_id)
+
+
+@router.delete(
+    "/{package_id}/reviewed-assets/{asset_id}",
+    status_code=204,
+    operation_id="deleteReviewedAsset",
+)
+async def delete_reviewed_asset(
+    package_id: str,
+    asset_id: str,
+    workspace_id: Annotated[str, Query(min_length=1)],
+    tenant_id: Annotated[str, Query(min_length=1)],
+    session: DbSession,
+    _caller: InternalCaller,
+    caller: Annotated[str, Header(alias="X-Caller-Service")],
+) -> None:
+    _require_canvas(caller)
+    user = AuthContext(user_id="", username="", email="", workspace_id=workspace_id, tenant_id=tenant_id)
+    await BenefitPackageService(session, user).delete_reviewed_asset(package_id, asset_id)

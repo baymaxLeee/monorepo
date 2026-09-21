@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from infrastructure.persistence.models.benefit_package import (
     AssetGroupCleanupRow,
+    BenefitPackageReviewCleanupClaimRow,
     BenefitPackageReviewReservationRow,
     BenefitPackageRow,
 )
@@ -68,7 +69,9 @@ async def review_usage(session: AsyncSession, tenant_id: str, workspace_id: str)
     rows = await session.execute(
         select(
             BenefitPackageReviewReservationRow.benefit_package_id,
-            func.count().filter(BenefitPackageReviewReservationRow.status == "committed"),
+            func.count().filter(
+                BenefitPackageReviewReservationRow.status.in_(("committed", "releasing", "reacquiring"))
+            ),
             func.count().filter(BenefitPackageReviewReservationRow.status == "reserved"),
         )
         .where(
@@ -90,3 +93,54 @@ async def get_review_reservation(
         statement = statement.with_for_update().execution_options(populate_existing=True)
     row = await session.scalars(statement)
     return row.one_or_none()
+
+
+async def get_review_reservation_by_operation(
+    session: AsyncSession, operation_id: str, *, for_update: bool = False
+) -> BenefitPackageReviewReservationRow | None:
+    statement = select(BenefitPackageReviewReservationRow).where(
+        BenefitPackageReviewReservationRow.operation_id == operation_id
+    )
+    if for_update:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    row = await session.scalars(statement)
+    return row.one_or_none()
+
+
+async def get_active_review_reservation(
+    session: AsyncSession, package_id: str, project_id: str, asset_id: str, *, for_update: bool = False
+) -> BenefitPackageReviewReservationRow | None:
+    statement = select(BenefitPackageReviewReservationRow).where(
+        BenefitPackageReviewReservationRow.benefit_package_id == package_id,
+        BenefitPackageReviewReservationRow.project_id == project_id,
+        BenefitPackageReviewReservationRow.asset_id == asset_id,
+        BenefitPackageReviewReservationRow.status.in_(("reserved", "committed", "releasing", "reacquiring")),
+    )
+    if for_update:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    row = await session.scalars(statement)
+    return row.one_or_none()
+
+
+async def get_review_cleanup_claim(
+    session: AsyncSession, cleanup_id: str, *, for_update: bool = False
+) -> BenefitPackageReviewCleanupClaimRow | None:
+    statement = select(BenefitPackageReviewCleanupClaimRow).where(
+        BenefitPackageReviewCleanupClaimRow.cleanup_id == cleanup_id
+    )
+    if for_update:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    row = await session.scalars(statement)
+    return row.one_or_none()
+
+
+async def count_pending_review_cleanup_claims(session: AsyncSession, reservation_id: str) -> int:
+    return int(
+        await session.scalar(
+            select(func.count()).select_from(BenefitPackageReviewCleanupClaimRow).where(
+                BenefitPackageReviewCleanupClaimRow.reservation_id == reservation_id,
+                BenefitPackageReviewCleanupClaimRow.status == "pending",
+            )
+        )
+        or 0
+    )

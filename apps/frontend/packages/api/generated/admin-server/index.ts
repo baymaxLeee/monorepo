@@ -56,6 +56,14 @@ export interface AvailableBenefitPackage {
   material_limit: number | null;
 }
 
+export interface BeginBenefitPackageReviewCleanupInput {
+  /**
+     * @minLength 1
+     * @maxLength 32
+     */
+  cleanup_id: string;
+}
+
 export interface BenefitPackage {
   id: string;
   is_preset: boolean;
@@ -73,6 +81,12 @@ export interface BenefitPackage {
   updated_by: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface BenefitPackageReviewCleanup {
+  cleanup_id: string;
+  reservation_id: string;
+  status: string;
 }
 
 export interface BenefitPackageReviewReservation {
@@ -890,6 +904,28 @@ workspace_id: string;
 tenant_id: string;
 };
 
+export type BeginBenefitPackageReviewCleanupParams = {
+/**
+ * @minLength 1
+ */
+workspace_id: string;
+/**
+ * @minLength 1
+ */
+tenant_id: string;
+};
+
+export type CompleteBenefitPackageReviewCleanupParams = {
+/**
+ * @minLength 1
+ */
+workspace_id: string;
+/**
+ * @minLength 1
+ */
+tenant_id: string;
+};
+
 export type SubmitReviewedAssetParams = {
 /**
  * @minLength 1
@@ -902,6 +938,17 @@ tenant_id: string;
 };
 
 export type GetReviewedAssetParams = {
+/**
+ * @minLength 1
+ */
+workspace_id: string;
+/**
+ * @minLength 1
+ */
+tenant_id: string;
+};
+
+export type DeleteReviewedAssetParams = {
 /**
  * @minLength 1
  */
@@ -1327,6 +1374,40 @@ const transitionBenefitPackageReview = (
     }
 
 /**
+ * @summary Begin Review Cleanup
+ */
+const beginBenefitPackageReviewCleanup = (
+    packageId: string,
+    reservationId: string,
+    beginBenefitPackageReviewCleanupInput: BeginBenefitPackageReviewCleanupInput,
+    params: BeginBenefitPackageReviewCleanupParams,
+ options?: SecondParameter<typeof apiMutator<BenefitPackageReviewCleanup>>,) => {
+      return apiMutator<BenefitPackageReviewCleanup>(
+      {url: `/internal/canvas/benefit-packages/${packageId}/review-cleanups/${reservationId}`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: beginBenefitPackageReviewCleanupInput,
+        params
+    },
+      options);
+    }
+
+/**
+ * @summary Complete Review Cleanup
+ */
+const completeBenefitPackageReviewCleanup = (
+    packageId: string,
+    reservationId: string,
+    cleanupId: string,
+    params: CompleteBenefitPackageReviewCleanupParams,
+ options?: SecondParameter<typeof apiMutator<BenefitPackageReviewCleanup>>,) => {
+      return apiMutator<BenefitPackageReviewCleanup>(
+      {url: `/internal/canvas/benefit-packages/${packageId}/review-cleanups/${reservationId}/${cleanupId}/complete`, method: 'POST',
+        params
+    },
+      options);
+    }
+
+/**
  * @summary Submit Reviewed Asset
  */
 const submitReviewedAsset = (
@@ -1353,6 +1434,21 @@ const getReviewedAsset = (
  options?: SecondParameter<typeof apiMutator<ReviewedAsset>>,) => {
       return apiMutator<ReviewedAsset>(
       {url: `/internal/canvas/benefit-packages/${packageId}/reviewed-assets/${assetId}`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+/**
+ * @summary Delete Reviewed Asset
+ */
+const deleteReviewedAsset = (
+    packageId: string,
+    assetId: string,
+    params: DeleteReviewedAssetParams,
+ options?: SecondParameter<typeof apiMutator<void>>,) => {
+      return apiMutator<void>(
+      {url: `/internal/canvas/benefit-packages/${packageId}/reviewed-assets/${assetId}`, method: 'DELETE',
         params
     },
       options);
@@ -1891,7 +1987,7 @@ const deleteAppAppsAppIdDelete = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listBotSkillsBotBotIdSkillsGet,attachBotSkillBotBotIdSkillsPost,detachBotSkillBotBotIdSkillsSkillIdDelete,listBenefitPackageAssetGroupCleanups,retryBenefitPackageAssetGroupCleanup,listBenefitPackages,createBenefitPackage,updateBenefitPackage,deleteBenefitPackage,listAvailableBenefitPackagesInternal,getBenefitPackageInternalInternalCanvasBenefitPackagesPackageIdGet,reserveBenefitPackageReview,transitionBenefitPackageReview,submitReviewedAsset,getReviewedAsset,getCanvasSettings,updateCanvasSettings,getInternalCanvasSettings,listSkillsSkillsGet,createSkillSkillsPost,getSkillSkillsSkillIdGet,updateSkillSkillsSkillIdPatch,deleteSkillSkillsSkillIdDelete,getSkillWorkspaceSkillsSkillIdWorkspaceGet,getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet,createSkillNodeSkillsSkillIdWorkspaceNodesPost,updateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPut,renameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePut,moveSkillNodeSkillsSkillIdWorkspaceNodesNodeIdParentPut,deleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDelete,validateSkillSkillsSkillIdValidatePost,publishSkillSkillsSkillIdPublishPost,bulkDeleteSkillsSkillsBulkDeletePost,getSkillFileInternalInternalSkillsSkillIdFilesGet,getSkillInternalInternalSkillsSkillIdGet,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,listProviderCatalogInternalInternalProvidersGet,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderByKindInternalInternalProvidersByKindKindGet,getProviderInternalInternalProvidersProviderIdGet,getTaskProviderInternalInternalProvidersProviderIdTaskCredentialsGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listBotSkillsBotBotIdSkillsGet,attachBotSkillBotBotIdSkillsPost,detachBotSkillBotBotIdSkillsSkillIdDelete,listBenefitPackageAssetGroupCleanups,retryBenefitPackageAssetGroupCleanup,listBenefitPackages,createBenefitPackage,updateBenefitPackage,deleteBenefitPackage,listAvailableBenefitPackagesInternal,getBenefitPackageInternalInternalCanvasBenefitPackagesPackageIdGet,reserveBenefitPackageReview,transitionBenefitPackageReview,beginBenefitPackageReviewCleanup,completeBenefitPackageReviewCleanup,submitReviewedAsset,getReviewedAsset,deleteReviewedAsset,getCanvasSettings,updateCanvasSettings,getInternalCanvasSettings,listSkillsSkillsGet,createSkillSkillsPost,getSkillSkillsSkillIdGet,updateSkillSkillsSkillIdPatch,deleteSkillSkillsSkillIdDelete,getSkillWorkspaceSkillsSkillIdWorkspaceGet,getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet,createSkillNodeSkillsSkillIdWorkspaceNodesPost,updateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPut,renameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePut,moveSkillNodeSkillsSkillIdWorkspaceNodesNodeIdParentPut,deleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDelete,validateSkillSkillsSkillIdValidatePost,publishSkillSkillsSkillIdPublishPost,bulkDeleteSkillsSkillsBulkDeletePost,getSkillFileInternalInternalSkillsSkillIdFilesGet,getSkillInternalInternalSkillsSkillIdGet,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,listProviderCatalogInternalInternalProvidersGet,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderByKindInternalInternalProvidersByKindKindGet,getProviderInternalInternalProvidersProviderIdGet,getTaskProviderInternalInternalProvidersProviderIdTaskCredentialsGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['healthzHealthzGet']>>>
@@ -1913,8 +2009,11 @@ export type ListAvailableBenefitPackagesInternalResult = NonNullable<Awaited<Ret
 export type GetBenefitPackageInternalInternalCanvasBenefitPackagesPackageIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getBenefitPackageInternalInternalCanvasBenefitPackagesPackageIdGet']>>>
 export type ReserveBenefitPackageReviewResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['reserveBenefitPackageReview']>>>
 export type TransitionBenefitPackageReviewResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['transitionBenefitPackageReview']>>>
+export type BeginBenefitPackageReviewCleanupResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['beginBenefitPackageReviewCleanup']>>>
+export type CompleteBenefitPackageReviewCleanupResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['completeBenefitPackageReviewCleanup']>>>
 export type SubmitReviewedAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['submitReviewedAsset']>>>
 export type GetReviewedAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getReviewedAsset']>>>
+export type DeleteReviewedAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['deleteReviewedAsset']>>>
 export type GetCanvasSettingsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getCanvasSettings']>>>
 export type UpdateCanvasSettingsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateCanvasSettings']>>>
 export type GetInternalCanvasSettingsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getInternalCanvasSettings']>>>

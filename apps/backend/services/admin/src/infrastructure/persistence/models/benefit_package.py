@@ -72,6 +72,17 @@ class BenefitPackageReviewReservationRow(Base):
     benefit_package_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     project_id: Mapped[str] = mapped_column(String(36), nullable=False)
     asset_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    operation_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="reserved")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class BenefitPackageReviewCleanupClaimRow(Base):
+    __tablename__ = "benefit_package_review_cleanup_claims"
+
+    cleanup_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    reservation_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

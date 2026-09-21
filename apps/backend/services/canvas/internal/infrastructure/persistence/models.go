@@ -178,20 +178,43 @@ type AssetReview struct {
 	WorkspaceID         string
 	ProjectID           string
 	ResourceAssetID     string
-	AssetID              string
+	AssetID             string
 	BenefitPackageID    string
-	PackageName          string
-	IsPreset             bool
-	ReservationID        string
-	OperationID          string
-	CreatedBy            string
-	ProviderAssetID      string
+	PackageName         string
+	IsPreset            bool
+	ReservationID       string
+	OperationID         string
+	CreatedBy           string
+	ProviderAssetID     string
 	SubmissionStartedAt *time.Time
 	Status              string
 	FailureReason       string
 	SubmittedAt         *time.Time
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	DeletedAt           gorm.DeletedAt
 }
 
 func (AssetReview) TableName() string { return "asset_reviews" }
+
+type AssetReviewCleanup struct {
+	ID               string `gorm:"primaryKey"`
+	ReviewID         string
+	AssetID          string
+	TenantID         string
+	WorkspaceID      string
+	BenefitPackageID string
+	ReservationID    string
+	ProviderAssetID  string
+	Status           string
+	Attempts         int32
+	NextAttemptAt    time.Time
+	LeaseUntil       *time.Time
+	LeaseToken       string
+	LastError        string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	CompletedAt      *time.Time
+}
+
+func (AssetReviewCleanup) TableName() string { return "asset_review_cleanups" }

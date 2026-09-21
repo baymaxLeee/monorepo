@@ -53,6 +53,7 @@ func (s *Service) ReplaceResourceAsset(ctx context.Context, a Actor, projectID, 
 		return c.ResourceAsset{}, err
 	}
 	var out p.ResourceAsset
+	var cleanupIDs []string
 	err = db.Transaction(func(tx *gorm.DB) error {
 		resource, slot, err := resourceSlot(tx, a, projectID, id, true)
 		if err != nil {
@@ -63,6 +64,12 @@ func (s *Service) ReplaceResourceAsset(ctx context.Context, a Actor, projectID, 
 		}
 		if slot.MediaType != kind {
 			return Invalid("resource media type mismatch")
+		}
+		if slot.CurrentAssetID != "" {
+			cleanupIDs, err = s.retireAssetReviews(tx, a, []string{slot.CurrentAssetID}, "", time.Now().UTC())
+			if err != nil {
+				return err
+			}
 		}
 		asset := p.Asset{ID: newID(), TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, ProjectID: projectID, ObjectKey: key, MimeType: mime}
 		if err = tx.Create(&asset).Error; err != nil {
@@ -86,6 +93,9 @@ func (s *Service) ReplaceResourceAsset(ctx context.Context, a Actor, projectID, 
 		out = slot
 		return tx.Save(&resource).Error
 	})
+	if err == nil {
+		s.processAssetReviewCleanups(context.WithoutCancel(ctx), cleanupIDs)
+	}
 	return resourceAssetDTO(out), err
 }
 func (s *Service) ListResourceVersions(ctx context.Context, a Actor, projectID, id string) (c.ResourceVersionList, error) {
@@ -121,6 +131,7 @@ func (s *Service) UpdateResourceAsset(ctx context.Context, a Actor, projectID, i
 		return c.ResourceAsset{}, Invalid("invalid revision")
 	}
 	var out p.ResourceAsset
+	var cleanupIDs []string
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		resource, slot, err := resourceSlot(tx, a, projectID, id, true)
 		if err != nil {
@@ -137,7 +148,13 @@ func (s *Service) UpdateResourceAsset(ctx context.Context, a Actor, projectID, i
 			if err = tx.Where("resource_asset_id = ? AND revision_no = ?", id, in.RevisionNo).First(&version).Error; err != nil {
 				return NotFound()
 			}
-			slot.CurrentAssetID = version.AssetID
+			if version.AssetID != slot.CurrentAssetID {
+				cleanupIDs, err = s.retireAssetReviews(tx, a, []string{slot.CurrentAssetID}, "", time.Now().UTC())
+				if err != nil {
+					return err
+				}
+				slot.CurrentAssetID = version.AssetID
+			}
 		}
 		slot.Name, slot.Revision = in.Name, slot.Revision+1
 		if err = tx.Save(&slot).Error; err != nil {
@@ -147,6 +164,9 @@ func (s *Service) UpdateResourceAsset(ctx context.Context, a Actor, projectID, i
 		out = slot
 		return tx.Save(&resource).Error
 	})
+	if err == nil {
+		s.processAssetReviewCleanups(context.WithoutCancel(ctx), cleanupIDs)
+	}
 	return resourceAssetDTO(out), err
 }
 func (s *Service) SetPrimaryResourceAsset(ctx context.Context, a Actor, projectID, id string, in c.ExpectedRevision) (c.Resource, error) {
@@ -166,6 +186,7 @@ func (s *Service) SetPrimaryResourceAsset(ctx context.Context, a Actor, projectI
 	return resourceDTO(out), err
 }
 func (s *Service) DeleteResourceAsset(ctx context.Context, a Actor, projectID, id string, in c.ExpectedRevision) (c.Deleted, error) {
+	var cleanupIDs []string
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		resource, slot, err := resourceSlot(tx, a, projectID, id, true)
 		if err != nil {
@@ -173,6 +194,14 @@ func (s *Service) DeleteResourceAsset(ctx context.Context, a Actor, projectID, i
 		}
 		if slot.Revision != in.ExpectedRevision {
 			return Conflict()
+		}
+		var reviewAssetIDs []string
+		if err = tx.Model(&p.ResourceAssetRevision{}).Where("resource_asset_id = ?", id).Distinct().Pluck("asset_id", &reviewAssetIDs).Error; err != nil {
+			return err
+		}
+		cleanupIDs, err = s.retireAssetReviews(tx, a, reviewAssetIDs, "", time.Now().UTC())
+		if err != nil {
+			return err
 		}
 		if err = tx.Where("owner_type = ? AND owner_key = ?", "RESOURCE_ASSET_REVISION", id).Delete(&p.AssetReference{}).Error; err != nil {
 			return err
@@ -194,5 +223,8 @@ func (s *Service) DeleteResourceAsset(ctx context.Context, a Actor, projectID, i
 		resource.Revision++
 		return tx.Save(&resource).Error
 	})
+	if err == nil {
+		s.processAssetReviewCleanups(context.WithoutCancel(ctx), cleanupIDs)
+	}
 	return c.Deleted{Deleted: err == nil}, err
 }

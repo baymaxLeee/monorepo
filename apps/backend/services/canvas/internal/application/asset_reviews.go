@@ -127,7 +127,7 @@ func (s *Service) SubmitAssetReview(ctx context.Context, actor Actor, projectID,
 		return c.AssetReview{}, NotFound()
 	}
 	var existing p.AssetReview
-	err = db.Where("tenant_id = ? AND workspace_id = ? AND created_by = ? AND operation_id = ?", actor.TenantID, actor.WorkspaceID, actor.UserID, operationID).First(&existing).Error
+	err = db.Unscoped().Where("tenant_id = ? AND workspace_id = ? AND created_by = ? AND operation_id = ?", actor.TenantID, actor.WorkspaceID, actor.UserID, operationID).First(&existing).Error
 	if err == nil {
 		if existing.ProjectID != projectID || existing.ResourceAssetID != resourceAssetID || existing.BenefitPackageID != packageID {
 			return c.AssetReview{}, ConflictMessage("asset_review_operation_conflict", "送审操作编号已用于其他素材")
@@ -167,6 +167,29 @@ func (s *Service) SubmitAssetReview(ctx context.Context, actor Actor, projectID,
 			return c.AssetReview{}, &Error{Status: 403, Code: "benefit_package_not_granted", Message: "权益包未关联项目已授权的视频模型"}
 		}
 	}
+	s.retryAssetReviewCleanupsForAsset(ctx, actor, slot.CurrentAssetID, packageID)
+	var current p.AssetReview
+	err = db.Where(
+		"tenant_id = ? AND workspace_id = ? AND project_id = ? AND asset_id = ? AND benefit_package_id = ?",
+		actor.TenantID, actor.WorkspaceID, projectID, slot.CurrentAssetID, packageID,
+	).First(&current).Error
+	if err == nil {
+		if current.Status != "FAILED" {
+			return c.AssetReview{}, ConflictMessage("asset_review_conflict", "该素材已通过此权益包送审")
+		}
+		var cleanupIDs []string
+		err = db.Transaction(func(tx *gorm.DB) error {
+			var retireErr error
+			cleanupIDs, retireErr = s.retireAssetReviews(tx, actor, []string{slot.CurrentAssetID}, packageID, time.Now().UTC())
+			return retireErr
+		})
+		if err != nil {
+			return c.AssetReview{}, err
+		}
+		s.processAssetReviewCleanups(context.WithoutCancel(ctx), cleanupIDs)
+	} else if err != gorm.ErrRecordNotFound {
+		return c.AssetReview{}, err
+	}
 	reservation, err := directory.ReserveBenefitPackageReview(ctx, actor.TenantID, actor.WorkspaceID, packageID, operationID, projectID, slot.CurrentAssetID)
 	if err != nil {
 		return c.AssetReview{}, benefitPackageError(err)
@@ -188,7 +211,7 @@ func (s *Service) SubmitAssetReview(ctx context.Context, actor Actor, projectID,
 		if releaseErr != nil {
 			return c.AssetReview{}, errors.Join(err, releaseErr)
 		}
-		if uniqueViolation(err, "asset_reviews_operation") || uniqueViolation(err, "asset_reviews_asset_package") {
+		if uniqueViolation(err, "asset_reviews_operation") || uniqueViolation(err, "asset_reviews_asset_package_active") {
 			return c.AssetReview{}, ConflictMessage("asset_review_conflict", "该素材已通过此权益包送审")
 		}
 		return c.AssetReview{}, err

@@ -95,6 +95,16 @@ class AssetGroupClient:
         )
         return status.strip(), reason
 
+    async def delete_asset(
+        self, *, asset_id: str, project_name: str, access_key_id: str, secret_access_key: str
+    ) -> None:
+        await self._call(
+            "DeleteAsset",
+            {"Id": asset_id, "ProjectName": project_name},
+            access_key_id,
+            secret_access_key,
+        )
+
     async def _call(
         self, action: str, payload: dict[str, object], access_key_id: str, secret_access_key: str
     ) -> dict[str, object]:
@@ -116,6 +126,8 @@ class AssetGroupClient:
                     response = await client.post(self._endpoint, params=params, headers=headers, content=body)
             else:
                 response = await self._client.post(self._endpoint, params=params, headers=headers, content=body)
+            if action == "DeleteAsset" and response.status_code == 404:
+                return {}
             response.raise_for_status()
             decoded = response.json()
         except (httpx.HTTPError, ValueError) as exc:

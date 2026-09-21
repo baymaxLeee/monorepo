@@ -90,6 +90,7 @@ func (s *Service) SaveResource(ctx context.Context, a Actor, projectID, id strin
 	return resourceDTO(row), err
 }
 func (s *Service) DeleteResource(ctx context.Context, a Actor, projectID, id string, in c.ExpectedRevision) (c.Deleted, error) {
+	var cleanupIDs []string
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := access(tx, a, projectID, true); err != nil {
 			return err
@@ -104,6 +105,17 @@ func (s *Service) DeleteResource(ctx context.Context, a Actor, projectID, id str
 		if row.Revision != in.ExpectedRevision {
 			return Conflict()
 		}
+		var reviewAssetIDs []string
+		if err := tx.Model(&p.ResourceAssetRevision{}).Where(
+			"resource_asset_id IN (SELECT id FROM resource_assets WHERE resource_id = ?)", id,
+		).Distinct().Pluck("asset_id", &reviewAssetIDs).Error; err != nil {
+			return err
+		}
+		var err error
+		cleanupIDs, err = s.retireAssetReviews(tx, a, reviewAssetIDs, "", time.Now().UTC())
+		if err != nil {
+			return err
+		}
 		if err := tx.Where("owner_type = ? AND owner_key IN (SELECT id FROM resource_assets WHERE resource_id = ?)", "RESOURCE_ASSET_REVISION", id).Delete(&p.AssetReference{}).Error; err != nil {
 			return err
 		}
@@ -112,6 +124,9 @@ func (s *Service) DeleteResource(ctx context.Context, a Actor, projectID, id str
 		}
 		return tx.Delete(&row).Error
 	})
+	if err == nil {
+		s.processAssetReviewCleanups(context.WithoutCancel(ctx), cleanupIDs)
+	}
 	return c.Deleted{Deleted: err == nil}, err
 }
 func (s *Service) ListResourceAssets(ctx context.Context, a Actor, projectID, id string) (c.ResourceAssetList, error) {

@@ -392,10 +392,24 @@ CREATE TABLE asset_reviews (
  submission_started_at timestamptz,
  status varchar(16) NOT NULL CHECK(status IN ('SUBMITTING','PROCESSING','APPROVED','FAILED')),
  failure_reason varchar(512) NOT NULL DEFAULT '', submitted_at timestamptz,
- created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL,
- CONSTRAINT asset_reviews_operation UNIQUE(tenant_id,workspace_id,created_by,operation_id),
- CONSTRAINT asset_reviews_asset_package UNIQUE(tenant_id,workspace_id,project_id,asset_id,benefit_package_id)
+ created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, deleted_at timestamptz,
+ CONSTRAINT asset_reviews_operation UNIQUE(tenant_id,workspace_id,created_by,operation_id)
 );
 CREATE INDEX asset_reviews_project_current ON asset_reviews(tenant_id,workspace_id,project_id,resource_asset_id,updated_at DESC);
 CREATE INDEX asset_reviews_reservation ON asset_reviews(reservation_id);
 CREATE INDEX asset_reviews_pending ON asset_reviews(created_at) WHERE status IN ('SUBMITTING','PROCESSING');
+CREATE UNIQUE INDEX asset_reviews_asset_package_active
+ ON asset_reviews(tenant_id,workspace_id,project_id,asset_id,benefit_package_id) WHERE deleted_at IS NULL;
+CREATE TABLE asset_review_cleanups (
+ id varchar(32) PRIMARY KEY, review_id varchar(32) NOT NULL UNIQUE, asset_id varchar(32) NOT NULL,
+ tenant_id varchar(26) NOT NULL, workspace_id varchar(64) NOT NULL,
+ benefit_package_id varchar(32) NOT NULL, reservation_id varchar(36) NOT NULL,
+ provider_asset_id varchar(128) NOT NULL,
+ status varchar(16) NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','running','completed','dead')),
+ attempts integer NOT NULL DEFAULT 0 CHECK(attempts >= 0), next_attempt_at timestamptz NOT NULL,
+ lease_until timestamptz, lease_token varchar(32) NOT NULL DEFAULT '', last_error varchar(512) NOT NULL DEFAULT '',
+ created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, completed_at timestamptz
+);
+CREATE INDEX asset_review_cleanups_due ON asset_review_cleanups(status,next_attempt_at,lease_until);
+CREATE INDEX asset_review_cleanups_package ON asset_review_cleanups(tenant_id,workspace_id,benefit_package_id,status);
+CREATE INDEX asset_review_cleanups_asset ON asset_review_cleanups(tenant_id,workspace_id,asset_id,benefit_package_id,status);

@@ -2636,6 +2636,217 @@
         }
       }
     },
+    "/internal/canvas/benefit-packages/{package_id}/review-cleanups/{reservation_id}": {
+      "post": {
+        "tags": [
+          "internal-canvas-benefit-packages"
+        ],
+        "summary": "Begin Review Cleanup",
+        "operationId": "beginBenefitPackageReviewCleanup",
+        "parameters": [
+          {
+            "name": "package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Package Id"
+            }
+          },
+          {
+            "name": "reservation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reservation Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Caller-Service"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BeginBenefitPackageReviewCleanupInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenefitPackageReviewCleanup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/canvas/benefit-packages/{package_id}/review-cleanups/{reservation_id}/{cleanup_id}/complete": {
+      "post": {
+        "tags": [
+          "internal-canvas-benefit-packages"
+        ],
+        "summary": "Complete Review Cleanup",
+        "operationId": "completeBenefitPackageReviewCleanup",
+        "parameters": [
+          {
+            "name": "package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Package Id"
+            }
+          },
+          {
+            "name": "reservation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reservation Id"
+            }
+          },
+          {
+            "name": "cleanup_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cleanup Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Caller-Service"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenefitPackageReviewCleanup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/internal/canvas/benefit-packages/{package_id}/reviewed-assets": {
       "post": {
         "tags": [
@@ -2815,6 +3026,93 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "internal-canvas-benefit-packages"
+        ],
+        "summary": "Delete Reviewed Asset",
+        "operationId": "deleteReviewedAsset",
+        "parameters": [
+          {
+            "name": "package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Package Id"
+            }
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Asset Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Caller-Service"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -8621,6 +8919,21 @@
         ],
         "title": "AvailableBenefitPackage"
       },
+      "BeginBenefitPackageReviewCleanupInput": {
+        "properties": {
+          "cleanup_id": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Cleanup Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cleanup_id"
+        ],
+        "title": "BeginBenefitPackageReviewCleanupInput"
+      },
       "BenefitPackage": {
         "properties": {
           "id": {
@@ -8718,6 +9031,29 @@
           "updated_at"
         ],
         "title": "BenefitPackage"
+      },
+      "BenefitPackageReviewCleanup": {
+        "properties": {
+          "cleanup_id": {
+            "type": "string",
+            "title": "Cleanup Id"
+          },
+          "reservation_id": {
+            "type": "string",
+            "title": "Reservation Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cleanup_id",
+          "reservation_id",
+          "status"
+        ],
+        "title": "BenefitPackageReviewCleanup"
       },
       "BenefitPackageReviewReservation": {
         "properties": {

@@ -9,6 +9,7 @@ from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.models.benefit_package import (
     AssetGroupCleanupRow,
     BenefitPackageModelRow,
+    BenefitPackageReviewCleanupClaimRow,
     BenefitPackageReviewReservationRow,
     BenefitPackageRow,
 )
@@ -24,6 +25,7 @@ from application.contracts.benefit_package import (
     AssetGroupCleanup,
     AvailableBenefitPackage,
     BenefitPackage,
+    BenefitPackageReviewCleanup,
     BenefitPackageReviewReservation,
     CreateBenefitPackageInput,
     InternalBenefitPackage,
@@ -315,7 +317,7 @@ class BenefitPackageService:
                 package = await self._get(package_id, for_update=True)
                 if not package.enabled:
                     raise ConflictError("benefit package is disabled")
-                existing = await repository.get_review_reservation(
+                existing = await repository.get_review_reservation_by_operation(
                     self._session, payload.reservation_id, for_update=True
                 )
                 if existing is not None:
@@ -329,15 +331,31 @@ class BenefitPackageService:
                         raise ConflictError("review reservation id already belongs to another request")
                     if existing.status != "released":
                         return BenefitPackageReviewReservation(id=existing.id, status=existing.status)
-                usage = await repository.review_usage(self._session, self._user.tenant_id, self._user.workspace_id)
-                committed, reserved = usage.get(package_id, (0, 0))
-                if package.material_limit is not None and committed + reserved >= package.material_limit:
-                    raise ConflictError("benefit package material quota exceeded")
-                if existing is not None:
+                    usage = await repository.review_usage(
+                        self._session, self._user.tenant_id, self._user.workspace_id
+                    )
+                    committed, reserved = usage.get(package_id, (0, 0))
+                    if package.material_limit is not None and committed + reserved >= package.material_limit:
+                        raise ConflictError("benefit package material quota exceeded")
                     existing.status = "reserved"
                     existing.updated_at = now
                     await self._session.flush()
                     return BenefitPackageReviewReservation(id=existing.id, status=existing.status)
+                active = await repository.get_active_review_reservation(
+                    self._session, package_id, payload.project_id, payload.asset_id, for_update=True
+                )
+                if active is not None:
+                    if active.status != "releasing":
+                        raise ConflictError("asset already has an active review in this benefit package")
+                    active.status = "reacquiring"
+                    active.operation_id = payload.reservation_id
+                    active.updated_at = now
+                    await self._session.flush()
+                    return BenefitPackageReviewReservation(id=active.id, status=active.status)
+                usage = await repository.review_usage(self._session, self._user.tenant_id, self._user.workspace_id)
+                committed, reserved = usage.get(package_id, (0, 0))
+                if package.material_limit is not None and committed + reserved >= package.material_limit:
+                    raise ConflictError("benefit package material quota exceeded")
                 row = BenefitPackageReviewReservationRow(
                     id=payload.reservation_id,
                     tenant_id=self._user.tenant_id,
@@ -345,6 +363,7 @@ class BenefitPackageService:
                     benefit_package_id=package_id,
                     project_id=payload.project_id,
                     asset_id=payload.asset_id,
+                    operation_id=payload.reservation_id,
                     status="reserved",
                     created_at=now,
                     updated_at=now,
@@ -371,10 +390,87 @@ class BenefitPackageService:
                 raise NotFoundError(f"review reservation {reservation_id} not found")
             if row.status == status or row.status == "released":
                 return BenefitPackageReviewReservation(id=row.id, status=row.status)
-            row.status = status
+            if status == "committed":
+                if row.status not in {"reserved", "reacquiring"}:
+                    raise ConflictError(f"review reservation cannot be committed from {row.status}")
+                row.status = "committed"
+            elif row.status == "reserved":
+                row.status = "released"
+            elif row.status == "reacquiring":
+                pending = await repository.count_pending_review_cleanup_claims(self._session, row.id)
+                row.status = "releasing" if pending else "released"
             row.updated_at = datetime.now(UTC)
             await self._session.flush()
         return BenefitPackageReviewReservation(id=row.id, status=row.status)
+
+    async def begin_review_cleanup(
+        self, package_id: str, reservation_id: str, cleanup_id: str
+    ) -> BenefitPackageReviewCleanup:
+        now = datetime.now(UTC)
+        async with write_tx(self._session):
+            row = await repository.get_review_reservation(self._session, reservation_id, for_update=True)
+            if (
+                row is None
+                or row.tenant_id != self._user.tenant_id
+                or row.workspace_id != self._user.workspace_id
+                or row.benefit_package_id != package_id
+            ):
+                raise NotFoundError(f"review reservation {reservation_id} not found")
+            claim = await repository.get_review_cleanup_claim(self._session, cleanup_id, for_update=True)
+            if claim is not None:
+                if claim.reservation_id != reservation_id:
+                    raise ConflictError("review cleanup id already belongs to another reservation")
+                return BenefitPackageReviewCleanup(
+                    cleanup_id=claim.cleanup_id, reservation_id=claim.reservation_id, status=claim.status
+                )
+            if row.status in {"reserved", "committed"}:
+                row.status = "releasing"
+                row.updated_at = now
+            elif row.status not in {"releasing", "reacquiring", "released"}:
+                raise ConflictError(f"review reservation cannot begin cleanup from {row.status}")
+            claim = BenefitPackageReviewCleanupClaimRow(
+                cleanup_id=cleanup_id,
+                reservation_id=reservation_id,
+                status="pending",
+                created_at=now,
+                completed_at=None,
+            )
+            self._session.add(claim)
+            await self._session.flush()
+        return BenefitPackageReviewCleanup(
+            cleanup_id=claim.cleanup_id, reservation_id=claim.reservation_id, status=claim.status
+        )
+
+    async def complete_review_cleanup(
+        self, package_id: str, reservation_id: str, cleanup_id: str
+    ) -> BenefitPackageReviewCleanup:
+        now = datetime.now(UTC)
+        async with write_tx(self._session):
+            row = await repository.get_review_reservation(self._session, reservation_id, for_update=True)
+            claim = await repository.get_review_cleanup_claim(self._session, cleanup_id, for_update=True)
+            if (
+                row is None
+                or claim is None
+                or claim.reservation_id != reservation_id
+                or row.tenant_id != self._user.tenant_id
+                or row.workspace_id != self._user.workspace_id
+                or row.benefit_package_id != package_id
+            ):
+                raise NotFoundError(f"review cleanup {cleanup_id} not found")
+            if claim.status == "completed":
+                return BenefitPackageReviewCleanup(
+                    cleanup_id=claim.cleanup_id, reservation_id=claim.reservation_id, status=claim.status
+                )
+            claim.status = "completed"
+            claim.completed_at = now
+            pending = await repository.count_pending_review_cleanup_claims(self._session, reservation_id)
+            if pending == 0 and row.status == "releasing":
+                row.status = "released"
+                row.updated_at = now
+            await self._session.flush()
+        return BenefitPackageReviewCleanup(
+            cleanup_id=claim.cleanup_id, reservation_id=claim.reservation_id, status=claim.status
+        )
 
     async def delete(self, package_id: str, expected_revision: int) -> None:
         obsolete_group: tuple[str, str, str, str] | None = None
@@ -443,9 +539,9 @@ class BenefitPackageService:
             raise
         return await self._mark_cleanup(cleanup_id, lease_token, completed=True)
 
-    async def get_internal(self, package_id: str) -> InternalBenefitPackage:
+    async def get_internal(self, package_id: str, *, require_enabled: bool = True) -> InternalBenefitPackage:
         row = await self._get(package_id)
-        if not row.enabled:
+        if require_enabled and not row.enabled:
             raise NotFoundError(f"benefit package {package_id} not found")
         return InternalBenefitPackage(
             id=row.id,
@@ -472,7 +568,7 @@ class BenefitPackageService:
         return ReviewedAsset(id=asset_id, status="Processing")
 
     async def get_reviewed_asset(self, package_id: str, asset_id: str) -> ReviewedAsset:
-        item = await self.get_internal(package_id)
+        item = await self.get_internal(package_id, require_enabled=False)
         status, reason = await self._asset_groups.get_asset(
             asset_id=asset_id,
             project_name=item.project_name,
@@ -480,6 +576,15 @@ class BenefitPackageService:
             secret_access_key=item.secret_access_key,
         )
         return ReviewedAsset(id=asset_id, status=status, failure_reason=reason)
+
+    async def delete_reviewed_asset(self, package_id: str, asset_id: str) -> None:
+        item = await self.get_internal(package_id, require_enabled=False)
+        await self._asset_groups.delete_asset(
+            asset_id=asset_id,
+            project_name=item.project_name,
+            access_key_id=item.access_key_id,
+            secret_access_key=item.secret_access_key,
+        )
 
     async def _validate_models(
         self, model_ids: list_type[str], packages: list_type[BenefitPackageRow], package_id: str = ""

@@ -285,6 +285,7 @@ function PackageDialog({
             secret_access_key: draft.secret_access_key || undefined,
             enabled: draft.enabled,
             model_ids: preset ? undefined : draft.model_ids,
+            material_limit: draft.material_limit,
           });
       onSaved(next, creating);
       toast.success(creating ? "权益包已创建" : "权益包已更新");
