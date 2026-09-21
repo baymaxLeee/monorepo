@@ -1,14 +1,15 @@
 package contracts
 
 type StoryboardDraftInput struct {
-	OperationID      string           `json:"operation_id"`
-	Plot             string           `json:"plot"`
-	ProviderID       string           `json:"provider_id"`
-	VideoConfig      GenerationConfig `json:"video_config"`
-	DurationMin      int32            `json:"duration_min"`
-	DurationMax      int32            `json:"duration_max"`
-	TotalDurationMin int32            `json:"total_duration_min"`
-	TotalDurationMax int32            `json:"total_duration_max"`
+	Parameters       *InferenceParameters `json:"parameters,omitempty"`
+	OperationID      string               `json:"operation_id"`
+	Plot             string               `json:"plot"`
+	ProviderID       string               `json:"provider_id"`
+	VideoConfig      GenerationConfig     `json:"video_config"`
+	DurationMin      int32                `json:"duration_min"`
+	DurationMax      int32                `json:"duration_max"`
+	TotalDurationMin int32                `json:"total_duration_min"`
+	TotalDurationMax int32                `json:"total_duration_max"`
 }
 type StoryboardShot struct {
 	ID              string `json:"id"`

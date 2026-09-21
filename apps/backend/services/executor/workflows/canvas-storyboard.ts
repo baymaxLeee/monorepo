@@ -1,10 +1,12 @@
-import { AdminInternalClient } from "@backend/transport-ts";
+import { AdminInternalClient, TransportError } from "@backend/transport-ts";
+import { CanvasInternalClient } from "@backend/transport-ts/canvas";
 import { createProviderModel } from "@backend/transport-ts/provider-model";
 import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
 import { generateText, Output } from "ai";
-import { getWorkflowMetadata } from "workflow";
+import { FatalError, getWorkflowMetadata } from "workflow";
 import { z } from "zod";
 
+import { inferenceOptions, inferenceParametersSchema } from "../src/application/canvas/inference-parameters.js";
 import { storyboardDetailPrompt, storyboardPlanPrompt } from "../src/application/canvas/storyboard-prompts.js";
 import { claimTaskStep } from "../src/application/tasks/binding.js";
 import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
@@ -12,14 +14,19 @@ import { getSettings } from "../src/bootstrap/config.js";
 
 export const canvasStoryboardInputSchema = z
   .object({
+    parameters: inferenceParametersSchema.optional(),
+    draftId: z.string().regex(/^[a-f0-9]{32}$/),
     tenantId: z.string().min(1),
     workspaceId: z.string().min(1),
     providerId: z.string().min(1),
-    plot: z.string().min(1).max(50000),
-    durationMin: z.number().int().min(1),
-    durationMax: z.number().int().max(300),
-    totalDurationMin: z.number().int().min(0),
-    totalDurationMax: z.number().int().min(0),
+    plot: z
+      .string()
+      .min(1)
+      .refine((value) => [...value].length <= 30000),
+    durationMin: z.number().int().min(4).max(30),
+    durationMax: z.number().int().min(4).max(30),
+    totalDurationMin: z.number().int().min(60).max(3000),
+    totalDurationMax: z.number().int().min(60).max(3000),
   })
   .refine((v) => v.durationMax >= v.durationMin && v.totalDurationMax >= v.totalDurationMin);
 type Input = z.infer<typeof canvasStoryboardInputSchema>;
@@ -38,6 +45,7 @@ interface PlanItem {
 }
 interface Draft {
   id: string;
+  sequence_no: number;
   prompt: string;
   duration_seconds: number;
 }
@@ -49,7 +57,7 @@ async function providerModel(input: Input) {
     callerService: "executor",
   });
   const p = await client.getProvider(input.providerId, input.tenantId, input.workspaceId);
-  if (p.provider_kind !== "chat") throw new Error("Storyboard requires an inference provider");
+  if (!p.is_enabled || p.provider_kind !== "chat") throw new Error("Storyboard requires an inference provider");
   await assertPublicProviderUrl(p.base_url);
   return {
     model: createProviderModel({
@@ -62,7 +70,7 @@ async function providerModel(input: Input) {
       apiKey: p.api_key,
       extraBody: p.extra_body ?? {},
     }),
-    maxOutputTokens: p.max_output_tokens,
+    ...inferenceOptions(input.parameters, p.max_output_tokens),
   };
 }
 async function planStep(input: Input): Promise<PlanItem[]> {
@@ -114,6 +122,8 @@ planStep.maxRetries = 0;
 function draftPrompt(item: PlanItem, summary: string, text: string) {
   return `【剧情概述】\n${summary}\n\n【全局设定】\n场景：${item.scene}\n人物：${item.characters.join("、")}\n道具：${item.props.join("、")}\n\n【位置参考】\n${item.position_reference}\n\n【镜头脚本】\n${text}\n\n【声音设计】\n保留原文对白、同期声、环境声与动作音效，不添加背景音乐。`;
 }
+class StoryboardDetailError extends Error {}
+
 async function detailStep(input: Input, batch: PlanItem[], adjacent: PlanItem[]): Promise<Draft[]> {
   "use step";
   const provider = await providerModel(input);
@@ -156,16 +166,17 @@ async function detailStep(input: Input, batch: PlanItem[], adjacent: PlanItem[])
         cancellation.signal.throwIfAborted();
         for (const detail of result.output.canvas_nodes) {
           const frozen = missing.find((item) => item.canvasnode_no === detail.canvasnode_no);
-          if (!frozen) throw new Error("Detail changed frozen numbering");
+          if (!frozen) throw new StoryboardDetailError("Detail changed frozen numbering");
           const duration = detail.shots.reduce((sum, shot) => sum + shot.duration_seconds, 0);
           if (duration < input.durationMin || duration > input.durationMax)
-            throw new Error("Shot duration exceeds video capability");
+            throw new StoryboardDetailError("Shot duration exceeds video capability");
           const text = detail.shots.map((shot) => shot.script).join("\n");
           const quoted = [...frozen.source.matchAll(/[“「『]([^”」』]+)[”」』]/gu)].map((match) => match[1]!);
           if (quoted.some((quote) => !text.includes(quote)))
-            throw new Error("Detail omitted original dialogue or screen text");
+            throw new StoryboardDetailError("Detail omitted original dialogue or screen text");
           accepted.set(frozen.canvasnode_no, {
             id: String(frozen.canvasnode_no),
+            sequence_no: frozen.canvasnode_no,
             prompt: draftPrompt(
               frozen,
               detail.summary,
@@ -176,13 +187,16 @@ async function detailStep(input: Input, batch: PlanItem[], adjacent: PlanItem[])
         }
       } catch (error) {
         cancellation.signal.throwIfAborted();
-        feedback = error instanceof Error ? error.message : "Invalid storyboard detail";
+        // Provider/network failures must fail the task, never masquerade as a successful fallback draft.
+        if (!(error instanceof StoryboardDetailError)) throw error;
+        feedback = error.message;
       }
     }
     return batch.map(
       (item) =>
         accepted.get(item.canvasnode_no) ?? {
           id: String(item.canvasnode_no),
+          sequence_no: item.canvasnode_no,
           duration_seconds: item.target_duration_seconds,
           prompt: draftPrompt(item, item.summary, item.source),
         },
@@ -192,16 +206,41 @@ async function detailStep(input: Input, batch: PlanItem[], adjacent: PlanItem[])
   }
 }
 detailStep.maxRetries = 0;
+async function publishDraftsStep(draftId: string, shots: Draft[]) {
+  "use step";
+  const settings = getSettings();
+  const client = new CanvasInternalClient({
+    baseUrl: settings.canvasServiceUrl,
+    internalToken: settings.internalApiToken,
+    callerService: "executor",
+  });
+  const cancellation = observeTaskCancellation(getWorkflowMetadata().workflowRunId);
+  try {
+    await client.commitStoryboardProgress(draftId, { shots }, cancellation.signal);
+  } catch (error) {
+    if (error instanceof TransportError && [400, 401, 403, 404, 409].includes(error.status))
+      throw new FatalError(error.message);
+    throw error;
+  } finally {
+    cancellation.dispose();
+  }
+}
 export async function canvasStoryboardWorkflow(input: Input, executorTaskId: string) {
   "use workflow";
   await claimTaskStep(executorTaskId);
   const plan = await planStep(input);
   const drafts = await detailStep(input, plan.slice(0, 1), plan.slice(1, 2));
+  await publishDraftsStep(input.draftId, drafts);
   for (let index = 1; index < plan.length; index += 24) {
     const batches: Promise<Draft[]>[] = [];
     for (let start = index; start < Math.min(index + 24, plan.length); start += 3)
       batches.push(
-        detailStep(input, plan.slice(start, start + 3), [plan[start - 1]!, ...plan.slice(start + 3, start + 4)]),
+        detailStep(input, plan.slice(start, start + 3), [plan[start - 1]!, ...plan.slice(start + 3, start + 4)]).then(
+          async (batch) => {
+            await publishDraftsStep(input.draftId, batch);
+            return batch;
+          },
+        ),
       );
     for (const batch of await Promise.all(batches)) drafts.push(...batch);
   }

@@ -25,6 +25,24 @@ export class CanvasInternalClient {
       service: "canvas",
     });
   }
+  async commitStoryboardProgress(
+    draftId: string,
+    body: components["schemas"]["CanvasStoryboardProgress"],
+    signal?: AbortSignal,
+  ) {
+    const { data, error, response } = await this.client.POST("/worker/storyboards/{draftId}/progress", {
+      params: { path: { draftId } },
+      body,
+      signal,
+    });
+    if (data) return data;
+    throw new TransportError(
+      "canvas",
+      response.status,
+      `Canvas storyboard progress failed (${response.status})`,
+      error,
+    );
+  }
   async executeFrames(taskRunId: string, signal?: AbortSignal) {
     const { data, error, response } = await this.client.POST("/worker/frames/{taskRunId}/execute", {
       params: { path: { taskRunId } },

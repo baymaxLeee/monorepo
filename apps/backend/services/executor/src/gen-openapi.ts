@@ -162,6 +162,15 @@ const taskEnvelope = (type: string, payload: object) => ({
   required: ["type", "owner_service", "owner_ref", "payload"],
 });
 
+const inferenceParametersSchema = {
+  type: "object",
+  properties: {
+    temperature: { type: "number", minimum: 0, maximum: 2 },
+    topP: { type: "number", minimum: 0, maximum: 1 },
+    maxOutputTokens: { type: "integer", minimum: 1 },
+    reasoningEffort: { type: "string", minLength: 1 },
+  },
+};
 const textGenerationPayloadSchema = {
   type: "object",
   properties: {
@@ -169,6 +178,7 @@ const textGenerationPayloadSchema = {
     workspaceId: { type: "string" },
     providerId: { type: "string" },
     prompt: { type: "string" },
+    parameters: inferenceParametersSchema,
   },
   required: ["tenantId", "workspaceId", "providerId", "prompt"],
 };
@@ -225,16 +235,19 @@ const createTaskInputSchema = {
     taskEnvelope("canvas-storyboard", {
       type: "object",
       properties: {
+        draftId: { type: "string", pattern: "^[a-f0-9]{32}$" },
+        parameters: inferenceParametersSchema,
         tenantId: { type: "string", minLength: 1 },
         workspaceId: { type: "string", minLength: 1 },
         providerId: { type: "string", minLength: 1 },
-        plot: { type: "string", minLength: 1, maxLength: 50000 },
-        durationMin: { type: "integer", minimum: 1 },
-        durationMax: { type: "integer", maximum: 300 },
-        totalDurationMin: { type: "integer", minimum: 0 },
-        totalDurationMax: { type: "integer", minimum: 0 },
+        plot: { type: "string", minLength: 1, maxLength: 30000 },
+        durationMin: { type: "integer", minimum: 4, maximum: 30 },
+        durationMax: { type: "integer", minimum: 4, maximum: 30 },
+        totalDurationMin: { type: "integer", minimum: 60, maximum: 3000 },
+        totalDurationMax: { type: "integer", minimum: 60, maximum: 3000 },
       },
       required: [
+        "draftId",
         "tenantId",
         "workspaceId",
         "providerId",

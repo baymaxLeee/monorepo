@@ -5,6 +5,7 @@ import { generateText } from "ai";
 import { getWorkflowMetadata } from "workflow";
 import { z } from "zod";
 
+import { inferenceOptions, inferenceParametersSchema } from "../src/application/canvas/inference-parameters.js";
 import { claimTaskStep } from "../src/application/tasks/binding.js";
 import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";
 import { getSettings } from "../src/bootstrap/config.js";
@@ -14,6 +15,7 @@ export const textGenerationInputSchema = z.object({
   workspaceId: z.string().min(1),
   providerId: z.string().min(1),
   prompt: z.string().min(1),
+  parameters: inferenceParametersSchema.optional(),
 });
 type Input = z.infer<typeof textGenerationInputSchema>;
 
@@ -43,7 +45,7 @@ async function generateStep(input: Input) {
         extraBody: provider.extra_body ?? {},
       }),
       prompt: input.prompt,
-      maxOutputTokens: provider.max_output_tokens,
+      ...inferenceOptions(input.parameters, provider.max_output_tokens),
       maxRetries: 0,
       abortSignal: cancellation.signal,
     });

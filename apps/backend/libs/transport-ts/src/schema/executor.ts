@@ -64,6 +64,13 @@ export interface paths {
                         /** @description idempotency key scoped to owner_service */
                         owner_ref: string;
                         payload: {
+                            draftId: string;
+                            parameters?: {
+                                temperature?: number;
+                                topP?: number;
+                                maxOutputTokens?: number;
+                                reasoningEffort?: string;
+                            };
                             tenantId: string;
                             workspaceId: string;
                             providerId: string;
@@ -581,12 +588,24 @@ export interface components {
             workspaceId: string;
             providerId: string;
             prompt: string;
+            parameters?: {
+                temperature?: number;
+                topP?: number;
+                maxOutputTokens?: number;
+                reasoningEffort?: string;
+            };
         };
         CanvasVideoPayload: {
             tenantId: string;
             workspaceId: string;
             providerId: string;
             prompt: string;
+            parameters?: {
+                temperature?: number;
+                topP?: number;
+                maxOutputTokens?: number;
+                reasoningEffort?: string;
+            };
             objectScope: string;
             references: {
                 key: string;
@@ -607,6 +626,12 @@ export interface components {
             workspaceId: string;
             providerId: string;
             prompt: string;
+            parameters?: {
+                temperature?: number;
+                topP?: number;
+                maxOutputTokens?: number;
+                reasoningEffort?: string;
+            };
             watermark?: boolean;
             objectScope: string;
             references: string[];
@@ -645,6 +670,13 @@ export interface components {
             /** @description idempotency key scoped to owner_service */
             owner_ref: string;
             payload: {
+                draftId: string;
+                parameters?: {
+                    temperature?: number;
+                    topP?: number;
+                    maxOutputTokens?: number;
+                    reasoningEffort?: string;
+                };
                 tenantId: string;
                 workspaceId: string;
                 providerId: string;

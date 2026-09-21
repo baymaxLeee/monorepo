@@ -41,6 +41,33 @@
                       "payload": {
                         "type": "object",
                         "properties": {
+                          "draftId": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{32}$"
+                          },
+                          "parameters": {
+                            "type": "object",
+                            "properties": {
+                              "temperature": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 2
+                              },
+                              "topP": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                              },
+                              "maxOutputTokens": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "reasoningEffort": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            }
+                          },
                           "tenantId": {
                             "type": "string",
                             "minLength": 1
@@ -56,26 +83,31 @@
                           "plot": {
                             "type": "string",
                             "minLength": 1,
-                            "maxLength": 50000
+                            "maxLength": 30000
                           },
                           "durationMin": {
                             "type": "integer",
-                            "minimum": 1
+                            "minimum": 4,
+                            "maximum": 30
                           },
                           "durationMax": {
                             "type": "integer",
-                            "maximum": 300
+                            "minimum": 4,
+                            "maximum": 30
                           },
                           "totalDurationMin": {
                             "type": "integer",
-                            "minimum": 0
+                            "minimum": 60,
+                            "maximum": 3000
                           },
                           "totalDurationMax": {
                             "type": "integer",
-                            "minimum": 0
+                            "minimum": 60,
+                            "maximum": 3000
                           }
                         },
                         "required": [
+                          "draftId",
                           "tenantId",
                           "workspaceId",
                           "providerId",
@@ -1092,6 +1124,29 @@
           },
           "prompt": {
             "type": "string"
+          },
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "temperature": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 2
+              },
+              "topP": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "maxOutputTokens": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reasoningEffort": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
           }
         },
         "required": [
@@ -1115,6 +1170,29 @@
           },
           "prompt": {
             "type": "string"
+          },
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "temperature": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 2
+              },
+              "topP": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "maxOutputTokens": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reasoningEffort": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
           },
           "objectScope": {
             "type": "string",
@@ -1210,6 +1288,29 @@
           },
           "prompt": {
             "type": "string"
+          },
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "temperature": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 2
+              },
+              "topP": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "maxOutputTokens": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reasoningEffort": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
           },
           "watermark": {
             "type": "boolean"
@@ -1355,6 +1456,33 @@
               "payload": {
                 "type": "object",
                 "properties": {
+                  "draftId": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{32}$"
+                  },
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "temperature": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 2
+                      },
+                      "topP": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "maxOutputTokens": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "reasoningEffort": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
                   "tenantId": {
                     "type": "string",
                     "minLength": 1
@@ -1370,26 +1498,31 @@
                   "plot": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 50000
+                    "maxLength": 30000
                   },
                   "durationMin": {
                     "type": "integer",
-                    "minimum": 1
+                    "minimum": 4,
+                    "maximum": 30
                   },
                   "durationMax": {
                     "type": "integer",
-                    "maximum": 300
+                    "minimum": 4,
+                    "maximum": 30
                   },
                   "totalDurationMin": {
                     "type": "integer",
-                    "minimum": 0
+                    "minimum": 60,
+                    "maximum": 3000
                   },
                   "totalDurationMax": {
                     "type": "integer",
-                    "minimum": 0
+                    "minimum": 60,
+                    "maximum": 3000
                   }
                 },
                 "required": [
+                  "draftId",
                   "tenantId",
                   "workspaceId",
                   "providerId",

@@ -22,7 +22,11 @@ export type ProviderSnapshot = {
   extraBody: Record<string, unknown>;
   contextWindow: number;
   maxOutputTokens: number;
-  pricing: { currency: string; unit: "generated_second"; unitPriceMicros: number } | null;
+  pricing: {
+    currency: string;
+    unit: "generated_item" | "generated_second";
+    unitPriceMicros: number;
+  } | null;
 };
 
 export async function getProvider(
