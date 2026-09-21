@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from application.auth import AuthContext
 from application.contracts.benefit_package import (
     AssetGroupCleanup,
+    AvailableBenefitPackage,
     BenefitPackage,
     BenefitPackageReviewReservation,
     CreateBenefitPackageInput,
@@ -117,6 +118,23 @@ class BenefitPackageService:
         return [
             _public(row, material_used=usage.get(row.id, (0, 0))[0], material_reserved=usage.get(row.id, (0, 0))[1])
             for row in rows
+        ]
+
+    async def list_available_internal(self) -> list_type[AvailableBenefitPackage]:
+        rows = await repository.list_packages(self._session, self._user.tenant_id, self._user.workspace_id)
+        usage = await repository.review_usage(self._session, self._user.tenant_id, self._user.workspace_id)
+        return [
+            AvailableBenefitPackage(
+                id=row.id,
+                name=row.name,
+                is_preset=row.is_preset,
+                model_ids=_models(row.model_ids_json),
+                material_used=usage.get(row.id, (0, 0))[0],
+                material_reserved=usage.get(row.id, (0, 0))[1],
+                material_limit=row.material_limit,
+            )
+            for row in rows
+            if row.enabled
         ]
 
     async def create(self, payload: CreateBenefitPackageInput) -> BenefitPackage:
@@ -217,6 +235,11 @@ class BenefitPackageService:
             or payload.access_key_id is not None
             or payload.secret_access_key is not None
         )
+        async with self._session.begin():
+            usage = await repository.review_usage(self._session, self._user.tenant_id, self._user.workspace_id)
+            committed, reserved = usage.get(package_id, (0, 0))
+            if committed + reserved > 0 and (group_changed or payload.model_ids is not None):
+                raise ConflictError("benefit package credentials, project and models cannot change while reviews exist")
         old_group: tuple[str, str, str, str] | None = None
         new_group: tuple[str, str, str, str] | None = None
         if group_changed:
@@ -242,6 +265,12 @@ class BenefitPackageService:
                     payload.name is not None or payload.project_name is not None or payload.model_ids is not None
                 ):
                     raise RequestError("preset package scope cannot be changed")
+                usage = await repository.review_usage(self._session, self._user.tenant_id, self._user.workspace_id)
+                committed, reserved = usage.get(package_id, (0, 0))
+                if committed + reserved > 0 and (group_changed or payload.model_ids is not None):
+                    raise ConflictError(
+                        "benefit package credentials, project and models cannot change while reviews exist"
+                    )
                 if not row.is_preset:
                     rows = await repository.list_packages(self._session, self._user.tenant_id, self._user.workspace_id)
                     await self._validate_models(model_ids, rows, package_id)
@@ -256,8 +285,6 @@ class BenefitPackageService:
                 if payload.enabled is not None:
                     row.enabled = payload.enabled
                 if "material_limit" in payload.model_fields_set:
-                    usage = await repository.review_usage(self._session, self._user.tenant_id, self._user.workspace_id)
-                    committed, reserved = usage.get(package_id, (0, 0))
                     if payload.material_limit is not None and payload.material_limit < committed + reserved:
                         raise ConflictError("material limit cannot be lower than committed and reserved reviews")
                     row.material_limit = payload.material_limit
@@ -298,11 +325,17 @@ class BenefitPackageService:
                         or existing.asset_id != payload.asset_id
                     ):
                         raise ConflictError("review reservation id already belongs to another request")
-                    return BenefitPackageReviewReservation(id=existing.id, status=existing.status)
+                    if existing.status != "released":
+                        return BenefitPackageReviewReservation(id=existing.id, status=existing.status)
                 usage = await repository.review_usage(self._session, self._user.tenant_id, self._user.workspace_id)
                 committed, reserved = usage.get(package_id, (0, 0))
                 if package.material_limit is not None and committed + reserved >= package.material_limit:
                     raise ConflictError("benefit package material quota exceeded")
+                if existing is not None:
+                    existing.status = "reserved"
+                    existing.updated_at = now
+                    await self._session.flush()
+                    return BenefitPackageReviewReservation(id=existing.id, status=existing.status)
                 row = BenefitPackageReviewReservationRow(
                     id=payload.reservation_id,
                     tenant_id=self._user.tenant_id,
@@ -349,6 +382,10 @@ class BenefitPackageService:
                 raise RequestError("preset benefit package cannot be deleted")
             if row.revision != expected_revision:
                 raise ConflictError("benefit package changed; reload before deleting")
+            usage = await repository.review_usage(self._session, self._user.tenant_id, self._user.workspace_id)
+            committed, reserved = usage.get(package_id, (0, 0))
+            if committed + reserved > 0:
+                raise ConflictError("benefit package cannot be deleted while reviews exist")
             row.deleted_at = datetime.now(UTC)
             row.enabled = False
             row.revision += 1

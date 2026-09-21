@@ -4,6 +4,11 @@ import {
   canvasReplaceResourceAsset,
   canvasSetPrimaryResourceAsset,
   canvasUpdateResourceAsset,
+  canvasListAssetReviews,
+  canvasListAvailableBenefitPackages,
+  canvasSubmitAssetReview,
+  type CanvasAssetReview,
+  type CanvasBenefitPackageChoice,
   type CanvasResource,
   type CanvasResourceAsset,
   type CanvasResourceVersion,
@@ -15,6 +20,15 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   AlertDialog,
   AlertDialogContent,
   AlertDialogHeader,
@@ -24,6 +38,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@repo/design-system";
+import { MoreHorizontal } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { NameDialog } from "./NameDialog";
@@ -45,6 +60,10 @@ export function ResourceAssetActions({
   const [rename, setRename] = useState(false);
   const [deletion, setDeletion] = useState(false);
   const [history, setHistory] = useState<CanvasResourceVersion[] | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [review, setReview] = useState<CanvasAssetReview | null>(null);
+  const [packages, setPackages] = useState<CanvasBenefitPackageChoice[]>([]);
+  const [packageId, setPackageId] = useState("");
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
     try {
@@ -58,7 +77,7 @@ export function ResourceAssetActions({
   }
   return (
     <>
-      <div className="flex flex-wrap items-center gap-1">
+      <div className="flex items-center justify-between gap-2">
         {resource.primary_resource_asset_id === asset.id ? (
           <Badge variant="secondary">主素材</Badge>
         ) : (
@@ -75,25 +94,46 @@ export function ResourceAssetActions({
             设为主素材
           </Button>
         )}
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => upload.current?.click()}>
-          替换素材
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={busy}
-          onClick={() =>
-            void run(async () => setHistory((await canvasListResourceVersions(projectId, asset.id)).items))
-          }
-        >
-          历史版本
-        </Button>
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => setRename(true)}>
-          重命名
-        </Button>
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => setDeletion(true)}>
-          删除
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" className="size-8" variant="ghost" disabled={busy} aria-label={`管理${asset.name}`}>
+              <MoreHorizontal className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => upload.current?.click()}>替换素材</DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() =>
+                void run(async () => setHistory((await canvasListResourceVersions(projectId, asset.id)).items))
+              }
+            >
+              历史版本
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setRename(true)}>重命名</DropdownMenuItem>
+            {asset.has_content ? (
+              <DropdownMenuItem
+                onSelect={() => {
+                  setReviewOpen(true);
+                  setBusy(true);
+                  void Promise.all([canvasListAvailableBenefitPackages(projectId), canvasListAssetReviews(projectId)])
+                    .then(([available, reviews]) => {
+                      setPackages(available.items);
+                      const current = reviews.items.find((item) => item.resource_asset_id === asset.id) ?? null;
+                      setReview(current);
+                      setPackageId(current?.benefit_package_id ?? available.items[0]?.id ?? "");
+                    })
+                    .catch(() => {})
+                    .finally(() => setBusy(false));
+                }}
+              >
+                素材送审
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem className="text-destructive" onSelect={() => setDeletion(true)}>
+              删除素材
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <input
         ref={upload}
@@ -203,6 +243,64 @@ export function ResourceAssetActions({
           </div>
         </DialogContent>
       </Dialog>
+      <Dialog
+        open={reviewOpen}
+        onOpenChange={(open) => {
+          if (!busy) setReviewOpen(open);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{asset.name} · 素材审核</DialogTitle>
+          </DialogHeader>
+          {review ? (
+            <div className="space-y-1 rounded-md border p-3 text-sm">
+              <p>权益包：{review.package_name}</p>
+              <p>状态：{reviewStatusLabel(review.status)}</p>
+              {review.failure_reason ? <p className="text-destructive">{review.failure_reason}</p> : null}
+              <p className="text-muted-foreground">更新时间：{new Date(review.updated_at).toLocaleString()}</p>
+            </div>
+          ) : null}
+          <Select value={packageId} onValueChange={setPackageId} disabled={busy || packages.length === 0}>
+            <SelectTrigger>
+              <SelectValue placeholder="选择权益包" />
+            </SelectTrigger>
+            <SelectContent>
+              {packages.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name} · {item.material_used + item.material_reserved}
+                  {item.material_limit === null ? " / 不限" : ` / ${item.material_limit}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {packages.length === 0 && !busy ? (
+            <p className="text-sm text-muted-foreground">当前没有可用权益包，请联系管理员配置并启用。</p>
+          ) : null}
+          <Button
+            disabled={busy || !packageId || review?.status === "SUBMITTING" || review?.status === "PROCESSING"}
+            onClick={() =>
+              void run(async () => {
+                const result = await canvasSubmitAssetReview(projectId, asset.id, {
+                  package_id: packageId,
+                  operation_id: crypto.randomUUID(),
+                });
+                setReview(result);
+              })
+            }
+          >
+            {review?.status === "FAILED" ? "重新送审" : "提交审核"}
+          </Button>
+        </DialogContent>
+      </Dialog>
     </>
+  );
+}
+
+function reviewStatusLabel(status: string) {
+  return (
+    ({ SUBMITTING: "等待提交", PROCESSING: "审核中", APPROVED: "已通过", FAILED: "未通过" } as Record<string, string>)[
+      status
+    ] ?? status
   );
 }

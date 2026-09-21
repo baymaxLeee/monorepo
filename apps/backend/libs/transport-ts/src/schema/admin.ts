@@ -197,6 +197,23 @@ export interface paths {
         patch: operations["updateBenefitPackage"];
         trace?: never;
     };
+    "/internal/canvas/benefit-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Available Benefit Packages Internal */
+        get: operations["listAvailableBenefitPackagesInternal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/canvas/benefit-packages/{package_id}": {
         parameters: {
             query?: never;
@@ -820,6 +837,23 @@ export interface components {
         AttachSkillInput: {
             /** Skill Id */
             skill_id: string;
+        };
+        /** AvailableBenefitPackage */
+        AvailableBenefitPackage: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Is Preset */
+            is_preset: boolean;
+            /** Model Ids */
+            model_ids: string[];
+            /** Material Used */
+            material_used: number;
+            /** Material Reserved */
+            material_reserved: number;
+            /** Material Limit */
+            material_limit: number | null;
         };
         /** BenefitPackage */
         BenefitPackage: {
@@ -2243,6 +2277,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BenefitPackage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listAvailableBenefitPackagesInternal: {
+        parameters: {
+            query: {
+                workspace_id: string;
+                tenant_id: string;
+            };
+            header: {
+                "X-Caller-Service": string;
+                "X-Internal-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvailableBenefitPackage"][];
                 };
             };
             /** @description Validation Error */

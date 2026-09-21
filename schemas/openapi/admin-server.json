@@ -2265,6 +2265,88 @@
         }
       }
     },
+    "/internal/canvas/benefit-packages": {
+      "get": {
+        "tags": [
+          "internal-canvas-benefit-packages"
+        ],
+        "summary": "List Available Benefit Packages Internal",
+        "operationId": "listAvailableBenefitPackagesInternal",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Caller-Service"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AvailableBenefitPackage"
+                  },
+                  "title": "Response Listavailablebenefitpackagesinternal"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/internal/canvas/benefit-packages/{package_id}": {
       "get": {
         "tags": [
@@ -8292,6 +8374,59 @@
           "skill_id"
         ],
         "title": "AttachSkillInput"
+      },
+      "AvailableBenefitPackage": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "is_preset": {
+            "type": "boolean",
+            "title": "Is Preset"
+          },
+          "model_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Model Ids"
+          },
+          "material_used": {
+            "type": "integer",
+            "title": "Material Used"
+          },
+          "material_reserved": {
+            "type": "integer",
+            "title": "Material Reserved"
+          },
+          "material_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "is_preset",
+          "model_ids",
+          "material_used",
+          "material_reserved",
+          "material_limit"
+        ],
+        "title": "AvailableBenefitPackage"
       },
       "BenefitPackage": {
         "properties": {

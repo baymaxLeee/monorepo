@@ -59,6 +59,16 @@ class InternalBenefitPackage(BaseModel):
     model_ids: list[str]
 
 
+class AvailableBenefitPackage(BaseModel):
+    id: str
+    name: str
+    is_preset: bool
+    model_ids: list[str]
+    material_used: int
+    material_reserved: int
+    material_limit: int | None
+
+
 class AssetGroupCleanup(BaseModel):
     id: str
     benefit_package_id: str

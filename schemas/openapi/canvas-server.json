@@ -92,6 +92,128 @@
         ],
         "type": "object"
       },
+      "CanvasAssetReview": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "type": "string"
+          },
+          "benefit_package_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "failure_reason": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_preset": {
+            "type": "boolean"
+          },
+          "package_name": {
+            "type": "string"
+          },
+          "resource_asset_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "submitted_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "resource_asset_id",
+          "asset_id",
+          "benefit_package_id",
+          "package_name",
+          "is_preset",
+          "status",
+          "failure_reason",
+          "submitted_at",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "CanvasAssetReviewList": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasAssetReview"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "CanvasBenefitPackageChoice": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "is_preset": {
+            "type": "boolean"
+          },
+          "material_limit": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "material_reserved": {
+            "type": "integer"
+          },
+          "material_used": {
+            "type": "integer"
+          },
+          "model_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "is_preset",
+          "model_ids",
+          "material_used",
+          "material_reserved",
+          "material_limit"
+        ],
+        "type": "object"
+      },
+      "CanvasBenefitPackageChoiceList": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasBenefitPackageChoice"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "CanvasBoard": {
         "additionalProperties": false,
         "properties": {
@@ -1413,6 +1535,22 @@
           "sequence_no",
           "prompt",
           "duration_seconds"
+        ],
+        "type": "object"
+      },
+      "CanvasSubmitAssetReview": {
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "package_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "package_id",
+          "operation_id"
         ],
         "type": "object"
       },
@@ -3559,6 +3697,90 @@
         ]
       }
     },
+    "/projects/{projectId}/asset-reviews": {
+      "get": {
+        "operationId": "canvasListAssetReviews",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasAssetReviewList"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/projects/{projectId}/benefit-packages": {
+      "get": {
+        "operationId": "canvasListAvailableBenefitPackages",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasBenefitPackageChoiceList"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
     "/projects/{projectId}/canvases": {
       "get": {
         "operationId": "canvasListBoards",
@@ -4401,6 +4623,66 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CanvasResource"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/projects/{projectId}/resource-assets/{assetId}/reviews": {
+      "post": {
+        "operationId": "canvasSubmitAssetReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CanvasSubmitAssetReview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasAssetReview"
                 }
               }
             },

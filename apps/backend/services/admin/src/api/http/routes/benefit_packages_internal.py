@@ -5,6 +5,7 @@ from typing import Annotated
 from application.auth import AuthContext
 from application.benefit_packages import BenefitPackageService
 from application.contracts.benefit_package import (
+    AvailableBenefitPackage,
     BenefitPackageReviewReservation,
     InternalBenefitPackage,
     ReserveBenefitPackageReviewInput,
@@ -20,6 +21,19 @@ router = APIRouter(prefix="/internal/canvas/benefit-packages", tags=["internal-c
 def _require_canvas(caller: str) -> None:
     if caller != "canvas":
         raise ForbiddenError("Only Canvas may use benefit package internals")
+
+
+@router.get("", response_model=list[AvailableBenefitPackage], operation_id="listAvailableBenefitPackagesInternal")
+async def list_available_benefit_packages_internal(
+    workspace_id: Annotated[str, Query(min_length=1)],
+    tenant_id: Annotated[str, Query(min_length=1)],
+    session: DbSession,
+    _caller: InternalCaller,
+    caller: Annotated[str, Header(alias="X-Caller-Service")],
+) -> list[AvailableBenefitPackage]:
+    _require_canvas(caller)
+    user = AuthContext(user_id="", username="", email="", workspace_id=workspace_id, tenant_id=tenant_id)
+    return await BenefitPackageService(session, user).list_available_internal()
 
 
 @router.get("/{package_id}", response_model=InternalBenefitPackage)

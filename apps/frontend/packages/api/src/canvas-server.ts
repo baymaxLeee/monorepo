@@ -14,6 +14,8 @@ export type {
   CanvasBoard,
   CanvasProject,
   CanvasMutation,
+  CanvasAssetReview,
+  CanvasBenefitPackageChoice,
 } from "../generated/canvas-server/index";
 export const {
   canvasGenerationStatus,
@@ -48,6 +50,9 @@ export const {
   canvasGetProject,
   canvasUpdateProject,
   canvasDeleteProject,
+  canvasListAssetReviews,
+  canvasListAvailableBenefitPackages,
+  canvasSubmitAssetReview,
   canvasUpdateBoard,
   canvasDeleteBoard,
   canvasCreateProject,
