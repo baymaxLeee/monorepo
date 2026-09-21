@@ -69,7 +69,8 @@ def to_public_schema(row: ModelProviderRow) -> ModelProvider:
     return ModelProvider(
         id=row.id,
         user_id=row.user_id,
-        org_id=row.org_id,
+        workspace_id=row.workspace_id,
+        tenant_id=row.tenant_id,
         name=row.name,
         model=row.model,
         provider_kind=cast(ProviderKind, row.provider_kind),
@@ -113,8 +114,7 @@ class ModelProviderService:
 
     async def list(self) -> list[ModelProvider]:
         rows = await provider_crud.list_providers(
-            self._session,
-            self._current_user.org_id,
+            self._session, self._current_user.workspace_id, self._current_user.tenant_id
         )
         return [to_public_schema(row) for row in rows]
 
@@ -124,19 +124,17 @@ class ModelProviderService:
     async def create(self, payload: CreateModelProviderInput) -> ModelProvider:
         if payload.is_default and payload.provider_kind != PROVIDER_KIND_CHAT:
             raise RequestError("only chat providers can be set as default")
-
-        # DNS/SSRF validation performs network IO; keep it out of the DB transaction.
         base_url = await validate_provider_base_url(str(payload.base_url))
         async with write_tx(self._session):
             if payload.is_default:
                 await provider_crud.clear_default_flag(
-                    self._session,
-                    self._current_user.org_id,
+                    self._session, self._current_user.workspace_id, self._current_user.tenant_id
                 )
             row = await provider_crud.create_provider(
                 self._session,
                 user_id=self._current_user.user_id,
-                org_id=self._current_user.org_id,
+                workspace_id=self._current_user.workspace_id,
+                tenant_id=self._current_user.tenant_id,
                 name=payload.name,
                 model=payload.model,
                 provider_kind=payload.provider_kind,
@@ -152,18 +150,12 @@ class ModelProviderService:
             )
         return to_public_schema(row)
 
-    async def update(
-        self,
-        provider_id: str,
-        payload: UpdateModelProviderInput,
-    ) -> ModelProvider:
-        # DNS/SSRF validation performs network IO; keep it out of the DB transaction.
+    async def update(self, provider_id: str, payload: UpdateModelProviderInput) -> ModelProvider:
         validated_base_url = (
             await validate_provider_base_url(str(payload.base_url)) if payload.base_url is not None else None
         )
         async with write_tx(self._session):
             row = await self._get_row(provider_id)
-
             values: dict[str, object] = {}
             if payload.name is not None:
                 values["name"] = payload.name
@@ -193,13 +185,11 @@ class ModelProviderService:
                     raise RequestError("only chat providers can be set as default")
                 values["is_default"] = False
             elif payload.is_default is not None:
-                if payload.is_default and not row.is_default:
+                if payload.is_default and (not row.is_default):
                     await provider_crud.clear_default_flag(
-                        self._session,
-                        self._current_user.org_id,
+                        self._session, self._current_user.workspace_id, self._current_user.tenant_id
                     )
                 values["is_default"] = payload.is_default
-
             if not values:
                 return to_public_schema(row)
             context_window = (
@@ -221,9 +211,7 @@ class ModelProviderService:
     async def bulk_delete(self, ids: Sequence[str]) -> int:
         async with write_tx(self._session):
             return await provider_crud.bulk_delete_providers(
-                self._session,
-                list(ids),
-                self._current_user.org_id,
+                self._session, list(ids), self._current_user.workspace_id, self._current_user.tenant_id
             )
 
     async def set_default(self, provider_id: str) -> ModelProvider:
@@ -236,22 +224,11 @@ class ModelProviderService:
             if row.is_default:
                 return to_public_schema(row)
             await provider_crud.clear_default_flag(
-                self._session,
-                self._current_user.org_id,
+                self._session, self._current_user.workspace_id, self._current_user.tenant_id
             )
-            return to_public_schema(
-                await provider_crud.update_provider(
-                    self._session,
-                    row,
-                    {"is_default": True},
-                )
-            )
+            return to_public_schema(await provider_crud.update_provider(self._session, row, {"is_default": True}))
 
-    async def test(
-        self,
-        provider_id: str,
-        payload: TestModelProviderInput,
-    ) -> TestModelProviderResult:
+    async def test(self, provider_id: str, payload: TestModelProviderInput) -> TestModelProviderResult:
         row = await self._get_row(provider_id)
         base_url = await validate_provider_base_url(
             str(payload.base_url) if payload.base_url is not None else row.base_url
@@ -260,27 +237,23 @@ class ModelProviderService:
         api_key = payload.api_key if payload.api_key is not None else decrypt(row.api_key_enc)
         extra_body = _parse_extra_body(row.extra_body)
         return await test_provider_by_kind(
-            provider_kind=row.provider_kind,
-            base_url=base_url,
-            api_key=api_key,
-            model=model,
-            extra_body=extra_body,
+            provider_kind=row.provider_kind, base_url=base_url, api_key=api_key, model=model, extra_body=extra_body
         )
 
-    async def get_default_for_org(self, org_id: str) -> InternalModelProvider:
-        row = await provider_crud.get_default_provider(self._session, org_id)
+    async def get_default_for_workspace(self, workspace_id: str, tenant_id: str) -> InternalModelProvider:
+        row = await provider_crud.get_default_provider(self._session, workspace_id, tenant_id)
         if row is None:
-            raise NotFoundError(f"no default model provider for org {org_id}")
+            raise NotFoundError(f"no default model provider for workspace {workspace_id}")
         return to_internal_schema(row)
 
-    async def get_by_kind_for_org(self, org_id: str, kind: str) -> InternalModelProvider:
-        row = await provider_crud.get_first_enabled_by_kind(self._session, org_id, kind)
+    async def get_by_kind_for_workspace(self, workspace_id: str, tenant_id: str, kind: str) -> InternalModelProvider:
+        row = await provider_crud.get_first_enabled_by_kind(self._session, workspace_id, tenant_id, kind)
         if row is None:
-            raise NotFoundError(f"no enabled {kind} provider for org {org_id}")
+            raise NotFoundError(f"no enabled {kind} provider for workspace {workspace_id}")
         return to_internal_schema(row)
 
-    async def get_internal(self, provider_id: str, org_id: str) -> InternalModelProvider:
-        row = await provider_crud.get_provider(self._session, provider_id, org_id)
+    async def get_internal(self, provider_id: str, workspace_id: str, tenant_id: str) -> InternalModelProvider:
+        row = await provider_crud.get_provider(self._session, provider_id, workspace_id, tenant_id)
         if row is None:
             raise NotFoundError(f"model provider {provider_id} not found")
         if not row.is_enabled:
@@ -289,9 +262,7 @@ class ModelProviderService:
 
     async def _get_row(self, provider_id: str) -> ModelProviderRow:
         row = await provider_crud.get_provider(
-            self._session,
-            provider_id,
-            self._current_user.org_id,
+            self._session, provider_id, self._current_user.workspace_id, self._current_user.tenant_id
         )
         if row is None:
             raise NotFoundError(f"model provider {provider_id} not found")

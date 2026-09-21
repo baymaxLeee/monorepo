@@ -780,7 +780,10 @@
       "TextGenerationPayload": {
         "type": "object",
         "properties": {
-          "orgId": {
+          "tenantId": {
+            "type": "string"
+          },
+          "workspaceId": {
             "type": "string"
           },
           "providerId": {
@@ -791,7 +794,8 @@
           }
         },
         "required": [
-          "orgId",
+          "tenantId",
+          "workspaceId",
           "providerId",
           "prompt"
         ]
@@ -977,7 +981,10 @@
       "FileTaskBatchPayload": {
         "type": "object",
         "properties": {
-          "orgId": {
+          "tenantId": {
+            "type": "string"
+          },
+          "workspaceId": {
             "type": "string"
           },
           "userId": {
@@ -1016,7 +1023,8 @@
           }
         },
         "required": [
-          "orgId",
+          "tenantId",
+          "workspaceId",
           "userId",
           "providerId",
           "stagingId",
@@ -1027,7 +1035,10 @@
       "VideoGenerationTaskPayload": {
         "type": "object",
         "properties": {
-          "orgId": {
+          "tenantId": {
+            "type": "string"
+          },
+          "workspaceId": {
             "type": "string"
           },
           "userId": {
@@ -1192,7 +1203,8 @@
           }
         },
         "required": [
-          "orgId",
+          "tenantId",
+          "workspaceId",
           "userId",
           "providerId",
           "title",
@@ -1408,7 +1420,10 @@
           "taskId": {
             "type": "string"
           },
-          "orgId": {
+          "tenantId": {
+            "type": "string"
+          },
+          "workspaceId": {
             "type": "string"
           },
           "userId": {
@@ -1521,7 +1536,8 @@
         "required": [
           "id",
           "taskId",
-          "orgId",
+          "tenantId",
+          "workspaceId",
           "userId",
           "title",
           "status",

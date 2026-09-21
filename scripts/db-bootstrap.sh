@@ -93,7 +93,7 @@ else
   echo "⚠ $CHAT_DIR/.env missing; skipping chat seed (run install-deps.sh)" >&2
 fi
 
-echo "→ Bootstrapping iam identity (super-admin + guest-org)..."
+echo "→ Bootstrapping iam identity (super-admin + guest-workspace)..."
 cd "$IAM_DIR"
 POSTGRES_USER=iam POSTGRES_PASSWORD=iam IAM_POSTGRES_DATABASE=iam go run ./cmd/server seed
 echo "✓ iam identity ready"

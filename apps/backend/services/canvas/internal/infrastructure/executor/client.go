@@ -15,9 +15,10 @@ import (
 
 type Client struct{ URL, Token string }
 type TextInput struct {
-	OrgID      string `json:"orgId"`
-	ProviderID string `json:"providerId"`
-	Prompt     string `json:"prompt"`
+	TenantID    string `json:"tenantId"`
+	WorkspaceID string `json:"workspaceId"`
+	ProviderID  string `json:"providerId"`
+	Prompt      string `json:"prompt"`
 }
 type Task struct {
 	ID     string `json:"id"`

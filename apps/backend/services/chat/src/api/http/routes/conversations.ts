@@ -151,21 +151,23 @@ const productionDecisionSchema = z.discriminatedUnion("action", [
 
 function canApproveProduction(
   auth: ReturnType<typeof getAuth>,
-  production: { userId?: string; orgId?: string },
+  production: { userId?: string; workspaceId?: string },
 ): boolean {
   if (production.userId === auth.userId) {
     return true;
   }
-  if (production.orgId !== auth.orgId) {
+  if (production.workspaceId !== auth.workspaceId) {
     return false;
   }
-  return auth.orgRole === "owner" || auth.orgRole === "admin" || auth.roles.includes("video_production.approve");
+  return (
+    auth.workspaceRole === "owner" || auth.workspaceRole === "admin" || auth.roles.includes("video_production.approve")
+  );
 }
 
 async function authorizedProduction(auth: ReturnType<typeof getAuth>, conversationId: string, productionId: string) {
   const detail = await getVideoProduction(productionId);
   const production = detail.production;
-  if (production.conversationId !== conversationId || production.orgId !== auth.orgId) {
+  if (production.conversationId !== conversationId || production.workspaceId !== auth.workspaceId) {
     throw new NotFoundError(`video production ${productionId} not found in conversation ${conversationId}`);
   }
   if (!canApproveProduction(auth, production)) {

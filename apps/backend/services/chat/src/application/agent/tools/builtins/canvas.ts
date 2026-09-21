@@ -6,8 +6,9 @@ import { defineAgentTool } from "../manifest.js";
 
 const contextSchema = z.object({
   userId: z.string(),
-  orgId: z.string(),
-  orgRole: z.string(),
+  tenantId: z.string(),
+  workspaceId: z.string(),
+  workspaceRole: z.string(),
   canvasId: z.string(),
   runId: z.string(),
 });

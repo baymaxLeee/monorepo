@@ -120,10 +120,11 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
   const { tools } = resolvedTools;
   const toolContext = {
     canvasId: input.canvasId,
-    orgRole: input.orgRole ?? "",
+    workspaceRole: input.workspaceRole ?? "",
     runId: input.runId,
     userId: input.userId,
-    orgId: input.orgId,
+    tenantId: input.tenantId,
+    workspaceId: input.workspaceId,
     conversationId: input.conversationId,
     attachedImageDocumentIds: input.attachedImageDocumentIds,
   };

@@ -103,8 +103,8 @@ export function AdminLayout() {
       icon: AppWindowIcon,
     });
     governanceMenus.push({
-      title: "组织",
-      href: "/platform/admin/organizations",
+      title: "工作空间",
+      href: "/platform/admin/workspaces",
       icon: Building2Icon,
     });
   }
@@ -147,7 +147,7 @@ export function AdminLayout() {
         </Section>
         {governanceMenus.length > 0 && (
           <Section>
-            <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">组织与权限</div>
+            <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">工作空间与权限</div>
             <MenuList items={governanceMenus} />
           </Section>
         )}

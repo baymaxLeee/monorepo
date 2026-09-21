@@ -105,9 +105,9 @@ export interface paths {
          * Batch Delete My Documents
          * @description Delete several documents in one transaction.
          *
-         *     Same policy as single delete: an org_admin may delete any of the org's
+         *     Same policy as single delete: an workspace_admin may delete any of the workspace's
          *     documents; a member may delete only their own uploads. If ANY requested id
-         *     is outside the org or not deletable by the caller, the whole batch is
+         *     is outside the workspace or not deletable by the caller, the whole batch is
          *     rejected with 403 — no silent partial success that would mislead the caller.
          *     Object-store blobs are best-effort purged and RAG `document_chunks` drop via
          *     the FK `ON DELETE CASCADE`.
@@ -696,8 +696,10 @@ export interface components {
             conversation_id: string;
             /** User Id */
             user_id: string;
-            /** Org Id */
-            org_id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Tenant Id */
+            tenant_id: string;
         };
         /** CleanupConversationArtifactsResult */
         CleanupConversationArtifactsResult: {
@@ -718,8 +720,10 @@ export interface components {
         CreateArtifactInput: {
             /** User Id */
             user_id: string;
-            /** Org Id */
-            org_id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Tenant Id */
+            tenant_id: string;
             /** Conversation Id */
             conversation_id?: string | null;
             /** Title */
@@ -737,8 +741,10 @@ export interface components {
         CreateChangeSetInput: {
             /** User Id */
             user_id: string;
-            /** Org Id */
-            org_id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Tenant Id */
+            tenant_id: string;
             /** Conversation Id */
             conversation_id: string;
             /** Metadata */
@@ -757,8 +763,10 @@ export interface components {
         CreateMediaDocumentInput: {
             /** User Id */
             user_id: string;
-            /** Org Id */
-            org_id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Tenant Id */
+            tenant_id: string;
             /** Conversation Id */
             conversation_id?: string | null;
             /** Title */
@@ -776,8 +784,10 @@ export interface components {
         CreateStagedMediaInput: {
             /** User Id */
             user_id: string;
-            /** Org Id */
-            org_id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Tenant Id */
+            tenant_id: string;
             /** Conversation Id */
             conversation_id?: string | null;
             /** Title */
@@ -797,8 +807,10 @@ export interface components {
             id: string;
             /** User Id */
             user_id: string;
-            /** Org Id */
-            org_id?: string | null;
+            /** Workspace Id */
+            workspace_id?: string | null;
+            /** Tenant Id */
+            tenant_id?: string | null;
             /** Conversation Id */
             conversation_id?: string | null;
             /**
@@ -1025,8 +1037,10 @@ export interface components {
         RetrieveInput: {
             /** User Id */
             user_id: string;
-            /** Org Id */
-            org_id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Tenant Id */
+            tenant_id: string;
             /** Query */
             query: string;
             /** Top K */
@@ -1062,8 +1076,10 @@ export interface components {
             id: string;
             /** User Id */
             user_id: string;
-            /** Org Id */
-            org_id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Tenant Id */
+            tenant_id: string;
             /** Conversation Id */
             conversation_id?: string | null;
             /** Title */
@@ -1092,8 +1108,10 @@ export interface components {
         StagedMediaActionInput: {
             /** User Id */
             user_id: string;
-            /** Org Id */
-            org_id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Tenant Id */
+            tenant_id: string;
         };
         /** StoredServiceObject */
         StoredServiceObject: {
@@ -1242,8 +1260,9 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1283,8 +1302,9 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1318,8 +1338,9 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1357,8 +1378,9 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
             };
             path: {
                 document_id: string;
@@ -1394,8 +1416,9 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
             };
             path: {
                 document_id: string;
@@ -1429,8 +1452,9 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
             };
             path: {
                 document_id: string;
@@ -1470,8 +1494,9 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
             };
             path: {
                 document_id: string;
@@ -1507,8 +1532,9 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
             };
             path: {
                 document_id: string;
@@ -2020,8 +2046,9 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
             };
             path: {
                 document_id: string;
@@ -2057,8 +2084,9 @@ export interface operations {
                 "X-Auth-Name"?: string | null;
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
             };
             path?: never;
             cookie?: never;

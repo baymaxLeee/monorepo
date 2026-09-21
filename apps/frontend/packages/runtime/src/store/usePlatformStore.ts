@@ -1,12 +1,13 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-/** One org membership from the user's own point of view. Mirrors the api
+/** One workspace membership from the user's own point of view. Mirrors the api
  * package `Membership` (kept local so runtime stays leaf, not api-dependent). */
 export type PlatformMembership = {
-  orgId: string;
-  orgName: string;
-  role: "org_admin" | "member";
+  tenantId: string;
+  workspaceId: string;
+  workspaceName: string;
+  role: "workspace_admin" | "member";
   status: "pending" | "active" | "rejected";
 };
 
@@ -21,11 +22,11 @@ export type PlatformUser = {
   theme: "system" | "light" | "dark" | string;
   marketingOptIn: boolean;
   emailVerified: boolean;
-  /** Platform roles (e.g. "super_admin"); orthogonal to org roles. */
+  /** Platform roles (e.g. "super_admin"); orthogonal to workspace roles. */
   roles: string[];
-  /** The single org this session is bound to, or null when unscoped. */
-  activeOrg: PlatformMembership | null;
-  /** Every org the user belongs to, in any status. */
+  /** The single workspace this session is bound to, or null when unscoped. */
+  activeWorkspace: PlatformMembership | null;
+  /** Every workspace the user belongs to, in any status. */
   memberships: PlatformMembership[];
 };
 

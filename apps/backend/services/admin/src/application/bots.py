@@ -7,11 +7,7 @@ from datetime import UTC, datetime
 
 from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.models.bot import BotRow
-from infrastructure.persistence.models.provider import (
-    PROVIDER_KIND_CHAT,
-    PROVIDER_KIND_IMAGE,
-    PROVIDER_KIND_VIDEO,
-)
+from infrastructure.persistence.models.provider import PROVIDER_KIND_CHAT, PROVIDER_KIND_IMAGE, PROVIDER_KIND_VIDEO
 from infrastructure.persistence.repositories import bot_skills as bot_skill_crud
 from infrastructure.persistence.repositories import bots as bot_crud
 from infrastructure.persistence.repositories import providers as provider_crud
@@ -38,7 +34,8 @@ def to_schema(row: BotRow) -> Bot:
     return Bot(
         id=row.id,
         user_id=row.user_id,
-        org_id=row.org_id,
+        workspace_id=row.workspace_id,
+        tenant_id=row.tenant_id,
         username=row.user_id,
         name=row.name,
         role_description=row.role_description,
@@ -57,28 +54,18 @@ def to_schema(row: BotRow) -> Bot:
 
 
 class BotService:
-    def __init__(
-        self,
-        session: AsyncSession,
-        current_user: AuthContext,
-        redis: Redis | None = None,
-    ) -> None:
+    def __init__(self, session: AsyncSession, current_user: AuthContext, redis: Redis | None = None) -> None:
         self._session = session
         self._current_user = current_user
         self._redis = redis
 
     async def list(self) -> list[Bot]:
-        rows = await bot_crud.list_bots(
-            self._session,
-            self._current_user.org_id,
-        )
+        rows = await bot_crud.list_bots(self._session, self._current_user.workspace_id, self._current_user.tenant_id)
         return [to_schema(row) for row in rows]
 
     async def get(self, bot_id: str) -> Bot:
         row = await bot_crud.get_bot(
-            self._session,
-            bot_id,
-            self._current_user.org_id,
+            self._session, bot_id, self._current_user.workspace_id, self._current_user.tenant_id
         )
         if row is None:
             raise NotFoundError(f"bot {bot_id} not found")
@@ -86,7 +73,13 @@ class BotService:
 
     async def create(self, name: str) -> Bot:
         async with write_tx(self._session):
-            row = await bot_crud.create_bot(self._session, name, self._current_user.user_id, self._current_user.org_id)
+            row = await bot_crud.create_bot(
+                self._session,
+                name,
+                self._current_user.user_id,
+                self._current_user.workspace_id,
+                self._current_user.tenant_id,
+            )
         if self._redis is not None:
             await self._redis.incr("admin:bots:created")
         return to_schema(row)
@@ -94,9 +87,7 @@ class BotService:
     async def update(self, bot_id: str, payload: UpdateBotInput) -> Bot:
         async with write_tx(self._session):
             row = await bot_crud.get_bot(
-                self._session,
-                bot_id,
-                self._current_user.org_id,
+                self._session, bot_id, self._current_user.workspace_id, self._current_user.tenant_id
             )
             if row is None:
                 raise NotFoundError(f"bot {bot_id} not found")
@@ -111,7 +102,6 @@ class BotService:
             if field in fields_set:
                 values[field] = getattr(payload, field)
         if "suggested_questions" in fields_set:
-            # Column is NOT NULL; a cleared list normalizes to [].
             values["suggested_questions"] = payload.suggested_questions or []
         if "tone" in fields_set and payload.tone is not None:
             values["tone"] = payload.tone
@@ -128,21 +118,16 @@ class BotService:
             if provider_id:
                 await self._assert_provider_kind(provider_id, expected_kind)
             values[field] = provider_id
-
         if not values:
             return row
         return await bot_crud.update_bot(self._session, row, values)
 
     async def get_resolved(self, bot_id: str) -> ResolvedAgent:
         row = await bot_crud.get_bot(
-            self._session,
-            bot_id,
-            self._current_user.org_id,
+            self._session, bot_id, self._current_user.workspace_id, self._current_user.tenant_id
         )
         if row is None:
             raise NotFoundError(f"bot {bot_id} not found")
-        # Providers are team-shared: resolve against the bot's OWN org so a
-        # teammate running the team oncall bot uses the team's model config.
         skill_rows = await bot_skill_crud.list_active_skills_for_bot(self._session, row.id)
         return ResolvedAgent(
             id=row.id,
@@ -151,21 +136,17 @@ class BotService:
             domain_description=row.domain_description,
             audience=row.audience,
             tone=row.tone,  # type: ignore[arg-type]
-            text_provider=await self._resolve_provider(row.text_provider_id, row.org_id),
-            image_provider=await self._resolve_provider(row.image_provider_id, row.org_id),
-            video_provider=await self._resolve_provider(row.video_provider_id, row.org_id),
+            text_provider=await self._resolve_provider(row.text_provider_id, row.workspace_id, row.tenant_id),
+            image_provider=await self._resolve_provider(row.image_provider_id, row.workspace_id, row.tenant_id),
+            video_provider=await self._resolve_provider(row.video_provider_id, row.workspace_id, row.tenant_id),
             skills=[
                 AgentSkill(
-                    id=s.id,
-                    name=s.published_name or s.name,
-                    description=s.published_description or s.description,
+                    id=s.id, name=s.published_name or s.name, description=s.published_description or s.description
                 )
                 for s in skill_rows
             ],
         )
 
-    # `builtins.list` because the `list` method above shadows the builtin inside
-    # this class namespace, which breaks deferred `list[...]` annotations.
     async def list_skills(self, bot_id: str) -> builtins.list[SkillSummary]:
         await self._get_row(bot_id)
         rows = await bot_skill_crud.list_skills_for_bot(self._session, bot_id)
@@ -174,7 +155,9 @@ class BotService:
     async def attach_skill(self, bot_id: str, skill_id: str) -> builtins.list[SkillSummary]:
         async with write_tx(self._session):
             await self._get_row(bot_id)
-            skill = await skill_crud.get_skill(self._session, skill_id, self._current_user.org_id)
+            skill = await skill_crud.get_skill(
+                self._session, skill_id, self._current_user.workspace_id, self._current_user.tenant_id
+            )
             if skill is None:
                 raise RequestError(f"skill {skill_id} not found")
             await bot_skill_crud.attach_skill(self._session, bot_id, skill_id)
@@ -187,19 +170,19 @@ class BotService:
         return await self.list_skills(bot_id)
 
     async def _get_row(self, bot_id: str) -> BotRow:
-        row = await bot_crud.get_bot(self._session, bot_id, self._current_user.org_id)
+        row = await bot_crud.get_bot(
+            self._session, bot_id, self._current_user.workspace_id, self._current_user.tenant_id
+        )
         if row is None:
             raise NotFoundError(f"bot {bot_id} not found")
         return row
 
-    async def _resolve_provider(self, provider_id: str | None, org_id: str) -> InternalModelProvider | None:
+    async def _resolve_provider(
+        self, provider_id: str | None, workspace_id: str, tenant_id: str
+    ) -> InternalModelProvider | None:
         if not provider_id:
             return None
-        provider = await provider_crud.get_provider(
-            self._session,
-            provider_id,
-            org_id,
-        )
+        provider = await provider_crud.get_provider(self._session, provider_id, workspace_id, tenant_id)
         if provider is None or not provider.is_enabled:
             return None
         return provider_to_internal_schema(provider)
@@ -207,9 +190,7 @@ class BotService:
     async def delete(self, bot_id: str) -> None:
         async with write_tx(self._session):
             row = await bot_crud.get_bot(
-                self._session,
-                bot_id,
-                self._current_user.org_id,
+                self._session, bot_id, self._current_user.workspace_id, self._current_user.tenant_id
             )
             if row is None:
                 raise NotFoundError(f"bot {bot_id} not found")
@@ -217,9 +198,7 @@ class BotService:
 
     async def _assert_provider_kind(self, provider_id: str, expected_kind: str) -> None:
         provider = await provider_crud.get_provider(
-            self._session,
-            provider_id,
-            self._current_user.org_id,
+            self._session, provider_id, self._current_user.workspace_id, self._current_user.tenant_id
         )
         if provider is None:
             raise RequestError(f"model provider {provider_id} not found")

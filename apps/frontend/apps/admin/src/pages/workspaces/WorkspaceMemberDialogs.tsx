@@ -1,4 +1,4 @@
-import { createOrgAdmin, type OrgAdminView, transferOrgOwner } from "@repo/api";
+import { createWorkspaceAdmin, type WorkspaceAdminView, transferWorkspaceOwner } from "@repo/api";
 import {
   Button,
   Dialog,
@@ -19,10 +19,10 @@ import { useEffect, useState } from "react";
 type DialogProps = {
   onClose: () => void;
   onDone: () => void;
-  org: OrgAdminView | null;
+  workspace: WorkspaceAdminView | null;
 };
 
-export function CreateOrgAdminDialog({ onClose, onDone, org }: DialogProps) {
+export function CreateWorkspaceAdminDialog({ onClose, onDone, workspace }: DialogProps) {
   const [account, setAccount] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
@@ -30,28 +30,28 @@ export function CreateOrgAdminDialog({ onClose, onDone, org }: DialogProps) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (org) {
+    if (workspace) {
       setAccount("");
       setPassword("");
       setEmail("");
       setDisplayName("");
     }
-  }, [org]);
+  }, [workspace]);
 
   async function submit() {
-    if (!org || !account.trim() || !email.trim() || !password) {
+    if (!workspace || !account.trim() || !email.trim() || !password) {
       toast.error("请填写账号、邮箱与密码");
       return;
     }
     setBusy(true);
     try {
-      await createOrgAdmin(org.id, {
+      await createWorkspaceAdmin(workspace.id, {
         account: account.trim(),
         password,
         email: email.trim(),
         displayName: displayName.trim() || undefined,
       });
-      toast.success("组织管理员已创建");
+      toast.success("工作空间管理员已创建");
       onClose();
       onDone();
     } catch {
@@ -61,11 +61,11 @@ export function CreateOrgAdminDialog({ onClose, onDone, org }: DialogProps) {
   }
 
   return (
-    <Dialog open={Boolean(org)} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={Boolean(workspace)} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>新建组织管理员</DialogTitle>
-          <DialogDescription>为「{org?.name}」创建一个 active 的 org_admin 账号。</DialogDescription>
+          <DialogTitle>新建工作空间管理员</DialogTitle>
+          <DialogDescription>为「{workspace?.name}」创建一个 active 的 workspace_admin 账号。</DialogDescription>
         </DialogHeader>
         <DialogBody>
           <FieldGroup>
@@ -100,24 +100,24 @@ export function CreateOrgAdminDialog({ onClose, onDone, org }: DialogProps) {
   );
 }
 
-export function TransferOwnerDialog({ onClose, onDone, org }: DialogProps) {
+export function TransferOwnerDialog({ onClose, onDone, workspace }: DialogProps) {
   const [newOwnerUserId, setNewOwnerUserId] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (org) {
+    if (workspace) {
       setNewOwnerUserId("");
     }
-  }, [org]);
+  }, [workspace]);
 
   async function submit() {
-    if (!org || !newOwnerUserId.trim()) {
+    if (!workspace || !newOwnerUserId.trim()) {
       toast.error("请填写新负责人用户 ID");
       return;
     }
     setBusy(true);
     try {
-      await transferOrgOwner(org.id, newOwnerUserId.trim());
+      await transferWorkspaceOwner(workspace.id, newOwnerUserId.trim());
       toast.success("负责人已转让");
       onClose();
       onDone();
@@ -128,11 +128,11 @@ export function TransferOwnerDialog({ onClose, onDone, org }: DialogProps) {
   }
 
   return (
-    <Dialog open={Boolean(org)} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={Boolean(workspace)} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>转让负责人</DialogTitle>
-          <DialogDescription>将「{org?.name}」的负责人转给一位已是该组织成员的用户。</DialogDescription>
+          <DialogDescription>将「{workspace?.name}」的负责人转给一位已是该工作空间成员的用户。</DialogDescription>
         </DialogHeader>
         <DialogBody>
           <FieldGroup>

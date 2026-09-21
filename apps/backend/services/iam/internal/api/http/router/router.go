@@ -18,20 +18,20 @@ import (
 )
 
 type Router struct {
-	store *repositories.Store
-	cfg   config.Config
-	auth  *application.AuthService
-	roles *application.RoleService
-	org   *application.OrgService
+	store     *repositories.Store
+	cfg       config.Config
+	auth      *application.AuthService
+	roles     *application.RoleService
+	workspace *application.WorkspaceService
 }
 
 func New(store *repositories.Store, cfg config.Config) http.Handler {
 	rt := &Router{
-		store: store,
-		cfg:   cfg,
-		auth:  application.NewAuthService(store, cfg),
-		roles: application.NewRoleService(store),
-		org:   application.NewOrgService(store, cfg),
+		store:     store,
+		cfg:       cfg,
+		auth:      application.NewAuthService(store, cfg),
+		roles:     application.NewRoleService(store),
+		workspace: application.NewWorkspaceService(store, cfg),
 	}
 	r := chi.NewRouter()
 	r.Use(middleware.TraceId)
@@ -49,20 +49,22 @@ func New(store *repositories.Store, cfg config.Config) http.Handler {
 	r.Post("/logout", rt.logout)
 	r.Get("/me", rt.me)
 	r.Get("/me/memberships", rt.listMyMemberships)
-	r.Post("/me/memberships/{orgID}/apply", rt.applyMembership)
-	r.Post("/session/active-org", rt.switchActiveOrg)
+	r.Post("/me/memberships/{workspaceID}/apply", rt.applyMembership)
+	r.Post("/session/active-workspace", rt.switchActiveWorkspace)
 
-	// Organizations: GET /orgs is the PUBLIC applyable list; everything else is
-	// privileged (see gateway public-path config — only GET /orgs is public).
-	r.Get("/orgs", rt.listPublicOrgs)
-	r.Post("/orgs", rt.createOrg)
-	r.Get("/orgs/admin", rt.listOrgsForAdmin)
-	r.Post("/orgs/{orgID}/admins", rt.createOrgAdmin)
-	r.Put("/orgs/{orgID}/owner", rt.transferOwner)
-	r.Get("/orgs/{orgID}/members", rt.listOrgMembers)
-	r.Post("/orgs/{orgID}/members/{userID}/approve", rt.approveMember)
-	r.Post("/orgs/{orgID}/members/{userID}/reject", rt.rejectMember)
-	r.Put("/orgs/{orgID}/members/{userID}/role", rt.setMemberRole)
+	// Workspaces: GET /workspaces is the PUBLIC applyable list; everything else is
+	// privileged (see gateway public-path config — only GET /workspaces is public).
+	r.Get("/tenants", rt.listTenants)
+	r.Post("/tenants", rt.createTenant)
+	r.Get("/workspaces", rt.listPublicWorkspaces)
+	r.Post("/workspaces", rt.createWorkspace)
+	r.Get("/workspaces/admin", rt.listWorkspacesForAdmin)
+	r.Post("/workspaces/{workspaceID}/admins", rt.createWorkspaceAdmin)
+	r.Put("/workspaces/{workspaceID}/owner", rt.transferOwner)
+	r.Get("/workspaces/{workspaceID}/members", rt.listWorkspaceMembers)
+	r.Post("/workspaces/{workspaceID}/members/{userID}/approve", rt.approveMember)
+	r.Post("/workspaces/{workspaceID}/members/{userID}/reject", rt.rejectMember)
+	r.Put("/workspaces/{workspaceID}/members/{userID}/role", rt.setMemberRole)
 
 	// Platform roles (super_admin only)
 	r.Get("/roles", rt.listRoles)
@@ -110,8 +112,8 @@ func (rt *Router) register(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, application.ErrInvalidRegistration):
 		writeProblem(w, http.StatusBadRequest, "invalid_registration", "valid account, email, and password are required")
 		return
-	case errors.Is(err, application.ErrOrgNotFound):
-		writeProblem(w, http.StatusNotFound, "organization_not_found", "the selected organization does not exist")
+	case errors.Is(err, application.ErrWorkspaceNotFound):
+		writeProblem(w, http.StatusNotFound, "workspace_not_found", "the selected workspace does not exist")
 		return
 	case errors.Is(err, application.ErrConflict):
 		writeProblem(w, http.StatusConflict, "account_or_email_already_registered", "account or email is already registered")
@@ -170,7 +172,7 @@ func (rt *Router) me(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	user, err := rt.auth.Me(r.Context(), claims.Subject, claims.OrgID)
+	user, err := rt.auth.Me(r.Context(), claims.Subject, claims.WorkspaceID)
 	if err != nil {
 		writeProblem(w, http.StatusUnauthorized, "invalid_subject", "user is not active")
 		return
@@ -196,10 +198,10 @@ func (rt *Router) applyMembership(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	err := rt.org.Apply(r.Context(), chi.URLParam(r, "orgID"), claims.Subject, application.AuditMetaFromHTTP(r, claims.Subject))
+	err := rt.workspace.Apply(r.Context(), chi.URLParam(r, "workspaceID"), claims.Subject, application.AuditMetaFromHTTP(r, claims.Subject))
 	switch {
-	case errors.Is(err, application.ErrOrgNotFound):
-		writeProblem(w, http.StatusNotFound, "organization_not_found", "organization does not exist")
+	case errors.Is(err, application.ErrWorkspaceNotFound):
+		writeProblem(w, http.StatusNotFound, "workspace_not_found", "workspace does not exist")
 		return
 	case errors.Is(err, application.ErrConflict):
 		writeProblem(w, http.StatusConflict, "already_applied", "an active or pending membership already exists")
@@ -211,7 +213,7 @@ func (rt *Router) applyMembership(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (rt *Router) switchActiveOrg(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) switchActiveWorkspace(w http.ResponseWriter, r *http.Request) {
 	claims, ok := rt.claimsFromRequest(w, r)
 	if !ok {
 		return
@@ -221,93 +223,93 @@ func (rt *Router) switchActiveOrg(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusUnauthorized, "missing_refresh_token", "refresh token is required")
 		return
 	}
-	var req contracts.SwitchOrgRequest
+	var req contracts.SwitchWorkspaceRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	response, refreshToken, refreshExpiresAt, err := rt.auth.SwitchActiveOrg(
-		r.Context(), cookie.Value, req.OrgID, claims.Subject,
+	response, refreshToken, refreshExpiresAt, err := rt.auth.SwitchActiveWorkspace(
+		r.Context(), cookie.Value, req.WorkspaceID, claims.Subject,
 		application.RequestMetaFromHTTP(r), application.AuditMetaFromHTTP(r, claims.Subject),
 	)
 	switch {
-	case errors.Is(err, application.ErrInvalidOrg):
-		writeProblem(w, http.StatusBadRequest, "invalid_org", "orgId is required")
+	case errors.Is(err, application.ErrInvalidWorkspace):
+		writeProblem(w, http.StatusBadRequest, "invalid_workspace", "workspaceId is required")
 		return
 	case errors.Is(err, application.ErrNotActiveMember):
-		writeProblem(w, http.StatusForbidden, "not_active_member", "you are not an active member of that organization")
+		writeProblem(w, http.StatusForbidden, "not_active_member", "you are not an active member of that workspace")
 		return
 	case errors.Is(err, application.ErrInvalidRefreshToken):
 		writeProblem(w, http.StatusUnauthorized, "invalid_refresh_token", "refresh token is invalid")
 		return
 	case err != nil:
-		writeProblem(w, http.StatusInternalServerError, "switch_failed", "could not switch active organization")
+		writeProblem(w, http.StatusInternalServerError, "switch_failed", "could not switch active workspace")
 		return
 	}
 	rt.setRefreshCookie(w, refreshToken, refreshExpiresAt)
 	writeJSON(w, http.StatusOK, response)
 }
 
-func (rt *Router) listPublicOrgs(w http.ResponseWriter, r *http.Request) {
-	orgs, err := rt.org.ListPublic(r.Context())
+func (rt *Router) listPublicWorkspaces(w http.ResponseWriter, r *http.Request) {
+	workspaces, err := rt.workspace.ListPublic(r.Context())
 	if err != nil {
-		writeProblem(w, http.StatusInternalServerError, "orgs_failed", "could not list organizations")
+		writeProblem(w, http.StatusInternalServerError, "workspaces_failed", "could not list workspaces")
 		return
 	}
-	writeJSON(w, http.StatusOK, orgs)
+	writeJSON(w, http.StatusOK, workspaces)
 }
 
-func (rt *Router) createOrg(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) createWorkspace(w http.ResponseWriter, r *http.Request) {
 	claims, ok := rt.requireSuperAdmin(w, r)
 	if !ok {
 		return
 	}
-	var req contracts.CreateOrgRequest
+	var req contracts.CreateWorkspaceRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	view, err := rt.org.Create(r.Context(), req, application.AuditMetaFromHTTP(r, claims.Subject))
+	view, err := rt.workspace.Create(r.Context(), req, application.AuditMetaFromHTTP(r, claims.Subject))
 	switch {
-	case errors.Is(err, application.ErrInvalidOrg):
-		writeProblem(w, http.StatusBadRequest, "invalid_org", "name, slug, and exactly one owner source are required")
+	case errors.Is(err, application.ErrInvalidWorkspace):
+		writeProblem(w, http.StatusBadRequest, "invalid_workspace", "name, slug, and exactly one owner source are required")
 		return
 	case errors.Is(err, application.ErrOwnerNotFound):
 		writeProblem(w, http.StatusNotFound, "owner_not_found", "the specified owner does not exist")
 		return
 	case errors.Is(err, application.ErrConflict):
-		writeProblem(w, http.StatusConflict, "org_conflict", "organization slug or owner account already exists")
+		writeProblem(w, http.StatusConflict, "workspace_conflict", "workspace slug or owner account already exists")
 		return
 	case err != nil:
-		writeProblem(w, http.StatusInternalServerError, "org_failed", "could not create organization")
+		writeProblem(w, http.StatusInternalServerError, "workspace_failed", "could not create workspace")
 		return
 	}
 	writeJSON(w, http.StatusCreated, view)
 }
 
-func (rt *Router) listOrgsForAdmin(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) listWorkspacesForAdmin(w http.ResponseWriter, r *http.Request) {
 	if _, ok := rt.requireSuperAdmin(w, r); !ok {
 		return
 	}
-	orgs, err := rt.org.ListForAdmin(r.Context())
+	workspaces, err := rt.workspace.ListForAdmin(r.Context())
 	if err != nil {
-		writeProblem(w, http.StatusInternalServerError, "orgs_failed", "could not list organizations")
+		writeProblem(w, http.StatusInternalServerError, "workspaces_failed", "could not list workspaces")
 		return
 	}
-	writeJSON(w, http.StatusOK, orgs)
+	writeJSON(w, http.StatusOK, workspaces)
 }
 
-func (rt *Router) createOrgAdmin(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) createWorkspaceAdmin(w http.ResponseWriter, r *http.Request) {
 	claims, ok := rt.requireSuperAdmin(w, r)
 	if !ok {
 		return
 	}
-	var req contracts.CreateOrgAdminRequest
+	var req contracts.CreateWorkspaceAdminRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	view, err := rt.org.CreateOrgAdmin(r.Context(), chi.URLParam(r, "orgID"), req, application.AuditMetaFromHTTP(r, claims.Subject))
+	view, err := rt.workspace.CreateWorkspaceAdmin(r.Context(), chi.URLParam(r, "workspaceID"), req, application.AuditMetaFromHTTP(r, claims.Subject))
 	switch {
-	case errors.Is(err, application.ErrOrgNotFound):
-		writeProblem(w, http.StatusNotFound, "organization_not_found", "organization does not exist")
+	case errors.Is(err, application.ErrWorkspaceNotFound):
+		writeProblem(w, http.StatusNotFound, "workspace_not_found", "workspace does not exist")
 		return
 	case errors.Is(err, application.ErrInvalidRegistration):
 		writeProblem(w, http.StatusBadRequest, "invalid_registration", "valid account, email, and password are required")
@@ -316,7 +318,7 @@ func (rt *Router) createOrgAdmin(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusConflict, "account_or_email_already_registered", "account or email is already registered")
 		return
 	case err != nil:
-		writeProblem(w, http.StatusInternalServerError, "org_admin_failed", "could not create org admin")
+		writeProblem(w, http.StatusInternalServerError, "workspace_admin_failed", "could not create workspace admin")
 		return
 	}
 	writeJSON(w, http.StatusCreated, view)
@@ -331,16 +333,16 @@ func (rt *Router) transferOwner(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	err := rt.org.TransferOwner(r.Context(), chi.URLParam(r, "orgID"), req.NewOwnerUserID, application.AuditMetaFromHTTP(r, claims.Subject))
+	err := rt.workspace.TransferOwner(r.Context(), chi.URLParam(r, "workspaceID"), req.NewOwnerUserID, application.AuditMetaFromHTTP(r, claims.Subject))
 	switch {
-	case errors.Is(err, application.ErrInvalidOrg):
-		writeProblem(w, http.StatusBadRequest, "invalid_org", "newOwnerUserId is required")
+	case errors.Is(err, application.ErrInvalidWorkspace):
+		writeProblem(w, http.StatusBadRequest, "invalid_workspace", "newOwnerUserId is required")
 		return
 	case errors.Is(err, application.ErrNotFound):
-		writeProblem(w, http.StatusNotFound, "organization_not_found", "organization does not exist")
+		writeProblem(w, http.StatusNotFound, "workspace_not_found", "workspace does not exist")
 		return
 	case errors.Is(err, application.ErrInvariant):
-		writeProblem(w, http.StatusConflict, "owner_transfer_conflict", "the new owner must be a member of this organization")
+		writeProblem(w, http.StatusConflict, "owner_transfer_conflict", "the new owner must be a member of this workspace")
 		return
 	case err != nil:
 		writeProblem(w, http.StatusInternalServerError, "owner_transfer_failed", "could not transfer ownership")
@@ -349,12 +351,12 @@ func (rt *Router) transferOwner(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (rt *Router) listOrgMembers(w http.ResponseWriter, r *http.Request) {
-	orgID := chi.URLParam(r, "orgID")
-	if _, ok := rt.requireOrgViewer(w, r, orgID); !ok {
+func (rt *Router) listWorkspaceMembers(w http.ResponseWriter, r *http.Request) {
+	workspaceID := chi.URLParam(r, "workspaceID")
+	if _, ok := rt.requireWorkspaceViewer(w, r, workspaceID); !ok {
 		return
 	}
-	members, err := rt.org.ListMembers(r.Context(), orgID, r.URL.Query().Get("status"))
+	members, err := rt.workspace.ListMembers(r.Context(), workspaceID, r.URL.Query().Get("status"))
 	if err != nil {
 		writeProblem(w, http.StatusInternalServerError, "members_failed", "could not list members")
 		return
@@ -363,18 +365,18 @@ func (rt *Router) listOrgMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *Router) approveMember(w http.ResponseWriter, r *http.Request) {
-	orgID := chi.URLParam(r, "orgID")
-	claims, ok := rt.requireOrgAdmin(w, r, orgID)
+	workspaceID := chi.URLParam(r, "workspaceID")
+	claims, ok := rt.requireWorkspaceAdmin(w, r, workspaceID)
 	if !ok {
 		return
 	}
-	err := rt.org.Approve(r.Context(), orgID, chi.URLParam(r, "userID"), claims.Subject, application.AuditMetaFromHTTP(r, claims.Subject))
+	err := rt.workspace.Approve(r.Context(), workspaceID, chi.URLParam(r, "userID"), claims.Subject, application.AuditMetaFromHTTP(r, claims.Subject))
 	rt.writeMembershipResult(w, err)
 }
 
 func (rt *Router) rejectMember(w http.ResponseWriter, r *http.Request) {
-	orgID := chi.URLParam(r, "orgID")
-	claims, ok := rt.requireOrgAdmin(w, r, orgID)
+	workspaceID := chi.URLParam(r, "workspaceID")
+	claims, ok := rt.requireWorkspaceAdmin(w, r, workspaceID)
 	if !ok {
 		return
 	}
@@ -382,13 +384,13 @@ func (rt *Router) rejectMember(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	err := rt.org.Reject(r.Context(), orgID, chi.URLParam(r, "userID"), claims.Subject, req.Reason, application.AuditMetaFromHTTP(r, claims.Subject))
+	err := rt.workspace.Reject(r.Context(), workspaceID, chi.URLParam(r, "userID"), claims.Subject, req.Reason, application.AuditMetaFromHTTP(r, claims.Subject))
 	rt.writeMembershipResult(w, err)
 }
 
 func (rt *Router) setMemberRole(w http.ResponseWriter, r *http.Request) {
-	orgID := chi.URLParam(r, "orgID")
-	claims, ok := rt.requireOrgAdmin(w, r, orgID)
+	workspaceID := chi.URLParam(r, "workspaceID")
+	claims, ok := rt.requireWorkspaceAdmin(w, r, workspaceID)
 	if !ok {
 		return
 	}
@@ -396,9 +398,9 @@ func (rt *Router) setMemberRole(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	err := rt.org.SetMemberRole(r.Context(), orgID, chi.URLParam(r, "userID"), req.Role, application.AuditMetaFromHTTP(r, claims.Subject))
+	err := rt.workspace.SetMemberRole(r.Context(), workspaceID, chi.URLParam(r, "userID"), req.Role, application.AuditMetaFromHTTP(r, claims.Subject))
 	if errors.Is(err, application.ErrInvalidRole) {
-		writeProblem(w, http.StatusBadRequest, "invalid_role", "role must be org_admin or member")
+		writeProblem(w, http.StatusBadRequest, "invalid_role", "role must be workspace_admin or member")
 		return
 	}
 	rt.writeMembershipResult(w, err)
@@ -414,7 +416,7 @@ func (rt *Router) writeMembershipResult(w http.ResponseWriter, err error) {
 	case errors.Is(err, application.ErrConflict):
 		writeProblem(w, http.StatusConflict, "member_state_conflict", "membership is not in the expected state")
 	case errors.Is(err, application.ErrInvariant):
-		writeProblem(w, http.StatusConflict, "invariant_violation", "operation would break an organization invariant")
+		writeProblem(w, http.StatusConflict, "invariant_violation", "operation would break an workspace invariant")
 	default:
 		writeProblem(w, http.StatusInternalServerError, "member_update_failed", "could not update membership")
 	}
@@ -521,38 +523,38 @@ func (rt *Router) requireSuperAdmin(w http.ResponseWriter, r *http.Request) (sec
 	return claims, true
 }
 
-// requireOrgAdmin authorizes org-membership WRITE operations (approve / reject /
-// role change). The actor MUST be an active org_admin of THIS org. A platform
-// super_admin is deliberately NOT auto-granted org-admin power here: to act
-// inside a tenant it must hold an active org_admin membership there. This
+// requireWorkspaceAdmin authorizes workspace-membership WRITE operations (approve / reject /
+// role change). The actor MUST be an active workspace_admin of THIS workspace. A platform
+// super_admin is deliberately NOT auto-granted workspace-admin power here: to act
+// inside a tenant it must hold an active workspace_admin membership there. This
 // mirrors GitHub's enterprise-owner model — the platform role is the control
-// plane (create org, appoint the first admin, transfer owner, platform roles,
+// plane (create workspace, appoint the first admin, transfer owner, platform roles,
 // global apps/telemetry), never a standing god-mode over every tenant's members
 // or data. Membership is verified against the DB, never a stale JWT role.
-func (rt *Router) requireOrgAdmin(w http.ResponseWriter, r *http.Request, orgID string) (security.Claims, bool) {
+func (rt *Router) requireWorkspaceAdmin(w http.ResponseWriter, r *http.Request, workspaceID string) (security.Claims, bool) {
 	claims, ok := rt.claimsFromRequest(w, r)
 	if !ok {
 		return security.Claims{}, false
 	}
-	isAdmin, err := rt.activeOrgAdmin(r.Context(), orgID, claims.Subject)
+	isAdmin, err := rt.activeWorkspaceAdmin(r.Context(), workspaceID, claims.Subject)
 	if err != nil {
 		writeProblem(w, http.StatusInternalServerError, "authorization_failed", "could not verify privileges")
 		return security.Claims{}, false
 	}
 	if !isAdmin {
-		writeProblem(w, http.StatusForbidden, "forbidden", "org_admin privileges are required")
+		writeProblem(w, http.StatusForbidden, "forbidden", "workspace_admin privileges are required")
 		return security.Claims{}, false
 	}
 	return claims, true
 }
 
-// requireOrgViewer authorizes READ access to an org's member roster: a platform
+// requireWorkspaceViewer authorizes READ access to an workspace's member roster: a platform
 // super_admin (governance/oversight — the enterprise "People" view, e.g. to look
 // up a user id for owner transfer or a platform-role grant) OR an active
-// org_admin of THIS org. Reading the roster is metadata oversight, not access to
-// the org's business data (knowledge/chat/config), which still requires a
-// session bound to the org.
-func (rt *Router) requireOrgViewer(w http.ResponseWriter, r *http.Request, orgID string) (security.Claims, bool) {
+// workspace_admin of THIS workspace. Reading the roster is metadata oversight, not access to
+// the workspace's business data (knowledge/chat/config), which still requires a
+// session bound to the workspace.
+func (rt *Router) requireWorkspaceViewer(w http.ResponseWriter, r *http.Request, workspaceID string) (security.Claims, bool) {
 	claims, ok := rt.claimsFromRequest(w, r)
 	if !ok {
 		return security.Claims{}, false
@@ -565,29 +567,29 @@ func (rt *Router) requireOrgViewer(w http.ResponseWriter, r *http.Request, orgID
 	if isSuper {
 		return claims, true
 	}
-	isAdmin, err := rt.activeOrgAdmin(r.Context(), orgID, claims.Subject)
+	isAdmin, err := rt.activeWorkspaceAdmin(r.Context(), workspaceID, claims.Subject)
 	if err != nil {
 		writeProblem(w, http.StatusInternalServerError, "authorization_failed", "could not verify privileges")
 		return security.Claims{}, false
 	}
 	if !isAdmin {
-		writeProblem(w, http.StatusForbidden, "forbidden", "org_admin privileges are required")
+		writeProblem(w, http.StatusForbidden, "forbidden", "workspace_admin privileges are required")
 		return security.Claims{}, false
 	}
 	return claims, true
 }
 
-// activeOrgAdmin reports whether userID is an active org_admin of orgID. A
+// activeWorkspaceAdmin reports whether userID is an active workspace_admin of workspaceID. A
 // missing membership is a clean false, not an error.
-func (rt *Router) activeOrgAdmin(ctx context.Context, orgID, userID string) (bool, error) {
-	role, status, err := rt.store.MemberRoleStatus(ctx, orgID, userID)
+func (rt *Router) activeWorkspaceAdmin(ctx context.Context, workspaceID, userID string) (bool, error) {
+	role, status, err := rt.store.MemberRoleStatus(ctx, workspaceID, userID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
 			return false, nil
 		}
 		return false, err
 	}
-	return status == "active" && role == "org_admin", nil
+	return status == "active" && role == "workspace_admin", nil
 }
 
 func (rt *Router) setRefreshCookie(w http.ResponseWriter, token string, expiresAt time.Time) {

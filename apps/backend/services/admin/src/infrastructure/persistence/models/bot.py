@@ -11,10 +11,10 @@ from infrastructure.persistence.models.base import Base
 
 class BotRow(Base):
     __tablename__ = "bots"
-
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
-    org_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
+    workspace_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(String(26), nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     role_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     domain_description: Mapped[str | None] = mapped_column(Text, nullable=True)

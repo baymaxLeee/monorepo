@@ -5,7 +5,7 @@
 # shared migrator (scripts/db-migrate.sh) or, in prod, out-of-band against the
 # managed Postgres (see overlays/prod/README). The remaining deploy-time Job is
 # iam's idempotent identity bootstrap (`seed`) — the sole carrier of the
-# password-hashed super-admin + guest-org, lifted out of the server start path
+# password-hashed super-admin + guest-workspace, lifted out of the server start path
 # so replicas never race the bootstrap on every start. See docs/ADR/0030.
 #
 # Strategy:

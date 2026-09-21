@@ -344,7 +344,7 @@ export async function createAgentRunResponse(
       if (!picked) {
         throw new RequestError(`skill "${currentSkillName}" is not available for this agent`);
       }
-      const { body, files } = await getSkillBody(picked.id, auth.orgId);
+      const { body, files } = await getSkillBody(picked.id, auth.tenantId, auth.workspaceId);
       if (!body.trim()) {
         throw new RequestError(`skill "${picked.name}" has no content to load`);
       }
@@ -356,10 +356,11 @@ export async function createAgentRunResponse(
     const assistantMessageId = randomBytes(8).toString("hex");
     const agentInstance = await createAgent({
       canvasId: conversation.canvasId,
-      orgRole: auth.orgRole,
+      workspaceRole: auth.workspaceRole,
       runId,
       userId: conversation.userId,
-      orgId: auth.orgId,
+      tenantId: auth.tenantId,
+      workspaceId: auth.workspaceId,
       conversationId: conversation.id,
       mode,
       provider,
@@ -373,10 +374,10 @@ export async function createAgentRunResponse(
       activeSkillName: instructionInput.activatedSkill?.name ?? null,
       botSkills,
       loadSkillBody: async (skillId: string) => {
-        const skill = await getSkillBody(skillId, auth.orgId);
+        const skill = await getSkillBody(skillId, auth.tenantId, auth.workspaceId);
         return skill.files.length ? `${skill.body}\n\nAvailable skill files:\n${skill.files.join("\n")}` : skill.body;
       },
-      loadSkillFile: (skillId: string, path: string) => getSkillFile(skillId, auth.orgId, path),
+      loadSkillFile: (skillId: string, path: string) => getSkillFile(skillId, auth.tenantId, auth.workspaceId, path),
     });
     const agent = agentInstance.agent;
     disposeAgentResources = agentInstance.dispose;
@@ -562,7 +563,7 @@ export async function getAgentRunTrace(
   if (!trace) {
     throw new NotFoundError("agent run trace not found");
   }
-  const contextWindow = await getProviderLimits(auth.orgId, businessRun.providerId)
+  const contextWindow = await getProviderLimits(auth.tenantId, auth.workspaceId, businessRun.providerId)
     .then((limits) => limits.contextWindow)
     .catch(() => null);
   return { ...trace, contextWindow };
@@ -586,7 +587,7 @@ export async function getConversationContext(
   if (!record) {
     return { context: null };
   }
-  const limits = await getProviderLimits(auth.orgId, record.providerId).catch(() => null);
+  const limits = await getProviderLimits(auth.tenantId, auth.workspaceId, record.providerId).catch(() => null);
   const { snapshot } = record;
   return {
     context: {

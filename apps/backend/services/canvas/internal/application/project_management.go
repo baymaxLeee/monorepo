@@ -12,14 +12,14 @@ import (
 
 func manageProject(tx *gorm.DB, actor Actor, id string) (p.Project, error) {
 	var project p.Project
-	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND org_id = ?", id, actor.OrgID).First(&project).Error
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND tenant_id = ? AND workspace_id = ?", id, actor.TenantID, actor.WorkspaceID).First(&project).Error
 	if err == gorm.ErrRecordNotFound {
 		return project, NotFound()
 	}
 	if err != nil {
 		return project, err
 	}
-	if project.CreatedBy != actor.UserID && actor.OrgRole != "org_admin" {
+	if project.CreatedBy != actor.UserID && actor.WorkspaceRole != "workspace_admin" {
 		return project, NotFound()
 	}
 	return project, err

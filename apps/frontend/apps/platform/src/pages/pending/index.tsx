@@ -1,11 +1,11 @@
 import {
-  applyToOrg,
+  applyToWorkspace,
   fetchMe,
-  fetchPublicOrgs,
+  fetchPublicWorkspaces,
   logout,
   type Membership,
-  type OrgSummary,
-  switchActiveOrg,
+  type WorkspaceSummary,
+  switchActiveWorkspace,
 } from "@repo/api";
 import {
   Badge,
@@ -42,36 +42,36 @@ const STATUS_LABEL: Record<Membership["status"], string> = {
 function PendingPage() {
   const navigate = useNavigate();
   const { user, setUser } = usePlatformStore(useShallow((state) => ({ user: state.user, setUser: state.setUser })));
-  const [orgs, setOrgs] = useState<OrgSummary[]>([]);
-  const [selectedOrg, setSelectedOrg] = useState("");
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
+  const [selectedWorkspace, setSelectedWorkspace] = useState("");
   const [applying, setApplying] = useState(false);
   const busy = useRef(false);
 
   // Bind the session to a freshly-approved membership, or route to the picker
   // when several are active. `me` reflects DB truth but the access token stays
-  // unscoped until we explicitly switch, so an approval requires switchActiveOrg.
+  // unscoped until we explicitly switch, so an approval requires switchActiveWorkspace.
   const applyIdentity = useCallback(
     async (me: PlatformUser) => {
       setUser(me);
-      if (me.activeOrg || isSuperAdmin(me)) {
+      if (me.activeWorkspace || isSuperAdmin(me)) {
         navigate("/platform/chat", { replace: true });
         return;
       }
       const active = activeMemberships(me);
       if (active.length === 1) {
-        const session = await switchActiveOrg(active[0].orgId);
+        const session = await switchActiveWorkspace(active[0].workspaceId);
         setUser(session.user);
         window.location.assign("/platform/chat");
       } else if (active.length > 1) {
-        navigate("/select-org", { replace: true });
+        navigate("/select-workspace", { replace: true });
       }
     },
     [navigate, setUser],
   );
 
   useEffect(() => {
-    fetchPublicOrgs({ skipErrorNotify: true })
-      .then(setOrgs)
+    fetchPublicWorkspaces({ skipErrorNotify: true })
+      .then(setWorkspaces)
       .catch(() => {
         /* directory is best-effort on this screen */
       });
@@ -108,8 +108,8 @@ function PendingPage() {
     return null;
   }
 
-  const heldOrgIds = new Set(user.memberships.map((m) => m.orgId));
-  const joinableOrgs = orgs.filter((o) => !heldOrgIds.has(o.id));
+  const heldWorkspaceIds = new Set(user.memberships.map((m) => m.workspaceId));
+  const joinableWorkspaces = workspaces.filter((o) => !heldWorkspaceIds.has(o.id));
   const pendingMemberships = user.memberships.filter((m) => m.status === "pending");
   const rejectedMemberships = user.memberships.filter((m) => m.status === "rejected");
 
@@ -121,23 +121,23 @@ function PendingPage() {
     }
   }
 
-  async function handleReapply(orgId: string) {
+  async function handleReapply(workspaceId: string) {
     try {
-      await applyToOrg(orgId);
+      await applyToWorkspace(workspaceId);
       toast.success("已重新提交申请");
       await refresh();
     } catch {}
   }
 
   async function handleApplyOther() {
-    if (!selectedOrg) {
+    if (!selectedWorkspace) {
       return;
     }
     setApplying(true);
     try {
-      await applyToOrg(selectedOrg);
+      await applyToWorkspace(selectedWorkspace);
       toast.success("申请已提交");
-      setSelectedOrg("");
+      setSelectedWorkspace("");
       await refresh();
     } catch {
     } finally {
@@ -157,17 +157,17 @@ function PendingPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>等待审批</CardTitle>
-          <CardDescription>你的组织加入申请正在等待管理员审批，通过后会自动进入平台。</CardDescription>
+          <CardDescription>你的工作空间加入申请正在等待管理员审批，通过后会自动进入平台。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {pendingMemberships.length > 0 && (
             <ul className="space-y-2">
               {pendingMemberships.map((m) => (
                 <li
-                  key={m.orgId}
+                  key={m.workspaceId}
                   className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
                 >
-                  <span className="truncate">{m.orgName}</span>
+                  <span className="truncate">{m.workspaceName}</span>
                   <Badge variant="secondary">{STATUS_LABEL[m.status]}</Badge>
                 </li>
               ))}
@@ -177,12 +177,12 @@ function PendingPage() {
           {rejectedMemberships.length > 0 && (
             <ul className="space-y-2">
               {rejectedMemberships.map((m) => (
-                <li key={m.orgId} className="space-y-2 rounded-md border border-destructive/40 px-3 py-2 text-sm">
+                <li key={m.workspaceId} className="space-y-2 rounded-md border border-destructive/40 px-3 py-2 text-sm">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate">{m.orgName}</span>
+                    <span className="truncate">{m.workspaceName}</span>
                     <Badge variant="destructive">{STATUS_LABEL[m.status]}</Badge>
                   </div>
-                  <Button type="button" variant="outline" size="sm" onClick={() => handleReapply(m.orgId)}>
+                  <Button type="button" variant="outline" size="sm" onClick={() => handleReapply(m.workspaceId)}>
                     重新申请
                   </Button>
                 </li>
@@ -190,23 +190,23 @@ function PendingPage() {
             </ul>
           )}
 
-          {joinableOrgs.length > 0 && (
+          {joinableWorkspaces.length > 0 && (
             <div className="space-y-2 border-t pt-4">
-              <Muted className="text-xs">申请加入其他组织</Muted>
+              <Muted className="text-xs">申请加入其他工作空间</Muted>
               <div className="flex items-center gap-2">
-                <Select value={selectedOrg} onValueChange={setSelectedOrg}>
+                <Select value={selectedWorkspace} onValueChange={setSelectedWorkspace}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="选择组织" />
+                    <SelectValue placeholder="选择工作空间" />
                   </SelectTrigger>
                   <SelectContent>
-                    {joinableOrgs.map((o) => (
+                    {joinableWorkspaces.map((o) => (
                       <SelectItem key={o.id} value={o.id}>
                         {o.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Button type="button" onClick={handleApplyOther} disabled={!selectedOrg || applying}>
+                <Button type="button" onClick={handleApplyOther} disabled={!selectedWorkspace || applying}>
                   申请
                 </Button>
               </div>

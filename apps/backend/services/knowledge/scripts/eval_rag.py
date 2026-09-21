@@ -17,7 +17,7 @@ Usage:
     --base-url http://localhost:8010 \
     --token dev-internal-token \
     --user demo-super-admin \
-    --org guest-org \
+    --workspace guest-workspace \
     --file scripts/golden_set.example.jsonl \
     --top-k 8
 """
@@ -47,7 +47,7 @@ def main() -> int:
     parser.add_argument("--base-url", default="http://localhost:8010")
     parser.add_argument("--token", default="dev-internal-token")
     parser.add_argument("--user", required=True, help="end-user id whose KB is queried")
-    parser.add_argument("--org", required=True, help="organization id whose KB is queried")
+    parser.add_argument("--workspace", required=True, help="workspace id whose KB is queried")
     parser.add_argument("--file", required=True, help="golden set JSONL path")
     parser.add_argument("--top-k", type=int, default=8)
     args = parser.parse_args()
@@ -73,7 +73,7 @@ def main() -> int:
                 },
                 json={
                     "user_id": args.user,
-                    "org_id": args.org,
+                    "workspace_id": args.workspace,
                     "query": query,
                     "top_k": args.top_k,
                 },

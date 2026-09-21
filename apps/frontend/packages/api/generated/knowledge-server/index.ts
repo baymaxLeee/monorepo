@@ -47,7 +47,12 @@ export interface CleanupConversationArtifactsInput {
      * @minLength 1
      * @maxLength 26
      */
-  org_id: string;
+  workspace_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  tenant_id: string;
 }
 
 export interface CleanupConversationArtifactsResult {
@@ -69,7 +74,12 @@ export interface CreateArtifactInput {
      * @minLength 1
      * @maxLength 26
      */
-  org_id: string;
+  workspace_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  tenant_id: string;
   conversation_id?: string | null;
   /**
      * @minLength 1
@@ -99,7 +109,12 @@ export interface CreateChangeSetInput {
      * @minLength 1
      * @maxLength 26
      */
-  org_id: string;
+  workspace_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  tenant_id: string;
   /**
      * @minLength 1
      * @maxLength 32
@@ -125,7 +140,12 @@ export interface CreateMediaDocumentInput {
      * @minLength 1
      * @maxLength 26
      */
-  org_id: string;
+  workspace_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  tenant_id: string;
   conversation_id?: string | null;
   /**
      * @minLength 1
@@ -157,7 +177,12 @@ export interface CreateStagedMediaInput {
      * @minLength 1
      * @maxLength 26
      */
-  org_id: string;
+  workspace_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  tenant_id: string;
   conversation_id?: string | null;
   /**
      * @minLength 1
@@ -213,7 +238,8 @@ export const DocumentIndexStatus = {
 export interface Document {
   id: string;
   user_id: string;
-  org_id?: string | null;
+  workspace_id?: string | null;
+  tenant_id?: string | null;
   conversation_id?: string | null;
   kind: DocumentKind;
   title: string;
@@ -379,7 +405,12 @@ export interface RetrieveInput {
      * @minLength 1
      * @maxLength 26
      */
-  org_id: string;
+  workspace_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  tenant_id: string;
   /**
      * @minLength 1
      * @maxLength 4000
@@ -415,7 +446,8 @@ export const StagedMediaStatus = {
 export interface StagedMedia {
   id: string;
   user_id: string;
-  org_id: string;
+  workspace_id: string;
+  tenant_id: string;
   conversation_id?: string | null;
   title: string;
   filename: string;
@@ -438,7 +470,12 @@ export interface StagedMediaActionInput {
      * @minLength 1
      * @maxLength 26
      */
-  org_id: string;
+  workspace_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  tenant_id: string;
 }
 
 export interface StoredServiceObject {
@@ -694,9 +731,9 @@ const listMyDocumentsDocumentsGet = (
 /**
  * Delete several documents in one transaction.
  *
- * Same policy as single delete: an org_admin may delete any of the org's
+ * Same policy as single delete: an workspace_admin may delete any of the workspace's
  * documents; a member may delete only their own uploads. If ANY requested id
- * is outside the org or not deletable by the caller, the whole batch is
+ * is outside the workspace or not deletable by the caller, the whole batch is
  * rejected with 403 — no silent partial success that would mislead the caller.
  * Object-store blobs are best-effort purged and RAG `document_chunks` drop via
  * the FK `ON DELETE CASCADE`.

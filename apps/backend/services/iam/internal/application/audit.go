@@ -31,15 +31,15 @@ func AuditMetaFromHTTP(r *http.Request, actorUserID string) AuditMeta {
 // auditEntry is the service-facing shape; recordAudit maps it onto the model
 // row (nullable columns become NULL when empty).
 type auditEntry struct {
-	Action string
-	Actor  string
-	Target string
-	Org    string
-	Before any
-	After  any
-	Result string // "ok" | "error"
-	Reason string
-	Trace  string
+	Action    string
+	Actor     string
+	Target    string
+	Workspace string
+	Before    any
+	After     any
+	Result    string // "ok" | "error"
+	Reason    string
+	Trace     string
 }
 
 const (
@@ -57,7 +57,7 @@ func auditEvent(e auditEntry) models.IamAuditEvent {
 		Action:       e.Action,
 		ActorUserID:  strPtr(e.Actor),
 		TargetUserID: strPtr(e.Target),
-		OrgID:        strPtr(e.Org),
+		WorkspaceID:  strPtr(e.Workspace),
 		BeforeJSON:   jsonPtr(e.Before),
 		AfterJSON:    jsonPtr(e.After),
 		Result:       result,
@@ -73,7 +73,7 @@ func recordAudit(ctx context.Context, store *repositories.Store, e auditEntry) {
 			"action", e.Action,
 			"actor", e.Actor,
 			"target", e.Target,
-			"org", e.Org,
+			"workspace", e.Workspace,
 			"trace_id", e.Trace,
 			"error", err,
 		)

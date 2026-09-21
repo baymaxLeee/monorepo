@@ -38,7 +38,7 @@ func boardDTO(v p.Board) contracts.Board {
 }
 func access(db *gorm.DB, actor Actor, id string, write bool) (p.Project, error) {
 	var project p.Project
-	if err := db.Clauses(clause.Locking{Strength: "SHARE"}).Where("id = ? AND org_id = ?", id, actor.OrgID).First(&project).Error; err != nil {
+	if err := db.Clauses(clause.Locking{Strength: "SHARE"}).Where("id = ? AND tenant_id = ? AND workspace_id = ?", id, actor.TenantID, actor.WorkspaceID).First(&project).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return project, NotFound()
 		}
@@ -49,7 +49,7 @@ func access(db *gorm.DB, actor Actor, id string, write bool) (p.Project, error) 
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return project, err
 	}
-	if project.CreatedBy == actor.UserID || actor.OrgRole == "org_admin" {
+	if project.CreatedBy == actor.UserID || actor.WorkspaceRole == "workspace_admin" {
 		return project, nil
 	}
 	if err != nil || (write && member.Role == "viewer") {
@@ -60,8 +60,8 @@ func access(db *gorm.DB, actor Actor, id string, write bool) (p.Project, error) 
 func (s *Service) ListProjects(ctx context.Context, a Actor) (contracts.ProjectList, error) {
 	db := s.DB.WithContext(ctx)
 	var rows []p.Project
-	q := db.Where("org_id = ?", a.OrgID)
-	if a.OrgRole != "org_admin" {
+	q := db.Where("tenant_id = ? AND workspace_id = ?", a.TenantID, a.WorkspaceID)
+	if a.WorkspaceRole != "workspace_admin" {
 		q = q.Where("created_by = ? OR id IN (SELECT project_id FROM project_members WHERE user_id = ?)", a.UserID, a.UserID)
 	}
 	if err := q.Order("updated_at DESC, id").Find(&rows).Error; err != nil {
@@ -77,7 +77,7 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, in contracts.Creat
 	if !validName(in.Name) || len(in.Description) > 20000 {
 		return contracts.Project{}, Invalid("invalid project name or description")
 	}
-	v := p.Project{ID: newID(), OrgID: a.OrgID, Name: in.Name, Description: in.Description, CreatedBy: a.UserID, Revision: 1}
+	v := p.Project{ID: newID(), TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, Name: in.Name, Description: in.Description, CreatedBy: a.UserID, Revision: 1}
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&v).Error; err != nil {
 			return err

@@ -6,8 +6,9 @@ export type CanvasMutation = components["schemas"]["CanvasMutation"];
 export type CanvasNode = components["schemas"]["CanvasNode"];
 export interface CanvasActor {
   userId: string;
-  orgId: string;
-  orgRole: string;
+  tenantId: string;
+  workspaceId: string;
+  workspaceRole: string;
 }
 
 export class CanvasInternalClient {
@@ -25,7 +26,12 @@ export class CanvasInternalClient {
     });
   }
   private headers(actor: CanvasActor) {
-    return { "X-Auth-User-ID": actor.userId, "X-Auth-Org-ID": actor.orgId, "X-Auth-Org-Role": actor.orgRole };
+    return {
+      "X-Auth-User-ID": actor.userId,
+      "X-Auth-Tenant-ID": actor.tenantId,
+      "X-Auth-Workspace-ID": actor.workspaceId,
+      "X-Auth-Workspace-Role": actor.workspaceRole,
+    };
   }
   async graph(actor: CanvasActor, canvasId: string, signal?: AbortSignal): Promise<CanvasGraph> {
     const { data, error, response } = await this.client.GET("/canvases/{id}/graph", {

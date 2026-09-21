@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type CreateOrgInput, createOrg } from "@repo/api";
+import { type CreateWorkspaceInput, createWorkspace } from "@repo/api";
 import {
   Button,
   Dialog,
@@ -27,10 +27,12 @@ import {
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { NewOrganizationOwnerFields } from "./NewOrganizationOwnerFields";
+import { NewWorkspaceOwnerFields } from "./NewWorkspaceOwnerFields";
+import { TenantField } from "./TenantField";
 
-const createOrgSchema = z.object({
-  name: z.string().trim().min(1, "请输入组织名称").max(100),
+const createWorkspaceSchema = z.object({
+  tenantId: z.string().min(1, "请选择所属公司"),
+  name: z.string().trim().min(1, "请输入工作空间名称").max(100),
   slug: z
     .string()
     .trim()
@@ -45,9 +47,10 @@ const createOrgSchema = z.object({
   ownerDisplayName: z.string().optional(),
 });
 
-export type CreateOrgValues = z.infer<typeof createOrgSchema>;
+export type CreateWorkspaceValues = z.infer<typeof createWorkspaceSchema>;
 
-const defaults: CreateOrgValues = {
+const defaults: CreateWorkspaceValues = {
+  tenantId: "",
   name: "",
   slug: "",
   ownerMode: "new",
@@ -58,7 +61,7 @@ const defaults: CreateOrgValues = {
   ownerDisplayName: "",
 };
 
-export function CreateOrganizationDialog({
+export function CreateWorkspaceDialog({
   onDone,
   onOpenChange,
   open,
@@ -67,20 +70,21 @@ export function CreateOrganizationDialog({
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
-  const form = useForm<CreateOrgValues>({
-    resolver: zodResolver(createOrgSchema as never),
+  const form = useForm<CreateWorkspaceValues>({
+    resolver: zodResolver(createWorkspaceSchema as never),
     defaultValues: defaults,
   });
   const ownerMode = form.watch("ownerMode");
 
-  async function submit(values: CreateOrgValues) {
-    let payload: CreateOrgInput;
+  async function submit(values: CreateWorkspaceValues) {
+    let payload: CreateWorkspaceInput;
     if (values.ownerMode === "existing") {
       if (!values.ownerUserId?.trim()) {
         form.setError("ownerUserId", { message: "请填写负责人用户 ID" });
         return;
       }
       payload = {
+        tenantId: values.tenantId,
         name: values.name,
         slug: values.slug,
         ownerUserId: values.ownerUserId.trim(),
@@ -93,6 +97,7 @@ export function CreateOrganizationDialog({
         return;
       }
       payload = {
+        tenantId: values.tenantId,
         name: values.name,
         slug: values.slug,
         ownerAccount: values.ownerAccount.trim(),
@@ -102,8 +107,8 @@ export function CreateOrganizationDialog({
       };
     }
     try {
-      await createOrg(payload);
-      toast.success("组织已创建");
+      await createWorkspace(payload);
+      toast.success("工作空间已创建");
       form.reset(defaults);
       onOpenChange(false);
       onDone();
@@ -122,19 +127,30 @@ export function CreateOrganizationDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>新建组织</DialogTitle>
-          <DialogDescription>每个组织都必须有一个负责人（org_admin）。</DialogDescription>
+          <DialogTitle>新建工作空间</DialogTitle>
+          <DialogDescription>每个工作空间都必须有一个负责人（workspace_admin）。</DialogDescription>
         </DialogHeader>
         <DialogBody>
           <Form {...form}>
-            <form id="organization-form" onSubmit={form.handleSubmit(submit)}>
+            <form id="workspace-form" onSubmit={form.handleSubmit(submit)}>
               <FieldGroup>
+                <FormField
+                  control={form.control}
+                  name="tenantId"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>所属公司</FieldLabel>
+                      <TenantField value={field.value} onChange={field.onChange} />
+                      <FieldError errors={[form.formState.errors.tenantId]} />
+                    </Field>
+                  )}
+                />
                 <FormField
                   control={form.control}
                   name="name"
                   render={({ field }) => (
                     <Field>
-                      <FieldLabel>组织名称</FieldLabel>
+                      <FieldLabel>工作空间名称</FieldLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
@@ -190,7 +206,7 @@ export function CreateOrganizationDialog({
                     )}
                   />
                 ) : (
-                  <NewOrganizationOwnerFields form={form} />
+                  <NewWorkspaceOwnerFields form={form} />
                 )}
               </FieldGroup>
             </form>
@@ -200,7 +216,7 @@ export function CreateOrganizationDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button type="submit" form="organization-form" disabled={form.formState.isSubmitting}>
+          <Button type="submit" form="workspace-form" disabled={form.formState.isSubmitting}>
             创建
           </Button>
         </DialogFooter>

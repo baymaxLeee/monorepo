@@ -23,16 +23,11 @@ from api.http.dependencies import CurrentUser, DbSession
 router = APIRouter(tags=["document-resources"])
 
 
-@router.post(
-    "/documents/{document_id}/resource-url",
-    response_model=DocumentResourceURL,
-)
-async def create_resource_url(
-    document_id: str,
-    current_user: CurrentUser,
-    session: DbSession,
-) -> DocumentResourceURL:
-    row = await document_crud.get_org_document(session, document_id, current_user.org_id)
+@router.post("/documents/{document_id}/resource-url", response_model=DocumentResourceURL)
+async def create_resource_url(document_id: str, current_user: CurrentUser, session: DbSession) -> DocumentResourceURL:
+    row = await document_crud.get_workspace_document(
+        session, document_id, current_user.workspace_id, current_user.tenant_id
+    )
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
     if not row.object_bucket or not row.object_key:
@@ -42,7 +37,7 @@ async def create_resource_url(
         media_type == "text/html"
         or media_type.startswith("video/")
         or media_type.startswith("audio/")
-        or "pdf" in media_type
+        or ("pdf" in media_type)
     ):
         raise RequestError("temporary resource URLs currently support HTML, video, audio, and PDF")
     url, expires_at = create_document_resource_url(row)
@@ -56,14 +51,13 @@ async def create_resource_url(
 
 @router.post("/files/resource-url", response_model=DocumentResourceURL)
 async def create_file_url(
-    payload: FileResourceURLInput,
-    current_user: CurrentUser,
-    session: DbSession,
+    payload: FileResourceURLInput, current_user: CurrentUser, session: DbSession
 ) -> DocumentResourceURL:
     row = await session.scalar(
         select(FileEntryRow).where(
             FileEntryRow.user_id == current_user.user_id,
-            FileEntryRow.org_id == current_user.org_id,
+            (FileEntryRow.workspace_id == current_user.workspace_id)
+            & (FileEntryRow.tenant_id == current_user.tenant_id),
             FileEntryRow.conversation_id == payload.conversation_id,
             FileEntryRow.path == payload.path,
         )
@@ -74,10 +68,7 @@ async def create_file_url(
         raise RequestError("temporary virtual file URLs currently support HTML")
     url, expires_at = create_file_resource_url(row.id, row.sha256)
     return DocumentResourceURL(
-        url=url,
-        expires_at=expires_at,
-        mime_type=row.mime_type,
-        filename=row.path.rsplit("/", 1)[-1],
+        url=url, expires_at=expires_at, mime_type=row.mime_type, filename=row.path.rsplit("/", 1)[-1]
     )
 
 
@@ -89,15 +80,10 @@ async def get_signed_resource(
     version: str = Query(..., min_length=1, max_length=128),
     signature: str = Query(..., min_length=64, max_length=64),
 ) -> FileResponse:
-    if not verify_document_resource_url(
-        document_id=document_id,
-        version=version,
-        expires=expires,
-        signature=signature,
-    ):
+    if not verify_document_resource_url(document_id=document_id, version=version, expires=expires, signature=signature):
         raise NotFoundError("resource URL is invalid or expired")
     row = await document_crud.get_document_by_id(session, document_id)
-    if row is None or not row.object_bucket or not row.object_key or document_resource_version(row) != version:
+    if row is None or not row.object_bucket or (not row.object_key) or (document_resource_version(row) != version):
         raise NotFoundError("resource URL is invalid or expired")
     path = ObjectStore().get_path(bucket=row.object_bucket, key=row.object_key)
     remaining_seconds = max(0, expires - int(datetime.now(UTC).timestamp()))
@@ -122,12 +108,7 @@ async def get_signed_file_resource(
     version: str = Query(..., min_length=64, max_length=64),
     signature: str = Query(..., min_length=64, max_length=64),
 ) -> Response:
-    if not verify_file_resource_url(
-        file_id=file_id,
-        version=version,
-        expires=expires,
-        signature=signature,
-    ):
+    if not verify_file_resource_url(file_id=file_id, version=version, expires=expires, signature=signature):
         raise NotFoundError("resource URL is invalid or expired")
     row = await session.scalar(select(FileEntryRow).where(FileEntryRow.id == file_id))
     if row is None or row.sha256 != version or row.mime_type.lower() != "text/html":

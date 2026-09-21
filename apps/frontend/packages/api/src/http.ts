@@ -52,7 +52,7 @@ const GATEWAY_PREFIX_BY_ROOT_SEGMENT: Record<string, string> = {
   login: "/api/iam-server",
   logout: "/api/iam-server",
   me: "/api/iam-server",
-  orgs: "/api/iam-server",
+  workspaces: "/api/iam-server",
   refresh: "/api/iam-server",
   register: "/api/iam-server",
   roles: "/api/iam-server",

@@ -134,7 +134,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -146,11 +146,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -162,7 +162,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -265,7 +281,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -277,11 +293,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -293,7 +309,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -413,7 +445,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -425,11 +457,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -441,7 +473,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -549,7 +597,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -561,11 +609,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -577,7 +625,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -695,7 +759,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -707,11 +771,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -723,7 +787,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -826,7 +906,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -838,11 +918,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -854,7 +934,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -966,7 +1062,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -978,11 +1074,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -994,7 +1090,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -1127,7 +1239,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1139,11 +1251,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1155,7 +1267,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -1260,7 +1388,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1272,11 +1400,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1288,7 +1416,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -1387,7 +1531,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1399,11 +1543,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1415,7 +1559,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -1526,7 +1686,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1538,11 +1698,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1554,7 +1714,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -1657,7 +1833,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1669,11 +1845,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1685,7 +1861,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -1805,7 +1997,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1817,11 +2009,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1833,7 +2025,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -1941,7 +2149,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1953,11 +2161,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1969,7 +2177,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -2087,7 +2311,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2099,11 +2323,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2115,7 +2339,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -2218,7 +2458,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2230,11 +2470,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2246,7 +2486,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -2365,7 +2621,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2377,11 +2633,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2393,7 +2649,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -2503,7 +2775,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2515,11 +2787,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2531,7 +2803,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -2660,7 +2948,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2672,11 +2960,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2688,7 +2976,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -2817,7 +3121,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2829,11 +3133,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2845,7 +3149,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -2974,7 +3294,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2986,11 +3306,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -3002,7 +3322,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -3142,7 +3478,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -3154,11 +3490,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -3170,7 +3506,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -3280,7 +3632,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -3292,11 +3644,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -3308,7 +3660,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -3418,7 +3786,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -3430,11 +3798,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -3446,7 +3814,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -3557,7 +3941,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -3569,11 +3953,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -3585,7 +3969,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -3668,14 +4068,26 @@
             }
           },
           {
-            "name": "org_id",
+            "name": "workspace_id",
             "in": "query",
             "required": true,
             "schema": {
               "type": "string",
               "minLength": 1,
               "description": "Team that owns the skill",
-              "title": "Org Id"
+              "title": "Workspace Id"
+            },
+            "description": "Team that owns the skill"
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Team that owns the skill",
+              "title": "Tenant Id"
             },
             "description": "Team that owns the skill"
           },
@@ -3754,14 +4166,26 @@
             }
           },
           {
-            "name": "org_id",
+            "name": "workspace_id",
             "in": "query",
             "required": true,
             "schema": {
               "type": "string",
               "minLength": 1,
               "description": "Team that owns the skill",
-              "title": "Org Id"
+              "title": "Workspace Id"
+            },
+            "description": "Team that owns the skill"
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Team that owns the skill",
+              "title": "Tenant Id"
             },
             "description": "Team that owns the skill"
           },
@@ -3879,7 +4303,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -3891,11 +4315,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -3907,7 +4331,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -4010,7 +4450,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -4022,11 +4462,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -4038,7 +4478,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -4158,7 +4614,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -4170,11 +4626,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -4186,7 +4642,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -4294,7 +4766,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -4306,11 +4778,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -4322,7 +4794,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -4440,7 +4928,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -4452,11 +4940,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -4468,7 +4956,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -4562,7 +5066,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -4574,11 +5078,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -4590,7 +5094,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -4710,7 +5230,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -4722,11 +5242,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -4738,7 +5258,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -4848,7 +5384,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -4860,11 +5396,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -4876,7 +5412,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -4939,14 +5491,26 @@
         "operationId": "get_default_provider_internal_internal_providers_default_get",
         "parameters": [
           {
-            "name": "org_id",
+            "name": "workspace_id",
             "in": "query",
             "required": true,
             "schema": {
               "type": "string",
               "minLength": 1,
               "description": "Team that owns the provider",
-              "title": "Org Id"
+              "title": "Workspace Id"
+            },
+            "description": "Team that owns the provider"
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Team that owns the provider",
+              "title": "Tenant Id"
             },
             "description": "Team that owns the provider"
           },
@@ -5026,14 +5590,26 @@
             }
           },
           {
-            "name": "org_id",
+            "name": "workspace_id",
             "in": "query",
             "required": true,
             "schema": {
               "type": "string",
               "minLength": 1,
               "description": "Team that owns the provider",
-              "title": "Org Id"
+              "title": "Workspace Id"
+            },
+            "description": "Team that owns the provider"
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Team that owns the provider",
+              "title": "Tenant Id"
             },
             "description": "Team that owns the provider"
           },
@@ -5112,14 +5688,26 @@
             }
           },
           {
-            "name": "org_id",
+            "name": "workspace_id",
             "in": "query",
             "required": true,
             "schema": {
               "type": "string",
               "minLength": 1,
               "description": "Team that owns the provider",
-              "title": "Org Id"
+              "title": "Workspace Id"
+            },
+            "description": "Team that owns the provider"
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Team that owns the provider",
+              "title": "Tenant Id"
             },
             "description": "Team that owns the provider"
           },
@@ -5210,16 +5798,28 @@
             "description": "Requesting user"
           },
           {
-            "name": "org_id",
+            "name": "workspace_id",
             "in": "query",
             "required": false,
             "schema": {
               "type": "string",
-              "description": "Requester's active org (team scope)",
+              "description": "Requester's active workspace (team scope)",
               "default": "",
-              "title": "Org Id"
+              "title": "Workspace Id"
             },
-            "description": "Requester's active org (team scope)"
+            "description": "Requester's active workspace (team scope)"
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Requester's active workspace (team scope)",
+              "default": "",
+              "title": "Tenant Id"
+            },
+            "description": "Requester's active workspace (team scope)"
           },
           {
             "name": "X-Internal-Token",
@@ -5335,7 +5935,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -5347,11 +5947,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -5363,7 +5963,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -5466,7 +6082,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -5478,11 +6094,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -5494,7 +6110,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -5614,7 +6246,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -5626,11 +6258,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -5642,7 +6274,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -5750,7 +6398,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -5762,11 +6410,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -5778,7 +6426,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -5896,7 +6560,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -5908,11 +6572,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -5924,7 +6588,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           },
           {
@@ -6075,9 +6755,13 @@
             "type": "string",
             "title": "User Id"
           },
-          "org_id": {
+          "workspace_id": {
             "type": "string",
-            "title": "Org Id"
+            "title": "Workspace Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
           },
           "username": {
             "type": "string",
@@ -6204,7 +6888,8 @@
         "required": [
           "id",
           "user_id",
-          "org_id",
+          "workspace_id",
+          "tenant_id",
           "username",
           "name",
           "status",
@@ -6835,9 +7520,13 @@
             "type": "string",
             "title": "User Id"
           },
-          "org_id": {
+          "workspace_id": {
             "type": "string",
-            "title": "Org Id"
+            "title": "Workspace Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
           },
           "name": {
             "type": "string",
@@ -6916,7 +7605,8 @@
         "required": [
           "id",
           "user_id",
-          "org_id",
+          "workspace_id",
+          "tenant_id",
           "name",
           "model",
           "provider_kind",
@@ -7150,9 +7840,13 @@
             "type": "string",
             "title": "User Id"
           },
-          "org_id": {
+          "workspace_id": {
             "type": "string",
-            "title": "Org Id"
+            "title": "Workspace Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
           },
           "username": {
             "type": "string",
@@ -7211,7 +7905,8 @@
         "required": [
           "id",
           "user_id",
-          "org_id",
+          "workspace_id",
+          "tenant_id",
           "username",
           "name",
           "description",
@@ -7366,9 +8061,13 @@
             "type": "string",
             "title": "User Id"
           },
-          "org_id": {
+          "workspace_id": {
             "type": "string",
-            "title": "Org Id"
+            "title": "Workspace Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
           },
           "username": {
             "type": "string",
@@ -7423,7 +8122,8 @@
         "required": [
           "id",
           "user_id",
-          "org_id",
+          "workspace_id",
+          "tenant_id",
           "username",
           "name",
           "description",

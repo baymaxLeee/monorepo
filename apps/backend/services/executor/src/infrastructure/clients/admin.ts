@@ -25,10 +25,14 @@ export type ProviderSnapshot = {
   pricing: { currency: string; unit: "generated_second"; unitPriceMicros: number } | null;
 };
 
-export async function getProvider(providerId: string, orgId: string): Promise<ProviderSnapshot> {
+export async function getProvider(
+  providerId: string,
+  tenantId: string,
+  workspaceId: string,
+): Promise<ProviderSnapshot> {
   let data: AdminProviderSnapshot;
   try {
-    data = await adminClient().getProvider(providerId, orgId);
+    data = await adminClient().getProvider(providerId, tenantId, workspaceId);
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new RequestError(`provider ${providerId} not found`);

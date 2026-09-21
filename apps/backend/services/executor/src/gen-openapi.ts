@@ -55,7 +55,8 @@ const taskSchema = {
 const fileTaskBatchPayloadSchema = {
   type: "object",
   properties: {
-    orgId: { type: "string" },
+    tenantId: { type: "string" },
+    workspaceId: { type: "string" },
     userId: { type: "string" },
     providerId: { type: "string" },
     stagingId: { type: "string" },
@@ -73,13 +74,14 @@ const fileTaskBatchPayloadSchema = {
       },
     },
   },
-  required: ["orgId", "userId", "providerId", "stagingId", "sharedContext", "tasks"],
+  required: ["tenantId", "workspaceId", "userId", "providerId", "stagingId", "sharedContext", "tasks"],
 };
 
 const videoGenerationTaskPayloadSchema = {
   type: "object",
   properties: {
-    orgId: { type: "string" },
+    tenantId: { type: "string" },
+    workspaceId: { type: "string" },
     userId: { type: "string" },
     conversationId: { type: "string" },
     providerId: { type: "string" },
@@ -146,7 +148,7 @@ const videoGenerationTaskPayloadSchema = {
       required: ["targetDurationSec", "logline", "motif", "styleBible", "settingBible", "characters", "shots"],
     },
   },
-  required: ["orgId", "userId", "providerId", "title", "filename", "creativeBrief", "plan"],
+  required: ["tenantId", "workspaceId", "userId", "providerId", "title", "filename", "creativeBrief", "plan"],
 };
 
 const taskEnvelope = (type: string, payload: object) => ({
@@ -162,8 +164,13 @@ const taskEnvelope = (type: string, payload: object) => ({
 
 const textGenerationPayloadSchema = {
   type: "object",
-  properties: { orgId: { type: "string" }, providerId: { type: "string" }, prompt: { type: "string" } },
-  required: ["orgId", "providerId", "prompt"],
+  properties: {
+    tenantId: { type: "string" },
+    workspaceId: { type: "string" },
+    providerId: { type: "string" },
+    prompt: { type: "string" },
+  },
+  required: ["tenantId", "workspaceId", "providerId", "prompt"],
 };
 
 const createTaskInputSchema = {
@@ -261,7 +268,8 @@ const videoProductionProjectionSchema = {
   properties: {
     id: { type: "string" },
     taskId: { type: "string" },
-    orgId: { type: "string" },
+    tenantId: { type: "string" },
+    workspaceId: { type: "string" },
     userId: { type: "string" },
     conversationId: { type: ["string", "null"] },
     title: { type: "string" },
@@ -293,7 +301,8 @@ const videoProductionProjectionSchema = {
   required: [
     "id",
     "taskId",
-    "orgId",
+    "tenantId",
+    "workspaceId",
     "userId",
     "title",
     "status",

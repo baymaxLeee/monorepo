@@ -9,7 +9,8 @@ def document_to_schema(row: DocumentRow, *, include_content: bool = False) -> Do
     return Document(
         id=row.id,
         user_id=row.user_id,
-        org_id=row.org_id,
+        workspace_id=row.workspace_id,
+        tenant_id=row.tenant_id,
         conversation_id=row.conversation_id,
         kind=row.kind,  # type: ignore[arg-type]
         title=row.title,

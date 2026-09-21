@@ -41,7 +41,7 @@ def _path(value: str) -> str:
 
 
 def _source_path(row: DocumentRow) -> str:
-    filename = re.sub(r"[^a-zA-Z0-9._\-\u4e00-\u9fff]+", "-", row.source_filename or row.filename).strip("-.")
+    filename = re.sub("[^a-zA-Z0-9._\\-\\u4e00-\\u9fff]+", "-", row.source_filename or row.filename).strip("-.")
     return f"sources/{row.id[:8]}-{filename or 'file'}"
 
 
@@ -82,10 +82,7 @@ async def list_files(
     rows = (
         await session.scalars(
             select(FileEntryRow)
-            .where(
-                FileEntryRow.user_id == user_id,
-                FileEntryRow.conversation_id == conversation_id,
-            )
+            .where(FileEntryRow.user_id == user_id, FileEntryRow.conversation_id == conversation_id)
             .order_by(FileEntryRow.path)
         )
     ).all()
@@ -103,7 +100,7 @@ async def list_files(
     entries = [_entry(row) for row in rows if not prefix or row.path.startswith(prefix)]
     for source in sources:
         source_path = _source_path(source)
-        if prefix and not source_path.startswith(prefix):
+        if prefix and (not source_path.startswith(prefix)):
             continue
         content = source.content_md
         entries.append(
@@ -183,8 +180,7 @@ async def create_change_set(payload: CreateChangeSetInput, session: DbSession) -
         rows = (
             await session.scalars(
                 select(FileEntryRow).where(
-                    FileEntryRow.user_id == payload.user_id,
-                    FileEntryRow.conversation_id == payload.conversation_id,
+                    FileEntryRow.user_id == payload.user_id, FileEntryRow.conversation_id == payload.conversation_id
                 )
             )
         ).all()
@@ -192,7 +188,8 @@ async def create_change_set(payload: CreateChangeSetInput, session: DbSession) -
         row = FileChangeSetRow(
             id=_id(),
             user_id=payload.user_id,
-            org_id=payload.org_id,
+            workspace_id=payload.workspace_id,
+            tenant_id=payload.tenant_id,
             conversation_id=payload.conversation_id,
             status="open",
             baseline_sha256={item.path: item.sha256 for item in rows if _in_root(item.path, root)},
@@ -231,8 +228,7 @@ async def write_change_set_file(change_set_id: str, payload: WriteChangeSetFileI
         now = datetime.now(UTC)
         row = await session.scalar(
             select(FileChangeSetEntryRow).where(
-                FileChangeSetEntryRow.change_set_id == change_set.id,
-                FileChangeSetEntryRow.path == path,
+                FileChangeSetEntryRow.change_set_id == change_set.id, FileChangeSetEntryRow.path == path
             )
         )
         digest = sha256(payload.content.encode()).hexdigest()
@@ -252,8 +248,8 @@ async def write_change_set_file(change_set_id: str, payload: WriteChangeSetFileI
             )
             session.add(row)
         else:
-            row.mime_type, row.content, row.sha256 = payload.mime_type, payload.content, digest
-            row.writable, row.derived, row.deleted, row.updated_at = payload.writable, payload.derived, False, now
+            row.mime_type, row.content, row.sha256 = (payload.mime_type, payload.content, digest)
+            row.writable, row.derived, row.deleted, row.updated_at = (payload.writable, payload.derived, False, now)
         change_set.updated_at = now
     return FileEntry(
         path=row.path,
@@ -266,19 +262,12 @@ async def write_change_set_file(change_set_id: str, payload: WriteChangeSetFileI
 
 
 @router.get("/change-sets/{change_set_id}/files", response_model=list[FileEntry])
-async def list_change_set_files(
-    change_set_id: str,
-    session: DbSession,
-    user_id: str = Query(...),
-) -> list[FileEntry]:
+async def list_change_set_files(change_set_id: str, session: DbSession, user_id: str = Query(...)) -> list[FileEntry]:
     change_set = await _change_set(session, change_set_id, user_id)
     rows = (
         await session.scalars(
             select(FileChangeSetEntryRow)
-            .where(
-                FileChangeSetEntryRow.change_set_id == change_set.id,
-                FileChangeSetEntryRow.deleted.is_(False),
-            )
+            .where(FileChangeSetEntryRow.change_set_id == change_set.id, FileChangeSetEntryRow.deleted.is_(False))
             .order_by(FileChangeSetEntryRow.path)
         )
     ).all()
@@ -298,8 +287,7 @@ async def read_change_set_file(
     change_set = await _change_set(session, change_set_id, user_id)
     row = await session.scalar(
         select(FileChangeSetEntryRow).where(
-            FileChangeSetEntryRow.change_set_id == change_set.id,
-            FileChangeSetEntryRow.path == target,
+            FileChangeSetEntryRow.change_set_id == change_set.id, FileChangeSetEntryRow.path == target
         )
     )
     if row is None:
@@ -327,16 +315,14 @@ async def promote_change_set(change_set_id: str, payload: PromoteChangeSetInput,
         root = _change_set_root(change_set.metadata_json)
         lock_key = f"{change_set.user_id}:{change_set.conversation_id}:{root or '*'}"
         await session.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))"),
-            {"lock_key": lock_key},
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))"), {"lock_key": lock_key}
         )
         current_statement = select(FileEntryRow).where(
-            FileEntryRow.user_id == change_set.user_id,
-            FileEntryRow.conversation_id == change_set.conversation_id,
+            FileEntryRow.user_id == change_set.user_id, FileEntryRow.conversation_id == change_set.conversation_id
         )
         if root:
             current_statement = current_statement.where(
-                FileEntryRow.path.startswith(root) if root.endswith("/") else FileEntryRow.path == root,
+                FileEntryRow.path.startswith(root) if root.endswith("/") else FileEntryRow.path == root
             )
         current_in_root = (await session.scalars(current_statement.with_for_update())).all()
         current_sha = {row.path: row.sha256 for row in current_in_root}
@@ -344,9 +330,7 @@ async def promote_change_set(change_set_id: str, payload: PromoteChangeSetInput,
             raise ConflictError("file change set baseline is stale")
         staged = (
             await session.scalars(
-                select(FileChangeSetEntryRow).where(
-                    FileChangeSetEntryRow.change_set_id == change_set.id,
-                )
+                select(FileChangeSetEntryRow).where(FileChangeSetEntryRow.change_set_id == change_set.id)
             )
         ).all()
         by_path = {row.path: row for row in current_in_root}
@@ -365,7 +349,8 @@ async def promote_change_set(change_set_id: str, payload: PromoteChangeSetInput,
                     FileEntryRow(
                         id=_id(),
                         user_id=change_set.user_id,
-                        org_id=change_set.org_id,
+                        workspace_id=change_set.workspace_id,
+                        tenant_id=change_set.tenant_id,
                         conversation_id=change_set.conversation_id,
                         path=entry.path,
                         mime_type=entry.mime_type,
@@ -388,13 +373,12 @@ async def promote_change_set(change_set_id: str, payload: PromoteChangeSetInput,
                     entry.derived,
                     now,
                 )
-        change_set.status, change_set.updated_at = "promoted", now
+        change_set.status, change_set.updated_at = ("promoted", now)
     rows = (
         await session.scalars(
             select(FileEntryRow)
             .where(
-                FileEntryRow.user_id == change_set.user_id,
-                FileEntryRow.conversation_id == change_set.conversation_id,
+                FileEntryRow.user_id == change_set.user_id, FileEntryRow.conversation_id == change_set.conversation_id
             )
             .order_by(FileEntryRow.path)
         )
@@ -406,7 +390,7 @@ async def promote_change_set(change_set_id: str, payload: PromoteChangeSetInput,
 async def discard_change_set(change_set_id: str, payload: PromoteChangeSetInput, session: DbSession) -> ChangeSet:
     async with write_tx(session):
         row = await _change_set(session, change_set_id, payload.user_id, lock=True)
-        row.status, row.updated_at = "discarded", datetime.now(UTC)
+        row.status, row.updated_at = ("discarded", datetime.now(UTC))
     return ChangeSet(id=row.id, status=row.status, conversation_id=row.conversation_id)
 
 
@@ -419,10 +403,7 @@ async def search_files(payload: FileSearchInput, session: DbSession) -> list[Fil
     rows = (
         await session.scalars(
             select(FileEntryRow)
-            .where(
-                FileEntryRow.user_id == payload.user_id,
-                FileEntryRow.conversation_id == payload.conversation_id,
-            )
+            .where(FileEntryRow.user_id == payload.user_id, FileEntryRow.conversation_id == payload.conversation_id)
             .order_by(FileEntryRow.path)
         )
     ).all()
@@ -442,9 +423,9 @@ async def search_files(payload: FileSearchInput, session: DbSession) -> list[Fil
     searchable.extend((_source_path(row), row.content_md) for row in sources if row.content_md)
     prefix = f"{_path(payload.path.rstrip('/'))}/" if payload.path else ""
     for path, content in searchable:
-        if prefix and not path.startswith(prefix):
+        if prefix and (not path.startswith(prefix)):
             continue
-        if payload.glob and not fnmatch.fnmatch(path, payload.glob):
+        if payload.glob and (not fnmatch.fnmatch(path, payload.glob)):
             continue
         for number, line in enumerate(content.split("\n"), start=1):
             found = expression.search(line)

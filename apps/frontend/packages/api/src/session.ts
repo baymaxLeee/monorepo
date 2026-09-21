@@ -20,8 +20,8 @@ export type AuthCredentials = {
 };
 
 export type RegisterInput = AuthCredentials & {
-  /** Optional additional org application; guest-org membership is automatic. */
-  orgId?: string;
+  /** Optional additional workspace application; guest-workspace membership is automatic. */
+  workspaceId?: string;
   avatarUrl?: string;
   email?: string;
   displayName?: string;
@@ -100,7 +100,7 @@ export async function refreshSession(): Promise<AuthSession | null> {
   return refreshPromise;
 }
 
-/** Current identity, reflecting the latest roles + memberships + activeOrg.
+/** Current identity, reflecting the latest roles + memberships + activeWorkspace.
  * The waiting page polls this to observe an approval landing. */
 export async function fetchMe(): Promise<AuthUser> {
   return request<AuthUser>({ url: "/api/iam-server/me", method: "GET" });
@@ -113,14 +113,14 @@ export async function fetchMemberships(): Promise<Membership[]> {
   });
 }
 
-/** Bind the session to a different active org (must be an active membership).
+/** Bind the session to a different active workspace (must be an active membership).
  * Rotates the refresh token and returns a freshly scoped session. */
-export async function switchActiveOrg(orgId: string): Promise<AuthSession> {
+export async function switchActiveWorkspace(workspaceId: string): Promise<AuthSession> {
   return commitSession(
     await request<AuthSession>({
-      url: "/api/iam-server/session/active-org",
+      url: "/api/iam-server/session/active-workspace",
       method: "POST",
-      data: { orgId },
+      data: { workspaceId },
     }),
   );
 }

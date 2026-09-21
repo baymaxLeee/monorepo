@@ -26,7 +26,8 @@ import { NotFoundError } from "./errors.js";
 export interface Conversation {
   id: string;
   user_id: string;
-  org_id: string;
+  tenant_id: string;
+  workspace_id: string;
   title: string;
   model: string;
   provider_id: string;
@@ -118,7 +119,8 @@ function toConversation(row: typeof conversations.$inferSelect): Conversation {
   return {
     id: row.id,
     user_id: row.userId,
-    org_id: row.orgId,
+    tenant_id: row.tenantId,
+    workspace_id: row.workspaceId,
     title: row.title,
     model: row.model,
     provider_id: row.providerId,
@@ -145,7 +147,13 @@ export async function listConversations(auth: AuthContext): Promise<Conversation
   const rows = await db
     .select()
     .from(conversations)
-    .where(and(eq(conversations.userId, auth.userId), eq(conversations.orgId, auth.orgId)))
+    .where(
+      and(
+        eq(conversations.userId, auth.userId),
+        eq(conversations.tenantId, auth.tenantId),
+        eq(conversations.workspaceId, auth.workspaceId),
+      ),
+    )
     .orderBy(desc(conversations.updatedAt));
   return rows.map(toConversation);
 }
@@ -190,7 +198,8 @@ export async function createConversation(
   await db.insert(conversations).values({
     id,
     userId: auth.userId,
-    orgId: auth.orgId,
+    tenantId: auth.tenantId,
+    workspaceId: auth.workspaceId,
     title: input.title ?? "新对话",
     canvasId: input.canvas_id ?? null,
     model: "",
@@ -235,7 +244,8 @@ export async function deleteConversation(auth: AuthContext, conversationId: stri
       .values({
         conversationId: row.id,
         userId: row.userId,
-        orgId: row.orgId,
+        tenantId: row.tenantId,
+        workspaceId: row.workspaceId,
         availableAt: now,
         createdAt: now,
       })
@@ -363,7 +373,8 @@ export async function getConversationRow(
   const condition = and(
     eq(conversations.id, conversationId),
     eq(conversations.userId, auth.userId),
-    eq(conversations.orgId, auth.orgId),
+    eq(conversations.tenantId, auth.tenantId),
+    eq(conversations.workspaceId, auth.workspaceId),
   );
   const [row] = await db.select().from(conversations).where(condition);
   if (!row) {

@@ -60,7 +60,8 @@ def _summary_fields(row: SkillRow) -> dict[str, object]:
     return {
         "id": row.id,
         "user_id": row.user_id,
-        "org_id": row.org_id,
+        "workspace_id": row.workspace_id,
+        "tenant_id": row.tenant_id,
         "username": row.username,
         "name": row.name,
         "description": row.description,
@@ -108,7 +109,9 @@ class SkillService:
         self._current_user = current_user
 
     async def list(self) -> list[SkillSummary]:
-        rows = await skill_crud.list_skills(self._session, self._current_user.org_id)
+        rows = await skill_crud.list_skills(
+            self._session, self._current_user.workspace_id, self._current_user.tenant_id
+        )
         return [to_summary(row) for row in rows]
 
     async def get(self, skill_id: str) -> Skill:
@@ -122,15 +125,13 @@ class SkillService:
                 name=payload.name,
                 description=payload.description,
                 user_id=self._current_user.user_id,
-                org_id=self._current_user.org_id,
+                workspace_id=self._current_user.workspace_id,
+                tenant_id=self._current_user.tenant_id,
                 username=self._current_user.username,
             )
             now = datetime.now(UTC)
             description = json.dumps(payload.description, ensure_ascii=False)
-            content = (
-                f"---\nname: {payload.name}\ndescription: {description}\n---\n\n"
-                f"# {payload.name}\n\n## Instructions\n\nDescribe the reusable workflow here.\n"
-            )
+            content = f"---\nname: {payload.name}\ndescription: {description}\n---\n\n# {payload.name}\n\n## Instructions\n\nDescribe the reusable workflow here.\n"
             node = SkillNodeRow(
                 id=uuid4().hex[:12],
                 skill_id=row.id,
@@ -161,9 +162,7 @@ class SkillService:
         row = await self._get_row(skill_id)
         nodes = await node_crud.list_workspace_nodes(self._session, skill_id)
         return SkillWorkspace(
-            skill_id=skill_id,
-            workspace_seq=row.workspace_seq,
-            tree=_build_tree(nodes, include_content=False),
+            skill_id=skill_id, workspace_seq=row.workspace_seq, tree=_build_tree(nodes, include_content=False)
         )
 
     async def get_file(self, skill_id: str, node_id: str) -> SkillFileContent:
@@ -189,7 +188,7 @@ class SkillService:
                 name=payload.name,
                 node_type=payload.type,
                 mime_type="text/markdown" if payload.name.endswith(".md") else "text/plain",
-                content=(payload.content or "") if payload.type == "file" else None,
+                content=payload.content or "" if payload.type == "file" else None,
                 sort_order=0,
                 created_at=now,
                 updated_at=now,
@@ -269,8 +268,7 @@ class SkillService:
             validation = self._validation_result(nodes)
             if not validation.ok:
                 raise RequestError(
-                    "skill validation failed",
-                    details={"issues": [issue.model_dump() for issue in validation.issues]},
+                    "skill validation failed", details={"issues": [issue.model_dump() for issue in validation.issues]}
                 )
             await node_crud.replace_published_nodes(self._session, skill_id)
             row.status = "published"
@@ -288,18 +286,20 @@ class SkillService:
 
     async def bulk_delete(self, ids: Sequence[str]) -> int:
         async with write_tx(self._session):
-            return await skill_crud.bulk_delete_skills(self._session, list(ids), self._current_user.org_id)
+            return await skill_crud.bulk_delete_skills(
+                self._session, list(ids), self._current_user.workspace_id, self._current_user.tenant_id
+            )
 
-    async def get_internal(self, skill_id: str, org_id: str) -> InternalSkill:
-        row = await skill_crud.get_skill(self._session, skill_id, org_id)
-        if row is None or row.status != "published" or not row.is_enabled:
+    async def get_internal(self, skill_id: str, workspace_id: str, tenant_id: str) -> InternalSkill:
+        row = await skill_crud.get_skill(self._session, skill_id, workspace_id, tenant_id)
+        if row is None or row.status != "published" or (not row.is_enabled):
             raise NotFoundError(f"published skill {skill_id} not found")
         nodes = await node_crud.list_published_nodes(self._session, skill_id)
         skill_md = next(
             (
                 node
                 for node in nodes
-                if node.parent_node_id is None and node.name == "SKILL.md" and node.node_type == "file"
+                if node.parent_node_id is None and node.name == "SKILL.md" and (node.node_type == "file")
             ),
             None,
         )
@@ -315,9 +315,9 @@ class SkillService:
             files=sorted(path for path in paths.values() if path != "SKILL.md"),
         )
 
-    async def get_internal_file(self, skill_id: str, org_id: str, path: str) -> InternalSkillFile:
-        row = await skill_crud.get_skill(self._session, skill_id, org_id)
-        if row is None or row.status != "published" or not row.is_enabled:
+    async def get_internal_file(self, skill_id: str, workspace_id: str, tenant_id: str, path: str) -> InternalSkillFile:
+        row = await skill_crud.get_skill(self._session, skill_id, workspace_id, tenant_id)
+        if row is None or row.status != "published" or (not row.is_enabled):
             raise NotFoundError(f"published skill {skill_id} not found")
         nodes = await node_crud.list_published_nodes(self._session, skill_id)
         paths = published_paths(nodes)
@@ -358,18 +358,11 @@ class SkillService:
             raise RequestError("parent must be a directory")
 
     async def _assert_sibling_name_free(
-        self,
-        skill_id: str,
-        parent_id: str | None,
-        name: str,
-        *,
-        excluding_id: str | None = None,
+        self, skill_id: str, parent_id: str | None, name: str, *, excluding_id: str | None = None
     ) -> None:
         parent_filter = SkillNodeRow.parent_id.is_(None) if parent_id is None else SkillNodeRow.parent_id == parent_id
         stmt = select(SkillNodeRow.id).where(
-            SkillNodeRow.skill_id == skill_id,
-            parent_filter,
-            SkillNodeRow.name == name,
+            SkillNodeRow.skill_id == skill_id, parent_filter, SkillNodeRow.name == name
         )
         if excluding_id:
             stmt = stmt.where(SkillNodeRow.id != excluding_id)
@@ -381,8 +374,7 @@ class SkillService:
         current = node_etag(node)
         if current != expected:
             raise ConflictError(
-                f"skill node {node.id} changed in another session",
-                details={"expected": expected, "current": current},
+                f"skill node {node.id} changed in another session", details={"expected": expected, "current": current}
             )
 
     @staticmethod
@@ -409,12 +401,16 @@ class SkillService:
             )
 
     async def _assert_name_free(self, name: str, excluding_id: str | None = None) -> None:
-        existing = await skill_crud.get_skill_by_name(self._session, self._current_user.org_id, name)
+        existing = await skill_crud.get_skill_by_name(
+            self._session, self._current_user.workspace_id, self._current_user.tenant_id, name
+        )
         if existing is not None and existing.id != excluding_id:
             raise RequestError(f"a skill named '{name}' already exists in this team")
 
     async def _get_row(self, skill_id: str) -> SkillRow:
-        row = await skill_crud.get_skill(self._session, skill_id, self._current_user.org_id)
+        row = await skill_crud.get_skill(
+            self._session, skill_id, self._current_user.workspace_id, self._current_user.tenant_id
+        )
         if row is None:
             raise NotFoundError(f"skill {skill_id} not found")
         return row
@@ -422,7 +418,11 @@ class SkillService:
     async def _get_locked_row(self, skill_id: str) -> SkillRow:
         row = await self._session.scalar(
             select(SkillRow)
-            .where(SkillRow.id == skill_id, SkillRow.org_id == self._current_user.org_id)
+            .where(
+                SkillRow.id == skill_id,
+                (SkillRow.workspace_id == self._current_user.workspace_id)
+                & (SkillRow.tenant_id == self._current_user.tenant_id),
+            )
             .with_for_update()
         )
         if row is None:

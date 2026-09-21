@@ -38,9 +38,9 @@ type Config struct {
 	SuperAdminEmail       string
 	SuperAdminPassword    string
 	SuperAdminDisplayName string
-	GuestOrgID            string
-	GuestOrgName          string
-	GuestOrgSlug          string
+	GuestWorkspaceID      string
+	GuestWorkspaceName    string
+	GuestWorkspaceSlug    string
 }
 
 func (c Config) IsProduction() bool { return c.Environment == EnvProduction }
@@ -74,9 +74,9 @@ func Load() (Config, error) {
 		SuperAdminEmail:       envOr("SUPER_ADMIN_EMAIL", "admin@example.com"),
 		SuperAdminPassword:    envOr("SUPER_ADMIN_PASSWORD", "admin123"),
 		SuperAdminDisplayName: envOr("SUPER_ADMIN_DISPLAY_NAME", "Super Admin"),
-		GuestOrgID:            envOr("GUEST_ORG_ID", "guest-org"),
-		GuestOrgName:          envOr("GUEST_ORG_NAME", "游客组织"),
-		GuestOrgSlug:          envOr("GUEST_ORG_SLUG", "guest-org"),
+		GuestWorkspaceID:      envOr("GUEST_WORKSPACE_ID", "guest-org"),
+		GuestWorkspaceName:    envOr("GUEST_WORKSPACE_NAME", "游客工作空间"),
+		GuestWorkspaceSlug:    envOr("GUEST_WORKSPACE_SLUG", "guest-workspace"),
 	}
 
 	if err := cfg.validate(pgHost, pgPassword); err != nil {

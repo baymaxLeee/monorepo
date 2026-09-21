@@ -7,8 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 SkillStatus = Literal["draft", "published", "archived"]
 NodeType = Literal["file", "directory"]
-
-_NAME_RE = re.compile(r"^[a-z](?:[a-z0-9]|-(?=[a-z0-9]))*[a-z0-9]$|^[a-z]$")
+_NAME_RE = re.compile("^[a-z](?:[a-z0-9]|-(?=[a-z0-9]))*[a-z0-9]$|^[a-z]$")
 
 
 def _validate_name(value: str) -> str:
@@ -20,7 +19,8 @@ def _validate_name(value: str) -> str:
 class SkillSummary(BaseModel):
     id: str
     user_id: str
-    org_id: str
+    workspace_id: str
+    tenant_id: str
     username: str
     name: str
     description: str
@@ -98,12 +98,12 @@ class CreateSkillNodeInput(BaseModel):
     parent_id: str | None = None
     name: str = Field(min_length=1, max_length=255)
     type: NodeType
-    content: str | None = Field(default=None, max_length=200_000)
+    content: str | None = Field(default=None, max_length=200000)
 
 
 class UpdateSkillFileContentInput(BaseModel):
     base_etag: str = Field(min_length=64, max_length=64)
-    content: str = Field(max_length=200_000)
+    content: str = Field(max_length=200000)
 
 
 class RenameSkillNodeInput(BaseModel):

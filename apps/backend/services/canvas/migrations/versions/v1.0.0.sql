@@ -1,9 +1,10 @@
 CREATE TABLE projects (
- id varchar(36) PRIMARY KEY, org_id varchar(64) NOT NULL,
+ id varchar(36) PRIMARY KEY, tenant_id varchar(26) NOT NULL,
+  workspace_id varchar(64) NOT NULL,
  name varchar(100) NOT NULL, description text NOT NULL DEFAULT '', created_by varchar(64) NOT NULL,
  revision bigint NOT NULL DEFAULT 1, created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, deleted_at timestamptz
 );
-CREATE INDEX projects_org ON projects(org_id, deleted_at);
+CREATE INDEX projects_workspace ON projects(workspace_id, deleted_at);
 CREATE TABLE project_members (
  project_id varchar(36) NOT NULL, user_id varchar(64) NOT NULL,
  role varchar(16) NOT NULL CHECK(role IN ('owner','editor','viewer')), PRIMARY KEY(project_id,user_id)
@@ -34,7 +35,8 @@ CREATE TABLE canvas_generations (
  id varchar(32) PRIMARY KEY,
  canvas_id varchar(32) NOT NULL,
  node_id varchar(36) NOT NULL,
- org_id varchar(32) NOT NULL,
+ tenant_id varchar(26) NOT NULL,
+  workspace_id varchar(32) NOT NULL,
  user_id varchar(32) NOT NULL,
  operation_id varchar(160) NOT NULL,
  node_revision bigint NOT NULL,
@@ -55,7 +57,8 @@ CREATE UNIQUE INDEX canvas_generation_active ON canvas_generations(node_id) WHER
 
 CREATE TABLE assets (
  id varchar(32) PRIMARY KEY,
- org_id varchar(32) NOT NULL,
+ tenant_id varchar(26) NOT NULL,
+  workspace_id varchar(32) NOT NULL,
  project_id varchar(32) NOT NULL,
  object_key varchar(64) NOT NULL,
  mime_type varchar(100) NOT NULL,
@@ -75,7 +78,8 @@ CREATE TABLE asset_references (
 CREATE INDEX asset_references_owner ON asset_references(owner_type,owner_key,deleted_at);
 
 CREATE TABLE resources (
- id varchar(36) PRIMARY KEY, org_id varchar(64) NOT NULL, project_id varchar(36) NOT NULL,
+ id varchar(36) PRIMARY KEY, tenant_id varchar(26) NOT NULL,
+  workspace_id varchar(64) NOT NULL, project_id varchar(36) NOT NULL,
  type smallint NOT NULL, name varchar(128) NOT NULL, description varchar(800) NOT NULL DEFAULT '',
  primary_resource_asset_id varchar(36) NOT NULL DEFAULT '', revision bigint NOT NULL DEFAULT 1,
  resource_asset_count integer NOT NULL DEFAULT 0, created_by varchar(64) NOT NULL,

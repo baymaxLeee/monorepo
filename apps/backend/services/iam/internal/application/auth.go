@@ -38,17 +38,17 @@ func (s *AuthService) AccountAvailability(ctx context.Context, value string) (st
 func (s *AuthService) Register(ctx context.Context, req contracts.AuthRequest, meta RequestMeta) (contracts.AuthResponse, string, time.Time, error) {
 	req.Account = domain.NormalizeAccount(req.Account)
 	req.Email = domain.NormalizeEmail(req.Email)
-	orgID := strings.TrimSpace(req.OrgID)
+	workspaceID := strings.TrimSpace(req.WorkspaceID)
 	if !domain.ValidAccount(req.Account) || !domain.ValidEmail(req.Email) || len(req.Password) < 6 {
 		return contracts.AuthResponse{}, "", time.Time{}, ErrInvalidRegistration
 	}
-	if orgID != "" && orgID != s.cfg.GuestOrgID {
-		org, err := s.store.OrganizationByID(ctx, orgID)
-		if err == nil && (org.SystemManaged || org.JoinPolicy != "approval") {
-			return contracts.AuthResponse{}, "", time.Time{}, ErrInvalidOrg
+	if workspaceID != "" && workspaceID != s.cfg.GuestWorkspaceID {
+		workspace, err := s.store.WorkspaceByID(ctx, workspaceID)
+		if err == nil && (workspace.SystemManaged || workspace.JoinPolicy != "approval") {
+			return contracts.AuthResponse{}, "", time.Time{}, ErrInvalidWorkspace
 		}
 		if errors.Is(err, repositories.ErrNotFound) {
-			return contracts.AuthResponse{}, "", time.Time{}, ErrOrgNotFound
+			return contracts.AuthResponse{}, "", time.Time{}, ErrWorkspaceNotFound
 		}
 		if err != nil {
 			return contracts.AuthResponse{}, "", time.Time{}, err
@@ -77,7 +77,7 @@ func (s *AuthService) Register(ctx context.Context, req contracts.AuthRequest, m
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
-	if err := s.store.CreateRegisteredUser(ctx, user, passwordHash, s.cfg.GuestOrgID, orgID); err != nil {
+	if err := s.store.CreateRegisteredUser(ctx, user, passwordHash, s.cfg.GuestWorkspaceID, workspaceID); err != nil {
 		return contracts.AuthResponse{}, "", time.Time{}, ErrConflict
 	}
 	return s.IssueSession(ctx, user, meta)
@@ -106,23 +106,23 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string, meta Req
 		ExpiresAt: expiresAt,
 		CreatedAt: time.Now().UTC(),
 	}
-	user, activeOrgID, err := s.store.RotateRefreshToken(ctx, security.DigestToken(refreshToken), next)
+	user, activeWorkspaceID, err := s.store.RotateRefreshToken(ctx, security.DigestToken(refreshToken), next)
 	if err != nil {
 		return contracts.AuthResponse{}, "", time.Time{}, ErrInvalidRefreshToken
 	}
-	response, err := s.AuthResponse(ctx, user, activeOrgID)
+	response, err := s.AuthResponse(ctx, user, activeWorkspaceID)
 	if err != nil {
 		return contracts.AuthResponse{}, "", time.Time{}, err
 	}
 	return response, plain, expiresAt, nil
 }
 
-// SwitchActiveOrg rotates the session onto a different active org after
+// SwitchActiveWorkspace rotates the session onto a different active workspace after
 // verifying the caller has an active membership there.
-func (s *AuthService) SwitchActiveOrg(ctx context.Context, refreshToken, orgID, expectedUserID string, meta RequestMeta, auditMeta AuditMeta) (contracts.AuthResponse, string, time.Time, error) {
-	orgID = strings.TrimSpace(orgID)
-	if orgID == "" {
-		return contracts.AuthResponse{}, "", time.Time{}, ErrInvalidOrg
+func (s *AuthService) SwitchActiveWorkspace(ctx context.Context, refreshToken, workspaceID, expectedUserID string, meta RequestMeta, auditMeta AuditMeta) (contracts.AuthResponse, string, time.Time, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return contracts.AuthResponse{}, "", time.Time{}, ErrInvalidWorkspace
 	}
 	plain, digest, err := security.NewOpaqueToken()
 	if err != nil {
@@ -139,11 +139,11 @@ func (s *AuthService) SwitchActiveOrg(ctx context.Context, refreshToken, orgID, 
 	}
 	var user models.User
 	err = mutateWithAudit(ctx, s.store, auditEntry{
-		Action: "session.active_org.switch", Actor: expectedUserID, Target: expectedUserID,
-		Org: orgID, After: map[string]any{"activeOrgId": orgID}, Trace: auditMeta.TraceID,
+		Action: "session.active_workspace.switch", Actor: expectedUserID, Target: expectedUserID,
+		Workspace: workspaceID, After: map[string]any{"activeWorkspaceId": workspaceID}, Trace: auditMeta.TraceID,
 	}, func(txStore *repositories.Store) error {
 		var rotateErr error
-		user, rotateErr = txStore.RotateRefreshTokenToOrg(ctx, security.DigestToken(refreshToken), next, orgID, expectedUserID)
+		user, rotateErr = txStore.RotateRefreshTokenToWorkspace(ctx, security.DigestToken(refreshToken), next, workspaceID, expectedUserID)
 		return rotateErr
 	})
 	if errors.Is(err, repositories.ErrNotActiveMember) {
@@ -152,7 +152,7 @@ func (s *AuthService) SwitchActiveOrg(ctx context.Context, refreshToken, orgID, 
 	if err != nil {
 		return contracts.AuthResponse{}, "", time.Time{}, ErrInvalidRefreshToken
 	}
-	response, err := s.AuthResponse(ctx, user, &orgID)
+	response, err := s.AuthResponse(ctx, user, &workspaceID)
 	if err != nil {
 		return contracts.AuthResponse{}, "", time.Time{}, err
 	}
@@ -165,16 +165,16 @@ func (s *AuthService) Logout(ctx context.Context, refreshToken string) {
 	}
 }
 
-// Me reflects the current session's active org (from the access-token claim)
+// Me reflects the current session's active workspace (from the access-token claim)
 // plus the latest memberships — the waiting page polls it to observe approval.
-func (s *AuthService) Me(ctx context.Context, userID, activeOrgID string) (contracts.UserResponse, error) {
+func (s *AuthService) Me(ctx context.Context, userID, activeWorkspaceID string) (contracts.UserResponse, error) {
 	user, err := s.store.UserByID(ctx, userID)
 	if err != nil {
 		return contracts.UserResponse{}, ErrInvalidSubject
 	}
 	var active *string
-	if activeOrgID != "" {
-		active = &activeOrgID
+	if activeWorkspaceID != "" {
+		active = &activeWorkspaceID
 	}
 	return s.buildUserResponse(ctx, user, active), nil
 }
@@ -192,32 +192,32 @@ func (s *AuthService) IssueSession(ctx context.Context, user models.User, meta R
 	if err != nil {
 		return contracts.AuthResponse{}, "", time.Time{}, err
 	}
-	activeOrgID := s.resolveInitialActiveOrg(ctx, user.ID)
+	activeWorkspaceID := s.resolveInitialActiveWorkspace(ctx, user.ID)
 	refreshExpiresAt := time.Now().UTC().Add(s.cfg.RefreshTokenTTL)
 	token := models.RefreshToken{
-		ID:          NewID(),
-		UserID:      user.ID,
-		ActiveOrgID: activeOrgID,
-		TokenHash:   digest,
-		UserAgent:   meta.UserAgent,
-		IPAddress:   meta.IPAddress,
-		ExpiresAt:   refreshExpiresAt,
-		CreatedAt:   time.Now().UTC(),
+		ID:                NewID(),
+		UserID:            user.ID,
+		ActiveWorkspaceID: activeWorkspaceID,
+		TokenHash:         digest,
+		UserAgent:         meta.UserAgent,
+		IPAddress:         meta.IPAddress,
+		ExpiresAt:         refreshExpiresAt,
+		CreatedAt:         time.Now().UTC(),
 	}
 	if err := s.store.CreateRefreshToken(ctx, token); err != nil {
 		return contracts.AuthResponse{}, "", time.Time{}, err
 	}
-	response, err := s.AuthResponse(ctx, user, activeOrgID)
+	response, err := s.AuthResponse(ctx, user, activeWorkspaceID)
 	if err != nil {
 		return contracts.AuthResponse{}, "", time.Time{}, err
 	}
 	return response, plain, refreshExpiresAt, nil
 }
 
-// resolveInitialActiveOrg binds the session at login/register: 0 active
-// memberships → unscoped; exactly 1 → that org; more than 1 → unscoped so the
+// resolveInitialActiveWorkspace binds the session at login/register: 0 active
+// memberships → unscoped; exactly 1 → that workspace; more than 1 → unscoped so the
 // frontend forces an explicit choice. The DB never picks on the user's behalf.
-func (s *AuthService) resolveInitialActiveOrg(ctx context.Context, userID string) *string {
+func (s *AuthService) resolveInitialActiveWorkspace(ctx context.Context, userID string) *string {
 	rows, err := s.store.ListUserMemberships(ctx, userID)
 	if err != nil {
 		return nil
@@ -225,7 +225,7 @@ func (s *AuthService) resolveInitialActiveOrg(ctx context.Context, userID string
 	var active []string
 	for _, row := range rows {
 		if row.Status == "active" {
-			active = append(active, row.OrgID)
+			active = append(active, row.WorkspaceID)
 		}
 	}
 	if len(active) == 1 {
@@ -235,9 +235,9 @@ func (s *AuthService) resolveInitialActiveOrg(ctx context.Context, userID string
 	return nil
 }
 
-func (s *AuthService) AuthResponse(ctx context.Context, user models.User, activeOrgID *string) (contracts.AuthResponse, error) {
+func (s *AuthService) AuthResponse(ctx context.Context, user models.User, activeWorkspaceID *string) (contracts.AuthResponse, error) {
 	expiresAt := time.Now().UTC().Add(s.cfg.AccessTokenTTL)
-	resp := s.buildUserResponse(ctx, user, activeOrgID)
+	resp := s.buildUserResponse(ctx, user, activeWorkspaceID)
 	claims := security.Claims{
 		Subject: user.ID,
 		Email:   user.Email,
@@ -246,9 +246,10 @@ func (s *AuthService) AuthResponse(ctx context.Context, user models.User, active
 		Issued:  time.Now().UTC().Unix(),
 		Expiry:  expiresAt.Unix(),
 	}
-	if resp.ActiveOrg != nil {
-		claims.OrgID = resp.ActiveOrg.OrgID
-		claims.OrgRole = resp.ActiveOrg.Role
+	if resp.ActiveWorkspace != nil {
+		claims.TenantID = resp.ActiveWorkspace.TenantID
+		claims.WorkspaceID = resp.ActiveWorkspace.WorkspaceID
+		claims.WorkspaceRole = resp.ActiveWorkspace.Role
 	}
 	token, err := security.SignAccessToken(s.cfg.AccessTokenSecret, claims)
 	if err != nil {
@@ -258,9 +259,9 @@ func (s *AuthService) AuthResponse(ctx context.Context, user models.User, active
 }
 
 // buildUserResponse assembles the two-dimensional identity: platform roles,
-// every membership, and the single activeOrg the session is bound to (only when
+// every membership, and the single activeWorkspace the session is bound to (only when
 // that membership is still active).
-func (s *AuthService) buildUserResponse(ctx context.Context, user models.User, activeOrgID *string) contracts.UserResponse {
+func (s *AuthService) buildUserResponse(ctx context.Context, user models.User, activeWorkspaceID *string) contracts.UserResponse {
 	resp := contracts.UserResponse{
 		ID:             user.ID,
 		Account:        user.Account,
@@ -277,11 +278,11 @@ func (s *AuthService) buildUserResponse(ctx context.Context, user models.User, a
 	rows, err := s.store.ListUserMemberships(ctx, user.ID)
 	if err == nil {
 		resp.Memberships = membershipsFromRows(rows)
-		if activeOrgID != nil {
+		if activeWorkspaceID != nil {
 			for _, m := range resp.Memberships {
-				if m.OrgID == *activeOrgID && m.Status == "active" {
+				if m.WorkspaceID == *activeWorkspaceID && m.Status == "active" {
 					active := m
-					resp.ActiveOrg = &active
+					resp.ActiveWorkspace = &active
 					break
 				}
 			}
@@ -312,10 +313,11 @@ func membershipsFromRows(rows []repositories.MembershipRow) []contracts.Membersh
 	out := make([]contracts.Membership, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, contracts.Membership{
-			OrgID:   row.OrgID,
-			OrgName: row.OrgName,
-			Role:    row.Role,
-			Status:  row.Status,
+			TenantID:      row.TenantID,
+			WorkspaceID:   row.WorkspaceID,
+			WorkspaceName: row.WorkspaceName,
+			Role:          row.Role,
+			Status:        row.Status,
 		})
 	}
 	return out

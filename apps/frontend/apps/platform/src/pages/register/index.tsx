@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { checkAccountAvailability, fetchPublicOrgs, type OrgSummary, register } from "@repo/api";
+import { checkAccountAvailability, fetchPublicWorkspaces, type WorkspaceSummary, register } from "@repo/api";
 import {
   Button,
   Card,
@@ -39,7 +39,7 @@ const registerSchema = z.object({
     .max(64, "名称最多 64 位")
     .regex(/^[^\s@]+$/, "名称不能包含空格或 @"),
   password: z.string().min(6, "密码至少 6 位"),
-  orgId: z.string().optional(),
+  workspaceId: z.string().optional(),
   avatar: z.string().url("请输入有效头像 URL").optional().or(z.literal("")),
   email: z.string().email("请输入有效邮箱"),
   phoneNumber: z
@@ -55,14 +55,14 @@ function RegisterPage() {
   const navigate = useNavigate();
   const setUser = usePlatformStore((state) => state.setUser);
   const lastCheckedName = useRef<string | null>(null);
-  const [orgs, setOrgs] = useState<OrgSummary[]>([]);
-  const [orgsError, setOrgsError] = useState<string | null>(null);
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
+  const [workspacesError, setWorkspacesError] = useState<string | null>(null);
   const form = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema as never),
     defaultValues: {
       name: "",
       password: "",
-      orgId: "guest-only",
+      workspaceId: "guest-only",
       avatar: "",
       email: "",
       phoneNumber: "",
@@ -72,15 +72,15 @@ function RegisterPage() {
 
   useEffect(() => {
     let alive = true;
-    fetchPublicOrgs({ skipErrorNotify: true })
+    fetchPublicWorkspaces({ skipErrorNotify: true })
       .then((list) => {
         if (alive) {
-          setOrgs(list);
+          setWorkspaces(list);
         }
       })
       .catch((err: unknown) => {
         if (alive) {
-          setOrgsError(getErrorMessage(err, "无法加载组织列表"));
+          setWorkspacesError(getErrorMessage(err, "无法加载工作空间列表"));
         }
       });
     return () => {
@@ -126,7 +126,7 @@ function RegisterPage() {
       const session = await register({
         account: normalizedName,
         password: values.password,
-        orgId: values.orgId === "guest-only" ? undefined : values.orgId,
+        workspaceId: values.workspaceId === "guest-only" ? undefined : values.workspaceId,
         displayName: values.name.trim(),
         avatarUrl: values.avatar || undefined,
         email: values.email,
@@ -138,7 +138,9 @@ function RegisterPage() {
         username: session.user.displayName,
       });
       toast.success(
-        values.orgId === "guest-only" ? "注册成功，已进入游客组织" : "注册成功，已进入游客组织；目标组织等待审批",
+        values.workspaceId === "guest-only"
+          ? "注册成功，已进入游客工作空间"
+          : "注册成功，已进入游客工作空间；目标工作空间等待审批",
       );
       navigate(landingPath(session.user), { replace: true });
     } catch {}
@@ -195,26 +197,26 @@ function RegisterPage() {
                 />
                 <FormField
                   control={form.control}
-                  name="orgId"
+                  name="workspaceId"
                   render={({ field }) => (
                     <Field>
-                      <FieldLabel htmlFor="orgId">申请加入其他组织（可选）</FieldLabel>
+                      <FieldLabel htmlFor="workspaceId">申请加入其他工作空间（可选）</FieldLabel>
                       <Select value={field.value} onValueChange={field.onChange}>
                         <FormControl>
-                          <SelectTrigger id="orgId" className="w-full">
-                            <SelectValue placeholder={orgsError ? "组织列表加载失败" : "选择目标组织"} />
+                          <SelectTrigger id="workspaceId" className="w-full">
+                            <SelectValue placeholder={workspacesError ? "工作空间列表加载失败" : "选择目标工作空间"} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="guest-only">暂不申请，直接体验</SelectItem>
-                          {orgs.map((org) => (
-                            <SelectItem key={org.id} value={org.id}>
-                              {org.name}
+                          {workspaces.map((workspace) => (
+                            <SelectItem key={workspace.id} value={workspace.id}>
+                              {workspace.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <FieldError errors={[form.formState.errors.orgId]} />
+                      <FieldError errors={[form.formState.errors.workspaceId]} />
                     </Field>
                   )}
                 />

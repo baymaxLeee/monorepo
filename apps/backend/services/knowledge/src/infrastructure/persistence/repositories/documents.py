@@ -19,7 +19,8 @@ async def create_document(
     session: AsyncSession,
     *,
     user_id: str,
-    org_id: str | None = None,
+    workspace_id: str | None = None,
+    tenant_id: str | None = None,
     kind: str,
     title: str,
     filename: str,
@@ -41,7 +42,8 @@ async def create_document(
     row = DocumentRow(
         id=document_id or new_document_id(),
         user_id=user_id,
-        org_id=org_id,
+        workspace_id=workspace_id,
+        tenant_id=tenant_id,
         conversation_id=conversation_id,
         kind=kind,
         title=title[:255],
@@ -72,23 +74,26 @@ async def get_document(session: AsyncSession, document_id: str, user_id: str) ->
 
 async def get_document_by_id(session: AsyncSession, document_id: str) -> DocumentRow | None:
     """Fetch a document with no ACL. Internal-only (indexing derives the
-    uploader + org from the row itself)."""
+    uploader + workspace from the row itself)."""
     row = await session.scalar(select(DocumentRow).where(DocumentRow.id == document_id))
     return row
 
 
-async def get_org_document(session: AsyncSession, document_id: str, org_id: str) -> DocumentRow | None:
-    """Team-scoped read: any member of the owning org may access the document."""
-    row = await session.scalar(select(DocumentRow).where(DocumentRow.id == document_id, DocumentRow.org_id == org_id))
+async def get_workspace_document(
+    session: AsyncSession, document_id: str, workspace_id: str, tenant_id: str
+) -> DocumentRow | None:
+    """Team-scoped read: any member of the owning workspace may access the document."""
+    row = await session.scalar(
+        select(DocumentRow).where(
+            DocumentRow.id == document_id,
+            (DocumentRow.workspace_id == workspace_id) & (DocumentRow.tenant_id == tenant_id),
+        )
+    )
     return row
 
 
 async def list_documents(
-    session: AsyncSession,
-    *,
-    user_id: str,
-    conversation_id: str | None = None,
-    kind: str | None = None,
+    session: AsyncSession, *, user_id: str, conversation_id: str | None = None, kind: str | None = None
 ) -> list[DocumentRow]:
     stmt = select(DocumentRow).where(DocumentRow.user_id == user_id).order_by(DocumentRow.created_at.desc())
     if conversation_id:
@@ -99,41 +104,36 @@ async def list_documents(
     return list(result.all())
 
 
-async def list_org_documents(
-    session: AsyncSession,
-    *,
-    org_id: str,
-    kind: str | None = None,
+async def list_workspace_documents(
+    session: AsyncSession, *, workspace_id: str, tenant_id: str, kind: str | None = None
 ) -> list[DocumentRow]:
-    """Team knowledge base: every member sees the org's documents."""
-    stmt = select(DocumentRow).where(DocumentRow.org_id == org_id).order_by(DocumentRow.created_at.desc())
+    """Team knowledge base: every member sees the workspace's documents."""
+    stmt = (
+        select(DocumentRow)
+        .where((DocumentRow.workspace_id == workspace_id) & (DocumentRow.tenant_id == tenant_id))
+        .order_by(DocumentRow.created_at.desc())
+    )
     if kind:
         stmt = stmt.where(DocumentRow.kind == kind)
     result = await session.scalars(stmt)
     return list(result.all())
 
 
-async def list_org_documents_by_ids(
-    session: AsyncSession,
-    *,
-    org_id: str,
-    document_ids: list[str],
+async def list_workspace_documents_by_ids(
+    session: AsyncSession, *, workspace_id: str, tenant_id: str, document_ids: list[str]
 ) -> list[DocumentRow]:
-    """Fetch the org's documents for the given ids (used by team batch delete)."""
+    """Fetch the workspace's documents for the given ids (used by team batch delete)."""
     if not document_ids:
         return []
     stmt = select(DocumentRow).where(
-        DocumentRow.org_id == org_id,
+        (DocumentRow.workspace_id == workspace_id) & (DocumentRow.tenant_id == tenant_id),
         DocumentRow.id.in_(document_ids),
     )
     result = await session.scalars(stmt)
     return list(result.all())
 
 
-async def get_documents_meta(
-    session: AsyncSession,
-    document_ids: list[str],
-) -> dict[str, tuple[str, str]]:
+async def get_documents_meta(session: AsyncSession, document_ids: list[str]) -> dict[str, tuple[str, str]]:
     """Map document_id -> (title, filename) for citation rendering."""
     if not document_ids:
         return {}
@@ -151,11 +151,7 @@ async def update_document(session: AsyncSession, row: DocumentRow, values: dict[
 
 
 async def update_document_if_unchanged(
-    session: AsyncSession,
-    row: DocumentRow,
-    values: dict[str, Any],
-    *,
-    expected_updated_at: datetime,
+    session: AsyncSession, row: DocumentRow, values: dict[str, Any], *, expected_updated_at: datetime
 ) -> DocumentRow | None:
     """Atomically update a document only when the caller's base version is current."""
     next_updated_at = datetime.now(UTC)
@@ -181,7 +177,8 @@ async def find_converted_cache(
     session: AsyncSession,
     *,
     object_sha256: str,
-    org_id: str | None,
+    workspace_id: str | None,
+    tenant_id: str | None,
     user_id: str,
     exclude_document_id: str,
 ) -> str | None:
@@ -202,17 +199,15 @@ async def find_converted_cache(
         )
         .limit(1)
     )
-    stmt = stmt.where(DocumentRow.org_id == org_id) if org_id else stmt.where(DocumentRow.user_id == user_id)
+    stmt = (
+        stmt.where((DocumentRow.workspace_id == workspace_id) & (DocumentRow.tenant_id == tenant_id))
+        if workspace_id
+        else stmt.where(DocumentRow.user_id == user_id)
+    )
     return cast("str | None", await session.scalar(stmt))
 
 
-async def set_index_status(
-    session: AsyncSession,
-    document_id: str,
-    *,
-    status: str,
-    error: str | None = None,
-) -> None:
+async def set_index_status(session: AsyncSession, document_id: str, *, status: str, error: str | None = None) -> None:
     """Write the async-indexing lifecycle state without touching ``updated_at``.
 
     Indexing is a background side effect, not a content edit, so it must not

@@ -1,7 +1,7 @@
 import { Field, FieldError, FieldLabel, FormControl, FormField, Input } from "@repo/design-system";
 import type { UseFormReturn } from "react-hook-form";
 
-import type { CreateOrgValues } from "./CreateOrganizationDialog";
+import type { CreateWorkspaceValues } from "./CreateWorkspaceDialog";
 
 const fields = [
   ["ownerAccount", "负责人账号", "text"],
@@ -10,7 +10,7 @@ const fields = [
   ["ownerDisplayName", "负责人昵称（可选）", "text"],
 ] as const;
 
-export function NewOrganizationOwnerFields({ form }: { form: UseFormReturn<CreateOrgValues> }) {
+export function NewWorkspaceOwnerFields({ form }: { form: UseFormReturn<CreateWorkspaceValues> }) {
   return fields.map(([name, label, type]) => (
     <FormField
       key={name}

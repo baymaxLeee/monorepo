@@ -32,13 +32,8 @@ from application.indexer import schedule_index
 from application.object_store import ObjectStore
 
 logger = logging.getLogger("knowledge.processor")
-
 _tasks: set[asyncio.Task[None]] = set()
-# doc_id -> "dirty": a (re)convert arrived while this doc was already running, so
-# a fresh run must follow. Never drops a schedule, never leaves a doc stuck.
 _pending: dict[str, bool] = {}
-# doc_id -> request-scoped provider_id (vision captioning). Lost on restart; the
-# startup sweep re-runs with None and the processor falls back to the org default.
 _provider_ids: dict[str, str | None] = {}
 _semaphore: asyncio.Semaphore | None = None
 
@@ -75,7 +70,7 @@ async def _run(document_id: str) -> None:
     try:
         async with _get_semaphore():
             await _convert_with_lock(document_id)
-    except Exception as exc:  # a background task must never escape unhandled
+    except Exception as exc:
         logger.warning("background convert failed for %s: %s", document_id, exc)
         await _mark_failed(document_id, str(exc))
     finally:
@@ -92,7 +87,6 @@ async def _convert_with_lock(document_id: str) -> None:
         locked = (await lock_conn.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": key})).scalar()
         await lock_conn.commit()
         if not locked:
-            # Another replica owns this document's convert; safe to drop.
             return
         try:
             await _convert_once(document_id)
@@ -104,9 +98,6 @@ async def _convert_with_lock(document_id: str) -> None:
 async def _convert_once(document_id: str) -> None:
     factory = get_session_factory()
     cached_markdown: str | None = None
-    # Reads + the "converting" write must live inside one write_tx: write_tx
-    # rejects a session that already has an autobegun transaction, so the row
-    # fetch and cache lookup cannot run before it.
     async with factory() as session, write_tx(session):
         row = await document_crud.get_document_by_id(session, document_id)
         if row is None or row.kind != "source":
@@ -115,51 +106,44 @@ async def _convert_once(document_id: str) -> None:
             return
         if not row.object_bucket or not row.object_key:
             await document_crud.update_document(
-                session,
-                row,
-                {"ingest_status": "failed", "ingest_error": "document has no stored source object"},
+                session, row, {"ingest_status": "failed", "ingest_error": "document has no stored source object"}
             )
             return
         provider_id = _provider_ids.get(document_id)
         source_mime = row.source_mime_type or row.mime_type
         source_filename = row.source_filename or row.filename
-        org_id = row.org_id
+        workspace_id = row.workspace_id
+        tenant_id = row.tenant_id
         user_id = row.user_id
         object_sha256 = row.object_sha256
         object_bucket = row.object_bucket
         object_key = row.object_key
-
-        # Vision captions depend on the provider/model, so only reuse cached
-        # conversions for deterministic (non-media) MarkItDown output.
         is_media = source_mime.lower().startswith(("image/", "audio/", "video/"))
         if not is_media and object_sha256:
             cached_markdown = await document_crud.find_converted_cache(
                 session,
                 object_sha256=object_sha256,
-                org_id=org_id,
+                workspace_id=workspace_id,
+                tenant_id=tenant_id,
                 user_id=user_id,
                 exclude_document_id=document_id,
             )
-
         await document_crud.update_document(session, row, {"ingest_status": "converting"})
-
     if cached_markdown is not None:
         markdown = cached_markdown
     else:
         content = ObjectStore().get_bytes(bucket=object_bucket, key=object_key)
-        provider = await _resolve_provider(source_mime, org_id=org_id, provider_id=provider_id)
+        provider = await _resolve_provider(
+            source_mime, workspace_id=workspace_id, tenant_id=tenant_id, provider_id=provider_id
+        )
         settings = get_settings()
         convert_timeout = max(settings.llm_timeout_seconds * 2, 90)
         markdown = await asyncio.wait_for(
             ConvertService().convert(
-                filename=source_filename,
-                mime_type=source_mime,
-                content=content,
-                provider=provider,
+                filename=source_filename, mime_type=source_mime, content=content, provider=provider
             ),
             timeout=convert_timeout,
         )
-
     async with factory() as session, write_tx(session):
         fresh = await document_crud.get_document_by_id(session, document_id)
         if fresh is None:
@@ -179,14 +163,18 @@ async def _convert_once(document_id: str) -> None:
     schedule_index(document_id)
 
 
-async def _resolve_provider(mime_type: str, *, org_id: str | None, provider_id: str | None):  # type: ignore[no-untyped-def]
+async def _resolve_provider(
+    mime_type: str, *, workspace_id: str | None, tenant_id: str | None, provider_id: str | None
+):
     """Vision captioning needs a provider only for image/audio/video. Resolve the
-    request-scoped provider_id when present, else the org default; failures fall
+    request-scoped provider_id when present, else the workspace default; failures fall
     back to ``None`` so convert still produces metadata markdown."""
     if not mime_type.lower().startswith(("image/", "audio/", "video/")):
         return None
     try:
-        return await get_admin_client().get_provider(org_id=org_id or "", provider_id=provider_id)
+        return await get_admin_client().get_provider(
+            workspace_id=workspace_id or "", tenant_id=tenant_id or "", provider_id=provider_id
+        )
     except BaseError:
         return None
 
@@ -198,13 +186,10 @@ async def _mark_failed(document_id: str, message: str) -> None:
             row = await document_crud.get_document_by_id(session, document_id)
             if row is None:
                 return
-            # Keep the stored object: read_file / manual retry need the source.
             await document_crud.update_document(
-                session,
-                row,
-                {"ingest_status": "failed", "ingest_error": message[:500]},
+                session, row, {"ingest_status": "failed", "ingest_error": message[:500]}
             )
-    except Exception:  # best-effort status write
+    except Exception:
         logger.exception("failed to mark convert failure for %s", document_id)
 
 
@@ -212,7 +197,7 @@ async def sweep_process() -> int:
     """Startup recovery: reset rows stuck in ``converting`` back to ``received``,
     then queue every ``received`` document. The advisory lock makes this safe even
     if several replicas sweep at once. Request-scoped provider_id is gone after a
-    restart, so convert falls back to the org default provider."""
+    restart, so convert falls back to the workspace default provider."""
     factory = get_session_factory()
     async with factory() as session:
         async with write_tx(session):

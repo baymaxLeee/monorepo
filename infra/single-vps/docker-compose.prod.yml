@@ -36,7 +36,7 @@ x-restart: &restart_policy
   restart: unless-stopped
 
 # iam identity + DB env, shared by the one-shot bootstrap (`seed`) and the server.
-# One source of truth stops the super-admin / guest-org values from drifting between
+# One source of truth stops the super-admin / guest-workspace values from drifting between
 # the container that WRITES them (iam-bootstrap) and the one that only reads them.
 x-iam-env: &iam-env
   ENVIRONMENT: single-vps
@@ -49,9 +49,9 @@ x-iam-env: &iam-env
   SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:?SUPER_ADMIN_EMAIL is required}
   SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:?SUPER_ADMIN_PASSWORD is required}
   SUPER_ADMIN_DISPLAY_NAME: ${SUPER_ADMIN_DISPLAY_NAME:-Super Admin}
-  GUEST_ORG_ID: ${GUEST_ORG_ID:-guest-org}
-  GUEST_ORG_NAME: ${GUEST_ORG_NAME:-游客组织}
-  GUEST_ORG_SLUG: ${GUEST_ORG_SLUG:-guest-org}
+  GUEST_WORKSPACE_ID: ${GUEST_WORKSPACE_ID:-guest-org}
+  GUEST_WORKSPACE_NAME: ${GUEST_WORKSPACE_NAME:-游客工作空间}
+  GUEST_WORKSPACE_SLUG: ${GUEST_WORKSPACE_SLUG:-guest-workspace}
 
 services:
   redis:
@@ -169,7 +169,7 @@ services:
       WORKFLOW_POSTGRES_URL: postgres://workflow:${WORKFLOW_POSTGRES_PASSWORD}@postgres:5432/workflow
     restart: "no"
 
-  # One-shot identity bootstrap: idempotently creates the super-admin + guest-org
+  # One-shot identity bootstrap: idempotently creates the super-admin + guest-workspace
   # (password hashing + multi-table domain rules a SQL seed can't express), then
   # exits. Runs AFTER schema migrations (db-init) and gates the iam server, so
   # server replicas never each re-run the bootstrap on start. See docs/ADR/0030.

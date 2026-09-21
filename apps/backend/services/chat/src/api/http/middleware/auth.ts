@@ -6,8 +6,9 @@ export interface AuthContext {
   userId: string;
   username: string;
   email: string;
-  orgId: string;
-  orgRole: string;
+  tenantId: string;
+  workspaceId: string;
+  workspaceRole: string;
   roles: string[];
 }
 
@@ -26,15 +27,17 @@ export async function authMiddleware(c: Context, next: Next) {
   }
   const username = c.req.header("X-Auth-Name") ?? userId;
   const email = c.req.header("X-Auth-Email") ?? "";
-  const orgId = c.req.header("X-Auth-Org-ID");
-  if (!orgId) {
-    throw new UnauthorizedError("X-Auth-Org-ID header is required");
+  const tenantId = c.req.header("X-Auth-Tenant-ID");
+  if (!tenantId) throw new UnauthorizedError("X-Auth-Tenant-ID header is required");
+  const workspaceId = c.req.header("X-Auth-Workspace-ID");
+  if (!workspaceId) {
+    throw new UnauthorizedError("X-Auth-Workspace-ID header is required");
   }
-  const orgRole = c.req.header("X-Auth-Org-Role") ?? "";
+  const workspaceRole = c.req.header("X-Auth-Workspace-Role") ?? "";
   const roles = (c.req.header("X-Auth-Roles") ?? "")
     .split(",")
     .map((role) => role.trim())
     .filter(Boolean);
-  c.set("auth", { userId, username, email, orgId, orgRole, roles } satisfies AuthContext);
+  c.set("auth", { userId, username, email, tenantId, workspaceId, workspaceRole, roles } satisfies AuthContext);
   await next();
 }

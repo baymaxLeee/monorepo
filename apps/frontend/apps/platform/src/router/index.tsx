@@ -12,7 +12,7 @@ import {
   guestOnlyMiddleware,
   pendingAccessMiddleware,
   platformAccessMiddleware,
-  selectOrgAccessMiddleware,
+  selectWorkspaceAccessMiddleware,
 } from "./access";
 import { type AppEntry, loadApps, remoteModuleId } from "./app-registry";
 import { RouteErrorFallback } from "./RouteErrorFallback";
@@ -130,9 +130,9 @@ export const routes: RouteObject[] = [
         lazy: () => import("../pages/pending"),
       },
       {
-        path: "select-org",
-        middleware: [selectOrgAccessMiddleware],
-        lazy: () => import("../pages/select-org"),
+        path: "select-workspace",
+        middleware: [selectWorkspaceAccessMiddleware],
+        lazy: () => import("../pages/select-workspace"),
       },
       {
         id: PLATFORM_ROUTE_ID,

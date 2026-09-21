@@ -10,10 +10,10 @@ from infrastructure.persistence.models.base import Base
 
 class StagedMediaRow(Base):
     __tablename__ = "staged_media"
-
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
-    org_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
+    workspace_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(String(26), nullable=False)
     conversation_id: Mapped[str | None] = mapped_column(String(32), index=True, nullable=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     filename: Mapped[str] = mapped_column(String(255), nullable=False)

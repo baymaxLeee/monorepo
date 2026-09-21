@@ -122,7 +122,8 @@ export const videoGenerationPlanSchema = z
   });
 
 export const videoGenerationInputSchema = z.object({
-  orgId: z.string().min(1),
+  tenantId: z.string().min(1),
+  workspaceId: z.string().min(1),
   userId: z.string().min(1),
   conversationId: z.string().optional(),
   providerId: z.string().min(1),
@@ -160,15 +161,20 @@ type SegmentResult = {
   stagedMediaId?: string;
 };
 
-async function loadVideoOutputConfigStep(input: { orgId: string; providerId: string }): Promise<VideoOutputConfig> {
+async function loadVideoOutputConfigStep(input: {
+  tenantId: string;
+  workspaceId: string;
+  providerId: string;
+}): Promise<VideoOutputConfig> {
   "use step";
-  const provider = await getProvider(input.providerId, input.orgId);
+  const provider = await getProvider(input.providerId, input.tenantId, input.workspaceId);
   return parseVideoOutputConfig(provider.extraBody);
 }
 
 async function characterSheetStep(input: {
   characters: Character[];
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   imageProviderId?: string;
 }): Promise<CharacterRef[]> {
   "use step";
@@ -179,7 +185,8 @@ async function characterSheetStep(input: {
   const cancellation = observeTaskCancellation(workflowRunId);
   try {
     return await generateCharacterSheet({
-      orgId: input.orgId,
+      tenantId: input.tenantId,
+      workspaceId: input.workspaceId,
       imageProviderId: input.imageProviderId,
       characters: input.characters.slice(0, MAX_MAIN_CHARACTERS),
       perImageTimeoutMs: ANCHOR_PER_IMAGE_TIMEOUT_MS,
@@ -290,7 +297,8 @@ async function initializeProductionStep(input: {
   "use step";
   const production = await initializeVideoProduction({
     workflowRunId: input.workflowRunId,
-    orgId: input.request.orgId,
+    tenantId: input.request.tenantId,
+    workspaceId: input.request.workspaceId,
     userId: input.request.userId,
     conversationId: input.request.conversationId,
     title: input.request.title,
@@ -303,9 +311,14 @@ async function initializeProductionStep(input: {
 }
 initializeProductionStep.maxRetries = 0;
 
-async function configureProductionCostStep(productionId: string, orgId: string, providerId: string) {
+async function configureProductionCostStep(
+  productionId: string,
+  tenantId: string,
+  workspaceId: string,
+  providerId: string,
+) {
   "use step";
-  const provider = await getProvider(providerId, orgId);
+  const provider = await getProvider(providerId, tenantId, workspaceId);
   if (!provider.pricing || provider.pricing.unit !== "generated_second") {
     throw new Error("video provider pricing is required before storyboard approval");
   }
@@ -363,7 +376,8 @@ async function renderReportStep(productionId: string, results: SegmentResult[]) 
 async function stageTakeStep(input: {
   productionId: string;
   userId: string;
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   conversationId?: string;
   title: string;
   shot: ShotSpec;
@@ -375,7 +389,8 @@ async function stageTakeStep(input: {
   try {
     const staged = await createStagedMedia({
       userId: input.userId,
-      orgId: input.orgId,
+      tenantId: input.tenantId,
+      workspaceId: input.workspaceId,
       conversationId: input.conversationId,
       title: `${input.title} · 镜头 ${input.shot.order + 1} · Take ${input.takeNumber}`,
       filename: `shot-${input.shot.order + 1}-take-${input.takeNumber}.mp4`,
@@ -441,7 +456,8 @@ async function failedProductionStep(productionId: string, reason: string) {
 
 async function createSegmentStep(input: {
   productionId: string;
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   providerId: string;
   seed: number;
   shot: ShotSpec;
@@ -454,7 +470,7 @@ async function createSegmentStep(input: {
   let reservedCurrency = "";
   let providerTaskId: string | undefined;
   try {
-    const provider = await getProvider(input.providerId, input.orgId);
+    const provider = await getProvider(input.providerId, input.tenantId, input.workspaceId);
     if (!provider.pricing) {
       throw new Error("video provider pricing is not configured");
     }
@@ -546,12 +562,13 @@ async function createSegmentStep(input: {
 createSegmentStep.maxRetries = 0;
 
 async function waitSegmentStep(input: {
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   providerId: string;
   taskId: string;
 }): Promise<ArkVideoSnapshot> {
   "use step";
-  const provider = await getProvider(input.providerId, input.orgId);
+  const provider = await getProvider(input.providerId, input.tenantId, input.workspaceId);
   const { workflowRunId } = getWorkflowMetadata();
   const deadline = Date.now() + PER_SEGMENT_MAX_WAIT_MS;
   while (true) {
@@ -596,7 +613,8 @@ async function waitSegmentStep(input: {
 
 async function assembleStep(input: {
   userId: string;
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   conversationId?: string;
   title: string;
   filename: string;
@@ -640,7 +658,8 @@ async function assembleStep(input: {
   try {
     const staged = await createStagedMedia({
       userId: input.userId,
-      orgId: input.orgId,
+      tenantId: input.tenantId,
+      workspaceId: input.workspaceId,
       conversationId: input.conversationId,
       title: input.title,
       filename: input.filename,
@@ -661,13 +680,15 @@ async function assembleStep(input: {
 async function publishStep(input: {
   stagedMediaId: string;
   userId: string;
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
 }): Promise<{ documentId: string }> {
   "use step";
   try {
     const document = await publishStagedMedia({
       userId: input.userId,
-      orgId: input.orgId,
+      tenantId: input.tenantId,
+      workspaceId: input.workspaceId,
       stagedId: input.stagedMediaId,
     });
     return { documentId: document.id };
@@ -676,21 +697,33 @@ async function publishStep(input: {
   }
 }
 
-async function discardStep(input: { stagedMediaId: string; userId: string; orgId: string }): Promise<void> {
+async function discardStep(input: {
+  stagedMediaId: string;
+  userId: string;
+  tenantId: string;
+  workspaceId: string;
+}): Promise<void> {
   "use step";
   await discardStagedMedia({
     userId: input.userId,
-    orgId: input.orgId,
+    tenantId: input.tenantId,
+    workspaceId: input.workspaceId,
     stagedId: input.stagedMediaId,
   });
 }
 
-async function discardAfterFailureStep(input: { stagedMediaId: string; userId: string; orgId: string }): Promise<void> {
+async function discardAfterFailureStep(input: {
+  stagedMediaId: string;
+  userId: string;
+  tenantId: string;
+  workspaceId: string;
+}): Promise<void> {
   "use step";
   try {
     await discardStagedMedia({
       userId: input.userId,
-      orgId: input.orgId,
+      tenantId: input.tenantId,
+      workspaceId: input.workspaceId,
       stagedId: input.stagedMediaId,
     });
   } catch (error) {
@@ -746,7 +779,8 @@ async function generateTake(input: {
 }): Promise<SegmentResult> {
   const created = await createSegmentStep({
     productionId: input.productionId,
-    orgId: input.request.orgId,
+    tenantId: input.request.tenantId,
+    workspaceId: input.request.workspaceId,
     providerId: input.request.providerId,
     seed: input.seed,
     shot: input.shot,
@@ -763,7 +797,8 @@ async function generateTake(input: {
     };
   }
   const snapshot = await waitSegmentStep({
-    orgId: input.request.orgId,
+    tenantId: input.request.tenantId,
+    workspaceId: input.request.workspaceId,
     providerId: input.request.providerId,
     taskId: created.taskId,
   });
@@ -773,7 +808,8 @@ async function generateTake(input: {
       ? await stageTakeStep({
           productionId: input.productionId,
           userId: input.request.userId,
-          orgId: input.request.orgId,
+          tenantId: input.request.tenantId,
+          workspaceId: input.request.workspaceId,
           conversationId: input.request.conversationId,
           title: input.request.title,
           shot: input.shot,
@@ -811,7 +847,8 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
   "use workflow";
   const { workflowRunId } = getWorkflowMetadata();
   const outputConfig = await loadVideoOutputConfigStep({
-    orgId: input.orgId,
+    tenantId: input.tenantId,
+    workspaceId: input.workspaceId,
     providerId: input.providerId,
   });
   const segmentConcurrency = await getVideoSegmentConcurrencyStep();
@@ -822,7 +859,8 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
   }));
   const characterRefs = await characterSheetStep({
     characters,
-    orgId: input.orgId,
+    tenantId: input.tenantId,
+    workspaceId: input.workspaceId,
     imageProviderId: input.imageProviderId,
   });
   const { script, shotPlan } = materializeChatVideoPlan(input, characterRefs);
@@ -835,7 +873,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
     characterRefs,
   });
   await reportVideoProductionChangedStep();
-  await configureProductionCostStep(production.id, input.orgId, input.providerId);
+  await configureProductionCostStep(production.id, input.tenantId, input.workspaceId, input.providerId);
   await reportVideoProductionChangedStep();
   let approvedShotPlan = production.shotPlan;
   if (!approvedShotPlan) {
@@ -982,7 +1020,8 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
 
     const assembled = await assembleStep({
       userId: input.userId,
-      orgId: input.orgId,
+      tenantId: input.tenantId,
+      workspaceId: input.workspaceId,
       conversationId: input.conversationId,
       title: input.title,
       filename: input.filename,
@@ -1006,7 +1045,8 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
       await discardStep({
         stagedMediaId: assembled.stagedMediaId,
         userId: input.userId,
-        orgId: input.orgId,
+        tenantId: input.tenantId,
+        workspaceId: input.workspaceId,
       });
       throw new Error(`publish rejected: ${publishDecision.reason}`);
     }
@@ -1014,7 +1054,8 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
     const published = await publishStep({
       stagedMediaId: assembled.stagedMediaId,
       userId: input.userId,
-      orgId: input.orgId,
+      tenantId: input.tenantId,
+      workspaceId: input.workspaceId,
     });
     publishedDocumentId = published.documentId;
     await completedProductionStep(production.id, published.documentId);
@@ -1022,7 +1063,8 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
       await discardAfterFailureStep({
         stagedMediaId: previewId,
         userId: input.userId,
-        orgId: input.orgId,
+        tenantId: input.tenantId,
+        workspaceId: input.workspaceId,
       });
     }
 
@@ -1042,14 +1084,16 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
       await discardAfterFailureStep({
         stagedMediaId,
         userId: input.userId,
-        orgId: input.orgId,
+        tenantId: input.tenantId,
+        workspaceId: input.workspaceId,
       });
     }
     for (const previewId of takeStagedMediaIds) {
       await discardAfterFailureStep({
         stagedMediaId: previewId,
         userId: input.userId,
-        orgId: input.orgId,
+        tenantId: input.tenantId,
+        workspaceId: input.workspaceId,
       });
     }
     await failedProductionStep(production.id, error instanceof Error ? error.message : String(error));

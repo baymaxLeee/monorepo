@@ -24,26 +24,36 @@ def auth_user_id(
     return x_auth_user_id
 
 
-def auth_org_id(
-    x_auth_org_id: Annotated[str | None, Header(alias="X-Auth-Org-ID")] = None,
+def auth_workspace_id(
+    x_auth_workspace_id: Annotated[str | None, Header(alias="X-Auth-Workspace-ID")] = None,
 ) -> str:
-    """Active org propagated by gateway. Required for team-scoped knowledge."""
-    if not x_auth_org_id:
-        raise UnauthorizedError("X-Auth-Org-ID header is required")
-    return x_auth_org_id
+    """Active workspace propagated by gateway. Required for team-scoped knowledge."""
+    if not x_auth_workspace_id:
+        raise UnauthorizedError("X-Auth-Workspace-ID header is required")
+    return x_auth_workspace_id
 
 
-def auth_org_role(
-    x_auth_org_role: Annotated[str | None, Header(alias="X-Auth-Org-Role")] = None,
+def auth_tenant_id(
+    x_auth_tenant_id: Annotated[str | None, Header(alias="X-Auth-Tenant-ID")] = None,
 ) -> str:
-    """Org role for the active org propagated by gateway (org_admin|member)."""
-    return x_auth_org_role or ""
+    """Active tenant propagated by gateway. Required for team-scoped knowledge."""
+    if not x_auth_tenant_id:
+        raise UnauthorizedError("X-Auth-Tenant-ID header is required")
+    return x_auth_tenant_id
+
+
+def auth_workspace_role(
+    x_auth_workspace_role: Annotated[str | None, Header(alias="X-Auth-Workspace-Role")] = None,
+) -> str:
+    """Workspace role for the active workspace propagated by gateway (workspace_admin|member)."""
+    return x_auth_workspace_role or ""
 
 
 def auth_context(
     user_id: Annotated[str, Depends(auth_user_id)],
-    org_id: Annotated[str, Depends(auth_org_id)],
-    org_role: Annotated[str, Depends(auth_org_role)],
+    workspace_id: Annotated[str, Depends(auth_workspace_id)],
+    tenant_id: Annotated[str, Depends(auth_tenant_id)],
+    workspace_role: Annotated[str, Depends(auth_workspace_role)],
     x_auth_name: Annotated[str | None, Header(alias="X-Auth-Name")] = None,
     x_auth_email: Annotated[str | None, Header(alias="X-Auth-Email")] = None,
 ) -> AuthContext:
@@ -51,8 +61,9 @@ def auth_context(
         user_id=user_id,
         username=x_auth_name or user_id,
         email=x_auth_email or "",
-        org_id=org_id,
-        org_role=org_role,
+        workspace_id=workspace_id,
+        tenant_id=tenant_id,
+        workspace_role=workspace_role,
     )
 
 

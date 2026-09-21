@@ -33,43 +33,28 @@ async def insert_chunks(session: AsyncSession, rows: list[DocumentChunkRow]) -> 
 
 
 async def dense_search(
-    session: AsyncSession,
-    *,
-    org_id: str,
-    query_vector: list[float],
-    limit: int,
+    session: AsyncSession, *, workspace_id: str, tenant_id: str, query_vector: list[float], limit: int
 ) -> Sequence[Row[Any]]:
-    """Dense ANN search over an org's chunk embeddings (cosine distance, best first).
+    """Dense ANN search over an workspace's chunk embeddings (cosine distance, best first).
 
     Orders by `embedding::halfvec(dim) <=> q::halfvec(dim)` — the exact expression
     the v1.1.0 `ix_document_chunks_embedding_hnsw` index is built on — so the HNSW
     index is used instead of an exact sequential scan. `hnsw.ef_search` is raised
     to cover the candidate pool (`limit`) so ANN recall is not truncated below it.
-    Scope is the team org so members share one knowledge base.
+    Scope is the team workspace so members share one knowledge base.
     """
     dim = get_settings().embedding_dim
     vec_literal = "[" + ",".join(repr(float(value)) for value in query_vector) + "]"
     await session.execute(text(f"SET LOCAL hnsw.ef_search = {max(limit * 2, 40)}"))
     stmt = text(
-        f"""
-        SELECT id, document_id, chunk_index, content,
-               embedding::halfvec({dim}) <=> (:q)::halfvec({dim}) AS distance
-        FROM document_chunks
-        WHERE org_id = :org AND embedding IS NOT NULL
-        ORDER BY embedding::halfvec({dim}) <=> (:q)::halfvec({dim})
-        LIMIT :lim
-        """
+        f"\n        SELECT id, document_id, chunk_index, content,\n               embedding::halfvec({dim}) <=> (:q)::halfvec({dim}) AS distance\n        FROM document_chunks\n        WHERE workspace_id = :workspace AND embedding IS NOT NULL\n        ORDER BY embedding::halfvec({dim}) <=> (:q)::halfvec({dim})\n        LIMIT :lim\n        "
     )
-    result = await session.execute(stmt, {"q": vec_literal, "org": org_id, "lim": limit})
+    result = await session.execute(stmt, {"q": vec_literal, "workspace": workspace_id, "lim": limit})
     return result.all()
 
 
 async def sparse_search(
-    session: AsyncSession,
-    *,
-    org_id: str,
-    query: str,
-    limit: int,
+    session: AsyncSession, *, workspace_id: str, tenant_id: str, query: str, limit: int
 ) -> Sequence[Row[Any]]:
     """Lexical search via pg_trgm word-similarity (CJK-friendly, best first).
 
@@ -79,18 +64,11 @@ async def sparse_search(
     span in each chunk over character trigrams, GIN-accelerated by
     `ix_document_chunks_content_trgm`. The word-similarity threshold is lowered so
     this stays a high-recall candidate branch; RRF fusion + rerank restore precision.
-    Scope is the team org so members share one knowledge base.
+    Scope is the team workspace so members share one knowledge base.
     """
     await session.execute(text("SET LOCAL pg_trgm.word_similarity_threshold = 0.2"))
     stmt = text(
-        """
-        SELECT id, document_id, chunk_index, content,
-               word_similarity(:q, content) AS score
-        FROM document_chunks
-        WHERE org_id = :org AND (:q) <% content
-        ORDER BY score DESC
-        LIMIT :lim
-        """
+        "\n        SELECT id, document_id, chunk_index, content,\n               word_similarity(:q, content) AS score\n        FROM document_chunks\n        WHERE workspace_id = :workspace AND (:q) <% content\n        ORDER BY score DESC\n        LIMIT :lim\n        "
     )
-    result = await session.execute(stmt, {"q": query, "org": org_id, "lim": limit})
+    result = await session.execute(stmt, {"q": query, "workspace": workspace_id, "lim": limit})
     return result.all()

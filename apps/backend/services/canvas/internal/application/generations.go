@@ -80,12 +80,12 @@ func (s *Service) StartGeneration(ctx context.Context, a Actor, canvasID, nodeID
 				target = v
 			}
 		}
-		resolved, err := inputs.New(nil).ResolveMentions(ctx, inputs.Scope{OrgID: a.OrgID, UserID: a.UserID}, board.ProjectID, target, nodes, inputs.Modalities(inputdomain.ModalityText))
+		resolved, err := inputs.New(nil).ResolveMentions(ctx, inputs.Scope{TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, UserID: a.UserID}, board.ProjectID, target, nodes, inputs.Modalities(inputdomain.ModalityText))
 		if err != nil {
 			return Invalid(err.Error())
 		}
 		prompt := resolved.Prompt
-		out = p.Generation{ID: newID(), CanvasID: canvasID, NodeID: nodeID, OrgID: a.OrgID, UserID: a.UserID, OperationID: in.OperationID, NodeRevision: node.Revision, ProviderID: node.GenerationConfig.ProviderID, Prompt: prompt, Status: "queued"}
+		out = p.Generation{ID: newID(), CanvasID: canvasID, NodeID: nodeID, TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, UserID: a.UserID, OperationID: in.OperationID, NodeRevision: node.Revision, ProviderID: node.GenerationConfig.ProviderID, Prompt: prompt, Status: "queued"}
 		return tx.Create(&out).Error
 	})
 	return generationDTO(out), err

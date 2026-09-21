@@ -1,9 +1,9 @@
 import {
   approveMember,
-  listOrgMembers,
-  listOrgsForAdmin,
-  type OrgAdminView,
-  type OrgMemberView,
+  listWorkspaceMembers,
+  listWorkspacesForAdmin,
+  type WorkspaceAdminView,
+  type WorkspaceMemberView,
   rejectMember,
   setMemberRole,
 } from "@repo/api";
@@ -46,12 +46,12 @@ import { useAdminIdentity } from "../../identity";
 
 type StatusFilter = "" | "pending" | "active" | "rejected";
 
-const ROLE_LABEL: Record<OrgMemberView["role"], string> = {
-  org_admin: "管理员",
+const ROLE_LABEL: Record<WorkspaceMemberView["role"], string> = {
+  workspace_admin: "管理员",
   member: "成员",
 };
 
-function statusBadge(status: OrgMemberView["status"]) {
+function statusBadge(status: WorkspaceMemberView["status"]) {
   if (status === "active") {
     return <Badge>已通过</Badge>;
   }
@@ -62,50 +62,50 @@ function statusBadge(status: OrgMemberView["status"]) {
 }
 
 export function MembersPage() {
-  const { canViewMembers, canManageMembers, isSuperAdmin, activeOrgId, activeOrgName } = useAdminIdentity();
-  const [orgOptions, setOrgOptions] = useState<OrgAdminView[]>([]);
-  const [pickedOrgId, setPickedOrgId] = useState<string | null>(null);
+  const { canViewMembers, canManageMembers, isSuperAdmin, activeWorkspaceId, activeWorkspaceName } = useAdminIdentity();
+  const [workspaceOptions, setWorkspaceOptions] = useState<WorkspaceAdminView[]>([]);
+  const [pickedWorkspaceId, setPickedWorkspaceId] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusFilter>("pending");
-  const [members, setMembers] = useState<OrgMemberView[] | null>(null);
+  const [members, setMembers] = useState<WorkspaceMemberView[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyUser, setBusyUser] = useState<string | null>(null);
 
-  // super_admin may inspect any org's roster (read-only oversight) via the
-  // picker; an org_admin is locked to their active org.
-  const orgId = isSuperAdmin ? pickedOrgId : activeOrgId;
+  // super_admin may inspect any workspace's roster (read-only oversight) via the
+  // picker; an workspace_admin is locked to their active workspace.
+  const workspaceId = isSuperAdmin ? pickedWorkspaceId : activeWorkspaceId;
 
   // Write actions (approve/reject/role) are allowed only where the caller is an
-  // active org_admin — i.e. its own active org. A super_admin browsing another
-  // org gets a read-only view; to manage it, it must be an org_admin there.
-  const canActOnOrg = canManageMembers && orgId != null && orgId === activeOrgId;
+  // active workspace_admin — i.e. its own active workspace. A super_admin browsing another
+  // workspace gets a read-only view; to manage it, it must be an workspace_admin there.
+  const canActOnWorkspace = canManageMembers && workspaceId != null && workspaceId === activeWorkspaceId;
 
   useEffect(() => {
     if (!isSuperAdmin) {
       return;
     }
-    listOrgsForAdmin({ skipErrorNotify: true })
-      .then((orgs) => {
-        setOrgOptions(orgs);
-        setPickedOrgId((prev) => prev ?? activeOrgId ?? orgs[0]?.id ?? null);
+    listWorkspacesForAdmin({ skipErrorNotify: true })
+      .then((workspaces) => {
+        setWorkspaceOptions(workspaces);
+        setPickedWorkspaceId((prev) => prev ?? activeWorkspaceId ?? workspaces[0]?.id ?? null);
       })
       .catch(() => {
         /* picker is best-effort */
       });
-  }, [isSuperAdmin, activeOrgId]);
+  }, [isSuperAdmin, activeWorkspaceId]);
 
   const load = useCallback(() => {
-    if (!orgId) {
+    if (!workspaceId) {
       setMembers(null);
       return;
     }
     setLoading(true);
     setError(null);
-    listOrgMembers(orgId, status || undefined, { skipErrorNotify: true })
+    listWorkspaceMembers(workspaceId, status || undefined, { skipErrorNotify: true })
       .then(setMembers)
       .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
-  }, [orgId, status]);
+  }, [workspaceId, status]);
 
   useEffect(() => {
     if (canViewMembers) {
@@ -124,7 +124,7 @@ export function MembersPage() {
         </PageHeader>
         <Alert>
           <AlertTitle>无权访问</AlertTitle>
-          <AlertDescription>成员管理仅对组织管理员（org_admin）或平台 super_admin 开放。</AlertDescription>
+          <AlertDescription>成员管理仅对工作空间管理员（workspace_admin）或平台 super_admin 开放。</AlertDescription>
         </Alert>
       </Page>
     );
@@ -142,32 +142,32 @@ export function MembersPage() {
     }
   }
 
-  function approve(m: OrgMemberView) {
-    if (!orgId) {
+  function approve(m: WorkspaceMemberView) {
+    if (!workspaceId) {
       return;
     }
-    void run(m.userId, () => approveMember(orgId, m.userId), "已通过申请");
+    void run(m.userId, () => approveMember(workspaceId, m.userId), "已通过申请");
   }
 
-  function reject(m: OrgMemberView) {
-    if (!orgId) {
+  function reject(m: WorkspaceMemberView) {
+    if (!workspaceId) {
       return;
     }
     const reason = window.prompt(`拒绝「${m.displayName || m.account}」的理由（可选）`);
     if (reason === null) {
       return;
     }
-    void run(m.userId, () => rejectMember(orgId, m.userId, reason), "已拒绝申请");
+    void run(m.userId, () => rejectMember(workspaceId, m.userId, reason), "已拒绝申请");
   }
 
-  function changeRole(m: OrgMemberView, role: OrgMemberView["role"]) {
-    if (!orgId) {
+  function changeRole(m: WorkspaceMemberView, role: WorkspaceMemberView["role"]) {
+    if (!workspaceId) {
       return;
     }
     void run(
       m.userId,
-      () => setMemberRole(orgId, m.userId, role),
-      role === "org_admin" ? "已设为管理员" : "已设为成员",
+      () => setMemberRole(workspaceId, m.userId, role),
+      role === "workspace_admin" ? "已设为管理员" : "已设为成员",
     );
   }
 
@@ -179,7 +179,7 @@ export function MembersPage() {
           <PageDescription>审批加入申请、调整成员角色。</PageDescription>
         </PageHeaderContent>
         <PageActions>
-          <Button variant="outline" onClick={load} disabled={loading || !orgId}>
+          <Button variant="outline" onClick={load} disabled={loading || !workspaceId}>
             刷新
           </Button>
         </PageActions>
@@ -187,12 +187,12 @@ export function MembersPage() {
 
       <div className="flex flex-wrap items-center gap-3">
         {isSuperAdmin ? (
-          <Select value={orgId ?? ""} onValueChange={(v) => setPickedOrgId(v)}>
+          <Select value={workspaceId ?? ""} onValueChange={(v) => setPickedWorkspaceId(v)}>
             <SelectTrigger className="w-64">
-              <SelectValue placeholder="选择要管理的组织" />
+              <SelectValue placeholder="选择要管理的工作空间" />
             </SelectTrigger>
             <SelectContent>
-              {orgOptions.map((o) => (
+              {workspaceOptions.map((o) => (
                 <SelectItem key={o.id} value={o.id}>
                   {o.name}
                 </SelectItem>
@@ -200,7 +200,7 @@ export function MembersPage() {
             </SelectContent>
           </Select>
         ) : (
-          <Badge variant="outline">团队：{activeOrgName ?? "—"}</Badge>
+          <Badge variant="outline">团队：{activeWorkspaceName ?? "—"}</Badge>
         )}
         <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
           <SelectTrigger className="w-40">
@@ -215,12 +215,12 @@ export function MembersPage() {
         </Select>
       </div>
 
-      {isSuperAdmin && orgId && !canActOnOrg && (
+      {isSuperAdmin && workspaceId && !canActOnWorkspace && (
         <Alert>
           <AlertTitle>只读视图</AlertTitle>
           <AlertDescription>
-            作为平台 super_admin，你可以查看任意组织的成员名册用于治理（如查取用户 ID），但审批与角色调整必须由该组织的
-            org_admin 执行。如需亲自管理，请先成为该组织的管理员。
+            作为平台 super_admin，你可以查看任意工作空间的成员名册用于治理（如查取用户
+            ID），但审批与角色调整必须由该工作空间的 workspace_admin 执行。如需亲自管理，请先成为该工作空间的管理员。
           </AlertDescription>
         </Alert>
       )}
@@ -236,7 +236,13 @@ export function MembersPage() {
         <CardHeader>
           <CardTitle>成员列表</CardTitle>
           <CardDescription>
-            {!orgId ? "请选择要管理的组织" : loading ? "加载中…" : members ? `共 ${members.length} 人` : "暂无数据"}
+            {!workspaceId
+              ? "请选择要管理的工作空间"
+              : loading
+                ? "加载中…"
+                : members
+                  ? `共 ${members.length} 人`
+                  : "暂无数据"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -270,7 +276,7 @@ export function MembersPage() {
                       </TableCell>
                       <TableCell>{statusBadge(m.status)}</TableCell>
                       <TableCell className="space-x-1 text-right">
-                        {!canActOnOrg ? (
+                        {!canActOnWorkspace ? (
                           <span className="text-muted-foreground">—</span>
                         ) : (
                           <>
@@ -290,7 +296,7 @@ export function MembersPage() {
                                   variant="link"
                                   size="sm"
                                   disabled={busy}
-                                  onClick={() => changeRole(m, "org_admin")}
+                                  onClick={() => changeRole(m, "workspace_admin")}
                                 >
                                   设为管理员
                                 </Button>

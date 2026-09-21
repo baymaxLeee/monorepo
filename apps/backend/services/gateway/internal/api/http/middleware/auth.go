@@ -10,12 +10,13 @@ import (
 )
 
 const (
-	HeaderAuthUserID  = "X-Auth-User-ID"
-	HeaderAuthEmail   = "X-Auth-Email"
-	HeaderAuthName    = "X-Auth-Name"
-	HeaderAuthOrgID   = "X-Auth-Org-ID"
-	HeaderAuthOrgRole = "X-Auth-Org-Role"
-	HeaderAuthRoles   = "X-Auth-Roles"
+	HeaderAuthTenantID      = "X-Auth-Tenant-ID"
+	HeaderAuthUserID        = "X-Auth-User-ID"
+	HeaderAuthEmail         = "X-Auth-Email"
+	HeaderAuthName          = "X-Auth-Name"
+	HeaderAuthWorkspaceID   = "X-Auth-Workspace-ID"
+	HeaderAuthWorkspaceRole = "X-Auth-Workspace-Role"
+	HeaderAuthRoles         = "X-Auth-Roles"
 
 	// HeaderInternalToken carries the shared S2S secret between backend
 	// services. The gateway is an edge component, not a peer service — it
@@ -29,17 +30,18 @@ const (
 func IdentityPropagation(secret string, publicPathPrefixes, publicExactPaths, optionalAuthPathPrefixes []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Header.Del(HeaderAuthTenantID)
 			r.Header.Del(HeaderAuthUserID)
 			r.Header.Del(HeaderAuthEmail)
 			r.Header.Del(HeaderAuthName)
-			r.Header.Del(HeaderAuthOrgID)
-			r.Header.Del(HeaderAuthOrgRole)
+			r.Header.Del(HeaderAuthWorkspaceID)
+			r.Header.Del(HeaderAuthWorkspaceRole)
 			r.Header.Del(HeaderAuthRoles)
 			r.Header.Del(HeaderInternalToken)
 			r.Header.Del(HeaderCallerService)
 
 			// Prefix publics cover whole subtrees; method-aware exact publics
-			// open a single route (e.g. GET /api/iam-server/orgs) WITHOUT
+			// open a single route (e.g. GET /api/iam-server/workspaces) WITHOUT
 			// exposing sibling management routes under the same prefix.
 			if isPublicPath(r.URL.Path, publicPathPrefixes) || isPublicExact(r.Method, r.URL.Path, publicExactPaths) {
 				next.ServeHTTP(w, r)
@@ -78,17 +80,20 @@ func IdentityPropagation(secret string, publicPathPrefixes, publicExactPaths, op
 
 func propagateClaims(r *http.Request, claims security.Claims) {
 	r.Header.Set(HeaderAuthUserID, claims.Subject)
+	if claims.TenantID != "" {
+		r.Header.Set(HeaderAuthTenantID, claims.TenantID)
+	}
 	if claims.Email != "" {
 		r.Header.Set(HeaderAuthEmail, claims.Email)
 	}
 	if claims.Name != "" {
 		r.Header.Set(HeaderAuthName, claims.Name)
 	}
-	if claims.OrgID != "" {
-		r.Header.Set(HeaderAuthOrgID, claims.OrgID)
+	if claims.WorkspaceID != "" {
+		r.Header.Set(HeaderAuthWorkspaceID, claims.WorkspaceID)
 	}
-	if claims.OrgRole != "" {
-		r.Header.Set(HeaderAuthOrgRole, claims.OrgRole)
+	if claims.WorkspaceRole != "" {
+		r.Header.Set(HeaderAuthWorkspaceRole, claims.WorkspaceRole)
 	}
 	if len(claims.Roles) > 0 {
 		r.Header.Set(HeaderAuthRoles, strings.Join(claims.Roles, ","))

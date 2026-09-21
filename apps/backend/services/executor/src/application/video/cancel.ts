@@ -17,7 +17,8 @@ export async function cancelVideoGeneration(
     cleanup.push(
       discardStagedMedia({
         userId: input.userId,
-        orgId: input.orgId,
+        tenantId: input.tenantId,
+        workspaceId: input.workspaceId,
         stagedId: production.stagedMediaId,
       }),
     );
@@ -28,13 +29,14 @@ export async function cancelVideoGeneration(
     cleanup.push(
       discardStagedMedia({
         userId: input.userId,
-        orgId: input.orgId,
+        tenantId: input.tenantId,
+        workspaceId: input.workspaceId,
         stagedId,
       }),
     );
   }
   if (taskIds.length > 0) {
-    const provider = await getProvider(input.providerId, input.orgId);
+    const provider = await getProvider(input.providerId, input.tenantId, input.workspaceId);
     cleanup.push(
       ...taskIds.map((taskId) =>
         deleteArkVideoTask({

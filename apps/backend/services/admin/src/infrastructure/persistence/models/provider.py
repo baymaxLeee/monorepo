@@ -13,22 +13,16 @@ PROVIDER_KIND_VIDEO = "video"
 PROVIDER_KIND_EMBEDDING = "embedding"
 PROVIDER_KIND_RERANK = "rerank"
 PROVIDER_KINDS = frozenset(
-    {
-        PROVIDER_KIND_CHAT,
-        PROVIDER_KIND_IMAGE,
-        PROVIDER_KIND_VIDEO,
-        PROVIDER_KIND_EMBEDDING,
-        PROVIDER_KIND_RERANK,
-    }
+    {PROVIDER_KIND_CHAT, PROVIDER_KIND_IMAGE, PROVIDER_KIND_VIDEO, PROVIDER_KIND_EMBEDDING, PROVIDER_KIND_RERANK}
 )
 
 
 class ModelProviderRow(Base):
     __tablename__ = "model_providers"
-
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
-    org_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
+    workspace_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(String(26), nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     model: Mapped[str] = mapped_column(String(128), nullable=False)
     provider_kind: Mapped[str] = mapped_column(String(16), nullable=False, default=PROVIDER_KIND_CHAT)
@@ -36,8 +30,8 @@ class ModelProviderRow(Base):
     api_key_enc: Mapped[str] = mapped_column(Text, nullable=False)
     extra_body: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     pricing_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    context_window: Mapped[int] = mapped_column(Integer, nullable=False, default=524_288)
-    max_output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=262_144)
+    context_window: Mapped[int] = mapped_column(Integer, nullable=False, default=524288)
+    max_output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=262144)
     supports_image_input: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

@@ -14,5 +14,5 @@ func ValidSlug(slug string) bool {
 }
 
 func ValidMemberRole(role string) bool {
-	return role == "org_admin" || role == "member"
+	return role == "workspace_admin" || role == "member"
 }

@@ -11,7 +11,8 @@ export const conversations = pgTable(
   {
     id: varchar("id", { length: 32 }).primaryKey(),
     userId: varchar("user_id", { length: 26 }).notNull(),
-    orgId: varchar("org_id", { length: 26 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 26 }).notNull(),
+    workspaceId: varchar("workspace_id", { length: 26 }).notNull(),
     title: varchar("title", { length: 200 }).notNull().default("新对话"),
     model: varchar("model", { length: 120 }).notNull().default(""),
     providerId: varchar("provider_id", { length: 32 }).notNull().default(""),
@@ -20,7 +21,10 @@ export const conversations = pgTable(
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },
-  (t) => [index("ix_conversations_user_id").on(t.userId), index("ix_conversations_user_org").on(t.userId, t.orgId)],
+  (t) => [
+    index("ix_conversations_user_id").on(t.userId),
+    index("ix_conversations_user_workspace").on(t.userId, t.tenantId, t.workspaceId),
+  ],
 );
 
 export const conversationArtifactCleanupOutbox = pgTable(
@@ -28,7 +32,8 @@ export const conversationArtifactCleanupOutbox = pgTable(
   {
     conversationId: varchar("conversation_id", { length: 32 }).primaryKey(),
     userId: varchar("user_id", { length: 26 }).notNull(),
-    orgId: varchar("org_id", { length: 26 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 26 }).notNull(),
+    workspaceId: varchar("workspace_id", { length: 26 }).notNull(),
     attempts: integer("attempts").notNull().default(0),
     availableAt: timestamp("available_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     claimedAt: timestamp("claimed_at", { mode: "date", withTimezone: true, precision: 6 }),

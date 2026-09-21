@@ -1,4 +1,4 @@
-import { logout, switchActiveOrg } from "@repo/api";
+import { logout, switchActiveWorkspace } from "@repo/api";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@repo/design-system";
 import { clearUser as clearObservabilityUser } from "@repo/observability";
 import { usePlatformStore } from "@repo/runtime";
@@ -9,7 +9,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import { activeMemberships } from "../../onboarding";
 
-function SelectOrgPage() {
+function SelectWorkspacePage() {
   const navigate = useNavigate();
   const { user, setUser } = usePlatformStore(useShallow((state) => ({ user: state.user, setUser: state.setUser })));
   const [switching, setSwitching] = useState<string | null>(null);
@@ -17,14 +17,14 @@ function SelectOrgPage() {
   if (!user) {
     return null;
   }
-  const orgs = activeMemberships(user);
+  const workspaces = activeMemberships(user);
 
-  async function handlePick(orgId: string) {
-    setSwitching(orgId);
+  async function handlePick(workspaceId: string) {
+    setSwitching(workspaceId);
     try {
-      const session = await switchActiveOrg(orgId);
+      const session = await switchActiveWorkspace(workspaceId);
       // Persist the rescoped identity before the reload so the shell boots
-      // cleanly bound to the chosen org.
+      // cleanly bound to the chosen workspace.
       setUser(session.user);
       window.location.assign("/platform/chat");
     } catch {
@@ -48,19 +48,23 @@ function SelectOrgPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <ul className="space-y-2">
-            {orgs.map((m) => (
-              <li key={m.orgId}>
+            {workspaces.map((m) => (
+              <li key={m.workspaceId}>
                 <Button
                   type="button"
                   variant="outline"
                   className="h-auto w-full justify-start gap-3 px-3 py-3"
                   disabled={switching !== null}
-                  onClick={() => handlePick(m.orgId)}
+                  onClick={() => handlePick(m.workspaceId)}
                 >
                   <UsersIcon aria-hidden="true" className="size-4 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate text-left">{m.orgName}</span>
-                  {m.role === "org_admin" && <span className="shrink-0 text-xs text-muted-foreground">管理员</span>}
-                  {switching === m.orgId && <span className="shrink-0 text-xs text-muted-foreground">进入中…</span>}
+                  <span className="min-w-0 flex-1 truncate text-left">{m.workspaceName}</span>
+                  {m.role === "workspace_admin" && (
+                    <span className="shrink-0 text-xs text-muted-foreground">管理员</span>
+                  )}
+                  {switching === m.workspaceId && (
+                    <span className="shrink-0 text-xs text-muted-foreground">进入中…</span>
+                  )}
                 </Button>
               </li>
             ))}
@@ -76,4 +80,4 @@ function SelectOrgPage() {
   );
 }
 
-export { SelectOrgPage as Component };
+export { SelectWorkspacePage as Component };

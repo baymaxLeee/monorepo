@@ -9,7 +9,7 @@ export type BotTone = "professional" | "concise" | "friendly" | "empathetic";
 export interface Bot {
   id: string;
   user_id: string;
-  org_id: string | null;
+  workspace_id: string | null;
   username: string;
   name: string;
   role_description: string | null;
@@ -90,7 +90,7 @@ export type SkillStatus = "draft" | "published" | "archived";
 export interface SkillSummary {
   id: string;
   user_id: string;
-  org_id: string;
+  workspace_id: string;
   username: string;
   name: string;
   description: string;

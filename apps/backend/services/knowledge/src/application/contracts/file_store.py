@@ -22,7 +22,8 @@ class FileRead(FileEntry):
 
 class CreateChangeSetInput(BaseModel):
     user_id: str = Field(min_length=1, max_length=26)
-    org_id: str = Field(min_length=1, max_length=26)
+    workspace_id: str = Field(min_length=1, max_length=26)
+    tenant_id: str = Field(min_length=1, max_length=26)
     conversation_id: str = Field(min_length=1, max_length=32)
     metadata: dict[str, str] | None = None
 

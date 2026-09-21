@@ -33,42 +33,37 @@ class BatchDeleteResult(BaseModel):
 
 @router.get("", response_model=list[Document])
 async def list_my_documents(
-    current_user: CurrentUser,
-    session: DbSession,
-    kind: str | None = Query(default=None),
+    current_user: CurrentUser, session: DbSession, kind: str | None = Query(default=None)
 ) -> list[Document]:
-    rows = await document_crud.list_org_documents(session, org_id=current_user.org_id, kind=kind)
+    rows = await document_crud.list_workspace_documents(
+        session, workspace_id=current_user.workspace_id, tenant_id=current_user.tenant_id, kind=kind
+    )
     return [document_to_schema(row) for row in rows]
 
 
 @router.post("/batch-delete", response_model=BatchDeleteResult)
 async def batch_delete_my_documents(
-    payload: BatchDeleteInput,
-    current_user: CurrentUser,
-    session: DbSession,
+    payload: BatchDeleteInput, current_user: CurrentUser, session: DbSession
 ) -> BatchDeleteResult:
     """Delete several documents in one transaction.
 
-    Same policy as single delete: an org_admin may delete any of the org's
+    Same policy as single delete: an workspace_admin may delete any of the workspace's
     documents; a member may delete only their own uploads. If ANY requested id
-    is outside the org or not deletable by the caller, the whole batch is
+    is outside the workspace or not deletable by the caller, the whole batch is
     rejected with 403 — no silent partial success that would mislead the caller.
     Object-store blobs are best-effort purged and RAG `document_chunks` drop via
     the FK `ON DELETE CASCADE`.
     """
     unique_ids = list(dict.fromkeys(payload.ids))
     async with write_tx(session):
-        rows = await document_crud.list_org_documents_by_ids(
-            session, org_id=current_user.org_id, document_ids=unique_ids
+        rows = await document_crud.list_workspace_documents_by_ids(
+            session, workspace_id=current_user.workspace_id, tenant_id=current_user.tenant_id, document_ids=unique_ids
         )
         by_id = {row.id: row for row in rows}
         for doc_id in unique_ids:
             row = by_id.get(doc_id)
             if row is None or not _may_manage(current_user, row):
                 raise ForbiddenError("you may only delete your own documents")
-        # Capture blob refs before the rows are gone; object purge is a best-effort
-        # side effect that runs AFTER the DB delete commits (a failed purge only
-        # orphans blobs, never leaves rows pointing at deleted objects).
         object_refs = [(r.object_bucket, r.object_key) for r in rows if r.object_bucket and r.object_key]
         for row in rows:
             await document_crud.delete_document(session, row)
@@ -80,12 +75,10 @@ async def batch_delete_my_documents(
 
 
 @router.get("/{document_id}", response_model=Document)
-async def get_my_document(
-    document_id: str,
-    current_user: CurrentUser,
-    session: DbSession,
-) -> Document:
-    row = await document_crud.get_org_document(session, document_id, current_user.org_id)
+async def get_my_document(document_id: str, current_user: CurrentUser, session: DbSession) -> Document:
+    row = await document_crud.get_workspace_document(
+        session, document_id, current_user.workspace_id, current_user.tenant_id
+    )
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
     return document_to_schema(row, include_content=True)
@@ -93,13 +86,12 @@ async def get_my_document(
 
 @router.patch("/{document_id}", response_model=Document)
 async def update_my_document(
-    document_id: str,
-    payload: UpdateDocumentInput,
-    current_user: CurrentUser,
-    session: DbSession,
+    document_id: str, payload: UpdateDocumentInput, current_user: CurrentUser, session: DbSession
 ) -> Document:
     async with write_tx(session):
-        row = await document_crud.get_org_document(session, document_id, current_user.org_id)
+        row = await document_crud.get_workspace_document(
+            session, document_id, current_user.workspace_id, current_user.tenant_id
+        )
         if row is None:
             raise NotFoundError(f"document {document_id} not found")
         if not _may_manage(current_user, row):
@@ -116,33 +108,31 @@ async def update_my_document(
 
 
 @router.post("/{document_id}/reindex", response_model=Document)
-async def reindex_my_document(
-    document_id: str,
-    current_user: CurrentUser,
-    session: DbSession,
-) -> Document:
+async def reindex_my_document(document_id: str, current_user: CurrentUser, session: DbSession) -> Document:
     """Re-queue a document for background RAG indexing (retry a skipped/failed
     index, or rebuild after provider changes)."""
     async with write_tx(session):
-        row = await document_crud.get_org_document(session, document_id, current_user.org_id)
+        row = await document_crud.get_workspace_document(
+            session, document_id, current_user.workspace_id, current_user.tenant_id
+        )
         if row is None:
             raise NotFoundError(f"document {document_id} not found")
         if not _may_manage(current_user, row):
             raise ForbiddenError("you may only reindex your own documents")
         await document_crud.set_index_status(session, row.id, status="pending")
     schedule_index(row.id)
-    row = await document_crud.get_org_document(session, document_id, current_user.org_id)
+    row = await document_crud.get_workspace_document(
+        session, document_id, current_user.workspace_id, current_user.tenant_id
+    )
     assert row is not None
     return document_to_schema(row, include_content=True)
 
 
 @router.get("/{document_id}/source")
-async def get_my_document_source(
-    document_id: str,
-    current_user: CurrentUser,
-    session: DbSession,
-) -> Response:
-    row = await document_crud.get_org_document(session, document_id, current_user.org_id)
+async def get_my_document_source(document_id: str, current_user: CurrentUser, session: DbSession) -> Response:
+    row = await document_crud.get_workspace_document(
+        session, document_id, current_user.workspace_id, current_user.tenant_id
+    )
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
     if not row.object_bucket or not row.object_key:
@@ -153,13 +143,11 @@ async def get_my_document_source(
 
 
 @router.delete("/{document_id}", status_code=204)
-async def delete_my_document(
-    document_id: str,
-    current_user: CurrentUser,
-    session: DbSession,
-) -> None:
+async def delete_my_document(document_id: str, current_user: CurrentUser, session: DbSession) -> None:
     async with write_tx(session):
-        row = await document_crud.get_org_document(session, document_id, current_user.org_id)
+        row = await document_crud.get_workspace_document(
+            session, document_id, current_user.workspace_id, current_user.tenant_id
+        )
         if row is None:
             raise NotFoundError(f"document {document_id} not found")
         if not _may_manage(current_user, row):
@@ -171,5 +159,5 @@ async def delete_my_document(
 
 
 def _may_manage(current_user: AuthContext, row: DocumentRow) -> bool:
-    """An org_admin manages any org doc; a member manages only their uploads."""
-    return current_user.is_org_admin or row.user_id == current_user.user_id
+    """An workspace_admin manages any workspace doc; a member manages only their uploads."""
+    return current_user.is_workspace_admin or row.user_id == current_user.user_id

@@ -8,7 +8,8 @@ export type FileToolContext = z.infer<typeof fileToolContextSchema>;
 
 export const knowledgeSearchToolContextSchema = z.object({
   userId: z.string(),
-  orgId: z.string(),
+  tenantId: z.string(),
+  workspaceId: z.string(),
 });
 export type KnowledgeSearchToolContext = z.infer<typeof knowledgeSearchToolContextSchema>;
 
@@ -21,7 +22,8 @@ export type MemoryToolContext = z.infer<typeof memoryToolContextSchema>;
 export const artifactToolContextSchema = z.object({
   runId: z.string(),
   userId: z.string(),
-  orgId: z.string(),
+  tenantId: z.string(),
+  workspaceId: z.string(),
   conversationId: z.string(),
 });
 export type ArtifactToolContext = z.infer<typeof artifactToolContextSchema>;
@@ -29,7 +31,8 @@ export type ArtifactToolContext = z.infer<typeof artifactToolContextSchema>;
 export const mediaToolContextSchema = z.object({
   runId: z.string(),
   userId: z.string(),
-  orgId: z.string(),
+  tenantId: z.string(),
+  workspaceId: z.string(),
   conversationId: z.string(),
   attachedImageDocumentIds: z.array(z.string()).optional(),
 });

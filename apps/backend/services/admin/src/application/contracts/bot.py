@@ -9,14 +9,11 @@ from application.contracts.skill import AgentSkill
 
 BotStatus = Literal["draft", "published", "archived"]
 BotTone = Literal["professional", "concise", "friendly", "empathetic"]
-
-# C0 control chars are never legitimate profile content; tab/newline are kept so
-# multi-line role/domain text survives.
 _ALLOWED_CONTROL = {"\n", "\t"}
 
 
 def _reject_control_chars(value: str) -> str:
-    if any(ord(ch) < 0x20 and ch not in _ALLOWED_CONTROL for ch in value):
+    if any(ord(ch) < 32 and ch not in _ALLOWED_CONTROL for ch in value):
         raise ValueError("control characters are not allowed")
     return value
 
@@ -24,7 +21,8 @@ def _reject_control_chars(value: str) -> str:
 class Bot(BaseModel):
     id: str
     user_id: str
-    org_id: str
+    workspace_id: str
+    tenant_id: str
     username: str
     name: str
     role_description: str | None = None

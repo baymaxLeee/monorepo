@@ -20,9 +20,9 @@ TOKENS_PER_K = 1024
 
 
 class ProviderPricing(BaseModel):
-    currency: str = Field(pattern=r"^[A-Z]{3}$")
+    currency: str = Field(pattern="^[A-Z]{3}$")
     unit: Literal["generated_second"] = "generated_second"
-    unit_price_micros: int = Field(ge=0, le=2_147_483_647)
+    unit_price_micros: int = Field(ge=0, le=2147483647)
 
 
 class ModelProvider(BaseModel):
@@ -30,7 +30,8 @@ class ModelProvider(BaseModel):
 
     id: str
     user_id: str
-    org_id: str
+    workspace_id: str
+    tenant_id: str
     name: str
     model: str
     provider_kind: ProviderKind
@@ -75,18 +76,10 @@ class CreateModelProviderInput(BaseModel):
     extra_body: dict[str, Any] = Field(default_factory=dict)
     pricing: ProviderPricing | None = None
     context_window_k: float = Field(
-        default=512,
-        ge=1,
-        le=2048,
-        multiple_of=0.25,
-        description="Context window in K tokens; 1K = 1024 tokens",
+        default=512, ge=1, le=2048, multiple_of=0.25, description="Context window in K tokens; 1K = 1024 tokens"
     )
     max_output_tokens_k: float = Field(
-        default=256,
-        ge=0.25,
-        le=1024,
-        multiple_of=0.25,
-        description="Maximum output in K tokens; 1K = 1024 tokens",
+        default=256, ge=0.25, le=1024, multiple_of=0.25, description="Maximum output in K tokens; 1K = 1024 tokens"
     )
     supports_image_input: bool = False
     is_default: bool = False
@@ -108,18 +101,10 @@ class UpdateModelProviderInput(BaseModel):
     extra_body: dict[str, Any] | None = None
     pricing: ProviderPricing | None = None
     context_window_k: float | None = Field(
-        default=None,
-        ge=1,
-        le=2048,
-        multiple_of=0.25,
-        description="Context window in K tokens; 1K = 1024 tokens",
+        default=None, ge=1, le=2048, multiple_of=0.25, description="Context window in K tokens; 1K = 1024 tokens"
     )
     max_output_tokens_k: float | None = Field(
-        default=None,
-        ge=0.25,
-        le=1024,
-        multiple_of=0.25,
-        description="Maximum output in K tokens; 1K = 1024 tokens",
+        default=None, ge=0.25, le=1024, multiple_of=0.25, description="Maximum output in K tokens; 1K = 1024 tokens"
     )
     supports_image_input: bool | None = None
     is_default: bool | None = None

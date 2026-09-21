@@ -19,10 +19,7 @@ from application.contracts.document import (
     StagedMediaActionInput,
     UpdateArtifactInput,
 )
-from application.conversation_cleanup import (
-    ConversationDeletedError,
-    assert_conversation_accepts_artifacts,
-)
+from application.conversation_cleanup import ConversationDeletedError, assert_conversation_accepts_artifacts
 from application.documents import document_to_schema
 from application.image_variant import get_or_build_vision_variant
 from application.object_store import ObjectStore
@@ -30,6 +27,8 @@ from bootstrap.config import get_settings
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from infrastructure.persistence.database import write_tx
+from infrastructure.persistence.models.document import DocumentRow
+from infrastructure.persistence.models.staged_media import StagedMediaRow
 from infrastructure.persistence.repositories import documents as document_crud
 from infrastructure.persistence.repositories import staged_media as staged_media_crud
 from kernel.errors import ConflictError, NotFoundError, RequestError
@@ -37,28 +36,25 @@ from sqlalchemy.exc import IntegrityError
 
 from api.http.dependencies import DbSession, require_internal_token
 
-router = APIRouter(
-    prefix="/internal",
-    tags=["internal"],
-    dependencies=[Depends(require_internal_token)],
-)
+router = APIRouter(prefix="/internal", tags=["internal"], dependencies=[Depends(require_internal_token)])
 
 
-def staged_media_to_schema(row: object) -> StagedMedia:
+def staged_media_to_schema(row: StagedMediaRow) -> StagedMedia:
     return StagedMedia(
-        id=row.id,  # type: ignore[attr-defined]
-        user_id=row.user_id,  # type: ignore[attr-defined]
-        org_id=row.org_id,  # type: ignore[attr-defined]
-        conversation_id=row.conversation_id,  # type: ignore[attr-defined]
-        title=row.title,  # type: ignore[attr-defined]
-        filename=row.filename,  # type: ignore[attr-defined]
-        mime_type=row.mime_type,  # type: ignore[attr-defined]
-        size=row.size,  # type: ignore[attr-defined]
-        object_sha256=row.object_sha256,  # type: ignore[attr-defined]
-        status=row.status,  # type: ignore[attr-defined]
-        document_id=row.document_id,  # type: ignore[attr-defined]
-        created_at=row.created_at.isoformat(),  # type: ignore[attr-defined]
-        updated_at=row.updated_at.isoformat(),  # type: ignore[attr-defined]
+        id=row.id,
+        user_id=row.user_id,
+        workspace_id=row.workspace_id,
+        tenant_id=row.tenant_id,
+        conversation_id=row.conversation_id,
+        title=row.title,
+        filename=row.filename,
+        mime_type=row.mime_type,
+        size=row.size,
+        object_sha256=row.object_sha256,
+        status=row.status,  # type: ignore[arg-type]
+        document_id=row.document_id,
+        created_at=row.created_at.isoformat(),
+        updated_at=row.updated_at.isoformat(),
     )
 
 
@@ -74,30 +70,26 @@ async def list_documents(
 
 
 @router.get("/documents/{document_id}", response_model=Document)
-async def get_document(
-    document_id: str,
-    session: DbSession,
-    user_id: str = Query(...),
-) -> Document:
+async def get_document(document_id: str, session: DbSession, user_id: str = Query(...)) -> Document:
     row = await document_crud.get_document(session, document_id, user_id)
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
     return document_to_schema(row, include_content=True)
 
 
-_SLICE_WAIT_MAX_MS = 120_000
+_SLICE_WAIT_MAX_MS = 120000
 _SLICE_POLL_INTERVAL_S = 0.5
 
 
-def _ready_slice(row: object, start: int, max_chars: int) -> DocumentSlice:
-    content = row.content_md  # type: ignore[attr-defined]
+def _ready_slice(row: DocumentRow, start: int, max_chars: int) -> DocumentSlice:
+    content = row.content_md
     chunk = content[start : start + max_chars]
     next_start = start + len(chunk) if start + len(chunk) < len(content) else None
     return DocumentSlice(
-        id=row.id,  # type: ignore[attr-defined]
-        title=row.title,  # type: ignore[attr-defined]
-        filename=row.filename,  # type: ignore[attr-defined]
-        mime_type=row.mime_type,  # type: ignore[attr-defined]
+        id=row.id,
+        title=row.title,
+        filename=row.filename,
+        mime_type=row.mime_type,
         content=chunk,
         start=start,
         total_chars=len(content),
@@ -140,9 +132,6 @@ async def get_document_slice(
                 state="failed",
                 error=row.ingest_error,
             )
-        # Still pending/storing/received/converting: wait for the background
-        # convert if the caller allowed it, else report "processing" so the model
-        # can tell the user the file is not readable yet.
         if wait_ms <= 0 or time.monotonic() >= deadline:
             return DocumentSlice(
                 id=row.id,
@@ -154,7 +143,7 @@ async def get_document_slice(
                 total_chars=0,
                 state="processing",
             )
-        await session.rollback()  # end the read tx so the next poll sees fresh commits
+        await session.rollback()
         await asyncio.sleep(_SLICE_POLL_INTERVAL_S)
 
 
@@ -171,9 +160,9 @@ async def get_document_source(
     if not row.object_bucket or not row.object_key:
         raise NotFoundError("document has no stored source object")
     is_image = (row.source_mime_type or "").lower().startswith("image/")
-    if max_dim is not None and not is_image:
+    if max_dim is not None and (not is_image):
         raise RequestError("max_dim is only supported for image sources")
-    if max_dim is not None and is_image and not row.object_sha256:
+    if max_dim is not None and is_image and (not row.object_sha256):
         raise RequestError("image source has no content hash for variant caching")
     if max_dim is not None and is_image and row.object_sha256:
         object_sha256 = row.object_sha256
@@ -202,7 +191,7 @@ async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> D
     document_id = None
     if payload.idempotency_key:
         document_id = sha256(
-            f"{payload.org_id}:{payload.user_id}:{payload.conversation_id or ''}:{payload.idempotency_key}".encode()
+            f"{payload.workspace_id}:{payload.user_id}:{payload.conversation_id or ''}:{payload.idempotency_key}".encode()
         ).hexdigest()[:16]
     try:
         async with write_tx(session):
@@ -216,7 +205,8 @@ async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> D
             row = await document_crud.create_document(
                 session,
                 user_id=payload.user_id,
-                org_id=payload.org_id,
+                workspace_id=payload.workspace_id,
+                tenant_id=payload.tenant_id,
                 conversation_id=payload.conversation_id,
                 kind="artifact",
                 title=payload.title,
@@ -228,8 +218,6 @@ async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> D
                 document_id=document_id,
             )
     except IntegrityError:
-        # Lost an idempotency-key race: the begin block already rolled back, so
-        # re-read the winner's row on a fresh transaction.
         if document_id is None:
             raise
         existing = await document_crud.get_document(session, document_id, payload.user_id)
@@ -251,10 +239,8 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
     document_id = None
     if payload.idempotency_key:
         document_id = sha256(
-            f"{payload.org_id}:{payload.user_id}:{payload.conversation_id or ''}:{payload.idempotency_key}".encode()
+            f"{payload.workspace_id}:{payload.user_id}:{payload.conversation_id or ''}:{payload.idempotency_key}".encode()
         ).hexdigest()[:16]
-        # Cheap pre-check in its own short transaction so a retried generation
-        # skips re-uploading bytes; the authoritative race guard is below.
         async with write_tx(session):
             await assert_conversation_accepts_artifacts(
                 session, user_id=payload.user_id, conversation_id=payload.conversation_id
@@ -290,7 +276,8 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
             row = await document_crud.create_document(
                 session,
                 user_id=payload.user_id,
-                org_id=payload.org_id,
+                workspace_id=payload.workspace_id,
+                tenant_id=payload.tenant_id,
                 conversation_id=payload.conversation_id,
                 kind="artifact",
                 title=payload.title,
@@ -310,9 +297,6 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
         ObjectStore().delete(bucket=stored.bucket, key=stored.key)
         raise
     except IntegrityError:
-        # Lost an idempotency-key race: the begin block already rolled back, so
-        # re-read the winner's row on a fresh transaction. The blob just uploaded
-        # is a best-effort orphan.
         if document_id is None:
             raise
         existing = await document_crud.get_document(session, document_id, payload.user_id)
@@ -363,7 +347,8 @@ async def create_staged_media(payload: CreateStagedMediaInput, session: DbSessio
                 session,
                 staged_id=staged_id,
                 user_id=payload.user_id,
-                org_id=payload.org_id,
+                workspace_id=payload.workspace_id,
+                tenant_id=payload.tenant_id,
                 conversation_id=payload.conversation_id,
                 title=payload.title,
                 filename=payload.filename,
@@ -408,7 +393,7 @@ async def get_staged_media_source(staged_id: str, session: DbSession, user_id: s
 async def publish_staged_media(staged_id: str, payload: StagedMediaActionInput, session: DbSession) -> Document:
     async with write_tx(session):
         row = await staged_media_crud.get_staged_media(session, staged_id, payload.user_id)
-        if row is None or row.org_id != payload.org_id or row.status == "discarded":
+        if row is None or row.workspace_id != payload.workspace_id or row.status == "discarded":
             raise NotFoundError(f"staged media {staged_id} not found")
         if row.document_id:
             existing = await document_crud.get_document(session, row.document_id, payload.user_id)
@@ -419,7 +404,8 @@ async def publish_staged_media(staged_id: str, payload: StagedMediaActionInput, 
         document = await document_crud.create_document(
             session,
             user_id=row.user_id,
-            org_id=row.org_id,
+            workspace_id=row.workspace_id,
+            tenant_id=row.tenant_id,
             conversation_id=row.conversation_id,
             kind="artifact",
             title=row.title,
@@ -445,7 +431,7 @@ async def discard_staged_media(staged_id: str, payload: StagedMediaActionInput, 
     object_location: tuple[str, str] | None = None
     async with write_tx(session):
         row = await staged_media_crud.get_staged_media(session, staged_id, payload.user_id)
-        if row is None or row.org_id != payload.org_id:
+        if row is None or row.workspace_id != payload.workspace_id:
             raise NotFoundError(f"staged media {staged_id} not found")
         if row.status == "published":
             raise ConflictError("published staged media cannot be discarded")
@@ -460,11 +446,7 @@ async def discard_staged_media(staged_id: str, payload: StagedMediaActionInput, 
 
 
 @router.patch("/documents/{document_id}", response_model=Document)
-async def update_artifact(
-    document_id: str,
-    payload: UpdateArtifactInput,
-    session: DbSession,
-) -> Document:
+async def update_artifact(document_id: str, payload: UpdateArtifactInput, session: DbSession) -> Document:
     async with write_tx(session):
         row = await document_crud.get_document(session, document_id, payload.user_id)
         if row is None or row.kind != "artifact":
@@ -481,10 +463,7 @@ async def update_artifact(
                 except ValueError as exc:
                     raise ConflictError("invalid artifact base version") from exc
                 updated = await document_crud.update_document_if_unchanged(
-                    session,
-                    row,
-                    values,
-                    expected_updated_at=expected_updated_at,
+                    session, row, values, expected_updated_at=expected_updated_at
                 )
                 if updated is None:
                     raise ConflictError("artifact changed while the revision was being generated")
@@ -495,11 +474,7 @@ async def update_artifact(
 
 
 @router.delete("/documents/{document_id}", status_code=204)
-async def delete_document(
-    document_id: str,
-    session: DbSession,
-    user_id: str = Query(...),
-) -> None:
+async def delete_document(document_id: str, session: DbSession, user_id: str = Query(...)) -> None:
     async with write_tx(session):
         row = await document_crud.get_document(session, document_id, user_id)
         if row is None:

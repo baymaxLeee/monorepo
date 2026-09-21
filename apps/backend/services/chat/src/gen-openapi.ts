@@ -506,7 +506,8 @@ const openapi = {
         required: [
           "id",
           "taskId",
-          "orgId",
+          "tenantId",
+          "workspaceId",
           "userId",
           "title",
           "status",
@@ -520,7 +521,8 @@ const openapi = {
         properties: {
           id: { type: "string" },
           taskId: { type: "string" },
-          orgId: { type: "string" },
+          tenantId: { type: "string" },
+          workspaceId: { type: "string" },
           userId: { type: "string" },
           conversationId: { type: "string", nullable: true },
           title: { type: "string" },

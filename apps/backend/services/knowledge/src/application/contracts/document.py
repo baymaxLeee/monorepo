@@ -5,9 +5,6 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 DocumentKind = Literal["source", "artifact"]
-# "received" = bytes stored + row created, safe to reference/ask about; the heavy
-# MarkItDown/vision convert then runs in the background (received -> converting ->
-# ready) so upload no longer blocks on it.
 IngestStatus = Literal["pending", "storing", "received", "converting", "ready", "failed"]
 IndexStatus = Literal["pending", "indexing", "indexed", "skipped", "failed"]
 SliceState = Literal["ready", "processing", "failed"]
@@ -16,7 +13,8 @@ SliceState = Literal["ready", "processing", "failed"]
 class Document(BaseModel):
     id: str
     user_id: str
-    org_id: str | None = None
+    workspace_id: str | None = None
+    tenant_id: str | None = None
     conversation_id: str | None = None
     kind: DocumentKind
     title: str
@@ -59,7 +57,8 @@ class IngestResult(BaseModel):
 
 class CreateArtifactInput(BaseModel):
     user_id: str = Field(min_length=1, max_length=26)
-    org_id: str = Field(min_length=1, max_length=26)
+    workspace_id: str = Field(min_length=1, max_length=26)
+    tenant_id: str = Field(min_length=1, max_length=26)
     conversation_id: str | None = Field(default=None, max_length=32)
     title: str = Field(min_length=1, max_length=120)
     filename: str = Field(min_length=1, max_length=160)
@@ -85,7 +84,8 @@ class CreateMediaDocumentInput(BaseModel):
     temporary URL as the durable source of truth (ADR-0014)."""
 
     user_id: str = Field(min_length=1, max_length=26)
-    org_id: str = Field(min_length=1, max_length=26)
+    workspace_id: str = Field(min_length=1, max_length=26)
+    tenant_id: str = Field(min_length=1, max_length=26)
     conversation_id: str | None = Field(default=None, max_length=32)
     title: str = Field(min_length=1, max_length=120)
     filename: str = Field(min_length=1, max_length=160)
@@ -101,7 +101,8 @@ class CreateStagedMediaInput(CreateMediaDocumentInput):
 class StagedMedia(BaseModel):
     id: str
     user_id: str
-    org_id: str
+    workspace_id: str
+    tenant_id: str
     conversation_id: str | None = None
     title: str
     filename: str
@@ -116,7 +117,8 @@ class StagedMedia(BaseModel):
 
 class StagedMediaActionInput(BaseModel):
     user_id: str = Field(min_length=1, max_length=26)
-    org_id: str = Field(min_length=1, max_length=26)
+    workspace_id: str = Field(min_length=1, max_length=26)
+    tenant_id: str = Field(min_length=1, max_length=26)
 
 
 class DocumentSlice(BaseModel):
@@ -128,7 +130,5 @@ class DocumentSlice(BaseModel):
     start: int = 0
     total_chars: int
     next_start: int | None = None
-    # "ready" -> content is the real slice; "processing" -> convert still running
-    # (content empty, caller should retry); "failed" -> convert failed (see error).
     state: SliceState = "ready"
     error: str | None = None

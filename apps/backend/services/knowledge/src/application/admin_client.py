@@ -34,9 +34,6 @@ class ProviderSnapshot:
     extra_body: dict[str, Any]
     is_default: bool
     is_enabled: bool
-    # Vision capability of a chat model. Ingest only asks a provider to caption
-    # an image when this is true; otherwise the image degrades to metadata so a
-    # non-vision model is never sent image input (which Ark/others reject).
     supports_image_input: bool = False
 
 
@@ -46,61 +43,60 @@ class AdminClient:
         self._http = httpx.AsyncClient(
             base_url=self._settings.admin_service_url.rstrip("/"),
             timeout=httpx.Timeout(10.0, connect=3.0),
-            headers={
-                "X-Internal-Token": self._settings.internal_api_token,
-                "X-Caller-Service": "knowledge",
-            },
+            headers={"X-Internal-Token": self._settings.internal_api_token, "X-Caller-Service": "knowledge"},
         )
-        self._cache: TTLCache[tuple[str, str] | tuple[str, str, str], ProviderSnapshot] = TTLCache(
-            maxsize=256, ttl=300.0
-        )
+        self._cache: TTLCache[tuple[str, ...], ProviderSnapshot] = TTLCache(maxsize=256, ttl=300.0)
         self._cache_lock = asyncio.Lock()
 
     async def aclose(self) -> None:
         await self._http.aclose()
 
-    async def get_provider(self, *, org_id: str, provider_id: str | None = None) -> ProviderSnapshot:
+    async def get_provider(
+        self, *, workspace_id: str, tenant_id: str, provider_id: str | None = None
+    ) -> ProviderSnapshot:
         """Resolve a chat provider: a concrete `provider_id` (by-id, trusted
-        internal resolve) or the team's default chat provider (scoped by org)."""
-        cache_key: tuple[str, str] | tuple[str, str, str]
+        internal resolve) or the team's default chat provider (scoped by workspace)."""
+        cache_key: tuple[str, ...]
         if provider_id:
-            cache_key = ("id", org_id, provider_id)
+            cache_key = ("id", tenant_id, workspace_id, provider_id)
             if (cached := self._cache.get(cache_key)) is not None:
                 return cached
             async with self._cache_lock:
                 if (cached := self._cache.get(cache_key)) is not None:
                     return cached
                 snapshot = await self._fetch(
-                    f"/internal/providers/{provider_id}",
-                    params={"org_id": org_id},
+                    f"/internal/providers/{provider_id}", params={"workspace_id": workspace_id, "tenant_id": tenant_id}
                 )
                 self._cache[cache_key] = snapshot
                 return snapshot
-
-        cache_key = ("org", org_id)
+        cache_key = ("workspace", tenant_id, workspace_id)
         if (cached := self._cache.get(cache_key)) is not None:
             return cached
         async with self._cache_lock:
             if (cached := self._cache.get(cache_key)) is not None:
                 return cached
-            snapshot = await self._fetch("/internal/providers/default", params={"org_id": org_id})
+            snapshot = await self._fetch(
+                "/internal/providers/default", params={"workspace_id": workspace_id, "tenant_id": tenant_id}
+            )
             self._cache[cache_key] = snapshot
-            self._cache[("id", org_id, snapshot.id)] = snapshot
+            self._cache["id", tenant_id, workspace_id, snapshot.id] = snapshot
             return snapshot
 
-    async def get_provider_by_kind(self, *, org_id: str, kind: str) -> ProviderSnapshot:
+    async def get_provider_by_kind(self, *, workspace_id: str, tenant_id: str, kind: str) -> ProviderSnapshot:
         """Resolve the team's provider for a non-chat kind (embedding, rerank).
 
-        Cached by (org_id, "kind:<kind>") so RAG indexing/retrieval does not hit
+        Cached by (workspace_id, "kind:<kind>") so RAG indexing/retrieval does not hit
         admin on every chunk/query.
         """
-        cache_key = ("org", f"{org_id}:kind:{kind}")
+        cache_key = ("workspace", tenant_id, workspace_id, kind)
         if (cached := self._cache.get(cache_key)) is not None:
             return cached
         async with self._cache_lock:
             if (cached := self._cache.get(cache_key)) is not None:
                 return cached
-            snapshot = await self._fetch(f"/internal/providers/by-kind/{kind}", params={"org_id": org_id})
+            snapshot = await self._fetch(
+                f"/internal/providers/by-kind/{kind}", params={"workspace_id": workspace_id, "tenant_id": tenant_id}
+            )
             self._cache[cache_key] = snapshot
             return snapshot
 

@@ -13,4 +13,4 @@ func Conflict() error {
 	return &Error{409, "revision_conflict", "画布已更新，请重新读取后再提交"}
 }
 
-type Actor struct{ UserID, OrgID, OrgRole string }
+type Actor struct{ UserID, TenantID, WorkspaceID, WorkspaceRole string }

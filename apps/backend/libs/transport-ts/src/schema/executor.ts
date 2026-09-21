@@ -462,7 +462,8 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         TextGenerationPayload: {
-            orgId: string;
+            tenantId: string;
+            workspaceId: string;
             providerId: string;
             prompt: string;
         };
@@ -516,7 +517,8 @@ export interface components {
             payload: components["schemas"]["VideoGenerationTaskPayload"];
         };
         FileTaskBatchPayload: {
-            orgId: string;
+            tenantId: string;
+            workspaceId: string;
             userId: string;
             providerId: string;
             stagingId: string;
@@ -528,7 +530,8 @@ export interface components {
             }[];
         };
         VideoGenerationTaskPayload: {
-            orgId: string;
+            tenantId: string;
+            workspaceId: string;
             userId: string;
             conversationId?: string;
             providerId: string;
@@ -618,7 +621,8 @@ export interface components {
         VideoProductionProjection: {
             id: string;
             taskId: string;
-            orgId: string;
+            tenantId: string;
+            workspaceId: string;
             userId: string;
             conversationId?: string | null;
             title: string;

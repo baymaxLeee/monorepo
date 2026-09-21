@@ -10,26 +10,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from infrastructure.persistence.models.bot import BotRow
 
 
-async def list_bots(session: AsyncSession, org_id: str) -> list[BotRow]:
-    # Team-shared: every org member sees the org's bots (e.g. the team oncall
-    # bot). Admin-only writes are enforced at the router; no cross-org read.
-    stmt = select(BotRow).where(BotRow.org_id == org_id).order_by(BotRow.created_at)
+async def list_bots(session: AsyncSession, workspace_id: str, tenant_id: str) -> list[BotRow]:
+    stmt = (
+        select(BotRow)
+        .where((BotRow.workspace_id == workspace_id) & (BotRow.tenant_id == tenant_id))
+        .order_by(BotRow.created_at)
+    )
     result = await session.scalars(stmt)
     return list(result.all())
 
 
-async def get_bot(session: AsyncSession, bot_id: str, org_id: str) -> BotRow | None:
-    stmt = select(BotRow).where(BotRow.id == bot_id, BotRow.org_id == org_id)
+async def get_bot(session: AsyncSession, bot_id: str, workspace_id: str, tenant_id: str) -> BotRow | None:
+    stmt = select(BotRow).where(
+        BotRow.id == bot_id, (BotRow.workspace_id == workspace_id) & (BotRow.tenant_id == tenant_id)
+    )
     result = await session.scalars(stmt)
     return result.one_or_none()
 
 
-async def create_bot(session: AsyncSession, name: str, user_id: str, org_id: str) -> BotRow:
+async def create_bot(session: AsyncSession, name: str, user_id: str, workspace_id: str, tenant_id: str) -> BotRow:
     now = datetime.now(UTC)
     row = BotRow(
         id=uuid4().hex[:8],
         user_id=user_id,
-        org_id=org_id,
+        workspace_id=workspace_id,
+        tenant_id=tenant_id,
         name=name,
         status="draft",
         created_at=now,

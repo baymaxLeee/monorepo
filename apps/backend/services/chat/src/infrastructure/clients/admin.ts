@@ -34,8 +34,8 @@ export interface ProviderLimits {
   maxOutputTokens: number;
 }
 
-function providerLimitsKey(orgId: string, providerId: string | null): string {
-  return `chat:provider-limits:${encodeURIComponent(orgId)}:${encodeURIComponent(providerId ?? "default")}`;
+function providerLimitsKey(tenantId: string, workspaceId: string, providerId: string | null): string {
+  return `chat:provider-limits:${encodeURIComponent(tenantId)}:${encodeURIComponent(workspaceId)}:${encodeURIComponent(providerId ?? "default")}`;
 }
 
 function parseProviderLimits(value: string | null): ProviderLimits | null {
@@ -116,13 +116,16 @@ async function assertSnapshotUrl(snapshot: ProviderSnapshot): Promise<ProviderSn
 }
 
 export async function getProvider(
-  orgId: string,
+  tenantId: string,
+  workspaceId: string,
   providerId?: string | null,
 ): Promise<ProviderSnapshot & LanguageProviderSnapshot> {
   let data: AdminProviderSnapshot;
   try {
     const client = adminClient();
-    data = providerId ? await client.getProvider(providerId, orgId) : await client.getDefaultProvider(orgId);
+    data = providerId
+      ? await client.getProvider(providerId, tenantId, workspaceId)
+      : await client.getDefaultProvider(tenantId, workspaceId);
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new ProviderNotConfiguredError("no model provider configured");
@@ -136,9 +139,13 @@ export async function getProvider(
   return provider as ProviderSnapshot & LanguageProviderSnapshot;
 }
 
-export async function getProviderLimits(orgId: string, providerId?: string | null): Promise<ProviderLimits> {
+export async function getProviderLimits(
+  tenantId: string,
+  workspaceId: string,
+  providerId?: string | null,
+): Promise<ProviderLimits> {
   const cache = getRedisClient();
-  const key = providerLimitsKey(orgId, providerId ?? null);
+  const key = providerLimitsKey(tenantId, workspaceId, providerId ?? null);
   const cached = await cache
     .get(key)
     .then(parseProviderLimits)
@@ -147,7 +154,7 @@ export async function getProviderLimits(orgId: string, providerId?: string | nul
     return cached;
   }
 
-  const provider = await getProvider(orgId, providerId);
+  const provider = await getProvider(tenantId, workspaceId, providerId);
   const limits = {
     contextWindow: provider.contextWindow,
     maxOutputTokens: provider.maxOutputTokens,
@@ -156,10 +163,15 @@ export async function getProviderLimits(orgId: string, providerId?: string | nul
   return limits;
 }
 
-export async function getAgent(userId: string, agentId: string, orgId = ""): Promise<ResolvedAgentProviders> {
+export async function getAgent(
+  userId: string,
+  agentId: string,
+  tenantId: string,
+  workspaceId: string,
+): Promise<ResolvedAgentProviders> {
   let data: AdminResolvedAgent;
   try {
-    data = await adminClient().getResolvedAgent(userId, agentId, orgId);
+    data = await adminClient().getResolvedAgent(userId, agentId, tenantId, workspaceId);
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new ProviderNotConfiguredError(`agent ${agentId} not found`);
@@ -196,11 +208,12 @@ export async function getAgent(userId: string, agentId: string, orgId = ""): Pro
  *  `load_skill` and by explicit `/` activation — never at prompt-assembly time. */
 export async function getSkillBody(
   skillId: string,
-  orgId: string,
+  tenantId: string,
+  workspaceId: string,
 ): Promise<{ id: string; name: string; body: string; files: string[] }> {
   let data;
   try {
-    data = await adminClient().getSkill(skillId, orgId);
+    data = await adminClient().getSkill(skillId, tenantId, workspaceId);
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new RequestError(`skill ${skillId} not found`);
@@ -210,9 +223,14 @@ export async function getSkillBody(
   return { id: data.id, name: data.name, body: data.body, files: data.files };
 }
 
-export async function getSkillFile(skillId: string, orgId: string, path: string): Promise<string> {
+export async function getSkillFile(
+  skillId: string,
+  tenantId: string,
+  workspaceId: string,
+  path: string,
+): Promise<string> {
   try {
-    return (await adminClient().getSkillFile(skillId, orgId, path)).content;
+    return (await adminClient().getSkillFile(skillId, tenantId, workspaceId, path)).content;
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new RequestError(`skill file ${path} not found`);

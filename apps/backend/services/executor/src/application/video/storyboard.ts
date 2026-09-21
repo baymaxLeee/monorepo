@@ -10,13 +10,14 @@ export type CharacterRef = {
 };
 
 export async function generateCharacterSheet(input: {
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   imageProviderId: string;
   characters: Character[];
   perImageTimeoutMs: number;
   abortSignal?: AbortSignal;
 }): Promise<CharacterRef[]> {
-  const provider = await getProvider(input.imageProviderId, input.orgId);
+  const provider = await getProvider(input.imageProviderId, input.tenantId, input.workspaceId);
   const refs: CharacterRef[] = [];
   for (const character of input.characters) {
     if (input.abortSignal?.aborted) {

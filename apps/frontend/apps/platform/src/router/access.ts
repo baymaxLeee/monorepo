@@ -59,10 +59,10 @@ export const pendingAccessMiddleware = authenticated((user) => {
   if (canEnterPlatform(user)) {
     return "/platform/chat";
   }
-  return activeMemberships(user).length > 0 ? "/select-org" : null;
+  return activeMemberships(user).length > 0 ? "/select-workspace" : null;
 });
 
-export const selectOrgAccessMiddleware = authenticated((user) => {
+export const selectWorkspaceAccessMiddleware = authenticated((user) => {
   if (canEnterPlatform(user)) {
     return "/platform/chat";
   }
@@ -82,7 +82,7 @@ export function createAppAccessMiddleware(app: AppEntry): MiddlewareFunction {
     }
 
     const canAccess =
-      app.is_enabled && (!app.requires_admin || isSuperAdmin(user) || user.activeOrg?.role === "org_admin");
+      app.is_enabled && (!app.requires_admin || isSuperAdmin(user) || user.activeWorkspace?.role === "workspace_admin");
     if (!canAccess) {
       throw new Response("Not Found", { status: 404 });
     }

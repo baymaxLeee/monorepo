@@ -64,7 +64,7 @@ func (s *Service) UploadResourceAsset(ctx context.Context, a Actor, projectID, r
 		if resource.ResourceAssetCount >= domain.Type(resource.Type).ResourceAssetLimit() {
 			return Invalid("resource asset limit reached")
 		}
-		asset := p.Asset{ID: newID(), OrgID: a.OrgID, ProjectID: projectID, ObjectKey: key, MimeType: mime}
+		asset := p.Asset{ID: newID(), TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, ProjectID: projectID, ObjectKey: key, MimeType: mime}
 		var sequence int64
 		if err = tx.Unscoped().Model(&p.ResourceAsset{}).Where("resource_id = ?", resourceID).Select("COALESCE(MAX(sequence_no),0)").Scan(&sequence).Error; err != nil {
 			return err
@@ -105,14 +105,14 @@ func (s *Service) ResourceContent(ctx context.Context, a Actor, projectID, id st
 		return MediaContent{}, NotFound()
 	}
 	var asset p.Asset
-	err := db.Where("id = ? AND project_id = ? AND org_id = ? AND EXISTS (SELECT 1 FROM asset_references WHERE asset_id = assets.id AND owner_type = 'RESOURCE_ASSET_REVISION' AND owner_key = ? AND deleted_at IS NULL)", slot.CurrentAssetID, projectID, a.OrgID, id).First(&asset).Error
+	err := db.Where("id = ? AND project_id = ? AND tenant_id = ? AND workspace_id = ? AND EXISTS (SELECT 1 FROM asset_references WHERE asset_id = assets.id AND owner_type = 'RESOURCE_ASSET_REVISION' AND owner_key = ? AND deleted_at IS NULL)", slot.CurrentAssetID, projectID, a.TenantID, a.WorkspaceID, id).First(&asset).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return MediaContent{}, NotFound()
 		}
 		return MediaContent{}, err
 	}
-	body, err := s.Storage.Get(ctx, storage.Scope(a.OrgID, projectID), asset.ObjectKey)
+	body, err := s.Storage.Get(ctx, storage.Scope(a.TenantID, a.WorkspaceID, projectID), asset.ObjectKey)
 	return MediaContent{Body: body, MIME: asset.MimeType}, err
 }
 func (s *Service) CopyResourceToCanvas(ctx context.Context, a Actor, canvasID string, in c.MaterializeResource) (c.Graph, error) {
@@ -137,7 +137,7 @@ func (s *Service) CopyResourceToCanvas(ctx context.Context, a Actor, canvasID st
 			return NotFound()
 		}
 		var asset p.Asset
-		if err = tx.Where("id = ? AND org_id = ? AND project_id = ?", slot.CurrentAssetID, a.OrgID, board.ProjectID).First(&asset).Error; err != nil {
+		if err = tx.Where("id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ?", slot.CurrentAssetID, a.TenantID, a.WorkspaceID, board.ProjectID).First(&asset).Error; err != nil {
 			return NotFound()
 		}
 		var count int64

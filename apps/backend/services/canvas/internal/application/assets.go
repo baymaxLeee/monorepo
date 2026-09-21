@@ -60,7 +60,7 @@ func (s *Service) UploadNode(ctx context.Context, a Actor, canvasID, nodeID, nam
 		if err != gorm.ErrRecordNotFound {
 			return err
 		}
-		asset := p.Asset{ID: newID(), OrgID: a.OrgID, ProjectID: board.ProjectID, ObjectKey: key, MimeType: mime}
+		asset := p.Asset{ID: newID(), TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, ProjectID: board.ProjectID, ObjectKey: key, MimeType: mime}
 		if err = tx.Create(&asset).Error; err != nil {
 			return err
 		}
@@ -92,14 +92,14 @@ func (s *Service) NodeContent(ctx context.Context, a Actor, canvasID, nodeID str
 		return MediaContent{}, NotFound()
 	}
 	var asset p.Asset
-	err = db.Where("id = ? AND org_id = ? AND project_id = ? AND EXISTS (SELECT 1 FROM asset_references WHERE asset_id = assets.id AND owner_type = 'CANVAS_NODE_ASSET' AND owner_key = ? AND deleted_at IS NULL)", node.AssetID, a.OrgID, board.ProjectID, nodeID).First(&asset).Error
+	err = db.Where("id = ? AND tenant_id = ? AND workspace_id = ? AND project_id = ? AND EXISTS (SELECT 1 FROM asset_references WHERE asset_id = assets.id AND owner_type = 'CANVAS_NODE_ASSET' AND owner_key = ? AND deleted_at IS NULL)", node.AssetID, a.TenantID, a.WorkspaceID, board.ProjectID, nodeID).First(&asset).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return MediaContent{}, NotFound()
 		}
 		return MediaContent{}, err
 	}
-	body, err := s.Storage.Get(ctx, storage.Scope(a.OrgID, board.ProjectID), asset.ObjectKey)
+	body, err := s.Storage.Get(ctx, storage.Scope(a.TenantID, a.WorkspaceID, board.ProjectID), asset.ObjectKey)
 	return MediaContent{Body: body, MIME: asset.MimeType}, err
 }
 
@@ -120,6 +120,6 @@ func (s *Service) storeMedia(ctx context.Context, a Actor, projectID string, bod
 	default:
 		return "", "", 0, Invalid("unsupported media content")
 	}
-	key, err = s.Storage.Put(ctx, storage.Scope(a.OrgID, projectID), reader)
+	key, err = s.Storage.Put(ctx, storage.Scope(a.TenantID, a.WorkspaceID, projectID), reader)
 	return key, mime, kind, err
 }

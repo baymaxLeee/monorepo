@@ -8,8 +8,9 @@ class AuthContext:
     user_id: str
     username: str
     email: str
-    org_id: str = ""
-    org_role: str = ""
+    workspace_id: str = ""
+    tenant_id: str = ""
+    workspace_role: str = ""
     roles: tuple[str, ...] = ()
 
     @property
@@ -17,9 +18,9 @@ class AuthContext:
         return PLATFORM_SUPER_ADMIN in self.roles
 
     @property
-    def is_org_admin(self) -> bool:
-        return self.org_role == "org_admin"
+    def is_workspace_admin(self) -> bool:
+        return self.workspace_role == "workspace_admin"
 
     @property
-    def can_write_org_config(self) -> bool:
-        return self.is_org_admin
+    def can_write_workspace_config(self) -> bool:
+        return self.is_workspace_admin

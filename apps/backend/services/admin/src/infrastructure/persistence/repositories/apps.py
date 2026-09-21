@@ -16,7 +16,7 @@ async def list_apps(
 ) -> list[AppRow]:
     """Server-side visibility filter so admin-only/disabled app metadata never
     leaves the service for callers without the privilege. `include_disabled` is
-    for super_admin management; `include_admin_only` also covers org_admins who
+    for super_admin management; `include_admin_only` also covers workspace_admins who
     must mount the admin MFE."""
     stmt = select(AppRow).order_by(AppRow.sort_order.asc(), AppRow.created_at.asc())
     if not include_disabled:

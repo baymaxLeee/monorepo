@@ -5,7 +5,8 @@ import { getSql } from "../infrastructure/persistence/index.js";
 interface CleanupClaim {
   conversation_id: string;
   user_id: string;
-  org_id: string;
+  tenant_id: string;
+  workspace_id: string;
   attempts: number;
 }
 
@@ -35,7 +36,7 @@ async function claimNextCleanup(): Promise<CleanupClaim | undefined> {
     SET claimed_at = NOW(), attempts = outbox.attempts + 1
     FROM candidate
     WHERE outbox.conversation_id = candidate.conversation_id
-    RETURNING outbox.conversation_id, outbox.user_id, outbox.org_id, outbox.attempts
+    RETURNING outbox.conversation_id, outbox.user_id, outbox.tenant_id, outbox.workspace_id, outbox.attempts
   `;
   return row;
 }
@@ -45,7 +46,8 @@ async function deliverCleanup(claim: CleanupClaim): Promise<void> {
     await cleanupConversationArtifacts({
       conversationId: claim.conversation_id,
       userId: claim.user_id,
-      orgId: claim.org_id,
+      tenantId: claim.tenant_id,
+      workspaceId: claim.workspace_id,
     });
     await getSql()`
       DELETE FROM conversation_artifact_cleanup_outbox

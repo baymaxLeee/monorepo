@@ -86,7 +86,8 @@ export class KnowledgeInternalClient {
 
   createFileChangeSet(input: {
     userId: string;
-    orgId: string;
+    tenantId: string;
+    workspaceId: string;
     conversationId: string;
     metadata?: Record<string, string>;
   }): Promise<FileChangeSet> {
@@ -94,7 +95,8 @@ export class KnowledgeInternalClient {
       this.client.POST("/internal/files/change-sets", {
         body: {
           user_id: input.userId,
-          org_id: input.orgId,
+          tenant_id: input.tenantId,
+          workspace_id: input.workspaceId,
           conversation_id: input.conversationId,
           metadata: input.metadata,
         },
@@ -234,7 +236,8 @@ export class KnowledgeInternalClient {
 
   createArtifact(input: {
     userId: string;
-    orgId: string;
+    tenantId: string;
+    workspaceId: string;
     conversationId: string;
     title: string;
     filename: string;
@@ -246,7 +249,8 @@ export class KnowledgeInternalClient {
       this.client.POST("/internal/artifacts", {
         body: {
           user_id: input.userId,
-          org_id: input.orgId,
+          tenant_id: input.tenantId,
+          workspace_id: input.workspaceId,
           conversation_id: input.conversationId,
           title: input.title,
           filename: input.filename,
@@ -267,7 +271,8 @@ export class KnowledgeInternalClient {
    */
   createMediaDocument(input: {
     userId: string;
-    orgId: string;
+    tenantId: string;
+    workspaceId: string;
     conversationId?: string;
     title: string;
     filename: string;
@@ -279,7 +284,8 @@ export class KnowledgeInternalClient {
       this.client.POST("/internal/media-documents", {
         body: {
           user_id: input.userId,
-          org_id: input.orgId,
+          tenant_id: input.tenantId,
+          workspace_id: input.workspaceId,
           conversation_id: input.conversationId,
           title: input.title,
           filename: input.filename,
@@ -294,7 +300,8 @@ export class KnowledgeInternalClient {
 
   createStagedMedia(input: {
     userId: string;
-    orgId: string;
+    tenantId: string;
+    workspaceId: string;
     conversationId?: string;
     title: string;
     filename: string;
@@ -306,7 +313,8 @@ export class KnowledgeInternalClient {
       this.client.POST("/internal/staged-media", {
         body: {
           user_id: input.userId,
-          org_id: input.orgId,
+          tenant_id: input.tenantId,
+          workspace_id: input.workspaceId,
           conversation_id: input.conversationId,
           title: input.title,
           filename: input.filename,
@@ -340,21 +348,31 @@ export class KnowledgeInternalClient {
     throw toTransportError(response, error);
   }
 
-  publishStagedMedia(input: { userId: string; orgId: string; stagedId: string }): Promise<KnowledgeDocument> {
+  publishStagedMedia(input: {
+    userId: string;
+    tenantId: string;
+    workspaceId: string;
+    stagedId: string;
+  }): Promise<KnowledgeDocument> {
     return this.unwrap(
       this.client.POST("/internal/staged-media/{staged_id}/publish", {
         params: { path: { staged_id: input.stagedId } },
-        body: { user_id: input.userId, org_id: input.orgId },
+        body: { user_id: input.userId, tenant_id: input.tenantId, workspace_id: input.workspaceId },
       }),
       normalizeDocument,
     );
   }
 
-  discardStagedMedia(input: { userId: string; orgId: string; stagedId: string }): Promise<StagedMedia> {
+  discardStagedMedia(input: {
+    userId: string;
+    tenantId: string;
+    workspaceId: string;
+    stagedId: string;
+  }): Promise<StagedMedia> {
     return this.unwrap(
       this.client.POST("/internal/staged-media/{staged_id}/discard", {
         params: { path: { staged_id: input.stagedId } },
-        body: { user_id: input.userId, org_id: input.orgId },
+        body: { user_id: input.userId, tenant_id: input.tenantId, workspace_id: input.workspaceId },
       }),
     );
   }
@@ -386,14 +404,16 @@ export class KnowledgeInternalClient {
 
   cleanupConversationArtifacts(input: {
     userId: string;
-    orgId: string;
+    tenantId: string;
+    workspaceId: string;
     conversationId: string;
   }): Promise<CleanupConversationArtifactsResult> {
     return this.unwrap(
       this.client.POST("/internal/conversation-artifact-cleanups", {
         body: {
           user_id: input.userId,
-          org_id: input.orgId,
+          tenant_id: input.tenantId,
+          workspace_id: input.workspaceId,
           conversation_id: input.conversationId,
         },
       }),
@@ -402,20 +422,27 @@ export class KnowledgeInternalClient {
 
   /**
    * Hybrid RAG retrieval (dense + BM25 + RRF + optional rerank), scoped to the
-   * caller's team org so members share one knowledge base. `userId` still
+   * caller's team workspace so members share one knowledge base. `userId` still
    * selects the embedding/rerank provider config. Returns chunks with their
    * source document for citation.
    */
   retrieve(input: {
     userId: string;
-    orgId: string;
+    tenantId: string;
+    workspaceId: string;
     query: string;
     topK?: number;
     signal?: AbortSignal;
   }): Promise<RetrieveResult> {
     return this.unwrap(
       this.client.POST("/internal/retrieve", {
-        body: { user_id: input.userId, org_id: input.orgId, query: input.query, top_k: input.topK },
+        body: {
+          user_id: input.userId,
+          tenant_id: input.tenantId,
+          workspace_id: input.workspaceId,
+          query: input.query,
+          top_k: input.topK,
+        },
         signal: input.signal,
       }),
     );

@@ -27,7 +27,8 @@ const fileTaskSchema = z.object({
 
 export const fileTaskBatchInputSchema = z
   .object({
-    orgId: z.string().min(1),
+    tenantId: z.string().min(1),
+    workspaceId: z.string().min(1),
     userId: z.string().min(1),
     providerId: z.string().min(1),
     stagingId: z.string().min(1),
@@ -97,7 +98,7 @@ async function generateFileStep(input: {
     path: input.task.outputPath,
   });
   try {
-    const tools = await buildFileTextModel(input.batch.providerId, input.batch.orgId);
+    const tools = await buildFileTextModel(input.batch.providerId, input.batch.tenantId, input.batch.workspaceId);
     const content = await generateFileContent({
       outputPath: input.task.outputPath,
       taskId: input.task.id,

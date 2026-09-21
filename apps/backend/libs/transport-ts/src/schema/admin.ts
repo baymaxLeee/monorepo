@@ -634,8 +634,10 @@ export interface components {
             id: string;
             /** User Id */
             user_id: string;
-            /** Org Id */
-            org_id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Tenant Id */
+            tenant_id: string;
             /** Username */
             username: string;
             /** Name */
@@ -909,8 +911,10 @@ export interface components {
             id: string;
             /** User Id */
             user_id: string;
-            /** Org Id */
-            org_id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Tenant Id */
+            tenant_id: string;
             /** Name */
             name: string;
             /** Model */
@@ -1028,8 +1032,10 @@ export interface components {
             id: string;
             /** User Id */
             user_id: string;
-            /** Org Id */
-            org_id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Tenant Id */
+            tenant_id: string;
             /** Username */
             username: string;
             /** Name */
@@ -1100,8 +1106,10 @@ export interface components {
             id: string;
             /** User Id */
             user_id: string;
-            /** Org Id */
-            org_id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Tenant Id */
+            tenant_id: string;
             /** Username */
             username: string;
             /** Name */
@@ -1367,8 +1375,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path?: never;
@@ -1403,8 +1412,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path?: never;
@@ -1443,8 +1453,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -1481,8 +1492,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -1517,8 +1529,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -1559,8 +1572,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -1597,8 +1611,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -1639,8 +1654,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -1678,8 +1694,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path?: never;
@@ -1714,8 +1731,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path?: never;
@@ -1754,8 +1772,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path?: never;
@@ -1790,8 +1809,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path?: never;
@@ -1830,8 +1850,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -1868,8 +1889,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -1904,8 +1926,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -1946,8 +1969,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -1984,8 +2008,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -2023,8 +2048,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -2065,8 +2091,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -2108,8 +2135,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -2151,8 +2179,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -2196,8 +2225,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -2235,8 +2265,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -2273,8 +2304,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -2315,8 +2347,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path?: never;
@@ -2353,7 +2386,9 @@ export interface operations {
             query: {
                 path: string;
                 /** @description Team that owns the skill */
-                org_id: string;
+                workspace_id: string;
+                /** @description Team that owns the skill */
+                tenant_id: string;
             };
             header?: {
                 "X-Internal-Token"?: string | null;
@@ -2390,7 +2425,9 @@ export interface operations {
         parameters: {
             query: {
                 /** @description Team that owns the skill */
-                org_id: string;
+                workspace_id: string;
+                /** @description Team that owns the skill */
+                tenant_id: string;
             };
             header?: {
                 "X-Internal-Token"?: string | null;
@@ -2430,8 +2467,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path?: never;
@@ -2466,8 +2504,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path?: never;
@@ -2506,8 +2545,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -2544,8 +2584,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -2580,8 +2621,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -2622,8 +2664,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path?: never;
@@ -2662,8 +2705,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -2700,8 +2744,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -2739,7 +2784,9 @@ export interface operations {
         parameters: {
             query: {
                 /** @description Team that owns the provider */
-                org_id: string;
+                workspace_id: string;
+                /** @description Team that owns the provider */
+                tenant_id: string;
             };
             header?: {
                 "X-Internal-Token"?: string | null;
@@ -2774,7 +2821,9 @@ export interface operations {
         parameters: {
             query: {
                 /** @description Team that owns the provider */
-                org_id: string;
+                workspace_id: string;
+                /** @description Team that owns the provider */
+                tenant_id: string;
             };
             header?: {
                 "X-Internal-Token"?: string | null;
@@ -2811,7 +2860,9 @@ export interface operations {
         parameters: {
             query: {
                 /** @description Team that owns the provider */
-                org_id: string;
+                workspace_id: string;
+                /** @description Team that owns the provider */
+                tenant_id: string;
             };
             header?: {
                 "X-Internal-Token"?: string | null;
@@ -2849,8 +2900,10 @@ export interface operations {
             query: {
                 /** @description Requesting user */
                 user_id: string;
-                /** @description Requester's active org (team scope) */
-                org_id?: string;
+                /** @description Requester's active workspace (team scope) */
+                workspace_id?: string;
+                /** @description Requester's active workspace (team scope) */
+                tenant_id?: string;
             };
             header?: {
                 "X-Internal-Token"?: string | null;
@@ -2890,8 +2943,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path?: never;
@@ -2926,8 +2980,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path?: never;
@@ -2966,8 +3021,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -3004,8 +3060,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {
@@ -3040,8 +3097,9 @@ export interface operations {
                 "X-Auth-Email"?: string | null;
                 "X-Auth-User-ID"?: string | null;
                 "X-Auth-Name"?: string | null;
-                "X-Auth-Org-ID"?: string | null;
-                "X-Auth-Org-Role"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
                 "X-Auth-Roles"?: string | null;
             };
             path: {

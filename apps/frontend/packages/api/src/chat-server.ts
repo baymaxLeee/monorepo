@@ -53,7 +53,7 @@ export interface Message {
 export interface Conversation {
   id: string;
   user_id: string;
-  org_id: string;
+  workspace_id: string;
   title: string;
   model: string;
   provider_id: string;

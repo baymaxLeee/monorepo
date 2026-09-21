@@ -56,7 +56,8 @@ export async function getDocumentSource(
 
 export function createMediaDocument(input: {
   userId: string;
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   conversationId?: string;
   title: string;
   filename: string;
@@ -69,7 +70,8 @@ export function createMediaDocument(input: {
 
 export function createStagedMedia(input: {
   userId: string;
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   conversationId?: string;
   title: string;
   filename: string;
@@ -82,12 +84,18 @@ export function createStagedMedia(input: {
 
 export function publishStagedMedia(input: {
   userId: string;
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   stagedId: string;
 }): Promise<KnowledgeDocument> {
   return knowledgeClient(180_000).publishStagedMedia(input);
 }
 
-export function discardStagedMedia(input: { userId: string; orgId: string; stagedId: string }): Promise<StagedMedia> {
+export function discardStagedMedia(input: {
+  userId: string;
+  tenantId: string;
+  workspaceId: string;
+  stagedId: string;
+}): Promise<StagedMedia> {
   return knowledgeClient(180_000).discardStagedMedia(input);
 }

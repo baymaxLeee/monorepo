@@ -66,7 +66,8 @@ async function addArtifact(
 
 export async function initializeVideoProduction(input: {
   workflowRunId: string;
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   userId: string;
   conversationId?: string;
   title: string;
@@ -93,7 +94,8 @@ export async function initializeVideoProduction(input: {
   const projection: VideoProductionProjection = {
     id: task.id,
     taskId: task.id,
-    orgId: input.orgId,
+    tenantId: input.tenantId,
+    workspaceId: input.workspaceId,
     userId: input.userId,
     conversationId: input.conversationId ?? null,
     title: input.title,
@@ -123,7 +125,8 @@ export async function initializeVideoProduction(input: {
     await tx.insert(videoProductions).values({
       id: task.id,
       taskId: task.id,
-      orgId: input.orgId,
+      tenantId: input.tenantId,
+      workspaceId: input.workspaceId,
       userId: input.userId,
       conversationId: input.conversationId,
       status: projection.status,

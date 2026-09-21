@@ -345,7 +345,8 @@ async function createTextChangeSet(input: { target: string; content: string; exp
   }
   const changeSet = await createFileChangeSet({
     userId: input.context.userId,
-    orgId: input.context.orgId,
+    tenantId: input.context.tenantId,
+    workspaceId: input.context.workspaceId,
     conversationId: input.context.conversationId,
     metadata: {
       kind: isHtml(input.target) ? "html" : "text",
@@ -489,7 +490,8 @@ async function* delegateTasks(
   const displayPath = expectedPaths[0];
   const changeSet = await createFileChangeSet({
     userId: context.userId,
-    orgId: context.orgId,
+    tenantId: context.tenantId,
+    workspaceId: context.workspaceId,
     conversationId: context.conversationId,
     metadata: {
       kind: "delegated-files",
@@ -503,7 +505,8 @@ async function* delegateTasks(
         type: "file-task-batch",
         ownerRef: toolCallId,
         payload: {
-          orgId: context.orgId,
+          tenantId: context.tenantId,
+          workspaceId: context.workspaceId,
           userId: context.userId,
           providerId: textProvider.id,
           stagingId: changeSet.id,

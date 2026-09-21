@@ -19,10 +19,11 @@ export interface AgentRuntimeContext {
 
 export interface ChatAgentInput {
   canvasId?: string | null;
-  orgRole?: string;
+  workspaceRole?: string;
   runId: string;
   userId: string;
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   conversationId: string;
   mode: AgentMode;
   provider: LanguageProviderSnapshot;

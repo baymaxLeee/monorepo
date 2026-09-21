@@ -31,11 +31,7 @@ class IngestFileItem:
 
 
 async def ingest_documents(
-    *,
-    current_user: AuthContext,
-    conversation_id: str | None,
-    provider_id: str | None,
-    items: list[IngestFileItem],
+    *, current_user: AuthContext, conversation_id: str | None, provider_id: str | None, items: list[IngestFileItem]
 ) -> IngestResult:
     settings = get_settings()
     factory = get_session_factory()
@@ -50,15 +46,14 @@ async def ingest_documents(
                 try:
                     if len(item.content) > settings.attachment_max_upload_bytes:
                         raise AttachmentTooLargeError(
-                            "attachment too large",
-                            details={"max_bytes": settings.attachment_max_upload_bytes},
+                            "attachment too large", details={"max_bytes": settings.attachment_max_upload_bytes}
                         )
-
                     async with write_tx(worker_session):
                         row = await document_crud.create_document(
                             worker_session,
                             user_id=current_user.user_id,
-                            org_id=current_user.org_id,
+                            workspace_id=current_user.workspace_id,
+                            tenant_id=current_user.tenant_id,
                             conversation_id=conversation_id,
                             kind="source",
                             title=item.filename,
@@ -70,7 +65,6 @@ async def ingest_documents(
                             ingest_status="storing",
                             ingest_progress=10,
                         )
-
                     prefix = f"conversations/{conversation_id}" if conversation_id else "uploads"
                     stored = store.put_bytes(
                         content=item.content,
@@ -105,11 +99,7 @@ async def ingest_documents(
                             row = await document_crud.update_document(
                                 worker_session,
                                 row,
-                                {
-                                    "ingest_status": "failed",
-                                    "ingest_progress": 0,
-                                    "ingest_error": message[:500],
-                                },
+                                {"ingest_status": "failed", "ingest_progress": 0, "ingest_error": message[:500]},
                             )
                     if stored_bucket and stored_key:
                         with suppress(Exception):
@@ -130,11 +120,7 @@ async def ingest_documents(
     )
 
 
-def parse_ingest_items(
-    *,
-    files: list[tuple[str, bytes, str]],
-    client_refs: list[str],
-) -> list[IngestFileItem]:
+def parse_ingest_items(*, files: list[tuple[str, bytes, str]], client_refs: list[str]) -> list[IngestFileItem]:
     if len(files) != len(client_refs):
         raise ValueError("files and client_refs length mismatch")
     items: list[IngestFileItem] = []

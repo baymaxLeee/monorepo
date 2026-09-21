@@ -12,10 +12,10 @@ from infrastructure.persistence.models.base import Base
 class FileEntryRow(Base):
     __tablename__ = "file_entries"
     __table_args__ = (UniqueConstraint("user_id", "conversation_id", "path", name="ux_file_entry_root_path"),)
-
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
-    org_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
+    workspace_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(String(26), nullable=False)
     conversation_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     path: Mapped[str] = mapped_column(String(512), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -29,10 +29,10 @@ class FileEntryRow(Base):
 
 class FileChangeSetRow(Base):
     __tablename__ = "file_change_sets"
-
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
-    org_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
+    workspace_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(String(26), nullable=False)
     conversation_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     status: Mapped[str] = mapped_column(String(24), nullable=False)
     baseline_sha256: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
@@ -44,7 +44,6 @@ class FileChangeSetRow(Base):
 class FileChangeSetEntryRow(Base):
     __tablename__ = "file_change_set_entries"
     __table_args__ = (UniqueConstraint("change_set_id", "path", name="ux_file_change_set_path"),)
-
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     change_set_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     path: Mapped[str] = mapped_column(String(512), nullable=False)

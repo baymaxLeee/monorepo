@@ -18,9 +18,9 @@ var (
 	// ErrConflict signals a lost race on a conditional state transition
 	// (RowsAffected == 0). Callers must NOT retry with last-write-wins.
 	ErrConflict = errors.New("conflict")
-	// ErrNotActiveMember: the target org is not an active membership of the user.
+	// ErrNotActiveMember: the target workspace is not an active membership of the user.
 	ErrNotActiveMember = errors.New("not an active member")
-	// ErrInvariant: the operation would break a hard invariant (last org_admin,
+	// ErrInvariant: the operation would break a hard invariant (last workspace_admin,
 	// owner demotion, last super_admin, ...).
 	ErrInvariant = errors.New("operation violates an invariant")
 )
@@ -73,9 +73,9 @@ func (s *Store) Close() {
 }
 
 // CreateUserWithMembership atomically creates the user, credential, and a single
-// membership. Register uses (member, pending); org-admin creation uses
-// (org_admin, active). A bad orgID fails the FK and rolls the whole thing back.
-func (s *Store) CreateUserWithMembership(ctx context.Context, user models.User, passwordHash, guestOrgID, orgID, role, status string) error {
+// membership. Register uses (member, pending); workspace-admin creation uses
+// (workspace_admin, active). A bad workspaceID fails the FK and rolls the whole thing back.
+func (s *Store) CreateUserWithMembership(ctx context.Context, user models.User, passwordHash, guestWorkspaceID, workspaceID, role, status string) error {
 	now := time.Now().UTC()
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&user).Error; err != nil {
@@ -90,31 +90,31 @@ func (s *Store) CreateUserWithMembership(ctx context.Context, user models.User, 
 		}).Error; err != nil {
 			return err
 		}
-		if err := tx.Create(&models.OrganizationMember{
-			OrgID:     guestOrgID,
-			UserID:    user.ID,
-			Role:      "member",
-			Status:    "active",
-			CreatedAt: now,
+		if err := tx.Create(&models.WorkspaceMember{
+			WorkspaceID: guestWorkspaceID,
+			UserID:      user.ID,
+			Role:        "member",
+			Status:      "active",
+			CreatedAt:   now,
 		}).Error; err != nil {
 			return err
 		}
-		if orgID == guestOrgID {
-			return tx.Model(&models.OrganizationMember{}).
-				Where("org_id = ? AND user_id = ?", orgID, user.ID).
+		if workspaceID == guestWorkspaceID {
+			return tx.Model(&models.WorkspaceMember{}).
+				Where("workspace_id = ? AND user_id = ?", workspaceID, user.ID).
 				Updates(map[string]any{"role": role, "status": status}).Error
 		}
-		return tx.Create(&models.OrganizationMember{
-			OrgID:     orgID,
-			UserID:    user.ID,
-			Role:      role,
-			Status:    status,
-			CreatedAt: now,
+		return tx.Create(&models.WorkspaceMember{
+			WorkspaceID: workspaceID,
+			UserID:      user.ID,
+			Role:        role,
+			Status:      status,
+			CreatedAt:   now,
 		}).Error
 	})
 }
 
-func (s *Store) CreateRegisteredUser(ctx context.Context, user models.User, passwordHash, guestOrgID, targetOrgID string) error {
+func (s *Store) CreateRegisteredUser(ctx context.Context, user models.User, passwordHash, guestWorkspaceID, targetWorkspaceID string) error {
 	now := time.Now().UTC()
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&user).Error; err != nil {
@@ -126,16 +126,16 @@ func (s *Store) CreateRegisteredUser(ctx context.Context, user models.User, pass
 		}).Error; err != nil {
 			return err
 		}
-		if err := tx.Create(&models.OrganizationMember{
-			OrgID: guestOrgID, UserID: user.ID, Role: "member", Status: "active", CreatedAt: now,
+		if err := tx.Create(&models.WorkspaceMember{
+			WorkspaceID: guestWorkspaceID, UserID: user.ID, Role: "member", Status: "active", CreatedAt: now,
 		}).Error; err != nil {
 			return err
 		}
-		if targetOrgID == "" || targetOrgID == guestOrgID {
+		if targetWorkspaceID == "" || targetWorkspaceID == guestWorkspaceID {
 			return nil
 		}
-		return tx.Create(&models.OrganizationMember{
-			OrgID: targetOrgID, UserID: user.ID, Role: "member", Status: "pending", CreatedAt: now,
+		return tx.Create(&models.WorkspaceMember{
+			WorkspaceID: targetWorkspaceID, UserID: user.ID, Role: "member", Status: "pending", CreatedAt: now,
 		}).Error
 	})
 }
@@ -208,20 +208,20 @@ func (s *Store) CreateRefreshToken(ctx context.Context, token models.RefreshToke
 	return s.db.WithContext(ctx).Create(&token).Error
 }
 
-// RotateRefreshToken rotates the session, carrying the old token's active_org_id
+// RotateRefreshToken rotates the session, carrying the old token's active_workspace_id
 // forward — but only if that membership is STILL active. A revoked/downgraded
-// membership drops the org scope so the next access token is unscoped. Returns
-// the user and the effective active org (nil when unscoped).
+// membership drops the workspace scope so the next access token is unscoped. Returns
+// the user and the effective active workspace (nil when unscoped).
 func (s *Store) RotateRefreshToken(ctx context.Context, oldHash string, next models.RefreshToken) (models.User, *string, error) {
 	var user models.User
-	var activeOrgID *string
+	var activeWorkspaceID *string
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now().UTC()
 		old, err := lockValidToken(tx, oldHash, now)
 		if err != nil {
 			return err
 		}
-		carried := old.ActiveOrgID
+		carried := old.ActiveWorkspaceID
 		if carried != nil {
 			status, err := memberStatus(tx, *carried, old.UserID)
 			if err != nil {
@@ -231,20 +231,20 @@ func (s *Store) RotateRefreshToken(ctx context.Context, oldHash string, next mod
 				carried = nil
 			}
 		}
-		next.ActiveOrgID = carried
+		next.ActiveWorkspaceID = carried
 		user, err = rotateSession(tx, &old, &next, now)
 		if err != nil {
 			return err
 		}
-		activeOrgID = carried
+		activeWorkspaceID = carried
 		return nil
 	})
-	return user, activeOrgID, err
+	return user, activeWorkspaceID, err
 }
 
-// RotateRefreshTokenToOrg rotates the session and binds it to targetOrgID after
+// RotateRefreshTokenToWorkspace rotates the session and binds it to targetWorkspaceID after
 // verifying (inside the transaction) that it is an active membership.
-func (s *Store) RotateRefreshTokenToOrg(ctx context.Context, oldHash string, next models.RefreshToken, targetOrgID, expectedUserID string) (models.User, error) {
+func (s *Store) RotateRefreshTokenToWorkspace(ctx context.Context, oldHash string, next models.RefreshToken, targetWorkspaceID, expectedUserID string) (models.User, error) {
 	var user models.User
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now().UTC()
@@ -255,15 +255,15 @@ func (s *Store) RotateRefreshTokenToOrg(ctx context.Context, oldHash string, nex
 		if old.UserID != expectedUserID {
 			return ErrNotFound
 		}
-		status, err := memberStatus(tx, targetOrgID, old.UserID)
+		status, err := memberStatus(tx, targetWorkspaceID, old.UserID)
 		if err != nil {
 			return err
 		}
 		if status != "active" {
 			return ErrNotActiveMember
 		}
-		org := targetOrgID
-		next.ActiveOrgID = &org
+		workspace := targetWorkspaceID
+		next.ActiveWorkspaceID = &workspace
 		user, err = rotateSession(tx, &old, &next, now)
 		return err
 	})
@@ -306,12 +306,12 @@ func rotateSession(tx *gorm.DB, old *models.RefreshToken, next *models.RefreshTo
 	return user, err
 }
 
-// memberStatus returns the membership status for (org, user), or "" if none.
-func memberStatus(tx *gorm.DB, orgID, userID string) (string, error) {
+// memberStatus returns the membership status for (workspace, user), or "" if none.
+func memberStatus(tx *gorm.DB, workspaceID, userID string) (string, error) {
 	var status string
-	err := tx.Model(&models.OrganizationMember{}).
+	err := tx.Model(&models.WorkspaceMember{}).
 		Select("status").
-		Where("org_id = ? AND user_id = ?", orgID, userID).
+		Where("workspace_id = ? AND user_id = ?", workspaceID, userID).
 		Scan(&status).Error
 	return status, err
 }
@@ -375,34 +375,34 @@ func (s *Store) UserRoles(ctx context.Context, userID string) ([]models.Role, er
 	return roles, err
 }
 
-func (s *Store) EnsureOrganization(ctx context.Context, org models.Organization) error {
+func (s *Store) EnsureWorkspace(ctx context.Context, workspace models.Workspace) error {
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"name", "slug", "owner_user_id", "system_managed", "system_key", "join_policy", "updated_at"}),
-	}).Create(&org).Error
+	}).Create(&workspace).Error
 }
 
-func (s *Store) EnsureAllUsersInGuestOrg(ctx context.Context, orgID string) error {
+func (s *Store) EnsureAllUsersInGuestWorkspace(ctx context.Context, workspaceID string) error {
 	now := time.Now().UTC()
 	return s.db.WithContext(ctx).Exec(`
-		INSERT INTO organization_members (org_id, user_id, role, status, created_at)
+		INSERT INTO workspace_members (workspace_id, user_id, role, status, created_at)
 		SELECT ?, u.id, 'member', 'active', ? FROM users u
-		LEFT JOIN organization_members m ON m.org_id = ? AND m.user_id = u.id
-		WHERE m.user_id IS NULL`, orgID, now, orgID).Error
+		LEFT JOIN workspace_members m ON m.workspace_id = ? AND m.user_id = u.id
+		WHERE m.user_id IS NULL`, workspaceID, now, workspaceID).Error
 }
 
-// EnsureOrgMember upserts a membership at a fixed role/status. Used by seed to
-// keep the system super_admin an active org_admin idempotently.
-func (s *Store) EnsureOrgMember(ctx context.Context, orgID, userID, role, status string) error {
-	member := models.OrganizationMember{
-		OrgID:     orgID,
-		UserID:    userID,
-		Role:      role,
-		Status:    status,
-		CreatedAt: time.Now().UTC(),
+// EnsureWorkspaceMember upserts a membership at a fixed role/status. Used by seed to
+// keep the system super_admin an active workspace_admin idempotently.
+func (s *Store) EnsureWorkspaceMember(ctx context.Context, workspaceID, userID, role, status string) error {
+	member := models.WorkspaceMember{
+		WorkspaceID: workspaceID,
+		UserID:      userID,
+		Role:        role,
+		Status:      status,
+		CreatedAt:   time.Now().UTC(),
 	}
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "org_id"}, {Name: "user_id"}},
+		Columns:   []clause.Column{{Name: "workspace_id"}, {Name: "user_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"role", "status"}),
 	}).Create(&member).Error
 }
@@ -430,28 +430,29 @@ func (s *Store) CountUsersWithRole(ctx context.Context, roleName string) (int64,
 	return count, err
 }
 
-// --- Organizations -------------------------------------------------------
+// --- Workspaces -------------------------------------------------------
 
-func (s *Store) OrganizationByID(ctx context.Context, id string) (models.Organization, error) {
-	var org models.Organization
-	err := s.db.WithContext(ctx).Where("id = ?", id).First(&org).Error
+func (s *Store) WorkspaceByID(ctx context.Context, id string) (models.Workspace, error) {
+	var workspace models.Workspace
+	err := s.db.WithContext(ctx).Where("id = ?", id).First(&workspace).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return models.Organization{}, ErrNotFound
+		return models.Workspace{}, ErrNotFound
 	}
-	return org, err
+	return workspace, err
 }
 
-// ListOrganizations returns every org ordered by name. The public endpoint maps
-// this down to {id,name}; management uses ListOrganizationsForAdmin.
-func (s *Store) ListOrganizations(ctx context.Context) ([]models.Organization, error) {
-	var orgs []models.Organization
+// ListWorkspaces returns every workspace ordered by name. The public endpoint maps
+// this down to {id,name}; management uses ListWorkspacesForAdmin.
+func (s *Store) ListWorkspaces(ctx context.Context) ([]models.Workspace, error) {
+	var workspaces []models.Workspace
 	err := s.db.WithContext(ctx).
 		Where("system_managed = ? AND join_policy = ?", false, "approval").
-		Order("name").Find(&orgs).Error
-	return orgs, err
+		Order("name").Find(&workspaces).Error
+	return workspaces, err
 }
 
-type OrgAdminRow struct {
+type WorkspaceAdminRow struct {
+	TenantID      string
 	ID            string
 	Name          string
 	Slug          string
@@ -462,32 +463,32 @@ type OrgAdminRow struct {
 	CreatedAt     time.Time
 }
 
-func (s *Store) ListOrganizationsForAdmin(ctx context.Context) ([]OrgAdminRow, error) {
-	var rows []OrgAdminRow
+func (s *Store) ListWorkspacesForAdmin(ctx context.Context) ([]WorkspaceAdminRow, error) {
+	var rows []WorkspaceAdminRow
 	err := s.db.WithContext(ctx).
-		Table("organizations AS o").
-		Select("o.id, o.name, o.slug, o.owner_user_id, o.system_managed, o.join_policy, o.created_at, " +
-			"(SELECT COUNT(*) FROM organization_members m WHERE m.org_id = o.id AND m.status = 'active') AS member_count").
+		Table("workspaces AS o").
+		Select("o.tenant_id, o.id, o.name, o.slug, o.owner_user_id, o.system_managed, o.join_policy, o.created_at, " +
+			"(SELECT COUNT(*) FROM workspace_members m WHERE m.workspace_id = o.id AND m.status = 'active') AS member_count").
 		Order("o.created_at DESC").
 		Scan(&rows).Error
 	return rows, err
 }
 
-// CreateOrganizationWithOwner creates an org whose first member is an existing
-// user, made an active org_admin/owner in one transaction.
-func (s *Store) CreateOrganizationWithOwner(ctx context.Context, org models.Organization, ownerUserID string) error {
+// CreateWorkspaceWithOwner creates an workspace whose first member is an existing
+// user, made an active workspace_admin/owner in one transaction.
+func (s *Store) CreateWorkspaceWithOwner(ctx context.Context, workspace models.Workspace, ownerUserID string) error {
 	now := time.Now().UTC()
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&org).Error; err != nil {
+		if err := tx.Create(&workspace).Error; err != nil {
 			return err
 		}
-		return upsertActiveOrgAdmin(tx, org.ID, ownerUserID, now)
+		return upsertActiveWorkspaceAdmin(tx, workspace.ID, ownerUserID, now)
 	})
 }
 
-// CreateOrganizationWithNewOwner atomically creates the owner account, the org,
-// and the owner's active org_admin membership.
-func (s *Store) CreateOrganizationWithNewOwner(ctx context.Context, org models.Organization, owner models.User, passwordHash, guestOrgID string) error {
+// CreateWorkspaceWithNewOwner atomically creates the owner account, the workspace,
+// and the owner's active workspace_admin membership.
+func (s *Store) CreateWorkspaceWithNewOwner(ctx context.Context, workspace models.Workspace, owner models.User, passwordHash, guestWorkspaceID string) error {
 	now := time.Now().UTC()
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&owner).Error; err != nil {
@@ -502,64 +503,64 @@ func (s *Store) CreateOrganizationWithNewOwner(ctx context.Context, org models.O
 		}).Error; err != nil {
 			return err
 		}
-		if err := tx.Create(&org).Error; err != nil {
+		if err := tx.Create(&workspace).Error; err != nil {
 			return err
 		}
-		if err := upsertActiveOrgAdmin(tx, org.ID, owner.ID, now); err != nil {
+		if err := upsertActiveWorkspaceAdmin(tx, workspace.ID, owner.ID, now); err != nil {
 			return err
 		}
-		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&models.OrganizationMember{
-			OrgID: guestOrgID, UserID: owner.ID, Role: "member", Status: "active", CreatedAt: now,
+		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&models.WorkspaceMember{
+			WorkspaceID: guestWorkspaceID, UserID: owner.ID, Role: "member", Status: "active", CreatedAt: now,
 		}).Error
 	})
 }
 
 // TransferOwner moves ownership to newOwnerUserID inside one transaction: lock
-// the org, promote the target to active org_admin, then repoint owner. The old
-// owner keeps org_admin (may be demoted afterwards via the role API).
-func (s *Store) TransferOwner(ctx context.Context, orgID, newOwnerUserID string) error {
+// the workspace, promote the target to active workspace_admin, then repoint owner. The old
+// owner keeps workspace_admin (may be demoted afterwards via the role API).
+func (s *Store) TransferOwner(ctx context.Context, workspaceID, newOwnerUserID string) error {
 	now := time.Now().UTC()
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var org models.Organization
+		var workspace models.Workspace
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ?", orgID).First(&org).Error; err != nil {
+			Where("id = ?", workspaceID).First(&workspace).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrNotFound
 			}
 			return err
 		}
-		if org.SystemManaged {
+		if workspace.SystemManaged {
 			return ErrInvariant
 		}
-		var member models.OrganizationMember
+		var member models.WorkspaceMember
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("org_id = ? AND user_id = ?", orgID, newOwnerUserID).
+			Where("workspace_id = ? AND user_id = ?", workspaceID, newOwnerUserID).
 			First(&member).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrInvariant // new owner must already be a member of this org
+			return ErrInvariant // new owner must already be a member of this workspace
 		}
 		if err != nil {
 			return err
 		}
-		if err := upsertActiveOrgAdmin(tx, orgID, newOwnerUserID, now); err != nil {
+		if err := upsertActiveWorkspaceAdmin(tx, workspaceID, newOwnerUserID, now); err != nil {
 			return err
 		}
-		return tx.Model(&models.Organization{}).
-			Where("id = ?", orgID).
+		return tx.Model(&models.Workspace{}).
+			Where("id = ?", workspaceID).
 			Updates(map[string]any{"owner_user_id": newOwnerUserID, "updated_at": now}).Error
 	})
 }
 
-func upsertActiveOrgAdmin(tx *gorm.DB, orgID, userID string, now time.Time) error {
-	member := models.OrganizationMember{
-		OrgID:     orgID,
-		UserID:    userID,
-		Role:      "org_admin",
-		Status:    "active",
-		CreatedAt: now,
+func upsertActiveWorkspaceAdmin(tx *gorm.DB, workspaceID, userID string, now time.Time) error {
+	member := models.WorkspaceMember{
+		WorkspaceID: workspaceID,
+		UserID:      userID,
+		Role:        "workspace_admin",
+		Status:      "active",
+		CreatedAt:   now,
 	}
 	return tx.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "org_id"}, {Name: "user_id"}},
+		Columns:   []clause.Column{{Name: "workspace_id"}, {Name: "user_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"role", "status"}),
 	}).Create(&member).Error
 }
@@ -567,33 +568,34 @@ func upsertActiveOrgAdmin(tx *gorm.DB, orgID, userID string, now time.Time) erro
 // --- Memberships ---------------------------------------------------------
 
 type MembershipRow struct {
-	OrgID   string
-	OrgName string
-	Role    string
-	Status  string
+	TenantID      string
+	WorkspaceID   string
+	WorkspaceName string
+	Role          string
+	Status        string
 }
 
 func (s *Store) ListUserMemberships(ctx context.Context, userID string) ([]MembershipRow, error) {
 	var rows []MembershipRow
 	err := s.db.WithContext(ctx).
-		Table("organization_members AS m").
-		Select("m.org_id, o.name AS org_name, m.role, m.status").
-		Joins("JOIN organizations o ON o.id = m.org_id").
+		Table("workspace_members AS m").
+		Select("o.tenant_id, m.workspace_id, o.name AS workspace_name, m.role, m.status").
+		Joins("JOIN workspaces o ON o.id = m.workspace_id").
 		Where("m.user_id = ?", userID).
 		Order("m.created_at").
 		Scan(&rows).Error
 	return rows, err
 }
 
-// ActiveMembership returns the user's single active membership for orgID, or
-// ErrNotFound. Used to resolve the JWT org_role for a bound session.
-func (s *Store) ActiveMembership(ctx context.Context, userID, orgID string) (MembershipRow, error) {
+// ActiveMembership returns the user's single active membership for workspaceID, or
+// ErrNotFound. Used to resolve the JWT workspace_role for a bound session.
+func (s *Store) ActiveMembership(ctx context.Context, userID, workspaceID string) (MembershipRow, error) {
 	var row MembershipRow
 	err := s.db.WithContext(ctx).
-		Table("organization_members AS m").
-		Select("m.org_id, o.name AS org_name, m.role, m.status").
-		Joins("JOIN organizations o ON o.id = m.org_id").
-		Where("m.user_id = ? AND m.org_id = ? AND m.status = 'active'", userID, orgID).
+		Table("workspace_members AS m").
+		Select("o.tenant_id, m.workspace_id, o.name AS workspace_name, m.role, m.status").
+		Joins("JOIN workspaces o ON o.id = m.workspace_id").
+		Where("m.user_id = ? AND m.workspace_id = ? AND m.status = 'active'", userID, workspaceID).
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return MembershipRow{}, ErrNotFound
@@ -601,7 +603,7 @@ func (s *Store) ActiveMembership(ctx context.Context, userID, orgID string) (Mem
 	return row, err
 }
 
-type OrgMemberRow struct {
+type WorkspaceMemberRow struct {
 	UserID          string
 	Account         string
 	DisplayName     string
@@ -614,32 +616,32 @@ type OrgMemberRow struct {
 	CreatedAt       time.Time
 }
 
-// ListOrgMembers lists members of an org. An empty statusFilter returns all.
-func (s *Store) ListOrgMembers(ctx context.Context, orgID, statusFilter string) ([]OrgMemberRow, error) {
+// ListWorkspaceMembers lists members of an workspace. An empty statusFilter returns all.
+func (s *Store) ListWorkspaceMembers(ctx context.Context, workspaceID, statusFilter string) ([]WorkspaceMemberRow, error) {
 	q := s.db.WithContext(ctx).
-		Table("organization_members AS m").
+		Table("workspace_members AS m").
 		Select("m.user_id, u.account, u.display_name, u.email, m.role, m.status, m.reviewed_by, m.reviewed_at, m.rejection_reason, m.created_at").
 		Joins("JOIN users u ON u.id = m.user_id").
-		Where("m.org_id = ?", orgID)
+		Where("m.workspace_id = ?", workspaceID)
 	if statusFilter != "" {
 		q = q.Where("m.status = ?", statusFilter)
 	}
-	var rows []OrgMemberRow
+	var rows []WorkspaceMemberRow
 	err := q.Order("m.created_at DESC").Scan(&rows).Error
 	return rows, err
 }
 
 // MemberRoleStatus returns (role, status) for a membership, used to authorize an
 // actor against the DB (never trust request body or a stale JWT role).
-func (s *Store) MemberRoleStatus(ctx context.Context, orgID, userID string) (string, string, error) {
+func (s *Store) MemberRoleStatus(ctx context.Context, workspaceID, userID string) (string, string, error) {
 	var row struct {
 		Role   string
 		Status string
 	}
 	err := s.db.WithContext(ctx).
-		Model(&models.OrganizationMember{}).
+		Model(&models.WorkspaceMember{}).
 		Select("role, status").
-		Where("org_id = ? AND user_id = ?", orgID, userID).
+		Where("workspace_id = ? AND user_id = ?", workspaceID, userID).
 		Scan(&row).Error
 	if err != nil {
 		return "", "", err
@@ -652,20 +654,20 @@ func (s *Store) MemberRoleStatus(ctx context.Context, orgID, userID string) (str
 
 // ApplyMembership starts (none) or restarts (rejected) an application, landing
 // the user in `pending`. A pending/active membership is a conflict.
-func (s *Store) ApplyMembership(ctx context.Context, orgID, userID string) error {
+func (s *Store) ApplyMembership(ctx context.Context, workspaceID, userID string) error {
 	now := time.Now().UTC()
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var member models.OrganizationMember
+		var member models.WorkspaceMember
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("org_id = ? AND user_id = ?", orgID, userID).
+			Where("workspace_id = ? AND user_id = ?", workspaceID, userID).
 			First(&member).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return tx.Create(&models.OrganizationMember{
-				OrgID:     orgID,
-				UserID:    userID,
-				Role:      "member",
-				Status:    "pending",
-				CreatedAt: now,
+			return tx.Create(&models.WorkspaceMember{
+				WorkspaceID: workspaceID,
+				UserID:      userID,
+				Role:        "member",
+				Status:      "pending",
+				CreatedAt:   now,
 			}).Error
 		}
 		if err != nil {
@@ -674,8 +676,8 @@ func (s *Store) ApplyMembership(ctx context.Context, orgID, userID string) error
 		if member.Status != "rejected" {
 			return ErrConflict // already pending or active
 		}
-		return tx.Model(&models.OrganizationMember{}).
-			Where("org_id = ? AND user_id = ? AND status = 'rejected'", orgID, userID).
+		return tx.Model(&models.WorkspaceMember{}).
+			Where("workspace_id = ? AND user_id = ? AND status = 'rejected'", workspaceID, userID).
 			Updates(map[string]any{
 				"status":           "pending",
 				"reviewed_by":      nil,
@@ -686,11 +688,11 @@ func (s *Store) ApplyMembership(ctx context.Context, orgID, userID string) error
 }
 
 // ApproveMembership: pending -> active (conditional; concurrent loser -> conflict).
-func (s *Store) ApproveMembership(ctx context.Context, orgID, userID, reviewerID string) error {
+func (s *Store) ApproveMembership(ctx context.Context, workspaceID, userID, reviewerID string) error {
 	now := time.Now().UTC()
 	res := s.db.WithContext(ctx).
-		Model(&models.OrganizationMember{}).
-		Where("org_id = ? AND user_id = ? AND status = 'pending'", orgID, userID).
+		Model(&models.WorkspaceMember{}).
+		Where("workspace_id = ? AND user_id = ? AND status = 'pending'", workspaceID, userID).
 		Updates(map[string]any{
 			"status":           "active",
 			"reviewed_by":      reviewerID,
@@ -708,7 +710,7 @@ func (s *Store) ApproveMembership(ctx context.Context, orgID, userID, reviewerID
 
 // RejectMembership: pending -> rejected (keeps the row + reviewer/reason so the
 // user can reapply). Conditional; concurrent loser -> conflict.
-func (s *Store) RejectMembership(ctx context.Context, orgID, userID, reviewerID, reason string) error {
+func (s *Store) RejectMembership(ctx context.Context, workspaceID, userID, reviewerID, reason string) error {
 	now := time.Now().UTC()
 	updates := map[string]any{
 		"status":      "rejected",
@@ -719,8 +721,8 @@ func (s *Store) RejectMembership(ctx context.Context, orgID, userID, reviewerID,
 		updates["rejection_reason"] = reason
 	}
 	res := s.db.WithContext(ctx).
-		Model(&models.OrganizationMember{}).
-		Where("org_id = ? AND user_id = ? AND status = 'pending'", orgID, userID).
+		Model(&models.WorkspaceMember{}).
+		Where("workspace_id = ? AND user_id = ? AND status = 'pending'", workspaceID, userID).
 		Updates(updates)
 	if res.Error != nil {
 		return res.Error
@@ -731,24 +733,24 @@ func (s *Store) RejectMembership(ctx context.Context, orgID, userID, reviewerID,
 	return nil
 }
 
-// SetMemberRole changes an active member's org role, enforcing invariants in
-// the transaction: the owner cannot be demoted, and an org must always keep at
-// least one active org_admin.
-func (s *Store) SetMemberRole(ctx context.Context, orgID, userID, role string) error {
-	if role != "org_admin" && role != "member" {
+// SetMemberRole changes an active member's workspace role, enforcing invariants in
+// the transaction: the owner cannot be demoted, and an workspace must always keep at
+// least one active workspace_admin.
+func (s *Store) SetMemberRole(ctx context.Context, workspaceID, userID, role string) error {
+	if role != "workspace_admin" && role != "member" {
 		return ErrInvariant
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var org models.Organization
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", orgID).First(&org).Error; err != nil {
+		var workspace models.Workspace
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", workspaceID).First(&workspace).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrNotFound
 			}
 			return err
 		}
-		var member models.OrganizationMember
+		var member models.WorkspaceMember
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("org_id = ? AND user_id = ?", orgID, userID).
+			Where("workspace_id = ? AND user_id = ?", workspaceID, userID).
 			First(&member).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrNotFound
@@ -763,21 +765,21 @@ func (s *Store) SetMemberRole(ctx context.Context, orgID, userID, role string) e
 			return nil
 		}
 		if role == "member" {
-			if org.OwnerUserID == userID {
-				return ErrInvariant // owner must remain org_admin; transfer first
+			if workspace.OwnerUserID == userID {
+				return ErrInvariant // owner must remain workspace_admin; transfer first
 			}
 			var admins int64
-			if err := tx.Model(&models.OrganizationMember{}).
-				Where("org_id = ? AND role = 'org_admin' AND status = 'active'", orgID).
+			if err := tx.Model(&models.WorkspaceMember{}).
+				Where("workspace_id = ? AND role = 'workspace_admin' AND status = 'active'", workspaceID).
 				Count(&admins).Error; err != nil {
 				return err
 			}
 			if admins <= 1 {
-				return ErrInvariant // would remove the last active org_admin
+				return ErrInvariant // would remove the last active workspace_admin
 			}
 		}
-		return tx.Model(&models.OrganizationMember{}).
-			Where("org_id = ? AND user_id = ? AND status = 'active'", orgID, userID).
+		return tx.Model(&models.WorkspaceMember{}).
+			Where("workspace_id = ? AND user_id = ? AND status = 'active'", workspaceID, userID).
 			Update("role", role).Error
 	})
 }

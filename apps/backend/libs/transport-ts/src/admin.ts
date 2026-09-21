@@ -21,9 +21,9 @@ export class AdminInternalClient {
     this.client = createInternalOpenApiClient<paths>({ ...options, service: "admin" });
   }
 
-  async getDefaultProvider(orgId: string): Promise<AdminProviderSnapshot> {
+  async getDefaultProvider(tenantId: string, workspaceId: string): Promise<AdminProviderSnapshot> {
     const { data, error, response } = await this.client.GET("/internal/providers/default", {
-      params: { query: { org_id: orgId } },
+      params: { query: { tenant_id: tenantId, workspace_id: workspaceId } },
     });
     if (data) {
       return data;
@@ -31,9 +31,9 @@ export class AdminInternalClient {
     throw toTransportError(response, error);
   }
 
-  async getProvider(providerId: string, orgId: string): Promise<AdminProviderSnapshot> {
+  async getProvider(providerId: string, tenantId: string, workspaceId: string): Promise<AdminProviderSnapshot> {
     const { data, error, response } = await this.client.GET("/internal/providers/{provider_id}", {
-      params: { path: { provider_id: providerId }, query: { org_id: orgId } },
+      params: { path: { provider_id: providerId }, query: { tenant_id: tenantId, workspace_id: workspaceId } },
     });
     if (data) {
       return data;
@@ -41,9 +41,17 @@ export class AdminInternalClient {
     throw toTransportError(response, error);
   }
 
-  async getResolvedAgent(userId: string, agentId: string, orgId = ""): Promise<AdminResolvedAgent> {
+  async getResolvedAgent(
+    userId: string,
+    agentId: string,
+    tenantId: string,
+    workspaceId: string,
+  ): Promise<AdminResolvedAgent> {
     const { data, error, response } = await this.client.GET("/internal/agents/{agent_id}", {
-      params: { path: { agent_id: agentId }, query: { user_id: userId, org_id: orgId } },
+      params: {
+        path: { agent_id: agentId },
+        query: { user_id: userId, tenant_id: tenantId, workspace_id: workspaceId },
+      },
     });
     if (data) {
       return data;
@@ -51,9 +59,9 @@ export class AdminInternalClient {
     throw toTransportError(response, error);
   }
 
-  async getSkill(skillId: string, orgId: string): Promise<AdminInternalSkill> {
+  async getSkill(skillId: string, tenantId: string, workspaceId: string): Promise<AdminInternalSkill> {
     const { data, error, response } = await this.client.GET("/internal/skills/{skill_id}", {
-      params: { path: { skill_id: skillId }, query: { org_id: orgId } },
+      params: { path: { skill_id: skillId }, query: { tenant_id: tenantId, workspace_id: workspaceId } },
     });
     if (data) {
       return data;
@@ -61,9 +69,14 @@ export class AdminInternalClient {
     throw toTransportError(response, error);
   }
 
-  async getSkillFile(skillId: string, orgId: string, path: string): Promise<AdminInternalSkillFile> {
+  async getSkillFile(
+    skillId: string,
+    tenantId: string,
+    workspaceId: string,
+    path: string,
+  ): Promise<AdminInternalSkillFile> {
     const { data, error, response } = await this.client.GET("/internal/skills/{skill_id}/files", {
-      params: { path: { skill_id: skillId }, query: { org_id: orgId, path } },
+      params: { path: { skill_id: skillId }, query: { tenant_id: tenantId, workspace_id: workspaceId, path } },
     });
     if (data) {
       return data;

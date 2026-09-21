@@ -41,3 +41,9 @@ Canvas 状态方案已按用户确认采用 Jotai：页面 Provider、规范化�
 - 用户授权按模块在 monorepo 本地提交；不 push。源 schema 基准改为 multix-app 最新 MySQL schema，目标 PostgreSQL，Canvas migration 合为 v1.0.0。
 
 - 资源库已接通四种分类、创建/重命名/删除、上传素材及独立复制到画布，左栏新增节点/资产页签。资源换版、跟随引用、审核、生成草稿仍待迁移。
+
+## Tenant / Workspace（当前实施）
+
+用户确认 monorepo 全量移除 Org 概念：Tenant 是公司，Workspace 是公司内的组织工作空间；无存量兼容与滚动升级窗口，直接整体改造。IAM 增加公司管理与工作空间归属，签发双层 scope；Gateway、Canvas、Chat、Admin、Knowledge、Executor 和生成客户端统一采用新契约。Canvas 初始 migration 仍保持单版本。
+
+已验证公司/工作空间创建和切换、Canvas/Chat 跨空间及跨租户拒绝、Gateway 清除伪造 scope 头；全仓 lint/build/sync 与本地 migration/up/dev 通过。IAM 原 char(26) ID 的补空格破坏会话切换，已统一 varchar(26)。后续继续检查 Knowledge 原先仅按 user_id 授权的接口，不能把字段迁移当成所有资源的隔离验收。

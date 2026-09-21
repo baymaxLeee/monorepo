@@ -7,7 +7,8 @@ import (
 
 type Project struct {
 	ID          string `gorm:"primaryKey"`
-	OrgID       string
+	TenantID    string `json:"tenantId"`
+	WorkspaceID string
 	Name        string
 	Description string
 	CreatedBy   string
@@ -73,7 +74,8 @@ type Generation struct {
 	ID              string `gorm:"primaryKey"`
 	CanvasID        string
 	NodeID          string
-	OrgID           string
+	TenantID        string `json:"tenantId"`
+	WorkspaceID     string
 	UserID          string
 	OperationID     string
 	NodeRevision    int64
@@ -92,14 +94,15 @@ type Generation struct {
 func (Generation) TableName() string { return "canvas_generations" }
 
 type Asset struct {
-	ID        string `gorm:"primaryKey"`
-	OrgID     string
-	ProjectID string
-	ObjectKey string
-	MimeType  string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt gorm.DeletedAt
+	ID          string `gorm:"primaryKey"`
+	TenantID    string `json:"tenantId"`
+	WorkspaceID string
+	ProjectID   string
+	ObjectKey   string
+	MimeType    string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	DeletedAt   gorm.DeletedAt
 }
 type AssetReference struct {
 	AssetID   string `gorm:"primaryKey"`
@@ -112,7 +115,8 @@ type AssetReference struct {
 
 type Resource struct {
 	ID                     string `gorm:"primaryKey"`
-	OrgID                  string
+	TenantID               string `json:"tenantId"`
+	WorkspaceID            string
 	ProjectID              string
 	Type                   int16
 	Name                   string

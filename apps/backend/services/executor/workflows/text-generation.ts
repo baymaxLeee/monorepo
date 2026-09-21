@@ -9,7 +9,8 @@ import { observeTaskCancellation } from "../src/application/tasks/cancellation.j
 import { getSettings } from "../src/bootstrap/config.js";
 
 export const textGenerationInputSchema = z.object({
-  orgId: z.string().min(1),
+  tenantId: z.string().min(1),
+  workspaceId: z.string().min(1),
   providerId: z.string().min(1),
   prompt: z.string().min(1),
 });
@@ -23,7 +24,7 @@ async function generateStep(input: Input) {
     internalToken: settings.internalApiToken,
     callerService: "executor",
   });
-  const provider = await client.getProvider(input.providerId, input.orgId);
+  const provider = await client.getProvider(input.providerId, input.tenantId, input.workspaceId);
   if (provider.provider_kind !== "chat") throw new Error("Text generation requires an inference provider");
   await assertPublicProviderUrl(provider.base_url);
   const { workflowRunId } = getWorkflowMetadata();

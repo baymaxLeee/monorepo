@@ -44,7 +44,7 @@ export function Component() {
   const [providers, setProviders] = useState<ModelProvider[]>([]);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const { isOrgAdmin, activeOrgId } = useAdminIdentity();
+  const { isWorkspaceAdmin, activeWorkspaceId } = useAdminIdentity();
   useEffect(() => {
     let active = true;
     setSettings(null);
@@ -62,7 +62,7 @@ export function Component() {
     return () => {
       active = false;
     };
-  }, [attempt, activeOrgId]);
+  }, [attempt, activeWorkspaceId]);
   return (
     <Page>
       <PageHeader>
@@ -74,10 +74,10 @@ export function Component() {
         <Skeleton className="h-64" />
       ) : (
         <SettingsForm
-          key={`${activeOrgId}:${settings.revision}`}
+          key={`${activeWorkspaceId}:${settings.revision}`}
           settings={settings}
           providers={providers}
-          editable={isOrgAdmin}
+          editable={isWorkspaceAdmin}
           onSaved={setSettings}
         />
       )}

@@ -19,7 +19,7 @@ func (s *Service) ListResources(ctx context.Context, a Actor, projectID string) 
 		return c.ResourceList{}, err
 	}
 	var rows []p.Resource
-	if err := db.Where("project_id = ? AND org_id = ?", projectID, a.OrgID).Order("created_at DESC,id").Find(&rows).Error; err != nil {
+	if err := db.Where("project_id = ? AND tenant_id = ? AND workspace_id = ?", projectID, a.TenantID, a.WorkspaceID).Order("created_at DESC,id").Find(&rows).Error; err != nil {
 		return c.ResourceList{}, err
 	}
 	result := c.ResourceList{Items: []c.Resource{}}
@@ -35,11 +35,11 @@ func (s *Service) SaveResource(ctx context.Context, a Actor, projectID, id strin
 			return err
 		}
 		if id == "" {
-			value, err := domain.New(domain.NewInput{ID: newID(), TenantID: a.OrgID, OwnerType: domain.OwnerProject, OwnerID: projectID, Type: domain.Type(in.Type), Name: in.Name, Description: in.Description, CreatedBy: a.UserID, Now: time.Now()})
+			value, err := domain.New(domain.NewInput{ID: newID(), TenantID: a.TenantID, OwnerType: domain.OwnerProject, OwnerID: projectID, Type: domain.Type(in.Type), Name: in.Name, Description: in.Description, CreatedBy: a.UserID, Now: time.Now()})
 			if err != nil {
 				return Invalid(err.Error())
 			}
-			row = p.Resource{ID: value.ID, OrgID: a.OrgID, ProjectID: projectID, Type: int16(value.Type), Name: value.Name, Description: value.Description, CreatedBy: a.UserID, Revision: 1}
+			row = p.Resource{ID: value.ID, TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, ProjectID: projectID, Type: int16(value.Type), Name: value.Name, Description: value.Description, CreatedBy: a.UserID, Revision: 1}
 			return tx.Create(&row).Error
 		}
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND project_id = ?", id, projectID).First(&row).Error; err != nil {

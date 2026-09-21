@@ -36,11 +36,12 @@ func EnsureSystemBootstrap(ctx context.Context, store *repositories.Store, cfg c
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	guestSystemKey := "guest-org"
-	org := models.Organization{
-		ID:            cfg.GuestOrgID,
-		Name:          cfg.GuestOrgName,
-		Slug:          cfg.GuestOrgSlug,
+	guestSystemKey := "guest-workspace"
+	workspace := models.Workspace{
+		TenantID:      "system-tenant",
+		ID:            cfg.GuestWorkspaceID,
+		Name:          cfg.GuestWorkspaceName,
+		Slug:          cfg.GuestWorkspaceSlug,
 		OwnerUserID:   user.ID,
 		SystemManaged: true,
 		SystemKey:     &guestSystemKey,
@@ -49,8 +50,8 @@ func EnsureSystemBootstrap(ctx context.Context, store *repositories.Store, cfg c
 		UpdatedAt:     now,
 	}
 	return mutateWithAudit(ctx, store, auditEntry{
-		Action: "system.bootstrap", Target: user.ID, Org: org.ID,
-		After: map[string]any{"superAdminId": user.ID, "guestOrgId": org.ID},
+		Action: "system.bootstrap", Target: user.ID, Workspace: workspace.ID,
+		After: map[string]any{"superAdminId": user.ID, "guestWorkspaceId": workspace.ID},
 	}, func(txStore *repositories.Store) error {
 		if err := txStore.EnsureUserWithPassword(ctx, user, passwordHash); err != nil {
 			return err
@@ -65,12 +66,12 @@ func EnsureSystemBootstrap(ctx context.Context, store *repositories.Store, cfg c
 		if err := txStore.AssignRole(ctx, user.ID, storedRole.ID); err != nil {
 			return err
 		}
-		if err := txStore.EnsureOrganization(ctx, org); err != nil {
+		if err := txStore.EnsureWorkspace(ctx, workspace); err != nil {
 			return err
 		}
-		if err := txStore.EnsureOrgMember(ctx, org.ID, user.ID, "org_admin", "active"); err != nil {
+		if err := txStore.EnsureWorkspaceMember(ctx, workspace.ID, user.ID, "workspace_admin", "active"); err != nil {
 			return err
 		}
-		return txStore.EnsureAllUsersInGuestOrg(ctx, org.ID)
+		return txStore.EnsureAllUsersInGuestWorkspace(ctx, workspace.ID)
 	})
 }

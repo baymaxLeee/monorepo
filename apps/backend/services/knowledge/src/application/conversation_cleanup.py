@@ -7,11 +7,7 @@ import anyio
 from infrastructure.persistence.database import get_session_factory, write_tx
 from infrastructure.persistence.models.conversation_cleanup import ConversationArtifactTombstoneRow
 from infrastructure.persistence.models.document import DocumentRow
-from infrastructure.persistence.models.file_store import (
-    FileChangeSetEntryRow,
-    FileChangeSetRow,
-    FileEntryRow,
-)
+from infrastructure.persistence.models.file_store import FileChangeSetEntryRow, FileChangeSetRow, FileEntryRow
 from infrastructure.persistence.models.staged_media import StagedMediaRow
 from kernel.errors import ConflictError
 from sqlalchemy import delete, or_, select, text
@@ -65,7 +61,8 @@ async def cleanup_conversation_artifacts(
             .values(
                 conversation_id=payload.conversation_id,
                 user_id=payload.user_id,
-                org_id=payload.org_id,
+                workspace_id=payload.workspace_id,
+                tenant_id=payload.tenant_id,
                 created_at=datetime.now(UTC),
             )
             .on_conflict_do_nothing(index_elements=[ConversationArtifactTombstoneRow.conversation_id])
@@ -87,7 +84,8 @@ async def cleanup_conversation_artifacts(
                 delete(StagedMediaRow)
                 .where(
                     StagedMediaRow.user_id == payload.user_id,
-                    StagedMediaRow.org_id == payload.org_id,
+                    (StagedMediaRow.workspace_id == payload.workspace_id)
+                    & (StagedMediaRow.tenant_id == payload.tenant_id),
                     StagedMediaRow.conversation_id == payload.conversation_id,
                 )
                 .returning(StagedMediaRow.object_bucket, StagedMediaRow.object_key)
@@ -99,22 +97,21 @@ async def cleanup_conversation_artifacts(
                 .where(
                     DocumentRow.user_id == payload.user_id,
                     DocumentRow.conversation_id == payload.conversation_id,
-                    or_(DocumentRow.org_id == payload.org_id, DocumentRow.org_id.is_(None)),
+                    or_(
+                        (DocumentRow.workspace_id == payload.workspace_id)
+                        & (DocumentRow.tenant_id == payload.tenant_id),
+                        DocumentRow.workspace_id.is_(None),
+                    ),
                     DocumentRow.kind == "artifact",
                 )
                 .returning(DocumentRow.object_bucket, DocumentRow.object_key)
             )
         ).all()
     store = ObjectStore()
-    deleted_objects = cast(
-        list[tuple[str | None, str | None]],
-        [*staged, *documents],
-    )
+    deleted_objects = cast(list[tuple[str | None, str | None]], [*staged, *documents])
     for object_bucket, object_key in deleted_objects:
         if object_bucket and object_key:
-            await anyio.to_thread.run_sync(
-                partial(store.delete, bucket=object_bucket, key=object_key),
-            )
+            await anyio.to_thread.run_sync(partial(store.delete, bucket=object_bucket, key=object_key))
     return CleanupConversationArtifactsResult(
         conversation_id=payload.conversation_id,
         deleted_documents=len(documents),

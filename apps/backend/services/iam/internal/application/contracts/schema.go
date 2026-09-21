@@ -11,9 +11,9 @@ type AuthRequest struct {
 	PhoneNumber string `json:"phoneNumber"`
 	Locale      string `json:"locale"`
 	Timezone    string `json:"timezone"`
-	// OrgID is optional. Every user joins guest-org immediately; when supplied,
-	// this is an additional approval-based organization application.
-	OrgID string `json:"orgId"`
+	// WorkspaceID is optional. Every user joins guest-workspace immediately; when supplied,
+	// this is an additional approval-based workspace application.
+	WorkspaceID string `json:"workspaceId"`
 }
 
 type AccountAvailabilityResponse struct {
@@ -27,32 +27,33 @@ type AuthResponse struct {
 	User        UserResponse `json:"user"`
 }
 
-// Membership is the caller's own view of one org membership.
+// Membership is the caller's own view of one workspace membership.
 type Membership struct {
-	OrgID   string `json:"orgId"`
-	OrgName string `json:"orgName"`
-	Role    string `json:"role"`   // org_admin | member
-	Status  string `json:"status"` // pending | active | rejected
+	TenantID      string `json:"tenantId"`
+	WorkspaceID   string `json:"workspaceId"`
+	WorkspaceName string `json:"workspaceName"`
+	Role          string `json:"role"`   // workspace_admin | member
+	Status        string `json:"status"` // pending | active | rejected
 }
 
-// UserResponse is the identity DTO. Platform `roles` and per-org
-// `memberships` are orthogonal; `activeOrg` is the single org the current
-// session is bound to (nil when unscoped). No flat orgId/orgName/type here —
+// UserResponse is the identity DTO. Platform `roles` and per-workspace
+// `memberships` are orthogonal; `activeWorkspace` is the single workspace the current
+// session is bound to (nil when unscoped). No flat workspaceId/workspaceName/type here —
 // the two-dimensional model replaces them.
 type UserResponse struct {
-	ID             string       `json:"id"`
-	Account        string       `json:"account"`
-	Email          string       `json:"email"`
-	DisplayName    string       `json:"displayName"`
-	AvatarURL      string       `json:"avatarUrl"`
-	Locale         string       `json:"locale"`
-	Timezone       string       `json:"timezone"`
-	Theme          string       `json:"theme"`
-	MarketingOptIn bool         `json:"marketingOptIn"`
-	EmailVerified  bool         `json:"emailVerified"`
-	Roles          []string     `json:"roles"`
-	ActiveOrg      *Membership  `json:"activeOrg"`
-	Memberships    []Membership `json:"memberships"`
+	ID              string       `json:"id"`
+	Account         string       `json:"account"`
+	Email           string       `json:"email"`
+	DisplayName     string       `json:"displayName"`
+	AvatarURL       string       `json:"avatarUrl"`
+	Locale          string       `json:"locale"`
+	Timezone        string       `json:"timezone"`
+	Theme           string       `json:"theme"`
+	MarketingOptIn  bool         `json:"marketingOptIn"`
+	EmailVerified   bool         `json:"emailVerified"`
+	Roles           []string     `json:"roles"`
+	ActiveWorkspace *Membership  `json:"activeWorkspace"`
+	Memberships     []Membership `json:"memberships"`
 }
 
 type AssignRoleRequest struct {
@@ -66,15 +67,17 @@ type RoleResponse struct {
 	CreatedAt   string `json:"createdAt"`
 }
 
-// OrgSummary is the public, applyable org list item — deliberately free of
+// WorkspaceSummary is the public, applyable workspace list item — deliberately free of
 // management info (no member count, owner, or slug).
-type OrgSummary struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+type WorkspaceSummary struct {
+	TenantID string `json:"tenantId"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
 }
 
-// OrgAdminView is the super_admin management-list item.
-type OrgAdminView struct {
+// WorkspaceAdminView is the super_admin management-list item.
+type WorkspaceAdminView struct {
+	TenantID      string `json:"tenantId"`
 	ID            string `json:"id"`
 	Name          string `json:"name"`
 	Slug          string `json:"slug"`
@@ -85,8 +88,8 @@ type OrgAdminView struct {
 	CreatedAt     string `json:"createdAt"`
 }
 
-// OrgMemberView is an org_admin's view of one member (approval UI).
-type OrgMemberView struct {
+// WorkspaceMemberView is an workspace_admin's view of one member (approval UI).
+type WorkspaceMemberView struct {
 	UserID          string  `json:"userId"`
 	Account         string  `json:"account"`
 	DisplayName     string  `json:"displayName"`
@@ -99,11 +102,12 @@ type OrgMemberView struct {
 	CreatedAt       string  `json:"createdAt"`
 }
 
-// CreateOrgRequest creates an org and its first owner in one transaction. The
+// CreateWorkspaceRequest creates an workspace and its first owner in one transaction. The
 // caller must supply exactly one of: an existing OwnerUserID, or an inline
 // owner account (OwnerAccount + OwnerPassword ...). The calling super_admin is
-// NOT auto-joined to the new org.
-type CreateOrgRequest struct {
+// NOT auto-joined to the new workspace.
+type CreateWorkspaceRequest struct {
+	TenantID         string `json:"tenantId"`
 	Name             string `json:"name"`
 	Slug             string `json:"slug"`
 	OwnerUserID      string `json:"ownerUserId"`
@@ -113,9 +117,9 @@ type CreateOrgRequest struct {
 	OwnerDisplayName string `json:"ownerDisplayName"`
 }
 
-// CreateOrgAdminRequest creates an account and makes it an active org_admin of
-// the target org (demo management flow).
-type CreateOrgAdminRequest struct {
+// CreateWorkspaceAdminRequest creates an account and makes it an active workspace_admin of
+// the target workspace (demo management flow).
+type CreateWorkspaceAdminRequest struct {
 	Account     string `json:"account"`
 	Email       string `json:"email"`
 	Password    string `json:"password"`
@@ -134,6 +138,16 @@ type SetMemberRoleRequest struct {
 	Role string `json:"role"`
 }
 
-type SwitchOrgRequest struct {
-	OrgID string `json:"orgId"`
+type SwitchWorkspaceRequest struct {
+	WorkspaceID string `json:"workspaceId"`
+}
+
+type Tenant struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+type CreateTenant struct {
+	Name string `json:"name"`
+	Slug string `json:"slug"`
 }

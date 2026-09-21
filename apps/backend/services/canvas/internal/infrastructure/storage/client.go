@@ -13,8 +13,8 @@ import (
 
 type Client struct{ URL, Token string }
 
-func Scope(org, project string) string {
-	v := sha256.Sum256([]byte(org + "\x00" + project))
+func Scope(tenant, workspace, project string) string {
+	v := sha256.Sum256([]byte(tenant + "\x00" + workspace + "\x00" + project))
 	return hex.EncodeToString(v[:])
 }
 func (c *Client) request(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {

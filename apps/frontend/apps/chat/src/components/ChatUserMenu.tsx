@@ -1,4 +1,4 @@
-import { logout, switchActiveOrg } from "@repo/api";
+import { logout, switchActiveWorkspace } from "@repo/api";
 import { useChatStore } from "@repo/chat/store/useChatStore";
 import {
   Avatar,
@@ -35,8 +35,8 @@ export function ChatUserMenu() {
     return null;
   }
 
-  const orgs = activeMemberships(user.memberships);
-  const canSwitchOrg = orgs.length > 1;
+  const workspaces = activeMemberships(user.memberships);
+  const canSwitchWorkspace = workspaces.length > 1;
 
   async function handleLogout() {
     await logout();
@@ -44,14 +44,14 @@ export function ChatUserMenu() {
     clearObservabilityUser();
   }
 
-  async function handleSwitchOrg(orgId: string) {
-    if (orgId === user?.activeOrg?.orgId) {
+  async function handleSwitchWorkspace(workspaceId: string) {
+    if (workspaceId === user?.activeWorkspace?.workspaceId) {
       return;
     }
     try {
-      const session = await switchActiveOrg(orgId);
+      const session = await switchActiveWorkspace(workspaceId);
       // Persist the rescoped identity before the reload so the shell rehydrates
-      // bound to the new org and drops all in-memory org-scoped state.
+      // bound to the new workspace and drops all in-memory workspace-scoped state.
       setUser(session.user);
       window.location.assign("/platform/chat");
     } catch {}
@@ -72,8 +72,8 @@ export function ChatUserMenu() {
           </Avatar>
           <span className="flex min-w-0 flex-1 flex-col text-left">
             <span className="truncate text-xs font-medium">{user.displayName}</span>
-            {user.activeOrg && (
-              <span className="truncate text-[11px] text-muted-foreground">{user.activeOrg.orgName}</span>
+            {user.activeWorkspace && (
+              <span className="truncate text-[11px] text-muted-foreground">{user.activeWorkspace.workspaceName}</span>
             )}
           </span>
           <ChevronsUpDownIcon aria-hidden="true" className="size-3.5 shrink-0 opacity-60" />
@@ -81,9 +81,9 @@ export function ChatUserMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start" className="w-56">
         <DropdownMenuLabel className="truncate">{user.displayName}</DropdownMenuLabel>
-        {user.activeOrg && (
+        {user.activeWorkspace && (
           <DropdownMenuLabel className="truncate text-xs font-normal text-muted-foreground">
-            团队：{user.activeOrg.orgName}
+            团队：{user.activeWorkspace.workspaceName}
           </DropdownMenuLabel>
         )}
         <DropdownMenuSeparator />
@@ -99,17 +99,17 @@ export function ChatUserMenu() {
           <BrainIcon aria-hidden="true" className="mr-2 size-4" />
           记忆
         </DropdownMenuItem>
-        {canSwitchOrg && (
+        {canSwitchWorkspace && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">切换团队</DropdownMenuLabel>
-            {orgs.map((m) => (
-              <DropdownMenuItem key={m.orgId} onSelect={() => handleSwitchOrg(m.orgId)}>
+            {workspaces.map((m) => (
+              <DropdownMenuItem key={m.workspaceId} onSelect={() => handleSwitchWorkspace(m.workspaceId)}>
                 <CheckIcon
                   aria-hidden="true"
-                  className={`mr-2 size-4 ${m.orgId === user.activeOrg?.orgId ? "opacity-100" : "opacity-0"}`}
+                  className={`mr-2 size-4 ${m.workspaceId === user.activeWorkspace?.workspaceId ? "opacity-100" : "opacity-0"}`}
                 />
-                <span className="truncate">{m.orgName}</span>
+                <span className="truncate">{m.workspaceName}</span>
               </DropdownMenuItem>
             ))}
           </>

@@ -20,7 +20,7 @@ var (
 	ErrUnsupportedModality = errors.New("generation input modality is unsupported")
 )
 
-type Scope struct{ OrgID, UserID string }
+type Scope struct{ TenantID, WorkspaceID, UserID string }
 type ResourceAssetReference struct {
 	ResourceAssetID string
 	Revision        int64

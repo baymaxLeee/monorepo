@@ -139,7 +139,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -151,11 +151,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -167,7 +167,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           }
         ],
@@ -278,7 +294,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -290,11 +306,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -306,7 +322,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           }
         ],
@@ -344,7 +376,7 @@
           "documents"
         ],
         "summary": "Batch Delete My Documents",
-        "description": "Delete several documents in one transaction.\n\nSame policy as single delete: an org_admin may delete any of the org's\ndocuments; a member may delete only their own uploads. If ANY requested id\nis outside the org or not deletable by the caller, the whole batch is\nrejected with 403 — no silent partial success that would mislead the caller.\nObject-store blobs are best-effort purged and RAG `document_chunks` drop via\nthe FK `ON DELETE CASCADE`.",
+        "description": "Delete several documents in one transaction.\n\nSame policy as single delete: an workspace_admin may delete any of the workspace's\ndocuments; a member may delete only their own uploads. If ANY requested id\nis outside the workspace or not deletable by the caller, the whole batch is\nrejected with 403 — no silent partial success that would mislead the caller.\nObject-store blobs are best-effort purged and RAG `document_chunks` drop via\nthe FK `ON DELETE CASCADE`.",
         "operationId": "batch_delete_my_documents_documents_batch_delete_post",
         "parameters": [
           {
@@ -396,7 +428,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -408,11 +440,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -424,7 +456,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           }
         ],
@@ -528,7 +576,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -540,11 +588,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -556,7 +604,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           }
         ],
@@ -648,7 +712,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -660,11 +724,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -676,7 +740,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           }
         ],
@@ -778,7 +858,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -790,11 +870,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -806,7 +886,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           }
         ],
@@ -894,7 +990,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -906,11 +1002,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -922,7 +1018,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           }
         ],
@@ -1016,7 +1128,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1028,11 +1140,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -1044,7 +1156,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           }
         ],
@@ -2261,7 +2389,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2273,11 +2401,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2289,7 +2417,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           }
         ],
@@ -2374,7 +2518,7 @@
             }
           },
           {
-            "name": "X-Auth-Org-ID",
+            "name": "X-Auth-Workspace-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2386,11 +2530,11 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Id"
+              "title": "X-Auth-Workspace-Id"
             }
           },
           {
-            "name": "X-Auth-Org-Role",
+            "name": "X-Auth-Tenant-ID",
             "in": "header",
             "required": false,
             "schema": {
@@ -2402,7 +2546,23 @@
                   "type": "null"
                 }
               ],
-              "title": "X-Auth-Org-Role"
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
             }
           }
         ],
@@ -3813,18 +3973,25 @@
             "minLength": 1,
             "title": "User Id"
           },
-          "org_id": {
+          "workspace_id": {
             "type": "string",
             "maxLength": 26,
             "minLength": 1,
-            "title": "Org Id"
+            "title": "Workspace Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "Tenant Id"
           }
         },
         "type": "object",
         "required": [
           "conversation_id",
           "user_id",
-          "org_id"
+          "workspace_id",
+          "tenant_id"
         ],
         "title": "CleanupConversationArtifactsInput"
       },
@@ -3874,11 +4041,17 @@
             "minLength": 1,
             "title": "User Id"
           },
-          "org_id": {
+          "workspace_id": {
             "type": "string",
             "maxLength": 26,
             "minLength": 1,
-            "title": "Org Id"
+            "title": "Workspace Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "Tenant Id"
           },
           "conversation_id": {
             "anyOf": [
@@ -3938,7 +4111,8 @@
         "type": "object",
         "required": [
           "user_id",
-          "org_id",
+          "workspace_id",
+          "tenant_id",
           "title",
           "filename",
           "content"
@@ -3953,11 +4127,17 @@
             "minLength": 1,
             "title": "User Id"
           },
-          "org_id": {
+          "workspace_id": {
             "type": "string",
             "maxLength": 26,
             "minLength": 1,
-            "title": "Org Id"
+            "title": "Workspace Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "Tenant Id"
           },
           "conversation_id": {
             "type": "string",
@@ -3983,7 +4163,8 @@
         "type": "object",
         "required": [
           "user_id",
-          "org_id",
+          "workspace_id",
+          "tenant_id",
           "conversation_id"
         ],
         "title": "CreateChangeSetInput"
@@ -3996,11 +4177,17 @@
             "minLength": 1,
             "title": "User Id"
           },
-          "org_id": {
+          "workspace_id": {
             "type": "string",
             "maxLength": 26,
             "minLength": 1,
-            "title": "Org Id"
+            "title": "Workspace Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "Tenant Id"
           },
           "conversation_id": {
             "anyOf": [
@@ -4054,7 +4241,8 @@
         "type": "object",
         "required": [
           "user_id",
-          "org_id",
+          "workspace_id",
+          "tenant_id",
           "title",
           "filename",
           "mime_type",
@@ -4071,11 +4259,17 @@
             "minLength": 1,
             "title": "User Id"
           },
-          "org_id": {
+          "workspace_id": {
             "type": "string",
             "maxLength": 26,
             "minLength": 1,
-            "title": "Org Id"
+            "title": "Workspace Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "Tenant Id"
           },
           "conversation_id": {
             "anyOf": [
@@ -4129,7 +4323,8 @@
         "type": "object",
         "required": [
           "user_id",
-          "org_id",
+          "workspace_id",
+          "tenant_id",
           "title",
           "filename",
           "mime_type",
@@ -4147,7 +4342,7 @@
             "type": "string",
             "title": "User Id"
           },
-          "org_id": {
+          "workspace_id": {
             "anyOf": [
               {
                 "type": "string"
@@ -4156,7 +4351,18 @@
                 "type": "null"
               }
             ],
-            "title": "Org Id"
+            "title": "Workspace Id"
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenant Id"
           },
           "conversation_id": {
             "anyOf": [
@@ -4776,11 +4982,17 @@
             "minLength": 1,
             "title": "User Id"
           },
-          "org_id": {
+          "workspace_id": {
             "type": "string",
             "maxLength": 26,
             "minLength": 1,
-            "title": "Org Id"
+            "title": "Workspace Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "Tenant Id"
           },
           "query": {
             "type": "string",
@@ -4805,7 +5017,8 @@
         "type": "object",
         "required": [
           "user_id",
-          "org_id",
+          "workspace_id",
+          "tenant_id",
           "query"
         ],
         "title": "RetrieveInput"
@@ -4890,9 +5103,13 @@
             "type": "string",
             "title": "User Id"
           },
-          "org_id": {
+          "workspace_id": {
             "type": "string",
-            "title": "Org Id"
+            "title": "Workspace Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
           },
           "conversation_id": {
             "anyOf": [
@@ -4958,7 +5175,8 @@
         "required": [
           "id",
           "user_id",
-          "org_id",
+          "workspace_id",
+          "tenant_id",
           "title",
           "filename",
           "mime_type",
@@ -4978,17 +5196,24 @@
             "minLength": 1,
             "title": "User Id"
           },
-          "org_id": {
+          "workspace_id": {
             "type": "string",
             "maxLength": 26,
             "minLength": 1,
-            "title": "Org Id"
+            "title": "Workspace Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "Tenant Id"
           }
         },
         "type": "object",
         "required": [
           "user_id",
-          "org_id"
+          "workspace_id",
+          "tenant_id"
         ],
         "title": "StagedMediaActionInput"
       },

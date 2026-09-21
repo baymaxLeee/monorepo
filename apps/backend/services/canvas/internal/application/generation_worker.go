@@ -43,7 +43,7 @@ func (s *Service) RunGenerations(ctx context.Context) {
 	}
 }
 func (s *Service) runGeneration(ctx context.Context, row p.Generation) error {
-	task, err := s.Executor.Start(ctx, row.ID, executor.TextInput{OrgID: row.OrgID, ProviderID: row.ProviderID, Prompt: row.Prompt})
+	task, err := s.Executor.Start(ctx, row.ID, executor.TextInput{TenantID: row.TenantID, WorkspaceID: row.WorkspaceID, ProviderID: row.ProviderID, Prompt: row.Prompt})
 	if err != nil {
 		return err
 	}

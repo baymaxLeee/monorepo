@@ -43,11 +43,18 @@ def auth_user_name(
     return x_auth_name or ""
 
 
-def auth_org_id(
-    x_auth_org_id: Annotated[str | None, Header(alias="X-Auth-Org-ID")] = None,
+def auth_workspace_id(
+    x_auth_workspace_id: Annotated[str | None, Header(alias="X-Auth-Workspace-ID")] = None,
 ) -> str:
-    """Active org propagated by gateway. Scopes team-owned resources."""
-    return x_auth_org_id or ""
+    """Active workspace propagated by gateway. Scopes team-owned resources."""
+    return x_auth_workspace_id or ""
+
+
+def auth_tenant_id(
+    x_auth_tenant_id: Annotated[str | None, Header(alias="X-Auth-Tenant-ID")] = None,
+) -> str:
+    """Active tenant propagated by gateway. Scopes team-owned resources."""
+    return x_auth_tenant_id or ""
 
 
 def auth_roles(
@@ -59,18 +66,19 @@ def auth_roles(
     return tuple(role.strip() for role in x_auth_roles.split(",") if role.strip())
 
 
-def auth_org_role(
-    x_auth_org_role: Annotated[str | None, Header(alias="X-Auth-Org-Role")] = None,
+def auth_workspace_role(
+    x_auth_workspace_role: Annotated[str | None, Header(alias="X-Auth-Workspace-Role")] = None,
 ) -> str:
-    """Org role for the active org propagated by gateway (org_admin|member)."""
-    return x_auth_org_role or ""
+    """Workspace role for the active workspace propagated by gateway (workspace_admin|member)."""
+    return x_auth_workspace_role or ""
 
 
 def auth_context(
     user_id: Annotated[str, Depends(auth_user_id)],
     username: Annotated[str, Depends(auth_user_name)],
-    org_id: Annotated[str, Depends(auth_org_id)],
-    org_role: Annotated[str, Depends(auth_org_role)],
+    workspace_id: Annotated[str, Depends(auth_workspace_id)],
+    tenant_id: Annotated[str, Depends(auth_tenant_id)],
+    workspace_role: Annotated[str, Depends(auth_workspace_role)],
     roles: Annotated[tuple[str, ...], Depends(auth_roles)],
     x_auth_email: Annotated[str | None, Header(alias="X-Auth-Email")] = None,
 ) -> AuthContext:
@@ -78,8 +86,9 @@ def auth_context(
         user_id=user_id,
         username=username or user_id,
         email=x_auth_email or "",
-        org_id=org_id,
-        org_role=org_role,
+        workspace_id=workspace_id,
+        tenant_id=tenant_id,
+        workspace_role=workspace_role,
         roles=roles,
     )
 
@@ -87,10 +96,10 @@ def auth_context(
 def require_admin(
     current_user: Annotated[AuthContext, Depends(auth_context)],
 ) -> AuthContext:
-    """Write guard for team-shared org config: an active org_admin of the bound
-    org (no super_admin bypass — the platform role is control-plane only)."""
-    if not current_user.can_write_org_config:
-        raise ForbiddenError("org_admin role required")
+    """Write guard for team-shared workspace config: an active workspace_admin of the bound
+    workspace (no super_admin bypass — the platform role is control-plane only)."""
+    if not current_user.can_write_workspace_config:
+        raise ForbiddenError("workspace_admin role required")
     return current_user
 
 

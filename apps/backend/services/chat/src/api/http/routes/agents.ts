@@ -51,14 +51,14 @@ agentsRoutes.post(
     let botProfile: BotProfileSnapshot | null = null;
     let botSkills: AgentSkillRef[] = [];
     if (payload.agent_id) {
-      const agent = await getAgent(auth.userId, payload.agent_id, auth.orgId);
-      textProvider = agent.text ?? (await getProvider(auth.orgId, null));
+      const agent = await getAgent(auth.userId, payload.agent_id, auth.tenantId, auth.workspaceId);
+      textProvider = agent.text ?? (await getProvider(auth.tenantId, auth.workspaceId, null));
       imageProvider = agent.image;
       videoProviderId = agent.video?.id ?? null;
       botProfile = agent.profile;
       botSkills = agent.skills;
     } else {
-      textProvider = await getProvider(auth.orgId, null);
+      textProvider = await getProvider(auth.tenantId, auth.workspaceId, null);
     }
 
     return createAgentRunResponse(auth, conversationId, textProvider, [payload.message], {

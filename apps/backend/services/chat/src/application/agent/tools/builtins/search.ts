@@ -262,7 +262,14 @@ async function knowledgeSearch(
   input: { query: string; top_k?: number },
   { context, abortSignal }: { context: KnowledgeSearchToolContext; abortSignal?: AbortSignal },
 ): Promise<z.infer<typeof knowledgeSearchOutputSchema>> {
-  const result = await retrieveKnowledge(context.userId, context.orgId, input.query, input.top_k, abortSignal);
+  const result = await retrieveKnowledge(
+    context.userId,
+    context.tenantId,
+    context.workspaceId,
+    input.query,
+    input.top_k,
+    abortSignal,
+  );
   const emptyNote =
     "no relevant knowledge base passages found; use web_search for public information or report that private knowledge does not cover the question";
   return {
@@ -334,7 +341,7 @@ export function createSearchToolManifests() {
       "knowledge_search",
       tool({
         description:
-          "Search the team's shared knowledge base for uploaded documents, past incident write-ups, runbooks, internal policies, and organization-specific facts.",
+          "Search the team's shared knowledge base for uploaded documents, past incident write-ups, runbooks, internal policies, and workspace-specific facts.",
         inputSchema: z.object({
           query: z.string().min(1).max(2_000).describe("Focused semantic query for private knowledge."),
           top_k: z.number().int().min(1).max(20).optional().describe("Optional maximum passage count."),
@@ -350,7 +357,7 @@ export function createSearchToolManifests() {
         execution: "inline",
         modes: ["normal", "plan"],
       },
-      { summary: "Search uploaded and organization-private knowledge." },
+      { summary: "Search uploaded and workspace-private knowledge." },
     ),
   ];
 }

@@ -207,8 +207,8 @@ func Router(s *a.Service, token string) http.Handler {
 					writeError(w, &a.Error{Status: 401, Code: "unauthorized", Message: "invalid service identity"})
 					return
 				}
-				actor := a.Actor{UserID: r.Header.Get("X-Auth-User-ID"), OrgID: r.Header.Get("X-Auth-Org-ID"), OrgRole: r.Header.Get("X-Auth-Org-Role")}
-				if actor.UserID == "" || actor.OrgID == "" {
+				actor := a.Actor{UserID: r.Header.Get("X-Auth-User-ID"), TenantID: r.Header.Get("X-Auth-Tenant-ID"), WorkspaceID: r.Header.Get("X-Auth-Workspace-ID"), WorkspaceRole: r.Header.Get("X-Auth-Workspace-Role")}
+				if actor.UserID == "" || actor.TenantID == "" || actor.WorkspaceID == "" {
 					writeError(w, &a.Error{Status: 401, Code: "unauthorized", Message: "missing authenticated identity"})
 					return
 				}

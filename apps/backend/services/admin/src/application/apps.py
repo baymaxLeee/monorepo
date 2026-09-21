@@ -2,11 +2,11 @@
 
 The app registry is a GLOBAL platform catalog of micro-frontends. Reads are
 role-filtered; writes are super_admin-only — this catalog governs what every
-user can reach, so no org-level role may mutate it. Visibility tiers:
+user can reach, so no workspace-level role may mutate it. Visibility tiers:
 
 - super_admin: every app, including disabled ones (management view).
-- org_admin: enabled apps incl. admin-only ones (so they can mount the admin
-  MFE for member approval / org config).
+- workspace_admin: enabled apps incl. admin-only ones (so they can mount the admin
+  MFE for member approval / workspace config).
 - member/normal: only enabled, non-admin-only apps.
 
 `get` applies the SAME visibility as `list` so a normal user cannot probe an
@@ -102,14 +102,14 @@ class AppService:
             await app_crud.delete_app(self._session, await self._get_row(app_id))
 
     def _can_see_admin_apps(self) -> bool:
-        return self._current_user.is_super_admin or self._current_user.is_org_admin
+        return self._current_user.is_super_admin or self._current_user.is_workspace_admin
 
     def _can_see(self, row: AppRow) -> bool:
         if self._current_user.is_super_admin:
             return True
         if not row.is_enabled:
             return False
-        return not (row.requires_admin and not self._current_user.is_org_admin)
+        return not (row.requires_admin and not self._current_user.is_workspace_admin)
 
     def _require_super_admin(self) -> None:
         if not self._current_user.is_super_admin:

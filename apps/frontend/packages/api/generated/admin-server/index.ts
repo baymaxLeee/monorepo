@@ -56,7 +56,8 @@ export const BotStatus = {
 export interface Bot {
   id: string;
   user_id: string;
-  org_id: string;
+  workspace_id: string;
+  tenant_id: string;
   username: string;
   name: string;
   role_description?: string | null;
@@ -359,7 +360,8 @@ export type ModelProviderExtraBody = { [key: string]: unknown };
 export interface ModelProvider {
   id: string;
   user_id: string;
-  org_id: string;
+  workspace_id: string;
+  tenant_id: string;
   name: string;
   model: string;
   provider_kind: ModelProviderProviderKind;
@@ -404,7 +406,8 @@ export const SkillStatus = {
 export interface Skill {
   id: string;
   user_id: string;
-  org_id: string;
+  workspace_id: string;
+  tenant_id: string;
   username: string;
   name: string;
   description: string;
@@ -522,7 +525,8 @@ export const SkillSummaryStatus = {
 export interface SkillSummary {
   id: string;
   user_id: string;
-  org_id: string;
+  workspace_id: string;
+  tenant_id: string;
   username: string;
   name: string;
   description: string;
@@ -687,7 +691,12 @@ path: string;
  * Team that owns the skill
  * @minLength 1
  */
-org_id: string;
+workspace_id: string;
+/**
+ * Team that owns the skill
+ * @minLength 1
+ */
+tenant_id: string;
 };
 
 export type GetSkillInternalInternalSkillsSkillIdGetParams = {
@@ -695,7 +704,12 @@ export type GetSkillInternalInternalSkillsSkillIdGetParams = {
  * Team that owns the skill
  * @minLength 1
  */
-org_id: string;
+workspace_id: string;
+/**
+ * Team that owns the skill
+ * @minLength 1
+ */
+tenant_id: string;
 };
 
 export type GetDefaultProviderInternalInternalProvidersDefaultGetParams = {
@@ -703,7 +717,12 @@ export type GetDefaultProviderInternalInternalProvidersDefaultGetParams = {
  * Team that owns the provider
  * @minLength 1
  */
-org_id: string;
+workspace_id: string;
+/**
+ * Team that owns the provider
+ * @minLength 1
+ */
+tenant_id: string;
 };
 
 export type GetProviderByKindInternalInternalProvidersByKindKindGetParams = {
@@ -711,7 +730,12 @@ export type GetProviderByKindInternalInternalProvidersByKindKindGetParams = {
  * Team that owns the provider
  * @minLength 1
  */
-org_id: string;
+workspace_id: string;
+/**
+ * Team that owns the provider
+ * @minLength 1
+ */
+tenant_id: string;
 };
 
 export type GetProviderInternalInternalProvidersProviderIdGetParams = {
@@ -719,7 +743,12 @@ export type GetProviderInternalInternalProvidersProviderIdGetParams = {
  * Team that owns the provider
  * @minLength 1
  */
-org_id: string;
+workspace_id: string;
+/**
+ * Team that owns the provider
+ * @minLength 1
+ */
+tenant_id: string;
 };
 
 export type GetResolvedAgentInternalInternalAgentsAgentIdGetParams = {
@@ -729,9 +758,13 @@ export type GetResolvedAgentInternalInternalAgentsAgentIdGetParams = {
  */
 user_id: string;
 /**
- * Requester's active org (team scope)
+ * Requester's active workspace (team scope)
  */
-org_id?: string;
+workspace_id?: string;
+/**
+ * Requester's active workspace (team scope)
+ */
+tenant_id?: string;
 };
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];

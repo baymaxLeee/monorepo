@@ -17,13 +17,12 @@ from infrastructure.persistence.models.base import Base
 
 class SkillRow(Base):
     __tablename__ = "skills"
-    __table_args__ = (UniqueConstraint("org_id", "name", name="ux_skills_org_name"),)
-
+    __table_args__ = (UniqueConstraint("workspace_id", "name", name="ux_skills_workspace_name"),)
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
-    org_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
+    workspace_id: Mapped[str] = mapped_column(String(26), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(String(26), nullable=False)
     username: Mapped[str] = mapped_column(String(120), nullable=False)
-    # kebab-case, doubles as the model-facing invocation name (Agent Skills spec).
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     description: Mapped[str] = mapped_column(String(1024), nullable=False, default="")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")

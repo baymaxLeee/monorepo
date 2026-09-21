@@ -11,24 +11,24 @@ export function activeMemberships(user: Pick<PlatformUser, "memberships">): Plat
 }
 
 export function canEnterPlatform(user: PlatformUser): boolean {
-  return !!user.activeOrg || isSuperAdmin(user);
+  return !!user.activeWorkspace || isSuperAdmin(user);
 }
 
 /**
- * Where a signed-in user belongs, given their org binding + memberships:
- * - already bound to an org, or a super_admin (management plane) → the shell
- * - has active memberships but no bound org → pick one
+ * Where a signed-in user belongs, given their workspace binding + memberships:
+ * - already bound to an workspace, or a super_admin (management plane) → the shell
+ * - has active memberships but no bound workspace → pick one
  * - otherwise (only pending/rejected) → the waiting room
  *
  * The platform shell + backend are the real authority; this only decides the
- * initial landing so users never stare at an empty, org-scoped shell.
+ * initial landing so users never stare at an empty, workspace-scoped shell.
  */
 export function landingPath(user: PlatformUser): string {
   if (canEnterPlatform(user)) {
     return "/platform/chat";
   }
   if (activeMemberships(user).length > 0) {
-    return "/select-org";
+    return "/select-workspace";
   }
   return "/pending";
 }

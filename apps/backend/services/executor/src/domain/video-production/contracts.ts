@@ -108,7 +108,8 @@ export interface ProductionCostProjection {
 export interface VideoProductionProjection {
   id: string;
   taskId: string;
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   userId: string;
   conversationId: string | null;
   title: string;

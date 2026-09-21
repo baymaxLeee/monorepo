@@ -1,8 +1,9 @@
-/** One org membership from the caller's own point of view. */
+/** One workspace membership from the caller's own point of view. */
 export type Membership = {
-  orgId: string;
-  orgName: string;
-  role: "org_admin" | "member";
+  tenantId: string;
+  workspaceId: string;
+  workspaceName: string;
+  role: "workspace_admin" | "member";
   status: "pending" | "active" | "rejected";
 };
 
@@ -17,11 +18,11 @@ export type AuthUser = {
   theme: "system" | "light" | "dark" | string;
   marketingOptIn: boolean;
   emailVerified: boolean;
-  /** Platform roles (e.g. "super_admin"); orthogonal to org roles. */
+  /** Platform roles (e.g. "super_admin"); orthogonal to workspace roles. */
   roles: string[];
-  /** The single org this session is bound to, or null when unscoped. */
-  activeOrg: Membership | null;
-  /** Every org the user belongs to, in any status. */
+  /** The single workspace this session is bound to, or null when unscoped. */
+  activeWorkspace: Membership | null;
+  /** Every workspace the user belongs to, in any status. */
   memberships: Membership[];
 };
 

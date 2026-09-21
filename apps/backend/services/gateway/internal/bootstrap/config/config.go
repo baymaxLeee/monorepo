@@ -79,10 +79,10 @@ func Load() (Config, error) {
 			"/api/knowledge-server/resources",
 		}),
 		// Method-aware exact publics: the register page must read the applyable
-		// org list before authenticating, but POST /orgs and /orgs/{id}/... stay
+		// workspace list before authenticating, but POST /workspaces and /workspaces/{id}/... stay
 		// protected — so this is GET-only and exact, never a prefix.
 		PublicExactPaths: csvOr("PUBLIC_EXACT_PATHS", []string{
-			"GET /api/iam-server/orgs",
+			"GET /api/iam-server/workspaces",
 		}),
 		OptionalAuthPathPrefixes: csvOr("OPTIONAL_AUTH_PATH_PREFIXES", []string{
 			"/api/telemetry-server/rum",

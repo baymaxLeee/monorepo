@@ -26,7 +26,11 @@ async def get_resolved_agent_internal(
     user_id: Annotated[str, Query(min_length=1, description="Requesting user")],
     session: DbSession,
     _caller: InternalCaller,
-    org_id: Annotated[str, Query(description="Requester's active org (team scope)")] = "",
+    workspace_id: Annotated[str, Query(description="Requester's active workspace (team scope)")] = "",
+    tenant_id: Annotated[str, Query(description="Requester's active workspace (team scope)")] = "",
 ) -> ResolvedAgent:
-    service = BotService(session, AuthContext(user_id=user_id, username=user_id, email="", org_id=org_id))
+    service = BotService(
+        session,
+        AuthContext(user_id=user_id, username=user_id, email="", workspace_id=workspace_id, tenant_id=tenant_id),
+    )
     return await service.get_resolved(agent_id)

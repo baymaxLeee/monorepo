@@ -9,8 +9,8 @@ const FILE_GENERATION_TIMEOUT = {
   chunkMs: 5 * 60_000,
 } as const;
 
-export async function buildFileTextModel(providerId: string, orgId: string) {
-  const snapshot = await getProvider(providerId, orgId);
+export async function buildFileTextModel(providerId: string, tenantId: string, workspaceId: string) {
+  const snapshot = await getProvider(providerId, tenantId, workspaceId);
   const provider: LanguageProviderSnapshot = snapshot;
   const model = createProviderModel(provider);
   return { model, maxOutputTokens: provider.maxOutputTokens };

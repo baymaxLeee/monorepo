@@ -218,7 +218,8 @@ export type VideoProductionQaReport = { [key: string]: unknown } | null;
 export interface VideoProduction {
   id: string;
   taskId: string;
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   userId: string;
   /** @nullable */
   conversationId?: string | null;

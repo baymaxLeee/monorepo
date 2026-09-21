@@ -79,7 +79,9 @@ export function Component() {
     .filter((item) => item.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
     .sort((a, b) => (ascending ? 1 : -1) * a.updated_at.localeCompare(b.updated_at));
   const canManage = (item: Item) =>
-    projectId || user?.activeOrg?.role === "org_admin" || ("created_by" in item && item.created_by === user?.id);
+    projectId ||
+    user?.activeWorkspace?.role === "workspace_admin" ||
+    ("created_by" in item && item.created_by === user?.id);
   return (
     <TooltipProvider>
       <Page>

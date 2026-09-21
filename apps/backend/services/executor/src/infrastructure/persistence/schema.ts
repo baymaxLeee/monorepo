@@ -46,7 +46,8 @@ export const videoProductions = pgTable(
   {
     id: varchar("id", { length: 32 }).primaryKey(),
     taskId: varchar("task_id", { length: 32 }).notNull(),
-    orgId: varchar("org_id", { length: 32 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 32 }).notNull(),
+    workspaceId: varchar("workspace_id", { length: 32 }).notNull(),
     userId: varchar("user_id", { length: 32 }).notNull(),
     conversationId: varchar("conversation_id", { length: 32 }),
     status: varchar("status", { length: 32 }).notNull(),

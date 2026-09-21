@@ -12,14 +12,15 @@ import (
 )
 
 type Claims struct {
-	Subject string   `json:"sub"`
-	Email   string   `json:"email"`
-	Name    string   `json:"name"`
-	OrgID   string   `json:"org_id,omitempty"`
-	OrgRole string   `json:"org_role,omitempty"`
-	Roles   []string `json:"roles,omitempty"`
-	Issued  int64    `json:"iat"`
-	Expiry  int64    `json:"exp"`
+	TenantID      string   `json:"tenant_id,omitempty"`
+	Subject       string   `json:"sub"`
+	Email         string   `json:"email"`
+	Name          string   `json:"name"`
+	WorkspaceID   string   `json:"workspace_id,omitempty"`
+	WorkspaceRole string   `json:"workspace_role,omitempty"`
+	Roles         []string `json:"roles,omitempty"`
+	Issued        int64    `json:"iat"`
+	Expiry        int64    `json:"exp"`
 }
 
 var (

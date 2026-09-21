@@ -55,7 +55,8 @@ export function readVirtualFile(input: {
 
 export function createFileChangeSet(input: {
   userId: string;
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   conversationId: string;
   metadata?: Record<string, string>;
 }): Promise<FileChangeSet> {
@@ -108,7 +109,8 @@ export function searchVirtualFiles(input: {
 
 export async function cleanupConversationArtifacts(input: {
   userId: string;
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   conversationId: string;
 }): Promise<void> {
   await knowledgeClient().cleanupConversationArtifacts(input);
@@ -182,17 +184,19 @@ export async function getStagedMediaSource(
 
 export async function retrieveKnowledge(
   userId: string,
-  orgId: string,
+  tenantId: string,
+  workspaceId: string,
   query: string,
   topK?: number,
   signal?: AbortSignal,
 ): Promise<RetrieveResult> {
-  return knowledgeClient().retrieve({ userId, orgId, query, topK, signal });
+  return knowledgeClient().retrieve({ userId, tenantId, workspaceId, query, topK, signal });
 }
 
 export async function createArtifact(input: {
   userId: string;
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   conversationId: string;
   title: string;
   filename: string;
@@ -205,7 +209,8 @@ export async function createArtifact(input: {
 
 export async function createMediaDocument(input: {
   userId: string;
-  orgId: string;
+  tenantId: string;
+  workspaceId: string;
   conversationId: string;
   title: string;
   filename: string;

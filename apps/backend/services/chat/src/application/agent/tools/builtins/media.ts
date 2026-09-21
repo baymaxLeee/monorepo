@@ -250,7 +250,8 @@ async function* generateImages(
       const filename = mediaFilename(prompt, IMAGE_EXTENSIONS[mediaType] ?? "png", index);
       const document = await createMediaDocument({
         userId: context.userId,
-        orgId: context.orgId,
+        tenantId: context.tenantId,
+        workspaceId: context.workspaceId,
         conversationId: context.conversationId,
         title: prompt.slice(0, 80),
         filename,
@@ -379,7 +380,8 @@ async function* createVideoProduction(
         type: "video-generation",
         ownerRef: toolCallId,
         payload: {
-          orgId: context.orgId,
+          tenantId: context.tenantId,
+          workspaceId: context.workspaceId,
           userId: context.userId,
           conversationId: context.conversationId,
           providerId: providers.videoProviderId,
