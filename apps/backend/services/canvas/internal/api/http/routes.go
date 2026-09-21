@@ -4,10 +4,12 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 
 	a "github.com/example/monorepo/canvas/internal/application"
@@ -22,12 +24,16 @@ type Route struct {
 	Handle                    func(*a.Service, a.Actor, *http.Request) (any, error)
 }
 
-var Routes = append(append(archiveRoutes, resourceRoutes...), []Route{
+var Routes = append(append(append(storyboardRoutes, archiveRoutes...), resourceRoutes...), []Route{
 	{"GET", "/canvases/{id}/generations/{generationId}/content", "canvasGenerationContent", nil, reflect.TypeFor[string](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
 		return s.GenerationContent(r.Context(), actor, chi.URLParam(r, "id"), chi.URLParam(r, "generationId"))
 	}},
 	{"GET", "/projects/{projectId}/resources", "canvasListResources", nil, reflect.TypeFor[c.ResourceList](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
 		return s.ListResources(r.Context(), actor, chi.URLParam(r, "projectId"))
+	}},
+	{"GET", "/projects/{projectId}/creative-assets", "canvasSearchCreativeAssets", nil, reflect.TypeFor[c.CreativeAssetList](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		return s.SearchCreativeAssets(r.Context(), actor, chi.URLParam(r, "projectId"), r.URL.Query().Get("query"), limit)
 	}},
 	{"POST", "/projects/{projectId}/resources", "canvasCreateResource", reflect.TypeFor[c.ResourceInput](), reflect.TypeFor[c.Resource](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
 		var in c.ResourceInput
@@ -134,7 +140,7 @@ var Routes = append(append(archiveRoutes, resourceRoutes...), []Route{
 		if err := decode(r, &in); err != nil {
 			return nil, err
 		}
-		return s.CreateProject(r.Context(), actor, in)
+		return s.CreateProject(r.Context(), actor, in, r.Header.Get("Authorization"))
 	}},
 	{"GET", "/projects/{projectId}/canvases", "canvasListBoards", nil, reflect.TypeFor[c.BoardList](), func(s *a.Service, actor a.Actor, r *http.Request) (any, error) {
 		return s.ListBoards(r.Context(), actor, chi.URLParam(r, "projectId"))
@@ -235,6 +241,22 @@ func Router(s *a.Service, token string) http.Handler {
 					writeError(w, err)
 					return
 				}
+				if stream, ok := value.(a.StoryboardStream); ok {
+					w.Header().Set("Content-Type", "text/event-stream")
+					w.Header().Set("Cache-Control", "no-cache, no-transform")
+					w.Header().Set("X-Accel-Buffering", "no")
+					_ = stream.Observe(r.Context(), func(draft c.StoryboardDraft) error {
+						data, err := json.Marshal(draft)
+						if err != nil {
+							return err
+						}
+						if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+							return err
+						}
+						return http.NewResponseController(w).Flush()
+					})
+					return
+				}
 				if content, ok := value.(a.MediaContent); ok {
 					defer content.Body.Close()
 					w.Header().Set("Content-Type", content.MIME)
@@ -301,6 +323,9 @@ func OpenAPI() map[string]any {
 	for _, r := range append(append([]Route{}, Routes...), workerRoutes...) {
 		op := map[string]any{"operationId": r.OperationID, "tags": []string{"canvas"}, "responses": map[string]any{"200": map[string]any{"description": "Success", "content": map[string]any{"application/json": map[string]any{"schema": schema(r.Output)}}}, "400": map[string]any{"description": "Invalid input"}, "401": map[string]any{"description": "Authentication required"}, "404": map[string]any{"description": "Missing or inaccessible resource"}, "409": map[string]any{"description": "Revision conflict"}}}
 		params := []any{}
+		if r.OperationID == "canvasStreamStoryboard" {
+			op["responses"].(map[string]any)["200"] = map[string]any{"description": "SSE snapshots; each data field is CanvasStoryboardDraft. Reconnect replays the latest durable snapshot.", "content": map[string]any{"text/event-stream": map[string]any{"schema": map[string]any{"type": "string"}}}}
+		}
 		for _, part := range strings.Split(r.Path, "/") {
 			if strings.HasPrefix(part, "{") {
 				params = append(params, map[string]any{"name": strings.Trim(part, "{}"), "in": "path", "required": true, "schema": map[string]any{"type": "string"}})
@@ -312,7 +337,7 @@ func OpenAPI() map[string]any {
 			}
 			op["requestBody"] = map[string]any{"required": true, "content": map[string]any{"application/octet-stream": map[string]any{"schema": map[string]any{"type": "string", "format": "binary"}}}}
 		}
-		if r.OperationID == "canvasArchiveContent" || r.OperationID == "canvasResourceVersionContent" || r.OperationID == "canvasGenerationContent" || r.OperationID == "canvasNodeContent" || r.OperationID == "canvasResourceContent" {
+		if r.OperationID == "canvasProjectUsageWorkbook" || r.OperationID == "canvasArchiveContent" || r.OperationID == "canvasResourceVersionContent" || r.OperationID == "canvasGenerationContent" || r.OperationID == "canvasNodeContent" || r.OperationID == "canvasResourceContent" {
 			op["responses"].(map[string]any)["200"] = map[string]any{"description": "Media content", "content": map[string]any{"application/octet-stream": map[string]any{"schema": map[string]any{"type": "string", "format": "binary"}}}}
 		}
 		if len(params) > 0 {

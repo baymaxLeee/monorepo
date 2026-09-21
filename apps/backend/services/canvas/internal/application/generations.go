@@ -65,6 +65,16 @@ func (s *Service) StartGeneration(ctx context.Context, a Actor, canvasID, nodeID
 		if node.GenerationConfig.ProviderID == "" || strings.TrimSpace(node.Prompt) == "" {
 			return Invalid("select a provider and enter a prompt")
 		}
+		providerKind := "chat"
+		if node.Type == 5 {
+			providerKind = "image"
+		} else if node.Type == 6 {
+			providerKind = "video"
+		}
+		admission, err := s.admitGeneration(ctx, tx, a, board.ProjectID, node.GenerationConfig.ProviderID, providerKind, node.GenerationConfig.DurationSeconds)
+		if err != nil {
+			return err
+		}
 		var active int64
 		if err = tx.Model(&p.Generation{}).Where("node_id = ? AND status IN ?", nodeID, []string{"queued", "running"}).Count(&active).Error; err != nil {
 			return err
@@ -104,9 +114,24 @@ func (s *Service) StartGeneration(ctx context.Context, a Actor, canvasID, nodeID
 			return Invalid(err.Error())
 		}
 		prompt := resolved.Prompt
-		out = p.Generation{ID: newID(), CanvasID: canvasID, NodeID: nodeID, TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, UserID: a.UserID, OperationID: in.OperationID, NodeRevision: node.Revision, ProviderID: node.GenerationConfig.ProviderID, Prompt: prompt, Status: "queued"}
+		out = p.Generation{ID: newID(), CanvasID: canvasID, NodeID: nodeID, TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, UserID: a.UserID, OperationID: in.OperationID, NodeRevision: node.Revision, ProviderID: node.GenerationConfig.ProviderID, Prompt: prompt, Status: "queued", ReservedAmountMicros: admission.AmountMicros}
 		out.TaskType = "text-generation"
-		out.InputPayload = "{}"
+		var parameters *c.InferenceParameters
+		if node.Type == 7 {
+			parameters, err = s.ResolveInferenceParameters(ctx, a, node.GenerationConfig.ProviderID)
+			if err != nil {
+				return err
+			}
+		}
+		textInput := map[string]any{"tenantId": a.TenantID, "workspaceId": a.WorkspaceID, "providerId": out.ProviderID, "prompt": prompt}
+		if parameters != nil {
+			textInput["parameters"] = parameters
+		}
+		textPayload, err := json.Marshal(textInput)
+		if err != nil {
+			return err
+		}
+		out.InputPayload = string(textPayload)
 		if node.Type == 5 {
 			references := []string{}
 			for _, input := range resolved.Inputs {
@@ -146,7 +171,11 @@ func (s *Service) StartGeneration(ctx context.Context, a Actor, canvasID, nodeID
 			}
 			out.InputPayload, out.TaskType = payload, "canvas-video-generation"
 		}
-		return tx.Create(&out).Error
+		if err := tx.Create(&out).Error; err != nil {
+			return err
+		}
+		admission.Metadata.GenerationID = out.ID
+		return tx.Create(&admission.Metadata).Error
 	})
 	return generationDTO(out), err
 }

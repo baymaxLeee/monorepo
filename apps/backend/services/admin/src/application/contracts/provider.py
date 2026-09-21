@@ -21,7 +21,7 @@ TOKENS_PER_K = 1024
 
 class ProviderPricing(BaseModel):
     currency: str = Field(pattern="^[A-Z]{3}$")
-    unit: Literal["generated_second"] = "generated_second"
+    unit: Literal["generated_item", "generated_second"]
     unit_price_micros: int = Field(ge=0, le=2147483647)
 
 
@@ -63,6 +63,16 @@ class InternalModelProvider(BaseModel):
     context_window: int
     max_output_tokens: int
     supports_image_input: bool
+    is_default: bool
+    is_enabled: bool
+
+
+class ProviderCatalogItem(BaseModel):
+    id: str
+    name: str
+    model: str
+    provider_kind: ProviderKind
+    pricing: ProviderPricing | None
     is_default: bool
     is_enabled: bool
 

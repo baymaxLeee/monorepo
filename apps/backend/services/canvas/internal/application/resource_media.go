@@ -93,7 +93,7 @@ func (s *Service) UploadResourceAsset(ctx context.Context, a Actor, projectID, r
 		resource.Revision++
 		return tx.Save(&resource).Error
 	})
-	return c.ResourceAsset{ID: out.ID, Name: out.Name, MediaType: out.MediaType, Revision: out.Revision}, err
+	return resourceAssetDTO(out), err
 }
 func (s *Service) ResourceContent(ctx context.Context, a Actor, projectID, id string) (MediaContent, error) {
 	db := s.DB.WithContext(ctx)

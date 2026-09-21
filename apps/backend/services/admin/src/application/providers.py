@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from builtins import list as list_type
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -10,6 +11,7 @@ from typing import Any, cast
 from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.models.provider import PROVIDER_KIND_CHAT, ModelProviderRow
 from infrastructure.persistence.repositories import providers as provider_crud
+from infrastructure.persistence.repositories import canvas_settings as canvas_settings_repository
 from kernel.errors import ConflictError, NotFoundError, RequestError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +21,7 @@ from application.contracts.provider import (
     CreateModelProviderInput,
     InternalModelProvider,
     ModelProvider,
+    ProviderCatalogItem,
     ProviderKind,
     ProviderPricing,
     TestModelProviderInput,
@@ -63,6 +66,16 @@ def _to_k_tokens(tokens: int) -> float:
 
 def _from_k_tokens(k_tokens: float) -> int:
     return round(k_tokens * TOKENS_PER_K)
+
+
+def _validate_pricing(kind: str, pricing: ProviderPricing | None) -> None:
+    if pricing is None:
+        return
+    expected_unit = {"image": "generated_item", "video": "generated_second"}.get(kind)
+    if expected_unit is None:
+        raise RequestError("pricing is only supported for image and video providers")
+    if pricing.unit != expected_unit:
+        raise RequestError(f"{kind} provider pricing must use {expected_unit}")
 
 
 def to_public_schema(row: ModelProviderRow) -> ModelProvider:
@@ -118,12 +131,43 @@ class ModelProviderService:
         )
         return [to_public_schema(row) for row in rows]
 
+    async def list_internal_catalog(self) -> list_type[ProviderCatalogItem]:
+        rows = await provider_crud.list_providers(
+            self._session, self._current_user.workspace_id, self._current_user.tenant_id
+        )
+        settings = await canvas_settings_repository.get(
+            self._session, self._current_user.workspace_id, self._current_user.tenant_id
+        )
+        configured_defaults: set[str] = set()
+        if settings is not None:
+            try:
+                raw_defaults = json.loads(settings.defaults_json)
+                for slot in ("inference", "image", "video"):
+                    selection = raw_defaults.get(slot) if isinstance(raw_defaults, dict) else None
+                    if isinstance(selection, dict) and isinstance(selection.get("provider_id"), str):
+                        configured_defaults.add(selection["provider_id"])
+            except (TypeError, json.JSONDecodeError):
+                pass
+        return [
+            ProviderCatalogItem(
+                id=row.id,
+                name=row.name,
+                model=row.model,
+                provider_kind=cast(ProviderKind, row.provider_kind),
+                pricing=_parse_pricing(row.pricing_json),
+                is_default=row.is_default or row.id in configured_defaults,
+                is_enabled=row.is_enabled,
+            )
+            for row in rows
+        ]
+
     async def get(self, provider_id: str) -> ModelProvider:
         return to_public_schema(await self._get_row(provider_id))
 
     async def create(self, payload: CreateModelProviderInput) -> ModelProvider:
         if payload.is_default and payload.provider_kind != PROVIDER_KIND_CHAT:
             raise RequestError("only chat providers can be set as default")
+        _validate_pricing(payload.provider_kind, payload.pricing)
         base_url = await validate_provider_base_url(str(payload.base_url))
         async with write_tx(self._session):
             if payload.is_default:
@@ -180,6 +224,8 @@ class ModelProviderService:
             if payload.is_enabled is not None:
                 values["is_enabled"] = payload.is_enabled
             next_kind = payload.provider_kind if payload.provider_kind is not None else row.provider_kind
+            next_pricing = payload.pricing if "pricing" in payload.model_fields_set else _parse_pricing(row.pricing_json)
+            _validate_pricing(next_kind, next_pricing)
             if next_kind != PROVIDER_KIND_CHAT:
                 if payload.is_default:
                     raise RequestError("only chat providers can be set as default")

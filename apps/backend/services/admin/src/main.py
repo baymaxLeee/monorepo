@@ -6,8 +6,11 @@ from contextlib import asynccontextmanager
 from api.http.routes import (
     agents_internal,
     apps,
+    benefit_packages,
+    benefit_packages_internal,
     bots,
     canvas_settings,
+    canvas_settings_internal,
     health,
     providers,
     providers_internal,
@@ -57,7 +60,10 @@ def create_app() -> FastAPI:
     app.add_middleware(TraceIDMiddleware)
     app.include_router(health.router)
     app.include_router(bots.router)
+    app.include_router(benefit_packages.router)
+    app.include_router(benefit_packages_internal.router)
     app.include_router(canvas_settings.router)
+    app.include_router(canvas_settings_internal.router)
     app.include_router(skills.router)
     app.include_router(skills_internal.router)
     app.include_router(providers.router)

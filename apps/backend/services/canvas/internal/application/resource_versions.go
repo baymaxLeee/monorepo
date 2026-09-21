@@ -35,7 +35,7 @@ func resourceSlot(db *gorm.DB, a Actor, projectID, id string, write bool) (p.Res
 	return resource, slot, nil
 }
 func resourceAssetDTO(slot p.ResourceAsset) c.ResourceAsset {
-	return c.ResourceAsset{ID: slot.ID, Name: slot.Name, MediaType: slot.MediaType, Revision: slot.Revision}
+	return c.ResourceAsset{SourceType: slot.SourceType, SequenceNo: slot.SequenceNo, HasContent: slot.CurrentAssetID != "", ID: slot.ID, Name: slot.Name, MediaType: slot.MediaType, Revision: slot.Revision}
 }
 func (s *Service) ReplaceResourceAsset(ctx context.Context, a Actor, projectID, id string, expected int64, body io.Reader) (c.ResourceAsset, error) {
 	if expected < 1 {

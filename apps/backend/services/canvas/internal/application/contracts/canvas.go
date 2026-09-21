@@ -10,8 +10,10 @@ type Project struct {
 	Revision    int64  `json:"revision"`
 }
 type CreateProject struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Name             string   `json:"name"`
+	Description      string   `json:"description"`
+	MemberUserIDs    []string `json:"member_user_ids"`
+	UsageLimitMicros *int64   `json:"usage_limit_micros"`
 }
 type Board struct {
 	CreatedAt string `json:"created_at"`
@@ -133,13 +135,30 @@ type ResourceList struct {
 	Items []Resource `json:"items"`
 }
 type ResourceAsset struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	MediaType int16  `json:"media_type"`
-	Revision  int64  `json:"revision"`
+	SourceType int16  `json:"source_type"`
+	SequenceNo int64  `json:"sequence_no"`
+	HasContent bool   `json:"has_content"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	MediaType  int16  `json:"media_type"`
+	Revision   int64  `json:"revision"`
 }
 type ResourceAssetList struct {
 	Items []ResourceAsset `json:"items"`
+}
+type CreativeAsset struct {
+	NodeID          string `json:"node_id"`
+	CanvasID        string `json:"canvas_id"`
+	ResourceID      string `json:"resource_id"`
+	ResourceName    string `json:"resource_name"`
+	ResourceType    int16  `json:"resource_type"`
+	ResourceAssetID string `json:"resource_asset_id"`
+	CurrentAssetID  string `json:"current_asset_id"`
+	Name            string `json:"name"`
+	MediaType       int16  `json:"media_type"`
+}
+type CreativeAssetList struct {
+	Items []CreativeAsset `json:"items"`
 }
 type MaterializeResource struct {
 	NodeID          string `json:"node_id"`

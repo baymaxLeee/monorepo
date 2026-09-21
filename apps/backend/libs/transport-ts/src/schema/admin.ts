@@ -127,6 +127,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/benefit-packages/asset-group-cleanups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Asset Group Cleanups */
+        get: operations["listBenefitPackageAssetGroupCleanups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/benefit-packages/asset-group-cleanups/{cleanup_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Asset Group Cleanup */
+        post: operations["retryBenefitPackageAssetGroupCleanup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/benefit-packages": {
         parameters: {
             query?: never;
@@ -191,6 +225,23 @@ export interface paths {
         get: operations["getCanvasSettings"];
         /** Update Settings */
         put: operations["updateCanvasSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/canvas/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Settings */
+        get: operations["getInternalCanvasSettings"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -710,6 +761,27 @@ export interface components {
             /** Updated At */
             updated_at: string;
         };
+        /** AssetGroupCleanup */
+        AssetGroupCleanup: {
+            /** Id */
+            id: string;
+            /** Benefit Package Id */
+            benefit_package_id: string;
+            /** Asset Group Id */
+            asset_group_id: string;
+            /** Status */
+            status: string;
+            /** Attempts */
+            attempts: number;
+            /** Last Error */
+            last_error: string;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /** Completed At */
+            completed_at: string | null;
+        };
         /** AttachSkillInput */
         AttachSkillInput: {
             /** Skill Id */
@@ -999,6 +1071,8 @@ export interface components {
             name: string;
             /** Project Name */
             project_name: string;
+            /** Asset Group Id */
+            asset_group_id: string;
             /** Access Key Id */
             access_key_id: string;
             /** Secret Access Key */
@@ -1150,10 +1224,9 @@ export interface components {
             currency: string;
             /**
              * Unit
-             * @default generated_second
-             * @constant
+             * @enum {string}
              */
-            unit: "generated_second";
+            unit: "generated_item" | "generated_second";
             /** Unit Price Micros */
             unit_price_micros: number;
         };
@@ -1887,6 +1960,82 @@ export interface operations {
             };
         };
     };
+    listBenefitPackageAssetGroupCleanups: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetGroupCleanup"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retryBenefitPackageAssetGroupCleanup: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                cleanup_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetGroupCleanup"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listBenefitPackages: {
         parameters: {
             query?: {
@@ -2055,9 +2204,9 @@ export interface operations {
                 workspace_id: string;
                 tenant_id: string;
             };
-            header?: {
+            header: {
+                "X-Caller-Service": string;
                 "X-Internal-Token"?: string | null;
-                "X-Caller-Service"?: string | null;
             };
             path: {
                 package_id: string;
@@ -2143,6 +2292,41 @@ export interface operations {
                 "application/json": components["schemas"]["UpdateCanvasSettings"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasSettings"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getInternalCanvasSettings: {
+        parameters: {
+            query: {
+                tenant_id: string;
+                workspace_id: string;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

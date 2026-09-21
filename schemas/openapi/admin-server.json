@@ -1331,6 +1331,309 @@
         }
       }
     },
+    "/benefit-packages/asset-group-cleanups": {
+      "get": {
+        "tags": [
+          "canvas-benefit-packages"
+        ],
+        "summary": "List Asset Group Cleanups",
+        "operationId": "listBenefitPackageAssetGroupCleanups",
+        "parameters": [
+          {
+            "name": "X-Auth-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Email"
+            }
+          },
+          {
+            "name": "X-Auth-User-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Name",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Tenant-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AssetGroupCleanup"
+                  },
+                  "title": "Response Listbenefitpackageassetgroupcleanups"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/benefit-packages/asset-group-cleanups/{cleanup_id}/retry": {
+      "post": {
+        "tags": [
+          "canvas-benefit-packages"
+        ],
+        "summary": "Retry Asset Group Cleanup",
+        "operationId": "retryBenefitPackageAssetGroupCleanup",
+        "parameters": [
+          {
+            "name": "cleanup_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cleanup Id"
+            }
+          },
+          {
+            "name": "X-Auth-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Email"
+            }
+          },
+          {
+            "name": "X-Auth-User-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Name",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Tenant-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetGroupCleanup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/benefit-packages": {
       "get": {
         "tags": [
@@ -2000,6 +2303,15 @@
             }
           },
           {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Caller-Service"
+            }
+          },
+          {
             "name": "X-Internal-Token",
             "in": "header",
             "required": false,
@@ -2013,22 +2325,6 @@
                 }
               ],
               "title": "X-Internal-Token"
-            }
-          },
-          {
-            "name": "X-Caller-Service",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Caller-Service"
             }
           }
         ],
@@ -2330,6 +2626,91 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasSettings"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/canvas/settings": {
+      "get": {
+        "tags": [
+          "internal-canvas-settings"
+        ],
+        "summary": "Get Settings",
+        "operationId": "getInternalCanvasSettings",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -7635,6 +8016,66 @@
         ],
         "title": "App"
       },
+      "AssetGroupCleanup": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "benefit_package_id": {
+            "type": "string",
+            "title": "Benefit Package Id"
+          },
+          "asset_group_id": {
+            "type": "string",
+            "title": "Asset Group Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "last_error": {
+            "type": "string",
+            "title": "Last Error"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "benefit_package_id",
+          "asset_group_id",
+          "status",
+          "attempts",
+          "last_error",
+          "created_at",
+          "updated_at",
+          "completed_at"
+        ],
+        "title": "AssetGroupCleanup"
+      },
       "AttachSkillInput": {
         "properties": {
           "skill_id": {
@@ -8416,6 +8857,10 @@
             "type": "string",
             "title": "Project Name"
           },
+          "asset_group_id": {
+            "type": "string",
+            "title": "Asset Group Id"
+          },
           "access_key_id": {
             "type": "string",
             "title": "Access Key Id"
@@ -8441,6 +8886,7 @@
           "id",
           "name",
           "project_name",
+          "asset_group_id",
           "access_key_id",
           "secret_access_key",
           "is_preset",
@@ -8801,9 +9247,11 @@
           },
           "unit": {
             "type": "string",
-            "const": "generated_second",
-            "title": "Unit",
-            "default": "generated_second"
+            "enum": [
+              "generated_item",
+              "generated_second"
+            ],
+            "title": "Unit"
           },
           "unit_price_micros": {
             "type": "integer",
@@ -8815,6 +9263,7 @@
         "type": "object",
         "required": [
           "currency",
+          "unit",
           "unit_price_micros"
         ],
         "title": "ProviderPricing"

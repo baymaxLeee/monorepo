@@ -32,6 +32,7 @@ type BillingStatus string
 const (
 	BillingStatusPending     BillingStatus = "PENDING"
 	BillingStatusReady       BillingStatus = "READY"
+	BillingStatusEstimated   BillingStatus = "ESTIMATED"
 	BillingStatusNeedsReview BillingStatus = "NEEDS_REVIEW"
 )
 
@@ -244,6 +245,8 @@ func resourceTypeLabel(value string) string {
 
 func modelSourceLabel(value string) string {
 	switch value {
+	case "DIRECT_PROVIDER":
+		return "直连模型"
 	case "SYSTEM_PRESET":
 		return "系统预置"
 	case "SYSTEM_DISTRIBUTED":
@@ -277,7 +280,7 @@ func exportAmount(row ExportRow, totals map[string]*decimalTotal) (string, bool,
 	switch row.BillingStatus {
 	case BillingStatusPending, BillingStatusNeedsReview:
 		return "", true, nil
-	case BillingStatusReady:
+	case BillingStatusReady, BillingStatusEstimated:
 		if row.TotalAmount == nil || strings.TrimSpace(*row.TotalAmount) == "" {
 			return "", false, errors.New("READY project usage row has no amount")
 		}

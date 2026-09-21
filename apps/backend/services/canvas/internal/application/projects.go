@@ -6,17 +6,22 @@ import (
 	"github.com/example/monorepo/canvas/internal/infrastructure/executor"
 	p "github.com/example/monorepo/canvas/internal/infrastructure/persistence"
 	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
+	projectusage "github.com/example/monorepo/canvas/internal/server/application/projectusage"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
 type Service struct {
-	Storage  *storage.Client
-	DB       *gorm.DB
-	Executor *executor.Client
+	Storage           *storage.Client
+	DB                *gorm.DB
+	Executor          *executor.Client
+	MemberDirectory   ProjectMemberDirectory
+	ProviderDirectory ProjectProviderDirectory
+	UsageExporter     *projectusage.Exporter
 }
 
 func newID() string {
@@ -28,7 +33,10 @@ func newID() string {
 }
 
 func validName(name string) bool {
-	return strings.TrimSpace(name) == name && utf8.RuneCountInString(name) > 0 && utf8.RuneCountInString(name) <= 50
+	runes := []rune(name)
+	return utf8.ValidString(name) && len(runes) > 0 && len(runes) <= 20 &&
+		runes[0] != '-' && runes[0] != '_' && !unicode.IsSpace(runes[0]) &&
+		runes[len(runes)-1] != '-' && runes[len(runes)-1] != '_' && !unicode.IsSpace(runes[len(runes)-1])
 }
 func projectDTO(v p.Project) contracts.Project {
 	return contracts.Project{CreatedAt: isoTime(v.CreatedAt), UpdatedAt: isoTime(v.UpdatedAt), ID: v.ID, Name: v.Name, Description: v.Description, CreatedBy: v.CreatedBy, Revision: v.Revision}
@@ -73,17 +81,45 @@ func (s *Service) ListProjects(ctx context.Context, a Actor) (contracts.ProjectL
 	}
 	return result, nil
 }
-func (s *Service) CreateProject(ctx context.Context, a Actor, in contracts.CreateProject) (contracts.Project, error) {
+func (s *Service) CreateProject(ctx context.Context, a Actor, in contracts.CreateProject, authorization string) (contracts.Project, error) {
+	if err := requireProjectAdmin(a); err != nil {
+		return contracts.Project{}, err
+	}
 	if !validName(in.Name) || len(in.Description) > 20000 {
 		return contracts.Project{}, Invalid("invalid project name or description")
 	}
+	if in.UsageLimitMicros != nil && *in.UsageLimitMicros <= 0 {
+		return contracts.Project{}, Invalid("项目额度必须大于 0")
+	}
+	if in.UsageLimitMicros != nil && *in.UsageLimitMicros > maximumProjectUsageMicros {
+		return contracts.Project{}, Invalid("项目额度不能超过 10 亿元")
+	}
+	memberIDs, err := s.validateProjectMembers(ctx, a, in.MemberUserIDs, authorization)
+	if err != nil {
+		return contracts.Project{}, err
+	}
 	v := p.Project{ID: newID(), TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, Name: in.Name, Description: in.Description, CreatedBy: a.UserID, Revision: 1}
-	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&v).Error; err != nil {
 			return err
 		}
-		return tx.Create(&p.Member{ProjectID: v.ID, UserID: a.UserID, Role: "owner"}).Error
+		members := []p.Member{{ProjectID: v.ID, UserID: a.UserID, Role: "owner"}}
+		seen := map[string]bool{a.UserID: true}
+		for _, userID := range memberIDs {
+			if userID == "" || seen[userID] {
+				continue
+			}
+			seen[userID] = true
+			members = append(members, p.Member{ProjectID: v.ID, UserID: userID, Role: "editor"})
+		}
+		if err := tx.Create(&members).Error; err != nil {
+			return err
+		}
+		return tx.Create(&projectUsagePolicy{ProjectID: v.ID, TenantID: a.TenantID, WorkspaceID: a.WorkspaceID, Currency: "CNY", UsageLimitMicros: in.UsageLimitMicros}).Error
 	})
+	if uniqueViolation(err, "projects_scope_name") {
+		err = ConflictMessage("project_name_conflict", "同一工作空间内项目名称不能重复")
+	}
 	return projectDTO(v), err
 }
 func (s *Service) ListBoards(ctx context.Context, a Actor, projectID string) (contracts.BoardList, error) {

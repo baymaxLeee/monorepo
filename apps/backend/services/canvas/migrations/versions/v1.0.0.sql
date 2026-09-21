@@ -5,9 +5,22 @@ CREATE TABLE projects (
  revision bigint NOT NULL DEFAULT 1, created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, deleted_at timestamptz
 );
 CREATE INDEX projects_workspace ON projects(workspace_id, deleted_at);
+CREATE UNIQUE INDEX projects_scope_name ON projects(tenant_id, workspace_id, name) WHERE deleted_at IS NULL;
 CREATE TABLE project_members (
  project_id varchar(36) NOT NULL, user_id varchar(64) NOT NULL,
  role varchar(16) NOT NULL CHECK(role IN ('owner','editor','viewer')), PRIMARY KEY(project_id,user_id)
+);
+CREATE TABLE project_model_grants (
+ project_id varchar(36) NOT NULL, tenant_id varchar(26) NOT NULL, workspace_id varchar(64) NOT NULL,
+ provider_id varchar(160) NOT NULL, PRIMARY KEY(project_id,provider_id)
+);
+CREATE INDEX project_model_grants_scope ON project_model_grants(tenant_id,workspace_id,project_id);
+CREATE TABLE project_usage_policies (
+ project_id varchar(36) PRIMARY KEY, tenant_id varchar(26) NOT NULL, workspace_id varchar(64) NOT NULL,
+ usage_limit_micros bigint, used_amount_micros bigint NOT NULL DEFAULT 0,
+ reserved_amount_micros bigint NOT NULL DEFAULT 0, currency varchar(16) NOT NULL DEFAULT 'CNY',
+ CHECK (usage_limit_micros IS NULL OR usage_limit_micros > 0),
+ CHECK (used_amount_micros >= 0), CHECK (reserved_amount_micros >= 0)
 );
 CREATE TABLE canvases (
  id varchar(36) PRIMARY KEY, project_id varchar(36) NOT NULL, name varchar(100) NOT NULL,
@@ -51,12 +64,22 @@ CREATE TABLE canvas_generations (
  error text NOT NULL DEFAULT '',
  applied boolean NOT NULL DEFAULT false,
  cancel_requested boolean NOT NULL DEFAULT false,
+ reserved_amount_micros bigint NOT NULL DEFAULT 0,
+ usage_settled boolean NOT NULL DEFAULT false,
  created_at timestamptz NOT NULL DEFAULT now(),
  updated_at timestamptz NOT NULL DEFAULT now(),
  UNIQUE(canvas_id, user_id, operation_id)
 );
 CREATE INDEX canvas_generations_node ON canvas_generations(canvas_id,node_id,created_at DESC);
 CREATE UNIQUE INDEX canvas_generation_active ON canvas_generations(node_id) WHERE status IN ('queued','running');
+
+CREATE TABLE canvas_asset_match_runs (
+ id varchar(32) PRIMARY KEY, canvas_id varchar(32) NOT NULL, node_id varchar(36) NOT NULL,
+ node_revision bigint NOT NULL, original_prompt text NOT NULL, candidates jsonb NOT NULL DEFAULT '[]',
+ applied boolean NOT NULL DEFAULT false, error text NOT NULL DEFAULT '',
+ created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX canvas_asset_match_runs_node ON canvas_asset_match_runs(canvas_id,node_id,created_at DESC);
 
 CREATE TABLE assets (
  id varchar(32) PRIMARY KEY,
@@ -184,19 +207,6 @@ CREATE TABLE canvas_workflow_tasks (
 );
 CREATE INDEX canvas_workflow_tasks_pending ON canvas_workflow_tasks (created_at) WHERE NOT settled;
 
-CREATE TABLE canvas_video_frames (
- id varchar(32) PRIMARY KEY,
- generation_id varchar(32) NOT NULL UNIQUE,
- task_id varchar(32) NOT NULL DEFAULT '',
- status varchar(20) NOT NULL DEFAULT 'queued',
- cancel_requested boolean NOT NULL DEFAULT false,
- first_key varchar(64) NOT NULL DEFAULT '', last_key varchar(64) NOT NULL DEFAULT '',
- first_size bigint NOT NULL DEFAULT 0, last_size bigint NOT NULL DEFAULT 0,
- first_asset_id varchar(32) NOT NULL DEFAULT '', last_asset_id varchar(32) NOT NULL DEFAULT '',
- created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX canvas_video_frames_active ON canvas_video_frames(status) WHERE status IN ('queued','running');
-
 CREATE TABLE "resource_asset_image_generation_drafts" (
   "id" uuid NOT NULL,
   "tenant_id" varchar(64) NOT NULL,
@@ -297,3 +307,59 @@ CREATE TABLE canvas_storyboard_sessions (
 );
 CREATE INDEX canvas_storyboard_sessions_active ON canvas_storyboard_sessions(status) WHERE status IN ('queued','running');
 CREATE INDEX canvas_storyboard_sessions_scope ON canvas_storyboard_sessions(tenant_id,workspace_id,canvas_id,user_id,created_at DESC);
+
+-- Usage settlement is tied to the durable generation state transition so all
+-- workers (including newly migrated generation flows) share one atomic rule.
+CREATE FUNCTION settle_canvas_generation_usage() RETURNS trigger AS $$
+DECLARE
+  target_project_id varchar(36);
+BEGIN
+  IF NEW.usage_settled OR NEW.status NOT IN ('completed', 'failed', 'cancelled') THEN
+    RETURN NEW;
+  END IF;
+  IF TG_TABLE_NAME = 'canvas_generations' THEN
+    SELECT project_id INTO target_project_id FROM canvases WHERE id = NEW.canvas_id;
+  ELSE
+    target_project_id := NEW.project_id;
+  END IF;
+  IF NEW.reserved_amount_micros > 0 THEN
+    UPDATE project_usage_policies
+      SET reserved_amount_micros = GREATEST(reserved_amount_micros - NEW.reserved_amount_micros, 0),
+          used_amount_micros = used_amount_micros + CASE WHEN NEW.status = 'completed' THEN NEW.reserved_amount_micros ELSE 0 END
+      WHERE project_id = target_project_id;
+  END IF;
+  NEW.usage_settled := true;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER canvas_generation_usage_settlement BEFORE UPDATE OF status ON canvas_generations
+  FOR EACH ROW EXECUTE FUNCTION settle_canvas_generation_usage();
+CREATE TRIGGER resource_generation_usage_settlement BEFORE UPDATE OF status ON resource_image_runs
+  FOR EACH ROW EXECUTE FUNCTION settle_canvas_generation_usage();
+CREATE TABLE canvas_video_frames (
+ id varchar(32) PRIMARY KEY,
+ generation_id varchar(32) NOT NULL UNIQUE,
+ task_id varchar(32) NOT NULL DEFAULT '',
+ status varchar(20) NOT NULL DEFAULT 'queued',
+ cancel_requested boolean NOT NULL DEFAULT false,
+ first_key varchar(64) NOT NULL DEFAULT '', last_key varchar(64) NOT NULL DEFAULT '',
+ first_size bigint NOT NULL DEFAULT 0, last_size bigint NOT NULL DEFAULT 0,
+ first_asset_id varchar(32) NOT NULL DEFAULT '', last_asset_id varchar(32) NOT NULL DEFAULT '',
+ created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX canvas_video_frames_active ON canvas_video_frames(status) WHERE status IN ('queued','running');
+
+CREATE TABLE canvas_views (canvas_id varchar(36) NOT NULL, user_id text NOT NULL, x double precision NOT NULL, y double precision NOT NULL, zoom double precision NOT NULL CHECK(zoom > 0), updated_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(canvas_id,user_id));
+
+
+CREATE TABLE generation_usage_metadata (
+ generation_id varchar(36) PRIMARY KEY,
+ tenant_id varchar(26) NOT NULL,
+ workspace_id varchar(64) NOT NULL,
+ project_id varchar(36) NOT NULL,
+ model_name text NOT NULL,
+ model_id text NOT NULL,
+ currency varchar(16) NOT NULL DEFAULT '',
+ estimate_known boolean NOT NULL DEFAULT false
+);
+CREATE INDEX generation_usage_metadata_scope ON generation_usage_metadata(tenant_id,workspace_id,project_id);

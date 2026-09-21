@@ -8,7 +8,7 @@ MUST be considered tier-1 secrets in transit (HTTPS / cluster-internal mesh).
 
 from typing import Annotated
 
-from application.contracts.provider import InternalModelProvider
+from application.contracts.provider import InternalModelProvider, ProviderCatalogItem
 from application.providers import ModelProviderService
 from fastapi import APIRouter, Header, Query
 from kernel.errors import ForbiddenError
@@ -16,6 +16,16 @@ from kernel.errors import ForbiddenError
 from api.http.dependencies import AuthContext, DbSession, InternalCaller
 
 router = APIRouter(prefix="/internal/providers", tags=["internal-providers"])
+
+
+@router.get("", response_model=list[ProviderCatalogItem])
+async def list_provider_catalog_internal(
+    workspace_id: Annotated[str, Query(min_length=1, description="Team that owns the provider")],
+    tenant_id: Annotated[str, Query(min_length=1, description="Tenant that owns the provider")],
+    session: DbSession,
+    _caller: InternalCaller,
+) -> list[ProviderCatalogItem]:
+    return await _service(session, workspace_id, tenant_id).list_internal_catalog()
 
 
 def _service(session: DbSession, workspace_id: str = "", tenant_id: str = "") -> ModelProviderService:

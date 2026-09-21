@@ -6,7 +6,9 @@ import (
 	api "github.com/example/monorepo/canvas/internal/api/http"
 	"github.com/example/monorepo/canvas/internal/application"
 	"github.com/example/monorepo/canvas/internal/bootstrap"
+	"github.com/example/monorepo/canvas/internal/infrastructure/admin"
 	"github.com/example/monorepo/canvas/internal/infrastructure/executor"
+	"github.com/example/monorepo/canvas/internal/infrastructure/iam"
 	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
 	"log/slog"
 	"net/http"
@@ -39,6 +41,9 @@ func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 	service := &application.Service{Storage: &storage.Client{URL: bootstrap.Env("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"), Token: cfg.InternalToken}, DB: db, Executor: &executor.Client{URL: bootstrap.Env("EXECUTOR_SERVICE_URL", "http://localhost:8011"), Token: cfg.InternalToken}}
+	service.MemberDirectory = &iam.Directory{URL: bootstrap.Env("IAM_SERVICE_URL", "http://localhost:8002")}
+	service.ProviderDirectory = &admin.Directory{URL: bootstrap.Env("ADMIN_SERVICE_URL", "http://localhost:8001"), Token: cfg.InternalToken}
+	service.UsageExporter = application.NewProjectUsageExporter(db)
 	go service.RunGenerations(ctx)
 	go service.RunArchives(ctx)
 	go service.RunVideoFrames(ctx)

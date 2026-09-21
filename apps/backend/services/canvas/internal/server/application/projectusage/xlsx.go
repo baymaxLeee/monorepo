@@ -64,7 +64,7 @@ func (exporter *Exporter) generateXLSX(
 		return generatedWorkbook{}, err
 	}
 	if err = writer.SetRow("A1", styledRow(styles.header,
-		"消耗时间", "任务类型", "资源类型", "模型来源", "模型名称", "发起者", "消耗费用",
+		"消耗时间", "任务类型", "资源类型", "模型来源", "模型名称", "发起者", "费用", "费用状态",
 	), excelize.RowOpts{Height: 24}); err != nil {
 		return generatedWorkbook{}, err
 	}
@@ -101,7 +101,7 @@ func (exporter *Exporter) generateXLSX(
 				afterTime, afterID = &after, row.TaskRunID
 				if pending {
 					generated.pending++
-					continue
+					amount = "待结算"
 				}
 				if nextRow >= excelize.TotalRows {
 					return errors.New("project usage XLSX exceeds the worksheet row limit")
@@ -122,6 +122,7 @@ func (exporter *Exporter) generateXLSX(
 					excelize.Cell{StyleID: styles.text, Value: row.ModelName},
 					excelize.Cell{StyleID: styles.text, Value: initiator},
 					excelize.Cell{StyleID: styles.amount, Value: workbookAmountValue(amount, row.Currency)},
+					excelize.Cell{StyleID: styles.text, Value: billingStatusLabel(row.BillingStatus)},
 				}, excelize.RowOpts{Height: 22}); err != nil {
 					return err
 				}
@@ -170,6 +171,7 @@ func configureUsageSheet(writer *excelize.StreamWriter) error {
 		{column: 5, width: 30},
 		{column: 6, width: 20},
 		{column: 7, width: 16},
+		{column: 8, width: 16},
 	} {
 		if err := writer.SetColWidth(width.column, width.column, width.width); err != nil {
 			return err
@@ -277,7 +279,7 @@ func writeWorkbookTotal(
 	if numeric {
 		amountStyle = styles.totalAmount
 	}
-	values := []interface{}{excelize.Cell{StyleID: styles.totalLabel, Value: "总消耗（账单可能有1-2小时的延迟）"}}
+	values := []interface{}{excelize.Cell{StyleID: styles.totalLabel, Value: "已记录费用（含估算，待结算不计入）"}}
 	for index := 0; index < 5; index++ {
 		values = append(values, excelize.Cell{StyleID: styles.totalLabel, Value: ""})
 	}
@@ -319,3 +321,16 @@ func workbookTotalValue(totals map[string]*decimalTotal) (interface{}, bool) {
 }
 
 func stringPointer(value string) *string { return &value }
+
+func billingStatusLabel(status BillingStatus) string {
+	switch status {
+	case BillingStatusReady:
+		return "已结算"
+	case BillingStatusEstimated:
+		return "配置估算"
+	case BillingStatusNeedsReview:
+		return "待核对"
+	default:
+		return "待结算"
+	}
+}

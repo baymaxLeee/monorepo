@@ -71,27 +71,29 @@ type Operation struct {
 func (Operation) TableName() string { return "canvas_operations" }
 
 type Generation struct {
-	ID              string `gorm:"primaryKey"`
-	CanvasID        string
-	NodeID          string
-	TenantID        string `json:"tenantId"`
-	WorkspaceID     string
-	UserID          string
-	OperationID     string
-	NodeRevision    int64
-	ProviderID      string
-	Prompt          string
-	Status          string
-	TaskID          string
-	TaskType        string
-	InputPayload    string `gorm:"type:jsonb"`
-	OutputAssetID   string
-	OutputText      string
-	Error           string
-	Applied         bool
-	CancelRequested bool
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                   string `gorm:"primaryKey"`
+	CanvasID             string
+	NodeID               string
+	TenantID             string `json:"tenantId"`
+	WorkspaceID          string
+	UserID               string
+	OperationID          string
+	NodeRevision         int64
+	ProviderID           string
+	Prompt               string
+	Status               string
+	TaskID               string
+	TaskType             string
+	InputPayload         string `gorm:"type:jsonb"`
+	OutputAssetID        string
+	OutputText           string
+	Error                string
+	Applied              bool
+	CancelRequested      bool
+	ReservedAmountMicros int64
+	UsageSettled         bool
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 func (Generation) TableName() string { return "canvas_generations" }

@@ -7,6 +7,7 @@ import (
 	domain "github.com/example/monorepo/canvas/internal/server/domain/resource"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"strings"
 	"time"
 )
 
@@ -27,6 +28,29 @@ func (s *Service) ListResources(ctx context.Context, a Actor, projectID string) 
 		result.Items = append(result.Items, resourceDTO(row))
 	}
 	return result, nil
+}
+
+func (s *Service) SearchCreativeAssets(ctx context.Context, a Actor, projectID, query string, limit int) (c.CreativeAssetList, error) {
+	db := s.DB.WithContext(ctx)
+	if _, e := access(db, a, projectID, false); e != nil {
+		return c.CreativeAssetList{}, e
+	}
+	if limit < 1 || limit > 100 {
+		limit = 40
+	}
+	out := c.CreativeAssetList{Items: []c.CreativeAsset{}}
+	search := `SELECT * FROM (
+ SELECT r.id AS resource_id,r.name AS resource_name,r.type AS resource_type,ra.id AS resource_asset_id,ra.current_asset_id,ra.name,ra.media_type,'' AS node_id,'' AS canvas_id
+ FROM resource_assets ra JOIN resources r ON r.id=ra.resource_id JOIN assets a ON a.id=ra.current_asset_id
+ WHERE r.project_id=? AND r.tenant_id=? AND r.workspace_id=? AND r.deleted_at IS NULL AND ra.deleted_at IS NULL AND a.deleted_at IS NULL AND EXISTS(SELECT 1 FROM asset_references ar WHERE ar.asset_id=a.id AND ar.owner_type='RESOURCE_ASSET_REVISION' AND ar.owner_key=ra.id AND ar.deleted_at IS NULL)
+ UNION ALL
+ SELECT '','',0,'',n.asset_id,n.name,CASE WHEN n.type IN (1,5) THEN 1 WHEN n.type IN (2,6) THEN 2 ELSE 3 END,n.id,n.canvas_id
+ FROM canvas_nodes n JOIN canvases b ON b.id=n.canvas_id JOIN assets a ON a.id=n.asset_id
+ WHERE b.project_id=? AND b.deleted_at IS NULL AND n.deleted_at IS NULL AND a.deleted_at IS NULL AND a.tenant_id=? AND a.workspace_id=? AND EXISTS(SELECT 1 FROM asset_references ar WHERE ar.asset_id=a.id AND ar.deleted_at IS NULL)
+ ) candidates WHERE LOWER(name) LIKE ? OR LOWER(resource_name) LIKE ? ORDER BY name,current_asset_id,node_id LIMIT ?`
+	like := "%" + strings.ToLower(strings.TrimSpace(query)) + "%"
+	e := db.Raw(search, projectID, a.TenantID, a.WorkspaceID, projectID, a.TenantID, a.WorkspaceID, like, like, limit).Scan(&out.Items).Error
+	return out, e
 }
 func (s *Service) SaveResource(ctx context.Context, a Actor, projectID, id string, in c.ResourceInput) (c.Resource, error) {
 	var row p.Resource
@@ -105,7 +129,7 @@ func (s *Service) ListResourceAssets(ctx context.Context, a Actor, projectID, id
 	}
 	result := c.ResourceAssetList{Items: []c.ResourceAsset{}}
 	for _, row := range rows {
-		result.Items = append(result.Items, c.ResourceAsset{ID: row.ID, Name: row.Name, MediaType: row.MediaType, Revision: row.Revision})
+		result.Items = append(result.Items, resourceAssetDTO(row))
 	}
 	return result, nil
 }

@@ -31,6 +31,9 @@ func (s *Service) GetProject(ctx context.Context, actor Actor, id string) (c.Pro
 }
 
 func (s *Service) UpdateProject(ctx context.Context, actor Actor, id string, in c.UpdateProject) (c.Project, error) {
+	if err := requireProjectAdmin(actor); err != nil {
+		return c.Project{}, err
+	}
 	if !validName(in.Name) || len(in.Description) > 20000 {
 		return c.Project{}, Invalid("invalid project name or description")
 	}
@@ -48,10 +51,16 @@ func (s *Service) UpdateProject(ctx context.Context, actor Actor, id string, in 
 		project.Revision++
 		return tx.Save(&project).Error
 	})
+	if uniqueViolation(err, "projects_scope_name") {
+		err = ConflictMessage("project_name_conflict", "同一工作空间内项目名称不能重复")
+	}
 	return projectDTO(project), err
 }
 
 func (s *Service) DeleteProject(ctx context.Context, actor Actor, id string, in c.ExpectedRevision) (c.Deleted, error) {
+	if err := requireProjectAdmin(actor); err != nil {
+		return c.Deleted{}, err
+	}
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		project, err := manageProject(tx, actor, id)
 		if err != nil {
