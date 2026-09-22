@@ -85,7 +85,7 @@ export function createCanvasToolManifests(providers: { textProviderId: string; v
       "create_canvas_storyboard_drafts",
       tool({
         description:
-          "Start one durable storyboard-draft task for the bound canvas. The task is recovered through read_canvas_node_states; never open or emulate a second event stream.",
+          "Submit an Agent-prepared storyboard to the bound Canvas through its unified batch-storyboard endpoint. In a conversational flow, call ask_user first to collect or confirm the video duration range, shot duration range, resolution, aspect ratio, audio and watermark settings; never ask the user to choose a model. Provider ids are injected from this Agent's binding. The task is recovered through read_canvas_node_states; never open or emulate a second event stream.",
         inputSchema: z.object({
           plot: z.string().min(1).max(30000),
           shots: z
@@ -142,7 +142,13 @@ export function createCanvasToolManifests(providers: { textProviderId: string; v
           ),
       }),
       { capability: "canvas", effect: "update", trust: "closed", execution: "inline", modes: ["normal"] },
-      { summary: "Start a durable storyboard draft task; progress is visible in unified canvas polling." },
+      {
+        summary: "Submit Agent-prepared drafts through Canvas's unified durable storyboard entrypoint.",
+        prerequisites: [
+          "Use ask_user in the current conversational flow to confirm video parameters before submission.",
+          "Use the Agent-bound providers; never ask for or accept a user-selected model id.",
+        ],
+      },
     ),
     defineAgentTool(
       "generate_canvas_nodes",

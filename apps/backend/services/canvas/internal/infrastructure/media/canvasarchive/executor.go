@@ -71,7 +71,7 @@ func (executor *Executor) Execute(ctx context.Context, taskRunID string) error {
 		return executor.retainAndCommit(ctx, execution.TaskRunID, multipart, *execution.Output)
 	}
 
-	tempDir, err := os.MkdirTemp(executor.tempRoot, "agentframe-canvas-archive-")
+	tempDir, err := os.MkdirTemp(executor.tempRoot, "canvas-canvas-archive-")
 	if err != nil {
 		return executiondiagnostic.Wrap("prepare_workspace", fmt.Errorf("create canvas video archive temporary directory: %w", err))
 	}

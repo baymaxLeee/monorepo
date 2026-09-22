@@ -25,7 +25,7 @@ func (recorder *CallRecorder) Plan(ctx context.Context, input BeginCallInput) (d
 	if recorder == nil || recorder.store == nil || recorder.clock == nil {
 		return domain.CallRef{}, domain.ErrInvalidCall
 	}
-	call, err := domain.NewAIGWCall(domain.NewAIGWCallInput{
+	call, err := domain.NewProviderCall(domain.NewProviderCallInput{
 		TaskRunID: input.TaskRunID, CallOrdinal: input.CallOrdinal, CallType: input.CallType,
 		ProjectID: input.ProjectID, ModelID: input.ModelID, ModelName: input.ModelName,
 		ModelSource: input.ModelSource, Now: recorder.clock.Now(),
@@ -44,7 +44,7 @@ func (recorder *CallRecorder) Begin(ctx context.Context, input BeginCallInput) (
 	if err != nil {
 		return domain.CallRef{}, err
 	}
-	err = recorder.mutate(ctx, ref, func(call *domain.AIGWCall) error {
+	err = recorder.mutate(ctx, ref, func(call *domain.ProviderCall) error {
 		return call.StartRequest(recorder.clock.Now())
 	})
 	return ref, err
@@ -100,13 +100,13 @@ func (recorder *CallRecorder) NextRelatedOrdinal(ctx context.Context, taskRunID 
 }
 
 func (recorder *CallRecorder) Capture(ctx context.Context, ref domain.CallRef, requestID string) error {
-	return recorder.mutate(ctx, ref, func(call *domain.AIGWCall) error {
+	return recorder.mutate(ctx, ref, func(call *domain.ProviderCall) error {
 		return call.Capture(requestID, recorder.clock.Now())
 	})
 }
 
 // RecordProviderResult turns the transport outcome into one durable capture
-// fact. A request that entered the SDK but returned no AIGW RequestID is never
+// fact. A request that entered the SDK but returned no provider RequestID is never
 // treated as free because the downstream inference may already have executed.
 func (recorder *CallRecorder) RecordProviderResult(
 	ctx context.Context,
@@ -115,7 +115,7 @@ func (recorder *CallRecorder) RecordProviderResult(
 	attempted bool,
 ) error {
 	requestID = strings.TrimSpace(requestID)
-	// AIGW's response header is stronger evidence than the caller's advisory
+	// provider's response header is stronger evidence than the caller's advisory
 	// attempted flag. Never erase a real billing key as NOT_SENT when the two
 	// pieces of transport metadata disagree.
 	if requestID != "" {
@@ -127,18 +127,18 @@ func (recorder *CallRecorder) RecordProviderResult(
 		// it, persisting this call as uncaptured would leave the parent PENDING until
 		// the retry ceiling. Record the ambiguity immediately without storing the
 		// duplicate identifier, then surface the original conflict to the caller.
-		reviewErr := recorder.RequestIDUnknown(ctx, ref, "AIGW request ID conflicts with an existing billing call")
+		reviewErr := recorder.RequestIDUnknown(ctx, ref, "provider request ID conflicts with an existing billing call")
 		return errors.Join(err, reviewErr)
 	}
 	if !attempted {
 		return recorder.NotSent(ctx, ref)
 	}
-	return recorder.RequestIDUnknown(ctx, ref, "AIGW inference response omitted X-Aigw-Request-Id")
+	return recorder.RequestIDUnknown(ctx, ref, "provider response omitted X-Request-Id")
 }
 
 // MarkInterruptedIfPresent fences a durable caller retry after an earlier
 // inference attempt began. An uncaptured call is ambiguous across a process
-// crash: the request may have reached AIGW, so it must never be retried as the
+// crash: the request may have reached provider, so it must never be retried as the
 // same ordinal or treated as free. Captured and already-final calls are kept.
 func (recorder *CallRecorder) MarkInterruptedIfPresent(
 	ctx context.Context,
@@ -167,24 +167,24 @@ func (recorder *CallRecorder) MarkInterruptedIfPresent(
 }
 
 func (recorder *CallRecorder) NotSent(ctx context.Context, ref domain.CallRef) error {
-	return recorder.mutate(ctx, ref, func(call *domain.AIGWCall) error {
+	return recorder.mutate(ctx, ref, func(call *domain.ProviderCall) error {
 		return call.FinalizeNotSent(recorder.clock.Now())
 	})
 }
 
 func (recorder *CallRecorder) RequestIDUnknown(ctx context.Context, ref domain.CallRef, reason string) error {
-	return recorder.mutate(ctx, ref, func(call *domain.AIGWCall) error {
+	return recorder.mutate(ctx, ref, func(call *domain.ProviderCall) error {
 		return call.MarkRequestIDUnknown(reason, recorder.clock.Now())
 	})
 }
 
 func (recorder *CallRecorder) CancelConfirmed(ctx context.Context, ref domain.CallRef) error {
-	return recorder.mutate(ctx, ref, func(call *domain.AIGWCall) error {
+	return recorder.mutate(ctx, ref, func(call *domain.ProviderCall) error {
 		return call.ConfirmCancellation(recorder.clock.Now())
 	})
 }
 
-func (recorder *CallRecorder) mutate(ctx context.Context, ref domain.CallRef, mutate func(*domain.AIGWCall) error) error {
+func (recorder *CallRecorder) mutate(ctx context.Context, ref domain.CallRef, mutate func(*domain.ProviderCall) error) error {
 	if recorder == nil || recorder.store == nil || recorder.clock == nil || strings.TrimSpace(ref.TaskRunID) == "" || ref.CallOrdinal <= 0 {
 		return domain.ErrInvalidCall
 	}
@@ -252,7 +252,7 @@ func (finalizer *Finalizer) Close(ctx context.Context, input CloseInput) error {
 }
 
 // TriggerAfterCommit is deliberately separate from Close. Close is called
-// while the TaskRun terminal transaction is still open; querying AIGW there
+// while the TaskRun terminal transaction is still open; querying provider there
 // would hold database locks and could race an uncommitted usage projection.
 func (finalizer *Finalizer) TriggerAfterCommit(taskRunID string) bool {
 	if finalizer == nil || finalizer.trigger == nil || strings.TrimSpace(taskRunID) == "" {

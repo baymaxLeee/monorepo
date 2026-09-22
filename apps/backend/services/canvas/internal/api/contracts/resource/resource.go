@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+
 	"github.com/example/monorepo/canvas/internal/api/contracts/asset"
-	"github.com/example/monorepo/canvas/internal/api/contracts/base"
 	"github.com/example/monorepo/canvas/internal/api/contracts/common"
 )
 
@@ -908,7 +908,7 @@ func (p *ResourceAssetGenerationUploadedReference) String() string {
 	return fmt.Sprintf("ResourceAssetGenerationUploadedReference(%+v)", *p)
 }
 
-// Patch 输入允许复用既有 Asset，或提交前端 UP 临时上传得到的 Blob；Server 负责把 Blob 注册为 Resource Owner Asset。
+// Patch 输入允许复用既有 Asset，或提交前端 artifact storage 临时上传得到的 Blob；Server 负责把 Blob 注册为 Resource Owner Asset。
 type ResourceAssetGenerationUploadedReferenceInput struct {
 	AssetID  *string `json:"AssetID,omitempty"`
 	BlobID   *string `json:"BlobID,omitempty"`
@@ -1384,13 +1384,12 @@ func (p *ResourceAssetGenerationRun) String() string {
 }
 
 type ListResourcesRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	Type        *ResourceType  `json:"Type,omitempty"`
-	Keyword     *string        `json:"Keyword,omitempty"`
-	Sort        *ResourceSort  `json:"Sort,omitempty"`
-	Page        *common.Page   `json:"Page"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string       `json:"WorkspaceID,omitempty"`
+	ProjectID   string        `json:"ProjectID"`
+	Type        *ResourceType `json:"Type,omitempty"`
+	Keyword     *string       `json:"Keyword,omitempty"`
+	Sort        *ResourceSort `json:"Sort,omitempty"`
+	Page        *common.Page  `json:"Page"`
 }
 
 func NewListResourcesRequest() *ListResourcesRequest {
@@ -1449,15 +1448,6 @@ func (p *ListResourcesRequest) GetPage() (v *common.Page) {
 	return p.Page
 }
 
-var ListResourcesRequest_Top_DEFAULT *base.TopParam
-
-func (p *ListResourcesRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return ListResourcesRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *ListResourcesRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -1476,10 +1466,6 @@ func (p *ListResourcesRequest) IsSetSort() bool {
 
 func (p *ListResourcesRequest) IsSetPage() bool {
 	return p.Page != nil
-}
-
-func (p *ListResourcesRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *ListResourcesRequest) String() string {
@@ -1563,9 +1549,8 @@ func (p *ProjectResourceStats) String() string {
 }
 
 type GetProjectResourceStatsRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
 }
 
 func NewGetProjectResourceStatsRequest() *GetProjectResourceStatsRequest {
@@ -1588,21 +1573,8 @@ func (p *GetProjectResourceStatsRequest) GetProjectID() (v string) {
 	return p.ProjectID
 }
 
-var GetProjectResourceStatsRequest_Top_DEFAULT *base.TopParam
-
-func (p *GetProjectResourceStatsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return GetProjectResourceStatsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *GetProjectResourceStatsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *GetProjectResourceStatsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *GetProjectResourceStatsRequest) String() string {
@@ -1644,10 +1616,9 @@ func (p *GetProjectResourceStatsResponse) String() string {
 }
 
 type GetResourceRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	ResourceID  string         `json:"ResourceID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	ResourceID  string  `json:"ResourceID"`
 }
 
 func NewGetResourceRequest() *GetResourceRequest {
@@ -1674,21 +1645,8 @@ func (p *GetResourceRequest) GetResourceID() (v string) {
 	return p.ResourceID
 }
 
-var GetResourceRequest_Top_DEFAULT *base.TopParam
-
-func (p *GetResourceRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return GetResourceRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *GetResourceRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *GetResourceRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *GetResourceRequest) String() string {
@@ -1730,10 +1688,9 @@ func (p *GetResourceResponse) String() string {
 }
 
 type BatchGetResourcesRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	ResourceIDs []string       `json:"ResourceIDs"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string  `json:"WorkspaceID,omitempty"`
+	ProjectID   string   `json:"ProjectID"`
+	ResourceIDs []string `json:"ResourceIDs"`
 }
 
 func NewBatchGetResourcesRequest() *BatchGetResourcesRequest {
@@ -1760,21 +1717,8 @@ func (p *BatchGetResourcesRequest) GetResourceIDs() (v []string) {
 	return p.ResourceIDs
 }
 
-var BatchGetResourcesRequest_Top_DEFAULT *base.TopParam
-
-func (p *BatchGetResourcesRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return BatchGetResourcesRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *BatchGetResourcesRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *BatchGetResourcesRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *BatchGetResourcesRequest) String() string {
@@ -1854,7 +1798,6 @@ type CreateResourceRequest struct {
 	Name          string                        `json:"Name"`
 	Description   *string                       `json:"Description,omitempty"`
 	InitialAssets []*CreateResourceInitialAsset `json:"InitialAssets,omitempty"`
-	Top           *base.TopParam                `json:"Top,omitempty"`
 }
 
 func NewCreateResourceRequest() *CreateResourceRequest {
@@ -1903,15 +1846,6 @@ func (p *CreateResourceRequest) GetInitialAssets() (v []*CreateResourceInitialAs
 	return p.InitialAssets
 }
 
-var CreateResourceRequest_Top_DEFAULT *base.TopParam
-
-func (p *CreateResourceRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CreateResourceRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CreateResourceRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -1922,10 +1856,6 @@ func (p *CreateResourceRequest) IsSetDescription() bool {
 
 func (p *CreateResourceRequest) IsSetInitialAssets() bool {
 	return p.InitialAssets != nil
-}
-
-func (p *CreateResourceRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CreateResourceRequest) String() string {
@@ -1975,15 +1905,14 @@ func (p *CreateResourceResponse) String() string {
 // Server 复用源 Asset 的 Artifact 创建 Resource-owned Asset，并把首个 ResourceAsset 设为 Primary。
 // CanvasID 与 CanvasNodeID 必须同时提供；提供时还会在同一事务内把节点当前 Asset 引用切换为 ResourceAssetID。
 type CreateResourceFromAssetRequest struct {
-	WorkspaceID  *string        `json:"WorkspaceID,omitempty"`
-	ProjectID    string         `json:"ProjectID"`
-	AssetID      string         `json:"AssetID"`
-	Type         ResourceType   `json:"Type"`
-	Name         string         `json:"Name"`
-	Description  *string        `json:"Description,omitempty"`
-	CanvasID     *string        `json:"CanvasID,omitempty"`
-	CanvasNodeID *string        `json:"CanvasNodeID,omitempty"`
-	Top          *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID  *string      `json:"WorkspaceID,omitempty"`
+	ProjectID    string       `json:"ProjectID"`
+	AssetID      string       `json:"AssetID"`
+	Type         ResourceType `json:"Type"`
+	Name         string       `json:"Name"`
+	Description  *string      `json:"Description,omitempty"`
+	CanvasID     *string      `json:"CanvasID,omitempty"`
+	CanvasNodeID *string      `json:"CanvasNodeID,omitempty"`
 }
 
 func NewCreateResourceFromAssetRequest() *CreateResourceFromAssetRequest {
@@ -2045,15 +1974,6 @@ func (p *CreateResourceFromAssetRequest) GetCanvasNodeID() (v string) {
 	return *p.CanvasNodeID
 }
 
-var CreateResourceFromAssetRequest_Top_DEFAULT *base.TopParam
-
-func (p *CreateResourceFromAssetRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CreateResourceFromAssetRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CreateResourceFromAssetRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -2068,10 +1988,6 @@ func (p *CreateResourceFromAssetRequest) IsSetCanvasID() bool {
 
 func (p *CreateResourceFromAssetRequest) IsSetCanvasNodeID() bool {
 	return p.CanvasNodeID != nil
-}
-
-func (p *CreateResourceFromAssetRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CreateResourceFromAssetRequest) String() string {
@@ -2183,13 +2099,12 @@ func (p *CreateResourceFromAssetResponse) String() string {
 }
 
 type UpdateResourceRequest struct {
-	WorkspaceID      *string        `json:"WorkspaceID,omitempty"`
-	ProjectID        string         `json:"ProjectID"`
-	ResourceID       string         `json:"ResourceID"`
-	Name             *string        `json:"Name,omitempty"`
-	Description      *string        `json:"Description,omitempty"`
-	ExpectedRevision int64          `json:"ExpectedRevision"`
-	Top              *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID      *string `json:"WorkspaceID,omitempty"`
+	ProjectID        string  `json:"ProjectID"`
+	ResourceID       string  `json:"ResourceID"`
+	Name             *string `json:"Name,omitempty"`
+	Description      *string `json:"Description,omitempty"`
+	ExpectedRevision int64   `json:"ExpectedRevision"`
 }
 
 func NewUpdateResourceRequest() *UpdateResourceRequest {
@@ -2238,15 +2153,6 @@ func (p *UpdateResourceRequest) GetExpectedRevision() (v int64) {
 	return p.ExpectedRevision
 }
 
-var UpdateResourceRequest_Top_DEFAULT *base.TopParam
-
-func (p *UpdateResourceRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return UpdateResourceRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *UpdateResourceRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -2257,10 +2163,6 @@ func (p *UpdateResourceRequest) IsSetName() bool {
 
 func (p *UpdateResourceRequest) IsSetDescription() bool {
 	return p.Description != nil
-}
-
-func (p *UpdateResourceRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *UpdateResourceRequest) String() string {
@@ -2302,11 +2204,10 @@ func (p *UpdateResourceResponse) String() string {
 }
 
 type DeleteResourceRequest struct {
-	WorkspaceID      *string        `json:"WorkspaceID,omitempty"`
-	ProjectID        string         `json:"ProjectID"`
-	ResourceID       string         `json:"ResourceID"`
-	ExpectedRevision int64          `json:"ExpectedRevision"`
-	Top              *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID      *string `json:"WorkspaceID,omitempty"`
+	ProjectID        string  `json:"ProjectID"`
+	ResourceID       string  `json:"ResourceID"`
+	ExpectedRevision int64   `json:"ExpectedRevision"`
 }
 
 func NewDeleteResourceRequest() *DeleteResourceRequest {
@@ -2337,21 +2238,8 @@ func (p *DeleteResourceRequest) GetExpectedRevision() (v int64) {
 	return p.ExpectedRevision
 }
 
-var DeleteResourceRequest_Top_DEFAULT *base.TopParam
-
-func (p *DeleteResourceRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return DeleteResourceRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *DeleteResourceRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *DeleteResourceRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *DeleteResourceRequest) String() string {
@@ -2392,7 +2280,6 @@ type BatchDeleteResourcesRequest struct {
 	WorkspaceID *string                 `json:"WorkspaceID,omitempty"`
 	ProjectID   string                  `json:"ProjectID"`
 	Targets     []*DeleteResourceTarget `json:"Targets"`
-	Top         *base.TopParam          `json:"Top,omitempty"`
 }
 
 func NewBatchDeleteResourcesRequest() *BatchDeleteResourcesRequest {
@@ -2419,21 +2306,8 @@ func (p *BatchDeleteResourcesRequest) GetTargets() (v []*DeleteResourceTarget) {
 	return p.Targets
 }
 
-var BatchDeleteResourcesRequest_Top_DEFAULT *base.TopParam
-
-func (p *BatchDeleteResourcesRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return BatchDeleteResourcesRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *BatchDeleteResourcesRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *BatchDeleteResourcesRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *BatchDeleteResourcesRequest) String() string {
@@ -2444,11 +2318,10 @@ func (p *BatchDeleteResourcesRequest) String() string {
 }
 
 type ListResourceAssetsRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	ResourceID  string         `json:"ResourceID"`
-	Page        *common.Page   `json:"Page"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string      `json:"WorkspaceID,omitempty"`
+	ProjectID   string       `json:"ProjectID"`
+	ResourceID  string       `json:"ResourceID"`
+	Page        *common.Page `json:"Page"`
 }
 
 func NewListResourceAssetsRequest() *ListResourceAssetsRequest {
@@ -2484,25 +2357,12 @@ func (p *ListResourceAssetsRequest) GetPage() (v *common.Page) {
 	return p.Page
 }
 
-var ListResourceAssetsRequest_Top_DEFAULT *base.TopParam
-
-func (p *ListResourceAssetsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return ListResourceAssetsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *ListResourceAssetsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
 
 func (p *ListResourceAssetsRequest) IsSetPage() bool {
 	return p.Page != nil
-}
-
-func (p *ListResourceAssetsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *ListResourceAssetsRequest) String() string {
@@ -2549,10 +2409,9 @@ func (p *ListResourceAssetsResponse) String() string {
 }
 
 type BatchListResourceAssetsRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	ResourceIDs []string       `json:"ResourceIDs"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string  `json:"WorkspaceID,omitempty"`
+	ProjectID   string   `json:"ProjectID"`
+	ResourceIDs []string `json:"ResourceIDs"`
 }
 
 func NewBatchListResourceAssetsRequest() *BatchListResourceAssetsRequest {
@@ -2579,21 +2438,8 @@ func (p *BatchListResourceAssetsRequest) GetResourceIDs() (v []string) {
 	return p.ResourceIDs
 }
 
-var BatchListResourceAssetsRequest_Top_DEFAULT *base.TopParam
-
-func (p *BatchListResourceAssetsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return BatchListResourceAssetsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *BatchListResourceAssetsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *BatchListResourceAssetsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *BatchListResourceAssetsRequest) String() string {
@@ -2653,15 +2499,14 @@ func (p *BatchListResourceAssetsResponse) String() string {
 }
 
 type CreateResourceAssetRequest struct {
-	WorkspaceID              *string        `json:"WorkspaceID,omitempty"`
-	ProjectID                string         `json:"ProjectID"`
-	ResourceID               string         `json:"ResourceID"`
-	AssetID                  *string        `json:"AssetID,omitempty"`
-	Name                     *string        `json:"Name,omitempty"`
-	ExpectedResourceRevision int64          `json:"ExpectedResourceRevision"`
-	BlobID                   *string        `json:"BlobID,omitempty"`
-	FileName                 *string        `json:"FileName,omitempty"`
-	Top                      *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID              *string `json:"WorkspaceID,omitempty"`
+	ProjectID                string  `json:"ProjectID"`
+	ResourceID               string  `json:"ResourceID"`
+	AssetID                  *string `json:"AssetID,omitempty"`
+	Name                     *string `json:"Name,omitempty"`
+	ExpectedResourceRevision int64   `json:"ExpectedResourceRevision"`
+	BlobID                   *string `json:"BlobID,omitempty"`
+	FileName                 *string `json:"FileName,omitempty"`
 }
 
 func NewCreateResourceAssetRequest() *CreateResourceAssetRequest {
@@ -2728,15 +2573,6 @@ func (p *CreateResourceAssetRequest) GetFileName() (v string) {
 	return *p.FileName
 }
 
-var CreateResourceAssetRequest_Top_DEFAULT *base.TopParam
-
-func (p *CreateResourceAssetRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CreateResourceAssetRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CreateResourceAssetRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -2755,10 +2591,6 @@ func (p *CreateResourceAssetRequest) IsSetBlobID() bool {
 
 func (p *CreateResourceAssetRequest) IsSetFileName() bool {
 	return p.FileName != nil
-}
-
-func (p *CreateResourceAssetRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CreateResourceAssetRequest) String() string {
@@ -2800,11 +2632,10 @@ func (p *CreateResourceAssetResponse) String() string {
 }
 
 type CreateGeneratedResourceAssetRequest struct {
-	WorkspaceID              *string        `json:"WorkspaceID,omitempty"`
-	ProjectID                string         `json:"ProjectID"`
-	ResourceID               string         `json:"ResourceID"`
-	ExpectedResourceRevision int64          `json:"ExpectedResourceRevision"`
-	Top                      *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID              *string `json:"WorkspaceID,omitempty"`
+	ProjectID                string  `json:"ProjectID"`
+	ResourceID               string  `json:"ResourceID"`
+	ExpectedResourceRevision int64   `json:"ExpectedResourceRevision"`
 }
 
 func NewCreateGeneratedResourceAssetRequest() *CreateGeneratedResourceAssetRequest {
@@ -2835,21 +2666,8 @@ func (p *CreateGeneratedResourceAssetRequest) GetExpectedResourceRevision() (v i
 	return p.ExpectedResourceRevision
 }
 
-var CreateGeneratedResourceAssetRequest_Top_DEFAULT *base.TopParam
-
-func (p *CreateGeneratedResourceAssetRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CreateGeneratedResourceAssetRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CreateGeneratedResourceAssetRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *CreateGeneratedResourceAssetRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CreateGeneratedResourceAssetRequest) String() string {
@@ -2891,15 +2709,14 @@ func (p *CreateGeneratedResourceAssetResponse) String() string {
 }
 
 type ReplaceUploadedResourceAssetRequest struct {
-	WorkspaceID                   *string        `json:"WorkspaceID,omitempty"`
-	ProjectID                     string         `json:"ProjectID"`
-	ResourceID                    string         `json:"ResourceID"`
-	ResourceAssetID               string         `json:"ResourceAssetID"`
-	BlobID                        string         `json:"BlobID"`
-	FileName                      string         `json:"FileName"`
-	ExpectedResourceRevision      int64          `json:"ExpectedResourceRevision"`
-	ExpectedResourceAssetRevision int64          `json:"ExpectedResourceAssetRevision"`
-	Top                           *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID                   *string `json:"WorkspaceID,omitempty"`
+	ProjectID                     string  `json:"ProjectID"`
+	ResourceID                    string  `json:"ResourceID"`
+	ResourceAssetID               string  `json:"ResourceAssetID"`
+	BlobID                        string  `json:"BlobID"`
+	FileName                      string  `json:"FileName"`
+	ExpectedResourceRevision      int64   `json:"ExpectedResourceRevision"`
+	ExpectedResourceAssetRevision int64   `json:"ExpectedResourceAssetRevision"`
 }
 
 func NewReplaceUploadedResourceAssetRequest() *ReplaceUploadedResourceAssetRequest {
@@ -2946,21 +2763,8 @@ func (p *ReplaceUploadedResourceAssetRequest) GetExpectedResourceAssetRevision()
 	return p.ExpectedResourceAssetRevision
 }
 
-var ReplaceUploadedResourceAssetRequest_Top_DEFAULT *base.TopParam
-
-func (p *ReplaceUploadedResourceAssetRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return ReplaceUploadedResourceAssetRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *ReplaceUploadedResourceAssetRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *ReplaceUploadedResourceAssetRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *ReplaceUploadedResourceAssetRequest) String() string {
@@ -3002,14 +2806,13 @@ func (p *ReplaceUploadedResourceAssetResponse) String() string {
 }
 
 type UpdateResourceAssetRequest struct {
-	WorkspaceID                   *string        `json:"WorkspaceID,omitempty"`
-	ProjectID                     string         `json:"ProjectID"`
-	ResourceID                    string         `json:"ResourceID"`
-	ResourceAssetID               string         `json:"ResourceAssetID"`
-	Name                          string         `json:"Name"`
-	ExpectedResourceRevision      int64          `json:"ExpectedResourceRevision"`
-	ExpectedResourceAssetRevision int64          `json:"ExpectedResourceAssetRevision"`
-	Top                           *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID                   *string `json:"WorkspaceID,omitempty"`
+	ProjectID                     string  `json:"ProjectID"`
+	ResourceID                    string  `json:"ResourceID"`
+	ResourceAssetID               string  `json:"ResourceAssetID"`
+	Name                          string  `json:"Name"`
+	ExpectedResourceRevision      int64   `json:"ExpectedResourceRevision"`
+	ExpectedResourceAssetRevision int64   `json:"ExpectedResourceAssetRevision"`
 }
 
 func NewUpdateResourceAssetRequest() *UpdateResourceAssetRequest {
@@ -3052,21 +2855,8 @@ func (p *UpdateResourceAssetRequest) GetExpectedResourceAssetRevision() (v int64
 	return p.ExpectedResourceAssetRevision
 }
 
-var UpdateResourceAssetRequest_Top_DEFAULT *base.TopParam
-
-func (p *UpdateResourceAssetRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return UpdateResourceAssetRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *UpdateResourceAssetRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *UpdateResourceAssetRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *UpdateResourceAssetRequest) String() string {
@@ -3108,12 +2898,11 @@ func (p *UpdateResourceAssetResponse) String() string {
 }
 
 type SetPrimaryResourceAssetRequest struct {
-	WorkspaceID              *string        `json:"WorkspaceID,omitempty"`
-	ProjectID                string         `json:"ProjectID"`
-	ResourceID               string         `json:"ResourceID"`
-	ResourceAssetID          string         `json:"ResourceAssetID"`
-	ExpectedResourceRevision int64          `json:"ExpectedResourceRevision"`
-	Top                      *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID              *string `json:"WorkspaceID,omitempty"`
+	ProjectID                string  `json:"ProjectID"`
+	ResourceID               string  `json:"ResourceID"`
+	ResourceAssetID          string  `json:"ResourceAssetID"`
+	ExpectedResourceRevision int64   `json:"ExpectedResourceRevision"`
 }
 
 func NewSetPrimaryResourceAssetRequest() *SetPrimaryResourceAssetRequest {
@@ -3148,21 +2937,8 @@ func (p *SetPrimaryResourceAssetRequest) GetExpectedResourceRevision() (v int64)
 	return p.ExpectedResourceRevision
 }
 
-var SetPrimaryResourceAssetRequest_Top_DEFAULT *base.TopParam
-
-func (p *SetPrimaryResourceAssetRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return SetPrimaryResourceAssetRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *SetPrimaryResourceAssetRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *SetPrimaryResourceAssetRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *SetPrimaryResourceAssetRequest) String() string {
@@ -3204,13 +2980,12 @@ func (p *SetPrimaryResourceAssetResponse) String() string {
 }
 
 type DeleteResourceAssetRequest struct {
-	WorkspaceID                   *string        `json:"WorkspaceID,omitempty"`
-	ProjectID                     string         `json:"ProjectID"`
-	ResourceID                    string         `json:"ResourceID"`
-	ResourceAssetID               string         `json:"ResourceAssetID"`
-	ExpectedResourceRevision      int64          `json:"ExpectedResourceRevision"`
-	ExpectedResourceAssetRevision int64          `json:"ExpectedResourceAssetRevision"`
-	Top                           *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID                   *string `json:"WorkspaceID,omitempty"`
+	ProjectID                     string  `json:"ProjectID"`
+	ResourceID                    string  `json:"ResourceID"`
+	ResourceAssetID               string  `json:"ResourceAssetID"`
+	ExpectedResourceRevision      int64   `json:"ExpectedResourceRevision"`
+	ExpectedResourceAssetRevision int64   `json:"ExpectedResourceAssetRevision"`
 }
 
 func NewDeleteResourceAssetRequest() *DeleteResourceAssetRequest {
@@ -3249,21 +3024,8 @@ func (p *DeleteResourceAssetRequest) GetExpectedResourceAssetRevision() (v int64
 	return p.ExpectedResourceAssetRevision
 }
 
-var DeleteResourceAssetRequest_Top_DEFAULT *base.TopParam
-
-func (p *DeleteResourceAssetRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return DeleteResourceAssetRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *DeleteResourceAssetRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *DeleteResourceAssetRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *DeleteResourceAssetRequest) String() string {
@@ -3310,7 +3072,6 @@ type BatchDeleteResourceAssetsRequest struct {
 	ProjectID   string                       `json:"ProjectID"`
 	ResourceID  string                       `json:"ResourceID"`
 	Targets     []*DeleteResourceAssetTarget `json:"Targets"`
-	Top         *base.TopParam               `json:"Top,omitempty"`
 }
 
 func NewBatchDeleteResourceAssetsRequest() *BatchDeleteResourceAssetsRequest {
@@ -3341,21 +3102,8 @@ func (p *BatchDeleteResourceAssetsRequest) GetTargets() (v []*DeleteResourceAsse
 	return p.Targets
 }
 
-var BatchDeleteResourceAssetsRequest_Top_DEFAULT *base.TopParam
-
-func (p *BatchDeleteResourceAssetsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return BatchDeleteResourceAssetsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *BatchDeleteResourceAssetsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *BatchDeleteResourceAssetsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *BatchDeleteResourceAssetsRequest) String() string {
@@ -3366,11 +3114,10 @@ func (p *BatchDeleteResourceAssetsRequest) String() string {
 }
 
 type GetResourceAssetGenerationRequest struct {
-	WorkspaceID     *string        `json:"WorkspaceID,omitempty"`
-	ProjectID       string         `json:"ProjectID"`
-	ResourceID      string         `json:"ResourceID"`
-	ResourceAssetID string         `json:"ResourceAssetID"`
-	Top             *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID     *string `json:"WorkspaceID,omitempty"`
+	ProjectID       string  `json:"ProjectID"`
+	ResourceID      string  `json:"ResourceID"`
+	ResourceAssetID string  `json:"ResourceAssetID"`
 }
 
 func NewGetResourceAssetGenerationRequest() *GetResourceAssetGenerationRequest {
@@ -3401,21 +3148,8 @@ func (p *GetResourceAssetGenerationRequest) GetResourceAssetID() (v string) {
 	return p.ResourceAssetID
 }
 
-var GetResourceAssetGenerationRequest_Top_DEFAULT *base.TopParam
-
-func (p *GetResourceAssetGenerationRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return GetResourceAssetGenerationRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *GetResourceAssetGenerationRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *GetResourceAssetGenerationRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *GetResourceAssetGenerationRequest) String() string {
@@ -3462,8 +3196,7 @@ type BatchGetResourceAssetGenerationStatesRequest struct {
 	ProjectID   string  `json:"ProjectID"`
 	ResourceID  string  `json:"ResourceID"`
 	// ResourceAssetIDs 接受 1 至 100 个资源素材 ID；重复 ID 按首次出现位置去重。
-	ResourceAssetIDs []string       `json:"ResourceAssetIDs"`
-	Top              *base.TopParam `json:"Top,omitempty"`
+	ResourceAssetIDs []string `json:"ResourceAssetIDs"`
 }
 
 func NewBatchGetResourceAssetGenerationStatesRequest() *BatchGetResourceAssetGenerationStatesRequest {
@@ -3494,21 +3227,8 @@ func (p *BatchGetResourceAssetGenerationStatesRequest) GetResourceAssetIDs() (v 
 	return p.ResourceAssetIDs
 }
 
-var BatchGetResourceAssetGenerationStatesRequest_Top_DEFAULT *base.TopParam
-
-func (p *BatchGetResourceAssetGenerationStatesRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return BatchGetResourceAssetGenerationStatesRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *BatchGetResourceAssetGenerationStatesRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *BatchGetResourceAssetGenerationStatesRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *BatchGetResourceAssetGenerationStatesRequest) String() string {
@@ -3549,7 +3269,6 @@ type UpdateResourceAssetGenerationRequest struct {
 	ResourceAssetID  string                        `json:"ResourceAssetID"`
 	Patch            *ResourceAssetGenerationPatch `json:"Patch"`
 	ExpectedRevision int64                         `json:"ExpectedRevision"`
-	Top              *base.TopParam                `json:"Top,omitempty"`
 }
 
 func NewUpdateResourceAssetGenerationRequest() *UpdateResourceAssetGenerationRequest {
@@ -3593,25 +3312,12 @@ func (p *UpdateResourceAssetGenerationRequest) GetExpectedRevision() (v int64) {
 	return p.ExpectedRevision
 }
 
-var UpdateResourceAssetGenerationRequest_Top_DEFAULT *base.TopParam
-
-func (p *UpdateResourceAssetGenerationRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return UpdateResourceAssetGenerationRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *UpdateResourceAssetGenerationRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
 
 func (p *UpdateResourceAssetGenerationRequest) IsSetPatch() bool {
 	return p.Patch != nil
-}
-
-func (p *UpdateResourceAssetGenerationRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *UpdateResourceAssetGenerationRequest) String() string {
@@ -3653,12 +3359,11 @@ func (p *UpdateResourceAssetGenerationResponse) String() string {
 }
 
 type StartResourceAssetGenerationRequest struct {
-	WorkspaceID      *string        `json:"WorkspaceID,omitempty"`
-	ProjectID        string         `json:"ProjectID"`
-	ResourceID       string         `json:"ResourceID"`
-	ResourceAssetID  string         `json:"ResourceAssetID"`
-	ExpectedRevision int64          `json:"ExpectedRevision"`
-	Top              *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID      *string `json:"WorkspaceID,omitempty"`
+	ProjectID        string  `json:"ProjectID"`
+	ResourceID       string  `json:"ResourceID"`
+	ResourceAssetID  string  `json:"ResourceAssetID"`
+	ExpectedRevision int64   `json:"ExpectedRevision"`
 }
 
 func NewStartResourceAssetGenerationRequest() *StartResourceAssetGenerationRequest {
@@ -3693,21 +3398,8 @@ func (p *StartResourceAssetGenerationRequest) GetExpectedRevision() (v int64) {
 	return p.ExpectedRevision
 }
 
-var StartResourceAssetGenerationRequest_Top_DEFAULT *base.TopParam
-
-func (p *StartResourceAssetGenerationRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return StartResourceAssetGenerationRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *StartResourceAssetGenerationRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *StartResourceAssetGenerationRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *StartResourceAssetGenerationRequest) String() string {
@@ -3740,12 +3432,11 @@ func (p *StartResourceAssetGenerationResponse) String() string {
 }
 
 type CancelResourceAssetGenerationRequest struct {
-	WorkspaceID     *string        `json:"WorkspaceID,omitempty"`
-	ProjectID       string         `json:"ProjectID"`
-	ResourceID      string         `json:"ResourceID"`
-	ResourceAssetID string         `json:"ResourceAssetID"`
-	TaskRunID       string         `json:"TaskRunID"`
-	Top             *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID     *string `json:"WorkspaceID,omitempty"`
+	ProjectID       string  `json:"ProjectID"`
+	ResourceID      string  `json:"ResourceID"`
+	ResourceAssetID string  `json:"ResourceAssetID"`
+	TaskRunID       string  `json:"TaskRunID"`
 }
 
 func NewCancelResourceAssetGenerationRequest() *CancelResourceAssetGenerationRequest {
@@ -3780,21 +3471,8 @@ func (p *CancelResourceAssetGenerationRequest) GetTaskRunID() (v string) {
 	return p.TaskRunID
 }
 
-var CancelResourceAssetGenerationRequest_Top_DEFAULT *base.TopParam
-
-func (p *CancelResourceAssetGenerationRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CancelResourceAssetGenerationRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CancelResourceAssetGenerationRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *CancelResourceAssetGenerationRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CancelResourceAssetGenerationRequest) String() string {
@@ -3805,12 +3483,11 @@ func (p *CancelResourceAssetGenerationRequest) String() string {
 }
 
 type GetResourceAssetGenerationRunRequest struct {
-	WorkspaceID     *string        `json:"WorkspaceID,omitempty"`
-	ProjectID       string         `json:"ProjectID"`
-	ResourceID      string         `json:"ResourceID"`
-	ResourceAssetID string         `json:"ResourceAssetID"`
-	TaskRunID       string         `json:"TaskRunID"`
-	Top             *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID     *string `json:"WorkspaceID,omitempty"`
+	ProjectID       string  `json:"ProjectID"`
+	ResourceID      string  `json:"ResourceID"`
+	ResourceAssetID string  `json:"ResourceAssetID"`
+	TaskRunID       string  `json:"TaskRunID"`
 }
 
 func NewGetResourceAssetGenerationRunRequest() *GetResourceAssetGenerationRunRequest {
@@ -3845,21 +3522,8 @@ func (p *GetResourceAssetGenerationRunRequest) GetTaskRunID() (v string) {
 	return p.TaskRunID
 }
 
-var GetResourceAssetGenerationRunRequest_Top_DEFAULT *base.TopParam
-
-func (p *GetResourceAssetGenerationRunRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return GetResourceAssetGenerationRunRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *GetResourceAssetGenerationRunRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *GetResourceAssetGenerationRunRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *GetResourceAssetGenerationRunRequest) String() string {

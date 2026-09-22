@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	keyPrefix  = "agentframe:canvas-text-generation:"
+	keyPrefix  = "canvas:canvas-text-generation:"
 	deltaField = "delta"
 )
 

@@ -5,7 +5,7 @@
 // 首次读资源库、该 scope 下尚无官方记录时按清单物化一份。
 //
 // 之所以需要按 scope 物化：OFFICIAL Resource 与 PROJECT Resource 共用 resources 表和
-// 同一套 tenant/workspace 条件，官方记录必须在调用方 scope 下真实存在才可见，而 AgentFrame
+// 同一套 tenant/workspace 条件，官方记录必须在调用方 scope 下真实存在才可见，而 Canvas
 // 没有租户枚举来源，无法在启动时预先为所有租户铺好行。
 package officialresource
 
@@ -554,7 +554,7 @@ func (r *Reconciler) remove(
 
 // ReconcileAll 对已有官方记录的全部 scope 执行一次完整对账，供服务启动期调用。
 //
-// 只作用于已存在官方记录的 scope，而不是枚举租户：AgentFrame 没有租户枚举来源；尚无官方记录
+// 只作用于已存在官方记录的 scope，而不是枚举租户：Canvas 没有租户枚举来源；尚无官方记录
 // 的 scope 由首次读物化负责（见设计文档「按 scope 物化」）。
 //
 // 走 Reconcile 而非读路径入口，因此清单为空时**不**跳过：清空或下架官方条目正是靠这里

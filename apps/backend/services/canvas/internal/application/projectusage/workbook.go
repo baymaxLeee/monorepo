@@ -7,14 +7,14 @@ import (
 )
 
 // WorkbookResult is the synchronous transport result used while the monorepo
-// HTTP boundary is being replaced by AgentFrame's temporary-file download API.
+// HTTP boundary is being replaced by Canvas's temporary-file download API.
 type WorkbookResult struct {
 	RowCount            int64
 	PendingBillingCount int64
 }
 
 // WriteWorkbook keeps file delivery in the transport adapter; billing rows and
-// workbook generation continue to use the AgentFrame implementation.
+// workbook generation continue to use the Canvas implementation.
 func (exporter *Exporter) WriteWorkbook(ctx context.Context, file *os.File, input DownloadXLSXInput) (WorkbookResult, error) {
 	if !validDownloadInput(input, exporter.limits) || exporter.repository == nil {
 		return WorkbookResult{}, fmt.Errorf("invalid usage export request")

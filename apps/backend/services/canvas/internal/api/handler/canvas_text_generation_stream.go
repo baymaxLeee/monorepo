@@ -23,7 +23,6 @@ func (h *CanvasNodeHandler) StreamCanvasNodeTextGeneration(
 	w stdhttp.ResponseWriter,
 	request *thriftcanvasnode.StartCanvasNodeTextGenerationRequest,
 ) error {
-	request.Top = topParam(ctx)
 	scope := canvasnodeScope(ctx, request.WorkspaceID)
 	state, err := h.textGenerations.Start(ctx, scope, request.ProjectID, request.CanvasID, request.NodeID)
 	if err != nil {

@@ -47,7 +47,6 @@ func (h *ProjectHandler) BatchGetProjects(
 	if err := requireAction(ctx, "BatchGetProjects"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	projects, err := h.service.BatchGet(ctx, applicationproject.BatchGetInput{
 		Scope: projectRequestScope(ctx, request.WorkspaceID, applicationproject.AccessAdmin), ProjectIDs: request.ProjectIDs,
 	})
@@ -71,7 +70,6 @@ func (h *ProjectHandler) ListProjects(
 	if request.Page == nil {
 		return nil, errno.New(errno.ErrInvalidArgument)
 	}
-	request.Top = topParam(ctx)
 	keyword := ""
 	if request.Filter != nil {
 		keyword = request.Filter.GetKeyword()
@@ -109,7 +107,6 @@ func (h *ProjectHandler) GetProject(
 	if err := requireAction(ctx, "GetProject"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	project, err := h.service.GetWithUsage(ctx, applicationproject.GetInput{
 		Scope:     projectRequestScope(ctx, request.WorkspaceID, applicationproject.AccessAdmin),
 		ProjectID: request.ProjectID,
@@ -130,7 +127,6 @@ func (h *ProjectHandler) ListProjectsByMember(
 	if request.Page == nil {
 		return nil, errno.New(errno.ErrInvalidArgument)
 	}
-	request.Top = topParam(ctx)
 	keyword := ""
 	if request.Filter != nil {
 		keyword = request.Filter.GetKeyword()
@@ -168,7 +164,6 @@ func (h *ProjectHandler) GetProjectByMember(
 	if err := requireAction(ctx, "GetProjectByMember"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	project, err := h.service.Get(ctx, applicationproject.GetInput{
 		Scope:     projectRequestScope(ctx, request.WorkspaceID, applicationproject.AccessMember),
 		ProjectID: request.ProjectID,
@@ -186,7 +181,6 @@ func (h *ProjectHandler) BatchGetProjectsByMember(
 	if err := requireAction(ctx, "BatchGetProjectsByMember"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	projects, err := h.service.BatchGet(ctx, applicationproject.BatchGetInput{
 		Scope: projectRequestScope(ctx, request.WorkspaceID, applicationproject.AccessMember), ProjectIDs: request.ProjectIDs,
 	})
@@ -207,7 +201,6 @@ func (h *ProjectHandler) CreateProject(
 	if err := requireAction(ctx, "CreateProject"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	project, err := h.service.Create(ctx, applicationproject.CreateInput{
 		Scope:          requestScope(ctx, request.WorkspaceID),
 		Name:           request.Name,
@@ -228,7 +221,6 @@ func (h *ProjectHandler) UpdateProject(
 	if err := requireAction(ctx, "UpdateProject"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	project, err := h.service.Update(ctx, applicationproject.UpdateInput{
 		Scope:          requestScope(ctx, request.WorkspaceID),
 		ProjectID:      request.ProjectID,
@@ -250,7 +242,6 @@ func (h *ProjectHandler) UpdateProjectByMember(
 	if err := requireAction(ctx, "UpdateProjectByMember"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	project, err := h.service.UpdateByMember(ctx, applicationproject.UpdateByMemberInput{
 		Scope:          projectRequestScope(ctx, request.WorkspaceID, applicationproject.AccessMember),
 		ProjectID:      request.ProjectID,
@@ -269,7 +260,6 @@ func (h *ProjectHandler) DeleteProject(
 	if err := requireAction(ctx, "DeleteProject"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	if err := h.service.Delete(ctx, applicationproject.DeleteInput{
 		Scope: requestScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID,
 	}); err != nil {
@@ -285,7 +275,6 @@ func (h *ProjectHandler) ListProjectModels(
 	if err := requireAction(ctx, "ListProjectModels"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	pageNumber, pageSize := int32(1), int32(100)
 	if request.ListOpt != nil {
 		pageNumber, pageSize = request.ListOpt.PageNumber, request.ListOpt.PageSize
@@ -316,24 +305,12 @@ func (h *ProjectHandler) ListProjectModels(
 }
 
 func requireAction(ctx context.Context, action string) error {
-	metadata, ok := topcontext.MetadataFromContext(ctx)
+	metadata, ok := requestcontext.MetadataFromContext(ctx)
 	if !ok || metadata.TenantID == "" || metadata.UserID == "" || metadata.Service == "" ||
 		metadata.Action != action || metadata.Version != projectAPIVersion {
 		return errno.New(errno.ErrForbidden)
 	}
 	return nil
-}
-
-func topParam(ctx context.Context) *thriftbase.TopParam {
-	metadata, _ := topcontext.MetadataFromContext(ctx)
-	return &thriftbase.TopParam{
-		RequestID:   metadata.RequestID,
-		TenantID:    metadata.TenantID,
-		UserID:      optionalString(metadata.UserID),
-		DestService: metadata.Service,
-		Region:      optionalString(metadata.Region),
-		RealIp:      optionalString(metadata.RealIP),
-	}
 }
 
 func optionalString(value string) *string {
@@ -345,7 +322,7 @@ func optionalString(value string) *string {
 }
 
 func requestScope(ctx context.Context, workspaceID *string) applicationproject.Scope {
-	metadata, _ := topcontext.MetadataFromContext(ctx)
+	metadata, _ := requestcontext.MetadataFromContext(ctx)
 	return applicationproject.Scope{
 		TenantID: metadata.TenantID, WorkspaceID: nullableWorkspaceID(workspaceID), CallerID: metadata.UserID,
 	}

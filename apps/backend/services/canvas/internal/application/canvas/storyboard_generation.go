@@ -26,7 +26,7 @@ const storyboardExecutionSliceRetryDelay = time.Second
 
 const storyboardPlotHardLimitCharacters = 30000
 
-const storyboardInterruptedCallReason = "storyboard execution was interrupted after an AIGW call began"
+const storyboardInterruptedCallReason = "storyboard execution was interrupted after a provider call began"
 
 var ErrStoryboardNotFound = errors.New("storyboard draft session not found")
 
@@ -106,7 +106,7 @@ func (value StoryboardVideoParameters) Valid() bool {
 }
 
 // StoryboardInferenceModelSnapshot is immutable usage attribution resolved
-// during task creation. It belongs to the AIGW call ledger, not the storyboard
+// during task creation. It belongs to the provider call ledger, not the storyboard
 // business detail persisted for later execution.
 type StoryboardInferenceModelSnapshot struct {
 	ModelID     string

@@ -988,7 +988,7 @@ func metadataFromRequest(request *http.Request, action string) (requestcontext.M
 		return requestcontext.Metadata{}, errors.New("missing authenticated identity")
 	}
 	requestID := strings.TrimSpace(request.Header.Get("X-Trace-Id"))
-	return requestcontext.Metadata{RequestID: requestID, TenantID: tenantID, UserID: userID, WorkspaceID: metadataWorkspace(request), Service: "canvas", Action: action, Version: apiVersion, AcceptLanguage: request.Header.Get("Accept-Language")}, nil
+	return requestcontext.Metadata{RequestID: requestID, TenantID: tenantID, UserID: userID, WorkspaceID: metadataWorkspace(request), Service: "canvas", Action: action, Version: apiVersion}, nil
 }
 
 func metadataWorkspace(request *http.Request) string {
@@ -1105,7 +1105,7 @@ func pascalToSnake(value string) string {
 		"URI", "Uri",
 		"HTTP", "Http",
 		"API", "Api",
-		"AIGW", "Aigw",
+		"provider", "Provider",
 		"XLSX", "Xlsx",
 	)
 	value = replacer.Replace(value)

@@ -22,8 +22,8 @@ import {
 } from "@/components/compat";
 import { Spin, Button } from "@/components/ui";
 import type { canvas } from "@/domain";
+import { resolveArtifactURL } from "@/utils/artifactURL";
 import t from "@/utils/i18n";
-import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
 
 import { FilterTabs } from "../../components/FilterTabs";
 import { SearchInput } from "../../components/SearchInput";
@@ -70,7 +70,7 @@ function CanvasCard({
 }) {
   const hasVideo = item.Stats.SelectedVideoDurationMillis > 0;
   const coverImagePath = item.CoverImageURL;
-  const fallbackCoverImageURL = resolveUpPreviewURL(item.FallbackCoverImageURL ?? "");
+  const fallbackCoverImageURL = resolveArtifactURL(item.FallbackCoverImageURL ?? "");
 
   return (
     <article className="group relative w-full overflow-hidden rounded-[16px] border border-[transparent] border-solid p-[3px] transition-colors duration-200 hover:border-[#000000]">

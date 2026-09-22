@@ -27,9 +27,9 @@ import {
   DeleteCanvasEdge,
   ReorderStoryboardNodes,
 } from "@/pages/studio/domain/persistence";
+import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
 import t from "@/utils/i18n";
-import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
 
 import { getCanvas } from "../canvases/actions";
 import { createResourceFromExistingAsset } from "../resources/domain/actions";
@@ -172,7 +172,6 @@ function StudioContent() {
   const [viewChanging, setViewChanging] = useAtom(studioViewChangingAtom);
   const [assetsOpen, setAssetsOpen] = useAtom(assetsPanelOpenAtom);
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatRequest, setChatRequest] = useState<{ id: string; text: string } | null>(null);
   const [chatWidth, setChatWidth] = useState(420);
   const [chatResizing, setChatResizing] = useState(false);
   const chatResizeCleanupRef = useRef<(() => void) | undefined>(undefined);
@@ -219,7 +218,6 @@ function StudioContent() {
   const defaultVideoModelId = useAtomValue(defaultVideoModelIdAtom);
   const defaultInferenceModelId = useAtomValue(defaultStoryboardModelIdAtom);
   const [storyboardBatchSettings, setStoryboardBatchSettings] = useState<StoryboardSettings>(DEFAULT_SETTINGS);
-  const [storyboardInferenceModelId, setStoryboardInferenceModelId] = useState("");
   const [storyboardShotDuration, setStoryboardShotDuration] =
     useState<ScriptDurationRange>(DEFAULT_SHOT_DURATION_RANGE);
   const [storyboardVideoDuration, setStoryboardVideoDuration] =
@@ -256,7 +254,7 @@ function StudioContent() {
   const reviewRequestIDRef = useRef(0);
   const assetDetailRequestIDRef = useRef(0);
   const canvasGraphRequestIDRef = useRef(0);
-  /** draftId → 后台 UP 直传 Promise。 */
+  /** draftId → 后台 artifact storage 直传 Promise。 */
   const assetTaskRef = useRef(new Map<string, Promise<string>>());
   /** 已移除或取消的 draft，禁止后台写回 store。 */
   const cancelledDraftRef = useRef(new Set<string>());
@@ -272,7 +270,7 @@ function StudioContent() {
 
   const selectedIndex = shots.findIndex((shot) => shot.id === selectedShotId);
   const currentShot = shots[selectedIndex];
-  /** 生成参数存在分镜上；无选中分镜时使用 IAM 配置的默认视频模型。 */
+  /** 生成参数存在分镜上；无选中分镜时使用项目配置的默认视频模型。 */
   const persistedSettings = currentShot?.settings ?? {
     ...DEFAULT_SETTINGS,
     model: defaultVideoModelId,
@@ -382,7 +380,7 @@ function StudioContent() {
     assetStore.cacheDetails(
       nodes.map((item) => {
         const detail = assetFromCanvasNode(item);
-        const previewURL = resolveUpPreviewURL(item.PreviewURL ?? "");
+        const previewURL = resolveArtifactURL(item.PreviewURL ?? "");
         return {
           ...detail,
           previewUrl: previewURL || undefined,
@@ -457,10 +455,7 @@ function StudioContent() {
     if (defaultVideoModelId) {
       setStoryboardBatchSettings((current) => (current.model ? current : { ...current, model: defaultVideoModelId }));
     }
-    if (defaultInferenceModelId) {
-      setStoryboardInferenceModelId((current) => current || defaultInferenceModelId);
-    }
-  }, [defaultInferenceModelId, defaultVideoModelId]);
+  }, [defaultVideoModelId]);
 
   useEffect(() => {
     if (!studioReady || !canvasGraphLoaded) return;
@@ -607,9 +602,6 @@ function StudioContent() {
           return;
         }
         setStoryboardPlot(session.plot);
-        if (session.inferenceModelServiceId) {
-          setStoryboardInferenceModelId(session.inferenceModelServiceId);
-        }
         setStoryboardBatchSettings(session.settings);
         if (session.canvasnodeDurationMinSeconds && session.canvasnodeDurationMaxSeconds) {
           setStoryboardShotDuration({
@@ -1062,7 +1054,7 @@ function StudioContent() {
             {
               ...assetFromCanvasNode(updated),
               assetId: binding.CurrentAssetID,
-              previewUrl: resolveUpPreviewURL(response.ResourceAsset.PreviewURL ?? ""),
+              previewUrl: resolveArtifactURL(response.ResourceAsset.PreviewURL ?? ""),
               resourceAssetId: binding.ResourceAssetID,
               resourceId: response.Resource.ResourceID,
               review: latestAssetReview(response.ResourceAsset.Reviews),
@@ -1092,7 +1084,7 @@ function StudioContent() {
   };
 
   /**
-   * 选文件只静默直传 UP，不建 Asset、不绑分镜。
+   * 选文件只静默直传 artifact storage，不建 Asset、不绑分镜。
    * 关浏览器或不保存时服务端绑定与编辑前一致。
    */
   const startAssetBatchSync = (shotId: string, entries: Array<{ draftId: string; file: File }>) => {
@@ -1516,7 +1508,6 @@ function StudioContent() {
       ...DEFAULT_SETTINGS,
       model: defaultVideoModelId,
     });
-    setStoryboardInferenceModelId(defaultInferenceModelId);
     setStoryboardShotDuration(DEFAULT_SHOT_DURATION_RANGE);
     setStoryboardVideoDuration(DEFAULT_VIDEO_DURATION_RANGE);
     setStoryboardTaskRunId("");
@@ -1547,34 +1538,11 @@ function StudioContent() {
     plot: string,
     batchSettings: StoryboardSettings,
     durations: { shot: ScriptDurationRange; video: ScriptDurationRange },
-    inferenceModelServiceId: string,
   ) => {
-    const modelServiceId = batchSettings.model || defaultVideoModelId;
-    if (!modelServiceId) {
-      Message.error(t("暂无可用视频模型"));
-      return;
-    }
-    setChatOpen(true);
-    setStoryboardStep(undefined);
-    setChatRequest({
-      id: crypto.randomUUID(),
-      text: [
-        "请为当前画布拆分分镜。先读取画布，再调用 create_canvas_storyboard_drafts；不要只输出文字方案。",
-        `剧情：${plot}`,
-        `单镜头时长：${durations.shot.min}-${durations.shot.max} 秒。`,
-        `总时长：${durations.video.min}-${durations.video.max} 分钟。`,
-        `视频模型：${modelServiceId}；文本模型：${inferenceModelServiceId}。`,
-        `生成参数：${JSON.stringify(batchSettings)}。`,
-        "shots 必须覆盖完整剧情、按自然节拍拆分，每项给出可直接用于视频生成的 prompt 和 duration_seconds。",
-      ].join("\n"),
-    });
-    return;
-
     const requestId = storyboardRequestIDRef.current + 1;
     storyboardRequestIDRef.current = requestId;
     setStoryboardPlot(plot);
     setStoryboardBatchSettings(batchSettings);
-    setStoryboardInferenceModelId(inferenceModelServiceId);
     setStoryboardShotDuration(durations.shot);
     setStoryboardVideoDuration(durations.video);
     setStoryboardStep("preview");
@@ -1603,7 +1571,10 @@ function StudioContent() {
           projectId,
           canvasId,
           plot,
-          inferenceModelServiceId,
+          {
+            inferenceModelServiceId: defaultInferenceModelId,
+            videoModelServiceId: modelServiceId,
+          },
           durations,
           frontendSettings,
           controller.signal,
@@ -1614,9 +1585,6 @@ function StudioContent() {
               return;
             }
             setStoryboardPlot(session.plot);
-            if (session.inferenceModelServiceId) {
-              setStoryboardInferenceModelId(session.inferenceModelServiceId);
-            }
             setStoryboardBatchSettings(session.settings);
             if (session.canvasnodeDurationMinSeconds && session.canvasnodeDurationMaxSeconds) {
               setStoryboardShotDuration({
@@ -2656,13 +2624,11 @@ function StudioContent() {
                 <ScriptDesignDialog
                   initialPlot={storyboardPlot}
                   initialSettings={storyboardBatchSettings}
-                  initialStoryboardModel={storyboardInferenceModelId}
                   initialShotDuration={storyboardShotDuration}
                   initialVideoDuration={storyboardVideoDuration}
                   modelOptions={videoModels}
                   onCancel={resetStoryboardFlow}
                   onSubmit={handleScriptDesignSubmit}
-                  storyboardModelOptions={storyboardModels}
                   visible={storyboardStep === "design"}
                 />
 
@@ -2724,7 +2690,7 @@ function StudioContent() {
             ) : null}
           </div>
 
-          {chatOpen ? (
+          {view === "canvas" && chatOpen ? (
             <aside
               aria-label={t("画布 AI 助手")}
               className={`z-20 min-h-0 shrink-0 overflow-hidden bg-white ${
@@ -2771,7 +2737,6 @@ function StudioContent() {
                     .then(setDraftShots)
                     .catch(() => undefined);
                 }}
-                request={chatRequest}
               />
             </aside>
           ) : null}

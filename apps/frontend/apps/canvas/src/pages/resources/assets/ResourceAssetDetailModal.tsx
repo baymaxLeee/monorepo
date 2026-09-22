@@ -9,8 +9,8 @@ import { useEffect, useRef, useState } from "react";
 import { GenerationFailureReason } from "@/components/GenerationFailureReason";
 import { Spin, Modal, Button } from "@/components/ui";
 import type { resource } from "@/domain";
+import { resolveArtifactURL } from "@/utils/artifactURL";
 import t from "@/utils/i18n";
-import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
 
 import { ResourceTypeIcon } from "../components/ResourceTypeIcon";
 import { ResourceGenerationStatus } from "../generation/ResourceGenerationStatus";
@@ -62,7 +62,7 @@ export function ResourceAssetDetailModal({
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(asset.Name);
   const [renameSaving, setRenameSaving] = useState(false);
-  const previewUrl = asset.PreviewURL ? resolveUpPreviewURL(asset.PreviewURL) : undefined;
+  const previewUrl = asset.PreviewURL ? resolveArtifactURL(asset.PreviewURL) : undefined;
 
   useEffect(() => {
     setRenameValue(asset.Name);

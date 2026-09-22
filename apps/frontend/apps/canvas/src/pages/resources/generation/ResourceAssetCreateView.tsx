@@ -9,8 +9,8 @@ import { ImageGenerationEditor } from "@/components/ImageGeneration/ImageGenerat
 import { ImageGenerationEditorModal } from "@/components/ImageGeneration/ImageGenerationEditorModal";
 import { Message } from "@/components/ui";
 import { resource } from "@/domain";
+import { resolveArtifactURL } from "@/utils/artifactURL";
 import t from "@/utils/i18n";
-import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
 
 import { categoryFromFile, revokeAssetBlobUrls } from "../../studio/domain/model";
 import type { StoryboardAsset } from "../../studio/domain/types";
@@ -199,8 +199,8 @@ export function ResourceAssetCreateView({
             category: "image",
             title: reference.FileName ?? t("参考图 {index}", { index: index + 1 }),
             description: t("参考图"),
-            thumbnail: reference.PreviewURL ? resolveUpPreviewURL(reference.PreviewURL) : undefined,
-            previewUrl: reference.PreviewURL ? resolveUpPreviewURL(reference.PreviewURL) : undefined,
+            thumbnail: reference.PreviewURL ? resolveArtifactURL(reference.PreviewURL) : undefined,
+            previewUrl: reference.PreviewURL ? resolveArtifactURL(reference.PreviewURL) : undefined,
             source: "canvasnode",
             syncStatus: "ready",
           })),

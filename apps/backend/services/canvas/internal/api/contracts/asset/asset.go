@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"github.com/example/monorepo/canvas/internal/api/contracts/base"
+
 	"github.com/example/monorepo/canvas/internal/api/contracts/common"
 )
 
@@ -308,11 +308,11 @@ func (p *Asset) String() string {
 	return fmt.Sprintf("Asset(%+v)", *p)
 }
 
-// AssetReviewUpload 描述送审时需要物化为项目素材的 UP 临时文件。
+// AssetReviewUpload 描述送审时需要物化为项目素材的 artifact storage 临时文件。
 type AssetReviewUpload struct {
 	// ClientID 是调用方为本地草稿分配的稳定标识，用于幂等物化。
 	ClientID string `json:"ClientID"`
-	// BlobID 是 UP 临时上传返回的文件标识。
+	// BlobID 是 artifact storage 临时上传返回的文件标识。
 	BlobID string `json:"BlobID"`
 	// FileName 是用户上传时提供的文件名。
 	FileName string `json:"FileName"`
@@ -352,7 +352,6 @@ type SubmitAssetReviewRequest struct {
 	AssetID     *string            `json:"AssetID,omitempty"`
 	PackageID   string             `json:"PackageID"`
 	Upload      *AssetReviewUpload `json:"Upload,omitempty"`
-	Top         *base.TopParam     `json:"Top,omitempty"`
 }
 
 func NewSubmitAssetReviewRequest() *SubmitAssetReviewRequest {
@@ -397,15 +396,6 @@ func (p *SubmitAssetReviewRequest) GetUpload() (v *AssetReviewUpload) {
 	return p.Upload
 }
 
-var SubmitAssetReviewRequest_Top_DEFAULT *base.TopParam
-
-func (p *SubmitAssetReviewRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return SubmitAssetReviewRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *SubmitAssetReviewRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -416,10 +406,6 @@ func (p *SubmitAssetReviewRequest) IsSetAssetID() bool {
 
 func (p *SubmitAssetReviewRequest) IsSetUpload() bool {
 	return p.Upload != nil
-}
-
-func (p *SubmitAssetReviewRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *SubmitAssetReviewRequest) String() string {
@@ -523,7 +509,6 @@ type BatchSubmitAssetReviewsRequest struct {
 	ProjectID   string  `json:"ProjectID"`
 	// Items 最多包含 100 个素材与权益包组合。
 	Items []*SubmitAssetReviewItem `json:"Items"`
-	Top   *base.TopParam           `json:"Top,omitempty"`
 }
 
 func NewBatchSubmitAssetReviewsRequest() *BatchSubmitAssetReviewsRequest {
@@ -550,21 +535,8 @@ func (p *BatchSubmitAssetReviewsRequest) GetItems() (v []*SubmitAssetReviewItem)
 	return p.Items
 }
 
-var BatchSubmitAssetReviewsRequest_Top_DEFAULT *base.TopParam
-
-func (p *BatchSubmitAssetReviewsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return BatchSubmitAssetReviewsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *BatchSubmitAssetReviewsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *BatchSubmitAssetReviewsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *BatchSubmitAssetReviewsRequest) String() string {
@@ -705,10 +677,9 @@ func (p *AssetReviews) String() string {
 
 // BatchGetAssetReviews 批量查询项目内素材的当前审核状态；每个素材在每个权益包下最多一条，响应总计最多 200 条 Review。
 type BatchGetAssetReviewsRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	AssetIDs    []string       `json:"AssetIDs"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string  `json:"WorkspaceID,omitempty"`
+	ProjectID   string   `json:"ProjectID"`
+	AssetIDs    []string `json:"AssetIDs"`
 }
 
 func NewBatchGetAssetReviewsRequest() *BatchGetAssetReviewsRequest {
@@ -735,21 +706,8 @@ func (p *BatchGetAssetReviewsRequest) GetAssetIDs() (v []string) {
 	return p.AssetIDs
 }
 
-var BatchGetAssetReviewsRequest_Top_DEFAULT *base.TopParam
-
-func (p *BatchGetAssetReviewsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return BatchGetAssetReviewsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *BatchGetAssetReviewsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *BatchGetAssetReviewsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *BatchGetAssetReviewsRequest) String() string {

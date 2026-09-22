@@ -10,7 +10,7 @@ import (
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	domainimagegeneration "github.com/example/monorepo/canvas/internal/domain/imagegeneration"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
-	"github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
+	artifactnamespace "github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
 )
 
 type PersistImageInput struct {
@@ -42,7 +42,7 @@ type ProcessorAssetManager interface {
 	CreateFromOwnedArtifact(context.Context, applicationasset.CreateFromArtifactInput) (domainasset.Asset, error)
 }
 type ReferenceResolver interface {
-	PlatformReferenceURL(context.Context, string, string, domainasset.Asset) (string, error)
+	ProviderReference(context.Context, string, string, domainasset.Asset) (string, error)
 }
 
 type Processor struct {
@@ -120,7 +120,7 @@ func (processor *Processor) ProcessPollClaim(ctx context.Context, task domaintas
 			if item.MediaType != domainasset.MediaImage {
 				return processor.fail(ctx, run, task, schedule, handler, errors.New("image generation reference is not an image"))
 			}
-			referenceURL, resolveErr := processor.resolver.PlatformReferenceURL(ctx, run.TenantID, run.CreatedBy, item)
+			referenceURL, resolveErr := processor.resolver.ProviderReference(ctx, run.TenantID, run.CreatedBy, item)
 			if resolveErr != nil || referenceURL == "" {
 				return processor.fail(ctx, run, task, schedule, handler, errors.Join(resolveErr, errors.New("image generation reference unavailable")))
 			}

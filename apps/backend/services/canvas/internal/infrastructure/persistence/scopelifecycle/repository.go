@@ -54,7 +54,7 @@ func LockActive(db *gorm.DB, tenantID string, workspaceID *string) error {
 }
 
 // Close commits before domain cleanup begins. The tombstone is never removed
-// by cleanup or retries; IAM identifiers are not reusable lifecycle slots.
+// by cleanup or retries; identity identifiers are not reusable lifecycle slots.
 func (r *Repository) Close(ctx context.Context, tenantID string, workspaceID *string) error {
 	if tenantID == "" || workspaceID != nil && *workspaceID == "" {
 		return errors.New("invalid deletion scope")

@@ -8,10 +8,10 @@ import { useAudioSpectrum } from "@/components/AudioSpectrum/index";
 import { Pagination, Result, openDeleteConfirmModal } from "@/components/compat";
 import { Message, Spin, Button, Dropdown, Menu } from "@/components/ui";
 import { asset, resource } from "@/domain";
+import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
 import { downloadWithFetch } from "@/utils/download";
 import t from "@/utils/i18n";
-import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
 
 import { SearchInput } from "../../../components/SearchInput";
 import { BatchActionBar } from "../components/BatchActionBar";
@@ -329,7 +329,7 @@ export function ResourceAssetsPageContent({
 
   const toggleAudioPlayback = (file: resource.ResourceAsset) => {
     const element = audioRef.current;
-    const src = file.PreviewURL ? resolveUpPreviewURL(file.PreviewURL) : undefined;
+    const src = file.PreviewURL ? resolveArtifactURL(file.PreviewURL) : undefined;
     if (!element || !src) return;
     // 再次点击当前正在播放的音效则停止；否则切换到新音效（互斥单播）。
     if (playingId === file.ResourceAssetID) {
@@ -345,7 +345,7 @@ export function ResourceAssetsPageContent({
   };
 
   const downloadAsset = (file: resource.ResourceAsset) => {
-    const src = file.PreviewURL ? resolveUpPreviewURL(file.PreviewURL) : undefined;
+    const src = file.PreviewURL ? resolveArtifactURL(file.PreviewURL) : undefined;
     if (!src) return;
     if (file.MediaType === asset.AssetMediaType.IMAGE) {
       void downloadWithFetch({

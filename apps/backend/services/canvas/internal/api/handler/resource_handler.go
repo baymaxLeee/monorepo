@@ -80,7 +80,6 @@ func (h *ResourceHandler) ListResources(ctx context.Context, request *thriftreso
 	if request.Page == nil {
 		return nil, errno.New(errno.ErrInvalidArgument)
 	}
-	request.Top = topParam(ctx)
 	scope := resourceScope(ctx, request.WorkspaceID)
 	sortField, sortDirection, err := resourceSort(request.Sort)
 	if err != nil {
@@ -101,7 +100,6 @@ func (h *ResourceHandler) GetProjectResourceStats(ctx context.Context, request *
 	if err := requireAction(ctx, "GetProjectResourceStats"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	stats, err := h.service.GetProjectResourceStats(ctx, applicationresource.GetProjectResourceStatsInput{
 		Scope:     resourceScope(ctx, request.WorkspaceID),
 		ProjectID: request.ProjectID,
@@ -123,7 +121,6 @@ func (h *ResourceHandler) GetResource(ctx context.Context, request *thriftresour
 	if err := requireAction(ctx, "GetResource"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	scope := resourceScope(ctx, request.WorkspaceID)
 	item, err := h.service.Get(ctx, applicationresource.GetInput{Scope: scope, ProjectID: request.ProjectID, ResourceID: request.ResourceID})
 	if err != nil {
@@ -137,7 +134,6 @@ func (h *ResourceHandler) BatchGetResources(ctx context.Context, request *thrift
 	if err := requireAction(ctx, "BatchGetResources"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	scope := resourceScope(ctx, request.WorkspaceID)
 	items, err := h.service.BatchGet(ctx, applicationresource.BatchGetInput{Scope: scope, ProjectID: request.ProjectID, ResourceIDs: request.ResourceIDs})
 	if err != nil {
@@ -151,7 +147,6 @@ func (h *ResourceHandler) CreateResource(ctx context.Context, request *thriftres
 	if err := requireAction(ctx, "CreateResource"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	scope := resourceScope(ctx, request.WorkspaceID)
 	initialAssets := make([]applicationresource.InitialAssetInput, 0, len(request.InitialAssets))
 	for _, item := range request.InitialAssets {
@@ -187,7 +182,6 @@ func (h *ResourceHandler) CreateResourceFromAsset(ctx context.Context, request *
 	if err := requireAction(ctx, "CreateResourceFromAsset"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	scope := resourceScope(ctx, request.WorkspaceID)
 	result, err := h.service.CreateFromAsset(ctx, applicationresource.CreateFromAssetInput{
 		Scope: scope, ProjectID: request.ProjectID, AssetID: request.AssetID,
@@ -223,7 +217,6 @@ func (h *ResourceHandler) UpdateResource(ctx context.Context, request *thriftres
 	if err := requireAction(ctx, "UpdateResource"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	scope := resourceScope(ctx, request.WorkspaceID)
 	current, err := h.service.Get(ctx, applicationresource.GetInput{Scope: scope, ProjectID: request.ProjectID, ResourceID: request.ResourceID})
 	if err != nil {
@@ -248,7 +241,6 @@ func (h *ResourceHandler) DeleteResource(ctx context.Context, request *thriftres
 	if err := requireAction(ctx, "DeleteResource"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	if err := h.service.Delete(ctx, applicationresource.DeleteInput{Scope: resourceScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID, ResourceID: request.ResourceID, ExpectedRevision: request.ExpectedRevision}); err != nil {
 		return nil, err
 	}
@@ -259,7 +251,6 @@ func (h *ResourceHandler) BatchDeleteResources(ctx context.Context, request *thr
 	if err := requireAction(ctx, "BatchDeleteResources"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	targets := make([]applicationresource.DeleteTarget, 0, len(request.Targets))
 	for _, target := range request.Targets {
 		if target != nil {
@@ -279,7 +270,6 @@ func (h *ResourceHandler) ListResourceAssets(ctx context.Context, request *thrif
 	if request.Page == nil {
 		return nil, errno.New(errno.ErrInvalidArgument)
 	}
-	request.Top = topParam(ctx)
 	scope := resourceScope(ctx, request.WorkspaceID)
 	parent, err := h.service.Get(ctx, applicationresource.GetInput{Scope: scope, ProjectID: request.ProjectID, ResourceID: request.ResourceID})
 	if err != nil {
@@ -304,7 +294,6 @@ func (h *ResourceHandler) BatchGetResourceAssetGenerationStates(ctx context.Cont
 	if err := requireAction(ctx, "BatchGetResourceAssetGenerationStates"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	states, err := h.generations.BatchGetStates(ctx, applicationresourceassetgeneration.Target{Scope: resourceScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID, ResourceID: request.ResourceID}, request.ResourceAssetIDs)
 	if err != nil {
 		return nil, err
@@ -344,7 +333,6 @@ func (h *ResourceHandler) BatchListResourceAssets(ctx context.Context, request *
 	if err := requireAction(ctx, "BatchListResourceAssets"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	scope := resourceScope(ctx, request.WorkspaceID)
 	groups, err := h.service.BatchListResourceAssets(ctx, applicationresource.BatchListResourceAssetsInput{
 		Scope: scope, ProjectID: request.ProjectID, ResourceIDs: request.ResourceIDs,
@@ -374,7 +362,6 @@ func (h *ResourceHandler) CreateResourceAsset(ctx context.Context, request *thri
 	if err := requireAction(ctx, "CreateResourceAsset"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	scope := resourceScope(ctx, request.WorkspaceID)
 	item, err := h.service.CreateResourceAsset(ctx, applicationresource.CreateResourceAssetInput{
 		Scope: scope, ProjectID: request.ProjectID, ResourceID: request.ResourceID,
@@ -399,7 +386,6 @@ func (h *ResourceHandler) CreateGeneratedResourceAsset(ctx context.Context, requ
 	if err := requireAction(ctx, "CreateGeneratedResourceAsset"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	scope := resourceScope(ctx, request.WorkspaceID)
 	item, _, err := h.service.CreateGeneratedResourceAsset(ctx, applicationresource.CreateGeneratedResourceAssetInput{
 		Scope: scope, ProjectID: request.ProjectID, ResourceID: request.ResourceID,
@@ -419,7 +405,6 @@ func (h *ResourceHandler) ReplaceUploadedResourceAsset(ctx context.Context, requ
 	if err := requireAction(ctx, "ReplaceUploadedResourceAsset"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	scope := resourceScope(ctx, request.WorkspaceID)
 	item, err := h.service.ReplaceUploadedResourceAsset(ctx, applicationresource.ReplaceUploadedResourceAssetInput{
 		Scope: scope, ProjectID: request.ProjectID, ResourceID: request.ResourceID, ResourceAssetID: request.ResourceAssetID,
@@ -444,7 +429,6 @@ func (h *ResourceHandler) UpdateResourceAsset(ctx context.Context, request *thri
 	if err := requireAction(ctx, "UpdateResourceAsset"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	scope := resourceScope(ctx, request.WorkspaceID)
 	item, err := h.service.RenameResourceAsset(ctx, applicationresource.RenameResourceAssetInput{Scope: scope, ProjectID: request.ProjectID, ResourceID: request.ResourceID, ResourceAssetID: request.ResourceAssetID, Name: request.Name, ExpectedResourceRevision: request.ExpectedResourceRevision, ExpectedResourceAssetRevision: request.ExpectedResourceAssetRevision})
 	if err != nil {
@@ -465,7 +449,6 @@ func (h *ResourceHandler) SetPrimaryResourceAsset(ctx context.Context, request *
 	if err := requireAction(ctx, "SetPrimaryResourceAsset"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	scope := resourceScope(ctx, request.WorkspaceID)
 	item, err := h.service.SetPrimaryResourceAsset(ctx, applicationresource.SetPrimaryResourceAssetInput{Scope: scope, ProjectID: request.ProjectID, ResourceID: request.ResourceID, ResourceAssetID: request.ResourceAssetID, ExpectedResourceRevision: request.ExpectedResourceRevision})
 	if err != nil {
@@ -479,7 +462,6 @@ func (h *ResourceHandler) DeleteResourceAsset(ctx context.Context, request *thri
 	if err := requireAction(ctx, "DeleteResourceAsset"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	if err := h.service.DeleteResourceAsset(ctx, applicationresource.DeleteResourceAssetInput{Scope: resourceScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID, ResourceID: request.ResourceID, ResourceAssetID: request.ResourceAssetID, ExpectedResourceRevision: request.ExpectedResourceRevision, ExpectedResourceAssetRevision: request.ExpectedResourceAssetRevision}); err != nil {
 		return nil, err
 	}
@@ -490,7 +472,6 @@ func (h *ResourceHandler) BatchDeleteResourceAssets(ctx context.Context, request
 	if err := requireAction(ctx, "BatchDeleteResourceAssets"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	targets := make([]applicationresource.DeleteResourceAssetTarget, 0, len(request.Targets))
 	for _, target := range request.Targets {
 		if target != nil {
@@ -515,7 +496,6 @@ func (h *ResourceHandler) GetResourceAssetGeneration(ctx context.Context, reques
 	if err := requireAction(ctx, "GetResourceAssetGeneration"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	item, err := h.generations.Get(ctx, applicationresourceassetgeneration.GetInput{Target: resourceAssetGenerationTarget(ctx, request.WorkspaceID, request.ProjectID, request.ResourceID, request.ResourceAssetID)})
 	if err != nil {
 		return nil, err
@@ -530,7 +510,6 @@ func (h *ResourceHandler) UpdateResourceAssetGeneration(ctx context.Context, req
 	if request.Patch == nil {
 		return nil, errno.New(errno.ErrInvalidArgument)
 	}
-	request.Top = topParam(ctx)
 	patch, err := resourceAssetGenerationPatch(request.Patch)
 	if err != nil {
 		return nil, err
@@ -549,7 +528,6 @@ func (h *ResourceHandler) StartResourceAssetGeneration(ctx context.Context, requ
 	if err := requireAction(ctx, "StartResourceAssetGeneration"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	result, err := h.generations.Start(ctx, applicationresourceassetgeneration.StartInput{
 		Target:           resourceAssetGenerationTarget(ctx, request.WorkspaceID, request.ProjectID, request.ResourceID, request.ResourceAssetID),
 		ExpectedRevision: request.ExpectedRevision,
@@ -564,7 +542,6 @@ func (h *ResourceHandler) CancelResourceAssetGeneration(ctx context.Context, req
 	if err := requireAction(ctx, "CancelResourceAssetGeneration"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	if err := h.generations.Cancel(ctx, applicationresourceassetgeneration.CancelInput{
 		Target:    resourceAssetGenerationTarget(ctx, request.WorkspaceID, request.ProjectID, request.ResourceID, request.ResourceAssetID),
 		TaskRunID: request.TaskRunID,
@@ -578,7 +555,6 @@ func (h *ResourceHandler) GetResourceAssetGenerationRun(ctx context.Context, req
 	if err := requireAction(ctx, "GetResourceAssetGenerationRun"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	item, err := h.generations.GetRun(ctx, applicationresourceassetgeneration.GetRunInput{
 		Target:    resourceAssetGenerationTarget(ctx, request.WorkspaceID, request.ProjectID, request.ResourceID, request.ResourceAssetID),
 		TaskRunID: request.TaskRunID,
@@ -590,7 +566,7 @@ func (h *ResourceHandler) GetResourceAssetGenerationRun(ctx context.Context, req
 }
 
 func resourceScope(ctx context.Context, workspaceID *string) applicationresource.Scope {
-	metadata, _ := topcontext.MetadataFromContext(ctx)
+	metadata, _ := requestcontext.MetadataFromContext(ctx)
 	return applicationresource.Scope{TenantID: metadata.TenantID, WorkspaceID: nullableWorkspaceID(workspaceID), CallerID: metadata.UserID}
 }
 

@@ -185,11 +185,11 @@ const (
 	ErrResourceAssetGenerationRunConflict ErrorCode = "ResourceAssetGenerationRunConflict"
 	// Benefit package name is already used in the tenant
 	ErrBenefitPackageNameAlreadyExists ErrorCode = "BenefitPackageNameAlreadyExists"
-	// The tenant allocation or AgentFrame license has no remaining project capacity
+	// The tenant allocation has no remaining project capacity
 	ErrProjectQuotaExceeded ErrorCode = "ProjectQuotaExceeded"
-	// The tenant allocation or AgentFrame license has no remaining preset entitlement asset capacity
+	// The tenant allocation has no remaining preset entitlement asset capacity
 	ErrPresetEntitlementAssetQuotaExceeded ErrorCode = "PresetEntitlementAssetQuotaExceeded"
-	// The tenant has no remaining AgentFrame storage capacity
+	// The tenant has no remaining storage capacity
 	ErrStorageQuotaExceeded ErrorCode = "StorageQuotaExceeded"
 	// Failed business precondition
 	ErrFailedPrecondition ErrorCode = "FailedPrecondition"
@@ -221,7 +221,7 @@ const (
 	ErrNotImplemented ErrorCode = "NotImplemented"
 	// Service unavailable
 	ErrUnavailable ErrorCode = "Unavailable"
-	// The IAM quota request failed or a required quota row is unavailable
+	// The quota store failed or a required quota row is unavailable
 	ErrQuotaUnavailable ErrorCode = "QuotaUnavailable"
 	// Request timeout
 	ErrRequestTimeout ErrorCode = "RequestTimeout"
@@ -478,21 +478,21 @@ var allErrorMeta = []ErrorMeta{
 		BizCode:  4096002,
 		HTTPCode: 409,
 		Message:  "project quota exceeded",
-		Comment:  "The tenant allocation or AgentFrame license has no remaining project capacity",
+		Comment:  "The tenant allocation has no remaining project capacity",
 	},
 	{
 		Code:     ErrPresetEntitlementAssetQuotaExceeded,
 		BizCode:  4096003,
 		HTTPCode: 409,
 		Message:  "preset entitlement asset quota exceeded",
-		Comment:  "The tenant allocation or AgentFrame license has no remaining preset entitlement asset capacity",
+		Comment:  "The tenant allocation has no remaining preset entitlement asset capacity",
 	},
 	{
 		Code:     ErrStorageQuotaExceeded,
 		BizCode:  4096004,
 		HTTPCode: 409,
 		Message:  "storage quota exceeded",
-		Comment:  "The tenant has no remaining AgentFrame storage capacity",
+		Comment:  "The tenant has no remaining storage capacity",
 	},
 	{
 		Code:     ErrFailedPrecondition,
@@ -604,7 +604,7 @@ var allErrorMeta = []ErrorMeta{
 		BizCode:  5036001,
 		HTTPCode: 503,
 		Message:  "resource quota is temporarily unavailable",
-		Comment:  "The IAM quota request failed or a required quota row is unavailable",
+		Comment:  "The quota store failed or a required quota row is unavailable",
 	},
 	{
 		Code:     ErrRequestTimeout,

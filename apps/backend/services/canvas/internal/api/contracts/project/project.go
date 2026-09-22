@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"github.com/example/monorepo/canvas/internal/api/contracts/aigw_model_types"
-	"github.com/example/monorepo/canvas/internal/api/contracts/base"
+
 	"github.com/example/monorepo/canvas/internal/api/contracts/common"
+	"github.com/example/monorepo/canvas/internal/api/contracts/modeltypes"
 )
 
 // ProjectSortField 定义项目列表支持的排序字段。
@@ -89,7 +89,7 @@ type ProjectSummary struct {
 	ProjectID string `json:"ProjectID"`
 	// Name 是项目名称，在相同 scope 下唯一。
 	Name string `json:"Name"`
-	// CoverImagePath 是已通过 Up 长期化的封面图片 path。
+	// CoverImagePath 是已通过 artifact storage 长期化的封面图片 path。
 	CoverImagePath *string `json:"CoverImagePath,omitempty"`
 	// CoverImageURL 是用于浏览器直接展示的短期签名 URL，不得持久化或回传为更新输入。
 	CoverImageURL *string `json:"CoverImageURL,omitempty"`
@@ -175,7 +175,7 @@ type ProjectDetail struct {
 	ProjectID string `json:"ProjectID"`
 	// Name 是项目名称，在相同 scope 下唯一。
 	Name string `json:"Name"`
-	// CoverImagePath 是已通过 Up 长期化的封面图片 path。
+	// CoverImagePath 是已通过 artifact storage 长期化的封面图片 path。
 	CoverImagePath *string `json:"CoverImagePath,omitempty"`
 	// CoverImageURL 是用于浏览器直接展示的短期签名 URL，不得持久化或回传为更新输入。
 	CoverImageURL *string `json:"CoverImageURL,omitempty"`
@@ -191,7 +191,7 @@ type ProjectDetail struct {
 	MemberUserIDs []string `json:"MemberUserIDs"`
 	// UsageLimit 是项目总金额限额，单位元；未传表示无上限。
 	UsageLimit *int64 `json:"UsageLimit,omitempty"`
-	// UsedAmount 是 AIGW 返回的项目当前已用金额，单位元。
+	// UsedAmount 是 provider 返回的项目当前已用金额，单位元。
 	UsedAmount *float64 `json:"UsedAmount,omitempty"`
 }
 
@@ -518,8 +518,6 @@ type ListProjectsRequest struct {
 	Sort *ProjectSort `json:"Sort,omitempty"`
 	// Page 是标准分页参数。
 	Page *common.Page `json:"Page"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewListProjectsRequest() *ListProjectsRequest {
@@ -565,15 +563,6 @@ func (p *ListProjectsRequest) GetPage() (v *common.Page) {
 	return p.Page
 }
 
-var ListProjectsRequest_Top_DEFAULT *base.TopParam
-
-func (p *ListProjectsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return ListProjectsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *ListProjectsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -588,10 +577,6 @@ func (p *ListProjectsRequest) IsSetSort() bool {
 
 func (p *ListProjectsRequest) IsSetPage() bool {
 	return p.Page != nil
-}
-
-func (p *ListProjectsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *ListProjectsRequest) String() string {
@@ -646,8 +631,6 @@ type GetProjectRequest struct {
 	WorkspaceID *string `json:"WorkspaceID,omitempty"`
 	// ProjectID 是待查询的项目唯一标识。
 	ProjectID string `json:"ProjectID"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewGetProjectRequest() *GetProjectRequest {
@@ -670,21 +653,8 @@ func (p *GetProjectRequest) GetProjectID() (v string) {
 	return p.ProjectID
 }
 
-var GetProjectRequest_Top_DEFAULT *base.TopParam
-
-func (p *GetProjectRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return GetProjectRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *GetProjectRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *GetProjectRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *GetProjectRequest) String() string {
@@ -733,8 +703,6 @@ type BatchGetProjectsRequest struct {
 	WorkspaceID *string `json:"WorkspaceID,omitempty"`
 	// ProjectIDs 最多包含 100 个项目 ID。
 	ProjectIDs []string `json:"ProjectIDs"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewBatchGetProjectsRequest() *BatchGetProjectsRequest {
@@ -757,21 +725,8 @@ func (p *BatchGetProjectsRequest) GetProjectIDs() (v []string) {
 	return p.ProjectIDs
 }
 
-var BatchGetProjectsRequest_Top_DEFAULT *base.TopParam
-
-func (p *BatchGetProjectsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return BatchGetProjectsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *BatchGetProjectsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *BatchGetProjectsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *BatchGetProjectsRequest) String() string {
@@ -811,7 +766,6 @@ type ListProjectsByMemberRequest struct {
 	Filter      *ProjectFilter `json:"Filter,omitempty"`
 	Sort        *ProjectSort   `json:"Sort,omitempty"`
 	Page        *common.Page   `json:"Page"`
-	Top         *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewListProjectsByMemberRequest() *ListProjectsByMemberRequest {
@@ -857,15 +811,6 @@ func (p *ListProjectsByMemberRequest) GetPage() (v *common.Page) {
 	return p.Page
 }
 
-var ListProjectsByMemberRequest_Top_DEFAULT *base.TopParam
-
-func (p *ListProjectsByMemberRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return ListProjectsByMemberRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *ListProjectsByMemberRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -880,10 +825,6 @@ func (p *ListProjectsByMemberRequest) IsSetSort() bool {
 
 func (p *ListProjectsByMemberRequest) IsSetPage() bool {
 	return p.Page != nil
-}
-
-func (p *ListProjectsByMemberRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *ListProjectsByMemberRequest) String() string {
@@ -932,9 +873,8 @@ func (p *ListProjectsByMemberResponse) String() string {
 
 // GetProjectByMemberRequest 是按当前调用者成员关系获取项目的请求。
 type GetProjectByMemberRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
 }
 
 func NewGetProjectByMemberRequest() *GetProjectByMemberRequest {
@@ -957,21 +897,8 @@ func (p *GetProjectByMemberRequest) GetProjectID() (v string) {
 	return p.ProjectID
 }
 
-var GetProjectByMemberRequest_Top_DEFAULT *base.TopParam
-
-func (p *GetProjectByMemberRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return GetProjectByMemberRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *GetProjectByMemberRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *GetProjectByMemberRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *GetProjectByMemberRequest) String() string {
@@ -1015,9 +942,8 @@ func (p *GetProjectByMemberResponse) String() string {
 
 // BatchGetProjectsByMemberRequest 是按当前调用者成员关系批量获取项目的请求。
 type BatchGetProjectsByMemberRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectIDs  []string       `json:"ProjectIDs"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string  `json:"WorkspaceID,omitempty"`
+	ProjectIDs  []string `json:"ProjectIDs"`
 }
 
 func NewBatchGetProjectsByMemberRequest() *BatchGetProjectsByMemberRequest {
@@ -1040,21 +966,8 @@ func (p *BatchGetProjectsByMemberRequest) GetProjectIDs() (v []string) {
 	return p.ProjectIDs
 }
 
-var BatchGetProjectsByMemberRequest_Top_DEFAULT *base.TopParam
-
-func (p *BatchGetProjectsByMemberRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return BatchGetProjectsByMemberRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *BatchGetProjectsByMemberRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *BatchGetProjectsByMemberRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *BatchGetProjectsByMemberRequest) String() string {
@@ -1095,12 +1008,10 @@ type CreateProjectRequest struct {
 	Name string `json:"Name"`
 	// MemberUserIDs 是项目成员用户 ID 列表。
 	MemberUserIDs []string `json:"MemberUserIDs"`
-	// CoverImagePath 是通过 Up 上传得到的封面图片 path；未传表示不设置封面。
+	// CoverImagePath 是通过 artifact storage 上传得到的封面图片 path；未传表示不设置封面。
 	CoverImagePath *string `json:"CoverImagePath,omitempty"`
 	// UsageLimit 是项目总金额限额，单位元；未传表示无上限。
 	UsageLimit *int64 `json:"UsageLimit,omitempty"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewCreateProjectRequest() *CreateProjectRequest {
@@ -1145,15 +1056,6 @@ func (p *CreateProjectRequest) GetUsageLimit() (v int64) {
 	return *p.UsageLimit
 }
 
-var CreateProjectRequest_Top_DEFAULT *base.TopParam
-
-func (p *CreateProjectRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CreateProjectRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CreateProjectRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -1164,10 +1066,6 @@ func (p *CreateProjectRequest) IsSetCoverImagePath() bool {
 
 func (p *CreateProjectRequest) IsSetUsageLimit() bool {
 	return p.UsageLimit != nil
-}
-
-func (p *CreateProjectRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CreateProjectRequest) String() string {
@@ -1224,8 +1122,6 @@ type UpdateProjectRequest struct {
 	CoverImagePath *string `json:"CoverImagePath,omitempty"`
 	// UsageLimit 是项目总金额限额，单位元；未传表示取消限制。
 	UsageLimit *int64 `json:"UsageLimit,omitempty"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewUpdateProjectRequest() *UpdateProjectRequest {
@@ -1274,15 +1170,6 @@ func (p *UpdateProjectRequest) GetUsageLimit() (v int64) {
 	return *p.UsageLimit
 }
 
-var UpdateProjectRequest_Top_DEFAULT *base.TopParam
-
-func (p *UpdateProjectRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return UpdateProjectRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *UpdateProjectRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -1293,10 +1180,6 @@ func (p *UpdateProjectRequest) IsSetCoverImagePath() bool {
 
 func (p *UpdateProjectRequest) IsSetUsageLimit() bool {
 	return p.UsageLimit != nil
-}
-
-func (p *UpdateProjectRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *UpdateProjectRequest) String() string {
@@ -1347,8 +1230,6 @@ type UpdateProjectByMemberRequest struct {
 	ProjectID string `json:"ProjectID"`
 	// CoverImagePath 未传时保持不变，空字符串表示清除封面。
 	CoverImagePath *string `json:"CoverImagePath,omitempty"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewUpdateProjectByMemberRequest() *UpdateProjectByMemberRequest {
@@ -1380,25 +1261,12 @@ func (p *UpdateProjectByMemberRequest) GetCoverImagePath() (v string) {
 	return *p.CoverImagePath
 }
 
-var UpdateProjectByMemberRequest_Top_DEFAULT *base.TopParam
-
-func (p *UpdateProjectByMemberRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return UpdateProjectByMemberRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *UpdateProjectByMemberRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
 
 func (p *UpdateProjectByMemberRequest) IsSetCoverImagePath() bool {
 	return p.CoverImagePath != nil
-}
-
-func (p *UpdateProjectByMemberRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *UpdateProjectByMemberRequest) String() string {
@@ -1447,8 +1315,6 @@ type DeleteProjectRequest struct {
 	WorkspaceID *string `json:"WorkspaceID,omitempty"`
 	// ProjectID 是待删除的项目唯一标识。
 	ProjectID string `json:"ProjectID"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewDeleteProjectRequest() *DeleteProjectRequest {
@@ -1471,21 +1337,8 @@ func (p *DeleteProjectRequest) GetProjectID() (v string) {
 	return p.ProjectID
 }
 
-var DeleteProjectRequest_Top_DEFAULT *base.TopParam
-
-func (p *DeleteProjectRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return DeleteProjectRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *DeleteProjectRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *DeleteProjectRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *DeleteProjectRequest) String() string {
@@ -1748,16 +1601,16 @@ func (p *ProjectModelRatio) String() string {
 }
 
 type ProjectModelVideoProperty struct {
-	Duration       *ProjectModelDuration              `json:"Duration,omitempty"`
-	Ratio          *ProjectModelRatio                 `json:"Ratio,omitempty"`
-	Resolutions    []string                           `json:"Resolutions,omitempty"`
-	CameraFixed    *aigw_model_types.CommonSwitch     `json:"CameraFixed,omitempty"`
-	Features       []*aigw_model_types.VisionFeature  `json:"Features,omitempty"`
-	GenerateAudio  *aigw_model_types.CommonSwitch     `json:"GenerateAudio,omitempty"`
-	NegativePrompt *aigw_model_types.CommonSwitch     `json:"NegativePrompt,omitempty"`
-	Watermark      *aigw_model_types.CommonBoolSwitch `json:"Watermark,omitempty"`
-	Reference      *aigw_model_types.ReferenceConfig  `json:"Reference,omitempty"`
-	Tools          *aigw_model_types.ToolConfig       `json:"Tools,omitempty"`
+	Duration       *ProjectModelDuration        `json:"Duration,omitempty"`
+	Ratio          *ProjectModelRatio           `json:"Ratio,omitempty"`
+	Resolutions    []string                     `json:"Resolutions,omitempty"`
+	CameraFixed    *modeltypes.CommonSwitch     `json:"CameraFixed,omitempty"`
+	Features       []*modeltypes.VisionFeature  `json:"Features,omitempty"`
+	GenerateAudio  *modeltypes.CommonSwitch     `json:"GenerateAudio,omitempty"`
+	NegativePrompt *modeltypes.CommonSwitch     `json:"NegativePrompt,omitempty"`
+	Watermark      *modeltypes.CommonBoolSwitch `json:"Watermark,omitempty"`
+	Reference      *modeltypes.ReferenceConfig  `json:"Reference,omitempty"`
+	Tools          *modeltypes.ToolConfig       `json:"Tools,omitempty"`
 }
 
 func NewProjectModelVideoProperty() *ProjectModelVideoProperty {
@@ -1794,63 +1647,63 @@ func (p *ProjectModelVideoProperty) GetResolutions() (v []string) {
 	return p.Resolutions
 }
 
-var ProjectModelVideoProperty_CameraFixed_DEFAULT *aigw_model_types.CommonSwitch
+var ProjectModelVideoProperty_CameraFixed_DEFAULT *modeltypes.CommonSwitch
 
-func (p *ProjectModelVideoProperty) GetCameraFixed() (v *aigw_model_types.CommonSwitch) {
+func (p *ProjectModelVideoProperty) GetCameraFixed() (v *modeltypes.CommonSwitch) {
 	if !p.IsSetCameraFixed() {
 		return ProjectModelVideoProperty_CameraFixed_DEFAULT
 	}
 	return p.CameraFixed
 }
 
-var ProjectModelVideoProperty_Features_DEFAULT []*aigw_model_types.VisionFeature
+var ProjectModelVideoProperty_Features_DEFAULT []*modeltypes.VisionFeature
 
-func (p *ProjectModelVideoProperty) GetFeatures() (v []*aigw_model_types.VisionFeature) {
+func (p *ProjectModelVideoProperty) GetFeatures() (v []*modeltypes.VisionFeature) {
 	if !p.IsSetFeatures() {
 		return ProjectModelVideoProperty_Features_DEFAULT
 	}
 	return p.Features
 }
 
-var ProjectModelVideoProperty_GenerateAudio_DEFAULT *aigw_model_types.CommonSwitch
+var ProjectModelVideoProperty_GenerateAudio_DEFAULT *modeltypes.CommonSwitch
 
-func (p *ProjectModelVideoProperty) GetGenerateAudio() (v *aigw_model_types.CommonSwitch) {
+func (p *ProjectModelVideoProperty) GetGenerateAudio() (v *modeltypes.CommonSwitch) {
 	if !p.IsSetGenerateAudio() {
 		return ProjectModelVideoProperty_GenerateAudio_DEFAULT
 	}
 	return p.GenerateAudio
 }
 
-var ProjectModelVideoProperty_NegativePrompt_DEFAULT *aigw_model_types.CommonSwitch
+var ProjectModelVideoProperty_NegativePrompt_DEFAULT *modeltypes.CommonSwitch
 
-func (p *ProjectModelVideoProperty) GetNegativePrompt() (v *aigw_model_types.CommonSwitch) {
+func (p *ProjectModelVideoProperty) GetNegativePrompt() (v *modeltypes.CommonSwitch) {
 	if !p.IsSetNegativePrompt() {
 		return ProjectModelVideoProperty_NegativePrompt_DEFAULT
 	}
 	return p.NegativePrompt
 }
 
-var ProjectModelVideoProperty_Watermark_DEFAULT *aigw_model_types.CommonBoolSwitch
+var ProjectModelVideoProperty_Watermark_DEFAULT *modeltypes.CommonBoolSwitch
 
-func (p *ProjectModelVideoProperty) GetWatermark() (v *aigw_model_types.CommonBoolSwitch) {
+func (p *ProjectModelVideoProperty) GetWatermark() (v *modeltypes.CommonBoolSwitch) {
 	if !p.IsSetWatermark() {
 		return ProjectModelVideoProperty_Watermark_DEFAULT
 	}
 	return p.Watermark
 }
 
-var ProjectModelVideoProperty_Reference_DEFAULT *aigw_model_types.ReferenceConfig
+var ProjectModelVideoProperty_Reference_DEFAULT *modeltypes.ReferenceConfig
 
-func (p *ProjectModelVideoProperty) GetReference() (v *aigw_model_types.ReferenceConfig) {
+func (p *ProjectModelVideoProperty) GetReference() (v *modeltypes.ReferenceConfig) {
 	if !p.IsSetReference() {
 		return ProjectModelVideoProperty_Reference_DEFAULT
 	}
 	return p.Reference
 }
 
-var ProjectModelVideoProperty_Tools_DEFAULT *aigw_model_types.ToolConfig
+var ProjectModelVideoProperty_Tools_DEFAULT *modeltypes.ToolConfig
 
-func (p *ProjectModelVideoProperty) GetTools() (v *aigw_model_types.ToolConfig) {
+func (p *ProjectModelVideoProperty) GetTools() (v *modeltypes.ToolConfig) {
 	if !p.IsSetTools() {
 		return ProjectModelVideoProperty_Tools_DEFAULT
 	}
@@ -1905,10 +1758,10 @@ func (p *ProjectModelVideoProperty) String() string {
 }
 
 type ProjectModelVisionProperty struct {
-	Video         *ProjectModelVideoProperty    `json:"Video,omitempty"`
-	GuidanceScale *aigw_model_types.DoubleRange `json:"GuidanceScale,omitempty"`
-	Seed          *aigw_model_types.IntRange    `json:"Seed,omitempty"`
-	Image         *aigw_model_types.ImageConfig `json:"Image,omitempty"`
+	Video         *ProjectModelVideoProperty `json:"Video,omitempty"`
+	GuidanceScale *modeltypes.DoubleRange    `json:"GuidanceScale,omitempty"`
+	Seed          *modeltypes.IntRange       `json:"Seed,omitempty"`
+	Image         *modeltypes.ImageConfig    `json:"Image,omitempty"`
 }
 
 func NewProjectModelVisionProperty() *ProjectModelVisionProperty {
@@ -1927,27 +1780,27 @@ func (p *ProjectModelVisionProperty) GetVideo() (v *ProjectModelVideoProperty) {
 	return p.Video
 }
 
-var ProjectModelVisionProperty_GuidanceScale_DEFAULT *aigw_model_types.DoubleRange
+var ProjectModelVisionProperty_GuidanceScale_DEFAULT *modeltypes.DoubleRange
 
-func (p *ProjectModelVisionProperty) GetGuidanceScale() (v *aigw_model_types.DoubleRange) {
+func (p *ProjectModelVisionProperty) GetGuidanceScale() (v *modeltypes.DoubleRange) {
 	if !p.IsSetGuidanceScale() {
 		return ProjectModelVisionProperty_GuidanceScale_DEFAULT
 	}
 	return p.GuidanceScale
 }
 
-var ProjectModelVisionProperty_Seed_DEFAULT *aigw_model_types.IntRange
+var ProjectModelVisionProperty_Seed_DEFAULT *modeltypes.IntRange
 
-func (p *ProjectModelVisionProperty) GetSeed() (v *aigw_model_types.IntRange) {
+func (p *ProjectModelVisionProperty) GetSeed() (v *modeltypes.IntRange) {
 	if !p.IsSetSeed() {
 		return ProjectModelVisionProperty_Seed_DEFAULT
 	}
 	return p.Seed
 }
 
-var ProjectModelVisionProperty_Image_DEFAULT *aigw_model_types.ImageConfig
+var ProjectModelVisionProperty_Image_DEFAULT *modeltypes.ImageConfig
 
-func (p *ProjectModelVisionProperty) GetImage() (v *aigw_model_types.ImageConfig) {
+func (p *ProjectModelVisionProperty) GetImage() (v *modeltypes.ImageConfig) {
 	if !p.IsSetImage() {
 		return ProjectModelVisionProperty_Image_DEFAULT
 	}
@@ -1978,11 +1831,11 @@ func (p *ProjectModelVisionProperty) String() string {
 }
 
 type ProjectModelProperty struct {
-	Vision    *ProjectModelVisionProperty         `json:"Vision,omitempty"`
-	Common    *aigw_model_types.CommonModelConfig `json:"Common,omitempty"`
-	LLM       *aigw_model_types.LLMConfig         `json:"LLM,omitempty"`
-	Embedding *aigw_model_types.EmbeddingConfig   `json:"Embedding,omitempty"`
-	Audio     *aigw_model_types.AudioConfig       `json:"Audio,omitempty"`
+	Vision    *ProjectModelVisionProperty   `json:"Vision,omitempty"`
+	Common    *modeltypes.CommonModelConfig `json:"Common,omitempty"`
+	LLM       *modeltypes.LLMConfig         `json:"LLM,omitempty"`
+	Embedding *modeltypes.EmbeddingConfig   `json:"Embedding,omitempty"`
+	Audio     *modeltypes.AudioConfig       `json:"Audio,omitempty"`
 }
 
 func NewProjectModelProperty() *ProjectModelProperty {
@@ -2001,36 +1854,36 @@ func (p *ProjectModelProperty) GetVision() (v *ProjectModelVisionProperty) {
 	return p.Vision
 }
 
-var ProjectModelProperty_Common_DEFAULT *aigw_model_types.CommonModelConfig
+var ProjectModelProperty_Common_DEFAULT *modeltypes.CommonModelConfig
 
-func (p *ProjectModelProperty) GetCommon() (v *aigw_model_types.CommonModelConfig) {
+func (p *ProjectModelProperty) GetCommon() (v *modeltypes.CommonModelConfig) {
 	if !p.IsSetCommon() {
 		return ProjectModelProperty_Common_DEFAULT
 	}
 	return p.Common
 }
 
-var ProjectModelProperty_LLM_DEFAULT *aigw_model_types.LLMConfig
+var ProjectModelProperty_LLM_DEFAULT *modeltypes.LLMConfig
 
-func (p *ProjectModelProperty) GetLLM() (v *aigw_model_types.LLMConfig) {
+func (p *ProjectModelProperty) GetLLM() (v *modeltypes.LLMConfig) {
 	if !p.IsSetLLM() {
 		return ProjectModelProperty_LLM_DEFAULT
 	}
 	return p.LLM
 }
 
-var ProjectModelProperty_Embedding_DEFAULT *aigw_model_types.EmbeddingConfig
+var ProjectModelProperty_Embedding_DEFAULT *modeltypes.EmbeddingConfig
 
-func (p *ProjectModelProperty) GetEmbedding() (v *aigw_model_types.EmbeddingConfig) {
+func (p *ProjectModelProperty) GetEmbedding() (v *modeltypes.EmbeddingConfig) {
 	if !p.IsSetEmbedding() {
 		return ProjectModelProperty_Embedding_DEFAULT
 	}
 	return p.Embedding
 }
 
-var ProjectModelProperty_Audio_DEFAULT *aigw_model_types.AudioConfig
+var ProjectModelProperty_Audio_DEFAULT *modeltypes.AudioConfig
 
-func (p *ProjectModelProperty) GetAudio() (v *aigw_model_types.AudioConfig) {
+func (p *ProjectModelProperty) GetAudio() (v *modeltypes.AudioConfig) {
 	if !p.IsSetAudio() {
 		return ProjectModelProperty_Audio_DEFAULT
 	}
@@ -2064,57 +1917,57 @@ func (p *ProjectModelProperty) String() string {
 	return fmt.Sprintf("ProjectModelProperty(%+v)", *p)
 }
 
-// ProjectModelInfo 保留原字段 1-9 的 wire layout，并扩展 AIGW 的其余非敏感模型字段。
+// ProjectModelInfo 保留原字段 1-9 的 wire layout，并扩展 provider 的其余非敏感模型字段。
 type ProjectModelInfo struct {
-	ID                    string                                         `json:"ID"`
-	Name                  string                                         `json:"Name"`
-	Type                  string                                         `json:"Type"`
-	FeaturesConfig        []string                                       `json:"FeaturesConfig,omitempty"`
-	Status                *string                                        `json:"Status,omitempty"`
-	IsPublic              bool                                           `json:"IsPublic"`
-	IsDefault             bool                                           `json:"IsDefault"`
-	Granted               bool                                           `json:"Granted"`
-	Property              *ProjectModelProperty                          `json:"Property,omitempty"`
-	Description           *string                                        `json:"Description,omitempty"`
-	PublishSourceType     *string                                        `json:"PublishSourceType"`
-	CreateUserName        *string                                        `json:"CreateUserName"`
-	CreateTime            *string                                        `json:"CreateTime"`
-	Version               *string                                        `json:"Version,omitempty"`
-	Source                *string                                        `json:"Source"`
-	DeleteAt              *string                                        `json:"DeleteAt"`
-	TenantId              *string                                        `json:"TenantId"`
-	DistributeType        *string                                        `json:"DistributeType,omitempty"`
-	FromID                *string                                        `json:"FromID,omitempty"`
-	UpdateUserName        *string                                        `json:"UpdateUserName,omitempty"`
-	UpdateTime            *string                                        `json:"UpdateTime,omitempty"`
-	IsPublished           *bool                                          `json:"IsPublished,omitempty"`
-	PublishTime           *string                                        `json:"PublishTime,omitempty"`
-	PublishUserName       *string                                        `json:"PublishUserName,omitempty"`
-	Icon                  *string                                        `json:"Icon,omitempty"`
-	WorkspaceName         *string                                        `json:"WorkspaceName,omitempty"`
-	CustomMarker          *aigw_model_types.MarkerDetails                `json:"CustomMarker,omitempty"`
-	ServiceIntroduction   *string                                        `json:"ServiceIntroduction,omitempty"`
-	BusinessLabels        []*aigw_model_types.LabelInfo                  `json:"BusinessLabels,omitempty"`
-	IsCustomMarkerEnabled *bool                                          `json:"IsCustomMarkerEnabled,omitempty"`
-	IsPreset              *bool                                          `json:"IsPreset,omitempty"`
-	IsBilling             *bool                                          `json:"IsBilling,omitempty"`
-	IsDefaultLTM          *bool                                          `json:"IsDefaultLTM,omitempty"`
-	DefaultType           *string                                        `json:"DefaultType,omitempty"`
-	DefaultTypes          []string                                       `json:"DefaultTypes,omitempty"`
-	CustomParameters      *string                                        `json:"CustomParameters,omitempty"`
-	PriceConfig           *aigw_model_types.PriceConfig                  `json:"PriceConfig,omitempty"`
-	PromptConfig          *aigw_model_types.PromptConfig                 `json:"PromptConfig,omitempty"`
-	StrategiesConfig      []string                                       `json:"StrategiesConfig"`
-	PolicyConfig          *aigw_model_types.PolicyConfig                 `json:"PolicyConfig,omitempty"`
-	Parameter             *aigw_model_types.ModelParameter               `json:"Parameter,omitempty"`
-	CredentialSchema      *aigw_model_types.ModelCredentialSchema        `json:"CredentialSchema,omitempty"`
-	ProductCode           *string                                        `json:"ProductCode,omitempty"`
-	WorkspaceID           *string                                        `json:"WorkspaceID,omitempty"`
-	Provider              *string                                        `json:"Provider"`
-	Spec                  *string                                        `json:"Spec,omitempty"`
-	ModelName             *string                                        `json:"ModelName"`
-	DLVersion             *string                                        `json:"DLVersion,omitempty"`
-	DeployConfig          *aigw_model_types.MaaSModelServiceDeployConfig `json:"DeployConfig,omitempty"`
+	ID                    string                                   `json:"ID"`
+	Name                  string                                   `json:"Name"`
+	Type                  string                                   `json:"Type"`
+	FeaturesConfig        []string                                 `json:"FeaturesConfig,omitempty"`
+	Status                *string                                  `json:"Status,omitempty"`
+	IsPublic              bool                                     `json:"IsPublic"`
+	IsDefault             bool                                     `json:"IsDefault"`
+	Granted               bool                                     `json:"Granted"`
+	Property              *ProjectModelProperty                    `json:"Property,omitempty"`
+	Description           *string                                  `json:"Description,omitempty"`
+	PublishSourceType     *string                                  `json:"PublishSourceType"`
+	CreateUserName        *string                                  `json:"CreateUserName"`
+	CreateTime            *string                                  `json:"CreateTime"`
+	Version               *string                                  `json:"Version,omitempty"`
+	Source                *string                                  `json:"Source"`
+	DeleteAt              *string                                  `json:"DeleteAt"`
+	TenantId              *string                                  `json:"TenantId"`
+	DistributeType        *string                                  `json:"DistributeType,omitempty"`
+	FromID                *string                                  `json:"FromID,omitempty"`
+	UpdateUserName        *string                                  `json:"UpdateUserName,omitempty"`
+	UpdateTime            *string                                  `json:"UpdateTime,omitempty"`
+	IsPublished           *bool                                    `json:"IsPublished,omitempty"`
+	PublishTime           *string                                  `json:"PublishTime,omitempty"`
+	PublishUserName       *string                                  `json:"PublishUserName,omitempty"`
+	Icon                  *string                                  `json:"Icon,omitempty"`
+	WorkspaceName         *string                                  `json:"WorkspaceName,omitempty"`
+	CustomMarker          *modeltypes.MarkerDetails                `json:"CustomMarker,omitempty"`
+	ServiceIntroduction   *string                                  `json:"ServiceIntroduction,omitempty"`
+	BusinessLabels        []*modeltypes.LabelInfo                  `json:"BusinessLabels,omitempty"`
+	IsCustomMarkerEnabled *bool                                    `json:"IsCustomMarkerEnabled,omitempty"`
+	IsPreset              *bool                                    `json:"IsPreset,omitempty"`
+	IsBilling             *bool                                    `json:"IsBilling,omitempty"`
+	IsDefaultLTM          *bool                                    `json:"IsDefaultLTM,omitempty"`
+	DefaultType           *string                                  `json:"DefaultType,omitempty"`
+	DefaultTypes          []string                                 `json:"DefaultTypes,omitempty"`
+	CustomParameters      *string                                  `json:"CustomParameters,omitempty"`
+	PriceConfig           *modeltypes.PriceConfig                  `json:"PriceConfig,omitempty"`
+	PromptConfig          *modeltypes.PromptConfig                 `json:"PromptConfig,omitempty"`
+	StrategiesConfig      []string                                 `json:"StrategiesConfig"`
+	PolicyConfig          *modeltypes.PolicyConfig                 `json:"PolicyConfig,omitempty"`
+	Parameter             *modeltypes.ModelParameter               `json:"Parameter,omitempty"`
+	CredentialSchema      *modeltypes.ModelCredentialSchema        `json:"CredentialSchema,omitempty"`
+	ProductCode           *string                                  `json:"ProductCode,omitempty"`
+	WorkspaceID           *string                                  `json:"WorkspaceID,omitempty"`
+	Provider              *string                                  `json:"Provider"`
+	Spec                  *string                                  `json:"Spec,omitempty"`
+	ModelName             *string                                  `json:"ModelName"`
+	DLVersion             *string                                  `json:"DLVersion,omitempty"`
+	DeployConfig          *modeltypes.MaaSModelServiceDeployConfig `json:"DeployConfig,omitempty"`
 }
 
 func NewProjectModelInfo() *ProjectModelInfo {
@@ -2328,9 +2181,9 @@ func (p *ProjectModelInfo) GetWorkspaceName() (v string) {
 	return *p.WorkspaceName
 }
 
-var ProjectModelInfo_CustomMarker_DEFAULT *aigw_model_types.MarkerDetails
+var ProjectModelInfo_CustomMarker_DEFAULT *modeltypes.MarkerDetails
 
-func (p *ProjectModelInfo) GetCustomMarker() (v *aigw_model_types.MarkerDetails) {
+func (p *ProjectModelInfo) GetCustomMarker() (v *modeltypes.MarkerDetails) {
 	if !p.IsSetCustomMarker() {
 		return ProjectModelInfo_CustomMarker_DEFAULT
 	}
@@ -2346,9 +2199,9 @@ func (p *ProjectModelInfo) GetServiceIntroduction() (v string) {
 	return *p.ServiceIntroduction
 }
 
-var ProjectModelInfo_BusinessLabels_DEFAULT []*aigw_model_types.LabelInfo
+var ProjectModelInfo_BusinessLabels_DEFAULT []*modeltypes.LabelInfo
 
-func (p *ProjectModelInfo) GetBusinessLabels() (v []*aigw_model_types.LabelInfo) {
+func (p *ProjectModelInfo) GetBusinessLabels() (v []*modeltypes.LabelInfo) {
 	if !p.IsSetBusinessLabels() {
 		return ProjectModelInfo_BusinessLabels_DEFAULT
 	}
@@ -2418,18 +2271,18 @@ func (p *ProjectModelInfo) GetCustomParameters() (v string) {
 	return *p.CustomParameters
 }
 
-var ProjectModelInfo_PriceConfig_DEFAULT *aigw_model_types.PriceConfig
+var ProjectModelInfo_PriceConfig_DEFAULT *modeltypes.PriceConfig
 
-func (p *ProjectModelInfo) GetPriceConfig() (v *aigw_model_types.PriceConfig) {
+func (p *ProjectModelInfo) GetPriceConfig() (v *modeltypes.PriceConfig) {
 	if !p.IsSetPriceConfig() {
 		return ProjectModelInfo_PriceConfig_DEFAULT
 	}
 	return p.PriceConfig
 }
 
-var ProjectModelInfo_PromptConfig_DEFAULT *aigw_model_types.PromptConfig
+var ProjectModelInfo_PromptConfig_DEFAULT *modeltypes.PromptConfig
 
-func (p *ProjectModelInfo) GetPromptConfig() (v *aigw_model_types.PromptConfig) {
+func (p *ProjectModelInfo) GetPromptConfig() (v *modeltypes.PromptConfig) {
 	if !p.IsSetPromptConfig() {
 		return ProjectModelInfo_PromptConfig_DEFAULT
 	}
@@ -2445,27 +2298,27 @@ func (p *ProjectModelInfo) GetStrategiesConfig() (v []string) {
 	return p.StrategiesConfig
 }
 
-var ProjectModelInfo_PolicyConfig_DEFAULT *aigw_model_types.PolicyConfig
+var ProjectModelInfo_PolicyConfig_DEFAULT *modeltypes.PolicyConfig
 
-func (p *ProjectModelInfo) GetPolicyConfig() (v *aigw_model_types.PolicyConfig) {
+func (p *ProjectModelInfo) GetPolicyConfig() (v *modeltypes.PolicyConfig) {
 	if !p.IsSetPolicyConfig() {
 		return ProjectModelInfo_PolicyConfig_DEFAULT
 	}
 	return p.PolicyConfig
 }
 
-var ProjectModelInfo_Parameter_DEFAULT *aigw_model_types.ModelParameter
+var ProjectModelInfo_Parameter_DEFAULT *modeltypes.ModelParameter
 
-func (p *ProjectModelInfo) GetParameter() (v *aigw_model_types.ModelParameter) {
+func (p *ProjectModelInfo) GetParameter() (v *modeltypes.ModelParameter) {
 	if !p.IsSetParameter() {
 		return ProjectModelInfo_Parameter_DEFAULT
 	}
 	return p.Parameter
 }
 
-var ProjectModelInfo_CredentialSchema_DEFAULT *aigw_model_types.ModelCredentialSchema
+var ProjectModelInfo_CredentialSchema_DEFAULT *modeltypes.ModelCredentialSchema
 
-func (p *ProjectModelInfo) GetCredentialSchema() (v *aigw_model_types.ModelCredentialSchema) {
+func (p *ProjectModelInfo) GetCredentialSchema() (v *modeltypes.ModelCredentialSchema) {
 	if !p.IsSetCredentialSchema() {
 		return ProjectModelInfo_CredentialSchema_DEFAULT
 	}
@@ -2526,9 +2379,9 @@ func (p *ProjectModelInfo) GetDLVersion() (v string) {
 	return *p.DLVersion
 }
 
-var ProjectModelInfo_DeployConfig_DEFAULT *aigw_model_types.MaaSModelServiceDeployConfig
+var ProjectModelInfo_DeployConfig_DEFAULT *modeltypes.MaaSModelServiceDeployConfig
 
-func (p *ProjectModelInfo) GetDeployConfig() (v *aigw_model_types.MaaSModelServiceDeployConfig) {
+func (p *ProjectModelInfo) GetDeployConfig() (v *modeltypes.MaaSModelServiceDeployConfig) {
 	if !p.IsSetDeployConfig() {
 		return ProjectModelInfo_DeployConfig_DEFAULT
 	}
@@ -2719,7 +2572,6 @@ type ListProjectModelsRequest struct {
 	ProjectID   string                  `json:"ProjectID"`
 	ListOpt     *ProjectModelListOption `json:"ListOpt,omitempty"`
 	Filter      *ProjectModelFilter     `json:"Filter,omitempty"`
-	Top         *base.TopParam          `json:"Top,omitempty"`
 }
 
 func NewListProjectModelsRequest() *ListProjectModelsRequest {
@@ -2760,15 +2612,6 @@ func (p *ListProjectModelsRequest) GetFilter() (v *ProjectModelFilter) {
 	return p.Filter
 }
 
-var ListProjectModelsRequest_Top_DEFAULT *base.TopParam
-
-func (p *ListProjectModelsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return ListProjectModelsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *ListProjectModelsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -2779,10 +2622,6 @@ func (p *ListProjectModelsRequest) IsSetListOpt() bool {
 
 func (p *ListProjectModelsRequest) IsSetFilter() bool {
 	return p.Filter != nil
-}
-
-func (p *ListProjectModelsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *ListProjectModelsRequest) String() string {

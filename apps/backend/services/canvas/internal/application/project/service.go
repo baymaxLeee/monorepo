@@ -161,9 +161,9 @@ type ListModelsInput struct {
 	IsGranted  *bool
 }
 
-// ProjectModel is the sanitized JSON representation of an AIGW ModelInfo.
+// ProjectModel is the sanitized JSON representation of a provider model.
 // Keeping it opaque prevents this application boundary from silently dropping
-// fields whenever AIGW extends its model catalog contract.
+// fields whenever provider extends its model catalog contract.
 type ProjectModel = json.RawMessage
 
 type ProjectModelList struct {

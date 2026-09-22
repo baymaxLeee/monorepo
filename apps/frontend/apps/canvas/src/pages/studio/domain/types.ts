@@ -37,7 +37,7 @@ export interface StoryboardAsset {
   syncStatus?: AssetSyncStatus;
   /** 失败重试用的本地文件。 */
   pendingFile?: File;
-  /** 已直传 UP、尚未绑定分镜的临时文件。关页不保存时不会落绑定。 */
+  /** 已直传 artifact storage、尚未绑定分镜的临时文件。关页不保存时不会落绑定。 */
   blobId?: string;
   /**
    * 本地 draft id。后台切到 AssetID 后短暂保留，供 mention 双键查找。
@@ -104,7 +104,7 @@ export interface Shot {
   /** 最近一次生成尝试的失败原因，不覆盖当前已选中的历史结果。 */
   generationErrorCode?: string;
   generationErrorMessage?: string;
-  /** AgentFrame 内部失败使用 TaskRunID 作为跨请求、轮询与日志的追踪标识。 */
+  /** Canvas 内部失败使用 TaskRunID 作为跨请求、轮询与日志的追踪标识。 */
   generationRequestId?: string;
   /** 仅 Seedance 返回失败终态时存在。 */
   generationSeedanceTaskId?: string;

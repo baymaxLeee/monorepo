@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -19,23 +20,24 @@ import (
 	applicationvideogeneration "github.com/example/monorepo/canvas/internal/application/videogeneration"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
-	"github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
+	artifactnamespace "github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
 )
 
 const (
-	defaultContentType = "application/octet-stream"
-	stagingNamespace   = "agentframe:blob-staging"
+	defaultContentType              = "application/octet-stream"
+	stagingNamespace                = "canvas:blob-staging"
+	maxInlineProviderReferenceBytes = 10 * 1024 * 1024
 )
 
-// Service is the artifact port used by the copied AgentFrame application
-// layer. Knowledge replaces UP only behind this boundary.
+// Service is the application artifact boundary implemented by Knowledge.
 type Service interface {
 	applicationasset.ArtifactStore
 	applicationvideogeneration.ReferenceResolver
 	applicationimagegeneration.ReferenceResolver
 	applicationvideogeneration.CanvasNodeVideoResultStore
 	applicationimagegeneration.ImageResultStore
-	ReferenceURL(context.Context, string, string, domainasset.Asset) (string, error)
+	PublicReferenceURL(context.Context, string, string, domainasset.Asset) (string, error)
+	ProviderReference(context.Context, string, string, domainasset.Asset) (string, error)
 	UploadBlob(context.Context, string, string, io.Reader) (string, int64, error)
 	applicationprojectusage.TemporaryFileStore
 }
@@ -179,16 +181,37 @@ func (s *Store) BatchPresignArtifacts(ctx context.Context, _, _ string, namespac
 	return result, nil
 }
 
-func (s *Store) ReferenceURL(ctx context.Context, tenantID, callerID string, asset domainasset.Asset) (string, error) {
-	return s.referenceURL(ctx, tenantID, callerID, asset)
-}
-
 func (s *Store) PublicReferenceURL(ctx context.Context, tenantID, callerID string, asset domainasset.Asset) (string, error) {
 	return s.referenceURL(ctx, tenantID, callerID, asset)
 }
 
-func (s *Store) PlatformReferenceURL(ctx context.Context, tenantID, callerID string, asset domainasset.Asset) (string, error) {
-	return s.referenceURL(ctx, tenantID, callerID, asset)
+// ProviderReference keeps reviewed asset:// references in the application
+// layer. For ordinary image assets it avoids asking a remote custom provider
+// to fetch a URL hosted by a developer's localhost gateway.
+func (s *Store) ProviderReference(ctx context.Context, tenantID, callerID string, asset domainasset.Asset) (string, error) {
+	if asset.MediaType != domainasset.MediaImage {
+		return s.referenceURL(ctx, tenantID, callerID, asset)
+	}
+	if asset.SizeBytes <= 0 || asset.SizeBytes > maxInlineProviderReferenceBytes {
+		return "", errors.New("provider reference image exceeds the 10 MiB inline limit")
+	}
+	contentType := strings.ToLower(strings.TrimSpace(strings.Split(asset.ContentType, ";")[0]))
+	if !strings.HasPrefix(contentType, "image/") {
+		return "", errors.New("provider reference image has an invalid content type")
+	}
+	reader, err := s.client.Get(ctx, KnowledgeNamespace(asset.ArtifactNamespace), asset.ArtifactID)
+	if err != nil {
+		return "", fmt.Errorf("read provider reference image: %w", err)
+	}
+	defer reader.Close()
+	payload, err := io.ReadAll(io.LimitReader(reader, maxInlineProviderReferenceBytes+1))
+	if err != nil {
+		return "", fmt.Errorf("read provider reference image: %w", err)
+	}
+	if len(payload) == 0 || len(payload) > maxInlineProviderReferenceBytes || int64(len(payload)) != asset.SizeBytes {
+		return "", errors.New("provider reference image size does not match its asset metadata")
+	}
+	return "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(payload), nil
 }
 
 func (s *Store) referenceURL(ctx context.Context, _, _ string, asset domainasset.Asset) (string, error) {

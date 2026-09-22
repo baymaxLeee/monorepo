@@ -154,7 +154,7 @@ func (handler *AsyncExecutionHandler) validateCommand(
 }
 
 func requireAsyncServiceIdentity(ctx context.Context) error {
-	identityType, ok := topcontext.IdentityTypeFromContext(ctx)
+	identityType, ok := requestcontext.IdentityTypeFromContext(ctx)
 	if !ok || identityType != asynccontract.ServiceIdentityType {
 		return errno.New(errno.ErrForbidden)
 	}

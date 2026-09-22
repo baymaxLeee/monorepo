@@ -24,8 +24,7 @@ func (h *AssetHandler) ListAvailableBenefitPackages(ctx context.Context, request
 	if err := requireAction(ctx, "ListAvailableBenefitPackages"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
-	metadata, _ := topcontext.MetadataFromContext(ctx)
+	metadata, _ := requestcontext.MetadataFromContext(ctx)
 	workspace := metadata.WorkspaceID
 	items, err := h.reviews.ListPackages(ctx, applicationpackage.ReviewScope{TenantID: metadata.TenantID, WorkspaceID: &workspace, CallerID: metadata.UserID})
 	if err != nil {
@@ -46,8 +45,7 @@ func (h *AssetHandler) BatchGetAssetReviews(ctx context.Context, request *thrift
 	if err := requireAction(ctx, "BatchGetAssetReviews"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
-	metadata, _ := topcontext.MetadataFromContext(ctx)
+	metadata, _ := requestcontext.MetadataFromContext(ctx)
 	items, err := h.reviews.BatchGetReviews(ctx, applicationpackage.BatchGetReviewsInput{
 		ReviewScope: applicationpackage.ReviewScope{TenantID: metadata.TenantID, WorkspaceID: nullableWorkspaceID(request.WorkspaceID), CallerID: metadata.UserID},
 		ProjectID:   request.ProjectID, AssetIDs: request.AssetIDs,
@@ -66,8 +64,7 @@ func (h *AssetHandler) SubmitAssetReview(ctx context.Context, request *thriftass
 	if err := requireAction(ctx, "SubmitAssetReview"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
-	metadata, _ := topcontext.MetadataFromContext(ctx)
+	metadata, _ := requestcontext.MetadataFromContext(ctx)
 	var upload *applicationpackage.ReviewAssetUpload
 	if request.Upload != nil {
 		upload = &applicationpackage.ReviewAssetUpload{
@@ -88,8 +85,7 @@ func (h *AssetHandler) BatchSubmitAssetReviews(ctx context.Context, request *thr
 	if err := requireAction(ctx, "BatchSubmitAssetReviews"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
-	metadata, _ := topcontext.MetadataFromContext(ctx)
+	metadata, _ := requestcontext.MetadataFromContext(ctx)
 	items := make([]applicationpackage.SubmitReviewItem, 0, len(request.Items))
 	for _, item := range request.Items {
 		if item == nil {

@@ -10,7 +10,7 @@ import (
 
 	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
-	"github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
+	artifactnamespace "github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
 )
 
@@ -696,8 +696,8 @@ func (s *Service) CompensateCreatedMany(ctx context.Context, items []domainasset
 	return result
 }
 
-// CreateMany registers all temporary UP blobs concurrently. Results remain
-// aligned with input order and deliberately allow partial success because UP
+// CreateMany registers all temporary artifact storage blobs concurrently. Results remain
+// aligned with input order and deliberately allow partial success because artifact storage
 // and database writes cannot form one transaction.
 func (s *Service) CreateMany(ctx context.Context, input CreateManyInput) ([]CreateManyResult, error) {
 	scope := normalizeScope(input.Scope)

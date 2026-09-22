@@ -58,7 +58,7 @@ export interface BatchGetCanvasNodeStatesRequest {
 
 export interface BatchGetCanvasNodeStatesResponse {
   Items: Array<CanvasNodeState>;
-  /** Canvas 适配层用于同步图级乐观锁；AgentFrame 原服务使用节点级 Revision。 */
+  /** Canvas 适配层用于同步图级乐观锁；Canvas 原服务使用节点级 Revision。 */
   CanvasRevision?: number;
 }
 

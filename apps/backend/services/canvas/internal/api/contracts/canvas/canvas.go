@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"github.com/example/monorepo/canvas/internal/api/contracts/base"
+
 	"github.com/example/monorepo/canvas/internal/api/contracts/common"
 )
 
@@ -226,7 +226,7 @@ type ProjectCanvasSummary struct {
 	ProjectID string `json:"ProjectID"`
 	// Name 是剧集名称，在所属项目内唯一。
 	Name string `json:"Name"`
-	// CoverImagePath 是已通过 Up 长期化的封面图片 path。
+	// CoverImagePath 是已通过 artifact storage 长期化的封面图片 path。
 	CoverImagePath *string `json:"CoverImagePath,omitempty"`
 	// CoverImageURL 是用于浏览器直接展示的短期签名 URL，不得持久化或回传为更新输入。
 	CoverImageURL *string `json:"CoverImageURL,omitempty"`
@@ -435,8 +435,6 @@ type ListProjectCanvasesRequest struct {
 	Page *common.Page `json:"Page"`
 	// Filter 是项目剧集列表的过滤条件。
 	Filter *ProjectCanvasFilter `json:"Filter,omitempty"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewListProjectCanvasesRequest() *ListProjectCanvasesRequest {
@@ -486,15 +484,6 @@ func (p *ListProjectCanvasesRequest) GetFilter() (v *ProjectCanvasFilter) {
 	return p.Filter
 }
 
-var ListProjectCanvasesRequest_Top_DEFAULT *base.TopParam
-
-func (p *ListProjectCanvasesRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return ListProjectCanvasesRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *ListProjectCanvasesRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -509,10 +498,6 @@ func (p *ListProjectCanvasesRequest) IsSetPage() bool {
 
 func (p *ListProjectCanvasesRequest) IsSetFilter() bool {
 	return p.Filter != nil
-}
-
-func (p *ListProjectCanvasesRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *ListProjectCanvasesRequest) String() string {
@@ -569,8 +554,6 @@ type GetProjectCanvasRequest struct {
 	ProjectID string `json:"ProjectID"`
 	// CanvasID 是待查询的剧集唯一标识。
 	CanvasID string `json:"CanvasID"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewGetProjectCanvasRequest() *GetProjectCanvasRequest {
@@ -597,21 +580,8 @@ func (p *GetProjectCanvasRequest) GetCanvasID() (v string) {
 	return p.CanvasID
 }
 
-var GetProjectCanvasRequest_Top_DEFAULT *base.TopParam
-
-func (p *GetProjectCanvasRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return GetProjectCanvasRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *GetProjectCanvasRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *GetProjectCanvasRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *GetProjectCanvasRequest) String() string {
@@ -662,8 +632,6 @@ type BatchGetProjectCanvasesRequest struct {
 	ProjectID string `json:"ProjectID"`
 	// CanvasIDs 最多包含 100 个剧集 ID。
 	CanvasIDs []string `json:"CanvasIDs"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewBatchGetProjectCanvasesRequest() *BatchGetProjectCanvasesRequest {
@@ -690,21 +658,8 @@ func (p *BatchGetProjectCanvasesRequest) GetCanvasIDs() (v []string) {
 	return p.CanvasIDs
 }
 
-var BatchGetProjectCanvasesRequest_Top_DEFAULT *base.TopParam
-
-func (p *BatchGetProjectCanvasesRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return BatchGetProjectCanvasesRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *BatchGetProjectCanvasesRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *BatchGetProjectCanvasesRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *BatchGetProjectCanvasesRequest) String() string {
@@ -746,10 +701,8 @@ type CreateProjectCanvasRequest struct {
 	ProjectID string `json:"ProjectID"`
 	// Name 是剧集名称，在所属项目内唯一。
 	Name string `json:"Name"`
-	// CoverImagePath 是通过 Up 上传得到的封面图片 path；未传表示不设置封面。
+	// CoverImagePath 是通过 artifact storage 上传得到的封面图片 path；未传表示不设置封面。
 	CoverImagePath *string `json:"CoverImagePath,omitempty"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewCreateProjectCanvasRequest() *CreateProjectCanvasRequest {
@@ -785,25 +738,12 @@ func (p *CreateProjectCanvasRequest) GetCoverImagePath() (v string) {
 	return *p.CoverImagePath
 }
 
-var CreateProjectCanvasRequest_Top_DEFAULT *base.TopParam
-
-func (p *CreateProjectCanvasRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CreateProjectCanvasRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CreateProjectCanvasRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
 
 func (p *CreateProjectCanvasRequest) IsSetCoverImagePath() bool {
 	return p.CoverImagePath != nil
-}
-
-func (p *CreateProjectCanvasRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CreateProjectCanvasRequest) String() string {
@@ -858,8 +798,6 @@ type UpdateProjectCanvasRequest struct {
 	Name string `json:"Name"`
 	// CoverImagePath 未传时保持不变，空字符串表示清除封面。
 	CoverImagePath *string `json:"CoverImagePath,omitempty"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewUpdateProjectCanvasRequest() *UpdateProjectCanvasRequest {
@@ -899,25 +837,12 @@ func (p *UpdateProjectCanvasRequest) GetCoverImagePath() (v string) {
 	return *p.CoverImagePath
 }
 
-var UpdateProjectCanvasRequest_Top_DEFAULT *base.TopParam
-
-func (p *UpdateProjectCanvasRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return UpdateProjectCanvasRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *UpdateProjectCanvasRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
 
 func (p *UpdateProjectCanvasRequest) IsSetCoverImagePath() bool {
 	return p.CoverImagePath != nil
-}
-
-func (p *UpdateProjectCanvasRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *UpdateProjectCanvasRequest) String() string {
@@ -968,8 +893,6 @@ type DeleteProjectCanvasRequest struct {
 	ProjectID string `json:"ProjectID"`
 	// CanvasID 是待删除的剧集唯一标识。
 	CanvasID string `json:"CanvasID"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewDeleteProjectCanvasRequest() *DeleteProjectCanvasRequest {
@@ -996,21 +919,8 @@ func (p *DeleteProjectCanvasRequest) GetCanvasID() (v string) {
 	return p.CanvasID
 }
 
-var DeleteProjectCanvasRequest_Top_DEFAULT *base.TopParam
-
-func (p *DeleteProjectCanvasRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return DeleteProjectCanvasRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *DeleteProjectCanvasRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *DeleteProjectCanvasRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *DeleteProjectCanvasRequest) String() string {
@@ -1025,7 +935,6 @@ type UpdateCanvasViewRequest struct {
 	ProjectID   string          `json:"ProjectID"`
 	CanvasID    string          `json:"CanvasID"`
 	DefaultView *CanvasViewMode `json:"DefaultView,omitempty"`
-	Top         *base.TopParam  `json:"Top,omitempty"`
 }
 
 func NewUpdateCanvasViewRequest() *UpdateCanvasViewRequest {
@@ -1061,25 +970,12 @@ func (p *UpdateCanvasViewRequest) GetDefaultView() (v CanvasViewMode) {
 	return *p.DefaultView
 }
 
-var UpdateCanvasViewRequest_Top_DEFAULT *base.TopParam
-
-func (p *UpdateCanvasViewRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return UpdateCanvasViewRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *UpdateCanvasViewRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
 
 func (p *UpdateCanvasViewRequest) IsSetDefaultView() bool {
 	return p.DefaultView != nil
-}
-
-func (p *UpdateCanvasViewRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *UpdateCanvasViewRequest) String() string {
@@ -1233,10 +1129,9 @@ func (p *ProjectCanvasVideoArchiveExport) String() string {
 }
 
 type StartProjectCanvasVideoArchiveExportRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
 }
 
 func NewStartProjectCanvasVideoArchiveExportRequest() *StartProjectCanvasVideoArchiveExportRequest {
@@ -1263,21 +1158,8 @@ func (p *StartProjectCanvasVideoArchiveExportRequest) GetCanvasID() (v string) {
 	return p.CanvasID
 }
 
-var StartProjectCanvasVideoArchiveExportRequest_Top_DEFAULT *base.TopParam
-
-func (p *StartProjectCanvasVideoArchiveExportRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return StartProjectCanvasVideoArchiveExportRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *StartProjectCanvasVideoArchiveExportRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *StartProjectCanvasVideoArchiveExportRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *StartProjectCanvasVideoArchiveExportRequest) String() string {
@@ -1319,11 +1201,10 @@ func (p *StartProjectCanvasVideoArchiveExportResponse) String() string {
 }
 
 type GetProjectCanvasVideoArchiveExportRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	TaskRunID   string         `json:"TaskRunID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
+	TaskRunID   string  `json:"TaskRunID"`
 }
 
 func NewGetProjectCanvasVideoArchiveExportRequest() *GetProjectCanvasVideoArchiveExportRequest {
@@ -1354,21 +1235,8 @@ func (p *GetProjectCanvasVideoArchiveExportRequest) GetTaskRunID() (v string) {
 	return p.TaskRunID
 }
 
-var GetProjectCanvasVideoArchiveExportRequest_Top_DEFAULT *base.TopParam
-
-func (p *GetProjectCanvasVideoArchiveExportRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return GetProjectCanvasVideoArchiveExportRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *GetProjectCanvasVideoArchiveExportRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *GetProjectCanvasVideoArchiveExportRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *GetProjectCanvasVideoArchiveExportRequest) String() string {
@@ -1414,8 +1282,7 @@ type BatchGetProjectCanvasVideoArchiveExportsRequest struct {
 	ProjectID   string  `json:"ProjectID"`
 	CanvasID    string  `json:"CanvasID"`
 	// TaskRunIDs 最多包含 100 个导出任务 ID。
-	TaskRunIDs []string       `json:"TaskRunIDs"`
-	Top        *base.TopParam `json:"Top,omitempty"`
+	TaskRunIDs []string `json:"TaskRunIDs"`
 }
 
 func NewBatchGetProjectCanvasVideoArchiveExportsRequest() *BatchGetProjectCanvasVideoArchiveExportsRequest {
@@ -1446,21 +1313,8 @@ func (p *BatchGetProjectCanvasVideoArchiveExportsRequest) GetTaskRunIDs() (v []s
 	return p.TaskRunIDs
 }
 
-var BatchGetProjectCanvasVideoArchiveExportsRequest_Top_DEFAULT *base.TopParam
-
-func (p *BatchGetProjectCanvasVideoArchiveExportsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return BatchGetProjectCanvasVideoArchiveExportsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *BatchGetProjectCanvasVideoArchiveExportsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *BatchGetProjectCanvasVideoArchiveExportsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *BatchGetProjectCanvasVideoArchiveExportsRequest) String() string {
@@ -1546,7 +1400,6 @@ type ListProjectCanvasVideoArchiveExportsRequest struct {
 	// Sort 指定排序字段与方向；省略时默认按发起时间倒序。
 	Sort *ProjectCanvasVideoArchiveExportSort `json:"Sort,omitempty"`
 	Page *common.Page                         `json:"Page"`
-	Top  *base.TopParam                       `json:"Top,omitempty"`
 }
 
 func NewListProjectCanvasVideoArchiveExportsRequest() *ListProjectCanvasVideoArchiveExportsRequest {
@@ -1591,15 +1444,6 @@ func (p *ListProjectCanvasVideoArchiveExportsRequest) GetPage() (v *common.Page)
 	return p.Page
 }
 
-var ListProjectCanvasVideoArchiveExportsRequest_Top_DEFAULT *base.TopParam
-
-func (p *ListProjectCanvasVideoArchiveExportsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return ListProjectCanvasVideoArchiveExportsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *ListProjectCanvasVideoArchiveExportsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -1610,10 +1454,6 @@ func (p *ListProjectCanvasVideoArchiveExportsRequest) IsSetSort() bool {
 
 func (p *ListProjectCanvasVideoArchiveExportsRequest) IsSetPage() bool {
 	return p.Page != nil
-}
-
-func (p *ListProjectCanvasVideoArchiveExportsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *ListProjectCanvasVideoArchiveExportsRequest) String() string {
@@ -1661,11 +1501,10 @@ func (p *ListProjectCanvasVideoArchiveExportsResponse) String() string {
 }
 
 type CancelProjectCanvasVideoArchiveExportRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	TaskRunID   string         `json:"TaskRunID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
+	TaskRunID   string  `json:"TaskRunID"`
 }
 
 func NewCancelProjectCanvasVideoArchiveExportRequest() *CancelProjectCanvasVideoArchiveExportRequest {
@@ -1696,21 +1535,8 @@ func (p *CancelProjectCanvasVideoArchiveExportRequest) GetTaskRunID() (v string)
 	return p.TaskRunID
 }
 
-var CancelProjectCanvasVideoArchiveExportRequest_Top_DEFAULT *base.TopParam
-
-func (p *CancelProjectCanvasVideoArchiveExportRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CancelProjectCanvasVideoArchiveExportRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CancelProjectCanvasVideoArchiveExportRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *CancelProjectCanvasVideoArchiveExportRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CancelProjectCanvasVideoArchiveExportRequest) String() string {

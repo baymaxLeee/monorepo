@@ -48,7 +48,6 @@ func (h *CanvasHandler) BatchGetProjectCanvases(
 	if err := requireAction(ctx, "BatchGetProjectCanvases"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	items, err := h.service.BatchGet(ctx, applicationcanvas.BatchGetInput{
 		Scope: canvasRequestScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID, CanvasIDs: request.CanvasIDs,
 	})
@@ -72,7 +71,6 @@ func (h *CanvasHandler) ListProjectCanvases(
 	if request.Page == nil {
 		return nil, errno.New(errno.ErrInvalidArgument)
 	}
-	request.Top = topParam(ctx)
 	keyword := ""
 	createdByMe := false
 	if request.Filter != nil {
@@ -109,7 +107,6 @@ func (h *CanvasHandler) GetProjectCanvas(
 	if err := requireAction(ctx, "GetProjectCanvas"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	item, err := h.service.Get(ctx, applicationcanvas.GetInput{
 		Scope: canvasRequestScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID, CanvasID: request.CanvasID,
 	})
@@ -126,7 +123,6 @@ func (h *CanvasHandler) CreateProjectCanvas(
 	if err := requireAction(ctx, "CreateProjectCanvas"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	item, err := h.service.Create(ctx, applicationcanvas.CreateInput{
 		Scope: canvasRequestScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID,
 		Name: request.Name, CoverImagePath: request.CoverImagePath,
@@ -144,7 +140,6 @@ func (h *CanvasHandler) UpdateProjectCanvas(
 	if err := requireAction(ctx, "UpdateProjectCanvas"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	item, err := h.service.Update(ctx, applicationcanvas.UpdateInput{
 		Scope: canvasRequestScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID, CanvasID: request.CanvasID,
 		Name: request.Name, CoverImagePath: request.CoverImagePath,
@@ -162,7 +157,6 @@ func (h *CanvasHandler) UpdateCanvasView(
 	if err := requireAction(ctx, "UpdateCanvasView"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	var defaultView *domaincanvas.ViewMode
 	if request.DefaultView != nil {
 		value := domaincanvas.ViewMode(*request.DefaultView)
@@ -188,7 +182,6 @@ func (h *CanvasHandler) DeleteProjectCanvas(
 	if err := requireAction(ctx, "DeleteProjectCanvas"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	if err := h.service.Delete(ctx, applicationcanvas.DeleteInput{
 		Scope: canvasRequestScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID,
 		CanvasID: request.CanvasID,
@@ -199,7 +192,7 @@ func (h *CanvasHandler) DeleteProjectCanvas(
 }
 
 func canvasRequestScope(ctx context.Context, workspaceID *string) applicationcanvas.Scope {
-	metadata, _ := topcontext.MetadataFromContext(ctx)
+	metadata, _ := requestcontext.MetadataFromContext(ctx)
 	return applicationcanvas.Scope{
 		TenantID: metadata.TenantID, WorkspaceID: nullableWorkspaceID(workspaceID), CallerID: metadata.UserID,
 	}

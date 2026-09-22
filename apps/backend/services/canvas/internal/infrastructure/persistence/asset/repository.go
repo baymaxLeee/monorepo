@@ -35,7 +35,7 @@ func (r *Repository) Create(ctx context.Context, item domainasset.Asset) error {
 		if err := scopelifecycle.LockActive(tx, item.TenantID, item.WorkspaceID); err != nil {
 			return err
 		}
-		// The early resolver prevents wasted Up calls. Rechecking the owner under
+		// The early resolver prevents wasted artifact storage calls. Rechecking the owner under
 		// a row lock here closes the deletion window before the Asset insert.
 		var ownerErr error
 		switch item.OwnerType {

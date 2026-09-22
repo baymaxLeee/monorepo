@@ -10,7 +10,7 @@ import (
 	applicationtask "github.com/example/monorepo/canvas/internal/application/task"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
-	"github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
+	artifactnamespace "github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
 )
 
 var (

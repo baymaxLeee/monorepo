@@ -295,7 +295,7 @@ function Selection<V extends Value>({
         </SelectValue>
       </SelectTrigger>
       <SelectContent
-        className={`agentframe-web-theme ${dropdownMenuClassName ?? ""}`}
+        className={`canvas-web-theme ${dropdownMenuClassName ?? ""}`}
         position="popper"
         style={triggerProps?.style}
       >

@@ -66,7 +66,7 @@ func markInterruptedImageUsageCall(
 	}
 	_, err := recorder.MarkInterruptedIfPresent(ctx, domainprojectusage.CallRef{
 		TaskRunID: run.TaskRunID, CallOrdinal: 1,
-	}, "image generation execution was interrupted after an AIGW call began")
+	}, "image generation execution was interrupted after a provider call began")
 	return err
 }
 

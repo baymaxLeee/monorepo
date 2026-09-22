@@ -21,7 +21,7 @@ window**. Do NOT split into separate frontend/backend sub-agents.
        cd apps/backend/services/<svc>
        Read svc-level AGENTS.md ONCE
        Implement route + Pydantic models
-       During demo phase, do not add tests or test scaffolding
+       Add or update tests for changed behavior
        From apps/backend: `just gen-openapi <svc>`
        → schemas/openapi/<svc>.json updated
 
@@ -33,10 +33,10 @@ window**. Do NOT split into separate frontend/backend sub-agents.
        cd apps/frontend/apps/<mfe>
        Read mfe-level AGENTS.md ONCE
        Import the freshly generated client from @repo/api
-       Implement UI; during demo phase, do not add tests or test scaffolding
+       Implement UI and update affected tests
 
 [ ] 6. INTEGRATION CHECK
-       From root: `just lint && just build`
+       Run affected tests, then from root: `just lint && just build`
        Exercise the changed flow against the running stack
 
 [ ] 7. (Optional) Fresh-eyes review

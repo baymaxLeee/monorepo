@@ -4,27 +4,27 @@
     "BizCode": 4096002,
     "HTTPCode": 409,
     "Message": "project quota exceeded",
-    "Comment": "The tenant allocation or AgentFrame license has no remaining project capacity"
+    "Comment": "The tenant allocation has no remaining project capacity"
   },
   {
     "Code": "PresetEntitlementAssetQuotaExceeded",
     "BizCode": 4096003,
     "HTTPCode": 409,
     "Message": "preset entitlement asset quota exceeded",
-    "Comment": "The tenant allocation or AgentFrame license has no remaining preset entitlement asset capacity"
+    "Comment": "The tenant allocation has no remaining preset entitlement asset capacity"
   },
   {
     "Code": "StorageQuotaExceeded",
     "BizCode": 4096004,
     "HTTPCode": 409,
     "Message": "storage quota exceeded",
-    "Comment": "The tenant has no remaining AgentFrame storage capacity"
+    "Comment": "The tenant has no remaining storage capacity"
   },
   {
     "Code": "QuotaUnavailable",
     "BizCode": 5036001,
     "HTTPCode": 503,
     "Message": "resource quota is temporarily unavailable",
-    "Comment": "The IAM quota request failed or a required quota row is unavailable"
+    "Comment": "The quota store failed or a required quota row is unavailable"
   }
 ]

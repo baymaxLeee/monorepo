@@ -6,7 +6,7 @@ import { ConfirmDialogHost } from "./components/compat";
 export function App() {
   return (
     <TooltipProvider>
-      <div className="agentframe-web h-full">
+      <div className="canvas-web h-full">
         <Outlet />
         <ConfirmDialogHost />
       </div>

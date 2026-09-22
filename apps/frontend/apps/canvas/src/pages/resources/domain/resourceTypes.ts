@@ -14,7 +14,7 @@ export const IMAGE_MAX_SIZE_BYTES = 30 * 1024 * 1024;
 export const AUDIO_MAX_SIZE_BYTES = 15 * 1024 * 1024;
 
 /**
- * 图片格式白名单，对齐后端 artifact/up.go 的 8 种格式；
+ * 图片格式白名单，与后端 artifact store 支持的 8 种格式一致；
  * 同时用于 input accept 与上传前的本地格式校验。
  */
 export const IMAGE_ACCEPT_EXTENSIONS = [

@@ -48,7 +48,7 @@ func (ratio AspectRatio) Valid() bool {
 }
 
 // Dimensions converts the product resolution bucket and aspect ratio into the
-// exact pixel size sent to AIGW. Resolution is the standard short edge for the
+// exact pixel size sent to provider. Resolution is the standard short edge for the
 // selected product tier. Keep this table aligned with the web product options.
 func Dimensions(resolution Resolution, ratio AspectRatio) (int64, int64, error) {
 	shortEdge := map[Resolution]int64{

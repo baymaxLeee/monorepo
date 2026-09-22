@@ -11,8 +11,8 @@ import (
 	"github.com/example/monorepo/canvas/internal/infrastructure/admin"
 )
 
-// Catalog keeps the mature application model contract while resolving the
-// provider from the monorepo Admin service instead of the former AIGW/IAM SDK.
+// Catalog projects the custom providers owned by the monorepo Admin service
+// into Canvas model selections and capabilities.
 type Catalog struct{ providers *admin.Directory }
 
 func New(providers *admin.Directory) *Catalog { return &Catalog{providers: providers} }
@@ -40,16 +40,23 @@ func (catalog *Catalog) List(ctx context.Context, scope applicationproject.Scope
 		case "chat":
 			value["Type"], value["FeaturesConfig"] = "text-generation", []string{"tool-call"}
 		case "image":
-			value["Type"], value["FeaturesConfig"] = "vision", []string{"text2image"}
+			capabilities := imageCapabilities(provider.Model)
+			features := []string{"text2image"}
+			if capabilities.MaxInputReferences != nil && *capabilities.MaxInputReferences > 0 {
+				features = append(features, "image2image")
+			}
+			value["Type"], value["FeaturesConfig"] = "vision", features
+			value["Property"] = imageProperty(capabilities)
 		case "video":
-			value["Type"], value["FeaturesConfig"] = "vision", []string{"text2video"}
+			capabilities := videoCapabilities(provider.Model)
+			features := []string{"text2video"}
+			if capabilities.MaxImageReferences != nil && *capabilities.MaxImageReferences > 0 {
+				features = append(features, "image2video")
+			}
+			value["Type"], value["FeaturesConfig"] = "vision", features
+			value["Property"] = videoProperty(capabilities)
 		default:
 			continue
-		}
-		if capabilities, ok := provider.ExtraBody["canvas_capabilities"].(map[string]any); ok {
-			if video, exists := capabilities["video"]; exists {
-				value["Property"] = map[string]any{"Vision": map[string]any{"Video": video}}
-			}
 		}
 		encoded, marshalErr := json.Marshal(value)
 		if marshalErr != nil {
@@ -86,16 +93,10 @@ func (catalog *Catalog) Resolve(ctx context.Context, actor applicationmodel.Acto
 		}
 		switch requirement.Capability {
 		case applicationmodel.CapabilityCanvasNodeVideo:
-			var capabilities applicationmodel.VideoCapabilities
-			if !decodeCapabilities(provider.ExtraBody, "video", &capabilities) {
-				return nil, applicationmodel.ErrUnavailable
-			}
+			capabilities := videoCapabilities(provider.Model)
 			item.VideoCapabilities = &capabilities
 		case applicationmodel.CapabilityResourceTextToImage, applicationmodel.CapabilityResourceImageToImage:
-			var capabilities applicationmodel.ImageCapabilities
-			if !decodeCapabilities(provider.ExtraBody, "image", &capabilities) {
-				return nil, applicationmodel.ErrUnavailable
-			}
+			capabilities := imageCapabilities(provider.Model)
 			item.ImageCapabilities = &capabilities
 		}
 		resolved[index] = item
@@ -151,18 +152,102 @@ func supports(kind string, capability applicationmodel.Capability) bool {
 	}
 }
 
-func decodeCapabilities(extra map[string]any, key string, output any) bool {
-	capabilities, ok := extra["canvas_capabilities"].(map[string]any)
-	if !ok {
-		return false
+func videoCapabilities(model string) applicationmodel.VideoCapabilities {
+	minimum, maximum := int32(5), int32(10)
+	recommends := []int32{5, 10}
+	imageReferences, videoReferences, audioReferences := 0, 0, 0
+	normalized := normalizeModelName(model)
+	switch {
+	case strings.Contains(normalized, "seedance-2-5"):
+		minimum, maximum = 4, 30
+		recommends = []int32{-1, 5, 10, 15, 30}
+		imageReferences, videoReferences, audioReferences = 9, 3, 3
+	case strings.Contains(normalized, "seedance-2"):
+		minimum, maximum = 4, 15
+		recommends = []int32{-1, 5, 10, 15}
+		imageReferences, videoReferences, audioReferences = 9, 3, 3
+	case strings.Contains(normalized, "seedance-1-5"):
+		minimum, maximum = 4, 12
+		recommends = []int32{-1, 5, 10, 12}
 	}
-	value, ok := capabilities[key]
-	if !ok {
-		return false
+	defaultDuration := int32(5)
+	defaultRatio := "9:16"
+	watermarkSupported := true
+	return applicationmodel.VideoCapabilities{
+		DurationMinSeconds: minimum, DurationMaxSeconds: maximum, DurationDefaultSeconds: &defaultDuration,
+		DurationRecommends: recommends, DurationRecommendDefault: &recommends[0],
+		Resolutions:         []string{"480p", "720p", "1080p", "4k"},
+		AspectRatios:        []string{"16:9", "4:3", "1:1", "3:4", "9:16", "21:9"},
+		AspectRatioAdaptive: true, AspectRatioDefault: &defaultRatio, GenerateAudio: []bool{false, true},
+		WatermarkSupported: &watermarkSupported, MaxImageReferences: &imageReferences,
+		MaxVideoReferences: &videoReferences, MaxAudioReferences: &audioReferences,
 	}
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		return false
+}
+
+func imageCapabilities(model string) applicationmodel.ImageCapabilities {
+	maximumReferences := 0
+	if normalized := normalizeModelName(model); strings.Contains(normalized, "seedream-4") || strings.Contains(normalized, "seedream-5") {
+		maximumReferences = 10
 	}
-	return json.Unmarshal(encoded, output) == nil
+	watermarkSupported := true
+	return applicationmodel.ImageCapabilities{
+		Width: applicationmodel.IntRange{Min: 512, Max: 4096}, Height: applicationmodel.IntRange{Min: 512, Max: 4096},
+		AspectRatio: applicationmodel.FloatRange{Min: 0.25, Max: 4}, TotalPixels: applicationmodel.IntRange{Max: 4096 * 4096},
+		WatermarkSupported: &watermarkSupported, MaxInputReferences: &maximumReferences,
+	}
+}
+
+func normalizeModelName(value string) string {
+	return strings.NewReplacer("_", "-", ".", "-", " ", "-").Replace(strings.ToLower(strings.TrimSpace(value)))
+}
+
+func videoProperty(capabilities applicationmodel.VideoCapabilities) map[string]any {
+	return map[string]any{"Vision": map[string]any{"Video": map[string]any{
+		"Duration": map[string]any{
+			"Min": capabilities.DurationMinSeconds, "Max": capabilities.DurationMaxSeconds,
+			"Default": capabilities.DurationDefaultSeconds, "Recommends": capabilities.DurationRecommends,
+			"RecommendDefault": capabilities.DurationRecommendDefault,
+		},
+		"Ratio":         map[string]any{"Values": capabilities.AspectRatios, "Adaptive": capabilities.AspectRatioAdaptive, "Default": capabilities.AspectRatioDefault},
+		"Resolutions":   capabilities.Resolutions,
+		"GenerateAudio": map[string]any{"Types": switchValues(capabilities.GenerateAudio), "Default": "enabled"},
+		"Watermark":     map[string]any{"Supported": capabilities.WatermarkSupported, "Enabled": false},
+		"Reference": map[string]any{
+			"Image": referenceProperty(capabilities.MaxImageReferences),
+			"Video": referenceProperty(capabilities.MaxVideoReferences),
+			"Audio": referenceProperty(capabilities.MaxAudioReferences),
+		},
+	}}}
+}
+
+func imageProperty(capabilities applicationmodel.ImageCapabilities) map[string]any {
+	return map[string]any{"Vision": map[string]any{"Image": map[string]any{
+		"TextToImage":  map[string]any{},
+		"ImageToImage": map[string]any{"InputConfig": map[string]any{"Min": 1, "Max": capabilities.MaxInputReferences}},
+		"HW": map[string]any{
+			"Width": capabilities.Width, "Height": capabilities.Height,
+			"Ratio": capabilities.AspectRatio, "Total": capabilities.TotalPixels,
+		},
+		"Watermark": map[string]any{"Supported": capabilities.WatermarkSupported, "Enabled": false},
+	}}}
+}
+
+func switchValues(values []bool) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value {
+			result = append(result, "enabled")
+		} else {
+			result = append(result, "disabled")
+		}
+	}
+	return result
+}
+
+func referenceProperty(maximum *int) map[string]any {
+	value := 0
+	if maximum != nil {
+		value = *maximum
+	}
+	return map[string]any{"Supported": value > 0, "Max": value}
 }

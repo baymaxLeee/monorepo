@@ -82,7 +82,7 @@ func (enricher *NameEnricher) enrichTenant(ctx context.Context, targets []UserNa
 	for _, target := range targets {
 		name := strings.TrimSpace(names[target.UserID])
 		if name == "" {
-			// A successful IAM response without the user is a stable fallback;
+			// A successful identity response without the user is a stable fallback;
 			// transport failures return above and remain eligible for retry.
 			name = target.UserID
 		}

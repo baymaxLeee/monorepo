@@ -26,7 +26,7 @@ var (
 	ErrDefaultModelNotConfigured = errors.New("default model not configured")
 )
 
-// Config contains the model tuning parameters that AgentFrame can apply directly
+// Config contains the model tuning parameters that Canvas can apply directly
 // to an inference request. Pointer fields preserve explicit zero values.
 type Config struct {
 	Temperature         *float64 `json:"Temperature,omitempty"`
@@ -52,7 +52,7 @@ type Requirement struct {
 }
 
 // Source is the stable product-facing model origin used by usage snapshots.
-// AIGW exposes several publication fields, but AgentFrame currently presents the
+// provider exposes several publication fields, but Canvas currently presents the
 // two origins supported by model management: built-in and distributed.
 type Source string
 
@@ -249,8 +249,8 @@ func containsBool(allowed []bool, value bool) bool {
 	return false
 }
 
-// Catalog resolves current-user-visible AIGW models and their capabilities.
-// LoadSelection rehydrates IAM tuning for a model already resolved before a
+// Catalog resolves current-user-visible provider models and their capabilities.
+// LoadSelection rehydrates saved tuning for a model already resolved before a
 // durable task was queued; the provider remains the final execution authority.
 type Catalog interface {
 	Resolve(context.Context, Actor, []Requirement) ([]Resolution, error)

@@ -1,6 +1,6 @@
 import { canvasnode } from "@/domain";
+import { resolveArtifactURL } from "@/utils/artifactURL";
 import t from "@/utils/i18n";
-import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
 
 import { ASSET_ACCEPT, type AssetCategory, type Shot, type StoryboardAsset } from "./types";
 
@@ -27,7 +27,7 @@ export function assetFromCanvasNode(
   const assetId = materializedCanvasNodeAssetId(node, detail?.assetId);
   const detailMatchesAsset = !assetId || detail?.assetId === assetId;
   const nodePreviewURL = node.SelectedOutputURL ?? node.PreviewURL;
-  const nodePreview = nodePreviewURL ? resolveUpPreviewURL(nodePreviewURL) : undefined;
+  const nodePreview = nodePreviewURL ? resolveArtifactURL(nodePreviewURL) : undefined;
   const description =
     node.Type === canvasnode.CanvasNodeType.TEXT_GENERATION
       ? (node.SelectedOutputText ?? "")
@@ -156,7 +156,7 @@ export function isAssetReady(asset: StoryboardAsset) {
   return !asset.syncStatus || asset.syncStatus === "ready";
 }
 
-/** 文件已传到 UP，或本来就是已绑定资产。保存时才能拿去建绑定。 */
+/** 文件已传到 artifact storage，或本来就是已绑定资产。保存时才能拿去建绑定。 */
 export function isAssetUploadReady(asset: StoryboardAsset) {
   return isAssetReady(asset) || (asset.syncStatus === "uploaded" && Boolean(asset.blobId));
 }

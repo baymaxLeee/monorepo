@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"github.com/example/monorepo/canvas/internal/api/contracts/base"
+
 	"github.com/example/monorepo/canvas/internal/api/contracts/common"
 )
 
@@ -149,7 +149,6 @@ func (p *BenefitPackage) String() string {
 }
 
 type ListAvailableBenefitPackagesRequest struct {
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewListAvailableBenefitPackagesRequest() *ListAvailableBenefitPackagesRequest {
@@ -157,19 +156,6 @@ func NewListAvailableBenefitPackagesRequest() *ListAvailableBenefitPackagesReque
 }
 
 func (p *ListAvailableBenefitPackagesRequest) InitDefault() {
-}
-
-var ListAvailableBenefitPackagesRequest_Top_DEFAULT *base.TopParam
-
-func (p *ListAvailableBenefitPackagesRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return ListAvailableBenefitPackagesRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
-func (p *ListAvailableBenefitPackagesRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *ListAvailableBenefitPackagesRequest) String() string {
@@ -202,9 +188,8 @@ func (p *ListAvailableBenefitPackagesResponse) String() string {
 }
 
 type CreatePresetBenefitPackageRequest struct {
-	AccessKeyID     string         `json:"AccessKeyID"`
-	SecretAccessKey string         `json:"SecretAccessKey"`
-	Top             *base.TopParam `json:"Top,omitempty"`
+	AccessKeyID     string `json:"AccessKeyID"`
+	SecretAccessKey string `json:"SecretAccessKey"`
 }
 
 func NewCreatePresetBenefitPackageRequest() *CreatePresetBenefitPackageRequest {
@@ -220,19 +205,6 @@ func (p *CreatePresetBenefitPackageRequest) GetAccessKeyID() (v string) {
 
 func (p *CreatePresetBenefitPackageRequest) GetSecretAccessKey() (v string) {
 	return p.SecretAccessKey
-}
-
-var CreatePresetBenefitPackageRequest_Top_DEFAULT *base.TopParam
-
-func (p *CreatePresetBenefitPackageRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CreatePresetBenefitPackageRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
-func (p *CreatePresetBenefitPackageRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CreatePresetBenefitPackageRequest) String() string {
@@ -276,10 +248,9 @@ func (p *CreatePresetBenefitPackageResponse) String() string {
 type UpdatePresetBenefitPackageRequest struct {
 	PackageID string `json:"PackageID"`
 	// AccessKeyID 和 SecretAccessKey 省略时分别保留现有密钥。
-	AccessKeyID      *string        `json:"AccessKeyID,omitempty"`
-	SecretAccessKey  *string        `json:"SecretAccessKey,omitempty"`
-	ExpectedRevision int64          `json:"ExpectedRevision"`
-	Top              *base.TopParam `json:"Top,omitempty"`
+	AccessKeyID      *string `json:"AccessKeyID,omitempty"`
+	SecretAccessKey  *string `json:"SecretAccessKey,omitempty"`
+	ExpectedRevision int64   `json:"ExpectedRevision"`
 }
 
 func NewUpdatePresetBenefitPackageRequest() *UpdatePresetBenefitPackageRequest {
@@ -315,25 +286,12 @@ func (p *UpdatePresetBenefitPackageRequest) GetExpectedRevision() (v int64) {
 	return p.ExpectedRevision
 }
 
-var UpdatePresetBenefitPackageRequest_Top_DEFAULT *base.TopParam
-
-func (p *UpdatePresetBenefitPackageRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return UpdatePresetBenefitPackageRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *UpdatePresetBenefitPackageRequest) IsSetAccessKeyID() bool {
 	return p.AccessKeyID != nil
 }
 
 func (p *UpdatePresetBenefitPackageRequest) IsSetSecretAccessKey() bool {
 	return p.SecretAccessKey != nil
-}
-
-func (p *UpdatePresetBenefitPackageRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *UpdatePresetBenefitPackageRequest) String() string {
@@ -375,10 +333,9 @@ func (p *UpdatePresetBenefitPackageResponse) String() string {
 }
 
 type SetPresetBenefitPackageEnabledRequest struct {
-	PackageID        string         `json:"PackageID"`
-	Enabled          bool           `json:"Enabled"`
-	ExpectedRevision int64          `json:"ExpectedRevision"`
-	Top              *base.TopParam `json:"Top,omitempty"`
+	PackageID        string `json:"PackageID"`
+	Enabled          bool   `json:"Enabled"`
+	ExpectedRevision int64  `json:"ExpectedRevision"`
 }
 
 func NewSetPresetBenefitPackageEnabledRequest() *SetPresetBenefitPackageEnabledRequest {
@@ -398,19 +355,6 @@ func (p *SetPresetBenefitPackageEnabledRequest) GetEnabled() (v bool) {
 
 func (p *SetPresetBenefitPackageEnabledRequest) GetExpectedRevision() (v int64) {
 	return p.ExpectedRevision
-}
-
-var SetPresetBenefitPackageEnabledRequest_Top_DEFAULT *base.TopParam
-
-func (p *SetPresetBenefitPackageEnabledRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return SetPresetBenefitPackageEnabledRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
-func (p *SetPresetBenefitPackageEnabledRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *SetPresetBenefitPackageEnabledRequest) String() string {
@@ -452,7 +396,6 @@ func (p *SetPresetBenefitPackageEnabledResponse) String() string {
 }
 
 type ListCustomBenefitPackagesRequest struct {
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewListCustomBenefitPackagesRequest() *ListCustomBenefitPackagesRequest {
@@ -460,19 +403,6 @@ func NewListCustomBenefitPackagesRequest() *ListCustomBenefitPackagesRequest {
 }
 
 func (p *ListCustomBenefitPackagesRequest) InitDefault() {
-}
-
-var ListCustomBenefitPackagesRequest_Top_DEFAULT *base.TopParam
-
-func (p *ListCustomBenefitPackagesRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return ListCustomBenefitPackagesRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
-func (p *ListCustomBenefitPackagesRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *ListCustomBenefitPackagesRequest) String() string {
@@ -505,13 +435,12 @@ func (p *ListCustomBenefitPackagesResponse) String() string {
 }
 
 type CreateCustomBenefitPackageRequest struct {
-	Name            string         `json:"Name"`
-	ProjectName     string         `json:"ProjectName"`
-	AccessKeyID     string         `json:"AccessKeyID"`
-	SecretAccessKey string         `json:"SecretAccessKey"`
-	Enabled         bool           `json:"Enabled"`
-	ModelIDs        []string       `json:"ModelIDs"`
-	Top             *base.TopParam `json:"Top,omitempty"`
+	Name            string   `json:"Name"`
+	ProjectName     string   `json:"ProjectName"`
+	AccessKeyID     string   `json:"AccessKeyID"`
+	SecretAccessKey string   `json:"SecretAccessKey"`
+	Enabled         bool     `json:"Enabled"`
+	ModelIDs        []string `json:"ModelIDs"`
 }
 
 func NewCreateCustomBenefitPackageRequest() *CreateCustomBenefitPackageRequest {
@@ -543,19 +472,6 @@ func (p *CreateCustomBenefitPackageRequest) GetEnabled() (v bool) {
 
 func (p *CreateCustomBenefitPackageRequest) GetModelIDs() (v []string) {
 	return p.ModelIDs
-}
-
-var CreateCustomBenefitPackageRequest_Top_DEFAULT *base.TopParam
-
-func (p *CreateCustomBenefitPackageRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CreateCustomBenefitPackageRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
-func (p *CreateCustomBenefitPackageRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CreateCustomBenefitPackageRequest) String() string {
@@ -601,12 +517,11 @@ type UpdateCustomBenefitPackageRequest struct {
 	Name        string `json:"Name"`
 	ProjectName string `json:"ProjectName"`
 	// AccessKeyID 和 SecretAccessKey 省略时分别保留现有密钥。
-	AccessKeyID      *string        `json:"AccessKeyID,omitempty"`
-	SecretAccessKey  *string        `json:"SecretAccessKey,omitempty"`
-	Enabled          bool           `json:"Enabled"`
-	ModelIDs         []string       `json:"ModelIDs"`
-	ExpectedRevision int64          `json:"ExpectedRevision"`
-	Top              *base.TopParam `json:"Top,omitempty"`
+	AccessKeyID      *string  `json:"AccessKeyID,omitempty"`
+	SecretAccessKey  *string  `json:"SecretAccessKey,omitempty"`
+	Enabled          bool     `json:"Enabled"`
+	ModelIDs         []string `json:"ModelIDs"`
+	ExpectedRevision int64    `json:"ExpectedRevision"`
 }
 
 func NewUpdateCustomBenefitPackageRequest() *UpdateCustomBenefitPackageRequest {
@@ -658,25 +573,12 @@ func (p *UpdateCustomBenefitPackageRequest) GetExpectedRevision() (v int64) {
 	return p.ExpectedRevision
 }
 
-var UpdateCustomBenefitPackageRequest_Top_DEFAULT *base.TopParam
-
-func (p *UpdateCustomBenefitPackageRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return UpdateCustomBenefitPackageRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *UpdateCustomBenefitPackageRequest) IsSetAccessKeyID() bool {
 	return p.AccessKeyID != nil
 }
 
 func (p *UpdateCustomBenefitPackageRequest) IsSetSecretAccessKey() bool {
 	return p.SecretAccessKey != nil
-}
-
-func (p *UpdateCustomBenefitPackageRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *UpdateCustomBenefitPackageRequest) String() string {
@@ -721,8 +623,7 @@ type DeleteCustomBenefitPackageRequest struct {
 	PackageID        string `json:"PackageID"`
 	ExpectedRevision int64  `json:"ExpectedRevision"`
 	// 省略或 false 仅使本地审核结果失效；true 还会清理外部 provider 已审核素材。
-	DeleteExternalReviewedAssets *bool          `json:"DeleteExternalReviewedAssets,omitempty"`
-	Top                          *base.TopParam `json:"Top,omitempty"`
+	DeleteExternalReviewedAssets *bool `json:"DeleteExternalReviewedAssets,omitempty"`
 }
 
 func NewDeleteCustomBenefitPackageRequest() *DeleteCustomBenefitPackageRequest {
@@ -749,21 +650,8 @@ func (p *DeleteCustomBenefitPackageRequest) GetDeleteExternalReviewedAssets() (v
 	return *p.DeleteExternalReviewedAssets
 }
 
-var DeleteCustomBenefitPackageRequest_Top_DEFAULT *base.TopParam
-
-func (p *DeleteCustomBenefitPackageRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return DeleteCustomBenefitPackageRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *DeleteCustomBenefitPackageRequest) IsSetDeleteExternalReviewedAssets() bool {
 	return p.DeleteExternalReviewedAssets != nil
-}
-
-func (p *DeleteCustomBenefitPackageRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *DeleteCustomBenefitPackageRequest) String() string {

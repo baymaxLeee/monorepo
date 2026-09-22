@@ -56,7 +56,7 @@ export function Tooltip({
       </TooltipTrigger>
       <TooltipContent
         {...placement(position)}
-        className={`agentframe-web-theme ${className ?? ""}`}
+        className={`canvas-web-theme ${className ?? ""}`}
         style={{ ...triggerProps?.style, ...style }}
         container={getPopupContainer?.()}
       >
@@ -120,7 +120,7 @@ export function Trigger({
         alignOffset={alignOffset}
         sideOffset={sideOffset}
         container={getPopupContainer?.()}
-        className={`agentframe-web-theme w-auto rounded-xl p-0 ${className ?? ""}`}
+        className={`canvas-web-theme w-auto rounded-xl p-0 ${className ?? ""}`}
         style={{
           ...(autoAlignPopupWidth ? { width: "var(--radix-popover-trigger-width)" } : {}),
           ...(autoAlignPopupMinWidth ? { minWidth: "var(--radix-popover-trigger-width)" } : {}),

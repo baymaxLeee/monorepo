@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agentframe.internal/schemas/canvas-node-data.json",
+  "$id": "https://canvas.internal/schemas/canvas-node-data.json",
   "title": "CanvasNodeData",
   "x-node-type-payload-versions": {
     "IMAGE_ASSET": 2,

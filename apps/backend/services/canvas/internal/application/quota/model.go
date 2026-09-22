@@ -16,10 +16,10 @@ const (
 const (
 	ScopePlatform             = "platform"
 	ScopeTenant               = "tenant"
-	PlatformScopeID           = "agentframe"
+	PlatformScopeID           = "canvas"
 	ResourcePresetEntitlement = ResourceType("PresetEntitlementAsset")
-	ResourceProject           = ResourceType("AgentFrameProject")
-	ResourceStorage           = ResourceType("AgentFrameStorageUsage")
+	ResourceProject           = ResourceType("CanvasProject")
+	ResourceStorage           = ResourceType("CanvasStorageUsage")
 	ReservationPending        = "pending"
 	ReservationCommitted      = "committed"
 	ReservationReleasing      = "releasing"

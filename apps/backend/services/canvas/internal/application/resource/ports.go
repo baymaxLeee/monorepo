@@ -34,7 +34,7 @@ type Scope struct {
 // OfficialMaterializer 在某个 scope 首次读资源库时按官方清单幂等物化官方记录。
 //
 // OFFICIAL Resource 与 PROJECT Resource 共用 resources 表和同一套 scope 条件，官方记录
-// 必须在调用方 scope 下真实存在才可见，而 AgentFrame 没有租户枚举来源，无法在启动时预先为
+// 必须在调用方 scope 下真实存在才可见，而 Canvas 没有租户枚举来源，无法在启动时预先为
 // 所有租户铺好行（ADR-002）。
 //
 // 物化是 best-effort：它按清单写入、不接受调用方输入，失败不应让用户的资源库读取失败。

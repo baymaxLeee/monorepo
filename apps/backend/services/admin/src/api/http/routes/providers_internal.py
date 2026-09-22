@@ -86,8 +86,8 @@ async def get_task_provider_internal(
     session: DbSession,
     _caller: InternalCaller,
 ) -> InternalModelProvider:
-    if caller != "executor":
-        raise ForbiddenError("Only Executor may resolve credentials for existing tasks")
+    if caller not in {"canvas", "executor"}:
+        raise ForbiddenError("Only Canvas or Executor may resolve credentials for existing tasks")
     return await _service(session, workspace_id, tenant_id).get_internal(
         provider_id, workspace_id, tenant_id, allow_disabled=True
     )

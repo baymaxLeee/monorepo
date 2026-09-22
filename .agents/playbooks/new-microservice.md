@@ -19,8 +19,7 @@ from directories or create a shared library for symmetry.
 ## 2. Create the service skeleton
 
 Run `./scripts/new-service.sh <name>` for the minimal Python shape, or copy the
-closest same-runtime service. During demo phase, do not add test directories,
-fixtures, mocks, test configs, or CI test jobs.
+closest same-runtime service.
 
 For Python, use the repository's resource-oriented layers:
 
@@ -90,7 +89,7 @@ docker compose -f infra/single-vps/docker-compose.prod.yml config
 ```
 
 Run `just fmt` only when explicitly requested or generated/mechanical changes
-need it. During demo phase, skip tests. Exercise the real gateway route and at
+need it. Run the service test suite. Exercise the real gateway route and at
 least one bound internal call; a successful compile alone does not establish
 that service composition works.
 

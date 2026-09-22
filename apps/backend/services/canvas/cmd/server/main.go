@@ -63,8 +63,8 @@ import (
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
 	videogenerationpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/videogeneration"
 	"github.com/example/monorepo/canvas/internal/infrastructure/provider"
-	platformaigwproxy "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
-	"github.com/example/monorepo/canvas/internal/infrastructure/providercatalog"
+	providerclient "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
+	modelcatalog "github.com/example/monorepo/canvas/internal/infrastructure/providercatalog"
 	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -321,7 +321,7 @@ func run() error {
 			}
 		}
 	}()
-	providerClient := platformaigwproxy.New(providers)
+	providerClient := providerclient.New(providers)
 	projectStatistics := applicationprojectstatistics.NewService(
 		projectstatisticspersistence.New(db), nil,
 	)
@@ -347,14 +347,14 @@ func run() error {
 		applicationimagegeneration.WithProjectUsage(projectUsageCalls, projectUsageFinalizer),
 	)
 	imageProcessor := applicationimagegeneration.NewProcessor(
-		imageRepository, taskRepository, assetService, artifacts, aigw.NewImageProvider(providerClient), artifacts,
+		imageRepository, taskRepository, assetService, artifacts, provider.NewImageProvider(providerClient), artifacts,
 		transactions, utcClock{}, assetService, imageTargets,
 		applicationimagegeneration.WithProjectUsage(projectUsageCalls, projectUsageFinalizer),
 	)
 	resourceGenerationCleanup := resourceGenerationDeletion{engine: imageEngine, runs: imageRepository, queue: deletionQueue}
 	videos := applicationvideogeneration.NewService(
 		nodeRepository, taskRepository, taskRepository, videoRepository,
-		aigw.NewCanvasNodeVideoProvider(providerClient), artifacts, artifacts,
+		provider.NewCanvasNodeVideoProvider(providerClient), artifacts, artifacts,
 		transactions, canvasStatistics, uuidGenerator{}, utcClock{},
 		applicationvideogeneration.WithModelCatalog(models),
 		applicationvideogeneration.WithFrameAssets(assetService),
@@ -376,7 +376,7 @@ func run() error {
 		uuidGenerator{},
 		utcClock{},
 		models,
-		aigw.NewTextProvider(providerClient),
+		provider.NewTextProvider(providerClient),
 		applicationcanvastextgeneration.WithProjectUsage(projectUsageCalls, projectUsageFinalizer),
 		applicationcanvastextgeneration.WithGenerationInputs(nodeRepository, assetService, artifacts),
 	)
@@ -389,7 +389,7 @@ func run() error {
 		nodeRepository, uuidGenerator{}, utcClock{},
 		applicationcanvas.WithMutationDependencies(transactions, canvasstatisticspersistence.New(db)),
 		applicationcanvas.WithCanvasStatisticsProjector(canvasStatistics),
-		applicationcanvas.WithPromptAssetMatcher(aigw.NewPromptAssetMatcher(providerClient)),
+		applicationcanvas.WithPromptAssetMatcher(provider.NewPromptAssetMatcher(providerClient)),
 		applicationcanvas.WithAssetMatchTasks(nodeRepository, taskRepository, taskRepository, taskRepository),
 		applicationcanvas.WithModelCatalog(models),
 		applicationcanvas.WithActiveGenerationCanceller(generations),

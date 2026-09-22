@@ -1,4 +1,4 @@
-package aigw
+package provider
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 
 	applicationcanvasnode "github.com/example/monorepo/canvas/internal/application/canvas"
 	applicationmodel "github.com/example/monorepo/canvas/internal/application/model"
-	platformaigwproxy "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
+	providerclient "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
 )
 
 type storyboardCallOrdinalAllocator struct {
@@ -430,7 +430,7 @@ func pendingStoryboardBatches(
 	if len(pending) == 0 {
 		return nil
 	}
-	// A one-node leading request minimizes time-to-first-content under AIGW's
+	// A one-node leading request minimizes time-to-first-content under provider's
 	// params.done behavior. Remaining requests retain the 1-3 node throughput
 	// trade-off and can run concurrently.
 	batches := make([][]storyboardPlanItem, 0, (len(pending)+storyboardPlannedBatchSize-1)/storyboardPlannedBatchSize+1)
@@ -446,6 +446,6 @@ func withStoryboardTraceContext(
 	ctx context.Context,
 	constraints applicationcanvasnode.StoryboardConstraints,
 ) context.Context {
-	ctx = platformaigwproxy.WithTraceIdentity(ctx, constraints.TenantID, constraints.CallerID)
-	return platformaigwproxy.WithProjectID(ctx, constraints.ProjectID)
+	ctx = providerclient.WithTraceIdentity(ctx, constraints.TenantID, constraints.CallerID)
+	return providerclient.WithProjectID(ctx, constraints.ProjectID)
 }

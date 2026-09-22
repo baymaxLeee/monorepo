@@ -11,8 +11,8 @@ var ErrInvalidAsyncDispatch = errors.New("async dispatch is invalid")
 const (
 	AsyncExecutionRecoveryWindow = 24 * time.Hour
 
-	CanvasVideoArchiveExportTopic      = "agentframe-canvas-video-archive-export"
-	CanvasNodeVideoFirstLastFrameTopic = "agentframe-canvas-node-video-first-last-frame"
+	CanvasVideoArchiveExportTopic      = "canvas-canvas-video-archive-export"
+	CanvasNodeVideoFirstLastFrameTopic = "canvas-canvas-node-video-first-last-frame"
 )
 
 func AsyncTopic(runType RunType) string {

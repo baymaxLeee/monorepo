@@ -1,342 +1,130 @@
-# Project Monorepo — Multi-agent, Microservices, Micro-frontends
+# Project Monorepo
 
-Single source of truth for ALL coding agents (Claude Code, Codex, Cursor, ...).
-We use ONLY `AGENTS.md` files — no `CLAUDE.md`, no `.cursorrules`.
+Repository-wide instructions for coding agents. This file is the entry point;
+the closest `AGENTS.md` to the edited file owns stack- and domain-specific
+rules. Historical ADRs and plans explain decisions but are not active agent
+instructions.
 
-## Layout
+## Repository map
 
+```text
+apps/frontend/  pnpm + Rspack micro-frontends
+apps/backend/   Python, TypeScript, and Go microservices
+schemas/        OpenAPI, Proto, events, and streaming contracts
+infra/          deployment and local infrastructure
+.agents/        scopes, playbooks, and agent infrastructure
+docs/           architecture, ADRs, and conventions
 ```
-apps/frontend/   pnpm + Rspack, micro-frontends (platform host + mfe-* remotes)
-apps/backend/    uv + go.work, microservices (services/* + libs/* kernel)
-schemas/        cross-stack & cross-service contracts (OpenAPI + Proto + Events)
-infra/          K8s manifests, Dockerfiles, deployment
-.agents/        multi-agent infrastructure (playbooks, sub-agents, scope rails)
-docs/           ADR, architecture, conventions
-```
 
-## Multi-agent philosophy
+## Route before editing
 
-The most efficient pattern for feature work is **ONE fullstack agent, one
-context window, both stacks**. Do NOT dispatch separate "frontend agent" and
-"backend agent" for the same feature — sub-agents have independent context
-windows; you would lose every cross-stack decision you just made.
+Read only the routes relevant to the task, plus every closer `AGENTS.md` found
+while descending into the target directory.
 
-Sub-agents (defined in `.agents/subagents/`) are reserved for THREE cases:
-1. **Context-free grunt work** — codegen, mass rename, mechanical migration
-2. **Fresh-eyes review** — let a sub-agent audit your diff without bias
-3. **Read-only exploration** — let a sub-agent dig through code and return
-   a compact summary, keeping your main context lean
-
-Switching between frontend and backend is done by `cd`, not by handing off.
-
-For the full feature workflow, see `.agents/playbooks/full-stack-feature.md`.
-
-## How to work in this repo
-
-### Single-feature task (you alone — the default)
-- Frontend-only: `cd apps/frontend` then read its `AGENTS.md`
-- Backend-only:  `cd apps/backend` then read its `AGENTS.md`
-- Cross-stack:   work from root; use `just sync` to bridge
-
-### When in doubt about scope
-Read `.agents/scopes/default.yaml` — it tells you which zones are free /
-caution / forbidden for unprompted edits.
-
-## Top-level commands (run from root)
-
-These are the **canonical entry points** every contributor (human or agent)
-uses. Treat them as the project's public CLI: any refactor / rename / move
-MUST keep them working — see "Migration safety" rule below.
-
-| Command | What it does |
+| Task | Required route |
 |---|---|
-| `just install` | Install ALL deps (mise + pnpm + uv + go; copies `.env` from examples) |
-| `just up` | Docker (Redis + PostgreSQL/pgvector) + DB/workflow schema bootstrap |
-| `just down` | Stop local infra |
-| `just dev` | Start full demo stack (gateway + iam + admin svc + platform + admin MFE) |
-| `just build [target]` | Build frontend / backend / specific service (target optional) |
-| `just sync` | Backend → OpenAPI → frontend TS client regen |
-| `just fmt` | Format both stacks (run only when explicitly requested or clearly needed) |
-| `just lint` | Lint both stacks |
-| `just status` | Git + service health overview |
-| `just doctor` | Environment diagnostics |
-| `just new-service <name>` / `just new-mfe <name>` | Scaffold a new service / MFE |
-
-## Universal hard rules
-
-### Project phase: DEMO (overrides everything below)
-
-The project is in the **demo phase**. Until this section is removed, agents
-MUST NOT add testing scaffolding of any kind, including:
-
-- Unit / integration / e2e test files (`*_test.go`, `*.test.ts`, `*.spec.ts`,
-  `tests/`, `__tests__/`, etc.)
-- Test fixtures, mocks, factories, seed data scripts written **for testing**
-- pytest / vitest / jest / playwright config; new `just test` recipes;
-  CI test jobs
-- README sections, ADRs, or playbooks describing how to run tests
-
-`just test` in the "Definition of done" below is **skipped** during this phase.
-
-**Rationale:** demo-phase priority is API/UX surface area and architectural
-shape; test infrastructure is a multiplicative cost (test data + mocks + CI
-matrices) we will introduce deliberately once the surface stabilizes.
-
-**Override:** if (and only if) the user explicitly asks for tests in a given
-task, honor it for that task only — do not generalize it into scaffolding.
-
-### Solution design: the `plan` skill is MANDATORY
-
-Before any planning / design / architecture / tech-selection / review / refactor
-work — and before writing non-trivial code — every agent (Cursor, Codex, Claude
-Code, ...) MUST follow `.cursor/skills/plan/SKILL.md`. Its five hard constraints:
-
-1. **No preconceptions** — critically review all existing architecture, designs,
-   and code; never assume "it exists, so it's correct."
-2. **Ground every AI decision in the latest official best practice** — look up
-   the current Vercel AI SDK (`ToolLoopAgent` + Workflow DevKit + harness) and AI
-   Elements; do not rely on memory; never reinvent a primitive the SDK provides
-   (see AI-Native rule).
-3. **Single-agent-first** runtime for long / complex tasks; add a few subAgents
-   later only as assistance. **No role-play / persona multi-agent theatre.**
-4. **Copy the benchmarks** — base decisions on the core implementations of Claude
-   Code / Codex / Cursor; do not build in a vacuum.
-5. **No historical baggage** — when existing design has systemic
-   performance / security / usability / extensibility / maintainability problems,
-   refactor directly; do not add compatibility layers or shims (see Future-first
-   policy).
-
-**Plan Mode persistence:** While operating in Plan Mode, every plan produced
-MUST be written to `docs/plans/` as a descriptive kebab-case Markdown file before
-the final response. The repository file is the canonical plan; an in-chat plan
-must not be the only copy.
-
-### Migration safety: don't break the CLI
-
-The `just` commands above are how everyone (humans, agents, CI, docs, README)
-enters the project. **Any rename / move / restructure MUST keep these
-commands working** — verify before declaring done:
-
-- `just install` (deps still resolve)
-- `just up` (Docker + DB bootstrap still works)
-- `just dev` (full stack still boots; ports unchanged)
-- `just build` (with no target, and with each affected service/mfe target)
-- `just sync` (after backend route or schema changes)
-- `just lint` (after any code change); `just fmt` only when explicitly requested
-  or clearly needed for generated / mechanical formatting drift
-
-Common silent-breakers to watch:
-
-- Renaming a service/mfe directory → update `apps/backend/justfile` SERVICES
-  list, `apps/frontend/turbo.json`, `Procfile.dev`, `scripts/dev-*.sh`,
-  `scripts/db-bootstrap.sh`, `scripts/new-*.sh`, `infra/k8s/`, all `AGENTS.md`
-- Changing a default port → update `justfile` PORTS map, `dev-urls`,
-  `.env.example` files, frontend MF `remotes`, gateway upstream config
-- Renaming an env var → update **every** `.env.example` AND any script that
-  reads it (grep `scripts/` and root `justfile`)
-- Moving `scripts/*.sh` → update root `justfile` recipes that call them
-- Changing `apps/backend/services/` or `apps/frontend/apps/` layout → update
-  `go.work`, `pnpm-workspace.yaml`, `tsconfig.base.json` paths
-- Adding a `patchedDependencies` entry to `apps/backend/pnpm-workspace.yaml`
-  → every backend service `Dockerfile` that runs `pnpm install` in that
-  workspace must `COPY apps/backend/patches ./apps/backend/patches` first,
-  even services that don't depend on the patched package themselves: pnpm
-  hashes every patch file referenced in the workspace config against the
-  lockfile before `--filter` narrows anything, so a missing `patches/` dir
-  is an `ENOENT` that breaks *every* service's image build, not just the
-  one that needed the patch
-
-Quick self-check after any structural change: run at minimum
-`just install && just up && just dev` once; if any of them break, the
-migration is incomplete.
-
-### Boundaries (NEVER cross these)
-- `apps/backend/services/<a>` MUST NOT import from `services/<b>` — use
-  `libs/transport/` clients (gRPC/HTTP) or events.
-- `apps/frontend/apps/<a>` MUST NOT import from `apps/<b>` — use
-  `packages/runtime/` event bus.
-- Frontend ↔ Backend coupling goes through `schemas/` ONLY (generated clients).
-- `libs/` MUST stay kernel-only: errors, logging, transport, observability,
-  auth, audit. **NEVER** add domain models to `libs/`.
-
-### Domain ownership of `admin`
-`admin` (both `services/admin` and `apps/frontend/apps/admin`) is the project's
-**"management & configuration" plane**. Anything that fits the shape of "a
-human operator configures it, other services consume it" lives here:
-
-- Tenants / users / RBAC roles (when added)
-- System-wide feature flags
-- Third-party integrations and credentials (LLM providers, payment keys,
-  webhook endpoints, ...) — admin owns the table + CRUD; consuming services
-  fetch via admin's internal HTTP API
-- Bots / skills / other curated content
-
-Consumer services (e.g. `chat`) MUST NOT replicate admin-owned tables in
-their own DB. They fetch on demand and cache short-term (Redis, TTL minutes).
-Admin invalidates cache on writes via `DEL` / pub/sub.
-
-This is why `admin` is the only Python service that talks to almost
-everything else — it is by design a hub, not a peer.
-
-### Industry practice before platform decisions
-For key platform decisions, agents MUST first check current industry practice
-before inventing local policy. This rule is as important as the AI-Native
-technology preference below.
-
-This applies especially to:
-- Single-agent and sub-agent architecture
-- Long-running task orchestration, cancellation, resume, and compaction
-- Tool calling, approval, artifact generation, and streaming UX
-- Harness design, evaluation loops, memory, and context management
-- Configuration policy, limits, timeouts, and operational guardrails
-- Coding-agent conventions, playbooks, and agent-facing repository rules
-
-Use relevant products, frameworks, and public docs as references, including
-but not limited to Codex, Claude Code, Cursor, Vercel AI SDK, LangChain,
-LlamaIndex, OpenAI / Anthropic SDKs, and established open-source agent
-frameworks. Favor primary sources and recent behavior over assumptions.
-
-If a proposed limit, config knob, orchestration rule, or harness convention is
-not supported by clear product requirements, operational necessity, or common
-industry practice, do not add it. If it already exists, remove it or justify it
-explicitly in code comments, docs, or an ADR, depending on the blast radius.
-
-### Evidence and verification order: local data first
-
-When diagnosing or reviewing behavior already persisted by this project, agents
-MUST use the cheapest authoritative local evidence before opening a browser:
-
-1. Query persisted database records, messages, tool calls, artifact versions,
-   workflow state, and application logs with read-only operations.
-2. Inspect the relevant source, prompt, configuration, and local API response to
-   explain the persisted behavior.
-3. Use browser tools only when local evidence is insufficient, the user
-   explicitly requests browser verification, or the claim is inherently about
-   rendered layout, real interaction, accessibility, browser runtime behavior,
-   or other client-only state.
-
-Do NOT open or control a browser merely to reread conversation content, tool
-calls, artifacts, or status already available in the local database or logs.
-Browser verification is a targeted capability, not a default validation step.
-Never expose credentials, tokens, or unrelated user data while querying local
-stores.
-
-### Future-first compatibility policy
-This project has no forward-compatibility obligations during the current demo
-phase. When an existing local convention conflicts with AI-native or Vercel AI
-SDK / AI Elements best practice, agents should prefer the best-practice shape
-and perform incompatible refactors directly instead of adding adapter layers,
-legacy branches, or compatibility shims.
-
-This applies especially to chat UI message parts, artifact rendering, prompt
-input, tool cards, streaming protocols, agent orchestration, and backend
-message persistence. Migrate toward native `UIMessage` parts, generated UI,
-artifact panels, and explicit tool/artifact outputs even if older slot-based
-message text must be replaced. Document the new convention briefly and remove
-obsolete code paths once the replacement works.
-
-### AI-Native technology preference
-The project is positioned as **AI-Native**. When choosing a third-party
-library for an AI-adjacent surface (streaming chat, tool calling, structured
-output, embeddings, RAG, agent loops, ...), **the deciding factor is fit for
-AI scenarios, NOT raw GitHub star count or library age**.
-
-Concretely:
-- A focused 2k-star library purpose-built for LLM streaming (e.g. `streamdown`)
-  beats a 30k-star generalist (e.g. `react-markdown`) for AI surfaces — the
-  generalist will silently do the wrong thing under token-by-token streams
-  (re-parse storms, mid-stream block flicker, unterminated fence rendering).
-- Prefer libraries published / maintained by the AI-tooling cohort: Vercel
-  AI SDK, LangChain, LlamaIndex, OpenAI / Anthropic SDKs, etc. — even when a
-  more general alternative looks "safer".
-- The drop-in / drop-out cost matters more than the star count: if the
-  AI-native lib has a compatible API with the mainstream one, the risk of
-  trying it is near-zero.
-
-When in doubt, ask: "does this library know about streaming tokens, tool
-calls, structured output, or LLM-specific failure modes?" If yes, prefer it.
-If no, you're picking a tool that will require you to re-implement those
-concerns by hand.
-
-### Comments: minimal, only for the genuinely non-obvious
-
-The default is **no comment**. Code agents MUST NOT narrate code
-(`// increment i`, `# build the client`, `// return result`), MUST NOT leave
-section-banner or step-by-step tour-guide comments, and MUST NOT explain in a
-comment the change they just made.
-
-Write a comment ONLY where the code departs from the obvious / idiomatic
-solution and a competent reader would stop and ask "why is it done this weird
-way?" — then state the *reason*, not the mechanics: **this looks wrong, but it
-must be this way because <specific constraint>** (a platform / library
-bug, an external API contract, an ordering / perf / security constraint, a spec
-quirk). Keep it to the minimum — usually a single line.
-
-Litmus test: if deleting the comment loses no information a competent reader
-couldn't recover from the code itself in seconds, it must not exist. Comment
-the surprise, never the routine — this mirrors the core agents (Claude Code /
-Codex / Cursor).
-
-### TypeScript style: Oxc + Ultracite
-
-- Root `oxlint.config.ts` and `oxfmt.config.ts` are the only TypeScript/JavaScript style configuration.
-- Oxfmt uses 120 columns by default, two spaces, double quotes, semicolons, trailing commas, sorted imports, and LF endings. Narrow file-specific overrides are allowed only to preserve an explicit repository hard limit.
-- Oxlint uses type-aware TS7 analysis and `agent` diagnostics. Errors are high-confidence correctness failures; migration findings stay advisory and are hidden from routine CLI output with `--quiet`.
-- Do not add nested Biome, ESLint, or Prettier configurations. Use `just fmt` to rewrite and `just lint` to verify.
-- Generated code and migrations stay excluded. Do not format them manually.
-
-### Forbidden zones for unprompted edits
-- `**/generated/**` — codegen output
-- `apps/backend/services/*/migrations/versions/**` — DB migrations
-- `**/.env*` — secrets
-- `.worktrees/**`, `.agents/tasks/*/` (except `_template/`)
-
-### Required reads before editing
-| Task | Read first |
-|---|---|
-| Any plan / design / architecture / refactor / 技术选型 | `.cursor/skills/plan/SKILL.md` (MANDATORY — see "Solution design" hard rule) |
-| New backend route | `apps/backend/services/<svc>/AGENTS.md` + `docs/开发规范/` |
-| New micro-frontend | `apps/frontend/AGENTS.md` + `docs/微前端/index.md` |
-| New microservice | `docs/微服务/index.md` + `.agents/playbooks/new-microservice.md` |
+| Frontend app/package | `apps/frontend/AGENTS.md` → closest app/package `AGENTS.md` |
+| Backend service/library | `apps/backend/AGENTS.md` → service `AGENTS.md` when present |
+| Contracts/codegen | `schemas/AGENTS.md` |
+| Infrastructure/deployment | `infra/AGENTS.md` |
+| Full-stack feature | `.agents/playbooks/full-stack-feature.md` |
+| New microservice | `.agents/playbooks/new-microservice.md` + `docs/微服务/index.md` |
+| New micro-frontend | `.agents/playbooks/new-mfe.md` + `docs/微前端/index.md` |
 | Cross-service refactor | `.agents/playbooks/cross-service-refactor.md` |
-| Chat stream / any custom `data-*` part / `onData` field | `schemas/streaming/chat-uimessage-stream.md` (reuse official AI SDK parts first; a custom part that duplicates an official one is a bug) |
+| Plan, design, architecture, review, refactor, or tech selection | `.cursor/skills/plan/SKILL.md` |
+| Chat stream or custom `data-*`/`onData` field | `schemas/streaming/chat-uimessage-stream.md` |
+| Unclear edit scope | `.agents/scopes/default.yaml` |
 
-### Definition of done (every change)
-1. `just lint` scoped to affected area
-2. `just fmt` only when explicitly requested or clearly needed; do not auto-run
- it after every code edit
-3. ~~`just test`~~ — **skipped during demo phase** (see above)
-4. If cross-stack: `just sync` and verify both sides build
-5. If new behavior: add/update ADR in `docs/ADR/NNNN-<slug>.md`
-6. Update relevant `docs/<domain>/index.md` if conventions changed
-7. If the task spanned multiple phases or multiple services: run the review
- pass in `docs/ADR/0016-post-implementation-review.md` before calling it
- done — functional tests passing is not the same claim as "complete."
+## Global hard rules
 
-## Worktree policy
+### Work in one feature context
 
-Worktrees are an **escape hatch**, not the default. Use them ONLY when:
-- Two independent agent **processes** run simultaneously (e.g. two terminals)
-- A background long-running refactor must not block local work
-- A/B experimenting with two implementation paths
+One full-stack agent owns a feature across both stacks. Sub-agents are limited
+to context-free mechanical work, read-only exploration, and fresh-eyes review.
+Do not split frontend and backend ownership for the same feature. Follow the
+full-stack playbook for cross-stack work.
 
-For in-context multi-agent dispatch (one orchestrator → sub-agents via Task
-tool), worktrees are NOT needed because sub-agents execute sequentially within
-one process. The `scripts/worktree.sh` helper exists only for the cases above.
+### Preserve boundaries
 
-## Conventions
+- Backend services never import another service's source or access its database;
+  use declared transport clients or events.
+- Frontend apps never import another app; use URL state, the runtime event bus,
+  or backend state.
+- Frontend/backend and cross-service contracts live in `schemas/`.
+- Shared `libs/` contain infrastructure capabilities, never domain models.
+- `admin` owns operator-managed configuration such as tenants, RBAC, feature
+  flags, integrations, credentials, bots, and curated skills. Consumers fetch
+  and cache it; they do not replicate admin-owned tables.
 
-- Commits: Conventional Commits with service/mfe scope
-  - `feat(bot): add publishing flow`
-  - `fix(mfe-admin): correct pagination`
-  - `chore(schema): regen clients`
-- Branches: `feat/<task-id>-<slug>` or `agent/<task-id>/<subagent>`
-- PRs: link to ADR if architectural
+### Design from evidence
+
+- The `plan` skill is mandatory for design, architecture, review, refactors,
+  tech selection, and non-trivial implementation planning.
+- Check current primary sources and established implementations before making
+  platform or AI-runtime decisions. Do not invent policy, limits, or primitives
+  without a product, operational, or official-practice basis.
+- Prefer AI-native primitives for AI surfaces and reuse official AI SDK message,
+  stream, tool, and artifact parts before creating custom protocol.
+- This repository has no legacy-compatibility obligation. Refactor systemic
+  problems directly and remove obsolete paths instead of adding shims.
+
+### Restrict browser and computer use
+
+Do not use browser automation or computer-use tools by default. Use persisted
+records, logs, source, configuration, tests, and local API responses first.
+These UI tools are allowed only when the user explicitly requests them or the
+claim can only be verified through rendered layout, real interaction,
+accessibility, or browser-only runtime behavior. Never use them to reread data
+already available locally, and never expose credentials or unrelated user data.
+
+### Protect public workflows and user work
+
+- Treat root `just` recipes as the public CLI. Renames, moves, port changes,
+  environment changes, and workspace changes must update every caller and keep
+  affected recipes working.
+- Preserve unrelated working-tree changes. Never rewrite, delete, or stage them.
+- Do not hand-edit generated files; change their source and regenerate them.
+- Do not edit migrations, secrets, `.env*`, generated output, worktrees, or lock
+  files unless the task explicitly requires it or the routed instructions say
+  how to regenerate them.
+- Comments explain only non-obvious constraints and reasons, never routine code.
+
+## Canonical commands
+
+Run from the repository root unless a routed instruction says otherwise.
+
+| Command | Purpose |
+|---|---|
+| `just install` | Install all dependencies and initialize local examples |
+| `just up` / `just down` | Start or stop local infrastructure |
+| `just dev` | Start the composed development stack |
+| `just build [target]` | Build all or one service/app |
+| `just sync` | Regenerate backend contracts and frontend clients |
+| `just lint` | Run repository checks |
+| `just fmt` | Rewrite formatting; run only when requested or needed |
+| `just status` / `just doctor` | Inspect repository and environment health |
+| `just new-service <name>` / `just new-mfe <name>` | Scaffold a component through its playbook |
+
+For structural changes, validate the affected install, infrastructure, dev,
+build, sync, and lint paths. Do not claim a migration is complete while a public
+recipe is broken.
+
+## Definition of done
+
+1. Run the affected unit/integration tests and add coverage for changed behavior.
+2. Run scoped checks, then root `just lint` for repository-wide changes.
+3. Run `just sync` after contract changes and verify both producer and consumer.
+4. Build every affected service, app, or shared consumer.
+5. Update an ADR for new architectural behavior and domain docs for changed
+   conventions.
+6. For multi-phase or multi-service work, complete the review in
+   `docs/ADR/0016-post-implementation-review.md`.
+
+Use Conventional Commits with a scope, for example `feat(canvas): ...` or
+`fix(mfe-admin): ...`.
 
 ## When stuck
 
-1. Re-read this file
-2. Read the closest sub-`AGENTS.md` going down the tree
-3. Read the relevant playbook in `.agents/playbooks/`
-4. Search recent commits in same area for precedent
-5. Ask user
+Re-read the closest `AGENTS.md`, then the routed playbook and recent commits in
+the same area. Ask the user when the remaining decision changes scope, product
+behavior, or external state.

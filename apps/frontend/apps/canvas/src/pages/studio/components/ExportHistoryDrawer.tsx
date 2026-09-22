@@ -133,7 +133,7 @@ export function ExportHistoryDrawer({
       unmountOnExit
       visible={visible}
       width={440}
-      wrapClassName="agentframe-web-theme"
+      wrapClassName="canvas-web-theme"
     >
       <FileList
         emptyText={t("暂无导出记录")}

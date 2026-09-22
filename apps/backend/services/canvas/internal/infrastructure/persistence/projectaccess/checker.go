@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	memberCacheKeyPrefix     = "agentframe:project-members:v2:members:"
-	generationCacheKeyPrefix = "agentframe:project-members:v2:generation:"
+	memberCacheKeyPrefix     = "canvas:project-members:v2:members:"
+	generationCacheKeyPrefix = "canvas:project-members:v2:generation:"
 	cacheSentinel            = "\x00loaded"
 	minCacheTTL              = 45 * time.Second
 	maxCacheTTL              = 75 * time.Second

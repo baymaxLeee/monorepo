@@ -49,7 +49,7 @@ func (v AspectRatio) ProviderValue() string {
 	}[v]
 }
 
-// AutomaticDurationSeconds is the AIGW contract value for provider-selected
+// AutomaticDurationSeconds is the provider contract value for provider-selected
 // video duration. It must only be accepted after the selected model advertises
 // the value in its duration recommendations.
 const AutomaticDurationSeconds int32 = -1
@@ -136,7 +136,7 @@ type Generation struct {
 	DurationSeconds                                             int32
 	OutputDurationSeconds                                       *int32
 	GenerateAudio, Watermark                                    bool
-	AIGWTraceWorkspaceID                                        string
+	ProviderWorkspaceID                                         string
 	ProviderTaskID, SeedanceTaskID, ProviderVideoURL            string
 	ProviderStatus                                              ProviderStatus
 	ProviderErrorCode, ProviderErrorMessage                     string

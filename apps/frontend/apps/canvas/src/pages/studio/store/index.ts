@@ -1,14 +1,14 @@
 import type { CanvasDefaults } from "@repo/api";
 import { atom } from "jotai";
 
-import type { canvas as agentFrameCanvas } from "@/domain";
+import type { canvas as canvasDomain } from "@/domain";
 
 import type { ImageGenerationModelOption } from "../../resources/generation/imageModels";
 import { DEFAULT_STUDIO_VIEW, type StudioView } from "../domain/types";
 import type { VideoModelOption } from "../domain/videoModels";
 
 /** 仅承载创意工坊各模块共享的页面级状态；组件交互态继续留在组件内部。 */
-export const canvasAtom = atom<agentFrameCanvas.ProjectCanvasSummary | undefined>(undefined);
+export const canvasAtom = atom<canvasDomain.ProjectCanvasSummary | undefined>(undefined);
 export const studioReadyAtom = atom(false);
 export const studioViewAtom = atom<StudioView>(DEFAULT_STUDIO_VIEW);
 export const studioViewChangingAtom = atom(false);

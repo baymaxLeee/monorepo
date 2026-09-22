@@ -31,7 +31,7 @@ type Repository interface {
 	ListByScope(context.Context, domainofficialasset.Scope) ([]domainofficialasset.OfficialAsset, error)
 	// ListScopes 枚举已有官方记录的全部 scope，供启动对账逐个收敛。
 	//
-	// 启动对账只作用于已存在官方记录的 scope，而不是枚举租户：AgentFrame 没有租户枚举来源，
+	// 启动对账只作用于已存在官方记录的 scope，而不是枚举租户：Canvas 没有租户枚举来源，
 	// 尚无官方记录的 scope 由首次读物化负责。
 	ListScopes(context.Context) ([]domainofficialasset.Scope, error)
 	// ListByLongLiveStatus 供运维任务按注册状态挑选待上传、待注册或需重传的条目。

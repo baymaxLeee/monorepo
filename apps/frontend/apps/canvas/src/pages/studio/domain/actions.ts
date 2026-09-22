@@ -21,9 +21,9 @@ import {
   SelectCanvasNodeHistory,
 } from "@/pages/studio/domain/generations";
 import { CreateCanvasNode, UpdateCanvasNode, DeleteCanvasNode, presentNode } from "@/pages/studio/domain/persistence";
+import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
 import t from "@/utils/i18n";
-import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
 
 import { isVideoGenerationCancellationAllowed } from "./generationCancellation";
 import { materializedCanvasNodeAssetId } from "./model";
@@ -119,9 +119,9 @@ export function shotFromDTO(value: canvasnode.CanvasNode): Shot {
     status: STATUS_FROM_API[value.Status] ?? "empty",
     script: value.Prompt,
     settings,
-    videoUrl: resolveUpPreviewURL(value.SelectedOutputURL ?? value.PreviewURL ?? ""),
+    videoUrl: resolveArtifactURL(value.SelectedOutputURL ?? value.PreviewURL ?? ""),
     firstFrameAssetId: value.FirstFrameAssetID,
-    firstFrameUrl: resolveUpPreviewURL(value.FirstFrameURL ?? ""),
+    firstFrameUrl: resolveArtifactURL(value.FirstFrameURL ?? ""),
     firstFramePreviewResolved: Boolean(value.FirstFrameURL),
     activeGenerationRunId: value.ActiveTaskRunID,
     selectedOutputId: value.SelectedOutputID,
@@ -189,12 +189,12 @@ export function historyFromDTO(value: canvasnode.CanvasNodeHistory, canvasnodeId
     duration: value.DurationSeconds ? `${value.DurationSeconds}s` : "",
     script: value.Prompt,
     outputText: value.OutputText,
-    videoUrl: resolveUpPreviewURL(value.OutputURL ?? value.VideoURL ?? ""),
+    videoUrl: resolveArtifactURL(value.OutputURL ?? value.VideoURL ?? ""),
     outputAssetId: value.OutputAssetID,
     firstFrameAssetId: value.FirstFrameAssetID,
     lastFrameAssetId: value.LastFrameAssetID,
-    firstFrameUrl: resolveUpPreviewURL(value.FirstFrameURL ?? ""),
-    lastFrameUrl: resolveUpPreviewURL(value.LastFrameURL ?? ""),
+    firstFrameUrl: resolveArtifactURL(value.FirstFrameURL ?? ""),
+    lastFrameUrl: resolveArtifactURL(value.LastFrameURL ?? ""),
     completedAt: timestampMillis(value.CompletedAt),
     createdAt: timestampMillis(value.CreatedAt) ?? 0,
     errorCode: value.ErrorCode,
@@ -217,7 +217,7 @@ export function canvasGenerationFailureFromError(
   };
 }
 
-/** TOP 请求层会抛出 ResponseMetadata.Error；业务交互直接展示其安全 Message。 */
+/** API 请求层会抛出 ResponseMetadata.Error；业务交互直接展示其安全 Message。 */
 export function canvasRequestErrorMessage(error: unknown, fallbackMessage: string) {
   if (!error || typeof error !== "object") return fallbackMessage;
   const message = (error as { Message?: unknown }).Message;
@@ -310,7 +310,7 @@ export async function getCanvasNodeAssets(target: canvasnode.CanvasNode, graphNo
         : node.Type === canvasnode.CanvasNodeType.AUDIO_ASSET
           ? "audio"
           : "image";
-    const previewURL = node.PreviewURL ? resolveUpPreviewURL(node.PreviewURL) : undefined;
+    const previewURL = node.PreviewURL ? resolveArtifactURL(node.PreviewURL) : undefined;
     return [
       {
         id: node.NodeID,
@@ -363,7 +363,7 @@ export async function streamCanvasNodeDrafts(
   projectId: string,
   canvasId: string,
   plot: string,
-  inferenceModelServiceId: string,
+  modelBindings: { inferenceModelServiceId: string; videoModelServiceId: string },
   durations: { shot: { min: number; max: number }; video: { min: number; max: number } },
   frontendSettings: StoryboardSettings,
   signal: AbortSignal,
@@ -382,8 +382,8 @@ export async function streamCanvasNodeDrafts(
         total_duration_max_seconds: durations.video.max * 60,
       },
       model_config: {
-        inference_model_service_id: inferenceModelServiceId,
-        video_model_service_id: frontendSettings.model,
+        inference_model_service_id: modelBindings.inferenceModelServiceId,
+        video_model_service_id: modelBindings.videoModelServiceId,
         video_parameters: {
           resolution: RESOLUTION_TO_API[frontendSettings.resolution],
           aspect_ratio: RATIO_TO_API[frontendSettings.ratio],
@@ -644,7 +644,7 @@ function resolveMentionNodeURL(node: canvasnode.CanvasNodeAssetMentionNode): Men
     ...node,
     Children: node.Children.map(resolveMentionNodeURL),
     Review: latestAssetReview(node.Reviews),
-    URL: node.URL ? resolveUpPreviewURL(node.URL) : undefined,
+    URL: node.URL ? resolveArtifactURL(node.URL) : undefined,
   };
 }
 

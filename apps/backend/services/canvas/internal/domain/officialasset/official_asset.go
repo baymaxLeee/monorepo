@@ -4,7 +4,7 @@
 // 三者 1:1。对账以清单自带的 slug 为匹配键——它与音色名称、blob 都解耦，因此改名与换内容
 // 都不会被误判成「旧条目下线 + 新条目上线」。
 //
-// 官方素材没有外部 asset ID：统一上传后只存在 AgentFrame 自己的内部标识。一份内容只上传一次
+// 官方素材没有外部 asset ID：统一上传后只存在 Canvas 自己的内部标识。一份内容只上传一次
 // 得到共享的 BlobID，再为每个 scope 各调用一次 LongLiveArtifact，各自得到 ArtifactID 与
 // Asset。按 ADR-010，BlobID 与 ArtifactID 都只是存储定位，不成为领域对象身份。
 package officialasset

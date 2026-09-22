@@ -31,4 +31,3 @@ humans; local OpenAPI files are for reproducible code generation.
 - Use gateway-facing paths (`/api/<service-name>/*`), not internal service
   paths.
 - Reuse `apiHttp` / `apiMutator`; do not create another axios instance in apps.
-- Demo phase: do not add mocks, MSW handlers, test fixtures, or test scripts.

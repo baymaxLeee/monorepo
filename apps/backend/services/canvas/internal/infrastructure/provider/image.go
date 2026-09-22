@@ -1,4 +1,4 @@
-package aigw
+package provider
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 
 	applicationimagegeneration "github.com/example/monorepo/canvas/internal/application/imagegeneration"
 	domainimagegeneration "github.com/example/monorepo/canvas/internal/domain/imagegeneration"
-	platformaigwproxy "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
+	providerclient "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
 )
 
 type imageClient interface {
@@ -19,7 +19,7 @@ type imageClient interface {
 
 type ImageProvider struct{ client imageClient }
 
-func NewImageProvider(client platformaigwproxy.Client) *ImageProvider {
+func NewImageProvider(client providerclient.Client) *ImageProvider {
 	return &ImageProvider{client: client}
 }
 
@@ -38,7 +38,7 @@ func (p *ImageProvider) Generate(ctx context.Context, input applicationimagegene
 	}
 	references := make([]string, 0, len(input.ReferenceURLs))
 	for _, raw := range input.ReferenceURLs {
-		reference, referenceErr := publicReferenceURL(raw)
+		reference, referenceErr := seedanceReference(raw)
 		if referenceErr != nil {
 			return result, referenceErr
 		}
@@ -46,10 +46,10 @@ func (p *ImageProvider) Generate(ctx context.Context, input applicationimagegene
 	}
 	responseFormat := arkmodel.GenerateImagesResponseFormatURL
 	outputFormat := arkmodel.OutputFormatPNG
-	ctx = platformaigwproxy.WithTraceIdentity(ctx, input.TenantID, input.CallerID)
-	ctx = platformaigwproxy.WithProjectID(ctx, input.ProjectID)
+	ctx = providerclient.WithTraceIdentity(ctx, input.TenantID, input.CallerID)
+	ctx = providerclient.WithProjectID(ctx, input.ProjectID)
 	if input.WorkspaceID != nil {
-		ctx = platformaigwproxy.WithWorkspaceID(ctx, *input.WorkspaceID)
+		ctx = providerclient.WithWorkspaceID(ctx, *input.WorkspaceID)
 	}
 	request := arkmodel.GenerateImagesRequest{
 		Model: strings.TrimSpace(input.ModelID), Prompt: input.Prompt, ResponseFormat: &responseFormat,
@@ -59,8 +59,8 @@ func (p *ImageProvider) Generate(ctx context.Context, input applicationimagegene
 		request.Image = references
 	}
 	response, err := p.client.GenerateImages(ctx, request)
-	result.Call.RequestAttempted = platformaigwproxy.RequestAttempted(err)
-	result.Call.RequestID = platformaigwproxy.AIGWRequestID(response.Header())
+	result.Call.RequestAttempted = providerclient.RequestAttempted(err)
+	result.Call.RequestID = providerclient.ProviderRequestID(response.Header())
 	if err != nil {
 		var apiErr *arkmodel.APIError
 		if errors.As(err, &apiErr) {

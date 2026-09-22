@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+
 	"github.com/example/monorepo/canvas/internal/api/contracts/asset"
-	"github.com/example/monorepo/canvas/internal/api/contracts/base"
 	"github.com/example/monorepo/canvas/internal/api/contracts/common"
 	"github.com/example/monorepo/canvas/internal/api/contracts/resource"
 )
@@ -1516,8 +1516,6 @@ type ListCanvasNodeDraftSessionsRequest struct {
 	ProjectID string `json:"ProjectID"`
 	// CanvasID 是所属剧集标识。
 	CanvasID string `json:"CanvasID"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewListCanvasNodeDraftSessionsRequest() *ListCanvasNodeDraftSessionsRequest {
@@ -1544,21 +1542,8 @@ func (p *ListCanvasNodeDraftSessionsRequest) GetCanvasID() (v string) {
 	return p.CanvasID
 }
 
-var ListCanvasNodeDraftSessionsRequest_Top_DEFAULT *base.TopParam
-
-func (p *ListCanvasNodeDraftSessionsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return ListCanvasNodeDraftSessionsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *ListCanvasNodeDraftSessionsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *ListCanvasNodeDraftSessionsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *ListCanvasNodeDraftSessionsRequest) String() string {
@@ -1592,10 +1577,9 @@ func (p *ListCanvasNodeDraftSessionsResponse) String() string {
 }
 
 type GetCanvasGraphRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
 }
 
 func NewGetCanvasGraphRequest() *GetCanvasGraphRequest {
@@ -1622,21 +1606,8 @@ func (p *GetCanvasGraphRequest) GetCanvasID() (v string) {
 	return p.CanvasID
 }
 
-var GetCanvasGraphRequest_Top_DEFAULT *base.TopParam
-
-func (p *GetCanvasGraphRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return GetCanvasGraphRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *GetCanvasGraphRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *GetCanvasGraphRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *GetCanvasGraphRequest) String() string {
@@ -1671,12 +1642,11 @@ func (p *GetCanvasGraphResponse) String() string {
 // CreateCanvasAssetRequest 将临时 Blob 注册为当前 Project 可用的画布素材。
 // Asset Owner 由 Server 根据可信 Project/Canvas scope 派生，调用方不能指定。
 type CreateCanvasAssetRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	BlobID      string         `json:"BlobID"`
-	FileName    string         `json:"FileName"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
+	BlobID      string  `json:"BlobID"`
+	FileName    string  `json:"FileName"`
 }
 
 func NewCreateCanvasAssetRequest() *CreateCanvasAssetRequest {
@@ -1711,21 +1681,8 @@ func (p *CreateCanvasAssetRequest) GetFileName() (v string) {
 	return p.FileName
 }
 
-var CreateCanvasAssetRequest_Top_DEFAULT *base.TopParam
-
-func (p *CreateCanvasAssetRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CreateCanvasAssetRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CreateCanvasAssetRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *CreateCanvasAssetRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CreateCanvasAssetRequest) String() string {
@@ -1815,8 +1772,6 @@ type CreateCanvasNodeRequest struct {
 	ResourceID *string `json:"ResourceID,omitempty"`
 	// UploadedAsset 创建 Project Asset 并立即绑定素材节点；与 AssetID、ResourceID、ResourceAssetID 互斥。
 	UploadedAsset *CanvasUploadedAsset `json:"UploadedAsset,omitempty"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewCreateCanvasNodeRequest() *CreateCanvasNodeRequest {
@@ -1919,15 +1874,6 @@ func (p *CreateCanvasNodeRequest) GetUploadedAsset() (v *CanvasUploadedAsset) {
 	return p.UploadedAsset
 }
 
-var CreateCanvasNodeRequest_Top_DEFAULT *base.TopParam
-
-func (p *CreateCanvasNodeRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CreateCanvasNodeRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CreateCanvasNodeRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -1962,10 +1908,6 @@ func (p *CreateCanvasNodeRequest) IsSetResourceID() bool {
 
 func (p *CreateCanvasNodeRequest) IsSetUploadedAsset() bool {
 	return p.UploadedAsset != nil
-}
-
-func (p *CreateCanvasNodeRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CreateCanvasNodeRequest) String() string {
@@ -2021,7 +1963,6 @@ type CopyCanvasNodeRequest struct {
 	CanvasID     string              `json:"CanvasID"`
 	SourceNodeID string              `json:"SourceNodeID"`
 	Position     *CanvasNodePosition `json:"Position"`
-	Top          *base.TopParam      `json:"Top,omitempty"`
 }
 
 func NewCopyCanvasNodeRequest() *CopyCanvasNodeRequest {
@@ -2061,25 +2002,12 @@ func (p *CopyCanvasNodeRequest) GetPosition() (v *CanvasNodePosition) {
 	return p.Position
 }
 
-var CopyCanvasNodeRequest_Top_DEFAULT *base.TopParam
-
-func (p *CopyCanvasNodeRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CopyCanvasNodeRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CopyCanvasNodeRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
 
 func (p *CopyCanvasNodeRequest) IsSetPosition() bool {
 	return p.Position != nil
-}
-
-func (p *CopyCanvasNodeRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CopyCanvasNodeRequest) String() string {
@@ -2555,10 +2483,10 @@ type CreateCanvasNodesRequest struct {
 	Plot           string                    `json:"Plot"`
 	ModelConfig    *StoryboardModelConfig    `json:"ModelConfig"`
 	PlanningConfig *StoryboardPlanningConfig `json:"PlanningConfig"`
-	// CanvasNodes is supplied by the Chat tool when the primary model already produced the structured storyboard.
-	// When present, Canvas persists a completed draft task and performs no inference call.
+	// CanvasNodes is supplied by the Chat tool when the Agent already produced the structured storyboard.
+	// When omitted, Canvas runs its deterministic planner for the manually entered plot and parameters.
+	// Both modes use the same durable draft lifecycle.
 	CanvasNodes []*CanvasNodeDraft `json:"CanvasNodes,omitempty"`
-	Top         *base.TopParam     `json:"Top,omitempty"`
 }
 
 func NewCreateCanvasNodesRequest() *CreateCanvasNodesRequest {
@@ -2611,15 +2539,6 @@ func (p *CreateCanvasNodesRequest) GetCanvasNodes() (v []*CanvasNodeDraft) {
 	return p.CanvasNodes
 }
 
-var CreateCanvasNodesRequest_Top_DEFAULT *base.TopParam
-
-func (p *CreateCanvasNodesRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CreateCanvasNodesRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CreateCanvasNodesRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -2636,10 +2555,6 @@ func (p *CreateCanvasNodesRequest) IsSetCanvasNodes() bool {
 	return p.CanvasNodes != nil
 }
 
-func (p *CreateCanvasNodesRequest) IsSetTop() bool {
-	return p.Top != nil
-}
-
 func (p *CreateCanvasNodesRequest) String() string {
 	if p == nil {
 		return "<nil>"
@@ -2649,11 +2564,10 @@ func (p *CreateCanvasNodesRequest) String() string {
 
 // GetCanvasNodeDraftsRequest 按 TaskRunID 返回任务的最新持久化状态和完整草稿节点。
 type GetCanvasNodeDraftsRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	TaskRunID   string         `json:"TaskRunID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
+	TaskRunID   string  `json:"TaskRunID"`
 }
 
 func NewGetCanvasNodeDraftsRequest() *GetCanvasNodeDraftsRequest {
@@ -2684,21 +2598,8 @@ func (p *GetCanvasNodeDraftsRequest) GetTaskRunID() (v string) {
 	return p.TaskRunID
 }
 
-var GetCanvasNodeDraftsRequest_Top_DEFAULT *base.TopParam
-
-func (p *GetCanvasNodeDraftsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return GetCanvasNodeDraftsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *GetCanvasNodeDraftsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *GetCanvasNodeDraftsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *GetCanvasNodeDraftsRequest) String() string {
@@ -2826,7 +2727,6 @@ type ConfirmCanvasNodeDraftsRequest struct {
 	CanvasID    string                         `json:"CanvasID"`
 	Items       []*CanvasNodeDraftConfirmInput `json:"Items"`
 	TaskRunID   string                         `json:"TaskRunID"`
-	Top         *base.TopParam                 `json:"Top,omitempty"`
 }
 
 func NewConfirmCanvasNodeDraftsRequest() *ConfirmCanvasNodeDraftsRequest {
@@ -2861,21 +2761,8 @@ func (p *ConfirmCanvasNodeDraftsRequest) GetTaskRunID() (v string) {
 	return p.TaskRunID
 }
 
-var ConfirmCanvasNodeDraftsRequest_Top_DEFAULT *base.TopParam
-
-func (p *ConfirmCanvasNodeDraftsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return ConfirmCanvasNodeDraftsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *ConfirmCanvasNodeDraftsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *ConfirmCanvasNodeDraftsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *ConfirmCanvasNodeDraftsRequest) String() string {
@@ -2915,11 +2802,10 @@ func (p *ConfirmCanvasNodeDraftsResponse) String() string {
 
 // CancelCanvasNodeDraftsRequest 显式取消生成或放弃待确认草稿，并删除 Redis 会话。
 type CancelCanvasNodeDraftsRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	TaskRunID   string         `json:"TaskRunID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
+	TaskRunID   string  `json:"TaskRunID"`
 }
 
 func NewCancelCanvasNodeDraftsRequest() *CancelCanvasNodeDraftsRequest {
@@ -2950,21 +2836,8 @@ func (p *CancelCanvasNodeDraftsRequest) GetTaskRunID() (v string) {
 	return p.TaskRunID
 }
 
-var CancelCanvasNodeDraftsRequest_Top_DEFAULT *base.TopParam
-
-func (p *CancelCanvasNodeDraftsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CancelCanvasNodeDraftsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CancelCanvasNodeDraftsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *CancelCanvasNodeDraftsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CancelCanvasNodeDraftsRequest) String() string {
@@ -2976,11 +2849,10 @@ func (p *CancelCanvasNodeDraftsRequest) String() string {
 
 // StartCanvasNodeGenerationRequest 启动画布图片或视频生成节点。
 type StartCanvasNodeGenerationRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	NodeID      string         `json:"NodeID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
+	NodeID      string  `json:"NodeID"`
 }
 
 func NewStartCanvasNodeGenerationRequest() *StartCanvasNodeGenerationRequest {
@@ -3011,21 +2883,8 @@ func (p *StartCanvasNodeGenerationRequest) GetNodeID() (v string) {
 	return p.NodeID
 }
 
-var StartCanvasNodeGenerationRequest_Top_DEFAULT *base.TopParam
-
-func (p *StartCanvasNodeGenerationRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return StartCanvasNodeGenerationRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *StartCanvasNodeGenerationRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *StartCanvasNodeGenerationRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *StartCanvasNodeGenerationRequest) String() string {
@@ -3059,10 +2918,9 @@ func (p *StartCanvasNodeGenerationResponse) String() string {
 
 // StartCanvasGenerationRequest 启动剧集内当前可生成的全部分镜。
 type StartCanvasGenerationRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
 }
 
 func NewStartCanvasGenerationRequest() *StartCanvasGenerationRequest {
@@ -3089,21 +2947,8 @@ func (p *StartCanvasGenerationRequest) GetCanvasID() (v string) {
 	return p.CanvasID
 }
 
-var StartCanvasGenerationRequest_Top_DEFAULT *base.TopParam
-
-func (p *StartCanvasGenerationRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return StartCanvasGenerationRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *StartCanvasGenerationRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *StartCanvasGenerationRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *StartCanvasGenerationRequest) String() string {
@@ -3510,11 +3355,10 @@ func (p *CanvasNodeHistory) String() string {
 }
 
 type ListCanvasNodeHistoriesRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	NodeID      string         `json:"NodeID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
+	NodeID      string  `json:"NodeID"`
 }
 
 func NewListCanvasNodeHistoriesRequest() *ListCanvasNodeHistoriesRequest {
@@ -3545,21 +3389,8 @@ func (p *ListCanvasNodeHistoriesRequest) GetNodeID() (v string) {
 	return p.NodeID
 }
 
-var ListCanvasNodeHistoriesRequest_Top_DEFAULT *base.TopParam
-
-func (p *ListCanvasNodeHistoriesRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return ListCanvasNodeHistoriesRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *ListCanvasNodeHistoriesRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *ListCanvasNodeHistoriesRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *ListCanvasNodeHistoriesRequest) String() string {
@@ -3592,12 +3423,11 @@ func (p *ListCanvasNodeHistoriesResponse) String() string {
 }
 
 type SelectCanvasNodeHistoryRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	NodeID      string         `json:"NodeID"`
-	HistoryID   string         `json:"HistoryID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
+	NodeID      string  `json:"NodeID"`
+	HistoryID   string  `json:"HistoryID"`
 }
 
 func NewSelectCanvasNodeHistoryRequest() *SelectCanvasNodeHistoryRequest {
@@ -3632,21 +3462,8 @@ func (p *SelectCanvasNodeHistoryRequest) GetHistoryID() (v string) {
 	return p.HistoryID
 }
 
-var SelectCanvasNodeHistoryRequest_Top_DEFAULT *base.TopParam
-
-func (p *SelectCanvasNodeHistoryRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return SelectCanvasNodeHistoryRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *SelectCanvasNodeHistoryRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *SelectCanvasNodeHistoryRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *SelectCanvasNodeHistoryRequest) String() string {
@@ -3688,12 +3505,11 @@ func (p *SelectCanvasNodeHistoryResponse) String() string {
 }
 
 type CancelCanvasNodeGenerationRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	NodeID      string         `json:"NodeID"`
-	TaskRunID   string         `json:"TaskRunID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
+	NodeID      string  `json:"NodeID"`
+	TaskRunID   string  `json:"TaskRunID"`
 }
 
 func NewCancelCanvasNodeGenerationRequest() *CancelCanvasNodeGenerationRequest {
@@ -3728,21 +3544,8 @@ func (p *CancelCanvasNodeGenerationRequest) GetTaskRunID() (v string) {
 	return p.TaskRunID
 }
 
-var CancelCanvasNodeGenerationRequest_Top_DEFAULT *base.TopParam
-
-func (p *CancelCanvasNodeGenerationRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CancelCanvasNodeGenerationRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CancelCanvasNodeGenerationRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *CancelCanvasNodeGenerationRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CancelCanvasNodeGenerationRequest) String() string {
@@ -3872,11 +3675,10 @@ func (p *CanvasTextGenerationCompleted) String() string {
 }
 
 type StartCanvasNodeTextGenerationRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	NodeID      string         `json:"NodeID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
+	NodeID      string  `json:"NodeID"`
 }
 
 func NewStartCanvasNodeTextGenerationRequest() *StartCanvasNodeTextGenerationRequest {
@@ -3907,21 +3709,8 @@ func (p *StartCanvasNodeTextGenerationRequest) GetNodeID() (v string) {
 	return p.NodeID
 }
 
-var StartCanvasNodeTextGenerationRequest_Top_DEFAULT *base.TopParam
-
-func (p *StartCanvasNodeTextGenerationRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return StartCanvasNodeTextGenerationRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *StartCanvasNodeTextGenerationRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *StartCanvasNodeTextGenerationRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *StartCanvasNodeTextGenerationRequest) String() string {
@@ -3932,12 +3721,11 @@ func (p *StartCanvasNodeTextGenerationRequest) String() string {
 }
 
 type CancelCanvasNodeTextGenerationRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	NodeID      string         `json:"NodeID"`
-	TaskRunID   string         `json:"TaskRunID"`
-	Top         *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
+	NodeID      string  `json:"NodeID"`
+	TaskRunID   string  `json:"TaskRunID"`
 }
 
 func NewCancelCanvasNodeTextGenerationRequest() *CancelCanvasNodeTextGenerationRequest {
@@ -3972,21 +3760,8 @@ func (p *CancelCanvasNodeTextGenerationRequest) GetTaskRunID() (v string) {
 	return p.TaskRunID
 }
 
-var CancelCanvasNodeTextGenerationRequest_Top_DEFAULT *base.TopParam
-
-func (p *CancelCanvasNodeTextGenerationRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CancelCanvasNodeTextGenerationRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CancelCanvasNodeTextGenerationRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *CancelCanvasNodeTextGenerationRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CancelCanvasNodeTextGenerationRequest) String() string {
@@ -4073,8 +3848,6 @@ type UpdateCanvasNodeRequest struct {
 	Text             *string                          `json:"Text,omitempty"`
 	Position         *CanvasNodePosition              `json:"Position,omitempty"`
 	VideoInputMode   *CanvasVideoInputMode            `json:"VideoInputMode,omitempty"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewUpdateCanvasNodeRequest() *UpdateCanvasNodeRequest {
@@ -4159,15 +3932,6 @@ func (p *UpdateCanvasNodeRequest) GetVideoInputMode() (v CanvasVideoInputMode) {
 	return *p.VideoInputMode
 }
 
-var UpdateCanvasNodeRequest_Top_DEFAULT *base.TopParam
-
-func (p *UpdateCanvasNodeRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return UpdateCanvasNodeRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *UpdateCanvasNodeRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -4194,10 +3958,6 @@ func (p *UpdateCanvasNodeRequest) IsSetPosition() bool {
 
 func (p *UpdateCanvasNodeRequest) IsSetVideoInputMode() bool {
 	return p.VideoInputMode != nil
-}
-
-func (p *UpdateCanvasNodeRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *UpdateCanvasNodeRequest) String() string {
@@ -4282,7 +4042,6 @@ type BatchUpdateCanvasNodePositionsRequest struct {
 	ProjectID   string                      `json:"ProjectID"`
 	CanvasID    string                      `json:"CanvasID"`
 	Items       []*CanvasNodePositionUpdate `json:"Items"`
-	Top         *base.TopParam              `json:"Top,omitempty"`
 }
 
 func NewBatchUpdateCanvasNodePositionsRequest() *BatchUpdateCanvasNodePositionsRequest {
@@ -4313,21 +4072,8 @@ func (p *BatchUpdateCanvasNodePositionsRequest) GetItems() (v []*CanvasNodePosit
 	return p.Items
 }
 
-var BatchUpdateCanvasNodePositionsRequest_Top_DEFAULT *base.TopParam
-
-func (p *BatchUpdateCanvasNodePositionsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return BatchUpdateCanvasNodePositionsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *BatchUpdateCanvasNodePositionsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *BatchUpdateCanvasNodePositionsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *BatchUpdateCanvasNodePositionsRequest) String() string {
@@ -4369,8 +4115,6 @@ type DeleteCanvasNodeRequest struct {
 	CanvasID string `json:"CanvasID"`
 	// NodeID 是待删除的分镜标识。
 	NodeID string `json:"NodeID"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewDeleteCanvasNodeRequest() *DeleteCanvasNodeRequest {
@@ -4401,21 +4145,8 @@ func (p *DeleteCanvasNodeRequest) GetNodeID() (v string) {
 	return p.NodeID
 }
 
-var DeleteCanvasNodeRequest_Top_DEFAULT *base.TopParam
-
-func (p *DeleteCanvasNodeRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return DeleteCanvasNodeRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *DeleteCanvasNodeRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *DeleteCanvasNodeRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *DeleteCanvasNodeRequest) String() string {
@@ -4453,8 +4184,7 @@ type BatchDeleteCanvasNodesRequest struct {
 	ProjectID   string  `json:"ProjectID"`
 	CanvasID    string  `json:"CanvasID"`
 	// NodeIDs 最多包含 100 个互不重复的节点标识。
-	NodeIDs []string       `json:"NodeIDs"`
-	Top     *base.TopParam `json:"Top,omitempty"`
+	NodeIDs []string `json:"NodeIDs"`
 }
 
 func NewBatchDeleteCanvasNodesRequest() *BatchDeleteCanvasNodesRequest {
@@ -4485,21 +4215,8 @@ func (p *BatchDeleteCanvasNodesRequest) GetNodeIDs() (v []string) {
 	return p.NodeIDs
 }
 
-var BatchDeleteCanvasNodesRequest_Top_DEFAULT *base.TopParam
-
-func (p *BatchDeleteCanvasNodesRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return BatchDeleteCanvasNodesRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *BatchDeleteCanvasNodesRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *BatchDeleteCanvasNodesRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *BatchDeleteCanvasNodesRequest) String() string {
@@ -4532,14 +4249,13 @@ func (p *BatchDeleteCanvasNodesResponse) String() string {
 }
 
 type ConnectCanvasNodesRequest struct {
-	WorkspaceID  *string        `json:"WorkspaceID,omitempty"`
-	ProjectID    string         `json:"ProjectID"`
-	CanvasID     string         `json:"CanvasID"`
-	SourceNodeID string         `json:"SourceNodeID"`
-	TargetNodeID string         `json:"TargetNodeID"`
-	TargetPort   CanvasPort     `json:"TargetPort"`
-	TargetOrder  *int32         `json:"TargetOrder,omitempty"`
-	Top          *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID  *string    `json:"WorkspaceID,omitempty"`
+	ProjectID    string     `json:"ProjectID"`
+	CanvasID     string     `json:"CanvasID"`
+	SourceNodeID string     `json:"SourceNodeID"`
+	TargetNodeID string     `json:"TargetNodeID"`
+	TargetPort   CanvasPort `json:"TargetPort"`
+	TargetOrder  *int32     `json:"TargetOrder,omitempty"`
 }
 
 func NewConnectCanvasNodesRequest() *ConnectCanvasNodesRequest {
@@ -4587,25 +4303,12 @@ func (p *ConnectCanvasNodesRequest) GetTargetOrder() (v int32) {
 	return *p.TargetOrder
 }
 
-var ConnectCanvasNodesRequest_Top_DEFAULT *base.TopParam
-
-func (p *ConnectCanvasNodesRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return ConnectCanvasNodesRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *ConnectCanvasNodesRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
 
 func (p *ConnectCanvasNodesRequest) IsSetTargetOrder() bool {
 	return p.TargetOrder != nil
-}
-
-func (p *ConnectCanvasNodesRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *ConnectCanvasNodesRequest) String() string {
@@ -4666,7 +4369,6 @@ type MaterializeCanvasResourceAssetReferenceRequest struct {
 	ResourceAssetNodePosition *CanvasNodePosition `json:"ResourceAssetNodePosition"`
 	// ReferenceType 显式声明活动引用身份。
 	ReferenceType CanvasNodeMentionReferenceType `json:"ReferenceType"`
-	Top           *base.TopParam                 `json:"Top,omitempty"`
 }
 
 func NewMaterializeCanvasResourceAssetReferenceRequest() *MaterializeCanvasResourceAssetReferenceRequest {
@@ -4732,15 +4434,6 @@ func (p *MaterializeCanvasResourceAssetReferenceRequest) GetReferenceType() (v C
 	return p.ReferenceType
 }
 
-var MaterializeCanvasResourceAssetReferenceRequest_Top_DEFAULT *base.TopParam
-
-func (p *MaterializeCanvasResourceAssetReferenceRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return MaterializeCanvasResourceAssetReferenceRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *MaterializeCanvasResourceAssetReferenceRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -4755,10 +4448,6 @@ func (p *MaterializeCanvasResourceAssetReferenceRequest) IsSetResourceID() bool 
 
 func (p *MaterializeCanvasResourceAssetReferenceRequest) IsSetResourceAssetNodePosition() bool {
 	return p.ResourceAssetNodePosition != nil
-}
-
-func (p *MaterializeCanvasResourceAssetReferenceRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *MaterializeCanvasResourceAssetReferenceRequest) String() string {
@@ -4837,7 +4526,6 @@ type MaterializeCanvasStandaloneAssetReferenceRequest struct {
 	AssetNodePosition *CanvasNodePosition            `json:"AssetNodePosition"`
 	// UploadedAsset 创建 Project Asset 并在同一业务调用内物化、连接；与 AssetID 互斥。
 	UploadedAsset *CanvasUploadedAsset `json:"UploadedAsset,omitempty"`
-	Top           *base.TopParam       `json:"Top,omitempty"`
 }
 
 func NewMaterializeCanvasStandaloneAssetReferenceRequest() *MaterializeCanvasStandaloneAssetReferenceRequest {
@@ -4903,15 +4591,6 @@ func (p *MaterializeCanvasStandaloneAssetReferenceRequest) GetUploadedAsset() (v
 	return p.UploadedAsset
 }
 
-var MaterializeCanvasStandaloneAssetReferenceRequest_Top_DEFAULT *base.TopParam
-
-func (p *MaterializeCanvasStandaloneAssetReferenceRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return MaterializeCanvasStandaloneAssetReferenceRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *MaterializeCanvasStandaloneAssetReferenceRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -4926,10 +4605,6 @@ func (p *MaterializeCanvasStandaloneAssetReferenceRequest) IsSetAssetNodePositio
 
 func (p *MaterializeCanvasStandaloneAssetReferenceRequest) IsSetUploadedAsset() bool {
 	return p.UploadedAsset != nil
-}
-
-func (p *MaterializeCanvasStandaloneAssetReferenceRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *MaterializeCanvasStandaloneAssetReferenceRequest) String() string {
@@ -4995,12 +4670,11 @@ func (p *MaterializeCanvasStandaloneAssetReferenceResponse) String() string {
 }
 
 type DeleteCanvasEdgeRequest struct {
-	WorkspaceID  *string        `json:"WorkspaceID,omitempty"`
-	ProjectID    string         `json:"ProjectID"`
-	CanvasID     string         `json:"CanvasID"`
-	TargetNodeID string         `json:"TargetNodeID"`
-	EdgeID       string         `json:"EdgeID"`
-	Top          *base.TopParam `json:"Top,omitempty"`
+	WorkspaceID  *string `json:"WorkspaceID,omitempty"`
+	ProjectID    string  `json:"ProjectID"`
+	CanvasID     string  `json:"CanvasID"`
+	TargetNodeID string  `json:"TargetNodeID"`
+	EdgeID       string  `json:"EdgeID"`
 }
 
 func NewDeleteCanvasEdgeRequest() *DeleteCanvasEdgeRequest {
@@ -5035,21 +4709,8 @@ func (p *DeleteCanvasEdgeRequest) GetEdgeID() (v string) {
 	return p.EdgeID
 }
 
-var DeleteCanvasEdgeRequest_Top_DEFAULT *base.TopParam
-
-func (p *DeleteCanvasEdgeRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return DeleteCanvasEdgeRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *DeleteCanvasEdgeRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *DeleteCanvasEdgeRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *DeleteCanvasEdgeRequest) String() string {
@@ -5127,7 +4788,6 @@ type ReorderStoryboardNodesRequest struct {
 	ProjectID   string                  `json:"ProjectID"`
 	CanvasID    string                  `json:"CanvasID"`
 	Items       []*StoryboardRankUpdate `json:"Items"`
-	Top         *base.TopParam          `json:"Top,omitempty"`
 }
 
 func NewReorderStoryboardNodesRequest() *ReorderStoryboardNodesRequest {
@@ -5158,21 +4818,8 @@ func (p *ReorderStoryboardNodesRequest) GetItems() (v []*StoryboardRankUpdate) {
 	return p.Items
 }
 
-var ReorderStoryboardNodesRequest_Top_DEFAULT *base.TopParam
-
-func (p *ReorderStoryboardNodesRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return ReorderStoryboardNodesRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *ReorderStoryboardNodesRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *ReorderStoryboardNodesRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *ReorderStoryboardNodesRequest) String() string {
@@ -5449,7 +5096,6 @@ type SearchCanvasNodeAssetsRequest struct {
 	Cursor      *string               `json:"Cursor,omitempty"`
 	Limit       int32                 `json:"Limit"`
 	MediaTypes  []CanvasNodeMediaType `json:"MediaTypes,omitempty"`
-	Top         *base.TopParam        `json:"Top,omitempty"`
 }
 
 func NewSearchCanvasNodeAssetsRequest() *SearchCanvasNodeAssetsRequest {
@@ -5511,15 +5157,6 @@ func (p *SearchCanvasNodeAssetsRequest) GetMediaTypes() (v []CanvasNodeMediaType
 	return p.MediaTypes
 }
 
-var SearchCanvasNodeAssetsRequest_Top_DEFAULT *base.TopParam
-
-func (p *SearchCanvasNodeAssetsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return SearchCanvasNodeAssetsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *SearchCanvasNodeAssetsRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -5534,10 +5171,6 @@ func (p *SearchCanvasNodeAssetsRequest) IsSetCursor() bool {
 
 func (p *SearchCanvasNodeAssetsRequest) IsSetMediaTypes() bool {
 	return p.MediaTypes != nil
-}
-
-func (p *SearchCanvasNodeAssetsRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *SearchCanvasNodeAssetsRequest) String() string {
@@ -5585,12 +5218,11 @@ func (p *SearchCanvasNodeAssetsResponse) String() string {
 
 // StartCanvasNodeAssetsMatch 以已保存 Revision 启动持久任务，不接受编辑草稿。
 type StartCanvasNodeAssetsMatchRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	NodeID      string         `json:"NodeID"`
-	Revision    int64          `json:"Revision"`
-	Top         *base.TopParam `json:"-" `
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
+	NodeID      string  `json:"NodeID"`
+	Revision    int64   `json:"Revision"`
 }
 
 func NewStartCanvasNodeAssetsMatchRequest() *StartCanvasNodeAssetsMatchRequest {
@@ -5625,21 +5257,8 @@ func (p *StartCanvasNodeAssetsMatchRequest) GetRevision() (v int64) {
 	return p.Revision
 }
 
-var StartCanvasNodeAssetsMatchRequest_Top_DEFAULT *base.TopParam
-
-func (p *StartCanvasNodeAssetsMatchRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return StartCanvasNodeAssetsMatchRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *StartCanvasNodeAssetsMatchRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *StartCanvasNodeAssetsMatchRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *StartCanvasNodeAssetsMatchRequest) String() string {
@@ -5650,12 +5269,11 @@ func (p *StartCanvasNodeAssetsMatchRequest) String() string {
 }
 
 type CancelCanvasNodeAssetsMatchRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	CanvasID    string         `json:"CanvasID"`
-	NodeID      string         `json:"NodeID"`
-	TaskRunID   string         `json:"TaskRunID"`
-	Top         *base.TopParam `json:"-" `
+	WorkspaceID *string `json:"WorkspaceID,omitempty"`
+	ProjectID   string  `json:"ProjectID"`
+	CanvasID    string  `json:"CanvasID"`
+	NodeID      string  `json:"NodeID"`
+	TaskRunID   string  `json:"TaskRunID"`
 }
 
 func NewCancelCanvasNodeAssetsMatchRequest() *CancelCanvasNodeAssetsMatchRequest {
@@ -5690,21 +5308,8 @@ func (p *CancelCanvasNodeAssetsMatchRequest) GetTaskRunID() (v string) {
 	return p.TaskRunID
 }
 
-var CancelCanvasNodeAssetsMatchRequest_Top_DEFAULT *base.TopParam
-
-func (p *CancelCanvasNodeAssetsMatchRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return CancelCanvasNodeAssetsMatchRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *CancelCanvasNodeAssetsMatchRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *CancelCanvasNodeAssetsMatchRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *CancelCanvasNodeAssetsMatchRequest) String() string {
@@ -5881,7 +5486,6 @@ type BatchGetCanvasNodeStatesRequest struct {
 	ProjectID   string                   `json:"ProjectID"`
 	CanvasID    string                   `json:"CanvasID"`
 	Targets     []*CanvasNodeStateTarget `json:"Targets"`
-	Top         *base.TopParam           `json:"-" `
 }
 
 func NewBatchGetCanvasNodeStatesRequest() *BatchGetCanvasNodeStatesRequest {
@@ -5912,21 +5516,8 @@ func (p *BatchGetCanvasNodeStatesRequest) GetTargets() (v []*CanvasNodeStateTarg
 	return p.Targets
 }
 
-var BatchGetCanvasNodeStatesRequest_Top_DEFAULT *base.TopParam
-
-func (p *BatchGetCanvasNodeStatesRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return BatchGetCanvasNodeStatesRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *BatchGetCanvasNodeStatesRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *BatchGetCanvasNodeStatesRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *BatchGetCanvasNodeStatesRequest) String() string {

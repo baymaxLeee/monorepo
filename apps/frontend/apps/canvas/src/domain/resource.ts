@@ -383,7 +383,7 @@ export interface ResourceAssetGenerationUploadedReference {
   PreviewURL?: string;
 }
 
-/** Patch 输入允许复用既有 Asset，或提交前端 UP 临时上传得到的 Blob；Server 负责把 Blob 注册为 Resource Owner Asset。 */
+/** Patch 输入允许复用既有 Asset，或提交前端 artifact storage 临时上传得到的 Blob；Server 负责把 Blob 注册为 Resource Owner Asset。 */
 export interface ResourceAssetGenerationUploadedReferenceInput {
   AssetID?: string;
   BlobID?: string;

@@ -11,7 +11,7 @@ import (
 // officialAssetRow 记录一条官方清单条目：清单 slug、它在本 scope 下的注册进度与内部
 // Asset，以及对账物化出的 OFFICIAL Resource 与其唯一 ResourceAsset。
 //
-// 官方素材没有外部 asset ID：统一上传后只存在 AgentFrame 自己的内部标识。一份内容只上传一次
+// 官方素材没有外部 asset ID：统一上传后只存在 Canvas 自己的内部标识。一份内容只上传一次
 // 得到共享 BlobID，再为每个 scope 各调一次 LongLiveArtifact 得到各自的 ArtifactID。
 //
 // 官方 Resource 与 PROJECT Resource 共用 resources 表和同一套 scope 条件，官方记录

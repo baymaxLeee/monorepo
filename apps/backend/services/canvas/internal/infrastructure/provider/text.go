@@ -1,4 +1,4 @@
-package aigw
+package provider
 
 import (
 	"context"
@@ -11,16 +11,16 @@ import (
 
 	app "github.com/example/monorepo/canvas/internal/application/canvastextgeneration"
 	domaingenerationinput "github.com/example/monorepo/canvas/internal/domain/generationinput"
-	platformaigwproxy "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
+	providerclient "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
 )
 
 type textClient interface {
-	CreateResponsesStream(context.Context, *responses.ResponsesRequest) (platformaigwproxy.ResponsesStream, error)
+	CreateResponsesStream(context.Context, *responses.ResponsesRequest) (providerclient.ResponsesStream, error)
 }
 
 type TextProvider struct{ client textClient }
 
-func NewTextProvider(client platformaigwproxy.Client) *TextProvider {
+func NewTextProvider(client providerclient.Client) *TextProvider {
 	return &TextProvider{client: client}
 }
 
@@ -47,16 +47,16 @@ func (p *TextProvider) Generate(ctx context.Context, input app.ProviderInput) (a
 	request.Temperature = input.Selection.ModelConfig.Temperature
 	request.TopP = input.Selection.ModelConfig.TopP
 	request.MaxOutputTokens = input.Selection.ModelConfig.MaxTokens
-	ctx = platformaigwproxy.WithTraceIdentity(ctx, input.TenantID, input.CallerID)
+	ctx = providerclient.WithTraceIdentity(ctx, input.TenantID, input.CallerID)
 	if input.WorkspaceID != nil {
-		ctx = platformaigwproxy.WithWorkspaceID(ctx, *input.WorkspaceID)
+		ctx = providerclient.WithWorkspaceID(ctx, *input.WorkspaceID)
 	}
 	stream, err := p.client.CreateResponsesStream(ctx, request)
-	result.Call.RequestAttempted = platformaigwproxy.RequestAttempted(err)
+	result.Call.RequestAttempted = providerclient.RequestAttempted(err)
 	if err != nil {
 		return result, err
 	}
-	result.Call.RequestID = platformaigwproxy.AIGWRequestID(stream.Header())
+	result.Call.RequestID = providerclient.ProviderRequestID(stream.Header())
 	defer closeResponseStream(stream)
 	for {
 		event, e := stream.Recv()

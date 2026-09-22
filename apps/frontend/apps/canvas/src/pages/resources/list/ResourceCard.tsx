@@ -11,8 +11,8 @@ import { AudioSpectrum } from "@/components/AudioSpectrum/index";
 import { EllipsisText as CEllipsis, OperationMenu as COperationMenu } from "@/components/compat";
 import { Checkbox, Button, Tooltip } from "@/components/ui";
 import { resource } from "@/domain";
+import { resolveArtifactURL } from "@/utils/artifactURL";
 import t from "@/utils/i18n";
-import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
 
 import { ResourceTypeIcon } from "../components/ResourceTypeIcon";
 
@@ -70,8 +70,8 @@ export function ResourceCard({
 }) {
   const primary = item.PrimaryResourceAsset;
   const isAudio = item.Type === resource.ResourceType.AUDIO;
-  const primaryAudioURL = isAudio && primary?.PreviewURL ? resolveUpPreviewURL(primary.PreviewURL) : undefined;
-  const previewURL = isAudio ? undefined : resolveUpPreviewURL(primary?.PreviewURL ?? "");
+  const primaryAudioURL = isAudio && primary?.PreviewURL ? resolveArtifactURL(primary.PreviewURL) : undefined;
+  const previewURL = isAudio ? undefined : resolveArtifactURL(primary?.PreviewURL ?? "");
   const typeIcon = <ResourceTypeIcon type={item.Type} />;
   // 官方资源（预置音色）只读：不提供编辑与删除入口，卡片展示预置标签。
   const isOfficial = item.OwnerType === resource.ResourceOwnerType.OFFICIAL;

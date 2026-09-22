@@ -62,39 +62,39 @@ func ExpectedUsageShape(taskType string) (callType, resourceType string, minCall
 // a terminal TaskRun cannot be proved to belong to that usage projection.
 func FrozenCallSetProblem(
 	snapshot FrozenUsageSnapshot,
-	calls []domain.AIGWCall,
+	calls []domain.ProviderCall,
 ) string {
 	if len(calls) != int(snapshot.CallCount) {
-		return "frozen call count does not match persisted AIGW calls"
+		return "frozen call count does not match persisted provider calls"
 	}
 	expectedCallType, _, minCalls, maxCalls, ok := ExpectedUsageShape(snapshot.TaskType)
 	if !ok {
 		return "project usage TaskRun type is not supported"
 	}
 	if snapshot.CallCount < minCalls || snapshot.CallCount > maxCalls {
-		return "frozen AIGW call count is outside the TaskRun type limit"
+		return "frozen provider call count is outside the TaskRun type limit"
 	}
-	ordered := append([]domain.AIGWCall(nil), calls...)
+	ordered := append([]domain.ProviderCall(nil), calls...)
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].CallOrdinal < ordered[j].CallOrdinal })
 	first := ordered[0]
 	for index := range ordered {
 		call := ordered[index]
 		if call.TaskRunID != snapshot.TaskRunID {
-			return "an AIGW call belongs to a different TaskRun"
+			return "a provider call belongs to a different TaskRun"
 		}
 		if call.CallOrdinal != int32(index+1) {
-			return "AIGW call ordinals are not contiguous"
+			return "provider call ordinals are not contiguous"
 		}
 		if call.CallType != expectedCallType {
-			return "an AIGW call type does not match the TaskRun type"
+			return "a provider call type does not match the TaskRun type"
 		}
 		if call.ProjectID != first.ProjectID || call.ModelID != first.ModelID ||
 			call.ModelName != first.ModelName || call.ModelSource != first.ModelSource {
-			return "AIGW calls do not share one attribution snapshot"
+			return "provider calls do not share one attribution snapshot"
 		}
 		if call.ProjectID != snapshot.ProjectID || call.ModelID != snapshot.ModelID ||
 			call.ModelName != snapshot.ModelName || call.ModelSource != snapshot.ModelSource {
-			return "frozen project usage attribution does not match AIGW calls"
+			return "frozen project usage attribution does not match provider calls"
 		}
 	}
 	return ""

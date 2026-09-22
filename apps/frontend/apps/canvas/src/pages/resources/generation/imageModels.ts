@@ -55,7 +55,7 @@ export function imageGenerationModelOption(
 }
 
 /**
- * 拉取当前项目已授权且可用的图片生成模型。AIGW 对 Features 数组按任一能力匹配，
+ * 拉取当前项目已授权且可用的图片生成模型。Provider 对 Features 数组按任一能力匹配，
  * 因而文生图、图生图及同时支持两者的模型可以在一次请求中返回。
  */
 export async function listImageGenerationModels(projectId: string): Promise<ImageGenerationModelOption[]> {

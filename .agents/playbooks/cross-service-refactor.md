@@ -31,7 +31,7 @@ proceeding. Prefer N small per-service PRs over one mega-PR.
 [ ] 5. Per service:
        cd apps/backend/services/<svc>
        Make minimal change
-       Run the service's scoped lint/build checks; demo phase skips tests
+       Run the service's tests and scoped lint/build checks
        Commit with: `refactor(<svc>): adopt new libs.X API`
 
 [ ] 6. (Optional) Dispatch `reviewer` sub-agent after full diff

@@ -11,7 +11,7 @@ import (
 //
 // 官方预置素材（音色、形象、场景、道具等）都是单素材：一条清单条目对应一个官方 Resource +
 // 一个插槽 + 一份内容。素材文件作为普通文件随仓库提交并打进镜像（见
-// build/docker/agentframe-app.Dockerfile 的 COPY），运行时按 slug 读取后走上传链路，而不是编入
+// build/docker/canvas-app.Dockerfile 的 COPY），运行时按 slug 读取后走上传链路，而不是编入
 // 二进制：静态素材不必进可执行文件，也便于单独替换。
 const DefaultAssetsDir = "runtime/preset-assets"
 

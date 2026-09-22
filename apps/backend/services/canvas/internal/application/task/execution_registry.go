@@ -32,6 +32,7 @@ var executionBackends = []struct {
 	backend ExecutionBackend
 }{
 	{domaintask.RunTypeCanvasNodeVideoGeneration, ExecutionBackendLocalScheduled},
+	{domaintask.RunTypeCanvasNodeTextGeneration, ExecutionBackendLocalScheduled},
 	{domaintask.RunTypeCanvasStoryboardGeneration, ExecutionBackendLocalScheduled},
 	{domaintask.RunTypeImageGeneration, ExecutionBackendLocalScheduled},
 	{domaintask.RunTypeCanvasNodeAssetsMatch, ExecutionBackendLocalScheduled},

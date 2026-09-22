@@ -2,8 +2,8 @@
 
 import { CanvasProjectSortField as ProjectSortField } from "@repo/api";
 
-import type * as aigw_model_types from "./aigw_model_types";
 import type * as common from "./common";
+import type * as modelTypes from "./modelTypes";
 
 export { ProjectSortField };
 
@@ -37,7 +37,7 @@ export interface CreateProjectRequest {
   Name: string;
   /** MemberUserIDs 是项目成员用户 ID 列表。 */
   MemberUserIDs: Array<string>;
-  /** CoverImagePath 是通过 Up 上传得到的封面图片 path；未传表示不设置封面。 */
+  /** CoverImagePath 是通过 artifact storage 上传得到的封面图片 path；未传表示不设置封面。 */
   CoverImagePath?: string;
   /** UsageLimit 是项目总金额限额，单位元；未传表示无上限。 */
   UsageLimit?: Int64;
@@ -148,7 +148,7 @@ export interface ProjectDetail {
   ProjectID: string;
   /** Name 是项目名称，在相同 scope 下唯一。 */
   Name: string;
-  /** CoverImagePath 是已通过 Up 长期化的封面图片 path。 */
+  /** CoverImagePath 是已通过 artifact storage 长期化的封面图片 path。 */
   CoverImagePath?: string;
   /** CoverImageURL 是只用于展示的短期签名 URL。 */
   CoverImageURL?: string;
@@ -164,7 +164,7 @@ export interface ProjectDetail {
   MemberUserIDs: Array<string>;
   /** UsageLimit 是项目总金额限额，单位元；未传表示无上限。 */
   UsageLimit?: Int64;
-  /** UsedAmount 是 AIGW 返回的项目当前已用金额，单位元。 */
+  /** UsedAmount 是 provider 返回的项目当前已用金额，单位元。 */
   UsedAmount?: number;
 }
 
@@ -192,7 +192,7 @@ export interface ProjectModelFilter {
   IsGranted?: boolean;
 }
 
-/** ProjectModelInfo 保留原字段 1-9 的 wire layout，并扩展 AIGW 的其余非敏感模型字段。 */
+/** ProjectModelInfo 保留原字段 1-9 的 wire layout，并扩展 provider 的其余非敏感模型字段。 */
 export interface ProjectModelInfo {
   ID: string;
   Name: string;
@@ -220,9 +220,9 @@ export interface ProjectModelInfo {
   PublishUserName?: string;
   Icon?: string;
   WorkspaceName?: string;
-  CustomMarker?: aigw_model_types.MarkerDetails;
+  CustomMarker?: modelTypes.MarkerDetails;
   ServiceIntroduction?: string;
-  BusinessLabels?: Array<aigw_model_types.LabelInfo>;
+  BusinessLabels?: Array<modelTypes.LabelInfo>;
   IsCustomMarkerEnabled?: boolean;
   IsPreset?: boolean;
   IsBilling?: boolean;
@@ -230,19 +230,19 @@ export interface ProjectModelInfo {
   DefaultType?: string;
   DefaultTypes?: Array<string>;
   CustomParameters?: string;
-  PriceConfig?: aigw_model_types.PriceConfig;
-  PromptConfig?: aigw_model_types.PromptConfig;
+  PriceConfig?: modelTypes.PriceConfig;
+  PromptConfig?: modelTypes.PromptConfig;
   StrategiesConfig?: Array<string>;
-  PolicyConfig?: aigw_model_types.PolicyConfig;
-  Parameter?: aigw_model_types.ModelParameter;
-  CredentialSchema?: aigw_model_types.ModelCredentialSchema;
+  PolicyConfig?: modelTypes.PolicyConfig;
+  Parameter?: modelTypes.ModelParameter;
+  CredentialSchema?: modelTypes.ModelCredentialSchema;
   ProductCode?: string;
   WorkspaceID?: string;
   Provider?: string;
   Spec?: string;
   ModelName?: string;
   DLVersion?: string;
-  DeployConfig?: aigw_model_types.MaaSModelServiceDeployConfig;
+  DeployConfig?: modelTypes.MaaSModelServiceDeployConfig;
 }
 
 export interface ProjectModelListOption {
@@ -252,10 +252,10 @@ export interface ProjectModelListOption {
 
 export interface ProjectModelProperty {
   Vision?: ProjectModelVisionProperty;
-  LLM?: aigw_model_types.LLMConfig;
-  Embedding?: aigw_model_types.EmbeddingConfig;
-  Audio?: aigw_model_types.AudioConfig;
-  Common?: aigw_model_types.CommonModelConfig;
+  LLM?: modelTypes.LLMConfig;
+  Embedding?: modelTypes.EmbeddingConfig;
+  Audio?: modelTypes.AudioConfig;
+  Common?: modelTypes.CommonModelConfig;
 }
 
 export interface ProjectModelRatio {
@@ -270,21 +270,21 @@ export interface ProjectModelRatio {
 export interface ProjectModelVideoProperty {
   Duration?: ProjectModelDuration;
   Ratio?: ProjectModelRatio;
-  CameraFixed?: aigw_model_types.CommonSwitch;
-  Features?: Array<aigw_model_types.VisionFeature>;
-  GenerateAudio?: aigw_model_types.CommonSwitch;
-  NegativePrompt?: aigw_model_types.CommonSwitch;
-  Watermark?: aigw_model_types.CommonBoolSwitch;
-  Reference?: aigw_model_types.ReferenceConfig;
-  Tools?: aigw_model_types.ToolConfig;
+  CameraFixed?: modelTypes.CommonSwitch;
+  Features?: Array<modelTypes.VisionFeature>;
+  GenerateAudio?: modelTypes.CommonSwitch;
+  NegativePrompt?: modelTypes.CommonSwitch;
+  Watermark?: modelTypes.CommonBoolSwitch;
+  Reference?: modelTypes.ReferenceConfig;
+  Tools?: modelTypes.ToolConfig;
   Resolutions?: Array<string>;
 }
 
 export interface ProjectModelVisionProperty {
   Video?: ProjectModelVideoProperty;
-  Seed?: aigw_model_types.IntRange;
-  Image?: aigw_model_types.ImageConfig;
-  GuidanceScale?: aigw_model_types.DoubleRange;
+  Seed?: modelTypes.IntRange;
+  Image?: modelTypes.ImageConfig;
+  GuidanceScale?: modelTypes.DoubleRange;
 }
 
 /** ProjectSort 定义项目列表的排序参数。 */
@@ -309,7 +309,7 @@ export interface ProjectSummary {
   ProjectID: string;
   /** Name 是项目名称，在相同 scope 下唯一。 */
   Name: string;
-  /** CoverImagePath 是已通过 Up 长期化的封面图片 path。 */
+  /** CoverImagePath 是已通过 artifact storage 长期化的封面图片 path。 */
   CoverImagePath?: string;
   /** CoverImageURL 是只用于展示的短期签名 URL。 */
   CoverImageURL?: string;

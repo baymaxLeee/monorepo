@@ -101,7 +101,6 @@ services:
     bindings:
       - admin
       - executor
-      - iam
       - knowledge
     databases:
       - canvas

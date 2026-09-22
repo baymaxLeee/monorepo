@@ -37,8 +37,7 @@ func (handler *ProjectUsageHandler) DownloadProjectUsageXLSX(
 	if request == nil || handler.exporter == nil {
 		return nil, errno.New(errno.ErrInvalidArgument)
 	}
-	request.Top = topParam(ctx)
-	metadata, _ := topcontext.MetadataFromContext(ctx)
+	metadata, _ := requestcontext.MetadataFromContext(ctx)
 	result, err := handler.exporter.DownloadXLSX(ctx, applicationprojectusage.DownloadXLSXInput{
 		Scope: applicationprojectusage.ExportScope{
 			TenantID: metadata.TenantID, WorkspaceID: nullableWorkspaceID(request.WorkspaceID), CallerID: metadata.UserID,

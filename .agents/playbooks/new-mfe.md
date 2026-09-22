@@ -76,14 +76,15 @@ fetch for ordinary service APIs.
 [ ] update docs/微前端/index.md and domain documentation
 [ ] just install
 [ ] just sync
+[ ] just test <name>
 [ ] just lint
 [ ] just build <name>
 [ ] just build platform
 [ ] just dev, then navigate directly and client-side to /platform/<name>
 ```
 
-During the demo phase, do not add test scaffolding. Do not run `just fmt` unless
-formatting is explicitly required; fix scoped formatter findings instead.
+Do not run `just fmt` unless formatting is explicitly required; fix scoped
+formatter findings instead.
 
 ## Hard rules
 

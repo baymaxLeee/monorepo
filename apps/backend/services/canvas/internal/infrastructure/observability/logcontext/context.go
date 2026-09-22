@@ -30,14 +30,13 @@ func WithBusiness(ctx context.Context, business Business) context.Context {
 	return context.WithValue(ctx, businessContextKey{}, business)
 }
 
-// Fields intentionally excludes the authorization filter, raw headers, and
-// signing metadata even when they are present in the request context.
+// Fields intentionally excludes raw headers and signing metadata.
 func Fields(ctx context.Context) []zap.Field {
-	var metadata topcontext.Metadata
+	var metadata requestcontext.Metadata
 	var business Business
 	var hasBusiness bool
 	if ctx != nil {
-		metadata, _ = topcontext.MetadataFromContext(ctx)
+		metadata, _ = requestcontext.MetadataFromContext(ctx)
 		business, hasBusiness = ctx.Value(businessContextKey{}).(Business)
 	}
 	tenantID := metadata.TenantID
@@ -50,9 +49,7 @@ func Fields(ctx context.Context) []zap.Field {
 		zap.String("service", metadata.Service),
 		zap.String("action", metadata.Action),
 		zap.String("version", metadata.Version),
-		zap.String("region", metadata.Region),
 		zap.String("identity_type", metadata.IdentityType),
-		zap.String("real_ip", metadata.RealIP),
 	}
 	if hasBusiness {
 		fields = append(fields,

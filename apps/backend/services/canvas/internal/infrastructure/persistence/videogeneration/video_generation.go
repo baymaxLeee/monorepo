@@ -352,8 +352,8 @@ func toCanvasNodeVideoGenerationRow(generation domainvideo.Generation) (canvasno
 	if err != nil {
 		return canvasnodeVideoGenerationRow{}, err
 	}
-	if generation.AIGWTraceWorkspaceID == "" {
-		return canvasnodeVideoGenerationRow{}, errors.New("aigw trace workspace is required")
+	if generation.ProviderWorkspaceID == "" {
+		return canvasnodeVideoGenerationRow{}, errors.New("provider trace workspace is required")
 	}
 	assetID, err := nullableUUID(generation.AssetID)
 	if err != nil {
@@ -376,7 +376,7 @@ func toCanvasNodeVideoGenerationRow(generation domainvideo.Generation) (canvasno
 		Resolution:     int16(generation.Resolution), AspectRatio: int16(generation.AspectRatio),
 		DurationSeconds: generation.DurationSeconds, GenerateAudio: generation.GenerateAudio, Watermark: generation.Watermark,
 		OutputDurationSeconds: generation.OutputDurationSeconds,
-		Prompt:                generation.Prompt, AIGWTraceWorkspaceID: generation.AIGWTraceWorkspaceID,
+		Prompt:                generation.Prompt, ProviderWorkspaceID: generation.ProviderWorkspaceID,
 		ProviderTaskID: nullableString(generation.ProviderTaskID), SeedanceTaskID: nullableString(generation.SeedanceTaskID),
 		ProviderVideoURL:  generation.ProviderVideoURL,
 		ProviderErrorCode: generation.ProviderErrorCode, ProviderErrorMessage: generation.ProviderErrorMessage,
@@ -403,7 +403,7 @@ func fromCanvasNodeVideoGenerationRow(row canvasnodeVideoGenerationRow) domainvi
 		Prompt:         row.Prompt, Resolution: domainvideo.Resolution(row.Resolution), AspectRatio: domainvideo.AspectRatio(row.AspectRatio),
 		DurationSeconds: row.DurationSeconds, GenerateAudio: row.GenerateAudio, Watermark: row.Watermark,
 		OutputDurationSeconds: row.OutputDurationSeconds,
-		AIGWTraceWorkspaceID:  row.AIGWTraceWorkspaceID, ProviderVideoURL: row.ProviderVideoURL,
+		ProviderWorkspaceID:   row.ProviderWorkspaceID, ProviderVideoURL: row.ProviderVideoURL,
 		ProviderErrorCode: row.ProviderErrorCode, ProviderErrorMessage: row.ProviderErrorMessage,
 		ErrorMessage: row.ErrorMessage, CreatedBy: row.CreatedBy, CompletedAt: row.CompletedAt,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,

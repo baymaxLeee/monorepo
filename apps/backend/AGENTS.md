@@ -106,7 +106,7 @@ capability.
 
 ## Done checklist
 
-1. Run root `just lint` (tests are intentionally skipped during demo phase).
+1. Run the affected service tests, then root `just lint`.
 2. If API changed, run root `just sync` and verify both stacks build.
 3. Run `just fmt` only when explicitly requested or mechanical drift requires it.
 4. If a shared capability changed, list every consumer and verify each one.

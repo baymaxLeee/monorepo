@@ -1,4 +1,4 @@
-package aigw
+package provider
 
 import (
 	"encoding/json"
@@ -61,7 +61,7 @@ func storyboardToolSchemaForBatch(
 		canvasnodeProperties["canvasnode_no"] = map[string]any{"type": "integer", "enum": allowedNumbers}
 	}
 	canvasnodeSchema := objectSchema(canvasnodeProperties)
-	// Struct field order is intentional. AIGW streams function arguments before
+	// Struct field order is intentional. provider streams function arguments before
 	// arguments.done, so the frozen count must arrive before the potentially
 	// long canvas_nodes array and remain recoverable after output truncation.
 	type storyboardToolProperties struct {

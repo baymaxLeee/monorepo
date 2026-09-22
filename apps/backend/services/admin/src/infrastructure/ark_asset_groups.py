@@ -30,7 +30,7 @@ class AssetGroupClient:
             "CreateAssetGroup",
             {
                 "Name": name,
-                "Description": "AgentFrame 高级创作权益包",
+                "Description": "Canvas 高级创作权益包",
                 "GroupType": "AIGC",
                 "ProjectName": project_name,
             },

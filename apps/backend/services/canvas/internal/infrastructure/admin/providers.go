@@ -27,9 +27,24 @@ type Provider struct {
 }
 
 func (d *Directory) Get(ctx context.Context, tenantID, workspaceID, providerID string) (Provider, error) {
+	return d.get(ctx, tenantID, workspaceID, providerID, false)
+}
+
+// GetTaskCredentials resolves credentials for an already-created durable task.
+// Unlike Get, Admin may return a now-disabled provider so Canvas can still poll
+// or cancel an upstream video task after configuration changes.
+func (d *Directory) GetTaskCredentials(ctx context.Context, tenantID, workspaceID, providerID string) (Provider, error) {
+	return d.get(ctx, tenantID, workspaceID, providerID, true)
+}
+
+func (d *Directory) get(ctx context.Context, tenantID, workspaceID, providerID string, taskCredentials bool) (Provider, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	endpoint := strings.TrimRight(d.URL, "/") + "/internal/providers/" + url.PathEscape(providerID) +
+	path := "/internal/providers/" + url.PathEscape(providerID)
+	if taskCredentials {
+		path += "/task-credentials"
+	}
+	endpoint := strings.TrimRight(d.URL, "/") + path +
 		"?tenant_id=" + url.QueryEscape(tenantID) + "&workspace_id=" + url.QueryEscape(workspaceID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {

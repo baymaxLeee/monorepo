@@ -2,12 +2,13 @@ package bootstrap
 
 import (
 	"fmt"
+	"net/url"
+	"os"
+
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"net/url"
-	"os"
 )
 
 type Config struct {

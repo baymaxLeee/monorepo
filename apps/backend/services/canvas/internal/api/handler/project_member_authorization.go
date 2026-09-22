@@ -20,7 +20,7 @@ func requireProjectAccess(
 	if checker == nil {
 		return errno.New(errno.ErrConfigurationError)
 	}
-	metadata, _ := topcontext.MetadataFromContext(ctx)
+	metadata, _ := requestcontext.MetadataFromContext(ctx)
 	err := checker.Check(ctx, metadata.TenantID, nullableWorkspaceID(workspaceID), metadata.UserID, projectID, access)
 	switch {
 	case err == nil:

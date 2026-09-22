@@ -170,6 +170,6 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 ## Done checklist
 
 1. `just lint` (includes typecheck + `turbo boundaries`)
-2. `just fmt` only when formatting actually drifted — not after every edit
-3. `pnpm -F <app> build` to verify the MF artifact is valid
-   (tests are skipped during the demo phase — see root `AGENTS.md`)
+2. `just test <workspace>` for affected behavior
+3. `just fmt` only when formatting actually drifted — not after every edit
+4. `pnpm -F <app> build` to verify the MF artifact is valid

@@ -25,7 +25,7 @@ type canvasnodeVideoGenerationRow struct {
 	GenerateAudio                 bool    `gorm:"not null"`
 	Watermark                     bool    `gorm:"not null"`
 	Prompt                        string  `gorm:"type:mediumtext;not null"`
-	AIGWTraceWorkspaceID          string  `gorm:"size:128;not null"`
+	ProviderWorkspaceID           string  `gorm:"column:provider_workspace_id;size:128;not null"`
 	ProviderTaskID                *string `gorm:"size:128;uniqueIndex:uniq_canvasnode_video_generation_provider_task"`
 	SeedanceTaskID                *string `gorm:"column:real_task_id;size:128"`
 	ProviderVideoURL              string  `gorm:"type:text;not null"`

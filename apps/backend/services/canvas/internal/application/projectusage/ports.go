@@ -9,11 +9,11 @@ import (
 )
 
 var (
-	ErrCallNotFound         = errors.New("project usage AIGW call was not found")
-	ErrCallConflict         = errors.New("project usage AIGW call conflicts with an existing ordinal")
+	ErrCallNotFound         = errors.New("project usage provider call was not found")
+	ErrCallConflict         = errors.New("project usage provider call conflicts with an existing ordinal")
 	ErrRecordConflict       = errors.New("project usage record conflicts with an existing TaskRun")
-	ErrConcurrentCallUpdate = errors.New("project usage AIGW call changed concurrently")
-	ErrCallSetIncomplete    = errors.New("project usage TaskRun has no planned AIGW call")
+	ErrConcurrentCallUpdate = errors.New("project usage provider call changed concurrently")
+	ErrCallSetIncomplete    = errors.New("project usage TaskRun has no planned provider call")
 	ErrTaskRunTerminal      = errors.New("terminal TaskRun cannot start another billable call")
 	ErrTaskRunNotTerminal   = errors.New("project usage can only close a terminal TaskRun")
 )
@@ -33,9 +33,9 @@ type CloseInput struct {
 }
 
 type CallStore interface {
-	CreateCall(context.Context, domain.AIGWCall) error
-	GetCall(context.Context, domain.CallRef) (domain.AIGWCall, error)
-	UpdateCall(context.Context, domain.AIGWCall, domain.AIGWCall) (bool, error)
+	CreateCall(context.Context, domain.ProviderCall) error
+	GetCall(context.Context, domain.CallRef) (domain.ProviderCall, error)
+	UpdateCall(context.Context, domain.ProviderCall, domain.ProviderCall) (bool, error)
 }
 
 type FinalizationStore interface {
@@ -47,7 +47,7 @@ type ReconciliationStore interface {
 	ClaimDue(context.Context, time.Time, time.Time, string, int) ([]domain.UsageRecord, error)
 	ClaimTask(context.Context, string, time.Time, time.Time, string) (domain.UsageRecord, bool, error)
 	BeginReconciliation(context.Context, domain.UsageRecord, time.Time) (domain.UsageRecord, bool, error)
-	ListCalls(context.Context, string) ([]domain.AIGWCall, error)
+	ListCalls(context.Context, string) ([]domain.ProviderCall, error)
 	FinishReconciliation(context.Context, domain.UsageRecord, domain.ReconciliationUpdate, time.Time) (bool, error)
 }
 
@@ -66,7 +66,7 @@ type MoneyResult struct {
 	Reason   string
 }
 
-// MoneyQuerier is the application boundary for AIGW request-ID billing facts.
+// MoneyQuerier is the application boundary for provider request-ID billing facts.
 // The adapter currently implements it with ListTokenUsageRecordsInner.
 type MoneyQuerier interface {
 	QueryMoney(context.Context, string) (MoneyResult, error)
@@ -86,14 +86,14 @@ type UserNameTarget struct {
 }
 
 // UserNameStore owns the mutable display-name snapshot independently from
-// billing reconciliation so an IAM outage cannot change a monetary state.
+// billing reconciliation so an identity outage cannot change a monetary state.
 type UserNameStore interface {
 	GetUnresolvedUserName(context.Context, string) (UserNameTarget, bool, error)
 	ListUnresolvedUserNames(context.Context, int) ([]UserNameTarget, error)
 	MarkUserNameResolved(context.Context, UserNameTarget, string, time.Time) error
 }
 
-// UserDirectory resolves tenant-scoped IAM user IDs in batches.
+// UserDirectory resolves tenant-scoped identity user IDs in batches.
 type UserDirectory interface {
 	DisplayNames(context.Context, string, []string) (map[string]string, error)
 }

@@ -65,7 +65,6 @@ func (h *CanvasArchiveHandler) StartProjectCanvasVideoArchiveExport(ctx context.
 	if err := requireAction(ctx, "StartProjectCanvasVideoArchiveExport"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	if strings.TrimSpace(request.ProjectID) == "" || strings.TrimSpace(request.CanvasID) == "" {
 		return nil, errno.New(errno.ErrInvalidArgument)
 	}
@@ -80,7 +79,6 @@ func (h *CanvasArchiveHandler) GetProjectCanvasVideoArchiveExport(ctx context.Co
 	if err := requireAction(ctx, "GetProjectCanvasVideoArchiveExport"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	item, err := h.service.Get(ctx, archiveGetInput(ctx, request.WorkspaceID, request.ProjectID, request.CanvasID, request.TaskRunID))
 	if err != nil {
 		return nil, classifyArchiveError(err)
@@ -92,7 +90,6 @@ func (h *CanvasArchiveHandler) BatchGetProjectCanvasVideoArchiveExports(ctx cont
 	if err := requireAction(ctx, "BatchGetProjectCanvasVideoArchiveExports"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	if len(request.TaskRunIDs) > maxArchiveBatchGetIDs {
 		return nil, errno.New(errno.ErrInvalidArgument)
 	}
@@ -122,7 +119,6 @@ func (h *CanvasArchiveHandler) ListProjectCanvasVideoArchiveExports(ctx context.
 	if err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	items, total, err := h.service.List(ctx, applicationcanvasarchive.ListInput{
 		Scope: archiveScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID, CanvasID: request.CanvasID,
 		SortDirection: direction,
@@ -146,7 +142,6 @@ func (h *CanvasArchiveHandler) CancelProjectCanvasVideoArchiveExport(ctx context
 	if err := requireAction(ctx, "CancelProjectCanvasVideoArchiveExport"); err != nil {
 		return nil, err
 	}
-	request.Top = topParam(ctx)
 	if err := h.service.Cancel(ctx, archiveGetInput(ctx, request.WorkspaceID, request.ProjectID, request.CanvasID, request.TaskRunID)); err != nil {
 		return nil, classifyArchiveError(err)
 	}
@@ -154,7 +149,7 @@ func (h *CanvasArchiveHandler) CancelProjectCanvasVideoArchiveExport(ctx context
 }
 
 func archiveScope(ctx context.Context, workspaceID *string) applicationcanvasarchive.Scope {
-	metadata, _ := topcontext.MetadataFromContext(ctx)
+	metadata, _ := requestcontext.MetadataFromContext(ctx)
 	return applicationcanvasarchive.Scope{TenantID: metadata.TenantID, CallerID: metadata.UserID, WorkspaceID: nullableWorkspaceID(workspaceID)}
 }
 

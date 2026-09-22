@@ -18,9 +18,9 @@ import {
 } from "@/components/promptEditor/plugins/assetMention/ReviewStatus";
 import { Checkbox, Tooltip } from "@/components/ui";
 import { asset, resource } from "@/domain";
+import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
 import t from "@/utils/i18n";
-import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
 
 import { ResourceTypeIcon } from "../components/ResourceTypeIcon";
 import { ResourceGenerationFailureStatus } from "../generation/ResourceGenerationFailureStatus";
@@ -206,7 +206,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
               <img
                 alt={file.Name}
                 className={`h-full w-full object-contain transition-transform duration-300 ease-out ${styles.materialPreviewImage}`}
-                src={resolveUpPreviewURL(file.PreviewURL)}
+                src={resolveArtifactURL(file.PreviewURL)}
               />
             ) : !(isAudio && file.PreviewURL) ? (
               file.MediaType === asset.AssetMediaType.IMAGE ? (

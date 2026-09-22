@@ -16,7 +16,7 @@ import (
 
 var (
 	ErrNotFound                            = errors.New("canvasnode video generation not found")
-	ErrReferenceUnavailable                = errors.New("canvas canvasnode asset reference is unavailable to AIGW")
+	ErrReferenceUnavailable                = errors.New("canvas node asset reference is unavailable to the provider")
 	ErrCanvasNodeVideoProviderTaskNotFound = errors.New("canvasnode video provider task not found")
 	ErrHistoryNotSelectable                = errors.New("canvas canvasnode history is not selectable")
 )
@@ -32,7 +32,7 @@ type CanvasNodeStore interface {
 }
 
 type ReferenceResolver interface {
-	PublicReferenceURL(context.Context, string, string, domainasset.Asset) (string, error)
+	ProviderReference(context.Context, string, string, domainasset.Asset) (string, error)
 }
 
 type CanvasNodeVideoReference struct {

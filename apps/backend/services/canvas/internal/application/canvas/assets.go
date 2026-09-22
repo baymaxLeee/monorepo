@@ -165,7 +165,7 @@ func createCanvasProjectAsset(ctx context.Context, canvases CanvasScopeResolver,
 		return domainasset.Asset{}, classifyCanvasNodeAssetError(err)
 	}
 	// Public callers select a trusted Canvas context, never the persisted Asset
-	// owner. Project ownership is derived here so IAM intent and owner facts
+	// owner. Project ownership is derived here so identity intent and owner facts
 	// cannot diverge through a forged request body.
 	return creator.Create(ctx, applicationasset.CreateInput{
 		Scope: applicationasset.Scope{

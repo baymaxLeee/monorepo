@@ -1,4 +1,4 @@
-package aigw
+package provider
 
 import (
 	"context"
@@ -14,17 +14,16 @@ import (
 	applicationvideogeneration "github.com/example/monorepo/canvas/internal/application/videogeneration"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	domainvideo "github.com/example/monorepo/canvas/internal/domain/videogeneration"
-	platformaigwproxy "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
+	providerclient "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
 )
 
-// CanvasNodeVideoProvider translates the canvasnode application's video task contract to
-// AIGW's Ark-compatible content generation API. Task submission deliberately
-// lives in agentframe-server for this release; no worker is needed to start a task.
+// CanvasNodeVideoProvider translates the Canvas video task contract to the
+// selected custom provider's Ark-compatible content generation API.
 type CanvasNodeVideoProvider struct {
-	client platformaigwproxy.Client
+	client providerclient.Client
 }
 
-func NewCanvasNodeVideoProvider(client platformaigwproxy.Client) *CanvasNodeVideoProvider {
+func NewCanvasNodeVideoProvider(client providerclient.Client) *CanvasNodeVideoProvider {
 	return &CanvasNodeVideoProvider{client: client}
 }
 
@@ -71,8 +70,8 @@ func (c *CanvasNodeVideoProvider) Submit(ctx context.Context, input applicationv
 		Duration:      &input.DurationSeconds,
 		ExtraBody:     arkmodel.ExtraBody{"content": content},
 	})
-	result.Call.RequestAttempted = platformaigwproxy.RequestAttempted(err)
-	result.Call.RequestID = platformaigwproxy.AIGWRequestID(response.Header())
+	result.Call.RequestAttempted = providerclient.RequestAttempted(err)
+	result.Call.RequestID = providerclient.ProviderRequestID(response.Header())
 	if err != nil {
 		return result, err
 	}
@@ -100,6 +99,9 @@ func seedanceReference(raw string) (string, error) {
 			return "", invalidReference("reviewed video reference must be asset://asset-*")
 		}
 		return reference, nil
+	}
+	if strings.HasPrefix(value, "data:image/") && strings.Contains(value, ";base64,") {
+		return value, nil
 	}
 	return publicReferenceURL(value)
 }
@@ -174,10 +176,10 @@ func (c *CanvasNodeVideoProvider) Cancel(ctx context.Context, identity applicati
 }
 
 func withCanvasNodeVideoProviderIdentity(ctx context.Context, identity applicationvideogeneration.CanvasNodeVideoProviderIdentity) context.Context {
-	ctx = platformaigwproxy.WithTraceIdentity(ctx, identity.TenantID, identity.CallerID)
-	ctx = platformaigwproxy.WithWorkspaceID(ctx, identity.WorkspaceID)
-	ctx = platformaigwproxy.WithProjectID(ctx, identity.ProjectID)
-	return platformaigwproxy.WithProviderID(ctx, identity.ModelID)
+	ctx = providerclient.WithTraceIdentity(ctx, identity.TenantID, identity.CallerID)
+	ctx = providerclient.WithWorkspaceID(ctx, identity.WorkspaceID)
+	ctx = providerclient.WithProjectID(ctx, identity.ProjectID)
+	return providerclient.WithProviderID(ctx, identity.ModelID)
 }
 
 // publicReferenceURL is the final guard before Seedance fetches a reference

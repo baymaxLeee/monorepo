@@ -14,7 +14,7 @@ import (
 	applicationcanvasnode "github.com/example/monorepo/canvas/internal/application/canvas"
 )
 
-const keyPrefix = "agentframe:storyboard-draft:v2:"
+const keyPrefix = "canvas:storyboard-draft:v2:"
 
 type Store struct {
 	client redis.UniversalClient

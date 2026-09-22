@@ -13,9 +13,9 @@ import { useAudioSpectrum } from "@/components/AudioSpectrum/index";
 import { Pagination, Result, openDeleteConfirmModal } from "@/components/compat";
 import { Dropdown, Message, Spin, Menu, Button } from "@/components/ui";
 import { resource } from "@/domain";
+import { resolveArtifactURL } from "@/utils/artifactURL";
 import { downloadWithFetch } from "@/utils/download";
 import t from "@/utils/i18n";
-import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
 
 import { FilterTabs } from "../../components/FilterTabs";
 import { SearchInput } from "../../components/SearchInput";
@@ -105,7 +105,7 @@ export default function ResourcesPage() {
   const toggleAudioPlayback = (item: resource.Resource) => {
     const element = audioRef.current;
     const previewURL = item.PrimaryResourceAsset?.PreviewURL;
-    const audioURL = previewURL ? resolveUpPreviewURL(previewURL) : undefined;
+    const audioURL = previewURL ? resolveArtifactURL(previewURL) : undefined;
     if (!element || !audioURL) return;
     if (activeAudioResourceIdRef.current === item.ResourceID && playingAudioResourceId === item.ResourceID) {
       element.pause();
@@ -256,7 +256,7 @@ export default function ResourcesPage() {
   const downloadAudio = (item: resource.Resource) => {
     const primary = item.PrimaryResourceAsset;
     if (!primary?.PreviewURL) return;
-    const audioURL = resolveUpPreviewURL(primary.PreviewURL);
+    const audioURL = resolveArtifactURL(primary.PreviewURL);
     if (!audioURL) return;
     void downloadWithFetch({
       name: primary.Name || item.Name || "download",

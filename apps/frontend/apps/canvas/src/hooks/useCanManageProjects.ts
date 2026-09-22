@@ -1,5 +1,5 @@
-import { AGENTFRAME_RESOURCES, useAgentFrameResource } from "./useAgentFrameResource";
+import { usePlatformStore } from "@repo/runtime";
 
 export function useCanManageProjects() {
-  return useAgentFrameResource(AGENTFRAME_RESOURCES.projectManagement, "member").allowed;
+  return usePlatformStore((state) => state.user?.activeWorkspace?.role === "workspace_admin");
 }

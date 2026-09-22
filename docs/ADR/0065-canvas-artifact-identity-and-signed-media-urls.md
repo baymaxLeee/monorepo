@@ -6,7 +6,7 @@
 
 ## Context
 
-The first AgentFrame-to-monorepo Canvas adapter stored Knowledge's immutable
+The first imported Canvas adapter stored Knowledge's immutable
 object hash in `assets.object_key`. API responses then exposed authenticated
 Canvas `/content` endpoints. Browser media elements cannot attach the API
 client's bearer token, so project covers and other assets fail with `401` even
@@ -14,7 +14,7 @@ though the bytes exist. Fetching every image into a browser `Blob` works around
 authentication but duplicates bytes, object-URL lifecycle code, and proxy
 endpoints throughout the frontend.
 
-AgentFrame's mature asset model separates three identities:
+The Canvas asset model separates three identities:
 
 - `artifact_id` identifies immutable stored bytes;
 - `asset_id` identifies a persisted business asset/version;
@@ -129,14 +129,12 @@ identities are unaffected.
 
 ## Mature implementation reference
 
-The design follows AgentFrame's current implementation in
-`multix-app/internal/server/adapters/outbound/artifact/up.go` and
-`internal/server/application/asset/service.go`: batch presigning, Redis-backed
-URL caching with a 24-hour capability lifetime and randomized six-to-eight-hour
-cache TTL, immutable `ArtifactID` on `Asset`, and owner/reference-aware asset
-resolution. The monorepo uses Knowledge's existing object store and platform
-Redis instead of copying AgentFrame's UP SDK, IAM credentials, or private
-configuration.
+The design uses the established object-storage pattern: batch presigning,
+Redis-backed URL caching with a 24-hour capability lifetime and randomized
+six-to-eight-hour cache TTL, immutable `ArtifactID` on `Asset`, and
+owner/reference-aware asset resolution. The monorepo uses Knowledge's existing
+object store and platform Redis instead of importing external storage SDKs,
+credentials, or private configuration.
 
 The cover flow also follows the object-storage upload pattern documented by
 [Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/PresignedUrlUploadObject.html):

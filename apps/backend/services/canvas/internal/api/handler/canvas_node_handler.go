@@ -63,7 +63,6 @@ func (h *CanvasNodeHandler) MaterializeCanvasStandaloneAssetReference(ctx contex
 	if err := requireAction(ctx, "MaterializeCanvasStandaloneAssetReference"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	targetPort, ok := portFromDTO(r.TargetPort)
 	if !ok || h.graph == nil {
 		return nil, errno.New(errno.ErrInvalidArgument)
@@ -98,7 +97,6 @@ func (h *CanvasNodeHandler) MaterializeCanvasResourceAssetReference(
 	if err := requireAction(ctx, "MaterializeCanvasResourceAssetReference"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	targetPort, ok := portFromDTO(r.TargetPort)
 	if !ok || h.graph == nil {
 		return nil, errno.New(errno.ErrInvalidArgument)
@@ -143,7 +141,6 @@ func (h *CanvasNodeHandler) CreateCanvasAsset(
 	if err := requireAction(ctx, "CreateCanvasAsset"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	item, err := h.assets.CreateCanvasAsset(ctx, applicationcanvasnode.CreateCanvasAssetInput{
 		Scope: canvasnodeScope(ctx, r.WorkspaceID), ProjectID: r.ProjectID, CanvasID: r.CanvasID,
 		BlobID: r.BlobID, FileName: r.FileName,
@@ -165,6 +162,7 @@ type generationService interface {
 }
 
 type storyboardDraftService interface {
+	Start(context.Context, applicationcanvasnode.Scope, string, string, string, applicationcanvasnode.StoryboardModelConfig, applicationcanvasnode.StoryboardPlanningConfig, int) (applicationcanvasnode.StoryboardSession, error)
 	StartPrepared(context.Context, applicationcanvasnode.Scope, string, string, string, applicationcanvasnode.StoryboardModelConfig, applicationcanvasnode.StoryboardPlanningConfig, []applicationcanvasnode.Draft) (applicationcanvasnode.StoryboardSession, error)
 	List(context.Context, applicationcanvasnode.Scope, string, string) ([]applicationcanvasnode.StoryboardSession, error)
 	Cancel(context.Context, applicationcanvasnode.Scope, string, string, string) error
@@ -175,13 +173,16 @@ func (h *CanvasNodeHandler) CreateCanvasNodes(ctx context.Context, r *thriftcanv
 	if err := requireAction(ctx, "CreateCanvasNodes"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
-	if len(r.CanvasNodes) == 0 {
-		return nil, errno.New(errno.ErrInvalidArgument)
-	}
 	var state applicationcanvasnode.StoryboardSession
 	var err error
-	{
+	modelConfig := storyboardModelConfigFromRequest(r)
+	planningConfig := storyboardPlanningConfigFromRequest(r)
+	if len(r.CanvasNodes) == 0 {
+		state, err = h.drafts.Start(
+			ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, r.Plot,
+			modelConfig, planningConfig, 0,
+		)
+	} else {
 		drafts := make([]applicationcanvasnode.Draft, 0, len(r.CanvasNodes))
 		for _, item := range r.CanvasNodes {
 			if item == nil {
@@ -208,7 +209,7 @@ func (h *CanvasNodeHandler) CreateCanvasNodes(ctx context.Context, r *thriftcanv
 		}
 		state, err = h.drafts.StartPrepared(
 			ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, r.Plot,
-			storyboardModelConfigFromRequest(r), storyboardPlanningConfigFromRequest(r), drafts,
+			modelConfig, planningConfig, drafts,
 		)
 	}
 	if err != nil {
@@ -221,7 +222,6 @@ func (h *CanvasNodeHandler) ConfirmCanvasNodeDrafts(ctx context.Context, r *thri
 	if err := requireAction(ctx, "ConfirmCanvasNodeDrafts"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	overrides := make([]applicationcanvasnode.StoryboardOverride, 0, len(r.Items))
 	for _, item := range r.Items {
 		if item == nil || item.GenerationConfig == nil {
@@ -246,7 +246,6 @@ func (h *CanvasNodeHandler) CancelCanvasNodeDrafts(ctx context.Context, r *thrif
 	if err := requireAction(ctx, "CancelCanvasNodeDrafts"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	if err := h.drafts.Cancel(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, r.TaskRunID); err != nil {
 		return nil, err
 	}
@@ -257,7 +256,6 @@ func (h *CanvasNodeHandler) StartCanvasNodeGeneration(ctx context.Context, r *th
 	if err := requireAction(ctx, "StartCanvasNodeGeneration"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	taskRunID, err := h.generations.Start(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, r.NodeID)
 	if err != nil {
 		return nil, err
@@ -269,7 +267,6 @@ func (h *CanvasNodeHandler) StartCanvasGeneration(ctx context.Context, r *thrift
 	if err := requireAction(ctx, "StartCanvasGeneration"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	started, skipped, err := h.generations.StartCanvas(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID)
 	if err != nil {
 		return nil, err
@@ -285,7 +282,6 @@ func (h *CanvasNodeHandler) ListCanvasNodeHistories(ctx context.Context, r *thri
 	if err := requireAction(ctx, "ListCanvasNodeHistories"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	items, err := h.generations.List(
 		ctx,
 		canvasnodeScope(ctx, r.WorkspaceID),
@@ -307,7 +303,6 @@ func (h *CanvasNodeHandler) SelectCanvasNodeHistory(ctx context.Context, r *thri
 	if err := requireAction(ctx, "SelectCanvasNodeHistory"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	history, err := h.generations.Select(
 		ctx,
 		canvasnodeScope(ctx, r.WorkspaceID),
@@ -328,7 +323,6 @@ func (h *CanvasNodeHandler) CancelCanvasNodeGeneration(ctx context.Context, r *t
 	if err := requireAction(ctx, "CancelCanvasNodeGeneration"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	if err := h.generations.Cancel(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, r.NodeID, r.TaskRunID); err != nil {
 		return nil, err
 	}
@@ -360,7 +354,6 @@ func (h *CanvasNodeHandler) StartCanvasNodeTextGeneration(ctx context.Context, r
 	if err := requireAction(ctx, "StartCanvasNodeTextGeneration"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	state, err := h.textGenerations.Start(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, r.NodeID)
 	if err != nil {
 		return nil, err
@@ -372,7 +365,6 @@ func (h *CanvasNodeHandler) CancelCanvasNodeTextGeneration(ctx context.Context, 
 	if err := requireAction(ctx, "CancelCanvasNodeTextGeneration"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	if err := h.textGenerations.Cancel(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, r.NodeID, r.TaskRunID); err != nil {
 		return nil, err
 	}
@@ -406,7 +398,6 @@ func (h *CanvasNodeHandler) GetCanvasGraph(
 	if err := requireAction(ctx, "GetCanvasGraph"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	items, err := h.canvas_nodes.ListGraph(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID)
 	if err != nil {
 		return nil, err
@@ -439,7 +430,6 @@ func (h *CanvasNodeHandler) CreateCanvasNode(ctx context.Context, r *thriftcanva
 	if r.Position == nil {
 		return nil, errno.New(errno.ErrInvalidArgument)
 	}
-	r.Top = topParam(ctx)
 	item, canvasnodeNo, canvasRevision, err := h.canvas_nodes.Create(ctx, canvasnodeScope(ctx, r.WorkspaceID), applicationcanvasnode.CreateNodeInput{
 		ProjectID: r.ProjectID, CanvasID: r.CanvasID, AfterNodeID: r.GetAfterNodeID(),
 		Type:     domaincanvasnode.NodeType(r.Type),
@@ -471,7 +461,6 @@ func (h *CanvasNodeHandler) CopyCanvasNode(ctx context.Context, r *thriftcanvasn
 	if r.Position == nil {
 		return nil, errno.New(errno.ErrInvalidArgument)
 	}
-	r.Top = topParam(ctx)
 	result, err := h.canvas_nodes.Copy(ctx, canvasnodeScope(ctx, r.WorkspaceID), applicationcanvasnode.CopyNodeInput{
 		ProjectID: r.ProjectID, CanvasID: r.CanvasID, SourceNodeID: r.SourceNodeID,
 		Position: domaincanvasnode.Position{PositionX: r.Position.PositionX, PositionY: r.Position.PositionY},
@@ -491,7 +480,6 @@ func (h *CanvasNodeHandler) UpdateCanvasNode(ctx context.Context, r *thriftcanva
 	if err := requireAction(ctx, "UpdateCanvasNode"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	patch := applicationcanvasnode.UpdatePatch{Content: domaincanvasnode.UpdatePatch{
 		Prompt: r.Prompt, Name: r.Name, Text: r.Text,
 	}}
@@ -520,7 +508,6 @@ func (h *CanvasNodeHandler) BatchUpdateCanvasNodePositions(ctx context.Context, 
 	if err := requireAction(ctx, "BatchUpdateCanvasNodePositions"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	updates := make([]applicationcanvasnode.CanvasNodePositionUpdate, 0, len(r.Items))
 	for _, item := range r.Items {
 		if item == nil || item.Position == nil {
@@ -550,7 +537,6 @@ func (h *CanvasNodeHandler) DeleteCanvasNode(ctx context.Context, r *thriftcanva
 	if err := requireAction(ctx, "DeleteCanvasNode"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	if h.graph == nil {
 		return nil, errno.New(errno.ErrConfigurationError)
 	}
@@ -568,7 +554,6 @@ func (h *CanvasNodeHandler) BatchDeleteCanvasNodes(ctx context.Context, r *thrif
 	if err := requireAction(ctx, "BatchDeleteCanvasNodes"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	if h.graph == nil {
 		return nil, errno.New(errno.ErrConfigurationError)
 	}
@@ -588,7 +573,6 @@ func (h *CanvasNodeHandler) ConnectCanvasNodes(
 	if err := requireAction(ctx, "ConnectCanvasNodes"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	targetPort, ok := portFromDTO(r.TargetPort)
 	if !ok {
 		return nil, errno.New(errno.ErrInvalidArgument)
@@ -620,7 +604,6 @@ func (h *CanvasNodeHandler) DeleteCanvasEdge(
 	if err := requireAction(ctx, "DeleteCanvasEdge"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	if h.graph == nil {
 		return nil, errno.New(errno.ErrConfigurationError)
 	}
@@ -645,7 +628,6 @@ func (h *CanvasNodeHandler) ReorderStoryboardNodes(
 	if err := requireAction(ctx, "ReorderStoryboardNodes"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	items := make([]applicationcanvasnode.StoryboardRank, 0, len(r.Items))
 	for _, item := range r.Items {
 		if item == nil {
@@ -677,7 +659,6 @@ func (h *CanvasNodeHandler) SearchCanvasNodeAssets(ctx context.Context, r *thrif
 	if err := requireAction(ctx, "SearchCanvasNodeAssets"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	mediaTypes, ok := canvasNodeMediaTypesFromDTO(r.MediaTypes)
 	if !ok {
 		return nil, errno.New(errno.ErrInvalidArgument)
@@ -847,7 +828,7 @@ func formatAssetSize(size int64) string {
 	return fmt.Sprintf("%.1f MB", float64(size)/(1024*1024))
 }
 func canvasnodeScope(ctx context.Context, w *string) applicationcanvasnode.Scope {
-	metadata, _ := topcontext.MetadataFromContext(ctx)
+	metadata, _ := requestcontext.MetadataFromContext(ctx)
 	return applicationcanvasnode.Scope{TenantID: metadata.TenantID, WorkspaceID: nullableWorkspaceID(w), CallerID: metadata.UserID}
 }
 func configPatchFromDTO(v *thriftcanvasnode.CanvasNodeGenerationConfigPatch) domainvideo.ConfigPatch {
@@ -1131,7 +1112,6 @@ func (h *CanvasNodeHandler) StartCanvasNodeAssetsMatch(ctx context.Context, r *t
 	if err := requireAction(ctx, "StartCanvasNodeAssetsMatch"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	run, err := h.canvas_nodes.StartAssetsMatch(ctx, applicationcanvasnode.StartAssetsMatchInput{Scope: canvasnodeScope(ctx, r.WorkspaceID), ProjectID: r.ProjectID, CanvasID: r.CanvasID, NodeID: r.NodeID, Revision: r.Revision})
 	if err != nil {
 		return nil, err
@@ -1143,7 +1123,6 @@ func (h *CanvasNodeHandler) BatchGetCanvasNodeStates(ctx context.Context, r *thr
 	if err := requireAction(ctx, "BatchGetCanvasNodeStates"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	scope := canvasnodeScope(ctx, r.WorkspaceID)
 	targets := make([]applicationcanvasgeneration.GenerationTarget, 0, len(r.Targets))
 	for _, target := range r.Targets {
@@ -1249,7 +1228,6 @@ func (h *CanvasNodeHandler) CancelCanvasNodeAssetsMatch(ctx context.Context, r *
 	if err := requireAction(ctx, "CancelCanvasNodeAssetsMatch"); err != nil {
 		return nil, err
 	}
-	r.Top = topParam(ctx)
 	if err := h.canvas_nodes.CancelAssetsMatch(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, r.NodeID, r.TaskRunID); err != nil {
 		return nil, err
 	}

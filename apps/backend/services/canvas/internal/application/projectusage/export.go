@@ -170,7 +170,7 @@ func (exporter *Exporter) DownloadXLSX(ctx context.Context, input DownloadXLSXIn
 	if err != nil || strings.TrimSpace(exportID) == "" {
 		return DownloadXLSXResult{}, errno.Wrap(errno.ErrInternalError, err)
 	}
-	tempDir, err := os.MkdirTemp(exporter.tempRoot, "agentframe-project-usage-")
+	tempDir, err := os.MkdirTemp(exporter.tempRoot, "canvas-project-usage-")
 	if err != nil {
 		return DownloadXLSXResult{}, errno.Wrap(errno.ErrInternalError, fmt.Errorf("create project usage temporary directory: %w", err))
 	}
@@ -292,7 +292,7 @@ func exportAmount(row ExportRow, totals map[string]*decimalTotal) (string, bool,
 				return "", false, err
 			}
 			if unitless.value.Sign() == 0 {
-				// NOT_SENT, confirmed cancellation and explicit AIGW non-billing
+				// NOT_SENT, confirmed cancellation and explicit provider non-billing
 				// facts contribute zero without creating a separate summary unit.
 				return formatAmount(amount, currency), false, nil
 			}

@@ -23,9 +23,9 @@ import type { AssetMentionItem } from "@/components/promptEditor/plugins/assetMe
 import { SearchInput } from "@/components/SearchInput";
 import { Dropdown, Menu, Spin, Trigger } from "@/components/ui";
 import { asset as assetIDL, canvasnode, resource } from "@/domain";
+import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
 import t from "@/utils/i18n";
-import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
 
 import { ResourceAssetsModal } from "../../resources/assets/ResourceAssetsModal";
 import type { ResourceAssetsInitialAction } from "../../resources/assets/ResourceAssetsPage";
@@ -62,7 +62,7 @@ const RESOURCE_TYPE_BY_NAME: Record<NonNullable<AssetMentionItem["resourceType"]
   audio: resource.ResourceType.AUDIO,
 };
 
-export const CANVAS_ASSET_DRAG_TYPE = "application/x-agentframe-canvas-asset";
+export const CANVAS_ASSET_DRAG_TYPE = "application/x-canvas-canvas-asset";
 
 export type CanvasAssetDragData = {
   resourceAssetId?: string;
@@ -199,7 +199,7 @@ function previewAssetForResource(item: resource.Resource): AssetMentionItem {
     : item.Type === resource.ResourceType.AUDIO
       ? "audio"
       : "image";
-  const previewUrl = resolveUpPreviewURL(primary?.PreviewURL ?? "");
+  const previewUrl = resolveArtifactURL(primary?.PreviewURL ?? "");
   return {
     assetId: primary?.CurrentAssetID,
     category,
@@ -446,7 +446,7 @@ export function StudioAssetPanel({
       <span className={styles.groupSummary}>
         <span className={`${styles.groupThumbnail} ${hasCover ? "" : styles.fallbackThumbnail}`}>
           {hasCover ? (
-            <img alt="" src={resolveUpPreviewURL(item.PrimaryResourceAsset?.PreviewURL ?? "")} />
+            <img alt="" src={resolveArtifactURL(item.PrimaryResourceAsset?.PreviewURL ?? "")} />
           ) : (
             <ResourceTypeIcon type={item.Type} />
           )}
@@ -629,7 +629,7 @@ export function StudioAssetPanel({
                 groups.map(({ item }) => {
                   const primary = item.PrimaryResourceAsset;
                   const draggable = Boolean(primary?.ResourceAssetID);
-                  const previewURL = resolveUpPreviewURL(primary?.PreviewURL ?? "");
+                  const previewURL = resolveArtifactURL(primary?.PreviewURL ?? "");
                   const previewId = `resource:${item.ResourceID}`;
                   const previewAsset = withLatestReview(previewAssetForResource(item));
                   return (
@@ -734,7 +734,7 @@ export function StudioAssetPanel({
                       ) : (
                         assets.map((asset) => {
                           const resourceAssetId = asset.ResourceAssetID;
-                          const previewURL = resolveUpPreviewURL(asset.PreviewURL ?? "");
+                          const previewURL = resolveArtifactURL(asset.PreviewURL ?? "");
                           const hasCover = item.Type !== resource.ResourceType.AUDIO && Boolean(previewURL);
                           const previewId = `asset:${resourceAssetId}`;
                           const previewAsset = withLatestReview({

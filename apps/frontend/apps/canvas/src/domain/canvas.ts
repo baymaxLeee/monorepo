@@ -58,7 +58,7 @@ export interface CreateProjectCanvasRequest {
   ProjectID: string;
   /** Name 是剧集名称，在所属项目内唯一。 */
   Name: string;
-  /** CoverImagePath 是通过 Up 上传得到的封面图片 path；未传表示不设置封面。 */
+  /** CoverImagePath 是通过 artifact storage 上传得到的封面图片 path；未传表示不设置封面。 */
   CoverImagePath?: string;
 }
 
@@ -165,7 +165,7 @@ export interface ProjectCanvasSummary {
   ProjectID: string;
   /** Name 是剧集名称，在所属项目内唯一。 */
   Name: string;
-  /** CoverImagePath 是已通过 Up 长期化的封面图片 path。 */
+  /** CoverImagePath 是已通过 artifact storage 长期化的封面图片 path。 */
   CoverImagePath?: string;
   /** CoverImageURL 是只用于展示的短期签名 URL。 */
   CoverImageURL?: string;

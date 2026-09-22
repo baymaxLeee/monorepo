@@ -27,9 +27,9 @@ import { type AssetMentionItem, type AssetMentionSource } from "@/components/pro
 import { Message, Spin } from "@/components/ui";
 import { canvasnode } from "@/domain";
 import { UpdateCanvasNode, CreateCanvasNode, CopyCanvasNode } from "@/pages/studio/domain/persistence";
+import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
 import t from "@/utils/i18n";
-import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
 
 import { CANVAS_ASSET_DRAG_TYPE, type CanvasAssetDragData } from "../components/StudioAssetPanel";
 import { canvasRequestErrorMessage } from "../domain/actions";
@@ -1123,7 +1123,7 @@ function CanvasBoardInner({
               {
                 ...assetFromCanvasNode(updated),
                 assetId: binding.CurrentAssetID,
-                previewUrl: resolveUpPreviewURL(response.ResourceAsset.PreviewURL ?? ""),
+                previewUrl: resolveArtifactURL(response.ResourceAsset.PreviewURL ?? ""),
                 resourceAssetId: binding.ResourceAssetID,
                 resourceId: response.Resource.ResourceID,
                 review: latestAssetReview(response.ResourceAsset.Reviews),

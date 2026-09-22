@@ -155,8 +155,8 @@ func (reconciler *Reconciler) reconcileOne(ctx context.Context, record domain.Us
 		case MoneyPending:
 			continue
 		case MoneySettled:
-			if settleErr := updated.Settle(result.Amount, result.Currency, domain.SettlementAIGWSettled, transitionNow); settleErr != nil {
-				reason := "AIGW usage lookup returned an invalid amount or currency"
+			if settleErr := updated.Settle(result.Amount, result.Currency, domain.SettlementProviderSettled, transitionNow); settleErr != nil {
+				reason := "provider usage lookup returned an invalid amount or currency"
 				if reviewErr := updated.MarkCapturedNeedsReview(reason, transitionNow); reviewErr != nil {
 					failures = errors.Join(failures, settleErr, reviewErr)
 					continue
@@ -165,14 +165,14 @@ func (reconciler *Reconciler) reconcileOne(ctx context.Context, record domain.Us
 		case MoneyNeedsReview:
 			reason := strings.TrimSpace(result.Reason)
 			if reason == "" {
-				reason = "AIGW usage lookup returned a non-retryable result"
+				reason = "provider usage lookup returned a non-retryable result"
 			}
 			if reviewErr := updated.MarkCapturedNeedsReview(reason, transitionNow); reviewErr != nil {
 				failures = errors.Join(failures, reviewErr)
 				continue
 			}
 		default:
-			if reviewErr := updated.MarkCapturedNeedsReview("AIGW usage lookup returned an unknown status", transitionNow); reviewErr != nil {
+			if reviewErr := updated.MarkCapturedNeedsReview("provider usage lookup returned an unknown status", transitionNow); reviewErr != nil {
 				failures = errors.Join(failures, reviewErr)
 				continue
 			}
@@ -256,7 +256,7 @@ func (reconciler *Reconciler) finishReadFailure(
 	if observedFinalCount > record.FinalCallCount {
 		noProgress = 0
 	}
-	reason := "billing reconciliation could not read AIGW calls"
+	reason := "billing reconciliation could not read provider calls"
 	if readErr != nil {
 		reason += ": " + readErr.Error()
 	}
@@ -313,7 +313,7 @@ func reconciliationLimitReason(record domain.UsageRecord, noProgress int32, now 
 	return ""
 }
 
-func (reconciler *Reconciler) markPendingCallsForReview(ctx context.Context, calls []domain.AIGWCall, reason string, now time.Time) error {
+func (reconciler *Reconciler) markPendingCallsForReview(ctx context.Context, calls []domain.ProviderCall, reason string, now time.Time) error {
 	var failures error
 	for index := range calls {
 		ref := calls[index].Ref()
@@ -353,7 +353,7 @@ func (reconciler *Reconciler) markPendingCallsForReview(ctx context.Context, cal
 	return failures
 }
 
-func readyUpdate(record domain.UsageRecord, calls []domain.AIGWCall, now time.Time) (domain.ReconciliationUpdate, error) {
+func readyUpdate(record domain.UsageRecord, calls []domain.ProviderCall, now time.Time) (domain.ReconciliationUpdate, error) {
 	amounts := make([]string, 0, len(calls))
 	currency := ""
 	currencySet := false
@@ -396,7 +396,7 @@ func readyUpdate(record domain.UsageRecord, calls []domain.AIGWCall, now time.Ti
 	}, nil
 }
 
-func callSetProblem(record domain.UsageRecord, calls []domain.AIGWCall) string {
+func callSetProblem(record domain.UsageRecord, calls []domain.ProviderCall) string {
 	return FrozenCallSetProblem(FrozenUsageSnapshot{
 		TaskRunID:   record.TaskRunID,
 		TaskType:    record.TaskType,
@@ -408,23 +408,23 @@ func callSetProblem(record domain.UsageRecord, calls []domain.AIGWCall) string {
 	}, calls)
 }
 
-func reviewedCallProblem(calls []domain.AIGWCall) string {
+func reviewedCallProblem(calls []domain.ProviderCall) string {
 	for index := range calls {
 		if calls[index].BillingStatus == domain.CallBillingNeedsReview {
 			if calls[index].ReviewReason != "" {
 				return calls[index].ReviewReason
 			}
-			return "an AIGW call requires billing review"
+			return "a provider call requires billing review"
 		}
 	}
 	return ""
 }
 
-func sortCalls(calls []domain.AIGWCall) {
+func sortCalls(calls []domain.ProviderCall) {
 	sort.Slice(calls, func(i, j int) bool { return calls[i].CallOrdinal < calls[j].CallOrdinal })
 }
 
-func countFinal(calls []domain.AIGWCall) int {
+func countFinal(calls []domain.ProviderCall) int {
 	count := 0
 	for index := range calls {
 		if calls[index].BillingStatus == domain.CallBillingFinal {
@@ -438,7 +438,7 @@ func retryDelay(noProgressAttempt int32) time.Duration {
 	if noProgressAttempt < 1 {
 		noProgressAttempt = 1
 	}
-	// AIGW persists usage records through MQ, so the first retry is intentionally
+	// provider persists usage records through MQ, so the first retry is intentionally
 	// short. Longer gaps then absorb billing latency without sustained polling.
 	delays := [...]time.Duration{
 		5 * time.Minute,

@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	ErrInvalidCall       = errors.New("project usage AIGW call is invalid")
+	ErrInvalidCall       = errors.New("project usage provider call is invalid")
 	ErrInvalidRecord     = errors.New("project usage record is invalid")
 	ErrInvalidTransition = errors.New("project usage state transition is invalid")
 	ErrInvalidAmount     = errors.New("project usage amount is invalid")
@@ -34,7 +34,7 @@ const (
 type SettlementReason string
 
 const (
-	SettlementAIGWSettled     SettlementReason = "AIGW_SETTLED"
+	SettlementProviderSettled SettlementReason = "PROVIDER_SETTLED"
 	SettlementNotSent         SettlementReason = "NOT_SENT"
 	SettlementCancelConfirmed SettlementReason = "CANCEL_CONFIRMED"
 )
@@ -52,7 +52,7 @@ type CallRef struct {
 	CallOrdinal int32
 }
 
-type AIGWCall struct {
+type ProviderCall struct {
 	TaskRunID        string
 	CallOrdinal      int32
 	CallType         string
@@ -74,7 +74,7 @@ type AIGWCall struct {
 	FinalizedAt      *time.Time
 }
 
-type NewAIGWCallInput struct {
+type NewProviderCallInput struct {
 	TaskRunID   string
 	CallOrdinal int32
 	CallType    string
@@ -85,8 +85,8 @@ type NewAIGWCallInput struct {
 	Now         time.Time
 }
 
-func NewAIGWCall(input NewAIGWCallInput) (AIGWCall, error) {
-	call := AIGWCall{
+func NewProviderCall(input NewProviderCallInput) (ProviderCall, error) {
+	call := ProviderCall{
 		TaskRunID: strings.TrimSpace(input.TaskRunID), CallOrdinal: input.CallOrdinal,
 		CallType: strings.TrimSpace(input.CallType), ProjectID: strings.TrimSpace(input.ProjectID),
 		ModelID: strings.TrimSpace(input.ModelID), ModelName: strings.TrimSpace(input.ModelName),
@@ -94,16 +94,16 @@ func NewAIGWCall(input NewAIGWCallInput) (AIGWCall, error) {
 		StateVersion: 1, CreatedAt: input.Now, UpdatedAt: input.Now,
 	}
 	if err := call.Validate(); err != nil {
-		return AIGWCall{}, err
+		return ProviderCall{}, err
 	}
 	return call, nil
 }
 
-func (call AIGWCall) Ref() CallRef {
+func (call ProviderCall) Ref() CallRef {
 	return CallRef{TaskRunID: call.TaskRunID, CallOrdinal: call.CallOrdinal}
 }
 
-func (call *AIGWCall) StartRequest(now time.Time) error {
+func (call *ProviderCall) StartRequest(now time.Time) error {
 	if now.IsZero() || call.BillingStatus != CallBillingPending || call.CaptureResult != nil || call.RequestID != nil {
 		return ErrInvalidTransition
 	}
@@ -116,7 +116,7 @@ func (call *AIGWCall) StartRequest(now time.Time) error {
 	return call.Validate()
 }
 
-func (call AIGWCall) Validate() error {
+func (call ProviderCall) Validate() error {
 	if strings.TrimSpace(call.TaskRunID) == "" || call.CallOrdinal <= 0 ||
 		strings.TrimSpace(call.CallType) == "" || strings.TrimSpace(call.ProjectID) == "" ||
 		strings.TrimSpace(call.ModelID) == "" || strings.TrimSpace(call.ModelName) == "" ||
@@ -144,7 +144,7 @@ func (call AIGWCall) Validate() error {
 			return ErrInvalidCall
 		}
 		switch *call.SettlementReason {
-		case SettlementAIGWSettled:
+		case SettlementProviderSettled:
 			if call.RequestStartedAt == nil || *call.CaptureResult != CaptureCaptured || call.RequestID == nil ||
 				(call.Currency != nil && strings.TrimSpace(*call.Currency) == "") {
 				return ErrInvalidCall
@@ -196,7 +196,7 @@ func (call AIGWCall) Validate() error {
 // boundary. Application callers normally use the domain mutators below, but a
 // repository must still reject a valid-in-isolation object that rewinds a
 // started, captured, or terminal call.
-func (call AIGWCall) ValidateTransition(next AIGWCall) error {
+func (call ProviderCall) ValidateTransition(next ProviderCall) error {
 	if err := call.Validate(); err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func (call AIGWCall) ValidateTransition(next AIGWCall) error {
 	return ErrInvalidTransition
 }
 
-func (call *AIGWCall) Capture(requestID string, now time.Time) error {
+func (call *ProviderCall) Capture(requestID string, now time.Time) error {
 	requestID = strings.TrimSpace(requestID)
 	if requestID == "" || now.IsZero() {
 		return ErrInvalidTransition
@@ -261,7 +261,7 @@ func (call *AIGWCall) Capture(requestID string, now time.Time) error {
 	return call.Validate()
 }
 
-func (call *AIGWCall) FinalizeNotSent(now time.Time) error {
+func (call *ProviderCall) FinalizeNotSent(now time.Time) error {
 	if call.isExactFinal(CaptureNotSent, SettlementNotSent, "0", "") {
 		return nil
 	}
@@ -275,11 +275,11 @@ func (call *AIGWCall) FinalizeNotSent(now time.Time) error {
 	return call.Validate()
 }
 
-func (call *AIGWCall) ConfirmCancellation(now time.Time) error {
+func (call *ProviderCall) ConfirmCancellation(now time.Time) error {
 	if call.isCancellationFinal() {
 		return call.Validate()
 	}
-	// AIGW's successful cancellation is an authoritative zero-charge fact. It
+	// provider's successful cancellation is an authoritative zero-charge fact. It
 	// may therefore resolve a missing response RequestID without inventing one;
 	// the original capture result remains immutable for auditability.
 	if now.IsZero() || call.RequestStartedAt == nil || call.CaptureResult == nil ||
@@ -306,10 +306,10 @@ func (call *AIGWCall) ConfirmCancellation(now time.Time) error {
 	return call.Validate()
 }
 
-func (call *AIGWCall) Settle(amount, currency string, reason SettlementReason, now time.Time) error {
+func (call *ProviderCall) Settle(amount, currency string, reason SettlementReason, now time.Time) error {
 	normalized, err := NormalizeAmount(amount)
 	currency = strings.TrimSpace(currency)
-	if err != nil || reason != SettlementAIGWSettled || now.IsZero() {
+	if err != nil || reason != SettlementProviderSettled || now.IsZero() {
 		return ErrInvalidTransition
 	}
 	if call.isExactFinal(CaptureCaptured, reason, normalized, currency) {
@@ -328,15 +328,15 @@ func (call *AIGWCall) Settle(amount, currency string, reason SettlementReason, n
 	return call.Validate()
 }
 
-func (call *AIGWCall) MarkRequestIDUnknown(reason string, now time.Time) error {
+func (call *ProviderCall) MarkRequestIDUnknown(reason string, now time.Time) error {
 	return call.markNeedsReview(CaptureRequestIDUnknown, reason, now)
 }
 
-func (call *AIGWCall) MarkCapturedNeedsReview(reason string, now time.Time) error {
+func (call *ProviderCall) MarkCapturedNeedsReview(reason string, now time.Time) error {
 	return call.markNeedsReview(CaptureCaptured, reason, now)
 }
 
-func (call *AIGWCall) markNeedsReview(capture CaptureResult, reason string, now time.Time) error {
+func (call *ProviderCall) markNeedsReview(capture CaptureResult, reason string, now time.Time) error {
 	reason = strings.TrimSpace(reason)
 	if call.BillingStatus == CallBillingNeedsReview && call.CaptureResult != nil && *call.CaptureResult == capture && call.ReviewReason == reason {
 		return nil
@@ -362,7 +362,7 @@ func (call *AIGWCall) markNeedsReview(capture CaptureResult, reason string, now 
 	return call.Validate()
 }
 
-func (call AIGWCall) isExactFinal(capture CaptureResult, reason SettlementReason, amount, currency string) bool {
+func (call ProviderCall) isExactFinal(capture CaptureResult, reason SettlementReason, amount, currency string) bool {
 	if call.BillingStatus != CallBillingFinal || call.CaptureResult == nil || call.SettlementReason == nil || call.Amount == nil {
 		return false
 	}
@@ -375,7 +375,7 @@ func (call AIGWCall) isExactFinal(capture CaptureResult, reason SettlementReason
 	return call.Currency != nil && *call.Currency == currency
 }
 
-func (call AIGWCall) isCancellationFinal() bool {
+func (call ProviderCall) isCancellationFinal() bool {
 	if call.BillingStatus != CallBillingFinal || call.CaptureResult == nil || call.SettlementReason == nil ||
 		*call.SettlementReason != SettlementCancelConfirmed || call.Amount == nil || *call.Amount != "0" || call.Currency != nil {
 		return false

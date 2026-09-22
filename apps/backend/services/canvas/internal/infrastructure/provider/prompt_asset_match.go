@@ -1,4 +1,4 @@
-package aigw
+package provider
 
 import (
 	"context"
@@ -10,20 +10,20 @@ import (
 
 	applicationcanvas "github.com/example/monorepo/canvas/internal/application/canvas"
 	"github.com/example/monorepo/canvas/internal/domain/assetmatching"
-	platformaigwproxy "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
+	providerclient "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
 )
 
-type PromptAssetMatcher struct{ client platformaigwproxy.Client }
+type PromptAssetMatcher struct{ client providerclient.Client }
 
-func NewPromptAssetMatcher(client platformaigwproxy.Client) applicationcanvas.PromptAssetMatcher {
+func NewPromptAssetMatcher(client providerclient.Client) applicationcanvas.PromptAssetMatcher {
 	return &PromptAssetMatcher{client: client}
 }
 
 func (m *PromptAssetMatcher) Match(ctx context.Context, input applicationcanvas.PromptAssetMatchInput) ([]applicationcanvas.PromptAssetMatch, error) {
-	ctx = platformaigwproxy.WithTraceIdentity(ctx, input.Scope.TenantID, input.Scope.CallerID)
-	ctx = platformaigwproxy.WithProjectID(ctx, input.ProjectID)
+	ctx = providerclient.WithTraceIdentity(ctx, input.Scope.TenantID, input.Scope.CallerID)
+	ctx = providerclient.WithProjectID(ctx, input.ProjectID)
 	if input.Scope.WorkspaceID != nil {
-		ctx = platformaigwproxy.WithWorkspaceID(ctx, *input.Scope.WorkspaceID)
+		ctx = providerclient.WithWorkspaceID(ctx, *input.Scope.WorkspaceID)
 	}
 	return matchPromptAssets(ctx, input, func(ctx context.Context, request *responses.ResponsesRequest) (storyboardStreamOutcome, error) {
 		response, err := m.client.CreateResponses(ctx, request)

@@ -1,12 +1,12 @@
-package aigwproxy
+package providerclient
 
 import (
 	"net/http"
 	"strings"
 )
 
-const HeaderAIGWRequestID = "X-Aigw-Request-Id"
+const HeaderProviderRequestID = "X-Request-Id"
 
-func AIGWRequestID(header http.Header) string {
-	return strings.TrimSpace(header.Get(HeaderAIGWRequestID))
+func ProviderRequestID(header http.Header) string {
+	return strings.TrimSpace(header.Get(HeaderProviderRequestID))
 }

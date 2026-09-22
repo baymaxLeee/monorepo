@@ -113,14 +113,16 @@ export function StudioHeader({
       </div>
 
       <div className="flex shrink-0 items-center gap-3">
-        <ActionButton
-          icon={<IconChat />}
-          onClick={onToggleChat}
-          paddingX={12}
-          variant={chatOpen ? "primary" : undefined}
-        >
-          {t("AI 助手")}
-        </ActionButton>
+        {view === "canvas" ? (
+          <ActionButton
+            icon={<IconChat />}
+            onClick={onToggleChat}
+            paddingX={12}
+            variant={chatOpen ? "primary" : undefined}
+          >
+            {t("AI 助手")}
+          </ActionButton>
+        ) : null}
 
         <ActionButton icon={<IconAgentHistory />} onClick={onOpenExportHistory} paddingX={12}>
           {t("导出记录")}

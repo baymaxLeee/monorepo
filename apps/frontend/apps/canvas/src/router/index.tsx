@@ -7,10 +7,6 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <Navigate replace to="projects" /> },
       {
-        path: "help",
-        lazy: async () => ({ Component: (await import("../pages/help")).default }),
-      },
-      {
         path: "projects",
         lazy: async () => ({ Component: (await import("../pages/projects")).default }),
       },

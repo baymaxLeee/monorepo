@@ -25,7 +25,7 @@ const (
 	lifetime                       = 9 * time.Minute
 	liveProjectionRetention        = 30 * time.Minute
 	textGenerationCallOrdinal      = int32(1)
-	textGenerationInterruptedCause = "canvas text generation was interrupted after an AIGW call began"
+	textGenerationInterruptedCause = "canvas text generation was interrupted after a provider call began"
 )
 
 var ErrNotFound = errors.New("canvas text generation not found")
@@ -87,7 +87,7 @@ type InputAssetReader interface {
 }
 
 type InputReferenceResolver interface {
-	PlatformReferenceURL(context.Context, string, string, domainasset.Asset) (string, error)
+	ProviderReference(context.Context, string, string, domainasset.Asset) (string, error)
 }
 
 type ProviderInput struct {
@@ -318,7 +318,7 @@ func (s *Service) resolveProviderReferences(ctx context.Context, scope applicati
 		if !validModality || asset.MediaType != expectedMediaType {
 			return nil, errors.New("text generation input asset modality does not match its source node")
 		}
-		url, resolveErr := s.inputResolver.PlatformReferenceURL(ctx, scope.TenantID, scope.CallerID, asset)
+		url, resolveErr := s.inputResolver.ProviderReference(ctx, scope.TenantID, scope.CallerID, asset)
 		if resolveErr != nil || strings.TrimSpace(url) == "" {
 			return nil, errors.Join(resolveErr, errors.New("text generation input asset is unavailable"))
 		}

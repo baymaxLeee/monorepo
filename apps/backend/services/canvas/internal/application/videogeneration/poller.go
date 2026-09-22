@@ -82,7 +82,7 @@ func (s *Service) processPollClaim(ctx context.Context, run domaintask.TaskRun, 
 		if s.projectUsageCalls != nil {
 			_, err = s.projectUsageCalls.MarkInterruptedIfPresent(ctx, domainprojectusage.CallRef{
 				TaskRunID: run.ID, CallOrdinal: videoGenerationCallOrdinal,
-			}, "video generation submission was interrupted after an AIGW call began")
+			}, "video generation submission was interrupted after a provider call began")
 			if err != nil {
 				return err
 			}

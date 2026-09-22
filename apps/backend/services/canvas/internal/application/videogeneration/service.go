@@ -33,7 +33,7 @@ const (
 	generationDeadline                = 24 * time.Hour
 	initialFirstLastFrameStateVersion = 1
 	maxFrameAssetPresignBatchSize     = 100
-	// canvasGenerationConcurrency bounds simultaneous UP presign and AIGW
+	// canvasGenerationConcurrency bounds simultaneous reference resolution and provider
 	// submission requests during a batch start.
 	canvasGenerationConcurrency = 128
 	videoGenerationCallOrdinal  = int32(1)
@@ -316,7 +316,7 @@ func (s *Service) start(ctx context.Context, scope Scope, projectID, canvasID, c
 		Resolution:     item.GenerationConfig.Resolution, AspectRatio: item.GenerationConfig.AspectRatio,
 		DurationSeconds: item.GenerationConfig.DurationSeconds, GenerateAudio: item.GenerationConfig.GenerateAudio,
 		Watermark: item.GenerationConfig.Watermark, Prompt: resolvedInputs.Prompt,
-		AIGWTraceWorkspaceID: aigwTaskWorkspaceID(scope), Status: string(domaintask.StatusQueued),
+		ProviderWorkspaceID: providerWorkspaceID(scope), Status: string(domaintask.StatusQueued),
 		ProviderStatus: domainvideo.ProviderStatusPending,
 		Inputs:         generationInputs(resolvedInputs.References),
 		CreatedBy:      scope.CallerID, CreatedAt: now, UpdatedAt: now,
@@ -432,7 +432,7 @@ func (s *Service) start(ctx context.Context, scope Scope, projectID, canvasID, c
 	if err != nil {
 		message := "视频生成任务提交失败"
 		if errors.Is(err, ErrReferenceUnavailable) {
-			message = "参考素材无法被 AIGW 访问"
+			message = "参考素材无法被模型访问"
 		}
 		marked, markErr := s.markFailedWithSchedule(ctx, run, &schedule, message, s.clock.Now())
 		if markErr == nil && !marked {
@@ -440,7 +440,7 @@ func (s *Service) start(ctx context.Context, scope Scope, projectID, canvasID, c
 		}
 		err = errors.Join(err, markErr)
 		if errors.Is(err, ErrReferenceUnavailable) {
-			return "", false, errno.WrapWithMessage(errno.ErrFailedPrecondition, "参考素材暂时无法供视频模型访问", err)
+			return "", false, errno.WrapWithMessage(errno.ErrFailedPrecondition, "参考素材暂时无法供模型访问", err)
 		}
 		return "", false, errno.Wrap(errno.ErrModelDependencyError, err)
 	}
@@ -642,10 +642,10 @@ func (s *Service) generationAssets(ctx context.Context, scope Scope, projectID, 
 		referenceURL, resolveErr := generationAssetReference(ctx, s.resolver, scope, asset, modelID, modelIsPreset)
 		if resolveErr != nil {
 			if errors.Is(resolveErr, domainasset.ErrInvalidProviderAssetReference) {
-				return resolvedGenerationInputs{}, errno.WrapWithMessage(errno.ErrFailedPrecondition, "审核通过的参考素材缺少有效的火山素材 ID", resolveErr)
+				return resolvedGenerationInputs{}, errno.WrapWithMessage(errno.ErrFailedPrecondition, "审核通过的参考素材缺少有效的 Provider 素材 ID", resolveErr)
 			}
 			if errors.Is(resolveErr, ErrReferenceUnavailable) {
-				return resolvedGenerationInputs{}, errno.WrapWithMessage(errno.ErrFailedPrecondition, "参考素材暂时无法供视频模型访问", resolveErr)
+				return resolvedGenerationInputs{}, errno.WrapWithMessage(errno.ErrFailedPrecondition, "参考素材暂时无法供模型访问", resolveErr)
 			}
 			return resolvedGenerationInputs{}, errno.ObjectStorageDependency(resolveErr)
 		}
@@ -683,7 +683,7 @@ func generationAssetReference(ctx context.Context, resolver ReferenceResolver, s
 			return reference, err
 		}
 	}
-	return resolver.PublicReferenceURL(ctx, scope.TenantID, scope.CallerID, asset)
+	return resolver.ProviderReference(ctx, scope.TenantID, scope.CallerID, asset)
 }
 
 func (s *Service) List(ctx context.Context, scope Scope, projectID, canvasID, canvasnodeID string) ([]TaskRun, error) {
@@ -1524,10 +1524,10 @@ func sameWorkspace(left, right *string) bool {
 }
 
 func canvasnodeVideoProviderIdentity(run domaintask.TaskRun, detail domainvideo.Generation) CanvasNodeVideoProviderIdentity {
-	return CanvasNodeVideoProviderIdentity{TenantID: run.TenantID, CallerID: run.CreatedBy, WorkspaceID: detail.AIGWTraceWorkspaceID, ProjectID: detail.ProjectID, ModelID: detail.ModelServiceID}
+	return CanvasNodeVideoProviderIdentity{TenantID: run.TenantID, CallerID: run.CreatedBy, WorkspaceID: detail.ProviderWorkspaceID, ProjectID: detail.ProjectID, ModelID: detail.ModelServiceID}
 }
 
-func aigwTaskWorkspaceID(scope Scope) string {
+func providerWorkspaceID(scope Scope) string {
 	if scope.WorkspaceID != nil {
 		if workspaceID := strings.TrimSpace(*scope.WorkspaceID); workspaceID != "" {
 			return workspaceID

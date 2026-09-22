@@ -75,7 +75,7 @@ export function Modal({
       }}
     >
       <DialogContent
-        className={`agentframe-web-theme canvas-modal flex w-[520px] max-h-[90dvh] flex-col gap-0 p-0 sm:max-w-none ${className ?? ""} ${wrapClassName ?? ""}`}
+        className={`canvas-web-theme canvas-modal flex w-[520px] max-h-[90dvh] flex-col gap-0 p-0 sm:max-w-none ${className ?? ""} ${wrapClassName ?? ""}`}
         style={{ ...(width === undefined ? {} : { width }), maxWidth: "92vw", ...wrapStyle, ...style }}
         showCloseButton={closable}
         onOpenAutoFocus={(event) => {
@@ -222,7 +222,7 @@ export function Drawer({
       }}
     >
       <SheetContent
-        className={`agentframe-web-theme flex flex-col ${className ?? ""} ${wrapClassName ?? ""}`}
+        className={`canvas-web-theme flex flex-col ${className ?? ""} ${wrapClassName ?? ""}`}
         style={{ width, maxWidth: "95vw" }}
       >
         <SheetHeader>

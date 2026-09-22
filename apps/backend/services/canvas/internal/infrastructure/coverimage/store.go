@@ -18,7 +18,7 @@ import (
 
 const (
 	maximumCoverImageBytes int64 = 2 << 20
-	stagingNamespace             = "agentframe:blob-staging"
+	stagingNamespace             = "canvas:blob-staging"
 )
 
 var blobIDPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)

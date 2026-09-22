@@ -1,4 +1,4 @@
-package aigw
+package provider
 
 import (
 	"regexp"

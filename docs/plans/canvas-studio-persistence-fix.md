@@ -7,7 +7,7 @@
 
 - Studio 图读取和资源列表可稳定复现 `PersistenceError` 500。
 - PostgreSQL 日志显示 `operator does not exist: character = uuid`。
-- 最终 `v1.0.0.sql` 中 `assets.id` 及其他 AgentFrame 业务 ID 均为 `character(36)`，只有 `asset_references.asset_id` 被错误定义为 `uuid`。
+- 最终 `v1.0.0.sql` 中 `assets.id` 及其他 Canvas 业务 ID 均为 `character(36)`，只有 `asset_references.asset_id` 被错误定义为 `uuid`。
 - 图读取、资源读取、节点素材关系和上传后的引用建立共用资产引用仓储，因此该 schema 错误会同时破坏多个产品链路。
 
 ## 决定

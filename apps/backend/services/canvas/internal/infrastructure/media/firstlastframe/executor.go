@@ -10,7 +10,7 @@ import (
 
 	firstlastframecontract "github.com/example/monorepo/canvas/internal/contract/firstlastframe"
 	"github.com/example/monorepo/canvas/internal/infrastructure/media/executiondiagnostic"
-	"github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
+	artifactnamespace "github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
 )
 
 const (
@@ -90,7 +90,7 @@ func (executor *Executor) Execute(ctx context.Context, taskRunID string) error {
 			FirstFrameSizeBytes: firstSize, LastFrameSizeBytes: lastSize,
 		}))
 	}
-	tempDir, err := os.MkdirTemp(executor.tempRoot, "agentframe-first-last-frame-")
+	tempDir, err := os.MkdirTemp(executor.tempRoot, "canvas-first-last-frame-")
 	if err != nil {
 		return executiondiagnostic.Wrap("prepare_workspace", fmt.Errorf("create first last frame temporary directory: %w", err))
 	}

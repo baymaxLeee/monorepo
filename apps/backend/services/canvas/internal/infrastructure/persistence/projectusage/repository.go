@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	callReviewReason     = "an AIGW call requires billing review"
+	callReviewReason     = "a provider call requires billing review"
 	currencyReviewReason = "project usage calls have inconsistent currencies"
 	claimScanPageSize    = 32
 )
@@ -38,7 +38,7 @@ func (repository *Repository) dbFor(ctx context.Context) *gorm.DB {
 	return persistencetransaction.DB(ctx, repository.db)
 }
 
-func (repository *Repository) CreateCall(ctx context.Context, call domain.AIGWCall) error {
+func (repository *Repository) CreateCall(ctx context.Context, call domain.ProviderCall) error {
 	if err := call.Validate(); err != nil || call.BillingStatus != domain.CallBillingPending ||
 		call.RequestStartedAt != nil || call.CaptureResult != nil || call.StateVersion != 1 {
 		return domain.ErrInvalidCall
@@ -61,7 +61,7 @@ func (repository *Repository) CreateCall(ctx context.Context, call domain.AIGWCa
 		}).Create(&row).Error; createErr != nil {
 			return translateCallWriteError(createErr)
 		}
-		var current aigwCallRow
+		var current providerCallRow
 		if loadErr := tx.Where("task_run_id = ? AND call_ordinal = ?", row.TaskRunID, row.CallOrdinal).First(&current).Error; loadErr != nil {
 			return loadErr
 		}
@@ -72,22 +72,22 @@ func (repository *Repository) CreateCall(ctx context.Context, call domain.AIGWCa
 	})
 }
 
-func (repository *Repository) GetCall(ctx context.Context, ref domain.CallRef) (domain.AIGWCall, error) {
+func (repository *Repository) GetCall(ctx context.Context, ref domain.CallRef) (domain.ProviderCall, error) {
 	id, err := persistenceid.Parse(ref.TaskRunID)
 	if err != nil || ref.CallOrdinal <= 0 {
-		return domain.AIGWCall{}, app.ErrCallNotFound
+		return domain.ProviderCall{}, app.ErrCallNotFound
 	}
-	var row aigwCallRow
+	var row providerCallRow
 	if err = repository.dbFor(ctx).Where("task_run_id = ? AND call_ordinal = ?", id, ref.CallOrdinal).First(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return domain.AIGWCall{}, app.ErrCallNotFound
+			return domain.ProviderCall{}, app.ErrCallNotFound
 		}
-		return domain.AIGWCall{}, err
+		return domain.ProviderCall{}, err
 	}
 	return callFromRow(row)
 }
 
-func (repository *Repository) UpdateCall(ctx context.Context, expected, updated domain.AIGWCall) (bool, error) {
+func (repository *Repository) UpdateCall(ctx context.Context, expected, updated domain.ProviderCall) (bool, error) {
 	if err := expected.ValidateTransition(updated); err != nil {
 		return false, err
 	}
@@ -114,7 +114,7 @@ func (repository *Repository) UpdateCall(ctx context.Context, expected, updated 
 	return repository.updateCall(db, expected, updated)
 }
 
-func (repository *Repository) updateCall(db *gorm.DB, expected, updated domain.AIGWCall) (bool, error) {
+func (repository *Repository) updateCall(db *gorm.DB, expected, updated domain.ProviderCall) (bool, error) {
 	id, err := persistenceid.Parse(expected.TaskRunID)
 	if err != nil {
 		return false, err
@@ -123,7 +123,7 @@ func (repository *Repository) updateCall(db *gorm.DB, expected, updated domain.A
 	if err != nil {
 		return false, err
 	}
-	result := db.Model(&aigwCallRow{}).Where(
+	result := db.Model(&providerCallRow{}).Where(
 		"task_run_id = ? AND call_ordinal = ? AND state_version = ?", id, expected.CallOrdinal, expected.StateVersion,
 	).Updates(map[string]any{
 		"request_started_at": row.RequestStartedAt, "request_id": row.RequestID,
@@ -154,11 +154,11 @@ func (repository *Repository) CloseTaskRun(ctx context.Context, input app.CloseI
 		if !terminalTaskStatus(state.Status) {
 			return app.ErrTaskRunNotTerminal
 		}
-		var callRows []aigwCallRow
+		var callRows []providerCallRow
 		if loadErr := tx.Where("task_run_id = ?", taskRunID).Order("call_ordinal ASC").Find(&callRows).Error; loadErr != nil {
 			return loadErr
 		}
-		calls := make([]domain.AIGWCall, 0, len(callRows))
+		calls := make([]domain.ProviderCall, 0, len(callRows))
 		for index := range callRows {
 			call, convertErr := callFromRow(callRows[index])
 			if convertErr != nil {
@@ -366,7 +366,7 @@ func (repository *Repository) claimRecord(ctx context.Context, candidate usageRe
 
 // BeginReconciliation durably accounts for a round before any QueryMoney call.
 // An expired lease can therefore be recovered without forgetting a round that
-// reached AIGW but crashed before the parent state was finished.
+// reached provider but crashed before the parent state was finished.
 func (repository *Repository) BeginReconciliation(
 	ctx context.Context,
 	expected domain.UsageRecord,
@@ -401,16 +401,16 @@ func (repository *Repository) BeginReconciliation(
 	return updated, true, nil
 }
 
-func (repository *Repository) ListCalls(ctx context.Context, taskRunID string) ([]domain.AIGWCall, error) {
+func (repository *Repository) ListCalls(ctx context.Context, taskRunID string) ([]domain.ProviderCall, error) {
 	id, err := persistenceid.Parse(taskRunID)
 	if err != nil {
 		return nil, err
 	}
-	var rows []aigwCallRow
+	var rows []providerCallRow
 	if err = repository.dbFor(ctx).Where("task_run_id = ?", id).Order("call_ordinal ASC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	calls := make([]domain.AIGWCall, 0, len(rows))
+	calls := make([]domain.ProviderCall, 0, len(rows))
 	for index := range rows {
 		call, convertErr := callFromRow(rows[index])
 		if convertErr != nil {
@@ -623,7 +623,7 @@ func taskRunConsumedAt(row taskRunStateRow) time.Time {
 	return consumedAt
 }
 
-func newUsageRecordRow(task taskRunStateRow, calls []domain.AIGWCall, now time.Time) (usageRecordRow, error) {
+func newUsageRecordRow(task taskRunStateRow, calls []domain.ProviderCall, now time.Time) (usageRecordRow, error) {
 	if len(calls) == 0 {
 		return usageRecordRow{}, domain.ErrInvalidRecord
 	}
@@ -689,7 +689,7 @@ func newUsageRecordRow(task taskRunStateRow, calls []domain.AIGWCall, now time.T
 	return row, nil
 }
 
-func aggregateFinalCalls(calls []domain.AIGWCall) (string, *string, error) {
+func aggregateFinalCalls(calls []domain.ProviderCall) (string, *string, error) {
 	amounts := make([]string, 0, len(calls))
 	currency := ""
 	for index := range calls {
@@ -716,16 +716,16 @@ func aggregateFinalCalls(calls []domain.AIGWCall) (string, *string, error) {
 	return total, &currency, nil
 }
 
-func callToRow(call domain.AIGWCall) (aigwCallRow, error) {
+func callToRow(call domain.ProviderCall) (providerCallRow, error) {
 	id, err := persistenceid.Parse(call.TaskRunID)
 	if err != nil {
-		return aigwCallRow{}, err
+		return providerCallRow{}, err
 	}
 	projectID, err := persistenceid.Parse(call.ProjectID)
 	if err != nil {
-		return aigwCallRow{}, err
+		return providerCallRow{}, err
 	}
-	return aigwCallRow{
+	return providerCallRow{
 		TaskRunID: id, CallOrdinal: call.CallOrdinal, CallType: call.CallType, ProjectID: projectID,
 		ModelID: call.ModelID, ModelName: call.ModelName, ModelSource: call.ModelSource,
 		RequestStartedAt: cloneTime(call.RequestStartedAt), RequestID: cloneString(call.RequestID),
@@ -736,8 +736,8 @@ func callToRow(call domain.AIGWCall) (aigwCallRow, error) {
 	}, nil
 }
 
-func callFromRow(row aigwCallRow) (domain.AIGWCall, error) {
-	call := domain.AIGWCall{
+func callFromRow(row providerCallRow) (domain.ProviderCall, error) {
+	call := domain.ProviderCall{
 		TaskRunID: row.TaskRunID.String(), CallOrdinal: row.CallOrdinal, CallType: row.CallType,
 		ProjectID: row.ProjectID.String(), ModelID: row.ModelID, ModelName: row.ModelName, ModelSource: row.ModelSource,
 		RequestStartedAt: cloneTime(row.RequestStartedAt), RequestID: cloneString(row.RequestID),
@@ -749,7 +749,7 @@ func callFromRow(row aigwCallRow) (domain.AIGWCall, error) {
 	return call, call.Validate()
 }
 
-func sameImmutableCallRow(left, right aigwCallRow) bool {
+func sameImmutableCallRow(left, right providerCallRow) bool {
 	return left.CallType == right.CallType && left.ProjectID == right.ProjectID &&
 		left.ModelID == right.ModelID && left.ModelName == right.ModelName && left.ModelSource == right.ModelSource
 }

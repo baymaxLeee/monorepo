@@ -2,7 +2,7 @@ package projectusage
 
 import (
 	"fmt"
-	"github.com/example/monorepo/canvas/internal/api/contracts/base"
+
 	"github.com/example/monorepo/canvas/internal/api/contracts/common"
 )
 
@@ -12,8 +12,6 @@ type DownloadProjectUsageXLSXRequest struct {
 	WorkspaceID *string `json:"WorkspaceID,omitempty"`
 	// ProjectID 是待导出用量的项目唯一标识。
 	ProjectID string `json:"ProjectID"`
-	// Top 由服务端使用可信 TOP 上下文覆盖，调用方无需填写。
-	Top *base.TopParam `json:"Top,omitempty"`
 }
 
 func NewDownloadProjectUsageXLSXRequest() *DownloadProjectUsageXLSXRequest {
@@ -36,21 +34,8 @@ func (p *DownloadProjectUsageXLSXRequest) GetProjectID() (v string) {
 	return p.ProjectID
 }
 
-var DownloadProjectUsageXLSXRequest_Top_DEFAULT *base.TopParam
-
-func (p *DownloadProjectUsageXLSXRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return DownloadProjectUsageXLSXRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
 func (p *DownloadProjectUsageXLSXRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *DownloadProjectUsageXLSXRequest) IsSetTop() bool {
-	return p.Top != nil
 }
 
 func (p *DownloadProjectUsageXLSXRequest) String() string {

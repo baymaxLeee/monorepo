@@ -8,8 +8,8 @@ import { AudioPlayer } from "@/components/audioPlayer/index";
 import { Markdown as MarkDown } from "@/components/compat";
 import { GenerationConfiguration } from "@/components/GenerationConfiguration/index";
 import { canvasnode } from "@/domain";
+import { resolveArtifactURL } from "@/utils/artifactURL";
 import t from "@/utils/i18n";
-import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
 
 import { useMaterialMatching } from "../../assetMatching/useMaterialMatching";
 import { generationConfigPatch, settingsFromDTO } from "../../domain/actions";
@@ -66,11 +66,11 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
   const { item: storedItem, onHistory, onPatch, previewURL, queryTree, selectAsset, thumbnailURL } = data;
   const item = useCanvasNodeSnapshot(data.nodePubSub, storedItem, isGenerationType(storedItem.Type));
   const persistedMediaURL =
-    resolveUpPreviewURL(item.SelectedOutputURL ?? "") || resolveUpPreviewURL(item.PreviewURL ?? "");
+    resolveArtifactURL(item.SelectedOutputURL ?? "") || resolveArtifactURL(item.PreviewURL ?? "");
   const mediaURL = isGenerationType(item.Type) ? persistedMediaURL || previewURL : previewURL || persistedMediaURL;
   const firstFrameURL = isGenerationType(item.Type)
-    ? resolveUpPreviewURL(item.FirstFrameURL ?? "") || thumbnailURL
-    : thumbnailURL || resolveUpPreviewURL(item.FirstFrameURL ?? "");
+    ? resolveArtifactURL(item.FirstFrameURL ?? "") || thumbnailURL
+    : thumbnailURL || resolveArtifactURL(item.FirstFrameURL ?? "");
   const isVideo =
     item.Type === canvasnode.CanvasNodeType.VIDEO_ASSET || item.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION;
   const isImage =

@@ -14,7 +14,7 @@ import (
 	applicationofficialasset "github.com/example/monorepo/canvas/internal/application/officialasset"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	domainofficialasset "github.com/example/monorepo/canvas/internal/domain/officialasset"
-	"github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
+	artifactnamespace "github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
 )
 
 // AssetBytesSource 按 slug + 扩展名返回官方预置素材的字节。默认实现从预置目录读文件。
@@ -23,7 +23,7 @@ type AssetBytesSource interface {
 	AssetBytes(slug, ext string) ([]byte, error)
 }
 
-// BlobUploader 把字节流上传为共享 Blob。对应 up.Store.UploadBlob。
+// BlobUploader 把字节流上传为共享 Blob。
 type BlobUploader interface {
 	UploadBlob(ctx context.Context, fileName, contentType string, reader io.Reader) (string, int64, error)
 }

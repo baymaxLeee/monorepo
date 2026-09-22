@@ -6,4 +6,4 @@
 - `src/store/mutations.ts` 串行处理手动写入。入队推进 epoch，整图刷新等待稳定队尾；旧读取不得覆盖新写入。服务端仍通过 revision 和 operation ID 处理跨窗口及 Agent 并发。
 - 切换节点或视图前完成编辑；失败保留草稿与当前编辑器。响应以服务端 revision 回填，不自行递增。
 - Chat 放在画布右侧可收起、可调宽面板，复用 `@repo/chat`；UIMessage、流恢复和工具审批由共享 Chat/AI SDK 管理，不复制到 Jotai。
-- 页面交互以源 AgentFrame 和用户截图为基线；仅替换基础组件不等于允许删减交互。功能迁移缺口见根目录 `docs/plans/canvas-migration.md`。
+- 页面交互以当前产品需求和用户验收截图为准；重构基础组件不得删减既有交互。

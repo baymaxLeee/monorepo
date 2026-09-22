@@ -1,4 +1,4 @@
-package aigw
+package provider
 
 import (
 	"bytes"
@@ -17,7 +17,7 @@ import (
 	applicationcanvasnode "github.com/example/monorepo/canvas/internal/application/canvas"
 	applicationmodel "github.com/example/monorepo/canvas/internal/application/model"
 	"github.com/example/monorepo/canvas/internal/infrastructure/observability/logcontext"
-	platformaigwproxy "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
+	providerclient "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
 )
 
 const (
@@ -33,7 +33,7 @@ const (
 )
 
 type StoryboardSplitter struct {
-	client            platformaigwproxy.Client
+	client            providerclient.Client
 	log               *zap.Logger
 	workerConcurrency int
 }
@@ -324,7 +324,7 @@ func newStoryboardTruncatedModelError(format string, args ...any) error {
 	return &storyboardModelError{message: fmt.Sprintf(format, args...)}
 }
 
-func NewStoryboardSplitter(client platformaigwproxy.Client, log *zap.Logger) applicationcanvasnode.StoryboardSplitter {
+func NewStoryboardSplitter(client providerclient.Client, log *zap.Logger) applicationcanvasnode.StoryboardSplitter {
 	if log == nil {
 		log = zap.NewNop()
 	}
@@ -387,9 +387,9 @@ func (s *StoryboardSplitter) executeStoryboardRequest(
 		return storyboardStreamOutcome{}, fmt.Errorf("begin storyboard model turn %d: %w", ordinal, err)
 	}
 	stream, err := s.client.CreateResponsesStream(ctx, request)
-	call.RequestAttempted = platformaigwproxy.RequestAttempted(err)
+	call.RequestAttempted = providerclient.RequestAttempted(err)
 	if stream != nil {
-		call.RequestID = platformaigwproxy.AIGWRequestID(stream.Header())
+		call.RequestID = providerclient.ProviderRequestID(stream.Header())
 	}
 	if captureErr := modelCalls.Capture(context.WithoutCancel(ctx), call); captureErr != nil {
 		if stream != nil {
@@ -571,7 +571,7 @@ func storyboardDiagnosticMessage(rule string) string {
 	}
 }
 
-func closeResponseStream(stream platformaigwproxy.ResponsesStream) {
+func closeResponseStream(stream providerclient.ResponsesStream) {
 	if err := stream.Close(); err != nil {
 		// A response-body cleanup failure cannot invalidate an already consumed
 		// terminal event or emitted result.
@@ -595,7 +595,7 @@ func storyboardValidationRule(reason string) string {
 }
 
 func consumeStoryboardResponseStream(
-	stream platformaigwproxy.ResponsesStream,
+	stream providerclient.ResponsesStream,
 	consume storyboardCanvasNodeConsumer,
 ) (storyboardStreamOutcome, error) {
 	if stream == nil || consume == nil {
@@ -684,7 +684,7 @@ func consumeStoryboardResponseStream(
 			if call.argumentsComplete {
 				return outcome, nil
 			}
-			// AIGW can emit arguments.done immediately before an outer
+			// provider can emit arguments.done immediately before an outer
 			// response.incomplete event when the model exhausts its output-token
 			// budget. Keep reading so the terminal reason is not misclassified as
 			// an invalid initial storyboard count.

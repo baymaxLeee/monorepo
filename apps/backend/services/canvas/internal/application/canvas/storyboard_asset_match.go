@@ -151,7 +151,7 @@ func modelAssetLimit(capabilities applicationmodel.VideoCapabilities, mediaType 
 }
 
 func modelReferenceLimit(maximum *int) int {
-	// AIGW's absent maximum means no declared count bound, matching generation
+	// provider's absent maximum means no declared count bound, matching generation
 	// admission. MaxInt bridges that optional capability to the matching budget;
 	// it is not a product limit. Explicit zero still disables the media type.
 	if maximum == nil {

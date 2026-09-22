@@ -1,7 +1,7 @@
-// Package aigwproxy binds the mature generation adapters to the monorepo
-// Admin-owned provider catalog. Provider IDs remain the application contract;
-// the real model, endpoint and secret are resolved only at the outbound edge.
-package aigwproxy
+// Package providerclient resolves Admin-owned custom providers and calls their
+// Ark-compatible endpoints directly. Provider IDs remain the application
+// contract; model names, endpoints and secrets stay at the outbound edge.
+package providerclient
 
 import (
 	"context"
@@ -29,14 +29,12 @@ type ContentGenerationTaskResponse struct {
 }
 
 type Client interface {
-	CreateChatCompletion(context.Context, arkmodel.ChatRequest) (arkmodel.ChatCompletionResponse, error)
 	CreateResponses(context.Context, *responses.ResponsesRequest) (*responses.ResponseObject, error)
 	CreateResponsesStream(context.Context, *responses.ResponsesRequest) (ResponsesStream, error)
 	GenerateImages(context.Context, arkmodel.GenerateImagesRequest) (arkmodel.ImagesResponse, error)
 	CreateContentGenerationTask(context.Context, arkmodel.CreateContentGenerationTaskRequest) (arkmodel.CreateContentGenerationTaskResponse, error)
 	GetContentGenerationTask(context.Context, arkmodel.GetContentGenerationTaskRequest) (ContentGenerationTaskResponse, error)
 	DeleteContentGenerationTask(context.Context, arkmodel.DeleteContentGenerationTaskRequest) error
-	ListContentGenerationTasks(context.Context, arkmodel.ListContentGenerationTasksRequest) (arkmodel.ListContentGenerationTasksResponse, error)
 }
 
 type client struct{ providers *admin.Directory }
@@ -75,7 +73,7 @@ func RequestAttempted(err error) bool {
 	return !errors.As(err, &resolution)
 }
 
-func (c *client) runtime(ctx context.Context, providerID string) (*arkruntime.Client, string, error) {
+func (c *client) runtime(ctx context.Context, providerID, expectedKind string, taskCredentials bool) (*arkruntime.Client, string, error) {
 	identity, _ := ctx.Value(identityKey{}).(identity)
 	if providerID == "" {
 		providerID = identity.providerID
@@ -83,40 +81,44 @@ func (c *client) runtime(ctx context.Context, providerID string) (*arkruntime.Cl
 	if c == nil || c.providers == nil || identity.tenantID == "" || identity.workspaceID == "" || providerID == "" {
 		return nil, "", &resolutionError{message: "generation provider identity is incomplete"}
 	}
-	provider, err := c.providers.Get(ctx, identity.tenantID, identity.workspaceID, providerID)
+	var provider admin.Provider
+	var err error
+	if taskCredentials {
+		provider, err = c.providers.GetTaskCredentials(ctx, identity.tenantID, identity.workspaceID, providerID)
+	} else {
+		provider, err = c.providers.Get(ctx, identity.tenantID, identity.workspaceID, providerID)
+	}
 	if err != nil {
 		return nil, "", &resolutionError{message: "resolve generation provider: " + err.Error()}
 	}
-	if !provider.IsEnabled || provider.BaseURL == "" || provider.APIKey == "" || provider.Model == "" {
+	if provider.ProviderKind != expectedKind {
+		return nil, "", &resolutionError{message: "generation provider kind " + provider.ProviderKind + " does not match " + expectedKind}
+	}
+	if (!taskCredentials && !provider.IsEnabled) || provider.BaseURL == "" || provider.APIKey == "" || provider.Model == "" {
 		return nil, "", &resolutionError{message: "generation provider is disabled or incomplete"}
 	}
-	return arkruntime.NewClientWithApiKey(provider.APIKey, arkruntime.WithBaseUrl(provider.BaseURL), arkruntime.WithRetryTimes(0)), provider.Model, nil
+	return arkruntime.NewClientWithApiKey(provider.APIKey, arkruntime.WithBaseUrl(arkAPIRoot(provider.BaseURL)), arkruntime.WithRetryTimes(0)), provider.Model, nil
 }
 
-func (c *client) CreateChatCompletion(ctx context.Context, request arkmodel.ChatRequest) (arkmodel.ChatCompletionResponse, error) {
-	runtime, model, err := c.runtime(ctx, request.GetModel())
-	if err != nil {
-		return arkmodel.ChatCompletionResponse{}, err
+// arkAPIRoot mirrors Admin's provider connectivity test and Executor's Ark
+// adapter. Admin accepts both an API root and a concrete resource URL; the SDK
+// always appends its own resource path, so retaining the suffix would produce
+// paths such as /images/generations/images/generations.
+func arkAPIRoot(baseURL string) string {
+	root := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	for _, suffix := range []string{"/contents/generations/tasks", "/images/generations", "/responses"} {
+		if strings.HasSuffix(root, suffix) {
+			return strings.TrimRight(strings.TrimSuffix(root, suffix), "/")
+		}
 	}
-	switch typed := request.(type) {
-	case arkmodel.ChatCompletionRequest:
-		typed.Model, request = model, typed
-	case *arkmodel.ChatCompletionRequest:
-		typed.Model = model
-	case arkmodel.CreateChatCompletionRequest:
-		typed.Model, request = model, typed
-	case *arkmodel.CreateChatCompletionRequest:
-		typed.Model = model
-	default:
-		return arkmodel.ChatCompletionResponse{}, &resolutionError{message: "unsupported chat request type"}
-	}
-	return runtime.CreateChatCompletion(ctx, request)
+	return root
 }
+
 func (c *client) CreateResponses(ctx context.Context, request *responses.ResponsesRequest) (*responses.ResponseObject, error) {
 	if request == nil {
 		return nil, &resolutionError{message: "responses request is nil"}
 	}
-	runtime, model, err := c.runtime(ctx, request.Model)
+	runtime, model, err := c.runtime(ctx, request.Model, "chat", false)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +129,7 @@ func (c *client) CreateResponsesStream(ctx context.Context, request *responses.R
 	if request == nil {
 		return nil, &resolutionError{message: "responses request is nil"}
 	}
-	runtime, model, err := c.runtime(ctx, request.Model)
+	runtime, model, err := c.runtime(ctx, request.Model, "chat", false)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +137,7 @@ func (c *client) CreateResponsesStream(ctx context.Context, request *responses.R
 	return runtime.CreateResponsesStream(ctx, request)
 }
 func (c *client) GenerateImages(ctx context.Context, request arkmodel.GenerateImagesRequest) (arkmodel.ImagesResponse, error) {
-	runtime, model, err := c.runtime(ctx, request.Model)
+	runtime, model, err := c.runtime(ctx, request.Model, "image", false)
 	if err != nil {
 		return arkmodel.ImagesResponse{}, err
 	}
@@ -143,7 +145,7 @@ func (c *client) GenerateImages(ctx context.Context, request arkmodel.GenerateIm
 	return runtime.GenerateImages(ctx, request)
 }
 func (c *client) CreateContentGenerationTask(ctx context.Context, request arkmodel.CreateContentGenerationTaskRequest) (arkmodel.CreateContentGenerationTaskResponse, error) {
-	runtime, model, err := c.runtime(ctx, request.Model)
+	runtime, model, err := c.runtime(ctx, request.Model, "video", false)
 	if err != nil {
 		return arkmodel.CreateContentGenerationTaskResponse{}, err
 	}
@@ -151,7 +153,7 @@ func (c *client) CreateContentGenerationTask(ctx context.Context, request arkmod
 	return runtime.CreateContentGenerationTask(ctx, request)
 }
 func (c *client) GetContentGenerationTask(ctx context.Context, request arkmodel.GetContentGenerationTaskRequest) (ContentGenerationTaskResponse, error) {
-	runtime, _, err := c.runtime(ctx, "")
+	runtime, _, err := c.runtime(ctx, "", "video", true)
 	if err != nil {
 		return ContentGenerationTaskResponse{}, err
 	}
@@ -159,25 +161,11 @@ func (c *client) GetContentGenerationTask(ctx context.Context, request arkmodel.
 	return ContentGenerationTaskResponse{GetContentGenerationTaskResponse: response}, err
 }
 func (c *client) DeleteContentGenerationTask(ctx context.Context, request arkmodel.DeleteContentGenerationTaskRequest) error {
-	runtime, _, err := c.runtime(ctx, "")
+	runtime, _, err := c.runtime(ctx, "", "video", true)
 	if err != nil {
 		return err
 	}
 	return runtime.DeleteContentGenerationTask(ctx, request)
-}
-func (c *client) ListContentGenerationTasks(ctx context.Context, request arkmodel.ListContentGenerationTasksRequest) (arkmodel.ListContentGenerationTasksResponse, error) {
-	providerID := ""
-	if request.Filter != nil && request.Filter.Model != nil {
-		providerID = *request.Filter.Model
-	}
-	runtime, model, err := c.runtime(ctx, providerID)
-	if err != nil {
-		return arkmodel.ListContentGenerationTasksResponse{}, err
-	}
-	if request.Filter != nil && request.Filter.Model != nil {
-		request.Filter.Model = &model
-	}
-	return runtime.ListContentGenerationTasks(ctx, request)
 }
 
 var _ ResponsesStream = (*utils.ResponsesStreamReader)(nil)

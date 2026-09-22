@@ -1,23 +1,19 @@
-package topcontext
+package requestcontext
 
 import "context"
 
 type contextKey struct{}
 
-// Metadata contains the authenticated request metadata forwarded by IAM/TOP.
+// Metadata contains trusted request metadata forwarded by Gateway.
 type Metadata struct {
-	RequestID      string
-	TenantID       string
-	UserID         string
-	WorkspaceID    string
-	Region         string
-	Service        string
-	Action         string
-	Version        string
-	RealIP         string
-	IdentityType   string
-	AcceptLanguage string
-	Filter         string
+	RequestID    string
+	TenantID     string
+	UserID       string
+	WorkspaceID  string
+	Service      string
+	Action       string
+	Version      string
+	IdentityType string
 }
 
 func WithMetadata(ctx context.Context, metadata Metadata) context.Context {
@@ -48,10 +44,6 @@ func WorkspaceIDFromContext(ctx context.Context) (string, bool) {
 	return valueFromContext(ctx, func(metadata Metadata) string { return metadata.WorkspaceID })
 }
 
-func RegionFromContext(ctx context.Context) (string, bool) {
-	return valueFromContext(ctx, func(metadata Metadata) string { return metadata.Region })
-}
-
 func ServiceFromContext(ctx context.Context) (string, bool) {
 	return valueFromContext(ctx, func(metadata Metadata) string { return metadata.Service })
 }
@@ -64,20 +56,8 @@ func VersionFromContext(ctx context.Context) (string, bool) {
 	return valueFromContext(ctx, func(metadata Metadata) string { return metadata.Version })
 }
 
-func RealIPFromContext(ctx context.Context) (string, bool) {
-	return valueFromContext(ctx, func(metadata Metadata) string { return metadata.RealIP })
-}
-
 func IdentityTypeFromContext(ctx context.Context) (string, bool) {
 	return valueFromContext(ctx, func(metadata Metadata) string { return metadata.IdentityType })
-}
-
-func AcceptLanguageFromContext(ctx context.Context) (string, bool) {
-	return valueFromContext(ctx, func(metadata Metadata) string { return metadata.AcceptLanguage })
-}
-
-func FilterFromContext(ctx context.Context) (string, bool) {
-	return valueFromContext(ctx, func(metadata Metadata) string { return metadata.Filter })
 }
 
 func valueFromContext(ctx context.Context, selectValue func(Metadata) string) (string, bool) {
